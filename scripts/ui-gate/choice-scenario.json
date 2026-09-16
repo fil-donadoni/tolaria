@@ -1,0 +1,69 @@
+{
+    "label": "UI choice — a card pick over the board, seven candidates",
+    "prompt": "ui-gate `game-choice-prompt` surface (scripts/ui-gate/surfaces.ts, issue #3708, ADR 0132 §4). Thoughtseize on the stack, targeting the other seat, with ONE pass already banked (CR 117.4) so a single pass resolves it and raises the resolution choice (CR 608.2). The pick is from the OTHER seat's hand, which is what opens the modal card grid rather than the in-hand toggle an own-hand pick uses: seven candidates, five of them eligible under the card's `excludeType: \"Land\"` filter, so the grid has a real list to scroll at phone width. `activePlayer`/`priority` both on \"me\" (ADR 0132 §4) — the spell is the human seat's and the choice is owed to the human seat. Seed with: bunx convex run debugScenarios:seedScenarioDirect \"$(cat scripts/ui-gate/choice-scenario.json)\". Deployment-local by design (ADR 0044) — the lane seeds it at bootstrap.",
+    "spec": {
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 4,
+        "activePlayer": "me",
+        "priority": "me",
+        "passCount": 1,
+        "libraryCount": 20,
+        "cards": [
+            {
+                "name": "Swamp",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 3
+            },
+            {
+                "name": "Forest",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 3
+            },
+            {
+                "name": "Lightning Bolt",
+                "owner": "opp",
+                "zone": "hand"
+            },
+            {
+                "name": "Giant Growth",
+                "owner": "opp",
+                "zone": "hand"
+            },
+            {
+                "name": "Counterspell",
+                "owner": "opp",
+                "zone": "hand"
+            },
+            {
+                "name": "Dark Ritual",
+                "owner": "opp",
+                "zone": "hand"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp",
+                "zone": "hand"
+            },
+            {
+                "name": "Forest",
+                "owner": "opp",
+                "zone": "hand"
+            },
+            {
+                "name": "Island",
+                "owner": "opp",
+                "zone": "hand"
+            }
+        ],
+        "stack": [
+            {
+                "kind": "spell",
+                "name": "Thoughtseize",
+                "controller": "me",
+                "targets": [{ "kind": "player", "seat": "opp" }]
+            }
+        ]
+    }
+}

@@ -59,6 +59,18 @@ export interface WalkContext {
      *  positions: the screen a player sees most of a game, and the worst one
      *  the layout has to survive. */
     boardScenarioLabel: string;
+    /** The debug-scenario label the `game-combat` surface loads
+     *  (`combat-scenario.json`, issue #3708) — the BLOCK WINDOW: a confirmed
+     *  attack (CR 508.1) with the block declaration owed to the human seat
+     *  (CR 509.1). The one declared position whose `activePlayer` is `"opp"`,
+     *  because the block is owed to the DEFENDING player and an attack by the
+     *  human seat would put the opponent's half of combat on screen. */
+    combatScenarioLabel: string;
+    /** The debug-scenario label the `game-choice-prompt` surface loads
+     *  (`choice-scenario.json`, issue #3708) — a spell on the stack with ONE
+     *  pass already banked (CR 117.4), so the walk's single pass resolves it
+     *  into a mid-resolution card choice (CR 608.2) over the board. */
+    choiceScenarioLabel: string;
     /** Set once the lane has created the active game itself. */
     createdGame: boolean;
     /** Issue #2671 review H2. The `deck-builder` walk's fixture import trips
@@ -1102,6 +1114,33 @@ const DEBUG_SHEET = "[data-debug-sheet]";
 /** A stack row's per-ability **Yield** toggle (`stack-yield-toggle.tsx`), the
  *  stack panel's "Manage yields" control and one row of the box it opens
  *  (issue #3629). */
+/** The block declaration's own call to action (issue #3708). With nothing
+ *  selected the command slot reads exactly `No Blockers`
+ *  (`useControllerActions`), which is what makes this addressable without
+ *  selecting anything: the walk MEASURES the block window, it does not play it.
+ *
+ *  `:has-text()` rather than `:text-is()`, and the asymmetry is the same one
+ *  `CONFIRM_CONCEDE` carries: the desktop pod renders this descriptor through
+ *  `ActionButton`, which wraps its label in a `<span>`, so `:text-is()` would
+ *  match the span and never the button. The substring is safe here — the phase
+ *  bar's own stop reads `Declare Blockers`, which does not contain it. */
+const BLOCK_DECLARATION_CTA = 'button:has-text("No Blockers")';
+/** The priority pass, in the same command slot. `:text-is()` is wrong for the
+ *  same reason as above, and a bare `:has-text("Pass")` would also match the
+ *  `Pass Turn` side pill — which ends the TURN, not the priority round, and
+ *  would walk straight past the resolution this surface exists to reach. The
+ *  accessible name is the whole label, so role+name is exact at every
+ *  viewport. */
+const PASS_PRIORITY_CTA =
+    'button:text-is("Pass"), button:has(> span:text-is("Pass"))';
+/** The modal card picker a mid-resolution choice opens (`CardsPile` inside a
+ *  `GameDialog`, issue #3708). The column is the dialog's own scroll port; the
+ *  tiles are the candidates, each carrying its instance id. */
+const CHOICE_PICKER = '[data-slot="game-dialog-column"]';
+const CHOICE_PICKER_CARD = `${CHOICE_PICKER} [data-flight-id]`;
+/** `LibrarySearchConfirm`'s plate reads `Done (0/1)` while nothing is picked,
+ *  so the label is not a constant — anchored on its stable head. */
+const CHOICE_PICKER_CONFIRM = `${CHOICE_PICKER} button:has-text("Done")`;
 const STACK_YIELD_TOGGLE = "[data-stack-yield-toggle]";
 const MANAGE_YIELDS_CTA = '[data-manage-yields="panel"]';
 const MANAGE_YIELDS_ROW = "[data-manage-yields-row]";
@@ -2952,6 +2991,106 @@ export const SURFACES: readonly Surface[] = [
             throw new Error(
                 `could not end the solo game this lane created — \`game-debug-sheet-ai\` will read as unreachable for the rest of this run [${trace.join("; ")}]`
             );
+        },
+    },
+    {
+        // Issue #3708 — the COMBAT DECLARATION screen. Its own row because it
+        // is a different SCREEN from `game-board`: a dense control cluster the
+        // ordinary board never mounts (the block CTA in the command slot, the
+        // attack badges, the arrows between the two battlefields), and the one
+        // screen whose controls a phone has to fit UNDER an attacked board.
+        //
+        // Its position is the only declared one whose `activePlayer` is
+        // `"opp"`, and that is load-bearing rather than a slip: the block is a
+        // turn-based action owed to the DEFENDING player (CR 509.1a), so a
+        // combat the human seat is attacking in would render the opponent's
+        // half and measure controls the viewer cannot act on. `priority` stays
+        // on the human seat and `computeSoloViewerId` steers to the defender
+        // through this whole window, so nothing here depends on the coin toss
+        // — which is the property ADR 0132 §4 is actually about, and what
+        // `ui-gate-game-scenarios.test.ts` now checks directly by rebuilding
+        // each position and asking the engine WHO it owes its input to.
+        //
+        // The walk does not declare a block. It measures the window; playing
+        // it would end the window and leave the next viewport a different
+        // board.
+        id: "game-combat",
+        needsGame: true,
+        settleTargets: [BLOCK_DECLARATION_CTA],
+        entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
+        label: "Combat — block declaration owed",
+        async walk(page, ctx) {
+            await ensureScenarioBoard(page, ctx, ctx.combatScenarioLabel);
+            if (!(await visible(page, BLOCK_DECLARATION_CTA, STEP_TIMEOUT))) {
+                throw new Unreachable(
+                    `the combat position loaded but no block-declaration control rendered — the position declares three confirmed attackers with the block owed to the human seat (CR 509.1), so either the viewing seat is not the defender or the command slot is off-screen at this viewport (${await topmostAt(page, "[data-controller-command-row], [data-controller-pod], [data-controller-landscape-strip]")})`
+                );
+            }
+            await settle(page, [BLOCK_DECLARATION_CTA]);
+        },
+    },
+    {
+        // Issue #3708 — a mid-resolution CARD CHOICE over the board (CR
+        // 608.2). Its own row for the reason `game-card-preview` is one: it is
+        // a modal with its own scroll port and its own confirm plate, mounted
+        // over a board that keeps rendering underneath, and none of that
+        // exists on any other row.
+        //
+        // The pick is from the OTHER seat's hand on purpose. An own-hand pick
+        // toggles the cards in the hand fan — a screen `game-board` already
+        // measures — while a pick from someone else's hand opens the modal
+        // grid (`HandCardPick`), which is the list this row exists to measure.
+        // Seven candidates, five of them eligible under the spell's own
+        // filter, so the grid has something to scroll at phone width.
+        id: "game-choice-prompt",
+        needsGame: true,
+        settleTargets: [CHOICE_PICKER],
+        entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
+        label: "Card-choice prompt — modal picker over the board",
+        async walk(page, ctx) {
+            await ensureScenarioBoard(page, ctx, ctx.choiceScenarioLabel);
+            // ONE pass resolves the spell: the position banks the other one
+            // (CR 117.4, `passCount: 1`), which is what keeps this walk a
+            // single click instead of a solo-mode round of two.
+            if (
+                !(await clickIfVisible(page, PASS_PRIORITY_CTA, STEP_TIMEOUT))
+            ) {
+                throw new Unreachable(
+                    "the choice position loaded but offered the human seat no Pass control — the spell on the stack resolves on one pass, so without it this surface cannot reach its prompt"
+                );
+            }
+            if (!(await visible(page, CHOICE_PICKER, STEP_TIMEOUT))) {
+                throw new Unreachable(
+                    "passing resolved the spell but no modal picker opened — a `choose-hand-card` choice over ANOTHER seat's hand is what mounts `HandCardPick`; an own-hand pick would toggle in the hand fan instead and this row would be measuring the board again"
+                );
+            }
+            const candidates = await page.locator(CHOICE_PICKER_CARD).count();
+            if (candidates < 5) {
+                throw new Unreachable(
+                    `the picker opened with ${candidates} candidate(s) — this row exists to measure a list that has to scroll at phone width, and the position declares seven`
+                );
+            }
+            await settle(page, [CHOICE_PICKER]);
+        },
+        // ANSWER the choice. A pending choice is not scenery: the modal is
+        // `forceOpen`, so it paints over the debug sheet's edge toggle, and the
+        // next row's `ensureScenarioBoard` could not open the sheet to load its
+        // own position. Loading a scenario clears mid-flight decisions
+        // (`buildStateFromScenario`, issue #3515) — but only once it can be
+        // reached, which is exactly what this undoes.
+        async cleanup(page) {
+            try {
+                await page.locator(CHOICE_PICKER_CARD).first().click({
+                    timeout: STEP_TIMEOUT,
+                });
+                await clickIfVisible(page, CHOICE_PICKER_CONFIRM);
+            } catch {
+                // Cleanup is hygiene (`index.ts`'s `measure()` swallows a
+                // failure here) — but a picker left standing is what the NEXT
+                // row reports, so the attempt is worth making loudly enough to
+                // show up in that row's own Unreachable reason.
+            }
+            await settle(page);
         },
     },
     {

@@ -110,6 +110,8 @@ const SCENARIO_FILES = [
     "yields-scenario.json",
     "ai-trace-scenario.json",
     "board-scenario.json",
+    "combat-scenario.json",
+    "choice-scenario.json",
 ] as const;
 
 export interface ScenarioSeed {

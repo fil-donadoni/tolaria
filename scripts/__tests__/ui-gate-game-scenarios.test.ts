@@ -4,26 +4,41 @@
 // `ui-gate-stress-scenario.test.ts` next door holds ONE payload to the shape
 // the surface it serves exists to measure — a crowded board, deep piles, a
 // full hand. This file holds every payload to the property §4 actually is:
-// the position is DECLARED. The turn holder and the priority holder are
-// written down, and they are the HUMAN seat — so nothing the probe measures
-// depends on who won the coin toss, and in the one vs-AI surface the Bot is
-// never owed an input while the five viewports are walked.
+// the position is DECLARED, and the decision it poses is posed to the HUMAN
+// seat. Both halves are checked, and the second is checked through the ENGINE
+// rather than through a spec field, because a spec field is only a proxy for
+// it — and issue #3708 is where the proxy broke: `game-combat` has to declare
+// `activePlayer: "opp"`, since a block is a turn-based action owed to the
+// DEFENDING player (CR 509.1a) and a combat the human seat attacks in would
+// put the opponent's half of combat on screen. Asserting `"me"` on that field
+// would have refused the one position that needs the other value while still
+// proving nothing about the five that do not.
 //
-// Why that last claim follows from a spec field: `buildStateFromScenario`
+// So: `activePlayer` and `priority` must both be WRITTEN DOWN (neither may be
+// inherited — priority defaults to the active player and the active player to
+// the base state's turn holder, i.e. the coin toss's), and the rebuilt
+// position must owe its input to seat one. `buildStateFromScenario`
 // (`convex/gre/scenarioBuilder.ts`) maps `"me"` to the first seat and `"opp"`
 // to the second, and the second is the Bot's (`-p2`, ADR 0001,
 // `bladeLoadBotSeatId`). `useVsAiDriver` acts only when the ENGINE says the
-// bot owes input; with both fields on `"me"` it never does, so the ring the
-// `game-debug-sheet-ai` surface measures is written by the seam alone
-// (`src/components/debug/__tests__/ai-trace-seam.bot.test.tsx`).
+// bot owes input — which is exactly what `computeExpectedInput` answers below
+// — so the ring the `game-debug-sheet-ai` surface measures is written by the
+// seam alone (`src/components/debug/__tests__/ai-trace-seam.bot.test.tsx`).
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { tryGetCardByName } from "../../convex/cards";
+import { getCardByName, tryGetCardByName } from "../../convex/cards";
 import {
     scenarioCardValidator,
     scenarioSpecValidator,
+    type ScenarioSpec,
 } from "../../convex/debugScenarioSpec";
+import { computeExpectedInput } from "../../convex/gre/expectedInput";
+import { buildStateFromScenario } from "../../convex/gre/scenarioBuilder";
+import {
+    createInitialGameState,
+    type PlayerInput,
+} from "../../convex/gre/setup";
 import { laneScenarioSeeds, type ScenarioSeed } from "../ui-gate/lane-account";
 
 const ROOT = resolve(__dirname, "../..");
@@ -42,9 +57,32 @@ type Spec = {
 
 const specOf = (seed: ScenarioSeed) => seed.spec as Spec;
 
+/** A two-seat game to rebuild a position onto — the same shape
+ *  `debugSetupScenario` hands the builder, minus the deployment. Seat one is
+ *  `"me"` and seat two `"opp"`, which is the mapping every assertion below
+ *  reads. */
+function baseState() {
+    const filler = getCardByName("Forest");
+    const seat = (id: string): PlayerInput => ({
+        id,
+        name: id,
+        bgColor: "#000000",
+        deck: {
+            id: `deck-${id}`,
+            name: "ui-gate",
+            format: "freeform",
+            cards: Array.from({ length: 60 }, () => ({
+                cardId: filler.id,
+                cardName: filler.name,
+            })),
+        },
+    });
+    return createInitialGameState([seat("p1"), seat("p2")], 0x3708);
+}
+
 describe("check:ui declared positions (ADR 0132 §4)", () => {
     it("seeds one payload per game surface that loads a position", () => {
-        // Four today. The count is asserted so that ADDING a payload without
+        // Six today. The count is asserted so that ADDING a payload without
         // a surface, or a surface without a payload, is a decision somebody
         // makes on purpose rather than a diff nobody reads.
         expect(seeds.map((s) => s.label)).toEqual([
@@ -52,19 +90,39 @@ describe("check:ui declared positions (ADR 0132 §4)", () => {
             "UI yields — two spells on the stack",
             "UI AI trace — quiet board, priority on the human seat",
             "UI board — ordinary mid-game position",
+            "UI combat — blocks owed on a confirmed attack",
+            "UI choice — a card pick over the board, seven candidates",
         ]);
     });
 
     it.each(seeds.map((s) => [s.label, s] as const))(
-        "%s declares the turn holder and priority on the human seat",
+        "%s writes down BOTH the turn holder and the priority holder",
         (_label, seed) => {
             const spec = specOf(seed);
             // BOTH, not just `priority`: priority defaults to the ACTIVE
             // player, and the active player defaults to the base state's turn
             // holder — which is the dealt game's, i.e. the coin toss's. A spec
             // naming only one of the two still inherits the other.
-            expect(spec.activePlayer).toBe("me");
-            expect(spec.priority).toBe("me");
+            expect(spec.activePlayer).toBeDefined();
+            expect(spec.priority).toBeDefined();
+        }
+    );
+
+    it.each(seeds.map((s) => [s.label, s] as const))(
+        "%s poses its decision to the HUMAN seat",
+        (_label, seed) => {
+            // The property the two fields above are only a proxy for, asked of
+            // the engine itself: rebuild the position and read who it owes its
+            // input to. A walk measures controls the VIEWER can act on, and in
+            // the vs-AI surface a position owing the Bot an input would have it
+            // moving under the probe.
+            const state = buildStateFromScenario(
+                baseState(),
+                seed.spec as ScenarioSpec
+            );
+            const expected = computeExpectedInput(state);
+            expect(expected).toBeDefined();
+            expect(expected?.playerId).toBe(state.players[0].id);
         }
     );
 
