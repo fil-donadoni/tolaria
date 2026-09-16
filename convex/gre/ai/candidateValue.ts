@@ -23,6 +23,7 @@ import { getOpponentId, getPlayer } from "../state";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
 import { tryGetDefinition } from "../../cards";
 import {
+    carriesSpellOrAbilityScript,
     dslLatentAbilityScriptOpValue,
     dslSpellScriptOpValue,
 } from "./cardScriptValue";
@@ -125,14 +126,31 @@ export function scriptOpValueOf(
  *  to the same worth as an unscripted card the moment their rescaled value
  *  dips below the floor (every real script here was previously
  *  indistinguishable from a do-nothing card below the 90-Forge-point line —
- *  `NONCREATURE_FLOOR / NONCREATURE_SCRIPT_SCALE`). */
+ *  `NONCREATURE_FLOOR / NONCREATURE_SCRIPT_SCALE`).
+ *
+ *  Issue #3383 adds the one case where the floor and a script COEXIST: a card
+ *  whose only readable script is a delayed-trigger TEMPLATE
+ *  (`carriesSpellOrAbilityScript` false — Mishra's Bauble, whose activated
+ *  ability is a `resolve()` the reader cannot walk). #1513's rule is about a
+ *  card the reader has READ: there the script IS the card's worth, so clamping
+ *  it up would flatten the ordering. Here the reader has read one delayed
+ *  clause of a card it otherwise cannot see at all, so the floor still stands
+ *  for the unread rest and the template is ADDITIVE on top of it. Dropping the
+ *  floor instead would have made the whole issue's fix backwards: Mishra's
+ *  Bauble would have gone from the 30-point do-nothing prior to 6.4 — priced
+ *  BELOW a blank artifact for the crime of having a readable delayed draw. */
 export function noncreatureCardWorth(
     card: CardInstanceState,
     ctx?: GroundingContext
 ): number {
     const scripted = scriptOpValueOf(card, ctx);
     if (!scripted) return NONCREATURE_FLOOR;
-    return scripted.points * NONCREATURE_SCRIPT_SCALE;
+    const def = tryGetDefinition((card.card as { id?: string }).id ?? "");
+    const templateOnly = !!def && !carriesSpellOrAbilityScript(def);
+    return (
+        (templateOnly ? NONCREATURE_FLOOR : 0) +
+        scripted.points * NONCREATURE_SCRIPT_SCALE
+    );
 }
 
 /** Latent worth of a prospective card (hand/library — not yet in play):

@@ -123,9 +123,9 @@ function carriesShadowScript(def: CardDefinition): boolean {
  *  capture-free template would be over-counted; none exists in the catalogue,
  *  and `delayedTriggerTemplateValue.bot.test.ts` pins the whole classification
  *  so a new template reds until it is reviewed. */
-function delayedTriggerTemplateOpValue(
+export function delayedTriggerTemplateOpValue(
     def: CardDefinition,
-    ctx: GroundingContext
+    ctx: GroundingContext = contextFreeGrounding()
 ): OpValue | undefined {
     if (carriesShadowScript(def)) return undefined;
     let acc: OpValue | undefined;
@@ -296,6 +296,56 @@ export function dslSpellScriptValue(
 function mergeOpValue(a: OpValue, b: OpValue): OpValue {
     const tags = new Set<ValueTag>([...a.tags, ...b.tags]);
     return { points: a.points + b.points, tags: [...tags] };
+}
+
+/** The LATENT (in-hand) value of a card's delayed-trigger templates — the
+ *  template reader's points under the same `ABILITY_SCRIPT_DISCOUNT` an
+ *  ability script pays, since a template is the same kind of future,
+ *  conditional payoff. 0 when the card has no valued template.
+ *
+ *  Exposed for the NON-CREATURE branch of `latentValue` (`cardValue.ts`),
+ *  which reads a card's SPELL script and never its ability value — so without
+ *  this the template would be priced everywhere except the leaf evaluator.
+ *  A creature's branch must NOT read it: `dslAbilityScriptValue` already
+ *  carries the same templates, merged. */
+export function dslLatentDelayedTemplateValue(
+    def: CardDefinition,
+    ctx: GroundingContext = contextFreeGrounding()
+): number {
+    const templates = delayedTriggerTemplateOpValue(def, ctx);
+    return (templates?.points ?? 0) * ABILITY_SCRIPT_DISCOUNT;
+}
+
+/** True when the card carries a script the value model can read at a SPELL or
+ *  ABILITY site — a real `effects[]`, an `aiEffects` shadow or a `modes[]`
+ *  arm, at the card site or on any activated/triggered ability.
+ *
+ *  The question it answers is not "is this card worth something" but "has the
+ *  reader SEEN the card's own resolution" (issue #3383). A card whose only
+ *  readable script is a delayed-trigger TEMPLATE — Mishra's Bauble, whose
+ *  activated ability is a `resolve()` — answers FALSE: the ability that
+ *  schedules the template is still opaque, so the template is one KNOWN part
+ *  of an otherwise unread card, never the whole of it. `candidateValue.ts`
+ *  reads this to keep its no-script floor standing under such a card and add
+ *  the template ON TOP, instead of letting a partial reading replace a
+ *  fallback that stands for the rest. */
+export function carriesSpellOrAbilityScript(def: CardDefinition): boolean {
+    const sites: {
+        effects?: EffectOp[];
+        aiEffects?: EffectOp[];
+        modes?: AbilityMode[];
+    }[] = [
+        { effects: def.effects, aiEffects: def.aiEffects, modes: def.modes },
+        ...(def.activatedAbilities ?? []),
+        ...(def.triggeredAbilities ?? []),
+    ];
+    return sites.some(
+        (site) =>
+            effectiveScript(site) !== undefined ||
+            (site.modes ?? []).some(
+                (mode) => effectiveScript(mode) !== undefined
+            )
+    );
 }
 
 /** The merged, RAW (un-discounted) `{ points, tags }` of a card's activated +
