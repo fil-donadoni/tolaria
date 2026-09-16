@@ -30,10 +30,8 @@
 //
 // Why NOT `canActivate: (source) => source.hasAttackedThisTurn`: a closure
 // satisfies the CR and passes every GRE test while being opaque to everything
-// that is not the server. `enumerateAbilityMoves` (`gre/moves.ts`) and
-// `hasFlexibleActivation` (`gre/evaluate.ts`) both `continue` on ANY ability
-// carrying `canActivate` — a closure-gated Boast would be permanently invisible
-// to bot move generation — and the client affordability sweep
+// that can only call it. The Bot evaluates such a closure since issue #3441
+// (`activationPreconditionViolation`), but the client affordability sweep
 // (`src/lib/__tests__/activation-affordability.catalogue.test.ts`) auto-skips
 // such abilities, so the new gate could never be swept catalogue-wide.
 import type { ActivatedAbility } from "../types";

@@ -5168,7 +5168,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
-            moves: [{ kind: "activate-ability", card: "Barbarian Ring" }],
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Barbarian Ring",
+                    target: "opp",
+                },
+            ],
         },
         note: "Half 2 of the activation-restriction pair (issue #3441). The positive direction: a `canActivate` ability whose restriction holds is reachable and taken.",
     },

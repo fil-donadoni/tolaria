@@ -3682,6 +3682,17 @@ function enumerateAbilityMoves(
         if (activationPreconditionViolation(state, perm, ability) !== null) {
             continue;
         }
+        // CR 107.3a — a player-CHOSEN X in the activation cost. The
+        // `activate-ability` move carries no `chosenX` for it, and both server
+        // paths throw "This ability requires a chosen X value" without one, so
+        // offering the move hands the bot an activation the mutation rejects.
+        // A DERIVED X (`xFromTargetSpellMv`) is priced per target below.
+        if (
+            typeof ability.cost.mana?.X === "string" &&
+            ability.cost.xFromTargetSpellMv === undefined
+        ) {
+            continue;
+        }
         // CR 606 (issue #2491) — a loyalty ability (planeswalker) carries a
         // signed `cost.loyalty` and three restrictions: the per-permanent
         // once-per-turn lock (CR 606.3), the controller's own main phase with

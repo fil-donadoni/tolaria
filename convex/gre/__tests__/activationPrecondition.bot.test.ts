@@ -156,3 +156,44 @@ describe("hasFlexibleActivation evaluates `canActivate` (CR 602.5, issue #3441)"
         expect(flex(fliesBoard(2))).toBe(0);
     });
 });
+
+describe("a player-chosen X keeps a now-reachable ability out of the move set (CR 107.3a, issue #3441)", () => {
+    // Evaluating `canActivate` made Clockwork Beast's "{X}, {T}: … Activate
+    // only if it has fewer than seven +1/+0 counters" reachable, but the
+    // `activate-ability` move carries no `chosenX` and the mutation throws
+    // without one. The restriction HOLDS here (no counters), so the only thing
+    // keeping the move out is the chosen-X gate.
+    it("does not offer Clockwork Beast's {X} ability", () => {
+        const state = makeState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        inst(
+                            getCardByName("Clockwork Beast").id,
+                            "beast",
+                            "p1"
+                        ),
+                        inst(MOUNTAIN, "m1", "p1"),
+                        inst(MOUNTAIN, "m2", "p1"),
+                    ],
+                }),
+                makePlayer("p2", {}),
+            ],
+        });
+        const beast = state.players[0].battlefield[0];
+        const ability = getCardByName("Clockwork Beast").activatedAbilities![0];
+        expect(
+            activationPreconditionViolation(state, beast, ability)
+        ).toBeNull();
+        expect(
+            enumerateMoves(state, "p1").filter(
+                (m) =>
+                    m.kind === "activate-ability" &&
+                    m.cardInstanceId === "beast"
+            )
+        ).toHaveLength(0);
+    });
+});
