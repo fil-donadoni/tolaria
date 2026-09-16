@@ -14483,7 +14483,7 @@ function enqueueAsEntersChoice(state: GameState, entry: StagedEntry): void {
             // declares an as-enters `pay` entry, so this leg is unreachable.
             // Unifying the two parks is out of scope until a card needs it.
             throw new Error(
-                "as-enters 'pay' is not wired (entersTappedUnlessPay owns CR 614.12 pay-to-enter)"
+                "as-enters 'pay' is not wired (entersTappedUnlessPay owns pay-to-enter)"
             );
         }
         default:
@@ -14853,7 +14853,7 @@ function applyAsEntersAnswer(
         }
         case "pay":
             throw new Error(
-                "as-enters 'pay' is not wired (entersTappedUnlessPay owns CR 614.12 pay-to-enter)"
+                "as-enters 'pay' is not wired (entersTappedUnlessPay owns pay-to-enter)"
             );
         default:
             return assertNeverAsEnters(choice);
