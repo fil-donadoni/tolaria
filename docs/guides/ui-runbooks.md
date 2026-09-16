@@ -177,7 +177,7 @@ never a code edit. Headless agents do not insert: they emit `{ label, spec }`
 in the PR body and `land` seeds it post-merge.
 
 **The scenarios the `check:ui` lane itself needs** are its game surfaces'
-DECLARED POSITIONS (ADR 0132 §4) — three payloads that ship in the repo, not as
+DECLARED POSITIONS (ADR 0132 §4) — four payloads that ship in the repo, not as
 a second source of truth for scenarios, but because a lane that cannot reach a
 surface reports a coverage hole, and re-deriving a position by hand on every
 deployment is how that hole stays open:
@@ -187,8 +187,9 @@ deployment is how that hole stays open:
 | `scripts/ui-gate/stress-scenario.json`   | `UI stress — full board, full hand, deep piles`         | `game-stress`, `game-debug-sheet`, `game-card-preview` |
 | `scripts/ui-gate/yields-scenario.json`   | `UI yields — two spells on the stack`                   | `game-manage-yields`                                   |
 | `scripts/ui-gate/ai-trace-scenario.json` | `UI AI trace — quiet board, priority on the human seat` | `game-debug-sheet-ai`                                  |
+| `scripts/ui-gate/board-scenario.json`    | `UI board — ordinary mid-game position`                 | `game-board`, `game-zone-pile`                         |
 
-**The lane seeds all three itself, at bootstrap** (issue #3652), beside the
+**The lane seeds all four itself, at bootstrap** (issue #3652), beside the
 Limited fixtures — so a fresh deployment needs no hand-seeding. Unlike the
 fixtures they are not run-scoped: `seedScenarioDirect` upserts by label and the
 payload is a constant, so two concurrent runs write the same bytes to the same
@@ -202,7 +203,7 @@ bunx convex run debugScenarios:seedScenarioDirect \
 Upsert-by-label, so re-running it is safe; the row itself stays
 deployment-local (ADR 0044). `scripts/__tests__/ui-gate-stress-scenario.test.ts`
 holds the stress label and its card names to the catalogue;
-`ui-gate-game-scenarios.test.ts` holds all three to §4 — each declares
+`ui-gate-game-scenarios.test.ts` holds all four to §4 — each declares
 `activePlayer` and `priority` on the **human** seat, which is what keeps the
 coin toss, the dealt hand and (in the vs-AI game) the Bot out of what the probe
 measures.
