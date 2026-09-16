@@ -1133,9 +1133,10 @@ export type CardInstanceState = {
      *  if able" GRANTED to this permanent by a resolving ability (the
      *  `grantAbility` Op's `attackRequirement` payload), as opposed to printed
      *  in its definition's `staticEffects`. One entry per grant:
-     *  - no `duration` — INDEFINITE (CR 611.2a: no stated duration lasts
-     *    until the object ceases to exist); kept across turns, cleared only
-     *    when the permanent leaves the battlefield (CR 400.7);
+     *  - no `duration` — INDEFINITE (CR 611.2a: with no stated duration the
+     *    effect lasts until the end of the game); kept across turns, and gone
+     *    only when the permanent leaves the battlefield, because the object
+     *    that returns is a new one (CR 400.7);
      *  - `duration` — spliced out by the phase-boundary purge
      *    (`tickAllDurations`, `gre/phases.ts`) when it expires.
      *

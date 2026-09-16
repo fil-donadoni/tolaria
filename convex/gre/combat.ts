@@ -1273,7 +1273,7 @@ export function collectAttackManaTax(state: GameState): AttackManaCharge[] {
  *    `grantAbility` Op's `attackRequirement` payload — CR 613.1f layer 6,
  *    issue #1972), indefinite or until its duration expires;
  *  - PRINTED as an `attack-requirement` static effect on its definition. A
- *    `condition` on it (CR 611.2c "as long as ...") is evaluated fresh against
+ *    `condition` on it (CR 611.3a "as long as ...") is evaluated fresh against
  *    `state` here — the recomputed kind, no refresh sweep needed.
  *
  *  This is the ONLY reader of attack requirements. Declaration legality
