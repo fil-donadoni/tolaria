@@ -255,6 +255,10 @@ _Avoid_: **Inset Spell** (one card with a normal form, CR 715), **Split Half**, 
 Something a **Player** may do without using the **Stack** and without passing **Priority** (CR 116.2) — it cannot be responded to. Taken while they have priority. Playing a **Land** is one; so are summoning a companion, turning a **Manifested** permanent face up, and **Foretell**. Each carries its own timing window, and they differ: companion needs a main phase with an empty stack, foretell only needs priority during its player's own turn.
 _Avoid_: Activated Ability (uses the Stack), free action
 
+**Granted Special Action**:
+A **Special Action** that a resolving spell or ability hands to its controller for a duration rather than one printed as a rule (CR 116.2c): "until end of turn, you may pay {1} any time you could cast an instant; if you do, prevent the next 1 damage…" (Guardian Angel). Taken at any **Priority**, repeatable, each use paying its cost and running the granted body against the objects fixed when the grant resolved. In an **Effect Script** it is written inline, like a **Delayed Triggered Ability** — but a player's choice fires it, not an event. It lapses only when its duration ends, not when those objects are gone.
+_Avoid_: Floating ability, emblem, standing mayPay
+
 ### Abilities
 
 **Activated Ability**:
