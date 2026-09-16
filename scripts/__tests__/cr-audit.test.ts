@@ -14,6 +14,7 @@ import {
     mergeReview,
     parseCache,
     renderPrompt,
+    replaceId,
     ruleContext,
     serializeAssessments,
     type ApplyIO,
@@ -205,6 +206,30 @@ describe("cr:audit — assess", () => {
         const wrong = s.assessed.find((a) => a.id === BACK_FACE);
         expect(wrong?.verdict).toBe("wrong");
         expect(wrong?.proposedId).toBe(ONCE);
+    });
+
+    it("centres a long sibling list on the cited rule's position, not a string sort", () => {
+        // A 70-subrule section, like the keyword-action block: "701.9" sorts
+        // after "701.66" as a string, so a lexical centre sends 701.1-701.40.
+        const actions = rulesOf(
+            [
+                "1. Game Concepts",
+                "1. Game Concepts",
+                "701. Keyword Actions",
+                ...Array.from(
+                    { length: 70 },
+                    (_, i) => `701.${i + 1}. Action ${i + 1}`
+                ),
+                "Glossary",
+            ].join("\n")
+        );
+        const near = ruleContext(actions, "701.66").siblings.map((r) => r.id);
+        expect(near).toHaveLength(40);
+        expect(near).toContain("701.65");
+        expect(near).toContain("701.67");
+        expect(near).toContain("701.70");
+        expect(near).not.toContain("701.66");
+        expect(ruleContext(actions, "701.2").siblings[0].id).toBe("701.1");
     });
 
     it("discards a proposal that resolves to no rule", async () => {
@@ -461,6 +486,16 @@ describe("cr:audit — report and apply", () => {
         const c = await applyReview(review, ids, closed.io);
         expect(closed.issueWrites).toEqual([]);
         expect(c.refused[0].why).toContain("closed");
+    });
+
+    it("replaces a section id without touching a subrule of it on the same line", () => {
+        expect(replaceId(`// ${P} 111 / 111.10 — tokens`, "111", "701.7")).toBe(
+            `// ${P} 701.7 / 111.10 — tokens`
+        );
+        expect(replaceId(`See ${P} 111.`, "111", "701.7")).toBe(
+            `See ${P} 701.7.`
+        );
+        expect(replaceId(`${P} 111 and ${P} 111`, "111", "701.7")).toBeNull();
     });
 
     it("keeps a reviewer's decisions across a regenerated report", async () => {

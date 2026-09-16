@@ -233,7 +233,7 @@ export function ruleContext(rules: Rule[], id: string): RuleContext {
     return {
         cited: byId.get(id)?.text ?? "",
         parent: parent === null ? null : (byId.get(parent)?.text ?? null),
-        siblings: nearest(siblings, id)
+        siblings: nearest(siblings, rules, id)
             .slice(0, SIBLING_MAX)
             .map((r) => ({ id: r.id, text: clip(r.text, RULE_TEXT_MAX) })),
         children: children
@@ -242,13 +242,23 @@ export function ruleContext(rules: Rule[], id: string): RuleContext {
     };
 }
 
-/** Rule order, but centred on `id` when there are too many to send. */
-function nearest(rules: Rule[], id: string): Rule[] {
-    if (rules.length <= SIBLING_MAX) return rules;
-    const i = rules.findIndex((r) => r.id > id);
-    const at = i < 0 ? rules.length : i;
-    const start = Math.max(0, at - SIBLING_MAX / 2);
-    return rules.slice(start, start + SIBLING_MAX);
+/**
+ * Document order, but centred on `id` when there are too many to send. The
+ * centre is `id`'s POSITION in the document, never a string comparison of
+ * ids: "701.9" sorts after "701.66" as a string, so a lexical search sends
+ * 701.1–701.40 for a citation of 701.66 — the wrong neighbourhood, in exactly
+ * the renumbering sections (701/702) the siblings are there to catch.
+ */
+function nearest(siblings: Rule[], rules: Rule[], id: string): Rule[] {
+    if (siblings.length <= SIBLING_MAX) return siblings;
+    const position = new Map(rules.map((r, i) => [r.id, i] as const));
+    const own = position.get(id) ?? -1;
+    const before = siblings.filter((r) => (position.get(r.id) ?? 0) < own);
+    const start = Math.max(
+        0,
+        Math.min(before.length - SIBLING_MAX / 2, siblings.length - SIBLING_MAX)
+    );
+    return siblings.slice(start, start + SIBLING_MAX);
 }
 
 export type AssessItem = {
@@ -728,7 +738,9 @@ export function replaceId(
     to: string
 ): string | null {
     const token = new RegExp(
-        `(?<![\\d.])${from.replace(/\./g, "\\.")}(?![\\da-z])`,
+        // Not a digit or letter after, nor `.<digit>` — `111` must not match
+        // the prefix of `111.10` — but a sentence-ending `111.` still does.
+        `(?<![\\d.])${from.replace(/\./g, "\\.")}(?![\\da-z]|\\.\\d)`,
         "g"
     );
     const hits = raw.match(token)?.length ?? 0;
