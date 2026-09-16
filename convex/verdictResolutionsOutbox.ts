@@ -8,8 +8,9 @@
 // drain uploads it and READS IT BACK, and only then is the row marked stored.
 // A resolution row is small — a position key, a handful of ids and reasons —
 // so unlike a verdict row it is never slimmed: `storedAt` is the whole
-// transition. A deployment without the write key (every local backend) keeps
-// its rows pending forever, and the review surface reads them from the table.
+// transition. A deployment without the write key (every local backend)
+// forwards its rows to the one that holds it (issue #3745), and until they are
+// stored the review surface reads them from the table.
 //
 // Decisions only: no credential, no Convex function. Exercised against the
 // in-memory store; reachable from the `"use node"` drain, so it imports the
@@ -114,9 +115,22 @@ export async function storeResolutionRow(
     return { status: "stored", rowId, resolutionId, outcome };
 }
 
+/** How a drain stores one resolution row: uploaded here, or forwarded to the
+ *  deployment holding the write key (`verdictForward.ts`, issue #3745). */
+export type ResolutionRowStore = (
+    row: ResolutionOutboxRow
+) => Promise<ResolutionStoreResult>;
+
+/** The direct way: this deployment holds the write key. */
+export function directResolutionStore(
+    store: VerdictStoreWriter
+): ResolutionRowStore {
+    return (row) => storeResolutionRow(store, row);
+}
+
 /** Everything a resolution drain needs, injected. */
 export interface ResolutionDrainPorts {
-    store: VerdictStoreWriter;
+    storeRow: ResolutionRowStore;
     now: () => number;
     pendingResolutions: () => Promise<ResolutionOutboxRow[]>;
     markResolutionStored: (args: {
@@ -137,7 +151,7 @@ export async function drainResolutionOutbox(
 ): Promise<ResolutionDrainReport> {
     const report: ResolutionDrainReport = { stored: 0, pending: [] };
     for (const row of await ports.pendingResolutions()) {
-        const result = await storeResolutionRow(ports.store, row);
+        const result = await ports.storeRow(row);
         if (result.status === "pending") {
             report.pending.push({ rowId: result.rowId, reason: result.reason });
             continue;
