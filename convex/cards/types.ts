@@ -12143,7 +12143,7 @@ export type EffectObjectSelector = EffectTargetRef | EffectRef;
  *
  *  Untargeted by construction (CR 115.10 — no "target" in the text), so
  *  hexproof, shroud and protection's targeting clause never apply. Resolves to
- *  NOTHING, and the consuming Op skips (CR 608.2b), when the creature is no
+ *  NOTHING, and the consuming Op does nothing, when the creature is no
  *  longer an attacking creature (it left combat — CR 506.4) or the
  *  planeswalker it attacked was removed from combat (left the battlefield,
  *  changed controller, stopped being a planeswalker — CR 506.4): the creature

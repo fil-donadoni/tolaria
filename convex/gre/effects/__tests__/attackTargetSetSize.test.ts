@@ -229,7 +229,7 @@ describe("tapped filter + setSize: tap X, X is how many were picked (CR 118.12 /
 
     it("an UNCAPTURED binding (no candidates at all) reads as the number 0, not unresolvable", () => {
         // Only a comparison tells 0 from undefined: an unresolvable operand
-        // makes the predicate false (CR 608.2b), a genuine 0 satisfies `lt 1`.
+        // makes the predicate false, a genuine 0 satisfies `lt 1`.
         const PROBE_ID = "test-3244-setsize-zero";
         registerTokenDefinition({
             id: PROBE_ID,

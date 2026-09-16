@@ -2358,8 +2358,7 @@ export const OP_EXECUTORS: {
             // CR 506.2 / 508.1b (issue #3244) — the player or planeswalker the
             // named attacking creature is attacking, read LIVE and never
             // targeted (CR 115.10). Nothing to deal to when the creature left
-            // combat or its planeswalker was removed from combat (CR 506.4,
-            // 608.2b).
+            // combat or its planeswalker was removed from combat (CR 506.4).
             const attacker = resolveObjectRef(ctx, op.to.attackTargetOf);
             if (!attacker || attacker.type !== "permanent") return;
             const recipient = ctx.getAttackTarget(attacker.id);
