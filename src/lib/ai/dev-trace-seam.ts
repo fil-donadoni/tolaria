@@ -27,7 +27,12 @@
 // writes to: nothing here reaches a Move, a mutation or the search.
 
 import type { CandidateTrace, DecisionTrace, EvalTerms } from "@convex/gre";
-import { clearAiTraces, pushAiTrace } from "./trace-store";
+import {
+    clearAiDecisions,
+    clearAiEscalations,
+    clearAiTraces,
+    pushAiTrace,
+} from "./trace-store";
 
 /** The global the walk calls, named like the lane's other page seams
  *  (`window.__tolariaNet` in `settle.ts`, `window.__tolariaProbe` in
@@ -37,10 +42,11 @@ import { clearAiTraces, pushAiTrace } from "./trace-store";
 declare global {
     interface Window {
         __tolariaAiTrace?: {
-            /** Clear the ring, then push {@link AI_TRACE_SEAM_RECORDS} fixed
-             *  decisions. Returns how many the ring holds afterwards. */
+            /** Empty every section of the box, then push
+             *  {@link AI_TRACE_SEAM_RECORDS} fixed decisions into the ring.
+             *  Returns how many the ring holds afterwards. */
             seed(): number;
-            /** Empty the ring again. */
+            /** Empty every section again. */
             clear(): void;
         };
     }
@@ -132,6 +138,14 @@ export const AI_TRACE_SEAM_TRACES: readonly DecisionTrace[] = [
     },
 ];
 
+/** Empty every section the measured box renders, not just the ring — see
+ *  `seed()` below for why the other two matter. */
+function clearAllSections(): void {
+    clearAiTraces();
+    clearAiEscalations();
+    clearAiDecisions();
+}
+
 /** Install the seam, once, in a dev build. A no-op in production and on a
  *  second call — the box that hosts it re-mounts whenever the sheet is
  *  reopened, and a second install would replace a live object for nothing. */
@@ -141,17 +155,35 @@ export function installAiTraceSeam(): void {
     if (window.__tolariaAiTrace) return;
     window.__tolariaAiTrace = {
         seed() {
-            // CLEARS FIRST, so the seam is idempotent: the lane retries an
-            // Infra Verdict by re-walking the surface (`index.ts`), and a
-            // seed that appended would measure a different ring each attempt.
-            clearAiTraces();
+            // CLEARS ALL THREE SECTIONS FIRST (PR #3697 review). Two reasons,
+            // and the second is the one the first draft missed:
+            //
+            //  - IDEMPOTENCE: the lane retries an Infra Verdict by re-walking
+            //    the surface (`index.ts`), and a seed that appended would
+            //    measure a different ring on the retry than on the first try.
+            //  - THE SIBLINGS SHARE THE MEASURED BOX. `[data-ai-trace-body]`
+            //    holds the ring, the escalation log AND the outcome log
+            //    (`ai-decision-trace-box.tsx`), and each of the latter two
+            //    renders a header, a count, a `Clear` button and a row list as
+            //    soon as its own store is non-empty. The Bot fills the outcome
+            //    log on EVERY walk, through a window the declared position
+            //    cannot reach: the pregame mulligan is a real decision it
+            //    answers directly (`useVsAiDriver` → `recordAiDecision`), and
+            //    no scenario may be loaded during it at all (CR 103.5 —
+            //    `assertLiveGameCanContinue` refuses the MULLIGAN phase).
+            //    Neither store is cleared on a game swap either; only the ring
+            //    is. So those rows would ride into the shape readings, moving
+            //    with whether the deal happened to need a mulligan.
+            //
+            // The click-loop this seam replaced pressed every `Clear` in the
+            // sheet, which covered all three indiscriminately. Clearing all
+            // three here is what keeps that guarantee.
+            clearAllSections();
             for (const trace of AI_TRACE_SEAM_TRACES) {
                 pushAiTrace(trace, "worker");
             }
             return AI_TRACE_SEAM_TRACES.length;
         },
-        clear() {
-            clearAiTraces();
-        },
+        clear: clearAllSections,
     };
 }

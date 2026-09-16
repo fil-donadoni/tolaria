@@ -2590,11 +2590,20 @@ export const SURFACES: readonly Surface[] = [
             // The declared position above closes the other half: with priority
             // on the human seat the bot writes nothing here, so whatever the
             // seam puts in the ring is what the probe measures, every run.
-            // `window.__tolariaAiTrace.seed()` clears and pushes a CONSTANT
-            // trace through `pushAiTrace` — the same function `useVsAiDriver`
-            // calls (`src/lib/ai/dev-trace-seam.ts`), so the rows are the rows
-            // a real decision renders. Idempotent, because a retried Infra
-            // Verdict re-walks this surface.
+            // `window.__tolariaAiTrace.seed()` pushes a CONSTANT trace through
+            // `pushAiTrace` — the same function `useVsAiDriver` calls
+            // (`src/lib/ai/dev-trace-seam.ts`), so the rows are the rows a real
+            // decision renders. Idempotent, because a retried Infra Verdict
+            // re-walks this surface.
+            //
+            // It empties ALL THREE sections of the box first, not just the
+            // ring (PR #3697 review). The escalation log and the outcome log
+            // are inside the same measured `[data-ai-trace-body]`, and the Bot
+            // fills the outcome log on every walk through a window the declared
+            // position cannot reach: the pregame mulligan, which it answers
+            // directly and during which no scenario may be loaded at all
+            // (CR 103.5). Their rows would otherwise ride into the shape
+            // readings, moving with whether the deal needed a mulligan.
             //
             // The page function is passed as SOURCE TEXT, like `topmostAt`
             // above: this file compiles under `tsconfig.scripts.json`, which

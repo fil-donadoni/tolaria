@@ -17,7 +17,16 @@
 // imports one in the bot suite.
 import { describe, it, expect, beforeEach } from "vitest";
 import { act, cleanup, render, screen } from "@testing-library/react";
-import { clearAiTraces, getAiTraces } from "~/lib/ai/trace-store";
+import {
+    clearAiDecisions,
+    clearAiEscalations,
+    clearAiTraces,
+    getAiDecisions,
+    getAiEscalations,
+    getAiTraces,
+    recordAiDecision,
+    recordAiEscalation,
+} from "~/lib/ai/trace-store";
 import {
     AI_TRACE_SEAM_RECORDS,
     AI_TRACE_SEAM_TRACES,
@@ -27,7 +36,12 @@ import AiDecisionTraceBox from "../ai-decision-trace-box";
 
 beforeEach(() => {
     cleanup();
+    // ALL THREE stores, because all three render inside the one measured box
+    // and none of them is per-test state otherwise — the module holds them for
+    // the lifetime of the page, which is the whole point of the case below.
     clearAiTraces();
+    clearAiEscalations();
+    clearAiDecisions();
     // The install is once-per-page by design, so the fixture has to undo it
     // between cases or only the first would exercise it.
     delete window.__tolariaAiTrace;
@@ -88,6 +102,44 @@ describe("the AI trace seam (issue #3652)", () => {
                 new RegExp(`last decisions \\(${AI_TRACE_SEAM_RECORDS}\\)`)
             )
         ).toBeTruthy();
+    });
+
+    it("empties the sibling logs the Bot fills before a position can be loaded", () => {
+        // THE REGRESSION THIS GUARDS (PR #3697 review round 1). The node this
+        // surface measures is `[data-ai-trace-body]`, and it holds THREE
+        // sections: the ring, the escalation log and the outcome log. Each of
+        // the latter two renders a header, a count, a `Clear` button and a row
+        // list the moment its own store is non-empty.
+        //
+        // The Bot fills the outcome log on every walk, and the declared
+        // position cannot prevent it: the pregame mulligan is a real decision
+        // the Bot answers directly (`useVsAiDriver` → `recordAiDecision`), and
+        // no scenario can be loaded during it at all — CR 103.5, where
+        // `assertLiveGameCanContinue` refuses the MULLIGAN phase. Neither
+        // sibling store is cleared on a game swap either; only the ring is. So
+        // a seam that cleared the ring alone left a row count that moved with
+        // whether the deal happened to need a mulligan.
+        recordAiDecision({ outcome: "direct" });
+        recordAiEscalation({
+            rung: 1,
+            expectedKind: "priority",
+            action: "pass",
+        });
+        render(<AiDecisionTraceBox />);
+        // The state the walk actually arrives in: the ring empty, both logs
+        // holding a row and each offering its own `Clear`.
+        expect(screen.getAllByRole("button", { name: "Clear" })).toHaveLength(
+            2
+        );
+
+        seedThroughTheGlobal();
+
+        expect(getAiDecisions()).toEqual([]);
+        expect(getAiEscalations()).toEqual([]);
+        // One `Clear` left — the ring's, now the only non-empty section.
+        expect(screen.getAllByRole("button", { name: "Clear" })).toHaveLength(
+            1
+        );
     });
 
     it("pushes decisions the box renders as ordinary ones, never as the degraded path", () => {
