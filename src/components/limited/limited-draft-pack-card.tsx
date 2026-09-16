@@ -93,6 +93,15 @@ export default function LimitedDraftPackCard({
             tabIndex={pending ? -1 : 0}
             aria-disabled={pending}
             aria-pressed={selected}
+            // The Draft Room's pick affordance, addressed by a seam rather
+            // than by its accessible name (issue #3650). The name carries the
+            // CARD's name plus a " (selected)" suffix that the walk itself
+            // toggles (`pinDraftSelection`), so a role+name promise would be a
+            // promise about the fixture's card list; this tile is the one
+            // element that means "pick" at all five viewports — the phone
+            // strip's CTA row and desktop's card menu are each half a regime
+            // (issue #2861).
+            data-draft-pick-tile=""
             title={card.cardName}
             aria-label={`Draft pick: ${card.cardName}${selected ? " (selected)" : ""}`}
             onClick={(e) => {

@@ -104,6 +104,15 @@ export default function DeckDetail({
                         <Button
                             variant="primary"
                             onClick={onSelect}
+                            // The walk seam for this page's primary action
+                            // (issue #3650). An attribute, not the visible
+                            // text: the plate reads "Play" or "Selected"
+                            // depending on whether this deck is the lobby's
+                            // active one — state an earlier surface in the
+                            // same run can have set (`selectPlayableDeck`) —
+                            // so a role+name promise here would name an
+                            // element that exists only half the time.
+                            data-deck-detail-play=""
                             disabled={isSelected}
                         >
                             {isSelected ? "Selected" : "Play"}

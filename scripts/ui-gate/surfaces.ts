@@ -1769,6 +1769,69 @@ export const SURFACES: readonly Surface[] = [
         id: "deck-builder",
         entries: ["src/routes/deck-builder.route.tsx"],
         label: "Constructed deck builder (/decks/create)",
+        /**
+         * EVERY ENTRY POINT THE BUILDER'S RUNBOOK NAMES (`docs/guides/ui-runbooks.md`
+         * § Lobby, deck builder and the Limited list): the way cards get IN
+         * (Import), the two zones they land in, the source they are dragged
+         * from, and the save surface — the name field and Done.
+         *
+         * A PROMISE HOLDS AT ALL FIVE VIEWPORTS OR IT IS NOT ONE. That is the
+         * constraint shaping every list below, because an assertion carries no
+         * viewport condition: it is evaluated at each of the five and any cell
+         * can red the run. The builder's save surface is two different
+         * components — `SaveDeckBar` off a phone, `DeckBottomBar` in portrait
+         * (`deck-builder-shell.tsx` swaps them, it does not stack them) — so
+         * the promises here name what BOTH render: a "Deck name" field and a
+         * Done plate. Issue #3650 gave `SaveDeckBar`'s field the explicit
+         * `aria-label` its portrait twin already had, so the two are addressed
+         * by one rule rather than by an accname fallback on one side.
+         *
+         * The `contrast` promise points at Done: enabled, with text, in the
+         * state this walk measures — axe's `color-contrast` rule skips a
+         * disabled control, and a promise that cannot fail is the thing this
+         * mechanism exists to replace.
+         */
+        asserts: [
+            {
+                label: "Import entry point",
+                locator: { role: "button", name: "Import" },
+                check: "reachable",
+            },
+            {
+                label: "deck name field",
+                locator: { role: "textbox", name: "Deck name" },
+                check: "reachable",
+            },
+            {
+                label: "primary action: Done",
+                locator: { role: "button", name: "Done" },
+                check: "reachable",
+            },
+            {
+                label: "Maindeck pane",
+                locator: { selector: '[data-deck-pane="maindeck"]' },
+                check: "visible",
+            },
+            {
+                label: "Sideboard pane",
+                locator: { selector: '[data-deck-pane="sideboard"]' },
+                check: "visible",
+            },
+            // The constructed builder's third pane — the card search results
+            // the other two are filled FROM. The Limited builder has no source
+            // panel (its cards come from a dealt Pool), which is why its own
+            // list below promises only two panes.
+            {
+                label: "Card source pane",
+                locator: { selector: '[data-deck-pane="source"]' },
+                check: "visible",
+            },
+            {
+                label: "Done contrast",
+                locator: { role: "button", name: "Done" },
+                check: "contrast",
+            },
+        ],
         async walk(page, ctx) {
             await goto(page, ctx, "/decks/create");
             if (!(await visible(page, "input, button", 10_000))) {
@@ -1889,6 +1952,41 @@ export const SURFACES: readonly Surface[] = [
         id: "deck-detail",
         entries: ["src/routes/deck-detail.route.tsx"],
         label: "Deck detail (/decks/mono-red-burn)",
+        /**
+         * The page's two exits: back to the lobby, and the primary plate that
+         * makes this deck the active one (issue #2591's Edit/Play row).
+         *
+         * The plate is addressed by a SEAM, not by its name, and `visible`
+         * rather than `reachable`, because it is the same control in two
+         * states: it reads "Play" and is enabled until this deck is the
+         * lobby's active one, then reads "Selected" and is `disabled`. Which
+         * state this walk finds depends on what an EARLIER surface in the same
+         * context selected (`selectPlayableDeck` takes the first selectable
+         * tile), so a role+name promise would name an element that exists only
+         * half the time and an actionability check would assert the opposite
+         * of a legitimate state. `data-deck-detail-play` holds across both.
+         *
+         * Edit and Delete are deliberately NOT promised: both are `undefined`
+         * for a preset viewed by a non-admin (`deck-detail.route.tsx`), and
+         * the lane's account is one.
+         */
+        asserts: [
+            {
+                label: "back to lobby",
+                locator: { role: "button", name: "← Back" },
+                check: "reachable",
+            },
+            {
+                label: "primary action: Play",
+                locator: { selector: "[data-deck-detail-play]" },
+                check: "visible",
+            },
+            {
+                label: "back control contrast",
+                locator: { role: "button", name: "← Back" },
+                check: "contrast",
+            },
+        ],
         async walk(page, ctx) {
             // `mono-red-burn` is a code-defined preset (`convex/deckPresets.ts`)
             // seeded into the `presetDecks` table on every deployment — always
@@ -2230,6 +2328,49 @@ export const SURFACES: readonly Surface[] = [
         // `<main>` past the starvation threshold — so the ceiling moved
         // without a line of `src/` changing.
         label: "Limited events list (/limited, fixture-filtered)",
+        /**
+         * The list's own controls plus the fixture row and the action that
+         * ENTERS it — the runbook's `/limited` line (status chips, the Mine
+         * toggle, `+ Create Event`) and the row's `View`, which every Limited
+         * and draft walk below reaches its subject through.
+         *
+         * `+ Create Event` is promised because `canCreateLimitedEvents` keys
+         * on "signed in", not on admin (`src/lib/limitedGating.ts`) — the
+         * lane's throwaway account sees it, and a regression that put hosting
+         * back behind an admin gate is exactly what this line catches.
+         */
+        asserts: [
+            {
+                label: "status filter",
+                locator: { role: "group", name: "Filter by status" },
+                check: "visible",
+            },
+            {
+                label: "Mine toggle",
+                locator: { role: "button", name: "Mine" },
+                check: "reachable",
+            },
+            {
+                label: "create event",
+                locator: { role: "button", name: "+ Create Event" },
+                check: "reachable",
+            },
+            {
+                label: "fixture event row",
+                locator: { selector: "[data-limited-event-label]" },
+                check: "visible",
+            },
+            {
+                label: "event row: View",
+                locator: { role: "button", name: "View" },
+                check: "reachable",
+            },
+            {
+                label: "event row View contrast",
+                locator: { role: "button", name: "View" },
+                check: "contrast",
+            },
+        ],
         async walk(page, ctx) {
             await reachFixtureList(page, ctx);
         },
@@ -2247,6 +2388,32 @@ export const SURFACES: readonly Surface[] = [
         // region exists" (which a stuck redirect's own loading screen would
         // also satisfy).
         label: "Your Limited events redirect (/limited/events → /limited?mine=1)",
+        /**
+         * This surface's subject is the REDIRECT, and what proves it landed
+         * somewhere real is the list it lands on: a seeded row, its Enter
+         * action, and the Mine toggle the `?mine=true` target turns on. A
+         * redirect that dropped `?label=` lands on the unbounded list, where
+         * the fixture row promise still holds — the walk's own
+         * `fixtureRowsRendered` check is what covers that, and these are the
+         * screen's entry points, not a second copy of it.
+         */
+        asserts: [
+            {
+                label: "fixture event row",
+                locator: { selector: "[data-limited-event-label]" },
+                check: "visible",
+            },
+            {
+                label: "event row: View",
+                locator: { role: "button", name: "View" },
+                check: "reachable",
+            },
+            {
+                label: "Mine toggle",
+                locator: { role: "button", name: "Mine" },
+                check: "reachable",
+            },
+        ],
         async walk(page, ctx) {
             // The `label` param rides through the redirect (issue #2822, see
             // `limited-your-events.route.tsx`) — a redirect that dropped it
@@ -2299,6 +2466,52 @@ export const SURFACES: readonly Surface[] = [
         // straight to the Draft Room is a DIFFERENT surface (`draft-pick`
         // below), not this one.
         label: "Limited event antechamber (/limited/<id>)",
+        /**
+         * The runbook's antechamber: the way back, the Table Ring's opener,
+         * and the phase actions this event makes actionable.
+         *
+         * WHICH ACTIONS THOSE ARE IS FIXED BY THE FIXTURE, not guessed. The
+         * lane seeds `ui-gate/<runId>/open` with itself as `createdBy` AND as
+         * the occupant of seat 0 (`convex/limitedFixtures.ts` — `seatViewer`
+         * over an event inserted with `user._id`), and the event's seating is
+         * still open. So `limited-event-detail.tsx` resolves `canLeave`,
+         * `canClose` and `canStart` all true and `canJoin` false: Leave Seat,
+         * Cancel Event and Start Event render, Join Event does not. A fixture
+         * that stopped seating the viewer would red these three promises,
+         * which is the correct outcome — every walk below assumes that seat.
+         */
+        asserts: [
+            {
+                label: "back to Limited Events",
+                locator: { role: "button", name: "← Back to Limited Events" },
+                check: "reachable",
+            },
+            {
+                label: "Table Ring entry",
+                locator: { role: "button", name: "View Table" },
+                check: "reachable",
+            },
+            {
+                label: "Leave Seat",
+                locator: { role: "button", name: "Leave Seat" },
+                check: "reachable",
+            },
+            {
+                label: "Start Event",
+                locator: { role: "button", name: "Start Event" },
+                check: "reachable",
+            },
+            {
+                label: "Cancel Event",
+                locator: { role: "button", name: "Cancel Event" },
+                check: "reachable",
+            },
+            {
+                label: "Table Ring entry contrast",
+                locator: { role: "button", name: "View Table" },
+                check: "contrast",
+            },
+        ],
         async walk(page, ctx) {
             // The `ui-gate/open` fixture, specifically (issue #2822): seating
             // still open is the one event state whose detail page neither
@@ -2338,6 +2551,54 @@ export const SURFACES: readonly Surface[] = [
         // (`pool-deck-builder.tsx`), which is exactly what
         // `ui-gate/draft`'s seat 0 carries.
         label: "Limited pool builder (/limited/<id>/build)",
+        /**
+         * The same shell as the constructed builder (`DeckBuilderShell`, via
+         * `PoolDeckBuilderForm`), so the same save-surface promises hold — and
+         * for the same reason they are worded against BOTH bottom bars.
+         *
+         * Two panes, not three: this builder passes no source panel, because
+         * its cards come from the seat's dealt Pool rather than from a search.
+         * The second pane is `data-deck-pane="sideboard"` whatever its visible
+         * label says (the form titles it "Pool"), which is why the seam is
+         * promised and the tab label is not.
+         *
+         * The card tile is the promise that separates a rendered builder from
+         * `PoolDeckBuilder`'s "No Pool has been generated for your seat yet"
+         * empty state — the same distinction the walk itself draws, and the
+         * failure actually worth catching here.
+         */
+        asserts: [
+            {
+                label: "Maindeck pane",
+                locator: { selector: '[data-deck-pane="maindeck"]' },
+                check: "visible",
+            },
+            {
+                label: "Pool pane",
+                locator: { selector: '[data-deck-pane="sideboard"]' },
+                check: "visible",
+            },
+            {
+                label: "pool card tile",
+                locator: { selector: "[data-card-tile]" },
+                check: "visible",
+            },
+            {
+                label: "deck name field",
+                locator: { role: "textbox", name: "Deck name" },
+                check: "reachable",
+            },
+            {
+                label: "primary action: Done",
+                locator: { role: "button", name: "Done" },
+                check: "reachable",
+            },
+            {
+                label: "Done contrast",
+                locator: { role: "button", name: "Done" },
+                check: "contrast",
+            },
+        ],
         async walk(page, ctx) {
             // Reached by URL rather than by a click: mid-draft there is no
             // Build Deck control on the event page (it appears once the pool
@@ -2386,6 +2647,63 @@ export const SURFACES: readonly Surface[] = [
             "src/routes/limited-draft-room.route.tsx",
         ],
         label: "Draft Room (/limited/<id>/draft)",
+        /**
+         * The room's own chrome — it is the ONLY chrome, since the route is
+         * registered `ownChrome` — plus the pick affordance itself.
+         *
+         * THE PICK ACTION IS THE TILE, not a CTA. The runbook names
+         * `[data-editing-action="Pick"]`, and that control exists on the two
+         * PHONE viewports only: issue #2861 retired the desktop Peek rail, so
+         * the tablet/desktop bucket reaches the same `handlePick` through a
+         * card menu that opens on click. A promise pointed at either half
+         * would red three cells or two by construction. The tile is the one
+         * element that means "pick" at all five viewports, and issue #3650
+         * gave it `data-draft-pick-tile` rather than leaning on its accessible
+         * name — which carries the fixture's card name plus a "(selected)"
+         * suffix that `pinDraftSelection` itself toggles.
+         *
+         * Table and Pool are seams for a different reason (see
+         * `limited-draft-bar.tsx`): both render `uppercase`, and their
+         * accessible name would then depend on whether the engine folds
+         * `text-transform` into name-from-content. `More` keeps a role+name
+         * promise because its `aria-label` is authoritative either way.
+         *
+         * The `contrast` promise points at the pack counter: the bar's own
+         * text, always present while a pack is in front of the seat, and —
+         * unlike every control beside it — not `uppercase`.
+         */
+        asserts: [
+            {
+                label: "room bar",
+                locator: { selector: "[data-slot=draft-room-bar]" },
+                check: "visible",
+            },
+            {
+                label: "pack tile: the pick affordance",
+                locator: { selector: "[data-draft-pick-tile]" },
+                check: "reachable",
+            },
+            {
+                label: "Table Ring entry",
+                locator: { selector: "[data-draft-table-entry]" },
+                check: "reachable",
+            },
+            {
+                label: "Pool toggle",
+                locator: { selector: "[data-draft-pool-toggle]" },
+                check: "reachable",
+            },
+            {
+                label: "overflow menu",
+                locator: { role: "button", name: "More" },
+                check: "reachable",
+            },
+            {
+                label: "pack counter contrast",
+                locator: { selector: "[data-slot=pack-counter]" },
+                check: "contrast",
+            },
+        ],
         async walk(page, ctx) {
             await reachDraftRoom(page, ctx);
             // AC 1/2 of issue #2588 ("exactly two scroll positions are
@@ -2405,6 +2723,55 @@ export const SURFACES: readonly Surface[] = [
             "src/routes/limited-draft-room.route.tsx",
         ],
         label: "Draft Room, pool stop (/limited/<id>/draft, swiped)",
+        /**
+         * The pool stop's subject is the POOL PANE, and the promise that it
+         * holds cards is what separates a reached stop from a reached stop
+         * over an empty pane — the vacuous green the walk's own fixture guard
+         * exists to prevent (`probe.js` has no card-count floor).
+         *
+         * The pack tile is NOT promised here, though it is still mounted: at
+         * this stop the pack pane is scrolled away on a phone, and a
+         * `reachable` check scrolls its target back into view — the promise
+         * would undo the very gesture this surface measures.
+         *
+         * `[data-slot=draft-pool]` carries the `contrast` promise because its
+         * subtree holds the zone titles; the bar's controls beside it are
+         * `uppercase` and its counters are covered by `draft-pick`.
+         */
+        asserts: [
+            {
+                label: "room bar",
+                locator: { selector: "[data-slot=draft-room-bar]" },
+                check: "visible",
+            },
+            {
+                label: "pool pane",
+                locator: { selector: "[data-slot=draft-pool]" },
+                check: "visible",
+            },
+            {
+                label: "pool card tile",
+                locator: {
+                    selector: "[data-slot=draft-pool] [data-card-tile]",
+                },
+                check: "visible",
+            },
+            {
+                label: "Table Ring entry",
+                locator: { selector: "[data-draft-table-entry]" },
+                check: "reachable",
+            },
+            {
+                label: "Pool toggle",
+                locator: { selector: "[data-draft-pool-toggle]" },
+                check: "reachable",
+            },
+            {
+                label: "pool pane contrast",
+                locator: { selector: "[data-slot=draft-pool]" },
+                check: "contrast",
+            },
+        ],
         async walk(page, ctx) {
             await reachDraftPoolStop(page, ctx);
         },
@@ -2420,6 +2787,63 @@ export const SURFACES: readonly Surface[] = [
             "src/routes/limited-draft-room.route.tsx",
         ],
         label: "Draft Room, Pool Peek Panel open (/limited/<id>/draft, pool tile selected)",
+        /**
+         * The pool stop's promises, with the bar's two controls demoted from
+         * `reachable` to `visible` — and the rail this surface is named for
+         * deliberately absent from the list. Both follow from the same fact:
+         * this is the ONE surface whose measured state is viewport-SPLIT by
+         * design (issue #2861). On a phone the gesture mounts the Pool's own
+         * `DeckZonePeek`; on the tablet/desktop bucket it opens a card menu
+         * instead, and the walk asserts the phone's panel and the desktop's
+         * menu on their own branches.
+         *
+         *  - NO RAIL PROMISE. `[data-peek-panel]` exists on two viewports and
+         *    `[role=menu] … "Move to…"` on the other three, so either would
+         *    red the cells where the app is behaving exactly as designed. The
+         *    branch-specific assertion lives in the walk, where it can ask
+         *    which regime it is in; an assertion cannot.
+         *  - VISIBLE, NOT REACHABLE, for Table and Pool. On the desktop
+         *    branch this walk ENDS with that menu open — it is the subject,
+         *    so unlike `pinDraftSelection`'s transient popup it is not
+         *    dismissed — and an open menu can take the pointer for the
+         *    controls behind it. Requiring actionability of the bar here
+         *    would assert that the menu is NOT open, which is the opposite of
+         *    what this surface measures.
+         */
+        asserts: [
+            {
+                label: "room bar",
+                locator: { selector: "[data-slot=draft-room-bar]" },
+                check: "visible",
+            },
+            {
+                label: "pool pane",
+                locator: { selector: "[data-slot=draft-pool]" },
+                check: "visible",
+            },
+            {
+                label: "pool card tile",
+                locator: {
+                    selector: "[data-slot=draft-pool] [data-card-tile]",
+                },
+                check: "visible",
+            },
+            {
+                label: "Table Ring entry",
+                locator: { selector: "[data-draft-table-entry]" },
+                check: "visible",
+            },
+            {
+                label: "Pool toggle",
+                locator: { selector: "[data-draft-pool-toggle]" },
+                check: "visible",
+            },
+            {
+                label: "pool pane contrast",
+                locator: { selector: "[data-slot=draft-pool]" },
+                check: "contrast",
+            },
+        ],
         async walk(page, ctx) {
             // Review finding (PR #2797 round 1, MEDIUM, issue #2667): no walk
             // ever opened the Pool's own `DeckZonePeek` — `draft-pick`

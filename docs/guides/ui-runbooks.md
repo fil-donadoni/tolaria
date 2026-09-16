@@ -478,17 +478,24 @@ Since issue #2587 the pick screen is its OWN immersive route,
    offers `Enter the Draft Room →` instead. Either way you end up on the same
    route; you can also navigate to it directly.
 2. `snapshot`. The pack renders as buttons labelled
-   `Draft pick: <card name>`, each `roledescription="draggable"` (drag or
+   `Draft pick: <card name>`, each `[data-draft-pick-tile]` and
+   `roledescription="draggable"` (drag or
    keyboard: space to lift, arrows to move, space to drop). Arrows / Enter /
    `S` also pick without touching a tile: arrows move the Selected Card,
-   Enter picks it, `S` picks it to the sideboard.
+   Enter picks it, `S` picks it to the sideboard. Address a tile by the
+   ATTRIBUTE, not the label: the label carries the card's name plus a
+   `(selected)` suffix that appears as soon as one is selected.
 
 The room's own thin bar (`[data-slot=draft-room-bar]`) is the only chrome —
 the route is registered `ownChrome`, so there is no shell header and no Event
-back-link. It carries `Pack n/N`, `Pick #n · N left`, the passing direction, a
-waiting-pack dot, `Table` (the Table Ring dialog: seats, picks made, passing
-arrows, you at the bottom), `Pool` (the pool toggle) and an overflow with
-`Leave the draft` / `Settings`. At tablet/desktop widths the body is
+back-link. It carries `Pack n/N` (`[data-slot=pack-counter]`),
+`Pick #n · N left`, the passing direction, a
+waiting-pack dot, `Table` (`[data-draft-table-entry]` — the Table Ring dialog:
+seats, picks made, passing
+arrows, you at the bottom), `Pool` (`[data-draft-pool-toggle]`) and an overflow
+(`aria-label="More"`) with
+`Leave the draft` / `Settings`. Both bar controls are rendered `uppercase`, so
+drive them by their attribute rather than by their accessible name. At tablet/desktop widths the body is
 stacked — the Booster grid full width on top (with the Pick Timer as the
 full-width bar directly above it) and the Pool, in its own scrolling band
 (`[data-slot=draft-stacked-pool]`), underneath.

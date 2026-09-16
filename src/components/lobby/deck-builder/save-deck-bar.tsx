@@ -102,6 +102,13 @@ export default function SaveDeckBar({
                 value={name}
                 onChange={(e) => onChangeName(e.target.value)}
                 placeholder="Deck name"
+                // Named, not just placeheld (issue #3650). `DeckBottomBar`'s
+                // portrait twin already carries this label, and the builder's
+                // Named Assertion promises ONE `role=textbox name="Deck name"`
+                // at every viewport — a promise that would otherwise rest on
+                // the placeholder's accname fallback here and on a real label
+                // there, i.e. on two different rules for the same element.
+                aria-label="Deck name"
                 className="input-field min-w-0 flex-1 basis-40 px-3 short-viewport:py-1 short-viewport:text-xs md:max-w-md"
             />
             {/* `/85`, not `/70` (issue #2593): at 10px on `--color-surface-base`
