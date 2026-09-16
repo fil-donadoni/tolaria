@@ -3029,6 +3029,30 @@ export const SURFACES: readonly Surface[] = [
         settleTargets: [BOARD_AREA],
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
         label: "Combat — block declaration owed",
+        // What a block window promises: the board still on screen under the
+        // attack, and the declaration the defending seat owes, in the
+        // controller's centre slot. The primary is asserted through the
+        // `"action"` mark rather than by name (issue #3651's seam): a STATUS
+        // pill in that slot means the board stopped offering the viewer the
+        // decision this position exists to pose, and the two are the same
+        // element with different marks.
+        asserts: [
+            {
+                label: "controller primary action",
+                locator: { selector: '[data-controller-primary="action"]' },
+                check: "reachable",
+            },
+            {
+                label: "block declaration CTA",
+                locator: { role: "button", name: "No Blockers" },
+                check: "reachable",
+            },
+            {
+                label: "board under the attack",
+                locator: { selector: "[data-board-area]" },
+                check: "visible",
+            },
+        ],
         async walk(page, ctx) {
             await ensureScenarioBoard(page, ctx, ctx.combatScenarioLabel);
             if (!(await visible(page, BLOCK_DECLARATION_CTA, STEP_TIMEOUT))) {
@@ -3088,6 +3112,32 @@ export const SURFACES: readonly Surface[] = [
         settleTargets: [CHOICE_PICKER],
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
         label: "Card-choice prompt — modal picker over the board",
+        // The three things a card choice has to put on screen: the port the
+        // candidates scroll in, a candidate, and the plate that commits the
+        // pick. The confirm is addressed by its FULL name — `LibrarySearchConfirm`
+        // renders `Done (${selected}/${max})`, and at assertion time (after the
+        // walk settles, before its cleanup picks anything) the buffer is empty
+        // and `max` is 1, so `Done (0/1)` is exact rather than approximate.
+        asserts: [
+            {
+                label: "choice picker scroll port",
+                locator: { selector: '[data-slot="game-dialog-column"]' },
+                check: "visible",
+            },
+            {
+                label: "choice candidate tile",
+                locator: {
+                    selector:
+                        '[data-slot="game-dialog-column"] [data-card-tilt-root]',
+                },
+                check: "visible",
+            },
+            {
+                label: "choice confirm plate",
+                locator: { role: "button", name: "Done (0/1)" },
+                check: "reachable",
+            },
+        ],
         async walk(page, ctx) {
             await ensureScenarioBoard(page, ctx, ctx.choiceScenarioLabel);
             // ONE pass resolves the spell: the position banks the other one
