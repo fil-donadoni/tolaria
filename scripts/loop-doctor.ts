@@ -599,7 +599,15 @@ export function countUnpushedCommits(
     issue: number,
     localBranches: string[],
     baseRef: string,
-    runner: ShRunner = sh
+    /**
+     * `shChecked`, not the swallow-on-failure `sh` every other reader here
+     * defaults to. `sh` renders a non-zero exit as `""`, and `Number("")` is
+     * `0` — so a missing base ref or a bad branch name would answer "this
+     * branch has no unpushed work" instead of "unknown", which is the exact
+     * confusion `null` exists to avoid. The `catch` below turns the throw back
+     * into `null`.
+     */
+    runner: ShRunner = shChecked
 ): number | null {
     const suffix = new RegExp(`(^|/)issue-${issue}$`);
     const branch = localBranches

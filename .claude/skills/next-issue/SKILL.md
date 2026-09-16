@@ -68,15 +68,17 @@ RUNNING A GATE. A gate never runs detached from the call that must read its
 verdict: not `run_in_background` (the notification never arrives — under
 `claude -p` the end of a turn is the end of the process), and not piped into
 a pager (the exit code becomes the pager's). A gate that can outlive the Bash
-tool's 600s cap — every pre-PR gate, which queues behind the machine-wide
-gate mutex — runs through `bun run gate:run <script>` instead: each call
-blocks in the FOREGROUND for at most 480s and then either returns the gate's
-real exit code or exits 75, "still running"; re-running the IDENTICAL command
-re-attaches to the same run and never starts a second gate. Re-run it until
-an exit code comes back. This rule is the same attended and unattended — the
-only difference is the cost of breaking it: an attended session that lets a
-gate be promoted to the background sees the promotion and can re-attach by
-hand, a driven pass dies with the turn and takes the gate's verdict with it.
+tool's cap — every pre-PR gate, which queues behind the machine-wide gate
+mutex — runs through `bun run gate:run <script>` instead, issued with the
+tool's `timeout` set to its 600000ms MAXIMUM, because the 120000ms DEFAULT is
+shorter than the wait this script does: each call blocks in the FOREGROUND for
+at most 480s and then either returns the gate's real exit code or exits 75,
+"still running"; re-running the IDENTICAL command re-attaches to the same run
+and never starts a second gate. Re-run it until an exit code comes back. This
+rule is the same attended and unattended — the only difference is the cost of
+breaking it: an attended session that lets a gate be promoted to the background
+sees the promotion and can re-attach by hand, a driven pass dies with the turn
+and takes the gate's verdict with it.
 
 <!-- <<<END GATE-RULE>>> -->
 
@@ -204,6 +206,10 @@ wrong-mental-model defect, see §1's escalation note.
   the merge. (Between ADR 0110 retiring the orchestrator and this being wired,
   every emitted spec was silently dropped: 33 were recovered by
   `bun run seed:backlog`.)
+- **`cd` out of the worktree first** — `land` removes it, and a `gate:run`
+  whose cwd has been deleted cannot re-attach to its own run (the run key is
+  the cwd plus the command). `land` works from anywhere (#2537):
+  `cd "$(git rev-parse --git-common-dir)/.."`.
 - `bun run gate:run land <PR#>` — it rebases onto the base branch, runs the lane
   gate under the machine mutex, merges into the base branch, tears down the
   worktree and both branch refs. No health gate per landing (ADR 0116): the

@@ -291,8 +291,12 @@ segment_reaches_gate() {
     _grg_seg="$1"
 
     # A bare `scripts/gate.ts` invocation is always the gate itself — no
-    # script-name allowlist applies to it.
-    if printf '%s\n' "$_grg_seg" | grep -Eq 'scripts/gate\.ts'; then
+    # script-name allowlist applies to it. `scripts/gate-run.sh` joins it
+    # (issue #3698): its documented direct form, `sh scripts/gate-run.sh
+    # check:lane`, contains no `bun run` token at all, so without this line
+    # piping or backgrounding the gate DRIVER slipped through the very rules
+    # it exists to make followable.
+    if printf '%s\n' "$_grg_seg" | grep -Eq 'scripts/gate(-run\.sh|\.ts)'; then
         return 0
     fi
 
@@ -547,22 +551,24 @@ fi
 # the SAME text in `.claude/skills/next-issue/SKILL.md` — a pass told to
 # background its gate by one file and forbidden to by the other is how a pass
 # that followed the guard to the letter died anyway (issue #3698).
-# `scripts/__tests__/gate-run.test.ts` reds if the two copies drift.
+# `scripts/__tests__/gate-rule-parity.test.ts` reds if the copies drift.
 #
 # <<<GATE-RULE>>>
 # RUNNING A GATE. A gate never runs detached from the call that must read its
 # verdict: not `run_in_background` (the notification never arrives — under
 # `claude -p` the end of a turn is the end of the process), and not piped into
 # a pager (the exit code becomes the pager's). A gate that can outlive the Bash
-# tool's 600s cap — every pre-PR gate, which queues behind the machine-wide
-# gate mutex — runs through `bun run gate:run <script>` instead: each call
-# blocks in the FOREGROUND for at most 480s and then either returns the gate's
-# real exit code or exits 75, "still running"; re-running the IDENTICAL command
-# re-attaches to the same run and never starts a second gate. Re-run it until
-# an exit code comes back. This rule is the same attended and unattended — the
-# only difference is the cost of breaking it: an attended session that lets a
-# gate be promoted to the background sees the promotion and can re-attach by
-# hand, a driven pass dies with the turn and takes the gate's verdict with it.
+# tool's cap — every pre-PR gate, which queues behind the machine-wide gate
+# mutex — runs through `bun run gate:run <script>` instead, issued with the
+# tool's `timeout` set to its 600000ms MAXIMUM, because the 120000ms DEFAULT is
+# shorter than the wait this script does: each call blocks in the FOREGROUND for
+# at most 480s and then either returns the gate's real exit code or exits 75,
+# "still running"; re-running the IDENTICAL command re-attaches to the same run
+# and never starts a second gate. Re-run it until an exit code comes back. This
+# rule is the same attended and unattended — the only difference is the cost of
+# breaking it: an attended session that lets a gate be promoted to the background
+# sees the promotion and can re-attach by hand, a driven pass dies with the turn
+# and takes the gate's verdict with it.
 # <<<END GATE-RULE>>>
 #
 # **Reuses §3's own predicate — not a second notion of what a gate is.**

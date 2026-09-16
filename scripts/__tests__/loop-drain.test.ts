@@ -1152,6 +1152,50 @@ describe("dying with claims held is a bounded STREAK, not an instant stop (#3698
         ]);
     });
 
+    it("still terminates when passes ALTERNATE crash and death-holding-claims", () => {
+        // The shape a naive mirror of the crash streak creates: if any
+        // non-death cleared the claims streak and any non-crash cleared the
+        // error streak, crash / death / crash / death resets both every pass
+        // and reaches neither bound — and MAX_PASSES defaults to unlimited, so
+        // that run never ends. Only PROGRESS forgives a death.
+        stubGhTwoCounters(9, 9);
+        writeStub(
+            "claude",
+            [
+                `STATE="${path.join(tmp, "call-count")}"`,
+                `c=$(cat "$STATE" 2>/dev/null || echo 0)`,
+                `c=$((c+1))`,
+                `echo "$c" > "$STATE"`,
+                `if [ $((c % 2)) -eq 1 ]; then`,
+                `  echo "boom"`,
+                `  exit 1`,
+                `fi`,
+                `n=$(cat "${queueFile}" 2>/dev/null || echo 0)`,
+                `if [ "$n" -gt 0 ]; then n=$((n-1)); fi`,
+                `echo "$n" > "${queueFile}"`,
+                `echo "claimed one issue, then died holding it"`,
+                `exit 0`,
+            ].join("\n")
+        );
+        const r = run({
+            args: [
+                "--claude-args",
+                "x",
+                "--max-consecutive-claims-held",
+                "2",
+                "--error-backoff-secs",
+                "1",
+                "--max-passes",
+                "12",
+            ],
+        });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(1);
+        // It stops on the CLAIMS bound, not on the pass ceiling — reaching
+        // `max-passes` here would mean neither streak ever bit.
+        expect(r.stdout).toMatch(/reason=claims-held/);
+        expect(r.stdout).not.toMatch(/reason=max-passes/);
+    });
+
     it("rejects a non-numeric --max-consecutive-claims-held at startup", () => {
         // Same reason every other numeric guard here is validated: `[ "abc"
         // -ge 3 ]` does not error, it returns false — turning a typo into a

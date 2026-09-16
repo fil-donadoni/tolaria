@@ -91,9 +91,13 @@ ERROR_BACKOFF_MAX_SECS=900
 # matches MAX_CONSECUTIVE_ERRORS for the same reason that one is 3: it is the
 # smallest number that tells a transient death apart from a broken
 # environment. The orphan-claim sweep at the top of each pass (see
-# `reap_orphan_claims`) is what makes retrying useful rather than merely
-# patient — it reclaims what the dead pass was holding before the next pass
-# selects.
+# `reap_orphan_claims`) reclaims what the dead pass was holding before the next
+# pass selects — EXCEPT for the one shape this fix is about: a pass killed
+# after it committed leaves a `recoverable` claim (loop-doctor.ts), which is
+# reported and deliberately never released, because the next pass starting that
+# issue from scratch would collide with the branch the dead one left. So the
+# retry buys the QUEUE, not that issue: the run keeps draining the rest while
+# the committed work waits for a human.
 MAX_CONSECUTIVE_CLAIMS_HELD=3
 PID_FILE=".claude/telemetry/loop-drain.pid"
 SINGLE_INSTANCE=0
@@ -852,7 +856,12 @@ while :; do
                 claims_held_now=1
             fi
         fi
+        # A death is not "ran and found nothing", so it must not feed the
+        # no-progress streak either — `no-progress` means "genuinely nothing to
+        # do" wherever it is read (the glossary, the dashboard's pass outcome),
+        # and two deaths either side of one quiet pass must not add up to it.
         if [ "$claims_held_now" -eq 1 ]; then
+            no_progress_streak=0
             # A fault, and still reported on the pass that produced it — but
             # no longer a stop on the FIRST occurrence (issue #3698). It is a
             # CONSECUTIVE streak, bounded by MAX_CONSECUTIVE_CLAIMS_HELD and
@@ -893,13 +902,16 @@ while :; do
     # CONSECUTIVELY, not cumulatively (see the comment above).
     [ "$claude_errored" -eq 1 ] || error_streak=0
 
-    # Same discipline for the claims-held streak, keyed on the reason this
-    # pass actually recorded rather than on a second evaluation of the
-    # predicate: a pass that landed, crashed, or merely found nothing clears
-    # it, so only CONSECUTIVE deaths accumulate towards the stop.
+    # The claims-held streak is cleared by PROGRESS, and by nothing else.
+    # "Any pass that is not a death" would be the obvious mirror of the crash
+    # streak above and is wrong here, because the two streaks would then clear
+    # each other: a run alternating crash / death-holding-claims resets both
+    # every pass and never reaches either bound, and with MAX_PASSES defaulting
+    # to unlimited that run does not terminate. Progress — a real landing, the
+    # `-` reason — is the one event that proves the loop is still getting
+    # somewhere, so it is the one event that forgives a death.
     case "$reason_field" in
-        claims-held | claims-held-retry) ;;
-        *) claims_held_streak=0 ;;
+        -) claims_held_streak=0 ;;
     esac
 
     # 7. one line per pass: epoch pass claude_exit pct queue_before queue_after reason

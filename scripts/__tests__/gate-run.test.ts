@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { spawnSync } from "child_process";
+import { spawn, spawnSync } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -196,5 +196,95 @@ describe("gate-run — the run outlives the call that started it (#3698 AC1)", (
         });
         expect(second.status, `${second.stdout}${second.stderr}`).toBe(3);
         expect(second.stdout).toContain("MARKER-LATE");
+        // And it is the FINISHED run that answered, not a second gate started
+        // from scratch: discarding a completed verdict because nobody happened
+        // to be waiting for it is issue #3698's own "the verdict was thrown
+        // away", one step later.
+        expect(second.stderr).toMatch(/already finished/);
+    });
+
+    it("survives a group-directed kill of the caller (#3698, the `set -m` claim)", async () => {
+        // The load-bearing property, proven rather than argued. `detached:
+        // true` makes the spawned `sh` its own process-group leader, so
+        // `kill(-pid)` is the same signal a dying pass's group takes — which
+        // is what used to SIGTERM the gate mid-run. `set -m` inside the script
+        // puts the GATE in a third group, and that is what this asserts.
+        const done = path.join(tmp, "done");
+        fixtureScript("slow", `sleep 5\ntouch "${done}"\nexit 4`);
+
+        const child = spawn("sh", [GATE_RUN, "slow"], {
+            cwd: tmp,
+            detached: true,
+            stdio: "ignore",
+            env: {
+                ...process.env,
+                TOLARIA_GATE_RUN_DIR: runDir,
+                TOLARIA_GATE_RUN_POLL_SECS: "1",
+                TOLARIA_GATE_RUN_WAIT_SECS: "60",
+            },
+        });
+        // Let the script reach its wait loop, then kill its whole group.
+        await new Promise((r) => setTimeout(r, 2000));
+        process.kill(-child.pid!, "SIGTERM");
+        await new Promise((r) => setTimeout(r, 500));
+        expect(
+            fs.existsSync(done),
+            "the gate finished too early to prove anything"
+        ).toBe(false);
+
+        expect(
+            waitForFile(done),
+            "the gate died with the caller's process group"
+        ).toBe(true);
+        // …and its exit code is still there to be read by whoever comes next.
+        const after = run({
+            args: ["slow"],
+            env: { TOLARIA_GATE_RUN_WAIT_SECS: "20" },
+        });
+        expect(after.status, `${after.stdout}${after.stderr}`).toBe(4);
+    });
+});
+
+describe("gate-run — a pid is not an identity (#3698)", () => {
+    it("does not re-attach to a RECYCLED pid that is somebody else's process", async () => {
+        // Reproduced in review: with `rc` absent and a foreign LIVE pid in the
+        // run dir, every later call re-attached, waited the ceiling, exited 75
+        // — forever, without ever starting the gate, and printing the previous
+        // run's log as the diagnostic. Run dirs outlive processes and macOS
+        // recycles pids within hours, so "the pid is alive" is not "the pid is
+        // ours"; the process's own start stamp is what makes it an identity.
+        const starts = path.join(tmp, "starts");
+        fixtureScript("slow", `echo x >>"${starts}"\nsleep 20\nexit 0`);
+
+        // A live process that is NOT our gate, recorded as if it were.
+        const foreign = spawn("sleep", ["30"], {
+            detached: true,
+            stdio: "ignore",
+        });
+        foreign.unref();
+        // Provoke the run dir into existing, then poison it.
+        const seed = run({
+            args: ["slow"],
+            env: { TOLARIA_GATE_RUN_WAIT_SECS: "0" },
+        });
+        expect(seed.status).toBe(75);
+        const runSub = path.join(
+            runDir,
+            fs.readdirSync(runDir).find((d) => d.startsWith("slow-"))!
+        );
+        fs.writeFileSync(path.join(runSub, "pid"), `${foreign.pid}\n`);
+        fs.rmSync(path.join(runSub, "rc"), { force: true });
+
+        const next = run({
+            args: ["slow"],
+            env: { TOLARIA_GATE_RUN_WAIT_SECS: "0" },
+        });
+        expect(next.stderr).toMatch(/started/);
+        expect(next.stderr).not.toMatch(/re-attached/);
+        try {
+            process.kill(foreign.pid!, "SIGKILL");
+        } catch {
+            /* already gone */
+        }
     });
 });
