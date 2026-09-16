@@ -132,6 +132,7 @@
         {"id":"101.4","line":"it(\"APNAP order follows the ACTIVE player, not the controller (CR 101.4)\", () => {","sites":1,"status":"baseline"},
         {"id":"101.4","line":"it(\"a forced pick auto-resolves in the choose pass and still sweeps after every player (CR 101.4)\", () => {","sites":1,"status":"confirmed","ruleHash":"4edac0771bb61980"},
         {"id":"101.4","line":"it(\"a later chooser decides against the board BEFORE any sacrifice (CR 101.4 / 101.4b)\", () => {","sites":1,"status":"confirmed","ruleHash":"4edac0771bb61980"},
+        {"id":"101.4","line":"it(\"a zero-branch answer ([]) frozen before a later suspension survives persistence and still sweeps (CR 101.4)\", () => {","sites":1,"status":"confirmed","ruleHash":"4edac0771bb61980"},
         {"id":"101.4","line":"it(\"decidingPlayer returns the queue head's chooser (CR 101.4 APNAP at enqueue)\", () => {","sites":1,"status":"baseline"},
         {"id":"101.4","line":"it(\"each player picks and sacrifices one creature, in APNAP order (CR 101.4 / 701.21)\", () => {","sites":1,"status":"baseline"},
         {"id":"101.4","line":"it(\"offers the controller first, then the opponent, to pay 5 life (CR 101.4 APNAP)\", () => {","sites":1,"status":"baseline"},
