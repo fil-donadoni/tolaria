@@ -7217,9 +7217,16 @@ export interface DelayedTriggerDef {
     // zero, and one shipped (a `gainLife amount: 0` on Planeswalker's
     // Mischief) whose own comment admitted it was "not a real valuation".
     // Absence of the field is now what stops the next one — `tsc` rather than
-    // a test comment. That the array is unvalued AT ALL — a real `effects[]`
-    // on a template is equally invisible — is the standing gap, issue #3383;
-    // when it closes, THAT is when this field could earn its place back.
+    // a test comment.
+    //
+    // Issue #3383 closed the other half: a real `effects[]` on a template IS
+    // now valued (`gre/ai/cardScriptValue.ts`,
+    // `delayedTriggerTemplateOpValue`) — merged into the card's ability-script
+    // value, un-discounted, for a body that reads no scheduling-time binding
+    // on a card carrying no `aiEffects` shadow. The field STAYS ABSENT
+    // regardless: the way to make a delayed body visible to the bot is to
+    // write the real `effects[]` the engine runs, which the reader then walks,
+    // not a shadow beside it that only the value model would ever see.
 }
 
 // --- Continuous static effects (CR 611, 613) ---

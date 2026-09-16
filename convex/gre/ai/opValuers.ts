@@ -1101,9 +1101,11 @@ const delayedTrigger: Valuer<"delayedTrigger"> = (op, ctx, scope) =>
     );
 
 // CR 603.12 — a reflexive trigger's whole value IS its body: the Op itself
-// only queues a stack object. Same recursion as `delayedTrigger`, and — unlike
-// it — with no discount for the wait, since a reflexive ability resolves in
-// the same priority round rather than at a future phase boundary. Same
+// only queues a stack object. Same recursion as `delayedTrigger`, and with no
+// discount for the wait — as that Op has none either (issue #3383 corrected
+// this comment, which claimed a discount its sibling above has never applied;
+// the template reader in `cardScriptValue.ts` matches both, so one body prices
+// the same however it was scheduled). Same
 // `capture`-alias threading as `delayedTrigger` (issue #1964) — a reflexive
 // self-bounce would hit the identical mis-scoring otherwise.
 const reflexiveTrigger: Valuer<"reflexiveTrigger"> = (op, ctx, scope) =>
