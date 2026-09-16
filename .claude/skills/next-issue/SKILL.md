@@ -206,11 +206,15 @@ wrong-mental-model defect, see §1's escalation note.
   the merge. (Between ADR 0110 retiring the orchestrator and this being wired,
   every emitted spec was silently dropped: 33 were recovered by
   `bun run seed:backlog`.)
-- **`cd` out of the worktree first** — `land` removes it, and a `gate:run`
-  whose cwd has been deleted cannot re-attach to its own run (the run key is
-  the cwd plus the command). `land` works from anywhere (#2537):
-  `cd "$(git rev-parse --git-common-dir)/.."`.
-- `bun run gate:run land <PR#>` — it rebases onto the base branch, runs the lane
+- **Land from the worktree, with an explicit run key:**
+  `TOLARIA_GATE_RUN_KEY=land-<PR#> bun run gate:run land <PR#>`. `land` refuses
+  to run from the base branch — it lands the branch you are on — and it DELETES
+  this worktree when it merges. `gate:run` keys a run on its cwd by default, so
+  without the key the follow-up call (from a directory that now exists, since
+  this one does not) would compute a different key and start a SECOND `land`,
+  re-paying the whole gate. With the key, re-issue the identical command from
+  anywhere — including the primary checkout — and it re-attaches.
+- `bun run gate:run land <PR#>` rebases onto the base branch, runs the lane
   gate under the machine mutex, merges into the base branch, tears down the
   worktree and both branch refs. No health gate per landing (ADR 0116): the
   full gate runs once at `bun run release`, on the base tip, before the

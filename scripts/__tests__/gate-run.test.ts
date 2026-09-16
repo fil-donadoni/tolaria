@@ -35,6 +35,21 @@ const GATE_RUN = path.join(REPO_ROOT, "scripts", "gate-run.sh");
 let tmp: string;
 let runDir: string;
 
+/**
+ * The outer environment with every `TOLARIA_GATE_RUN_*` knob removed. This
+ * file runs INSIDE gates, and gates are driven through `gate-run.sh`: a knob set
+ * on the outer call (`TOLARIA_GATE_RUN_KEY=land-N` for a landing) would
+ * otherwise reach every spawn here and silently change what a test measures —
+ * which is how the keyless-default test went red inside `land` (PR #3707).
+ * Every spawn builds on this, never on `process.env` directly.
+ */
+const hermeticEnv = (): NodeJS.ProcessEnv =>
+    Object.fromEntries(
+        Object.entries(process.env).filter(
+            ([k]) => !k.startsWith("TOLARIA_GATE_RUN_")
+        )
+    );
+
 const fixtureScript = (name: string, body: string): void => {
     fs.writeFileSync(path.join(tmp, `${name}.sh`), `#!/bin/sh\n${body}\n`, {
         mode: 0o755,
@@ -72,7 +87,7 @@ const run = (opts: RunOpts) =>
         cwd: tmp,
         encoding: "utf8",
         env: {
-            ...process.env,
+            ...hermeticEnv(),
             TOLARIA_GATE_RUN_DIR: runDir,
             TOLARIA_GATE_RUN_POLL_SECS: "1",
             ...(opts.env ?? {}),
@@ -217,7 +232,7 @@ describe("gate-run — the run outlives the call that started it (#3698 AC1)", (
             detached: true,
             stdio: "ignore",
             env: {
-                ...process.env,
+                ...hermeticEnv(),
                 TOLARIA_GATE_RUN_DIR: runDir,
                 TOLARIA_GATE_RUN_POLL_SECS: "1",
                 TOLARIA_GATE_RUN_WAIT_SECS: "60",
@@ -286,5 +301,177 @@ describe("gate-run — a pid is not an identity (#3698)", () => {
         } catch {
             /* already gone */
         }
+    });
+});
+
+describe("gate-run — a run can be named instead of keyed on its cwd (#3706)", () => {
+    it("re-attaches across DIFFERENT cwds when the run carries an explicit key", () => {
+        // The case that forces this: `land` runs from the PR's own worktree —
+        // it refuses to run from the base branch — and DELETES that worktree
+        // when it merges. A `land` that returns 75 therefore leaves the next
+        // call with a cwd that no longer exists, and a call from anywhere else
+        // computes a different key and starts a SECOND `land`, re-paying the
+        // whole gate. `/next-issue` shipped a `cd` to the primary checkout as
+        // the fix; `land` refused it on the very next landing.
+        const starts = path.join(tmp, "starts");
+        fixtureScript("slow", `echo x >>"${starts}"\nsleep 20\nexit 0`);
+
+        // A second directory with the SAME fixture package, standing in for
+        // the primary checkout a pass falls back to once its worktree is gone.
+        const other = fs.mkdtempSync(path.join(os.tmpdir(), "gate-run-other-"));
+        for (const f of ["package.json", "slow.sh"]) {
+            fs.copyFileSync(path.join(tmp, f), path.join(other, f));
+        }
+        fs.chmodSync(path.join(other, "slow.sh"), 0o755);
+
+        const env = {
+            TOLARIA_GATE_RUN_DIR: runDir,
+            TOLARIA_GATE_RUN_POLL_SECS: "1",
+            TOLARIA_GATE_RUN_WAIT_SECS: "2",
+            TOLARIA_GATE_RUN_KEY: "land-3706",
+        };
+        const first = spawnSync("sh", [GATE_RUN, "slow"], {
+            cwd: tmp,
+            encoding: "utf8",
+            env: { ...hermeticEnv(), ...env },
+        });
+        const second = spawnSync("sh", [GATE_RUN, "slow"], {
+            cwd: other,
+            encoding: "utf8",
+            env: { ...hermeticEnv(), ...env },
+        });
+
+        expect(first.status, `${first.stdout}${first.stderr}`).toBe(75);
+        expect(second.status, `${second.stdout}${second.stderr}`).toBe(75);
+        expect(second.stderr).toMatch(/re-attached/);
+        // The fixture counts its own starts: exactly one gate, from two
+        // directories.
+        expect(fs.readFileSync(starts, "utf8").trim().split("\n")).toHaveLength(
+            1
+        );
+        fs.rmSync(other, { recursive: true, force: true });
+    });
+
+    it("hands a FINISHED named run's verdict to a caller in a checkout with a different HEAD", () => {
+        // The case the key exists for, and the one the first version got
+        // wrong (PR #3707 review): `land` finishes — possibly MERGED — while
+        // nobody is waiting, its worktree is gone, and the follow-up call comes
+        // from the primary checkout, on another branch. The finished-run check
+        // compared the recorded HEAD against the CALLER's HEAD, failed, threw
+        // the real exit code away and started a second `land`. Both
+        // directories are real git repos with different commits here, because
+        // two plain temp dirs both read an empty HEAD and pass by accident.
+        const git = (cwd: string, ...args: string[]) =>
+            spawnSync("git", args, { cwd, encoding: "utf8" });
+        const initRepo = (dir: string, msg: string) => {
+            git(dir, "init", "-q");
+            git(
+                dir,
+                "-c",
+                "user.email=t@t",
+                "-c",
+                "user.name=t",
+                "commit",
+                "-q",
+                "--allow-empty",
+                "-m",
+                msg
+            );
+        };
+        const done = path.join(tmp, "done");
+        const starts = path.join(tmp, "starts");
+        fixtureScript(
+            "slow",
+            `echo x >>"${starts}"\nsleep 3\ntouch "${done}"\nexit 3`
+        );
+        const other = fs.mkdtempSync(path.join(os.tmpdir(), "gate-run-other-"));
+        for (const f of ["package.json", "slow.sh"]) {
+            fs.copyFileSync(path.join(tmp, f), path.join(other, f));
+        }
+        initRepo(tmp, "worktree");
+        initRepo(other, "primary checkout");
+        expect(git(tmp, "rev-parse", "HEAD").stdout).not.toBe(
+            git(other, "rev-parse", "HEAD").stdout
+        );
+
+        const env = {
+            ...hermeticEnv(),
+            TOLARIA_GATE_RUN_DIR: runDir,
+            TOLARIA_GATE_RUN_POLL_SECS: "1",
+            TOLARIA_GATE_RUN_KEY: "land-3707",
+        };
+        const first = spawnSync("sh", [GATE_RUN, "slow"], {
+            cwd: tmp,
+            encoding: "utf8",
+            env: { ...env, TOLARIA_GATE_RUN_WAIT_SECS: "0" },
+        });
+        expect(first.status, `${first.stdout}${first.stderr}`).toBe(75);
+        expect(waitForFile(done), "the gate never finished").toBe(true);
+
+        const second = spawnSync("sh", [GATE_RUN, "slow"], {
+            cwd: other,
+            encoding: "utf8",
+            env: { ...env, TOLARIA_GATE_RUN_WAIT_SECS: "20" },
+        });
+        expect(second.status, `${second.stdout}${second.stderr}`).toBe(3);
+        expect(second.stderr).toMatch(/already finished/);
+        expect(fs.readFileSync(starts, "utf8").trim().split("\n")).toHaveLength(
+            1
+        );
+        fs.rmSync(other, { recursive: true, force: true });
+    });
+
+    it("does not hand the run's key down to the gate it runs", () => {
+        // A gate is a process tree, and some of its descendants drive
+        // `gate-run.sh` themselves. A key left in the environment collapses
+        // every one of their runs onto the parent's — observed: the keyless
+        // test below went red inside `land`'s own gate (PR #3707).
+        fixtureScript("fast", 'echo "KEY=[$TOLARIA_GATE_RUN_KEY]"\nexit 0');
+        const r = spawnSync("sh", [GATE_RUN, "fast"], {
+            cwd: tmp,
+            encoding: "utf8",
+            env: {
+                ...hermeticEnv(),
+                TOLARIA_GATE_RUN_DIR: runDir,
+                TOLARIA_GATE_RUN_POLL_SECS: "1",
+                TOLARIA_GATE_RUN_KEY: "land-3707",
+            },
+        });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        expect(r.stdout).toContain("KEY=[]");
+    });
+
+    it("still separates two worktrees that gate the same script with no key", () => {
+        // A regression guard on the DEFAULT, not a test of the key: it passes
+        // with the feature removed, and it is here so that adding the key can
+        // never quietly turn "one run per cwd" into "one run per command": two
+        // worktrees gating concurrently are two runs, and attaching one to the
+        // other's log would report the wrong tree's verdict.
+        const starts = path.join(tmp, "starts");
+        fixtureScript("slow", `echo x >>"${starts}"\nsleep 20\nexit 0`);
+        const other = fs.mkdtempSync(path.join(os.tmpdir(), "gate-run-other-"));
+        for (const f of ["package.json", "slow.sh"]) {
+            fs.copyFileSync(path.join(tmp, f), path.join(other, f));
+        }
+        fs.chmodSync(path.join(other, "slow.sh"), 0o755);
+
+        const env = {
+            TOLARIA_GATE_RUN_DIR: runDir,
+            TOLARIA_GATE_RUN_POLL_SECS: "1",
+            TOLARIA_GATE_RUN_WAIT_SECS: "2",
+        };
+        spawnSync("sh", [GATE_RUN, "slow"], {
+            cwd: tmp,
+            encoding: "utf8",
+            env: { ...hermeticEnv(), ...env },
+        });
+        const second = spawnSync("sh", [GATE_RUN, "slow"], {
+            cwd: other,
+            encoding: "utf8",
+            env: { ...hermeticEnv(), ...env },
+        });
+        expect(second.stderr).toMatch(/started/);
+        expect(second.stderr).not.toMatch(/re-attached/);
+        fs.rmSync(other, { recursive: true, force: true });
     });
 });

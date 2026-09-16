@@ -55,6 +55,8 @@
 #   TOLARIA_GATE_RUN_TAIL       log lines printed with the verdict (default 60)
 #   TOLARIA_GATE_RUN_DIR        where run state lives (default under the cache)
 #   TOLARIA_GATE_RUN_KEEP_DAYS  prune run dirs older than this (default 7)
+#   TOLARIA_GATE_RUN_KEY        name this run instead of keying it on the cwd
+#                               (for `land`, which deletes the cwd it ran from)
 #
 # Exit codes: the gate's own on completion; 75 = still running, call again;
 # 2 = usage; 70 = the detached runner vanished without writing an exit code.
@@ -89,7 +91,19 @@ done
 # One run dir per (cwd, command). The cwd is part of the key because two
 # worktrees gating concurrently are two different runs of the same script —
 # attaching one to the other's log would report the wrong tree's verdict.
-_key=$(printf '%s|%s' "$(pwd)" "$*" | cksum | tr -cd '0-9')
+#
+# TOLARIA_GATE_RUN_KEY replaces the cwd component when the cwd is not a stable
+# name for the run (issue #3706). The case that forces this is `land`: it runs
+# from the PR's own worktree — it refuses to run from the base branch — and it
+# DELETES that worktree when it merges. So a `land` that returns 75 leaves the
+# next call with a cwd that no longer exists, and a call from anywhere else
+# computes a different key and starts a SECOND `land`, re-paying the whole
+# gate. With an explicit key the same run is addressable from any directory.
+_key_scope="${TOLARIA_GATE_RUN_KEY:-}"
+[ -n "$_key_scope" ] || _key_scope="$(pwd)"
+# A NEWLINE between scope and command, not `|`: the scope is now free text a
+# caller chooses, and `a|b` + `c` must not hash the same as `a` + `b|c`.
+_key=$(printf '%s\n%s' "$_key_scope" "$*" | cksum | tr -cd '0-9')
 _safe=$(printf '%s' "$1" | tr -c 'A-Za-z0-9._-' '-')
 RUN_DIR="$RUN_ROOT/$_safe-$_key"
 LOG="$RUN_DIR/log"
@@ -179,13 +193,25 @@ if [ ! -f "$RC" ] && is_alive "$_pid" &&
     [ "$(pid_ident "$_pid")" = "$(cat "$PIDSTART" 2>/dev/null || echo "")" ] &&
     [ -s "$PIDSTART" ]; then
     attached=1
-elif [ -f "$RC" ] && [ "$(cat "$HEAD_F" 2>/dev/null || echo "-")" = "$(git_head)" ]; then
+elif [ -f "$RC" ] &&
+    { [ -n "${TOLARIA_GATE_RUN_KEY:-}" ] ||
+        [ "$(cat "$HEAD_F" 2>/dev/null || echo "-")" = "$(git_head)" ]; }; then
     # A gate that COMPLETED while nobody was waiting. Handing its exit code to
     # the next call is the whole point — discarding it would be issue #3698's
     # own "the verdict was thrown away", relocated one step later. It is only
     # safe while the tree has not moved, which is what the recorded HEAD is
     # for: a rebase, a new commit or an amend makes the verdict describe a tree
     # nobody is landing, and that one is discarded.
+    #
+    # EXCEPT under an explicit key (issue #3706). The HEAD check reads the
+    # CALLER's cwd, and a named run exists precisely so the follow-up call can
+    # come from somewhere else — the primary checkout, after `land` deleted
+    # the worktree. That checkout is on another branch with another HEAD, so
+    # the check would always fail there, discard a `land` that may already
+    # have MERGED, and start a second one that `land` refuses from the base
+    # branch — reporting a successful landing as a failure. The key is the
+    # caller's own assertion that this is the same run; it is taken at its
+    # word.
     finished=1
 fi
 
@@ -208,6 +234,14 @@ if [ "$attached" -eq 0 ] && [ "$finished" -eq 0 ]; then
         # gate's own exit code — the same "the verdict was thrown away"
         # failure this whole script exists to remove.
         set +e
+        # The run's NAME is this call's business, not the gate's. Left in the
+        # environment, it reaches every descendant of the gate — and a gate
+        # that itself drives `gate-run.sh` (the suite does, in its tests) would
+        # then collapse every one of its own runs onto the parent's key. That
+        # is not hypothetical: `TOLARIA_GATE_RUN_KEY=land-N bun run gate:run
+        # land N` turned the keyless-default test red inside `land`'s own gate
+        # (PR #3707).
+        unset TOLARIA_GATE_RUN_KEY
         bun run "$@" >"$LOG" 2>&1
         echo $? >"$RC"
     ) </dev/null >/dev/null 2>&1 &
