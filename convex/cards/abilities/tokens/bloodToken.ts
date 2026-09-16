@@ -1,4 +1,4 @@
-// The Blood token (CR 707.2) — shared spec for the "create a Blood token"
+// The Blood token (CR 111.10g) — shared spec for the "create a Blood token"
 // clause (Voldaren Epicure, vow/red.ts). A colorless artifact token with
 // subtype Blood and the activated ability "{1}, {T}, Discard a card,
 // Sacrifice this token: Draw a card." Every printed Blood producer creates
@@ -23,7 +23,7 @@ import type {
     EffectValue,
 } from "../../types";
 
-/** The Blood token's `EffectTokenSpec` (CR 707.2). Colorless artifact,
+/** The Blood token's `EffectTokenSpec` (CR 111.10g). Colorless artifact,
  *  subtype Blood, one activated ability: "{1}, {T}, Discard a card,
  *  Sacrifice this token: Draw a card." — `cost.mana: { generic: 1 }` is the
  *  {1} generic cost, `cost.tap: true` taps the token, `cost.discardFilter:

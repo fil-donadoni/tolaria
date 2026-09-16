@@ -1,4 +1,4 @@
-// The Food token (CR 707.2) — shared spec for the "create a Food token"
+// The Food token (CR 111.10b) — shared spec for the "create a Food token"
 // clause (issue #778, engine infra; no catalogue producer required yet). A
 // colorless artifact token with subtype Food and the activated ability "{2},
 // {T}, Sacrifice this token: Gain 3 life." Mirrors `CLUE_TOKEN_SPEC` /
@@ -11,7 +11,7 @@ import type {
     EffectValue,
 } from "../../types";
 
-/** The Food token's `EffectTokenSpec` (CR 707.2). Colorless artifact,
+/** The Food token's `EffectTokenSpec` (CR 111.10b). Colorless artifact,
  *  subtype Food, one activated ability: "{2}, {T}, Sacrifice this token:
  *  Gain 3 life." — `cost.mana: { generic: 2 }` is the {2} generic cost,
  *  `cost.tap: true` taps the token, `cost.sacrifice: true` sacrifices the
