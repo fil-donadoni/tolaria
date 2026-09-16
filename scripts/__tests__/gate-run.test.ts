@@ -337,8 +337,79 @@ describe("gate-run — a run can be named instead of keyed on its cwd (#3706)", 
         fs.rmSync(other, { recursive: true, force: true });
     });
 
+    it("hands a FINISHED named run's verdict to a caller in a checkout with a different HEAD", () => {
+        // The case the key exists for, and the one the first version got
+        // wrong (PR #3707 review): `land` finishes — possibly MERGED — while
+        // nobody is waiting, its worktree is gone, and the follow-up call comes
+        // from the primary checkout, on another branch. The finished-run check
+        // compared the recorded HEAD against the CALLER's HEAD, failed, threw
+        // the real exit code away and started a second `land`. Both
+        // directories are real git repos with different commits here, because
+        // two plain temp dirs both read an empty HEAD and pass by accident.
+        const git = (cwd: string, ...args: string[]) =>
+            spawnSync("git", args, { cwd, encoding: "utf8" });
+        const initRepo = (dir: string, msg: string) => {
+            git(dir, "init", "-q");
+            git(
+                dir,
+                "-c",
+                "user.email=t@t",
+                "-c",
+                "user.name=t",
+                "commit",
+                "-q",
+                "--allow-empty",
+                "-m",
+                msg
+            );
+        };
+        const done = path.join(tmp, "done");
+        const starts = path.join(tmp, "starts");
+        fixtureScript(
+            "slow",
+            `echo x >>"${starts}"\nsleep 3\ntouch "${done}"\nexit 3`
+        );
+        const other = fs.mkdtempSync(path.join(os.tmpdir(), "gate-run-other-"));
+        for (const f of ["package.json", "slow.sh"]) {
+            fs.copyFileSync(path.join(tmp, f), path.join(other, f));
+        }
+        initRepo(tmp, "worktree");
+        initRepo(other, "primary checkout");
+        expect(git(tmp, "rev-parse", "HEAD").stdout).not.toBe(
+            git(other, "rev-parse", "HEAD").stdout
+        );
+
+        const env = {
+            ...process.env,
+            TOLARIA_GATE_RUN_DIR: runDir,
+            TOLARIA_GATE_RUN_POLL_SECS: "1",
+            TOLARIA_GATE_RUN_KEY: "land-3707",
+        };
+        const first = spawnSync("sh", [GATE_RUN, "slow"], {
+            cwd: tmp,
+            encoding: "utf8",
+            env: { ...env, TOLARIA_GATE_RUN_WAIT_SECS: "0" },
+        });
+        expect(first.status, `${first.stdout}${first.stderr}`).toBe(75);
+        expect(waitForFile(done), "the gate never finished").toBe(true);
+
+        const second = spawnSync("sh", [GATE_RUN, "slow"], {
+            cwd: other,
+            encoding: "utf8",
+            env: { ...env, TOLARIA_GATE_RUN_WAIT_SECS: "20" },
+        });
+        expect(second.status, `${second.stdout}${second.stderr}`).toBe(3);
+        expect(second.stderr).toMatch(/already finished/);
+        expect(fs.readFileSync(starts, "utf8").trim().split("\n")).toHaveLength(
+            1
+        );
+        fs.rmSync(other, { recursive: true, force: true });
+    });
+
     it("still separates two worktrees that gate the same script with no key", () => {
-        // The default must not become "one global run per command": two
+        // A regression guard on the DEFAULT, not a test of the key: it passes
+        // with the feature removed, and it is here so that adding the key can
+        // never quietly turn "one run per cwd" into "one run per command": two
         // worktrees gating concurrently are two runs, and attaching one to the
         // other's log would report the wrong tree's verdict.
         const starts = path.join(tmp, "starts");

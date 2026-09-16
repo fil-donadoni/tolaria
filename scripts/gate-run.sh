@@ -101,7 +101,9 @@ done
 # gate. With an explicit key the same run is addressable from any directory.
 _key_scope="${TOLARIA_GATE_RUN_KEY:-}"
 [ -n "$_key_scope" ] || _key_scope="$(pwd)"
-_key=$(printf '%s|%s' "$_key_scope" "$*" | cksum | tr -cd '0-9')
+# A NEWLINE between scope and command, not `|`: the scope is now free text a
+# caller chooses, and `a|b` + `c` must not hash the same as `a` + `b|c`.
+_key=$(printf '%s\n%s' "$_key_scope" "$*" | cksum | tr -cd '0-9')
 _safe=$(printf '%s' "$1" | tr -c 'A-Za-z0-9._-' '-')
 RUN_DIR="$RUN_ROOT/$_safe-$_key"
 LOG="$RUN_DIR/log"
@@ -191,13 +193,25 @@ if [ ! -f "$RC" ] && is_alive "$_pid" &&
     [ "$(pid_ident "$_pid")" = "$(cat "$PIDSTART" 2>/dev/null || echo "")" ] &&
     [ -s "$PIDSTART" ]; then
     attached=1
-elif [ -f "$RC" ] && [ "$(cat "$HEAD_F" 2>/dev/null || echo "-")" = "$(git_head)" ]; then
+elif [ -f "$RC" ] &&
+    { [ -n "${TOLARIA_GATE_RUN_KEY:-}" ] ||
+        [ "$(cat "$HEAD_F" 2>/dev/null || echo "-")" = "$(git_head)" ]; }; then
     # A gate that COMPLETED while nobody was waiting. Handing its exit code to
     # the next call is the whole point — discarding it would be issue #3698's
     # own "the verdict was thrown away", relocated one step later. It is only
     # safe while the tree has not moved, which is what the recorded HEAD is
     # for: a rebase, a new commit or an amend makes the verdict describe a tree
     # nobody is landing, and that one is discarded.
+    #
+    # EXCEPT under an explicit key (issue #3706). The HEAD check reads the
+    # CALLER's cwd, and a named run exists precisely so the follow-up call can
+    # come from somewhere else — the primary checkout, after `land` deleted
+    # the worktree. That checkout is on another branch with another HEAD, so
+    # the check would always fail there, discard a `land` that may already
+    # have MERGED, and start a second one that `land` refuses from the base
+    # branch — reporting a successful landing as a failure. The key is the
+    # caller's own assertion that this is the same run; it is taken at its
+    # word.
     finished=1
 fi
 
