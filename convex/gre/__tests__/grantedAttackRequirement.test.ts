@@ -84,6 +84,26 @@ const eotGranter: CardDefinition = {
 };
 registerTokenDefinition(eotGranter);
 
+/** A creature that PRINTS "attacks each combat if able" (Juggernaut's
+ *  shape) — the projected flag must cover it exactly like a granted one. */
+const PRINTED_ID = "test-1972-printed";
+registerTokenDefinition({
+    id: PRINTED_ID,
+    name: "Test Printed Requirement",
+    rarity: "common",
+    manaCost: { X: 4 },
+    types: ["Creature"],
+    power: 5,
+    toughness: 3,
+    staticEffects: [
+        {
+            kind: "attack-requirement",
+            id: "test-1972-printed-req",
+            oracleText: "This creature attacks each combat if able.",
+        },
+    ],
+});
+
 /** A vanilla creature with NO printed attack requirement. */
 const RECIPIENT_ID = "test-1972-recipient";
 registerTokenDefinition({
@@ -231,13 +251,17 @@ describe("grantAbility `attackRequirement` payload (CR 508.1d / 613.1f, issue #1
         expect(required(state)).toEqual(["bear"]);
     });
 
-    it("is a no-op when the target has left the battlefield (CR 608.2b)", () => {
+    it("grants nothing when the target has left the battlefield (CR 608.2b)", () => {
         const state = combatBoard();
         pushSpell(state, INDEFINITE_GRANTER_ID, "p1", [
             { type: "permanent", id: "bear" },
         ]);
-        state.players[0].battlefield = [];
+        removePermanentTo(state, "bear", "graveyard");
         expect(() => resolveTopOfStack(state)).not.toThrow();
+        // The departed card carries no grant, and returning it does not
+        // resurrect one.
+        const dead = state.players[0].graveyard.find((c) => c.id === "bear")!;
+        expect(dead.grantedAttackRequirements).toBeUndefined();
     });
 });
 
@@ -327,6 +351,20 @@ describe("projected `mustAttack` flag (issue #1972)", () => {
         grant(state, INDEFINITE_GRANTER_ID);
         expect(flagOf(state, "p1")).toBe(true);
         expect(flagOf(state, "p2")).toBe(true);
+    });
+
+    it("is set for a PRINTED requirement and a this-turn one too (one predicate)", () => {
+        const printed = combatBoard();
+        printed.players[0].battlefield[0] = makeInstance(PRINTED_ID, {
+            id: "bear",
+            controllerId: "p1",
+            ownerId: "p1",
+            isSummoningSick: false,
+        });
+        expect(flagOf(printed, "p1")).toBe(true);
+
+        const thisTurn = combatBoard({ mustAttackThisTurn: true });
+        expect(flagOf(thisTurn, "p1")).toBe(true);
     });
 
     it("is absent outside the declare-attackers step and when the creature can't attack", () => {

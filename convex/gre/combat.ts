@@ -1281,7 +1281,9 @@ export function collectAttackManaTax(state: GameState): AttackManaCharge[] {
  *  Bot's enumeration (`moves.ts`) and the client affordance (the projected
  *  `mustAttack` flag, via `isRequiredAttacker`) all go through it, so a new
  *  source — a defender-pinned requirement (issue #3247) — widens THIS
- *  function rather than adding a second reader. */
+ *  function rather than adding a second reader. (The Bot's enumeration passes
+ *  no `massAttackPlayerId`, so it sees the per-creature sources but not the
+ *  mass one; `confirmAttackers` folds that in regardless.) */
 function hasAttackRequirement(
     card: CardInstanceState,
     state: GameState,
