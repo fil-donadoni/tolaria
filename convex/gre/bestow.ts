@@ -23,7 +23,7 @@
 //
 //  - the COST half is not here at all. `CardDefinition.bestow` reuses the
 //    `AlternativeCost` shape (CR 118.9 already governs paying it, CR 702.103a
-//    says so explicitly) exactly the way `CardDefinition.evoke` (CR 702.74a)
+//    says so explicitly of bestow) exactly the way `CardDefinition.evoke` (CR 702.74a)
 //    and `CardDefinition.dash` (CR 702.109a) do, and is resolved by
 //    `convex/gre/alternativeCost.ts`'s `getAlternativeCost` /
 //    `affordableAlternativeCosts` alongside the generic `alternativeCosts[]`

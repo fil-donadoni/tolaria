@@ -263,7 +263,7 @@ Printed:
 Reflexive triggers are built and checked immediately after creation, and are
 excluded from the APNAP ordering prompt because they are not plain triggers:
 `buildMadnessReflexiveTrigger` (`convex/gre/triggers.ts:154`, Madness — CR
-702.35a), `buildReboundReflexiveTrigger` (`convex/gre/triggers.ts:184`, CR
+702.35a), `buildReboundReflexiveTrigger` (`convex/gre/triggers.ts:184`, Rebound — CR
 702.88a), and
 `isPlainTrigger` (`convex/gre/triggers.ts:682`), with the reflexive semantics
 documented at `convex/gre/triggers.ts:678-712`.

@@ -19,10 +19,14 @@
  * file walk, the per-file needle prefilter, the line split and the trailing
  * `cr-cite-ok` escape hatch — identical across every scan that uses it.
  *
- * Every match is anchored to ONE line, so every scan inherits the same blind
- * spot as the existence scan: a citation wrapped across two comment lines, or
- * a claim that continues onto the next line, is invisible.
+ * Every match is anchored to ONE LOGICAL line (`cr-lines.ts`, issue #2514):
+ * a comment line ending mid-citation is joined with its continuation, so a
+ * citation wrapped across two comment lines — or a claim that starts on the
+ * line after the id — is seen whole. What stays invisible, as for every other
+ * scan, is a claim that continues past a line which does not end on the
+ * citation itself.
  */
+import { citationLines, lineAt } from "./cr-lines.ts";
 
 /** Inline escape hatch for a deliberate counter-example on one line. */
 export const SUPPRESS = "cr-cite-ok";
@@ -59,14 +63,21 @@ export function scanMisattributions<R extends MisattributionRule>(
         if (exempt.some((p) => file.startsWith(p))) continue;
         const live = rules.filter((rule) => text.includes(rule.needle));
         if (!live.length) continue;
-        text.split("\n").forEach((line, i) => {
-            if (line.includes(SUPPRESS)) return;
+        for (const logical of citationLines(text)) {
+            const line = logical.text;
+            if (line.includes(SUPPRESS)) continue;
             for (const rule of live) {
-                if (!rule.cites.test(line) || !rule.claim.test(line)) continue;
+                const cites = line.match(rule.cites);
+                if (!cites || !rule.claim.test(line)) continue;
                 if (rule.legitimate?.test(line)) continue;
-                hits.push({ file, line: i + 1, text: line.trim(), rule });
+                hits.push({
+                    file,
+                    line: lineAt(logical, cites.index ?? 0).line,
+                    text: line.replace(/\s+/g, " ").trim(),
+                    rule,
+                });
             }
-        });
+        }
     }
     return hits;
 }

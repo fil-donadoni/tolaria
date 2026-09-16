@@ -50,7 +50,7 @@ import {
     repoWidening,
     scanCitations,
     scannedFiles,
-    TOKENIZER_PATH,
+    TOKENIZER_PATHS,
 } from "./check-cr-citations.ts";
 import {
     baselineSites,
@@ -158,7 +158,7 @@ function cmdWiden(): number {
     writeLedger(ledger);
     console.log(
         `${LEDGER_PATH}: ${plan.added.length} citation${plan.added.length === 1 ? "" : "s"} recorded as baseline (never checked) — ` +
-            `uncovered on the merge-base tree (${base.mergeBase.slice(0, 12)}) by this diff's change to ${TOKENIZER_PATH}`
+            `uncovered on the merge-base tree (${base.mergeBase.slice(0, 12)}) by this diff's change to ${TOKENIZER_PATHS.join(" / ")}`
     );
     if (plan.alreadyRecorded)
         console.log(
@@ -214,7 +214,8 @@ function cmdConfirm(args: string[]): number {
         );
         return 1;
     }
-    const lines = readFileSync(join(ROOT, rel), "utf8").split("\n");
+    const text = readFileSync(join(ROOT, rel), "utf8");
+    const lines = text.split("\n");
     const n = Number(lineNo);
     const raw = n >= 1 ? lines[n - 1] : undefined;
     if (raw === undefined) {
@@ -223,10 +224,13 @@ function cmdConfirm(args: string[]): number {
         );
         return 1;
     }
-    // Scan exactly this line, as the tree scan would see it.
-    const { citations, bad } = scanCitations(
-        [{ file: rel, text: raw }],
-        knownRuleIds()
+    // Scan the whole file, as the tree scan does, and keep this line's
+    // citations: a wrapped citation (`lib/cr-lines.ts`) is only a citation in
+    // the company of the line before it.
+    const scanned = scanCitations([{ file: rel, text }], knownRuleIds());
+    const citations = scanned.citations.filter((c) => c.line === n);
+    const bad = new Map(
+        [...scanned.bad].filter(([, hits]) => hits.some((h) => h.line === n))
     );
     if (!citations.length) {
         console.error(`${rel}:${n} cites no CR rule:\n    ${raw.trim()}`);

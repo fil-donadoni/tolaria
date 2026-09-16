@@ -205,7 +205,7 @@ export const darkRitual: CardDefinition = {
 // };
 
 // Deathgrip — "{B}, Sacrifice Deathgrip: Counter target green spell." (CR
-// 701.5a counter, 202.2 color filter on stack target).
+// 701.6a counter, 202.2 color filter on stack target).
 export const deathgrip: CardDefinition = {
     id: "2371c126-f19a-472a-ba5f-3b1366274ea0",
     rarity: "uncommon",

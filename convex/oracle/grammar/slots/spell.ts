@@ -246,7 +246,7 @@ const flashbackLine: Rule<SlotIR> = rule<SlotIR>("flashback", (span, ctx) => {
             out.mana = atom.mana;
             continue;
         }
-        // CR 702.34a — of `FlashbackCost`'s two non-mana components, a CR 701.21a
+        // CR 702.34a flashback — of `FlashbackCost`'s two non-mana components, a CR 701.21a
         // sacrifice filter is the one this grammar can reach: the shared cost
         // sub-grammar has no exile-from-HAND atom, so `exileFromHand` has no
         // atom that could lower into it. Every other atom the shared cost

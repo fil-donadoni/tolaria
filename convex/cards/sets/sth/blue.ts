@@ -2,7 +2,7 @@
 import type { CardDefinition } from "../../types";
 
 // Mana Leak — "Counter target spell unless its controller pays {3}." (CR
-// 701.5a counter-unless-pay, CR 117.3a may-pay). Same mayPay + if(not $paid)
+// 701.6a counter-unless-pay, CR 118.12a may-pay). Same mayPay + if(not $paid)
 // + counter shape as Force Spike (leg/blue.ts), just a bigger tax (issue
 // #683).
 export const manaLeak: CardDefinition = {

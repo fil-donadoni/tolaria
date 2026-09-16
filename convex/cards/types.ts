@@ -6605,7 +6605,7 @@ export interface SpellContext {
     /** Characteristics of every card in `playerId`'s library, read from the
      *  card registry (CR 108.1). Mirrors `getHandCards`; used to precompute the
      *  `candidateIds` allow-list of a filtered `search-library` choice (CR
-     *  701.19 — "search your library for a [type] card"), since the submit
+     *  701.23 — "search your library for a [type] card"), since the submit
      *  validator enforces `candidateIds` on library picks but does not apply a
      *  `PermanentFilter` to hidden library cards. `manaValue` folds X to 0 (CR
      *  202.3b). `supertypes` (issue #677) is the card's printed supertypes

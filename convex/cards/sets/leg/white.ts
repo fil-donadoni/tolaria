@@ -1344,7 +1344,7 @@ export const akronLegionnaire: CardDefinition = {
     ],
 };
 
-// Petra Sphinx — {2}{W}{W}{W} 3/4 Sphinx (CR 202.3 name-a-card + CR 701.13
+// Petra Sphinx — {2}{W}{W}{W} 3/4 Sphinx (CR 201.4 name-a-card + CR 701.20
 // reveal). "{T}: Target player chooses a card name, then reveals the top card
 // of their library. If that card has the chosen name, that player puts it into
 // their hand. If it doesn't, the player puts it into their graveyard." The

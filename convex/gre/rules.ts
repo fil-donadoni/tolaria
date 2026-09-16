@@ -2953,7 +2953,7 @@ export function getLegalTargets(
      *  a CR 611 permanent guard,
      *  hexproof (CR 702.11b),
      *  shroud (CR 702.18)
-     *  and the from-everything quality (CR 702.16i).
+     *  and the protection-from-everything quality (CR 702.16i).
      *  Threaded as an option on THIS function rather
      *  than answered by a second scan of the board, so the "which objects match
      *  this requirement" derivation stays one authority (ADR 0068) and an

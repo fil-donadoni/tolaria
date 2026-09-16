@@ -34,12 +34,12 @@
  *
  * REMAINING BLIND SPOTS (measured, not fixed here — narrowing scope, not a
  * defeat of the guard's purpose):
- * 1. A citation or its claim WRAPPED ACROSS TWO COMMENT LINES — "honoring
- *    CR 616.1d (a given" + "replacement applies once …" on the next line — is
- *    invisible: `cites` and `claim` are both anchored to a single line, the
- *    same hole `check-cr-citations.ts` documents. A multi-line window was
- *    measured and rejected by both earlier guards. Keep the citation, its
- *    `CR ` prefix and its claim on one line.
+ * 1. A claim that continues past a line which does not end on the citation
+ *    itself — "honoring CR 616.1d (a given" + "replacement applies once …" on
+ *    the next line — is invisible: the scan reads logical lines
+ *    (`lib/cr-lines.ts`, issue #2514), which join a comment line ending
+ *    mid-citation (`CR` alone, or `CR 616.1d`) with its continuation, and
+ *    nothing else.
  * 2. A claim phrased outside the vocabulary — "(repeatable, …)", "can only
  *    fire one time" — passes. The vocabulary is the words the corrected sites
  *    actually used plus CR 614.5's own ("itself", "one opportunity").

@@ -95,8 +95,7 @@ export const reconstruction: CardDefinition = {
 //
 // DIVERGENCE (tracked-by: #2912) — the oracle's "target PLAYER's graveyard" is
 // a second target in its own right, and it is NOT declared here, so a player
-// with protection from
-// everything (CR 702.16b)
+// with protection from everything (CR 702.16b)
 // or with shroud (CR 702.18) is not screened out (issue #2801). Declaring it
 // as an independent `additionalTargetRequirements` group is NOT the fix: the
 // two groups would be chosen independently, so the caster could announce one

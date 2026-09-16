@@ -3759,7 +3759,7 @@ export type PendingChoice = {
     candidateIds?: string[];
     /** `kind: "search-library"` only (CR 701.23a, issue #788 re-review
      *  finding 1) — set when this choice is a GENUINE library search (CR
-     *  701.19a: look at the whole library, filtered by card characteristics),
+     *  701.23a: look at the whole library, filtered by card characteristics),
      *  as opposed to a "look at the top N, pick one" prompt that reuses
      *  `search-library` for its candidate-restricted picker UI (Expressive
      *  Iteration, Diabolic Vision — `candidateIds` there is a peeked TOP-N

@@ -1782,7 +1782,7 @@ export const timeBomb: CardDefinition = {
 // Wand of Ith), so it is intentionally not modelled (tracked-by: #2785). See the def for the note.
 // Vexing Arcanix — {3}, {T}: Target player names a card, reveals their top card;
 // hit → hand, miss → graveyard + 2 damage to them (CR 605 activated ability;
-// CR 202.3 name-a-card via `requestNameCard` made by the TARGET player; CR 701.13
+// CR 201.4 name-a-card via `requestNameCard` made by the TARGET player; CR 701.20
 // reveal via `markKnownToAll`; CR 120.1 damage). The named-card choice and the
 // reveal are both the target's, so the prompt's `playerId` is the target, not the
 // controller.
