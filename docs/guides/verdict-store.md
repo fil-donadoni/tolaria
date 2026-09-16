@@ -11,11 +11,11 @@ ADR 0128; the code is `convex/verdictStore.ts` (the port and its decisions),
 
 ## What exists
 
-| Thing                       | Name                                                     | Lives in                                                                                                                                          |
-| --------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Bucket](#g-bucket)         | `tolaria-verdict-store`                                  | the owner's GCP project, `us-central1`                                                                                                            |
-| [Writer account](#g-writer) | `verdict-store-writer@<project>.iam.gserviceaccount.com` | its [key](#g-key) in the `VERDICT_STORE_WRITE_KEY` env var of each CLOUD Convex deployment — never a local backend, nowhere else                  |
-| [Reader account](#g-reader) | `verdict-store-reader@<project>.iam.gserviceaccount.com` | its [key](#g-key) in `~/.config/tolaria/verdict-store-reader.json` on each development machine (`VERDICT_STORE_READ_KEY_FILE` overrides the path) |
+| Thing                       | Name                                                     | Lives in                                                                                                                                                                                                                                       |
+| --------------------------- | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Bucket](#g-bucket)         | `tolaria-verdict-store`                                  | the owner's GCP project, `us-central1`                                                                                                                                                                                                         |
+| [Writer account](#g-writer) | `verdict-store-writer@<project>.iam.gserviceaccount.com` | its [key](#g-key) in the `VERDICT_STORE_WRITE_KEY` env var of each CLOUD Convex deployment — never a local backend, nowhere else                                                                                                               |
+| [Reader account](#g-reader) | `verdict-store-reader@<project>.iam.gserviceaccount.com` | its [key](#g-key) in `~/.config/tolaria/verdict-store-reader.json` on each development machine (`VERDICT_STORE_READ_KEY_FILE` overrides the path); optionally a separate one in a local backend's `VERDICT_STORE_READ_KEY` env var, for review |
 
 The [bucket](#g-bucket) name is a constant (`VERDICT_STORE_BUCKET` in
 `convex/verdictStoreCredentials.ts`), not an env var: it is not a secret, and a
@@ -241,13 +241,14 @@ this from the checkout whose `.env.local` names the `local:…` deployment, so
 the bare `env set` targets the local backend:
 
 ```bash
-bunx convex env set VERDICT_STORE_READ_KEY \
-  "$(cat ~/.config/tolaria/verdict-store-reader.json)"
+gcloud iam service-accounts keys create reader-backend.json --iam-account=$R
+bunx convex env set VERDICT_STORE_READ_KEY "$(cat reader-backend.json)"
+rm reader-backend.json
 ```
 
-The value is the same reader [key](#g-key) as the
-[development machine's](#development-machine). It lives in the backend's
-environment and is never copied into a checkout. The review then reads the
+It is a [key](#g-key) of its own, like every place's, so revoking it touches
+neither the machine's file nor any other backend. It lives in the backend's
+environment and never in a checkout. The review then reads the
 whole [bucket](#g-bucket) plus the backend's own rows not yet forwarded,
 deduplicated by verdict id. A position contested between a local judgement
 and a production one shows up with both. The writer's [key](#g-key) is

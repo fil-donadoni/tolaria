@@ -66,7 +66,9 @@ const refs = {
 };
 
 /** The store the review reads, by the credential this deployment holds: the
- *  write key, else the reader key, else none. */
+ *  write key, else the reader key, else none. `env` decides which; the
+ *  writer's constructor reads its key from the deployment's own environment,
+ *  as the drain's does. */
 export function reviewStoreFromEnv(
     env: Record<string, string | undefined>
 ): VerdictStoreReader | null {

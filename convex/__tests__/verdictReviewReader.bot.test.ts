@@ -209,6 +209,18 @@ describe("a local deployment's review with the reader key (issue #3746)", () => 
         expect(result.positions.map((p) => p.status)).toEqual(["contested"]);
     });
 
+    it("reads with the write key when a deployment holds both", async () => {
+        vi.stubEnv("VERDICT_STORE_WRITE_KEY", keyText("verdict-store-writer"));
+        vi.stubEnv("VERDICT_STORE_READ_KEY", keyText("verdict-store-reader"));
+        const { scopes } = stubGcs(await bucketWithProductionPass());
+
+        const result = await runReview([localRow("r-bolt", BOLT)]);
+
+        expect(result.storeRead).toBe(true);
+        expect(scopes).toEqual([VERDICT_STORE_OAUTH_SCOPE.write]);
+        expect(result.positions).toHaveLength(1);
+    });
+
     it("refuses the writer's key presented as the reader's, by service-account name", async () => {
         vi.stubEnv("VERDICT_STORE_READ_KEY", keyText("verdict-store-writer"));
         const { urls } = stubGcs(createMemoryVerdictStore());
