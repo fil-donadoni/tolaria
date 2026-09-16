@@ -44,6 +44,7 @@ export const forwardVerdicts = httpAction(async (ctx, request) => {
     }
     const { httpStatus, response } = await acceptForward(
         {
+            now: () => Date.now(),
             registry: () =>
                 parseForwardTokenRegistry(
                     process.env[VERDICT_STORE_FORWARD_TOKENS_ENV]

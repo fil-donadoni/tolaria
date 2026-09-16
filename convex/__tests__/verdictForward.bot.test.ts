@@ -13,6 +13,7 @@
 // A `.bot.test.ts` because it derives ids through `convex/gre/ai/verdicts`
 // (`bot-suite-boundary.test.ts`).
 
+import { getFunctionName } from "convex/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Id } from "../_generated/dataModel";
 import {
@@ -25,7 +26,7 @@ import type { VerdictResolution } from "../gre/ai/verdicts/types";
 import { forwardAdmissible, markStored, submit } from "../verdicts";
 import {
     acceptForward,
-    deploymentOfForwardToken,
+    forwardTokenEntryOf,
     forwardOutboxStore,
     forwardResolutionStore,
     parseForwardTokenRegistry,
@@ -81,7 +82,7 @@ const WRITER_SITE = "https://jovial-guineapig-250.convex.site";
 
 const TOKEN = "forward-token-of-local-3210-0123456789abcdef";
 const REGISTRY = JSON.stringify([
-    { deployment: "local-3210", sha256: sha256Hex(TOKEN) },
+    { deployment: "local-3210", sha256: sha256Hex(TOKEN), resolutions: true },
 ]);
 
 const TESTER: Row = {
@@ -121,6 +122,7 @@ function writerPorts(
     registryText: string = REGISTRY
 ): ForwardWriterPorts {
     return {
+        now: () => Date.now(),
         registry: () => parseForwardTokenRegistry(registryText),
         checkAdmissible: async (judgement) => {
             await (forwardAdmissible as unknown as Handler)._handler(
@@ -373,6 +375,57 @@ describe("a local resolution forwards the same way (issue #3745)", () => {
         ).toEqual(RESOLUTION);
     });
 
+    async function forwardedResolution(
+        resolution: VerdictResolution,
+        registryText: string = REGISTRY
+    ) {
+        const store = createMemoryVerdictStore();
+        const result = await forwardResolutionStore(
+            wire(writerPorts(store, registryText))
+        )(row(resolution));
+        return { store, result };
+    }
+
+    it("the writer refuses a token not registered for resolutions", async () => {
+        const { store, result } = await forwardedResolution(
+            RESOLUTION,
+            JSON.stringify([
+                { deployment: "local-3210", sha256: sha256Hex(TOKEN) },
+            ])
+        );
+        expect(result).toMatchObject({
+            status: "pending",
+            reason: "forward refused (403): this forward token does not carry resolutions for local-3210",
+        });
+        expect(store.objects.size).toBe(0);
+    });
+
+    it("the writer refuses a resolution dated past its clock — the newest one would rule", async () => {
+        const { store, result } = await forwardedResolution({
+            ...RESOLUTION,
+            createdAt: Date.now() + 24 * 60 * 60 * 1000,
+        });
+        expect(result.status).toBe("pending");
+        expect((result as { reason: string }).reason).toMatch(
+            /^forward refused \(422\): createdAt \d+ is later than/
+        );
+        expect(store.objects.size).toBe(0);
+    });
+
+    it("the writer refuses untrimmed prose record could never have stored", async () => {
+        const { store, result } = await forwardedResolution({
+            ...RESOLUTION,
+            rejected: [
+                { ...RESOLUTION.rejected[0], reason: " passing loses " },
+            ],
+        });
+        expect(result).toMatchObject({
+            status: "pending",
+            reason: "forward refused (422): a reason or the note is not trimmed",
+        });
+        expect(store.objects.size).toBe(0);
+    });
+
     it("the writer refuses a resolver outside the token's deployment", async () => {
         const store = createMemoryVerdictStore();
         const foreign = {
@@ -494,6 +547,40 @@ describe("the writer refuses, and the local row stays fat with the reason (issue
 });
 
 describe("a row slims only on the writer's confirmed read-back (issue #3745)", () => {
+    it("the writer refuses a stamp its judgement does not hash to, instead of retrying it forever", async () => {
+        const store = createMemoryVerdictStore();
+        const other = verdictIdOf({
+            ...JUDGEMENT,
+            answer: { kind: "right", rightIndexes: [0] },
+        });
+        const answer = await acceptForward(
+            writerPorts(store),
+            `Bearer ${TOKEN}`,
+            {
+                kind: "verdict",
+                ...verdictStampOf(JUDGEMENT),
+                verdictHash: other,
+                judgement: JUDGEMENT,
+                attestation: {
+                    verdictId: other,
+                    author: LOCAL_AUTHOR,
+                    sourceAxis: "explicit",
+                    createdAt: 1_700_000_000_000,
+                    deployment: "local-3210",
+                    deploymentKind: "local",
+                },
+            }
+        );
+        expect(answer).toEqual({
+            httpStatus: 422,
+            response: {
+                status: "refused",
+                reason: `the judgement hashes to ${VERDICT_ID}, not the stamped ${other}`,
+            },
+        });
+        expect(store.objects.size).toBe(0);
+    });
+
     it("an attestation the writer's bucket does not hold after upload leaves the row fat", async () => {
         const { stub, id } = await submittedLocally();
         const store = droppingStore("attestations/");
@@ -558,9 +645,11 @@ describe("a row slims only on the writer's confirmed read-back (issue #3745)", (
 describe("the forward token registry (issue #3745)", () => {
     it("binds a token to its deployment, and nothing else to anything", () => {
         const registry = parseForwardTokenRegistry(REGISTRY);
-        expect(deploymentOfForwardToken(registry, TOKEN)).toBe("local-3210");
-        expect(deploymentOfForwardToken(registry, TOKEN + "x")).toBeNull();
-        expect(deploymentOfForwardToken(registry, "")).toBeNull();
+        expect(forwardTokenEntryOf(registry, TOKEN)?.deployment).toBe(
+            "local-3210"
+        );
+        expect(forwardTokenEntryOf(registry, TOKEN + "x")).toBeNull();
+        expect(forwardTokenEntryOf(registry, "")).toBeNull();
         expect(parseForwardTokenRegistry(undefined)).toEqual([]);
     });
 
@@ -706,13 +795,19 @@ describe("the registered drain picks its way by credential (issue #3745)", () =>
 describe("the writer's registered HTTP route (issue #3745)", () => {
     function routeCtx(store: VerdictStoreWriter) {
         return {
-            runQuery: (_ref: unknown, args: unknown) =>
-                (forwardAdmissible as unknown as Handler)._handler({}, args),
-            runAction: (_ref: unknown, args: { row: unknown }) =>
-                (args.row as { resolutionId?: string }).resolutionId ===
-                undefined
-                    ? storeOutboxRow(store, args.row as OutboxRow, WRITER)
-                    : Promise.reject(new Error("not a verdict")),
+            runQuery: (ref: never, args: unknown) => {
+                expect(getFunctionName(ref)).toBe("verdicts:forwardAdmissible");
+                return (forwardAdmissible as unknown as Handler)._handler(
+                    {},
+                    args
+                );
+            },
+            runAction: (ref: never, args: { row: unknown }) => {
+                expect(getFunctionName(ref)).toBe(
+                    "verdictsDrain:storeForwardedVerdict"
+                );
+                return storeOutboxRow(store, args.row as OutboxRow, WRITER);
+            },
         };
     }
     const BODY = () => {

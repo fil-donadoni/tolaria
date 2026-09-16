@@ -55,6 +55,7 @@ import {
 } from "./verdictStore";
 import {
     prepareOutboxRow,
+    verdictStampOf,
     type OutboxRow,
     type OutboxRowStore,
     type OutboxStoreResult,
@@ -77,7 +78,20 @@ export const VERDICT_FORWARD_PATH = "/verdicts/forward";
 
 // ── The writer's token registry ──────────────────────────────────────────────
 
-export type ForwardTokenEntry = { deployment: string; sha256: string };
+/** One accepted token. `resolutions` opts the token into forwarding
+ *  resolutions: `record` is admin-only on the deployment that ran it, and the
+ *  writer cannot see that deployment's admins, so a token carries a
+ *  resolver's power only when the writer's owner says so. */
+export type ForwardTokenEntry = {
+    deployment: string;
+    sha256: string;
+    resolutions: boolean;
+};
+
+/** How far a forwarded `createdAt` may run ahead of the writer's clock. The
+ *  newest resolution applies (`quarantine.ts`), so a date in the future would
+ *  decide a position until that date — refused rather than believed. */
+export const FORWARD_CLOCK_SKEW_MS = 5 * 60 * 1000;
 
 const SHA256_HEX = /^[0-9a-f]{64}$/;
 
@@ -89,7 +103,7 @@ export function parseForwardTokenRegistry(
     if (text === undefined || text.trim() === "") return [];
     const refuse = (): never => {
         throw new Error(
-            `${VERDICT_STORE_FORWARD_TOKENS_ENV} is not a JSON array of {"deployment", "sha256"}`
+            `${VERDICT_STORE_FORWARD_TOKENS_ENV} is not a JSON array of {"deployment", "sha256", "resolutions"?}`
         );
     };
     let raw: unknown;
@@ -105,11 +119,16 @@ export function parseForwardTokenRegistry(
             typeof e.deployment !== "string" ||
             !VERDICT_DEPLOYMENT_NAME_PATTERN.test(e.deployment) ||
             typeof e.sha256 !== "string" ||
-            !SHA256_HEX.test(e.sha256)
+            !SHA256_HEX.test(e.sha256) ||
+            !(e.resolutions === undefined || typeof e.resolutions === "boolean")
         ) {
             return refuse();
         }
-        return { deployment: e.deployment, sha256: e.sha256 };
+        return {
+            deployment: e.deployment,
+            sha256: e.sha256,
+            resolutions: e.resolutions === true,
+        };
     });
 }
 
@@ -123,18 +142,18 @@ function constantTimeEqual(a: string, b: string): boolean {
     return difference === 0;
 }
 
-/** The deployment a presented token is bound to, or `null` for a token the
+/** The registry entry a presented token matches, or `null` for a token the
  *  writer does not accept. Every entry is compared, match or not. */
-export function deploymentOfForwardToken(
+export function forwardTokenEntryOf(
     registry: readonly ForwardTokenEntry[],
     token: string
-): string | null {
+): ForwardTokenEntry | null {
     if (token === "") return null;
     const presented = sha256Hex(token);
-    let bound: string | null = null;
+    let bound: ForwardTokenEntry | null = null;
     for (const entry of registry) {
         if (constantTimeEqual(entry.sha256, presented) && bound === null) {
-            bound = entry.deployment;
+            bound = entry;
         }
     }
     return bound;
@@ -191,6 +210,8 @@ export type ForwardAnswer = { httpStatus: number; response: ForwardResponse };
 export interface ForwardWriterPorts {
     /** The accepted tokens; throws on a malformed registry. */
     registry: () => ForwardTokenEntry[];
+    /** The writer's clock. */
+    now: () => number;
     /** The checks `verdicts.submit` runs on a judgement; throws the reason. */
     checkAdmissible: (
         judgement: VerdictJudgement & { botPickIndex?: number }
@@ -354,8 +375,8 @@ export async function acceptForward(
     } catch (error) {
         return refused(500, messageOf(error));
     }
-    const deployment = deploymentOfForwardToken(registry, token);
-    if (deployment === null) {
+    const entry = forwardTokenEntryOf(registry, token);
+    if (entry === null) {
         return refused(
             401,
             "this deployment does not accept that forward token"
@@ -364,10 +385,16 @@ export async function acceptForward(
     if (!isObject(body)) return refused(400, "the body is not a JSON object");
 
     if (body.kind === "verdict") {
-        return acceptForwardedVerdict(ports, deployment, body);
+        return acceptForwardedVerdict(ports, entry.deployment, body);
     }
     if (body.kind === "resolution") {
-        return acceptForwardedResolution(ports, deployment, body);
+        if (!entry.resolutions) {
+            return refused(
+                403,
+                `this forward token does not carry resolutions for ${entry.deployment}`
+            );
+        }
+        return acceptForwardedResolution(ports, entry.deployment, body);
     }
     return refused(400, `unknown forward kind ${JSON.stringify(body.kind)}`);
 }
@@ -393,6 +420,18 @@ async function acceptForwardedVerdict(
     }
     const outside = originOutsideDeployment(attestation, deployment);
     if (outside !== null) return refused(403, outside);
+    const future = futureCreatedAt(ports, attestation.createdAt as number);
+    if (future !== null) return refused(422, future);
+    const stamp = verdictStampOf(judgement);
+    if (
+        stamp.verdictHash !== body.verdictHash ||
+        stamp.positionKey !== body.positionKey
+    ) {
+        return refused(
+            422,
+            `the judgement hashes to ${stamp.verdictHash}, not the stamped ${body.verdictHash}`
+        );
+    }
     if (attestation.verdictId !== body.verdictHash) {
         return refused(
             422,
@@ -469,6 +508,17 @@ async function acceptForwardedResolution(
     }
     const outside = originOutsideDeployment(resolution, deployment);
     if (outside !== null) return refused(403, outside);
+    const future = futureCreatedAt(ports, resolution.createdAt as number);
+    if (future !== null) return refused(422, future);
+    // `record` trims every reason and the note before hashing; a forward
+    // carrying untrimmed prose is not a decision `record` could have made.
+    if (
+        resolution.rejected.some((r) => r.reason !== r.reason.trim()) ||
+        (resolution.note !== undefined &&
+            resolution.note !== resolution.note.trim())
+    ) {
+        return refused(422, "a reason or the note is not trimmed");
+    }
     const problems = resolutionProblems(resolution);
     if (problems.length > 0) {
         return refused(422, `not a resolution: ${problems.join("; ")}`);
@@ -509,6 +559,16 @@ async function acceptForwardedResolution(
     }
 }
 
+function futureCreatedAt(
+    ports: ForwardWriterPorts,
+    createdAt: number
+): string | null {
+    const limit = ports.now() + FORWARD_CLOCK_SKEW_MS;
+    return createdAt > limit
+        ? `createdAt ${createdAt} is later than this deployment's clock allows (${limit})`
+        : null;
+}
+
 const pendingAnswer = (reason: string): ForwardAnswer => ({
     httpStatus: 503,
     response: { status: "pending", reason },
@@ -522,6 +582,9 @@ export type ForwardTransport = (
     request: ForwardRequest
 ) => Promise<ForwardAnswer>;
 
+/** How long one forward may take before its row is left pending. */
+export const FORWARD_TIMEOUT_MS = 30_000;
+
 /** The real transport: a POST to the writer's route, bearing the token. */
 export function httpForwardTransport(
     writerUrl: string,
@@ -532,6 +595,9 @@ export function httpForwardTransport(
     return async (request) => {
         const response = await fetchImpl(endpoint, {
             method: "POST",
+            // A writer that accepts the connection and never answers must
+            // not stall the whole drain: the row becomes pending instead.
+            signal: AbortSignal.timeout(FORWARD_TIMEOUT_MS),
             headers: {
                 authorization: `Bearer ${token}`,
                 "content-type": "application/json",
