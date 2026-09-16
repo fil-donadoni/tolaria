@@ -63,9 +63,9 @@ const ENDS_WITH_PREFIX = /\bCR$/;
  * sentence is a different claim.
  */
 const ENDS_WITH_PREFIXED_ID =
-    /\bCR\s?\d{3}(?:\.\d+[a-z]{0,2})?[)\]]?(?:\s*[,;:\/])?$/;
+    /\bCR\s?\d{3}(?:\.\d+[a-z]{0,2})?[)\]]?(?:\s*[,;:/])?$/;
 /** A bare id ending the line — a citation only if the line mentions `CR `. */
-const ENDS_WITH_BARE_ID = /\b\d{3}\.\d+[a-z]{0,2}[)\]]?(?:\s*[,;:\/])?$/;
+const ENDS_WITH_BARE_ID = /\b\d{3}\.\d+[a-z]{0,2}[)\]]?(?:\s*[,;:/])?$/;
 /** What a continuation must start with after a bare `CR`. */
 const STARTS_WITH_ID = /^\d{3}(?:\.\d+[a-z]{0,2})?\b/;
 /** The comment marker a continuation line carries, stripped before joining. */
