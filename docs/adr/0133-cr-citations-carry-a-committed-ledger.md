@@ -1,6 +1,8 @@
 # ADR 0133 — Every CR citation carries a committed ledger entry: `confirmed` against the printed rule, or `baseline` — and the baseline only shrinks
 
-**Status:** Accepted (2026-09-15, issue #3674). Amends ADR 0098.
+**Status:** Accepted (2026-09-15, issue #3674). Amends ADR 0098. Amended
+2026-09-16 (issue #3697): the baseline shrinks by default and grows only
+through a recorded tokenizer widening — §4, §5 and the Amendment below.
 
 ## Context
 
@@ -52,19 +54,31 @@ model reading every citation against its rule inside `check:all` is out.
    in the tree, or more sites than the tree has. The failure output names the
    line, prints the cited rule and gives the confirming command.
 
-4. **The baseline only shrinks.** The recording command never writes
-   `baseline`; `cr:lint` compares the set with the merge-base's ledger through
-   git (`scripts/lib/base-artifact.ts`, the Oracle lockfile's state-regression
+4. **The baseline shrinks by default, and grows only through a recorded
+   tokenizer widening whose cause is in the same diff** (amended, issue
+   #3697; originally "only shrinks"). `confirm` never writes `baseline`;
+   `cr:lint` compares the set with the merge-base's ledger through git
+   (`scripts/lib/base-artifact.ts`, the Oracle lockfile's state-regression
    precedent: a base that cannot be read is a red, a base that has no ledger
-   yet is a skip that says so). Nothing enters the tree unchecked under that
-   status. Burning the baseline down is issue #3675.
+   yet is a skip that says so). A `baseline` entry the merge-base lacks is a
+   red — unless the diff changes the tokenizer (`scripts/check-cr-citations.ts`
+   differs from its merge-base copy) **and** the entry is one the widening
+   produced: a citation the CURRENT tokenizer makes of the MERGE-BASE tree
+   that the merge-base ledger does not record. Such a citation predates the
+   branch and was invisible, not unchecked; it is the only thing a widening
+   can explain, and the gate re-derives the set itself rather than trusting
+   the command that wrote it. Nothing else enters the tree unchecked under
+   that status. Burning the baseline down is issue #3675.
 
 5. **One recording command, outside the gate**: `bun run cr:ledger` lists every
    open citation beside the full printed text of its rule;
    `cr:ledger confirm <file>:<line>` records the citations on **that one line**
    — there is no bulk form; `cr:ledger prune` drops stale entries, and every
    write prunes; `cr:ledger init` generated the baseline once and refuses
-   while a ledger exists. A wrong citation is fixed on its line first, then
+   while a ledger exists; `cr:ledger widen` (issue #3697) enters as
+   `baseline` — explicitly unchecked — exactly what §4's widening uncovered,
+   and refuses when the tokenizer is unchanged against the merge-base or
+   uncovers nothing there. A wrong citation is fixed on its line first, then
    confirmed under its new id.
 
 6. **One tokenizer.** What counts as a citation is the existence scan's own
@@ -120,4 +134,71 @@ model reading every citation against its rule inside `check:all` is out.
   this ADR deliberately does not add a bulk path to the gate-side command.
 - Citations wrapped across two comment lines (issue #2514) and ids on a line
   with no `CR ` stay outside — the ledger inherits the existence scan's
-  definition of a citation.
+  definition of a citation, and follows it when a recorded widening changes
+  it (Amendment below).
+
+## Amendment — a tokenizer widening may add baseline entries (2026-09-16, issue #3697)
+
+§6 makes the ledger's coverage a function of what the tokenizer sees, and §4
+as first written froze that at the moment the baseline was taken: widening
+the scan made hundreds of pre-existing citations appear at once, every one
+`unrecorded`, with regeneration refused by the only-shrinks check — correctly,
+since a regeneration would also re-grandfather every citation confirmed since.
+Issue #2514's 495 wrapped citations were unlandable for exactly that reason.
+
+The invariant is now: **the baseline shrinks by default and grows only through
+a recorded widening whose cause is in the same diff.** A widening is the set
+of citations the current tokenizer makes of the merge-base tree that the
+merge-base ledger does not record. `cr:ledger widen` writes that set as
+`baseline`; `cr:lint` re-derives it from the same two inputs — git's copy of
+the tokenizer at the merge-base, git's copy of the tree there — and accepts a
+grown `baseline` entry only if it is in the set. The merge-base ledger is
+itself the pre-widening tokenizer's view of that tree (it was gated green
+against it), so no old tokenizer is ever executed.
+
+What a widening does **not** license, each enforced by construction and
+asserted in `scripts/__tests__/cr-citation-ledger.test.ts`:
+
+- **A line the branch edited or added.** Its key is one the merge-base tree
+  does not make, so it is never in the set: it is confirmed, one line per
+  call, like any new citation.
+- **Re-baselining a citation that already had an entry.** The set excludes
+  every key the merge-base ledger records, under any status.
+- **Turning a `confirmed` entry back to `baseline`.** The command never
+  touches an entry the ledger already has; the gate reds on the flip because
+  the key is recorded at the merge-base and therefore outside the set.
+- **A site the branch added of a line the widening uncovered.** The command
+  writes the smaller of the two trees' counts, so the extra site reds as
+  `new-sites` until confirmed; the gate licenses an entry only up to the
+  count the widening had at the merge-base, so a hand-raised count is
+  `grown`. The same holds against the base branch: a `baseline` entry
+  recording more sites than the base's entry is `grown` — a raised count
+  is one more unchecked site under a recorded key.
+- **A change that is not a widening.** If the current tokenizer no longer
+  makes, on the merge-base tree, a citation the merge-base ledger records —
+  or makes it at fewer sites — the change narrowed or **re-keyed** what a
+  citation is (a `normalizeLine` or `EXEMPT` change re-keys the whole tree,
+  and every citation there would look uncovered). A widening is a superset
+  of what it replaces; the command refuses anything else and the gate
+  licenses nothing from it. That is the check that keeps "widen" from being
+  "regenerate" under another name.
+- **A bulk `confirm`.** Everything a widening writes is unchecked by
+  construction, and the burndown (issue #3675) inherits it whole.
+
+An id the widened tokenizer uncovers that resolves to no rule is not
+entered: the existence scan reds on it, so it is fixed on its line — a new
+key — and confirmed. The gate computes the widening only when a `baseline`
+entry the merge-base lacks makes it matter, because it reads the whole
+merge-base tree out of the object store (~3 s); a clean diff pays nothing.
+Beside the gate, a whole-tree test asserts that the tokenizer at HEAD, on the
+merge-base tree, sees exactly what the merge-base ledger records: a tokenizer
+change that forgot its `widen` — or that lost a citation — cannot land.
+
+The licence's "cause in the same diff" is byte-level: `scripts/check-cr-citations.ts`
+differs from its merge-base copy. That file also carries the widening's own
+plumbing, so an edit to the plumbing arms the licence on a diff that changed
+no tokenizing rule; the superset check and the empty-widening refusal are
+the locks that matter, and both are semantic. What the licence does NOT
+follow is a scope change outside that file — un-exempting a file in
+`EXEMPT` uncovers its citations with no tokenizer change, and they are
+confirmed one line at a time.

@@ -10,6 +10,7 @@
  *   bun run cr:ledger confirm <file>:<line> # record the citations on THAT line as confirmed
  *   bun run cr:ledger prune                 # drop entries no line in the tree makes any more
  *   bun run cr:ledger init                  # the one-off baseline; refuses if the ledger exists
+ *   bun run cr:ledger widen                 # record what a tokenizer change uncovered, as baseline
  *
  * `confirm` takes exactly one `file:line` — there is no bulk form, no glob,
  * no `--all`. A confirmation asserts that a reader printed the cited rule and
@@ -25,19 +26,34 @@
  * used to grow it: delete-and-reinit shows up as a grown baseline in the very
  * PR that does it.
  *
+ * `widen` (issue #3697) is the one licensed growth, and it is NOT a bulk
+ * `confirm`: everything it writes is `baseline`, i.e. explicitly unchecked.
+ * It records the citations the CURRENT tokenizer sees on the MERGE-BASE tree
+ * that the merge-base ledger lacks — citations that predate the branch and
+ * were invisible, which only a tokenizer change can explain. It refuses when
+ * `scripts/check-cr-citations.ts` is byte-identical to the merge-base's (no
+ * change to explain anything) and when the changed tokenizer uncovers nothing
+ * there. A line the branch edited is a new key the merge-base tree does not
+ * make, so it is never entered; an entry the ledger already has is never
+ * touched, whatever its status. `cr:lint` re-derives the same set from the
+ * same diff and accepts a grown `baseline` entry only if it is in it.
+ *
  * Everything here is offline: the vendored CR, the tracked tree, git.
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-    baseBaselineKeys,
+    baseLedger,
     knownRuleIds,
     readSources,
+    repoWidening,
     scanCitations,
     scannedFiles,
+    TOKENIZER_PATH,
 } from "./check-cr-citations.ts";
 import {
+    baselineSites,
     confirmLine,
     formatOpen,
     initialLedger,
@@ -45,6 +61,7 @@ import {
     LEDGER_PATH,
     ledgerReport,
     parseLedger,
+    planWidening,
     pruneStale,
     serializeLedger,
     type Citation,
@@ -75,11 +92,15 @@ function treeCitationList(): Citation[] {
 
 function cmdList(): number {
     const citations = treeCitationList();
+    const base = baseLedger(ROOT);
     const report = ledgerReport({
         citations,
         ledger: readLedger(),
         rules: loadRules(),
-        baseBaselineKeys: baseBaselineKeys(ROOT),
+        baseBaseline: base === null ? null : baselineSites(base.ledger),
+        // The listing is for confirming; `cr:lint` is where a widening is
+        // weighed, so a grown entry is listed as grown here.
+        widened: null,
     });
     const open = [...report.unrecorded, ...report.drifted];
     console.log(
@@ -106,7 +127,59 @@ function cmdList(): number {
         );
     if (report.grown.length)
         console.log(
-            `\n${report.grown.length} baseline entr${report.grown.length === 1 ? "y" : "ies"} the base branch does not have — delete and confirm instead.`
+            `\n${report.grown.length} baseline entr${report.grown.length === 1 ? "y" : "ies"} the base branch does not have — delete and confirm instead (\`cr:lint\` accepts the ones a tokenizer widening in this diff uncovered).`
+        );
+    return 0;
+}
+
+function cmdWiden(): number {
+    const base = baseLedger(ROOT);
+    if (base === null) {
+        console.error(
+            `refused: no base-branch ledger to measure a widening against — fetch the base branch first.`
+        );
+        return 1;
+    }
+    const { tokenizerChanged, widening, lost } = repoWidening(base, ROOT);
+    const tree = treeCitationList();
+    const plan = planWidening({
+        tokenizerChanged,
+        widening,
+        lost,
+        ledger: readLedger(),
+        afterCitations: tree,
+        ids: knownRuleIds(),
+    });
+    if (plan.kind === "refused") {
+        console.error(`refused: ${plan.why}`);
+        return 1;
+    }
+    const { ledger, pruned } = pruneStale(plan.ledger, tree);
+    writeLedger(ledger);
+    console.log(
+        `${LEDGER_PATH}: ${plan.added.length} citation${plan.added.length === 1 ? "" : "s"} recorded as baseline (never checked) — ` +
+            `uncovered on the merge-base tree (${base.mergeBase.slice(0, 12)}) by this diff's change to ${TOKENIZER_PATH}`
+    );
+    if (plan.alreadyRecorded)
+        console.log(
+            `  ${plan.alreadyRecorded} already recorded in this branch's ledger, left untouched`
+        );
+    if (plan.gone)
+        console.log(`  ${plan.gone} no longer in the tree, not recorded`);
+    if (plan.unresolvable.length) {
+        console.log(
+            `  ${plan.unresolvable.length} resolve to no rule and were NOT recorded — the existence scan reds on them; fix each on its line, then confirm it:`
+        );
+        for (const c of plan.unresolvable.slice(0, 25))
+            console.log(
+                `    ${c.sites[0].file}:${c.sites[0].line}  CR ${c.id}  ${c.line.slice(0, 120)}`
+            );
+        if (plan.unresolvable.length > 25)
+            console.log(`    … ${plan.unresolvable.length - 25} more`);
+    }
+    if (pruned.length)
+        console.log(
+            `pruned ${pruned.length} stale entr${pruned.length === 1 ? "y" : "ies"}`
         );
     return 0;
 }
@@ -224,6 +297,7 @@ function usage(): number {
             "  bun run cr:ledger confirm <file>:<line>  record that line's citations as confirmed",
             "  bun run cr:ledger prune                  drop entries no line makes any more",
             "  bun run cr:ledger init                   one-off baseline (refuses if the ledger exists)",
+            "  bun run cr:ledger widen                  record what this diff's tokenizer change uncovered, as baseline",
         ].join("\n")
     );
     return 2;
@@ -241,6 +315,8 @@ function main(): number {
             return cmdPrune();
         case "init":
             return cmdInit();
+        case "widen":
+            return cmdWiden();
         default:
             return usage();
     }
