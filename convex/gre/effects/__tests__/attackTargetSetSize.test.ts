@@ -12,6 +12,7 @@
 import { describe, it, expect } from "vitest";
 import type { EffectOp } from "../../../cards/types";
 import { registerTokenDefinition } from "../../../cards";
+import { attacksTrigger } from "../../../cards/abilities/triggers/attacksTrigger";
 import {
     makeInstance,
     makePlayer,
@@ -93,11 +94,12 @@ registerTokenDefinition({
     power: 4,
     toughness: 7,
     triggeredAbilities: [
-        {
+        attacksTrigger({
             id: "test-3244-host-attack",
-            event: ["ATTACKERS_DECLARED"],
+            oracleText: "Whenever this creature attacks, tap X Soldiers.",
+            scope: "self",
             effects: TAP_X_SCRIPT,
-        },
+        }),
     ],
 });
 
@@ -140,6 +142,7 @@ function attackingState(attackTargets?: Record<string, string>): GameState {
     state.combat = {
         attackerIds: ["host", "s1"],
         confirmed: true,
+        blockersConfirmed: false,
         blockerAssignments: {},
         ...(attackTargets ? { attackTargets } : {}),
     };

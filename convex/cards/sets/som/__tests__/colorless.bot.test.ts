@@ -72,6 +72,7 @@ function suspendedAtTheTapChoice(): GameState {
         attackerIds: ["sphere"],
         attackTargets: { sphere: "karn" },
         confirmed: true,
+        blockersConfirmed: false,
         blockerAssignments: {},
     };
     placeTriggersOnStack(

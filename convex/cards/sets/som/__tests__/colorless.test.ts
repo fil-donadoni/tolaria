@@ -208,7 +208,9 @@ describe("Myr Battlesphere (CR 111.1 / 508.1m / 118.12 / 506.2)", () => {
         for (const token of myr) {
             expect(token.types).toEqual(["Artifact", "Creature"]);
             expect([token.power, token.toughness]).toEqual([1, 1]);
-            expect(getDefinition(token.card.id).imagePrintId).toBeDefined();
+            expect(
+                getDefinition(token.card.id as string).imagePrintId
+            ).toBeDefined();
         }
     });
 
@@ -250,6 +252,7 @@ describe("Myr Battlesphere (CR 111.1 / 508.1m / 118.12 / 506.2)", () => {
             attackerIds: ["sphere"],
             attackTargets: { sphere: "karn" },
             confirmed: true,
+            blockersConfirmed: false,
             blockerAssignments: {},
         };
         const triggers = collectTriggers(state, [
