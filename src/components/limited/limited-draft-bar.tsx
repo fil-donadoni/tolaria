@@ -144,6 +144,13 @@ export default function LimitedDraftBar({
             <button
                 type="button"
                 onClick={onOpenTable}
+                // Seams, not names, for this bar's two controls (issue #3650).
+                // Both labels are rendered `uppercase`, so their accessible
+                // name depends on whether the engine folds `text-transform`
+                // into name-from-content — a question the lane should not have
+                // a stake in. The sibling `More` keeps its role+name promise
+                // because an `aria-label` is authoritative either way.
+                data-draft-table-entry=""
                 className="flex min-h-[var(--control-h)] shrink-0 items-center rounded-sm px-2 tracking-[0.14em] uppercase transition-colors hover:text-parchment"
             >
                 Table
@@ -152,6 +159,8 @@ export default function LimitedDraftBar({
                 type="button"
                 onClick={onTogglePool}
                 aria-pressed={poolVisible}
+                // See the Table entry above (issue #3650).
+                data-draft-pool-toggle=""
                 className={cn(
                     "flex min-h-[var(--control-h)] shrink-0 items-center rounded-sm px-2 tracking-[0.14em] uppercase transition-colors hover:text-parchment",
                     poolVisible && "text-accent-strong"

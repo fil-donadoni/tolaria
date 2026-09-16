@@ -98,29 +98,24 @@ export interface AssertionDebt {
 
 /**
  * The surfaces still carrying no assertion, each with the slice that closes
- * it. Issue #3649 shipped the shape and the auth + lobby promises, issue #3651
- * the game, debug and admin ones; issue #3650 takes the deck, Limited and
- * draft surfaces. An entry is DELETED by the slice that declares that surface's
+ * it. An entry is DELETED by the slice that declares that surface's
  * assertions — the guard reds on a debt row for a surface that has them, so
  * this list can only shrink.
  *
+ * IT IS NOW EMPTY, and that is the end state ADR 0132 §3 describes: issue
+ * #3649 shipped the shape and the auth + lobby promises, issue #3651 the
+ * game, debug and admin ones, issue #3650 the deck, Limited and draft ones.
+ * Every surface on the table promises something about itself. A NEW surface
+ * therefore declares its assertions in the same change that adds it — the
+ * guard below refuses one that declares none, and adding a row here to defer
+ * that needs a real open issue, not a placeholder.
+ *
  * DRAINING A ROW MEANS THE SURFACE'S ENTRY POINTS, not one promise that cannot
- * fail. This guard enforces addressing style and presence; what holds the
- * lobby honest is the per-surface entry-point list in
- * `ui-gate-assertions.test.ts`, checked against the surface's runbook. Each of
- * #3650 and #3651 owes the equivalent list for the surfaces it takes.
+ * fail. This guard enforces addressing style and presence; what holds each
+ * surface honest is the per-surface entry-point list in
+ * `ui-gate-assertions.test.ts`, checked against the surface's runbook.
  */
-export const ASSERTION_DEBT: readonly AssertionDebt[] = [
-    { surface: "deck-builder", issue: 3650 },
-    { surface: "deck-detail", issue: 3650 },
-    { surface: "limited-list", issue: 3650 },
-    { surface: "limited-your-events", issue: 3650 },
-    { surface: "limited-antechamber", issue: 3650 },
-    { surface: "limited-build", issue: 3650 },
-    { surface: "draft-pick", issue: 3650 },
-    { surface: "draft-pool-stop", issue: 3650 },
-    { surface: "draft-pool-peek", issue: 3650 },
-];
+export const ASSERTION_DEBT: readonly AssertionDebt[] = [];
 
 /** The attribute a `contrast` assertion marks its subtree with while axe reads
  *  it. Removed in a `finally`, so a failed run never leaves it on the page. */

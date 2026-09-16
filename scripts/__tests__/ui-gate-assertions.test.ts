@@ -38,6 +38,28 @@ function promisedNames(id: string): string[] {
     );
 }
 
+/** One surface's promises as `<check> <locator>`, the form the per-surface
+ *  entry-point lists below are written in. */
+function promised(id: string): string[] {
+    return (SURFACES.find((s) => s.id === id)?.asserts ?? []).map(
+        (a) =>
+            `${a.check} ${
+                "selector" in a.locator
+                    ? a.locator.selector
+                    : `role=${a.locator.role} name=${a.locator.name}`
+            }`
+    );
+}
+
+/** Asserts every entry point in `owed` is a declared promise of its surface. */
+function expectPromised(owed: Record<string, readonly string[]>): void {
+    for (const [id, entryPoints] of Object.entries(owed)) {
+        for (const entryPoint of entryPoints) {
+            expect(promised(id), `${id}: ${entryPoint}`).toContain(entryPoint);
+        }
+    }
+}
+
 const OK_ASSERT: NamedAssertion = {
     label: "primary action",
     locator: { selector: "[data-lobby-primary]" },
@@ -110,15 +132,6 @@ describe("check:ui surface table — Named Assertions", () => {
      * (`docs/findings/2900-zone-cta-not-in-check-ui-dom.md`).
      */
     it("the game, debug and admin surfaces promise their entry points", () => {
-        const promised = (id: string): string[] =>
-            (SURFACES.find((s) => s.id === id)?.asserts ?? []).map(
-                (a) =>
-                    `${a.check} ${
-                        "selector" in a.locator
-                            ? a.locator.selector
-                            : `role=${a.locator.role} name=${a.locator.name}`
-                    }`
-            );
         const owed: Record<string, readonly string[]> = {
             "game-board": [
                 'reachable [data-controller-primary="action"]',
@@ -168,12 +181,113 @@ describe("check:ui surface table — Named Assertions", () => {
                 "reachable role=button name=Done",
             ],
         };
-        for (const [id, entryPoints] of Object.entries(owed)) {
-            for (const entryPoint of entryPoints) {
-                expect(promised(id), `${id}: ${entryPoint}`).toContain(
-                    entryPoint
-                );
-            }
+        expectPromised(owed);
+    });
+
+    /**
+     * Issue #3650's half: the deck, Limited and draft surfaces, each held to
+     * the entry points its runbook names (`docs/guides/ui-runbooks.md`
+     * § Lobby, deck builder and the Limited list, § Reach the Limited
+     * antechamber / deck builder / Draft Room).
+     *
+     * Three of these lists encode a decision worth stating, because each is a
+     * place where the obvious locator would have been WRONG:
+     *
+     *  - the two deck builders promise `role=textbox name="Deck name"` and a
+     *    `Done` plate, which is what BOTH of their mutually exclusive bottom
+     *    bars render (`SaveDeckBar` off a phone, `DeckBottomBar` in portrait);
+     *  - `deck-detail` promises its primary plate by seam and `visible`, since
+     *    the control reads "Play" or "Selected" — and is disabled in the
+     *    second state — depending on what an earlier surface selected;
+     *  - the draft surfaces promise the pack TILE rather than
+     *    `[data-editing-action="Pick"]`, which issue #2861 left on the phone
+     *    viewports only, and address the bar's `uppercase` controls by seam.
+     */
+    it("the deck, Limited and draft surfaces promise their entry points", () => {
+        expectPromised({
+            "deck-builder": [
+                "reachable role=button name=Import",
+                "reachable role=textbox name=Deck name",
+                "reachable role=button name=Done",
+                'visible [data-deck-pane="maindeck"]',
+                'visible [data-deck-pane="sideboard"]',
+                'visible [data-deck-pane="source"]',
+                "contrast role=button name=Done",
+            ],
+            "deck-detail": [
+                "reachable role=button name=← Back",
+                "visible [data-deck-detail-play]",
+                "contrast role=button name=← Back",
+            ],
+            "limited-list": [
+                "visible role=group name=Filter by status",
+                "reachable role=button name=Mine",
+                "reachable role=button name=+ Create Event",
+                "visible [data-limited-event-label]",
+                "reachable role=button name=View",
+                "contrast role=button name=View",
+            ],
+            "limited-your-events": [
+                "visible [data-limited-event-label]",
+                "reachable role=button name=View",
+                "reachable role=button name=Mine",
+            ],
+            "limited-antechamber": [
+                "reachable role=button name=← Back to Limited Events",
+                "reachable role=button name=View Table",
+                "reachable role=button name=Leave Seat",
+                "reachable role=button name=Start Event",
+                "reachable role=button name=Cancel Event",
+                "contrast role=button name=View Table",
+            ],
+            "limited-build": [
+                'visible [data-deck-pane="maindeck"]',
+                'visible [data-deck-pane="sideboard"]',
+                "visible [data-card-tile]",
+                "reachable role=textbox name=Deck name",
+                "reachable role=button name=Done",
+                "contrast role=button name=Done",
+            ],
+            "draft-pick": [
+                "visible [data-slot=draft-room-bar]",
+                "reachable [data-draft-pick-tile]",
+                "reachable [data-draft-table-entry]",
+                "reachable [data-draft-pool-toggle]",
+                "reachable role=button name=More",
+                "contrast [data-slot=pack-counter]",
+            ],
+            "draft-pool-stop": [
+                "visible [data-slot=draft-room-bar]",
+                "visible [data-slot=draft-pool]",
+                "visible [data-slot=draft-pool] [data-card-tile]",
+                "reachable [data-draft-table-entry]",
+                "reachable [data-draft-pool-toggle]",
+                "contrast [data-slot=draft-pool]",
+            ],
+            // The one surface whose measured state is viewport-split by
+            // design (issue #2861), so its bar controls are promised
+            // `visible`: this walk ends with the desktop pool menu OPEN, and
+            // an open menu can take the pointer for what is behind it.
+            "draft-pool-peek": [
+                "visible [data-slot=draft-room-bar]",
+                "visible [data-slot=draft-pool]",
+                "visible [data-slot=draft-pool] [data-card-tile]",
+                "visible [data-draft-table-entry]",
+                "visible [data-draft-pool-toggle]",
+                "contrast [data-slot=draft-pool]",
+            ],
+        });
+    });
+
+    /** The debt list is empty, and every surface carries its own promises —
+     *  the end state ADR 0132 §3 describes. A new surface declares them in the
+     *  change that adds it rather than re-opening this list. */
+    it("leaves no surface without assertions", () => {
+        expect(ASSERTION_DEBT).toEqual([]);
+        for (const surface of SURFACES) {
+            expect((surface.asserts ?? []).length, surface.id).toBeGreaterThan(
+                0
+            );
         }
     });
 
