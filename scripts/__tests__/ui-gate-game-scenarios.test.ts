@@ -69,7 +69,7 @@ describe("check:ui declared positions (ADR 0132 §4)", () => {
 
     it.each(seeds.map((s) => [s.label, s] as const))(
         "%s is searched for by the exact label the lane types",
-        (label, _seed) => {
+        (label) => {
             // The walk finds its row by filling the Scenarios search box with
             // this string (`ensureScenarioBoard`). A payload renamed on one
             // side only makes the surface UNWALKED on a machine that has
