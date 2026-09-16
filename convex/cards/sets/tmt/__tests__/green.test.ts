@@ -12,6 +12,7 @@ import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import type { GameState } from "../../../../gre/state";
 import {
     addCounterToCard,
+    emitPermanentEntered,
     flushPendingEvents,
     processPendingActionTriggers,
     resolveTopOfStack,
@@ -41,18 +42,7 @@ function michelangeloOnBattlefield(id = "mike") {
  *  collected onto the stack and resolved. */
 function resolveEtb(state: GameState, instanceId: string): void {
     const self = state.players[0].battlefield.find((c) => c.id === instanceId)!;
-    state.pendingEvents = [
-        ...(state.pendingEvents ?? []),
-        {
-            type: "PERMANENT_ENTERED",
-            instanceId: self.id,
-            controllerId: self.controllerId,
-            ownerId: self.ownerId,
-            types: [...self.types],
-            subtypes: [...self.subtypes],
-            isToken: false,
-        },
-    ];
+    emitPermanentEntered(state, self);
     processPendingActionTriggers(state);
     while (state.stack.length > 0) resolveTopOfStack(state);
 }

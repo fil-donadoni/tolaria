@@ -23,7 +23,7 @@ import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
-import { getLegalTargets } from "../../../../gre/rules";
+import { getLegalTargets, pendingTargetingSource } from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition } from "../../../index";
 import type { TokenSpec } from "../../../types";
@@ -172,7 +172,7 @@ describe("Elspeth, Storm Slayer — loyalty abilities (issue #3230)", () => {
         const legal = getLegalTargets(
             state,
             requirement,
-            { kind: "ability", cardInstanceId: "elspeth1" },
+            pendingTargetingSource(state, "elspeth1", "ability"),
             "p1"
         );
         expect(legal.map((t) => t.id).sort()).toEqual(["big"]);
