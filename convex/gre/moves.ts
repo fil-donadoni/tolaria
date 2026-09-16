@@ -126,6 +126,7 @@ import {
     manaGateBattlefields,
     manaTapOptionSpendsUnplannedResource,
     manaTapSpendsFiniteUse,
+    mayHaveCostedManaTapOption,
     mayHaveNonTapManaAbility,
     mayRemoveCountersForMana,
     pureGenericManaSubCost,
@@ -843,6 +844,11 @@ type PlanSource = {
      *  passed a `finiteSourcePolicy`, so an ordinary plan carries no flag and
      *  no lookup was paid to decide it. */
     finite?: boolean;
+    /** CR 601.2g (issue #3359) — this source's stored realisation is a COSTED
+     *  option (Arena of Glory's "{R}, {T}, Exert this land: Add {R}{R}"). Only
+     *  ever set under the `spend` policy, which is the only policy that builds
+     *  such a realisation at all, so an ordinary plan carries no flag. */
+    costed?: boolean;
 };
 
 /** What a plan does about a FINITE mana source — one whose mana ability pays by
@@ -980,7 +986,28 @@ export function planManaPayment(
     /** CR 118.3 (issue #3530) — how this plan treats FINITE mana sources. See
      *  `FiniteSourcePolicy`. Undefined on every pre-existing call site, and
      *  then nothing below it runs: the plan is the same greedy plan it was. */
-    finiteSourcePolicy?: FiniteSourcePolicy
+    finiteSourcePolicy?: FiniteSourcePolicy,
+    /** CR 601.2g / 106.6 (issue #3359) — how this plan treats a COSTED mana
+     *  option: one whose ability charges mana of its own and/or exerts its
+     *  source, admitted only when the plan is reaching for what those legs buy.
+     *
+     *  `spare` (the default, and every pre-existing call site) never builds such
+     *  a realisation at all, so the plan is byte-identical to the one this
+     *  planner has always returned — the free option keeps the colour and the
+     *  costed one stays out of reach. `spend` builds it, prefers it ahead of
+     *  every other source so the funders are still unspent when its own leg
+     *  needs them, and lets `castTapPlans` offer the result as a SECOND
+     *  candidate.
+     *
+     *  Two candidates rather than one settled answer, for the reason issue
+     *  #3530 established for finite sources: the greedy plan is one payment,
+     *  and a payment the planner settles alone can never be an Eval Pair, so
+     *  "take the haste" would be unrepresentable as a Verdict. It also has to be
+     *  a second plan rather than a replacement, measured: replacing the free
+     *  option in place STRANDED payable casts (Arena plus one Mountain stopped
+     *  paying for any two-drop at all, because the plan could no longer fall
+     *  back to the free {R}). */
+    costedOptionPolicy?: "spare" | "spend"
 ): ManaTap[] | null {
     const totalRequired =
         (cost.X ?? 0) + MANA_COLORS.reduce((s, c) => s + (cost[c] ?? 0), 0);
@@ -1001,6 +1028,10 @@ export function planManaPayment(
     const boardBattlefields = manaGateBattlefields(state);
     /** Issue #3530 — the `spend` half of the policy, read once. */
     const preferFinite = finiteSourcePolicy === "spend";
+    /** Issue #3359 — the `spend` half of the costed-option policy, read once.
+     *  False on every pre-existing call site, and then every costed branch
+     *  below is dead and this planner is the one it has always been. */
+    const preferCosted = costedOptionPolicy === "spend";
 
     /** CR 106.6 / 601.2g (issue #3359) — what this mana is about to be spent
      *  on, in the SAME shape `autoTapForPayment` (`convex/game.ts`) builds for
@@ -1147,6 +1178,9 @@ export function planManaPayment(
         const mayBeFinite =
             finiteSourcePolicy !== undefined && mayRemoveCountersForMana(perm);
         let sourceIsFinite = false;
+        /** Issue #3359 — set when a COSTED realisation is what this source
+         *  ended up storing, so the selection below can take it first. */
+        let sourceIsCosted = false;
         const options = new Map<Color, PlanOption>();
         /** The largest yield of any ONE realisation stored on this permanent —
          *  its whole contribution to `capacity`, since only one activation per
@@ -1266,6 +1300,7 @@ export function planManaPayment(
                         //     never spent for nothing and the two planners
                         //     cannot drift.
                         else if (
+                            preferCosted &&
                             resolved &&
                             tapActivationCostIsPlannable(resolved) &&
                             !manaTapOptionSpendsUnplannedResource(
@@ -1342,6 +1377,7 @@ export function planManaPayment(
                     stored = true;
                 }
                 if (stored) {
+                    if (realisation.via === "costed-tap") sourceIsCosted = true;
                     const y = optionYieldTotal(realisation);
                     if (y > permCapacity) permCapacity = y;
                 }
@@ -1368,6 +1404,7 @@ export function planManaPayment(
             cardInstanceId: perm.id,
             options,
             ...(sourceIsFinite ? { finite: true } : {}),
+            ...(sourceIsCosted ? { costed: true } : {}),
         });
         // Issue #3027 — the cheap early reject must count what the board can
         // actually MAKE, not how many permanents it has: `sources.length` is
@@ -1414,6 +1451,10 @@ export function planManaPayment(
             cardInstanceId: s.cardInstanceId,
             options,
             ...(s.finite ? { finite: true } : {}),
+            // Issue #3359 — the costed flag travels with the working copy for
+            // the same reason the finite one does: the `spend` selection key
+            // below reads it off `remaining`, not off `sources`.
+            ...(s.costed ? { costed: true } : {}),
         };
     });
     const taps: ManaTap[] = [];
@@ -1749,7 +1790,14 @@ export function planManaPayment(
                     // to be the one that spends the charge. 1 for every source
                     // under every other policy, so the lexicographic key below
                     // decides exactly as it did before.
-                    const pref = preferFinite && s.finite ? 0 : 1;
+                    // Issue #3359 — and under `spend` the COSTED source is what
+                    // the whole plan is for, so it outranks every other key for
+                    // the same reason: taking it last would leave its own mana
+                    // leg with no unspent funder and fail the plan outright.
+                    const pref =
+                        (preferFinite && s.finite) || (preferCosted && s.costed)
+                            ? 0
+                            : 1;
                     const rank = planOptionRank(s, c);
                     // Lexicographic (rank, colour-count, YIELD). The yield key
                     // is last and only ever separates sources the first two
@@ -1807,8 +1855,13 @@ export function planManaPayment(
             // `preferFinite` is false on every other call, and then this is the
             // pre-existing pool-first short-circuit, unchanged.
             const holdForFinite =
-                preferFinite &&
-                remaining.some((s) => s.finite && !excluded.has(s));
+                (preferFinite &&
+                    remaining.some((s) => s.finite && !excluded.has(s))) ||
+                // Issue #3359 — the costed twin: pool mana taken first would
+                // leave the costed option unreached and the two plans identical,
+                // so the second candidate would be dropped as a duplicate.
+                (preferCosted &&
+                    remaining.some((s) => s.costed && !excluded.has(s)));
             let idx = holdForFinite
                 ? -1
                 : remaining.findIndex(
@@ -1834,8 +1887,12 @@ export function planManaPayment(
             for (let i = 0; i < remaining.length; i++) {
                 const s = remaining[i];
                 if (excluded.has(s)) continue;
-                // Same finite-first key as the coloured loop (issue #3530).
-                const pref = preferFinite && s.finite ? 0 : 1;
+                // Same finite-first / costed-first key as the coloured loop
+                // (issue #3530, issue #3359).
+                const pref =
+                    (preferFinite && s.finite) || (preferCosted && s.costed)
+                        ? 0
+                        : 1;
                 let rank = Infinity;
                 let color: Color | undefined;
                 for (const c of s.options.keys()) {
@@ -1960,25 +2017,98 @@ export function castTapPlans(
 ): ManaTap[][] {
     const greedy = planManaPayment(state, player, cost, cast);
     if (greedy === null) return [];
+    const plans: ManaTap[][] = [greedy];
     const boardHasFiniteSource = player.battlefield.some(
         (perm) => !perm.isTapped && finiteManaUsesRemaining(perm) > 0
     );
-    if (!boardHasFiniteSource) return [greedy];
-    const greedySpends = planSpendsFiniteUse(state, player, greedy);
-    const alternative = planManaPayment(
-        state,
-        player,
-        cost,
-        cast,
-        undefined,
-        undefined,
-        greedySpends ? "spare" : "spend"
-    );
-    if (alternative === null) return [greedy];
-    if (planSpendsFiniteUse(state, player, alternative) === greedySpends) {
-        return [greedy];
+    if (boardHasFiniteSource) {
+        const greedySpends = planSpendsFiniteUse(state, player, greedy);
+        const alternative = planManaPayment(
+            state,
+            player,
+            cost,
+            cast,
+            undefined,
+            undefined,
+            greedySpends ? "spare" : "spend"
+        );
+        if (
+            alternative !== null &&
+            planSpendsFiniteUse(state, player, alternative) !== greedySpends
+        ) {
+            plans.push(alternative);
+        }
     }
-    return [greedy, alternative];
+    // CR 601.2g / 106.6 (issue #3359) — the COSTED-option candidate: the plan
+    // that reaches for a mana option whose own legs buy something (Arena of
+    // Glory's exert, and the haste its {R}{R} rides on). The greedy plan above
+    // never takes one — `costedOptionPolicy` defaults to `spare`, which does not
+    // even build the realisation — so without this the Bot could not use the
+    // second half of such a card at all.
+    //
+    // A SECOND PLAN rather than a different greedy, for the reason the finite
+    // branch above is one, plus a measured one: making the costed option
+    // replace the free one inside the single greedy pass stranded payable casts
+    // outright (Arena plus one Mountain stopped paying for any two-drop),
+    // because a plan that commits to the costed option has no free fallback
+    // left when the funder runs out. Offering both leaves the choice to the
+    // search, where it is an Eval Pair a Verdict can speak about.
+    //
+    // Gated by the same cheap printed-definition prefilter the finite branch
+    // uses, so an ordinary board pays one cached lookup per untapped permanent
+    // and never a second planning pass.
+    const boardHasCostedOption = player.battlefield.some(
+        (perm) => !perm.isTapped && mayHaveCostedManaTapOption(perm)
+    );
+    if (boardHasCostedOption) {
+        const costedPlan = planManaPayment(
+            state,
+            player,
+            cost,
+            cast,
+            undefined,
+            undefined,
+            undefined,
+            "spend"
+        );
+        // Dropped when it is unrealisable (no funder for the option's own mana
+        // leg) or when it came back as a plan already offered — the option was
+        // refused by the shared admission authority, so the `spend` pass simply
+        // reproduced the greedy plan.
+        if (
+            costedPlan !== null &&
+            !plans.some((existing) => sameTapPlan(existing, costedPlan))
+        ) {
+            plans.push(costedPlan);
+        }
+    }
+    return plans;
+}
+
+/** Two tap plans naming the same taps, in the same order, with the same choice
+ *  indices (issue #3359). The identity `castTapPlans` needs so a second
+ *  candidate that is really the first one again is never offered to the search
+ *  as a distinct Move. */
+function sameTapPlan(a: readonly ManaTap[], b: readonly ManaTap[]): boolean {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+        if (
+            a[i].cardInstanceId !== b[i].cardInstanceId ||
+            a[i].manaChoiceIndex !== b[i].manaChoiceIndex ||
+            a[i].abilityId !== b[i].abilityId
+        ) {
+            return false;
+        }
+        const aOther = a[i].tapOtherIds ?? [];
+        const bOther = b[i].tapOtherIds ?? [];
+        if (
+            aOther.length !== bOther.length ||
+            aOther.some((id, j) => id !== bOther[j])
+        ) {
+            return false;
+        }
+    }
+    return true;
 }
 
 // ---------------------------------------------------------------------------

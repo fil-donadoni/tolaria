@@ -1657,6 +1657,34 @@ export function mayExertForMana(card: CardInstanceState): boolean {
     return false;
 }
 
+/** Cheap prefilter, the `mayHaveNonTapManaAbility` idiom: could this permanent
+ *  offer a COSTED mana-tap option — one whose ability taps the source AND
+ *  charges mana of its own and/or exerts it (Arena of Glory's "{R}, {T}, Exert
+ *  this land: Add {R}{R}")? Reads the PRINTED definition plus any granted
+ *  abilities, so an ordinary board — every basic land, every Mox, every `{T}`
+ *  rock — answers false with one cached lookup and a short array scan, and a
+ *  `false` is never hiding one (ability suppression only REMOVES abilities).
+ *
+ *  Exists purely for cost, like its siblings: `castTapPlans` (`gre/moves.ts`)
+ *  asks it before spending a second `planManaPayment` call on the costed-option
+ *  candidate (issue #3359), exactly as it asks `finiteManaUsesRemaining` before
+ *  the finite one. It runs on `enumerateCastMoves`, i.e. every ISMCTS rollout,
+ *  so a board with no such card must pay nothing for the feature. */
+export function mayHaveCostedManaTapOption(card: CardInstanceState): boolean {
+    // Same conservative shape as `mayBeSacrificedForMana`: a card carrying any
+    // granted ability falls through to the real resolution.
+    if (card.grantedActivatedAbilities?.length) return true;
+    const cardId = (card.card as { id?: string }).id;
+    if (!cardId) return false;
+    const printed = tryGetDefinition(cardId)?.activatedAbilities;
+    if (!printed) return false;
+    for (const ability of printed) {
+        if (ability.useStack || !ability.cost.tap) continue;
+        if (ability.cost.exertThis || ability.cost.mana) return true;
+    }
+    return false;
+}
+
 /** CR 701.43a / 602.1a (issue #3359) — does this tap plan entry's mana
  *  activation EXERT its source? The exert twin of `manaTapSacrificesSource`,
  *  resolving the SAME unified option list the tap mutations read, so "this plan
