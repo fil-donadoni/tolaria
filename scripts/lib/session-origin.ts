@@ -105,6 +105,52 @@ export function parseOriginLedger(text: string): Map<string, SessionOrigin> {
 }
 
 /**
+ * The sessions one AFK RUN owns — the join the budget guard needs (issue
+ * #3699).
+ *
+ * WHY A RUN ID AND NOT JUST `origin: "afk"`. The budget is the ceiling for a
+ * RUN, so the spend it counts has to be that run's. `origin` alone answers a
+ * coarser question ("was a driver behind this session"), and it cannot
+ * separate this morning's drain from this afternoon's, nor two drivers over
+ * two checkouts on the same machine — which is exactly the confusion that made
+ * `--budget` read every transcript on the box and refuse to start on an
+ * operator's own interactive spend.
+ *
+ * `run` is written by `.claude/hooks/session-origin.sh` from
+ * `TOLARIA_LOOP_RUN_ID`, which `scripts/loop-drain.sh` exports on every pass
+ * it launches — the same mechanism, and the same one-variable reach, that
+ * `TOLARIA_LOOP_DRAIN` already has for `origin`. A row without it is a session
+ * from before this field existed, or an interactive one: neither belongs to a
+ * run, so neither is counted.
+ *
+ * Pure, and returns a SET rather than a list because the caller's question is
+ * membership ("is this transcript file one of ours").
+ */
+export function sessionsOfRun(text: string, runId: string): Set<string> {
+    const out = new Set<string>();
+    if (!runId) return out;
+    for (const line of text.split("\n")) {
+        if (!line.trim()) continue;
+        let row: { session?: unknown; run?: unknown; origin?: unknown };
+        try {
+            row = JSON.parse(line) as typeof row;
+        } catch {
+            continue;
+        }
+        const session = row.session;
+        if (typeof session !== "string" || !session) continue;
+        if (row.run !== runId) continue;
+        // A run's sessions are its PASSES. A row that names the run but was
+        // not recorded as driver-started is a shape no writer produces today;
+        // counting it anyway would let a stray variable in an interactive
+        // shell spend the run's budget.
+        if (row.origin !== "afk") continue;
+        out.add(session);
+    }
+    return out;
+}
+
+/**
  * Combine the two signals for one session.
  *
  * The ledger wins whenever it has a row — it is a recording, the entrypoint

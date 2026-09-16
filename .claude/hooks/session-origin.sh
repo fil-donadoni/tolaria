@@ -49,12 +49,19 @@ else
     origin="interactive"
 fi
 
+# The RUN this pass belongs to (issue #3699). `loop-drain.sh` exports
+# TOLARIA_LOOP_RUN_ID on every pass it launches, and the budget guard sums the
+# transcripts of exactly these sessions — so a run's budget is the run's spend
+# and not a five-hour window over every session on the machine. Empty for an
+# interactive session, and for a pass from before this field existed; both read
+# as "belongs to no run", which is what they are.
 jq -nc \
     --argjson ts "$(date +%s)" \
     --arg session "$session" \
     --arg origin "$origin" \
+    --arg run "${TOLARIA_LOOP_RUN_ID:-}" \
     --arg cwd "$(pwd)" \
-    '{ts: $ts, session: $session, origin: $origin, cwd: $cwd}' \
+    '{ts: $ts, session: $session, origin: $origin, run: $run, cwd: $cwd}' \
     >>"$dir/sessions.jsonl" 2>/dev/null
 
 exit 0

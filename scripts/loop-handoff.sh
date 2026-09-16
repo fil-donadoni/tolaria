@@ -95,7 +95,12 @@ Options (recorded in .claude/telemetry/afk.conf on --arm / --start):
                                that pre-flight OFF: you own the whole
                                invocation, e.g.
                                --prompt "/process-gh-issues figli di 2405"
-  --budget <n> --max-pct <n>   local-proxy token budget guard (see ADR 0097)
+  --budget <n> --max-pct <n>   local-proxy token budget guard (see ADR 0097).
+                              --budget is what THIS RUN may spend, counted
+                              from its launch over its own passes only
+                              (issue #3699); --max-pct defaults to 100, and
+                              the driver prints the effective ceiling in
+                              tokens at launch.
   --max-passes <n>             0 = unlimited
   --max-consecutive-errors <n> crashes tolerated in a row before stopping (default 3)
   --start-delay <secs>         grace before the first pass (default 45)
@@ -321,7 +326,7 @@ case "$MODE" in
             echo "stop-file:  absent"
         fi
         if [ -f "$TELEMETRY_DIR/loop-drain.log" ]; then
-            echo "last passes (epoch pass exit pct queue_before queue_after reason):"
+            echo "last passes (epoch pass exit pct queue_before queue_after spent budget reason):"
             tail -n 5 "$TELEMETRY_DIR/loop-drain.log" | sed 's/^/            /'
         fi
         ;;

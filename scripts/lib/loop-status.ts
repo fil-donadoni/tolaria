@@ -248,6 +248,13 @@ export interface DriverPassLine {
     queueBefore: number;
     queueAfter: number;
     reason: string;
+    /** THIS RUN's cumulative weighted spend at the end of this pass, and the
+     *  budget it is measured against (issue #3699). Strings for the same
+     *  reason `pct` is one: `-` is a valid value, meaning the budget guard was
+     *  disabled for that run. `undefined` on a line written before the fields
+     *  existed — the log is append-only and spans driver versions. */
+    spent?: string;
+    budget?: string;
 }
 
 export interface DriverState {
@@ -297,21 +304,30 @@ export function passesInWindow(
     return passes.filter((p) => p.epoch >= cutoff);
 }
 
-/** One `loop-drain.log` line: `epoch pass claude_exit pct queue_before
- *  queue_after reason` (`scripts/loop-drain.sh`). `null` on a line that does
- *  not fit the shape — a truncated final line while the log is being
- *  appended to is normal, and dropping it silently is the wrong failure mode
- *  everywhere else in this loop, so callers see an empty result, never a
- *  thrown parse error. */
+/**
+ * One `loop-drain.log` line. TWO shapes, and the field COUNT tells them apart:
+ *
+ *   7 fields  `epoch pass claude_exit pct queue_before queue_after reason`
+ *   9 fields  `… queue_after spent budget reason`  (issue #3699)
+ *
+ * The log is append-only and spans driver versions, so both are live and the
+ * old one is not a failure. The new fields sit BEFORE the reason because
+ * `reason` is the last field by contract — readers here and in the dashboard,
+ * and most of the driver's own tests, take it with a `split(" ").pop()`.
+ *
+ * `null` on a line that fits neither — a truncated final line while the log is
+ * being appended to is normal, and dropping it silently is the wrong failure
+ * mode everywhere else in this loop, so callers see an empty result, never a
+ * thrown parse error.
+ */
 export function parseDriverPassLine(line: string): DriverPassLine | null {
     const parts = line.trim().split(/\s+/);
     if (parts.length < 7) return null;
-    const [epochStr, passStr, exitStr, pct, beforeStr, afterStr, ...rest] =
-        parts;
-    const reason = rest.join(" ");
+    const [epochStr, passStr, exitStr, pct, beforeStr, afterStr] = parts;
     for (const n of [epochStr, passStr, exitStr, beforeStr, afterStr]) {
         if (!/^-?\d+$/.test(n)) return null;
     }
+    const wide = parts.length >= 9;
     return {
         epoch: Number(epochStr),
         pass: Number(passStr),
@@ -319,7 +335,8 @@ export function parseDriverPassLine(line: string): DriverPassLine | null {
         pct,
         queueBefore: Number(beforeStr),
         queueAfter: Number(afterStr),
-        reason,
+        reason: parts.slice(wide ? 8 : 6).join(" "),
+        ...(wide ? { spent: parts[6], budget: parts[7] } : {}),
     };
 }
 
