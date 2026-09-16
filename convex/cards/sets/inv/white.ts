@@ -21,7 +21,8 @@
 // capability slices, so each stub below carries its own live
 // `tracked-by:` pointing at the specific open slice (#1329
 // dynamically-recomputed characteristics, #1330 mana-color provenance,
-// #1331 damage-prevention shield extensions, #1332 assorted one-offs), not
+// #1331 damage-prevention shield extensions, #1332 assorted one-offs —
+// retired 2026-09-16 into #1904/#3712/#3713/#3715), not
 // #1086 (issue #2560 fixup, finding 2). Domain-cluster and
 // pile-division-cluster cards are tracked to their own cluster issues
 // (#1066, #1067); the 2 split cards (Stand // Deliver, Wax // Wane) are
@@ -1100,7 +1101,7 @@ export const prisonBarricade: CardDefinition = {
 // "stop-and-issue on an uncensused mechanic"). Originally tracked
 // collectively at https://github.com/fil-donadoni/tolaria/issues/1086,
 // CLOSED 2026-07-17 once decomposed into per-cause capability slices
-// (#1329-#1332, all still open) — each comment below carries its own
+// (#1329-#1332; #1332 since retired into dedicated issues) — each comment below carries its own
 // `tracked-by:` pointing at its specific slice, not #1086 (issue #2560
 // fixup, finding 2). Each comment below names the specific missing
 // primitive so a follow-up slice can pick it up without re-auditing.
@@ -1113,17 +1114,18 @@ export const prisonBarricade: CardDefinition = {
 // X" cost restriction exists on ManaCost / activation-cost validation).
 
 // Blinding Light — {2}{W} Sorcery. "Tap all nonwhite creatures." tracked-by:
-// #1332 (`EffectCardFilter`, the `forEach` selector's filter shape, has no
-// color-EXCLUSION field — only `color?: Color | Color[]`, an OR-match with
-// no NOT).
+// #1904 (`EffectCardFilter.excludeColor` exists since issue #1287, but
+// `toPermanentFilter` does not map it, so a battlefield `forEach` selector
+// carrying it matches every creature — the fix must MAP the field, not merely
+// reject it, for this card to ship; re-pointed from the #1332 audit).
 
 // Global Ruin — {4}{W} Sorcery. "Each player chooses from the lands they
 // control a land of each basic land type, then sacrifices the rest."
-// tracked-by: #1332 (the underlying "keep N, sacrifice the complement"
-// primitive exists — `ctx.requestChoice({kind: "keep-permanents"})`, used by
-// Balance's `resolve()` — but it isn't exposed to the DSL `EffectChoiceKind`
-// union, and Global Ruin's PER-BASIC-TYPE selection needs new per-card
-// resolve() logic beyond a straight reuse of Balance's helper).
+// tracked-by: #3712 (NOT a `keep-permanents` exposure, as this marker once
+// claimed: the `chooseCategorized` Op already does the per-basic-type pick on
+// the battlefield with the COVER rule a dual land needs — Planar Overlay,
+// `pls/blue.ts`. Missing: a battlefield `sweep` that SACRIFICES the unpicked
+// lands, and admitting the Op as a CR 101.4 `forEach { simultaneous }` body).
 
 // Glimmering Angel — {3}{W} Creature — Angel, 2/2. "Flying. {U}: This
 // creature gains shroud until end of turn." Unblocked by PR #2040 (issue
@@ -1199,9 +1201,10 @@ export const glimmeringAngel: CardDefinition = {
 // tracked-by: #2066 (umbrella #1329).
 
 // Rampant Elephant — {3}{W} Creature, 2/2. "{G}: Target creature blocks
-// this creature this turn if able." tracked-by: #1332 (no "must be
-// blocked" / Lure-style forced-block mechanism exists anywhere in the
-// engine).
+// this creature this turn if able." tracked-by: #3713 (forced blocks DO
+// exist — Lure's attacker-side `block-requirement` static, Blaze of Glory's
+// blocker-side `mustBlockAllThisTurn` — but nothing makes ONE creature block
+// ONE named attacker this turn, and no DSL Op sets any block requirement).
 
 // Rout — the CR 601.3c conditional-flash rider (issue #2146), shipped as the
 // declarative `flashSurcharge` field: the card is legal to ANNOUNCE whenever
@@ -1260,10 +1263,10 @@ export const rout: CardDefinition = {
 
 // Sunscape Apprentice — {W} Creature, 1/1. "{G}, {T}: Target creature gets
 // +1/+1 until end of turn. {U}, {T}: Put target creature you control on top
-// of its owner's library." tracked-by: #1332 (the `moveZone` Op's
-// `target`-shape, battlefield permanent, only supports `to: "hand"` — any
-// other destination including `library` from a live permanent is
-// unhandled, confirmed in the interpreter's `moveZone` executor).
+// of its owner's library." tracked-by: #3715 (authoring only — the old
+// premise that `moveZone` from a live permanent supports only `to: "hand"` is
+// FALSE since issue #1726: `to: "library"` with a 1-based `position` ships,
+// Teferi, Hero of Dominaria at 3 and Oust at 2; "on top" is `position: 1`).
 
 // Winnow — "Destroy target nonland permanent if another permanent with the
 // same name is on the battlefield. Draw a card." (issue #2065, unblocking the

@@ -3678,15 +3678,11 @@ export const thunderscapeMaster: CardDefinition = {
 
 // Nightscape Apprentice — {B} Creature — Zombie Wizard, 1/1. "{U}, {T}: Put
 // target creature you control on top of its owner's library. {R}, {T}:
-// Target creature gains first strike until end of turn." tracked-by: #1332
-// (same root cause as Sunscape Apprentice, `white.ts`, this same five-pair
-// cycle: the `moveZone` Op's `target`-shape, a live battlefield permanent,
-// only supports `to: "hand"` — any other destination including `library`
-// from a live permanent is unhandled by the interpreter's `moveZone`
-// executor. The SECOND ability alone — first-strike grant — is free, but
-// "never ship silent partials" (PRD #1063) means the whole card waits for
-// the same `moveZone`-to-library extension Sunscape Apprentice is already
-// tracked against.)
+// Target creature gains first strike until end of turn." tracked-by: #3715
+// (authoring only, shipped together with Sunscape Apprentice, `white.ts`. The
+// old premise — `moveZone` from a live permanent supports only `to: "hand"`
+// — is FALSE since issue #1726: `to: "library"` with a 1-based `position`
+// ships (Teferi, Hero of Dominaria; Oust), "on top" is `position: 1`.)
 // shroud. (They can't be the targets of spells or abilities.) {1}, Sacrifice
 // this enchantment: Search your library for an enchantment card, reveal it,
 // then shuffle and put that card on top." (CR 611/613 layer 6 keyword grant
