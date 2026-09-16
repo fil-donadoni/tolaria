@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
 
+import { spawnSync } from "node:child_process";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+
+import { sessionsOfRun } from "../lib/session-origin";
 import {
     parseUsageLine,
     sumWindow,
@@ -377,5 +383,215 @@ describe("pctOfBudget — never divides by zero, never returns Infinity", () => 
             const pct = pctOfBudget(123, budget);
             expect(Number.isFinite(pct)).toBe(true);
         }
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// A RUN's spend, not a window over the machine (issue #3699)
+//
+// `--budget` is read by everyone who types it as "this run may spend N". What
+// the guard actually read was a trailing five-hour window over every session
+// on the box: it refused to start on the operator's own interactive spend (a
+// 140M budget tripped at 132% with the driver having spent nothing), and it
+// could never stop a run at a cumulative total, because a window forgets — one
+// recorded run went 22.11% → 12.91% across seven passes, and across 23 runs
+// not one ended with reason `budget`.
+//
+// The join is the file NAME: a Claude Code transcript lives at
+// `<projects>/<slug>/<session-id>.jsonl`, and the session journal says which
+// sessions a run started. These tests drive the real CLI over synthetic
+// transcripts, because the bug was never in the summing — those functions were
+// pure and tested and correct — but in WHICH lines reached them.
+// ─────────────────────────────────────────────────────────────────────────
+
+describe("sessionsOfRun — which sessions a run owns", () => {
+    const row = (o: Record<string, unknown>) => JSON.stringify(o);
+
+    it("takes the run's own AFK sessions and nothing else", () => {
+        const journal = [
+            row({ session: "a", origin: "afk", run: "R1" }),
+            row({ session: "b", origin: "afk", run: "R2" }),
+            row({ session: "c", origin: "interactive", run: "" }),
+            row({ session: "d", origin: "afk" }), // pre-#3699 row, no run
+        ].join("\n");
+        expect([...sessionsOfRun(journal, "R1")]).toEqual(["a"]);
+        expect([...sessionsOfRun(journal, "R2")]).toEqual(["b"]);
+    });
+
+    it("never answers for an empty run id — that would be every unattributed row", () => {
+        const journal = row({ session: "d", origin: "afk", run: "" });
+        expect(sessionsOfRun(journal, "").size).toBe(0);
+    });
+
+    it("refuses a row that names the run but was not recorded as a pass", () => {
+        // A stray TOLARIA_LOOP_RUN_ID in an interactive shell must not be able
+        // to spend the run's budget.
+        const journal = row({ session: "x", origin: "interactive", run: "R1" });
+        expect(sessionsOfRun(journal, "R1").size).toBe(0);
+    });
+
+    it("skips a malformed line instead of losing every row before it", () => {
+        // The journal is appended to by a shell hook that can be killed
+        // mid-write; a half-written last line must cost one row, not all.
+        const journal = [
+            row({ session: "a", origin: "afk", run: "R1" }),
+            '{"session":"b","origin":"afk","run":"R1"',
+        ].join("\n");
+        expect([...sessionsOfRun(journal, "R1")]).toEqual(["a"]);
+    });
+});
+
+describe("usage:window CLI — a run's own spend over synthetic transcripts", () => {
+    const CLI = path.resolve(__dirname, "..", "usage-window.ts");
+
+    interface Report {
+        sinceMs: number;
+        hours: number | null;
+        runId: string | null;
+        sessions: number | null;
+        weighted: number;
+        budget: number;
+        pct: number;
+        totals: { output: number };
+    }
+
+    /** A scratch `~/.claude/projects` plus a session journal. */
+    const fixture = (): {
+        dir: string;
+        projects: string;
+        journal: string;
+        transcript: (session: string, tsIso: string, output: number) => void;
+        record: (session: string, run: string, origin?: string) => void;
+    } => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "usage-window-"));
+        const projects = path.join(dir, "projects", "slug");
+        fs.mkdirSync(projects, { recursive: true });
+        const journal = path.join(dir, "sessions.jsonl");
+        return {
+            dir,
+            projects: path.join(dir, "projects"),
+            journal,
+            transcript: (session, tsIso, output) =>
+                fs.writeFileSync(
+                    path.join(projects, `${session}.jsonl`),
+                    `${JSON.stringify({
+                        timestamp: tsIso,
+                        message: {
+                            model: "claude-sonnet-5-20260101",
+                            usage: {
+                                input_tokens: 0,
+                                output_tokens: output,
+                                cache_creation_input_tokens: 0,
+                                cache_read_input_tokens: 0,
+                            },
+                        },
+                    })}\n`
+                ),
+            record: (session, run, origin = "afk") =>
+                fs.appendFileSync(
+                    journal,
+                    `${JSON.stringify({ ts: 1, session, origin, run })}\n`
+                ),
+        };
+    };
+
+    const report = (args: string[]): Report =>
+        JSON.parse(
+            spawnSync("bun", [CLI, ...args], { encoding: "utf8" }).stdout
+        ) as Report;
+
+    it("counts only the transcripts of the run's own sessions", () => {
+        // The acceptance criterion, over synthetic transcripts: a concurrent
+        // session that is not a pass of the run contributes nothing.
+        const f = fixture();
+        const now = new Date().toISOString();
+        f.transcript("ours", now, 1000);
+        f.transcript("theirs", now, 9_000_000);
+        f.record("ours", "R1");
+        f.record("theirs", "", "interactive");
+
+        const scoped = report([
+            "--since",
+            "0",
+            "--run",
+            "R1",
+            "--projects",
+            f.projects,
+            "--sessions",
+            f.journal,
+            "--budget",
+            "1000000",
+        ]);
+        expect(scoped.sessions).toBe(1);
+        expect(scoped.totals.output).toBe(1000);
+        expect(scoped.runId).toBe("R1");
+
+        // …and without the flag the SAME corpus reads machine-wide, which is
+        // what made the guard refuse to start on somebody else's spend.
+        const wide = report([
+            "--hours",
+            "5",
+            "--projects",
+            f.projects,
+            "--budget",
+            "1000000",
+        ]);
+        expect(wide.totals.output).toBe(9_001_000);
+        expect(wide.runId).toBe(null);
+        fs.rmSync(f.dir, { recursive: true, force: true });
+    });
+
+    it("a run that has launched no pass yet has spent NOTHING, however hot the machine is", () => {
+        // Why a fresh run is never blocked by pre-existing spend: it owns no
+        // session, so it owns no tokens. The empty set is a real answer, not a
+        // missing filter — failing open here would restore the machine-wide
+        // reading under a flag that says the opposite.
+        const f = fixture();
+        f.transcript("theirs", new Date().toISOString(), 9_000_000);
+        const r = report([
+            "--since",
+            "0",
+            "--run",
+            "R-new",
+            "--projects",
+            f.projects,
+            "--sessions",
+            f.journal,
+            "--budget",
+            "1000",
+        ]);
+        expect(r.sessions).toBe(0);
+        expect(r.weighted).toBe(0);
+        expect(r.pct).toBe(0);
+        fs.rmSync(f.dir, { recursive: true, force: true });
+    });
+
+    it("--since anchors the left edge absolutely, replacing the trailing window", () => {
+        // A window forgets; an anchor does not. `hours` reads null in the
+        // report precisely so nobody can mistake one reading for the other.
+        const f = fixture();
+        f.transcript("ours", "2020-01-01T00:00:00.000Z", 500);
+        f.record("ours", "R1");
+        const base = [
+            "--run",
+            "R1",
+            "--projects",
+            f.projects,
+            "--sessions",
+            f.journal,
+            "--budget",
+            "1000",
+        ];
+        expect(report(["--since", "0", ...base]).totals.output).toBe(500);
+        expect(report(["--hours", "5", ...base]).totals.output).toBe(0);
+        expect(report(["--since", "0", ...base]).hours).toBe(null);
+
+        // ISO is accepted too — the driver has epoch ms in a shell variable,
+        // a human reaching for the docs has a timestamp.
+        expect(
+            report(["--since", "2019-01-01T00:00:00.000Z", ...base]).totals
+                .output
+        ).toBe(500);
+        fs.rmSync(f.dir, { recursive: true, force: true });
     });
 });

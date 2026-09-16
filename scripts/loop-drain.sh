@@ -43,7 +43,18 @@ SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 
 # ── flags / env fallbacks ───────────────────────────────────────────────────
 BUDGET="${TOLARIA_LOOP_TOKEN_BUDGET:-}"
-MAX_PCT=80
+# 100, not 80 (issue #3699). `--budget N` is read by everyone who types it as
+# "this run may spend N"; a default of 80 silently made it 0.8N, with nothing
+# in the output saying so, so a stated budget and a spendable budget were two
+# different numbers. It stays a FLAG because a run that wants headroom under
+# its own ceiling is a real thing to want — but the default no longer shrinks
+# a number the operator declared. The launch line prints the effective ceiling
+# in tokens either way, so the two can never diverge silently again.
+MAX_PCT=100
+# The trailing-window width. Since #3699 the BUDGET guard does not use it: a
+# budget is counted from the run's launch forward (RUN_START_MS below), over
+# the run's own sessions only. This stays for the informational reading and
+# for an operator who asks the reporter directly.
 WINDOW_HOURS=5
 MAX_PASSES=0
 STOP_FILE=".claude/telemetry/loop-stop"
@@ -100,6 +111,20 @@ ERROR_BACKOFF_MAX_SECS=900
 # the committed work waits for a human.
 MAX_CONSECUTIVE_CLAIMS_HELD=3
 PID_FILE=".claude/telemetry/loop-drain.pid"
+# THIS RUN's identity and its start anchor (issue #3699). The budget is the
+# ceiling for a RUN, so the spend it counts has to be the run's: every pass is
+# launched with TOLARIA_LOOP_RUN_ID in its environment, the session-origin hook
+# records it beside the session id, and `usage:window --run` sums exactly those
+# transcripts from RUN_START_MS forward. Before this, the guard read a trailing
+# five-hour window over every session on the machine — so it refused to start
+# on an operator's own interactive spend (observed: 132% with the driver having
+# spent nothing) and could never stop a run at a cumulative total, because a
+# window forgets (one run went from 22.11% to 12.91% across seven passes).
+#
+# Epoch seconds plus the pid: unique per run on this machine, and orderable.
+RUN_ID="${TOLARIA_LOOP_RUN_ID:-}"
+[ -n "$RUN_ID" ] || RUN_ID="$(date +%s)-$$"
+RUN_START_MS=$(($(date +%s) * 1000))
 SINGLE_INSTANCE=0
 # Grace period before the FIRST pass. The handoff (scripts/loop-handoff.sh)
 # detaches this driver from inside a pass that is still finishing its own
@@ -263,7 +288,7 @@ driver_alive() {
 if [ "$SINGLE_INSTANCE" -eq 1 ] && driver_alive; then
     echo "loop-drain: a driver is already running (pid $(cat "$PID_FILE")) — refusing to start a second one over the same queue." >&2
     echo ""
-    echo "loop-drain summary: passes=0 reason=already-running queue_start=? queue_end=? final_pct=n/a"
+    echo "loop-drain summary: passes=0 reason=already-running queue_start=? queue_end=? final_pct=n/a spent=n/a budget=n/a"
     exit 0
 fi
 
@@ -329,14 +354,24 @@ fi
 # exercises dozens of behaviours that are not about the budget guard. Never
 # set it for a real run.
 BUDGET_ENABLED=1
-case "$BUDGET" in
-    "" | 0 | 0.0 | -*)
+# NUMERIC, not a list of literals (PR #3704 review). The list it replaces
+# (`"" | 0 | 0.0 | -*`) missed `0.00`, `.0` and `00`, each of which then read
+# as a REAL budget — and a zero budget can never trip a percentage, so the
+# driver ran unthrottled forever instead of refusing to start, which is the
+# precise failure ADR 0109 exists to prevent. `awk` answers the question the
+# list was approximating: is this budget a positive number.
+_budget_positive=0
+if is_number "${BUDGET:-}"; then
+    _budget_positive=$(awk -v b="$BUDGET" 'BEGIN { print (b + 0 > 0) ? 1 : 0 }')
+fi
+case "$_budget_positive" in
+    0)
         if [ -n "${TOLARIA_LOOP_ALLOW_NO_BUDGET:-}" ]; then
             BUDGET_ENABLED=0
             echo "loop-drain: TOLARIA_LOOP_ALLOW_NO_BUDGET set (test-only hatch) — the token-budget guard is DISABLED for this run." >&2
         else
             echo "loop-drain: --budget / TOLARIA_LOOP_TOKEN_BUDGET is REQUIRED — this driver refuses to run unbudgeted (ADR 0109)." >&2
-            echo "loop-drain: e.g. --budget 200000000; the guard stops the run once the ${WINDOW_HOURS}h weighted usage reaches --max-pct (${MAX_PCT}%) of it." >&2
+            echo "loop-drain: e.g. --budget 200000000; the guard stops the run once THIS RUN's own weighted spend, accumulated from launch, reaches --max-pct (${MAX_PCT}%) of it." >&2
             exit 1
         fi
         ;;
@@ -569,16 +604,31 @@ if (head && Number.isInteger(head.number) && typeof head.model === "string") {
     return 0
 }
 
+# A stated budget and a spendable budget must never be different numbers
+# without the output saying so (issue #3699) — `--max-pct` is a multiplier on
+# the declared budget, and for a year it was silently 0.8.
+if [ "$BUDGET_ENABLED" -eq 1 ]; then
+    CEILING=$(awk -v b="$BUDGET" -v m="$MAX_PCT" 'BEGIN { printf "%.0f", b * m / 100 }')
+    echo "loop-drain: run $RUN_ID — budget ${BUDGET} weighted tokens, --max-pct ${MAX_PCT}% ⇒ effective ceiling ${CEILING} tokens, counted from this launch over this run's own passes only." >&2
+fi
+
 if [ "$START_DELAY" -gt 0 ]; then
     echo "loop-drain: waiting ${START_DELAY}s before the first pass (handoff grace period)." >&2
     interruptible_sleep "$START_DELAY" || {
         echo ""
-        echo "loop-drain summary: passes=0 reason=stop-file queue_start=? queue_end=? final_pct=n/a"
+        echo "loop-drain summary: passes=0 reason=stop-file queue_start=? queue_end=? final_pct=n/a spent=0 budget=${BUDGET:-n/a}"
         exit 0
     }
 fi
 
 pass=0
+# The run's spend so far, in weighted tokens — MONOTONIC by contract. The
+# reading is already monotonic by construction (a fixed left edge, a growing
+# set of the run's own transcripts), and this high-water mark says so out loud:
+# a transcript compacted or rewritten under us, or a `sessions.jsonl` row that
+# has not landed yet, could otherwise make a budget go DOWN, which is the
+# property whose absence let a run burn past its ceiling for eight hours.
+spent="0"
 no_progress_streak=0
 error_streak=0
 claims_held_streak=0
@@ -623,9 +673,16 @@ while :; do
     # the run with reason `usage-error` rather than silently skipping the
     # check and running the pass anyway.
     if [ "$BUDGET_ENABLED" -eq 1 ]; then
-        usage_json=$(bun run usage:window --hours "$WINDOW_HOURS" --budget "$BUDGET" 2>&1) && usage_rc=0 || usage_rc=$?
+        # `--since` + `--run`, never `--hours`: this reads THIS run's own
+        # spend from its own launch, not the machine's last five hours. See
+        # RUN_ID above for why the two are not the same question.
+        usage_json=$(bun run usage:window --since "$RUN_START_MS" --run "$RUN_ID" --budget "$BUDGET" 2>&1) && usage_rc=0 || usage_rc=$?
         pct=$(printf '%s' "$usage_json" | grep -o '"pct":[0-9.eE+-]*' | head -1 | cut -d: -f2)
         weighted=$(printf '%s' "$usage_json" | grep -o '"weighted":[0-9.eE+-]*' | head -1 | cut -d: -f2)
+        # FAIL CLOSED FIRST, then account. The order matters: a reading the
+        # guard is about to declare unreadable must not move the run's spend
+        # on its way out, or the summary reports a figure the guard itself
+        # just refused to trust (PR #3704 review).
         if [ "$usage_rc" -ne 0 ] || [ -z "$pct" ] || ! is_number "$pct"; then
             stop_reason="usage-error"
             pct="n/a"
@@ -633,10 +690,17 @@ while :; do
             printf '%s\n' "$usage_json" >&2
             break
         fi
+        # High-water mark, then derive the pct from it rather than trusting
+        # the reader's — so the figure this guard compares, logs and reports
+        # can only ever rise within a run.
+        if is_number "${weighted:-}"; then
+            spent=$(awk -v a="$spent" -v b="$weighted" 'BEGIN { print (b + 0 > a + 0) ? b : a }')
+            pct=$(awk -v s="$spent" -v b="$BUDGET" 'BEGIN { if (b + 0 <= 0) { print 0 } else { print s * 100 / b } }')
+        fi
         over=$(awk -v p="$pct" -v m="$MAX_PCT" 'BEGIN { print (p + 0 >= m + 0) ? 1 : 0 }')
         if [ "$over" -eq 1 ]; then
             stop_reason="budget"
-            echo "loop-drain: budget guard tripped — ${pct}% of budget (weighted ${weighted:-?}) >= --max-pct ${MAX_PCT}%." >&2
+            echo "loop-drain: budget guard tripped — run $RUN_ID has spent ${spent} of ${BUDGET} weighted tokens (${pct}%) >= --max-pct ${MAX_PCT}%." >&2
             break
         fi
     fi
@@ -738,7 +802,7 @@ while :; do
             # shellcheck disable=SC2086  # intentional word-splitting of the
             # resolved tier flag and of a user-supplied flag string, both
             # documented above.
-            TOLARIA_LOOP_DRAIN=1 CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 claude $pass_model_arg -p "$pass_prompt" $CLAUDE_ARGS 2>&1
+            TOLARIA_LOOP_DRAIN=1 TOLARIA_LOOP_RUN_ID="$RUN_ID" CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 claude $pass_model_arg -p "$pass_prompt" $CLAUDE_ARGS 2>&1
             echo $? >"$rc_file"
         ) | tee "$pass_log"
         set -e
@@ -789,6 +853,13 @@ while :; do
     fi
 
     reason_field="-"
+    if [ "$BUDGET_ENABLED" -eq 1 ]; then
+        spent_field="$spent"
+        budget_field="$BUDGET"
+    else
+        spent_field="-"
+        budget_field="-"
+    fi
     stop_now=0
     backoff_secs=0
     if [ "$rate_limited" -eq 1 ]; then
@@ -914,8 +985,16 @@ while :; do
         -) claims_held_streak=0 ;;
     esac
 
-    # 7. one line per pass: epoch pass claude_exit pct queue_before queue_after reason
-    echo "$epoch $pass $claude_exit $pct $queue_before $queue_after $reason_field" >>"$LOG_FILE"
+    # 9. one line per pass:
+    #   epoch pass claude_exit pct queue_before queue_after spent budget reason
+    #
+    # `spent`/`budget` are new (issue #3699) and sit BEFORE the reason, not
+    # after it: `reason` is the LAST field by contract — every reader in this
+    # repo, and every test, takes it with a `split(" ").pop()` — so appending
+    # there would have silently renamed the reason of every pass. `-` in both
+    # when the guard is disabled, so the field count is fixed at 9 and a parser
+    # can tell the old 7-field shape from this one by length alone.
+    echo "$epoch $pass $claude_exit $pct $queue_before $queue_after ${spent_field} ${budget_field} $reason_field" >>"$LOG_FILE"
 
     if [ "$stop_now" -eq 0 ] && [ "$backoff_secs" -gt 0 ]; then
         echo "loop-drain: pass $pass crashed (claude exit $claude_exit; consecutive failure ${error_streak}/${MAX_CONSECUTIVE_ERRORS}) — retrying in ${backoff_secs}s. Log tail:" >&2
@@ -937,7 +1016,12 @@ while :; do
 done
 
 echo ""
-echo "loop-drain summary: passes=$pass reason=${stop_reason:-unknown} queue_start=${first_queue_count:-?} queue_end=${last_queue_count:-?} final_pct=${pct:-n/a}"
+if [ "$BUDGET_ENABLED" -eq 1 ]; then
+    _spend_summary="spent=${spent} budget=${BUDGET}"
+else
+    _spend_summary="spent=n/a budget=n/a"
+fi
+echo "loop-drain summary: passes=$pass reason=${stop_reason:-unknown} queue_start=${first_queue_count:-?} queue_end=${last_queue_count:-?} final_pct=${pct:-n/a} ${_spend_summary}"
 
 case "$stop_reason" in
     stop-file | max-passes | queue-empty | budget)
