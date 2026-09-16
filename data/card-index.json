@@ -22860,6 +22860,14 @@
         "source": "compiled"
     },
     {
+        "name": "Myr Battlesphere",
+        "scryfallId": "b0ae94ed-7314-470b-baba-f2f58bbc894a",
+        "oracleId": "c53ba31a-ba27-4e17-9a92-311acb1cab29",
+        "firstSet": "som",
+        "firstPrintId": "b0ae94ed-7314-470b-baba-f2f58bbc894a",
+        "firstPrintSet": "som"
+    },
+    {
         "name": "Myr Scrapling",
         "scryfallId": "5b9072a5-bd7f-4007-a34a-ebe251c95356",
         "oracleId": "1a4ffc1e-2f5e-446a-b1e8-32385b3c083b",
