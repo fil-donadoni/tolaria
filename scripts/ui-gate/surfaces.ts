@@ -1054,6 +1054,47 @@ async function clickTransient(
  *  (`tolaria:debugSheetOpen`), so a second surface in the same context can
  *  arrive with it already open, and a blind click would then close the very
  *  thing being measured. */
+/** The pile triggers a graveyard can be opened from. Landscape renders the
+ *  tile itself (`player-graveyard.tsx`'s `data-zone-drop`); portrait renders
+ *  a `GY` chip instead and hides the tile (`board-pile-chips.tsx`). Both
+ *  players carry one, and nothing in the DOM names the viewer's — so the walk
+ *  tries each and keeps the pile whose dialog offers the CTA. */
+const GRAVEYARD_TRIGGERS = [
+    // ONE chip selector: a narrower copy scoped to the viewer's bottom bar
+    // matched a subset of this one, so a failed attempt re-clicked the same
+    // chip under a second name (PR review).
+    '[data-testid^="chip-graveyard-"]',
+    '[data-zone-drop="graveyard"]',
+] as const;
+/** A pile tile that carries pile actions opens a context menu first, whose
+ *  FIRST item browses the pile (`usePileBrowseMenu`, issue #2345). */
+const PILE_BROWSE_ITEM = '[role=menuitem]:has-text("Browse pile…")';
+const ZONE_CTA_FLASHBACK = '[role=dialog] button:text-is("Flashback")';
+
+/** Open the viewer's own graveyard until its dialog shows the Flashback CTA
+ *  (`game-zone-pile`, issue #3651). Every attempt that opened the WRONG pile
+ *  is closed before the next, so the surface never measures two dialogs. */
+async function openViewerGraveyard(page: Page): Promise<void> {
+    const tried: string[] = [];
+    for (const selector of GRAVEYARD_TRIGGERS) {
+        const triggers = page.locator(selector);
+        const count = await triggers.count();
+        for (let i = 0; i < count; i++) {
+            const trigger = triggers.nth(i);
+            if (!(await trigger.isVisible().catch(() => false))) continue;
+            tried.push(`${selector}#${i}`);
+            await trigger.click({ timeout: STEP_TIMEOUT });
+            await clickIfVisible(page, PILE_BROWSE_ITEM, 1500);
+            if (await visible(page, ZONE_CTA_FLASHBACK, 3000)) return;
+            await page.keyboard.press("Escape");
+            await settle(page);
+        }
+    }
+    throw new Unreachable(
+        `no graveyard pile opened on a Flashback CTA (tried ${tried.join(", ") || "nothing — no visible graveyard trigger"}) — the board scenario puts Cabal Therapy in the viewer's graveyard; is it seeded, and is its cast still legal in that position?`
+    );
+}
+
 const DEBUG_SHEET_TOGGLE = "[data-debug-sheet-toggle]";
 const DEBUG_SHEET_TOGGLE_CLOSED =
     '[data-debug-sheet-toggle][aria-expanded="false"]';
@@ -1830,6 +1871,21 @@ export const SURFACES: readonly Surface[] = [
             "src/routes/design-system.route.tsx",
         ],
         label: "Design system census (/admin/design-system)",
+        // The census's own heading (the 404 page also renders a `main`, see
+        // the walk) and the specimen openers `design-system-dialog` walks
+        // through — the page's one interactive entry point.
+        asserts: [
+            {
+                label: "census heading",
+                locator: { role: "heading", name: "Design system census" },
+                check: "visible",
+            },
+            {
+                label: "specimen opener: Open live demo",
+                locator: { role: "button", name: "Open live demo" },
+                check: "reachable",
+            },
+        ],
         async walk(page, ctx) {
             // The permanent census page (ADR 0101 names it the living record
             // of v3). It lives UNDER /admin — it was moved off the guessable
@@ -1860,6 +1916,31 @@ export const SURFACES: readonly Surface[] = [
             "src/routes/design-system.route.tsx",
         ],
         label: "GameDialog live demo (/admin/design-system → Open live demo)",
+        // The canonical modal language's own anatomy: the named dialog, the
+        // footer's primary plate (and its contrast — the one CTA every
+        // in-game dialog copies), and the close control.
+        asserts: [
+            {
+                label: "dialog: GameDialog",
+                locator: { role: "dialog", name: "GameDialog" },
+                check: "visible",
+            },
+            {
+                label: "footer primary: Done",
+                locator: { role: "button", name: "Done" },
+                check: "reachable",
+            },
+            {
+                label: "footer primary contrast",
+                locator: { role: "button", name: "Done" },
+                check: "contrast",
+            },
+            {
+                label: "dialog close control",
+                locator: { selector: "[data-game-dialog-close]" },
+                check: "reachable",
+            },
+        ],
         async walk(page, ctx) {
             // The lane's only MODAL row. Every in-game dialog is a GameDialog,
             // and the census page opens a real one on demand — so the dialog
@@ -1897,6 +1978,45 @@ export const SURFACES: readonly Surface[] = [
             "src/routes/admin/admin-card-profiles.route.tsx",
         ],
         label: "Card Profile review pass (/admin/card-profiles \u2192 Vintage Cube \u2192 first row)",
+        // The review pass's primary controls: the scope it runs over, how far
+        // it has got, the list filter, and the expanded row's two write
+        // actions — `Mark reviewed & next` is the gesture the whole pass is
+        // hundreds of repetitions of.
+        asserts: [
+            {
+                label: "Profile Scope picker",
+                locator: { role: "radiogroup", name: "Profile Scope" },
+                check: "visible",
+            },
+            {
+                label: "review progress",
+                locator: {
+                    role: "progressbar",
+                    name: "Card Profiles reviewed",
+                },
+                check: "visible",
+            },
+            {
+                label: "card search",
+                locator: { role: "textbox", name: "Search cards" },
+                check: "reachable",
+            },
+            {
+                label: "editor primary: Mark reviewed & next",
+                locator: { role: "button", name: "Mark reviewed & next" },
+                check: "reachable",
+            },
+            {
+                label: "editor primary contrast",
+                locator: { role: "button", name: "Mark reviewed & next" },
+                check: "contrast",
+            },
+            {
+                label: "editor Save",
+                locator: { role: "button", name: "Save" },
+                check: "reachable",
+            },
+        ],
         async walk(page, ctx) {
             // The human review pass over the LLM-seeded Card Profile census
             // (issue #3597). Walked because NO other surface mounts these
@@ -1972,6 +2092,41 @@ export const SURFACES: readonly Surface[] = [
             "src/routes/admin/admin-verdicts.route.tsx",
         ],
         label: "Verdict review (/admin/verdicts → the lane's contested position)",
+        // The open position's anatomy: the rebuilt board, the resolution form
+        // and one of its answers, and the way back to the list. `Record
+        // resolution` is VISIBLE, not reachable — it is disabled until an
+        // answer is picked, and the walk never picks one (a resolution row
+        // would outlive the account).
+        asserts: [
+            {
+                label: "position board",
+                locator: {
+                    selector:
+                        "[data-testid=verdict-position-detail] [data-testid=scenario-board]",
+                },
+                check: "visible",
+            },
+            {
+                label: "resolution form",
+                locator: { role: "form", name: "Resolve this position" },
+                check: "visible",
+            },
+            {
+                label: "answer: None of them is right",
+                locator: { role: "radio", name: "None of them is right" },
+                check: "reachable",
+            },
+            {
+                label: "Record resolution",
+                locator: { role: "button", name: "Record resolution" },
+                check: "visible",
+            },
+            {
+                label: "back to all positions",
+                locator: { role: "button", name: "← All positions" },
+                check: "reachable",
+            },
+        ],
         async walk(page, ctx) {
             // The surface where a contested position is rebuilt and resolved
             // (issue #3582). Walked OPEN, because the list alone is the small
@@ -2314,8 +2469,82 @@ export const SURFACES: readonly Surface[] = [
         settleTargets: [HAND_CARD],
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
         label: "Game board — ordinary mid-game position",
+        // The controller's two always-present verbs and the hand. The primary
+        // slot is the ACTION variant, not the status pill: the declared
+        // position parks priority on the viewer, so a pill here means the
+        // board stopped offering the viewer a move.
+        asserts: [
+            {
+                label: "controller primary action",
+                locator: { selector: '[data-controller-primary="action"]' },
+                check: "reachable",
+            },
+            {
+                label: "controller Pass Turn",
+                locator: { role: "button", name: "Pass Turn" },
+                check: "reachable",
+            },
+            {
+                label: "hand card",
+                locator: { selector: "[data-board-hand-card]" },
+                check: "visible",
+            },
+        ],
         async walk(page, ctx) {
             await ensureScenarioBoard(page, ctx, ctx.boardScenarioLabel);
+        },
+    },
+    {
+        // Issue #3651, closing `docs/findings/2900-zone-cta-not-in-check-ui-dom.md`:
+        // the viewer's GRAVEYARD, open, holding a card whose zone CTA renders.
+        // The eight zone CTAs (Flashback, Activate, Play land, Cast from exile
+        // or library, Turn face up, Companion) share one recipe
+        // (`V4_ZONE_CTA_PLATE`, `src/lib/board-chrome-v4.ts`), and no other
+        // row ever put one on screen — which is how the identity-v4
+        // ivory-on-white CTA (issues #2900/#3280) shipped with every surface
+        // green. One CTA in a real browser is what turns that recipe into a
+        // measured promise; the source-text sweep in `design-tokens.test.ts`
+        // stays as the offline half.
+        //
+        // Its own row, not a step inside `game-board`: the open pile is a
+        // DIALOG over the board, and folding it in would stop measuring the
+        // ordinary board that row exists for. Same declared position, so the
+        // two rows cost one scenario payload.
+        //
+        // The card is Cabal Therapy (`board-scenario.json`): its flashback
+        // cost is a creature sacrifice and no mana, so with priority on the
+        // viewer in a main phase the CTA is ENABLED — axe's `color-contrast`
+        // rule skips a disabled control, and `contrast` fails closed on a
+        // subtree it could not judge.
+        id: "game-zone-pile",
+        needsGame: true,
+        entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
+        label: "Zone pile — viewer's graveyard open, Flashback CTA",
+        asserts: [
+            {
+                label: "zone pile dialog",
+                locator: { role: "dialog", name: "Graveyard (2)" },
+                check: "visible",
+            },
+            {
+                label: "zone CTA: Flashback",
+                locator: { role: "button", name: "Flashback" },
+                check: "reachable",
+            },
+            {
+                label: "zone CTA contrast",
+                locator: { role: "button", name: "Flashback" },
+                check: "contrast",
+            },
+        ],
+        async walk(page, ctx) {
+            await ensureScenarioBoard(page, ctx, ctx.boardScenarioLabel);
+            await openViewerGraveyard(page);
+            await settle(page);
+        },
+        async cleanup(page) {
+            await page.keyboard.press("Escape");
+            await settle(page);
         },
     },
     {
@@ -2338,6 +2567,20 @@ export const SURFACES: readonly Surface[] = [
         settleTargets: [HAND_CARD, PREVIEW_ANCHORED],
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
         label: "Card Preview overlay — Engine view (anchored pin)",
+        // The pin and the tree it exists to carry — the walk already refuses
+        // an EMPTY tree; these keep both promised at every viewport.
+        asserts: [
+            {
+                label: "anchored preview",
+                locator: { selector: "[data-card-preview-anchored]" },
+                check: "visible",
+            },
+            {
+                label: "Engine View tree",
+                locator: { selector: "[data-engine-view-tree]" },
+                check: "visible",
+            },
+        ],
         async walk(page, ctx) {
             // The FIXED stress position, not a dealt solo game — same reason
             // `game-stress` uses it and `game-board` is withdrawn: a preview
@@ -2419,6 +2662,26 @@ export const SURFACES: readonly Surface[] = [
         settleTargets: [HAND_CARD],
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
         label: "Game board — UI stress scenario",
+        // The same promises as `game-board`, on the position built to crowd
+        // them out: a 55-card board is where a controller row gets pushed
+        // under the fold or painted over.
+        asserts: [
+            {
+                label: "controller primary action",
+                locator: { selector: '[data-controller-primary="action"]' },
+                check: "reachable",
+            },
+            {
+                label: "controller Pass Turn",
+                locator: { role: "button", name: "Pass Turn" },
+                check: "reachable",
+            },
+            {
+                label: "hand card",
+                locator: { selector: "[data-board-hand-card]" },
+                check: "visible",
+            },
+        ],
         async walk(page, ctx) {
             await ensureStressBoard(page, ctx);
         },
@@ -2440,6 +2703,49 @@ export const SURFACES: readonly Surface[] = [
         settleTargets: [DEBUG_SHEET, BOARD_AREA],
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
         label: "Debug sheet — scenario list + save form",
+        // The sheet's toggle, its scenario list (the filter and the lane's own
+        // stress row, which `loadScenarioOnBoard` loads through) and the save
+        // form's pinned head. `reachable` scrolls each into the sheet's port,
+        // so the list promise holds after the walk scrolled the form down.
+        asserts: [
+            // VISIBLE, not reachable: the open sheet (`z-sheet`) paints over
+            // its own edge tab (`z-dev-overlay`) by design — Escape is the
+            // documented close (`closeDebugSheet`). What this promises is that
+            // the tab stays mounted, and that the sheet it opened is up.
+            {
+                label: "debug sheet toggle",
+                locator: { selector: "[data-debug-sheet-toggle]" },
+                check: "visible",
+            },
+            {
+                label: "debug sheet open",
+                locator: { selector: "[data-debug-sheet]" },
+                check: "visible",
+            },
+            {
+                label: "scenario search",
+                locator: { role: "textbox", name: "search scenarios" },
+                check: "reachable",
+            },
+            {
+                label: "scenario row: UI stress",
+                locator: {
+                    role: "button",
+                    name: "UI stress — full board, full hand, deep piles",
+                },
+                check: "reachable",
+            },
+            {
+                label: "save form label",
+                locator: { role: "textbox", name: "scenario label" },
+                check: "reachable",
+            },
+            {
+                label: "save form primary: Save to DB",
+                locator: { role: "button", name: "Save to DB" },
+                check: "reachable",
+            },
+        ],
         async walk(page, ctx) {
             await ensureStressBoard(page, ctx);
 
@@ -2667,6 +2973,25 @@ export const SURFACES: readonly Surface[] = [
         needsGame: true,
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
         label: "Manage yields box — one yield held",
+        // The box, the row for the yield the walk just held, and that row's
+        // remove action — the one verb this box exists for.
+        asserts: [
+            {
+                label: "manage yields box",
+                locator: { selector: "[data-manage-yields-box]" },
+                check: "visible",
+            },
+            {
+                label: "yield row",
+                locator: { selector: "[data-manage-yields-row]" },
+                check: "visible",
+            },
+            {
+                label: "yield row remove action",
+                locator: { selector: "[data-manage-yields-remove]" },
+                check: "reachable",
+            },
+        ],
         async walk(page, ctx) {
             await ensureScenarioBoard(page, ctx, ctx.yieldsScenarioLabel);
             const toggles = page.locator(STACK_YIELD_TOGGLE);
@@ -2731,6 +3056,35 @@ export const SURFACES: readonly Surface[] = [
         settleTargets: [DEBUG_SHEET],
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
         label: "Debug sheet — AI trace open (vs-AI game)",
+        // The open trace body and the Judge action on the seeded decision —
+        // judging is the gesture the trace box is there to invite (issue
+        // #3405).
+        asserts: [
+            // VISIBLE, not reachable: the open sheet (`z-sheet`) paints over
+            // its own edge tab (`z-dev-overlay`) by design — Escape is the
+            // documented close (`closeDebugSheet`). What this promises is that
+            // the tab stays mounted, and that the sheet it opened is up.
+            {
+                label: "debug sheet toggle",
+                locator: { selector: "[data-debug-sheet-toggle]" },
+                check: "visible",
+            },
+            {
+                label: "debug sheet open",
+                locator: { selector: "[data-debug-sheet]" },
+                check: "visible",
+            },
+            {
+                label: "AI trace body",
+                locator: { selector: "[data-ai-trace-body]" },
+                check: "visible",
+            },
+            {
+                label: "AI trace Judge action",
+                locator: { role: "button", name: "Judge this move" },
+                check: "reachable",
+            },
+        ],
         async walk(page, ctx) {
             await ensureVsAiBoard(page, ctx);
             // THE DECLARED POSITION (ADR 0132 §4, issue #3652). The board this

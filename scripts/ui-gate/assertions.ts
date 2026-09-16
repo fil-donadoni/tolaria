@@ -98,9 +98,9 @@ export interface AssertionDebt {
 
 /**
  * The surfaces still carrying no assertion, each with the slice that closes
- * it. Issue #3649 ships the shape and the auth + lobby promises; issue #3650
- * takes the deck, Limited and draft surfaces; issue #3651 the game, debug and
- * admin ones. An entry is DELETED by the slice that declares that surface's
+ * it. Issue #3649 shipped the shape and the auth + lobby promises, issue #3651
+ * the game, debug and admin ones; issue #3650 takes the deck, Limited and
+ * draft surfaces. An entry is DELETED by the slice that declares that surface's
  * assertions — the guard reds on a debt row for a surface that has them, so
  * this list can only shrink.
  *
@@ -120,16 +120,6 @@ export const ASSERTION_DEBT: readonly AssertionDebt[] = [
     { surface: "draft-pick", issue: 3650 },
     { surface: "draft-pool-stop", issue: 3650 },
     { surface: "draft-pool-peek", issue: 3650 },
-    { surface: "design-system", issue: 3651 },
-    { surface: "design-system-dialog", issue: 3651 },
-    { surface: "admin-card-profiles", issue: 3651 },
-    { surface: "admin-verdicts", issue: 3651 },
-    { surface: "game-board", issue: 3651 },
-    { surface: "game-card-preview", issue: 3651 },
-    { surface: "game-stress", issue: 3651 },
-    { surface: "game-debug-sheet", issue: 3651 },
-    { surface: "game-manage-yields", issue: 3651 },
-    { surface: "game-debug-sheet-ai", issue: 3651 },
 ];
 
 /** The attribute a `contrast` assertion marks its subtree with while axe reads

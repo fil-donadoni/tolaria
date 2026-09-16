@@ -303,6 +303,9 @@ export default function GameDialog({
                     {showCloseButton && (
                         <button
                             type="button"
+                            // The seam `check:ui`'s dialog surface promises
+                            // (issue #3651): the glyph is the only text here.
+                            data-game-dialog-close
                             onClick={() => onOpenChange?.(false)}
                             className="absolute top-3 right-3 flex h-6 w-6 cursor-pointer items-center justify-center text-text-disabled transition-colors hover:text-text-muted"
                         >

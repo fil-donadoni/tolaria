@@ -88,10 +88,14 @@ export default function ControllerCommandRow({
                 {/* The centre slot. A status pill (waiting / auto-passing) is
                 informative chrome rather than a call-to-action, but it stays
                 CLICKABLE when the engine gave it a real handler — cancelling
-                auto-pass is a tap on that pill. */}
+                auto-pass is a tap on that pill. `data-controller-primary`
+                names the slot in either state: it is the seam `check:ui`'s
+                game surfaces promise (issue #3651), and its value says which
+                of the two the screen is showing. */}
                 {!primary && statusPill ? (
                     <button
                         type="button"
+                        data-controller-primary="status"
                         onClick={statusPill.onClick}
                         disabled={statusPill.disabled}
                         className={`${CENTRE_SLOT} ${EDGE_PILL} flex items-center justify-center truncate text-display text-sm text-text-muted shadow-lg disabled:opacity-70`}
@@ -101,6 +105,7 @@ export default function ControllerCommandRow({
                 ) : (
                     <button
                         type="button"
+                        data-controller-primary="action"
                         onClick={primary?.onClick}
                         disabled={!primary || primary.disabled}
                         className={`${CENTRE_SLOT} truncate text-display text-sm shadow-[0_4px_18px_rgba(0,0,0,0.45)] transition-all disabled:opacity-40 disabled:shadow-none ${

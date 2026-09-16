@@ -27,15 +27,20 @@ export default function ActionButton({
     tone = "primary",
     disabled = false,
     shortcut,
+    controllerPrimary,
 }: {
     onClick: () => void;
     label: string;
     tone?: ActionButtonTone;
     disabled?: boolean;
     shortcut?: string;
+    /** Marks the controller's centre-slot action (`data-controller-primary`,
+     *  the seam `check:ui`'s game surfaces promise — issue #3651). */
+    controllerPrimary?: "action" | "status";
 }) {
     return (
         <Button
+            data-controller-primary={controllerPrimary}
             variant={tone}
             disabled={disabled}
             onClick={onClick}

@@ -64,10 +64,14 @@ export default function ControllerStripCommandStack({
             {/* The primary slot. A status pill (waiting / auto-passing) is
                 informative chrome rather than a call-to-action, but it stays
                 CLICKABLE when the engine gave it a real handler — cancelling
-                auto-pass is a tap on that pill. */}
+                auto-pass is a tap on that pill. `data-controller-primary` is
+                the same seam `ControllerCommandRow` carries, so `check:ui`'s
+                one promise addresses whichever arrangement is mounted (issue
+                #3651). */}
             {!primary && statusPill ? (
                 <button
                     type="button"
+                    data-controller-primary="status"
                     onClick={statusPill.onClick}
                     disabled={statusPill.disabled}
                     className={`${PRIMARY_SLOT} truncate border border-border-strong bg-surface-base/85 text-display text-xs text-text-muted shadow-lg backdrop-blur-md disabled:opacity-70`}
@@ -77,6 +81,7 @@ export default function ControllerStripCommandStack({
             ) : (
                 <button
                     type="button"
+                    data-controller-primary="action"
                     onClick={primary?.onClick}
                     disabled={!primary || primary.disabled}
                     className={`${PRIMARY_SLOT} truncate text-display text-xs shadow-[0_4px_18px_rgba(0,0,0,0.45)] transition-all disabled:opacity-40 disabled:shadow-none ${
