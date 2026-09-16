@@ -3135,6 +3135,26 @@ function tickAllDurations(state: GameState): void {
     // instead of three. `grantedStaticAbilities` keeps only `auraId` rows,
     // which never carried a duration and were passed through unchanged.
 
+    // Granted attack requirements with a duration (CR 508.1d / 611.2a, issue
+    // #1972 — "gains 'This creature attacks each combat if able' until end of
+    // turn"). An indefinite grant carries no `duration` and passes through
+    // unchanged; it ends only when the permanent leaves the battlefield.
+    for (const p of state.players) {
+        for (const card of p.battlefield) {
+            if (!card.grantedAttackRequirements?.length) continue;
+            const kept: typeof card.grantedAttackRequirements = [];
+            for (const grant of card.grantedAttackRequirements) {
+                if (!grant.duration) {
+                    kept.push(grant);
+                    continue;
+                }
+                const next = tickDuration(grant.duration, view);
+                if (next !== null) kept.push({ ...grant, duration: next });
+            }
+            card.grantedAttackRequirements = kept.length > 0 ? kept : undefined;
+        }
+    }
+
     // Granted triggered abilities with a duration (CR 611.2a — Rapid Fire's
     // "gains rampage 2 until end of turn"). Aura-sourced grants carry an
     // `auraId` and no `duration`; they're managed by the aura's lifetime

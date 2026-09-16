@@ -2342,9 +2342,29 @@ const OP_ASSERTORS: Record<string, Assertor> = {
         // `grantedActivatedAbilities` / `grantedTriggeredAbilities` instead;
         // their cards carry a hand-written per-card test, so skip them here
         // (return null → smoke test skips).
+        const permId = scenario.targetPermanentIds[op.target.target];
+        // The attack-requirement grant (issue #1972, CR 508.1d) is observable
+        // as an entry on the target's `grantedAttackRequirements`.
+        if (op.attackRequirement) {
+            return {
+                label: `grant attack requirement to permanent ${permId}`,
+                check: (post) => {
+                    const perm = post.players
+                        .flatMap((p) => p.battlefield)
+                        .find((c) => c.id === permId);
+                    if (!perm) {
+                        return { ok: false, detail: "target permanent gone" };
+                    }
+                    const count = perm.grantedAttackRequirements?.length ?? 0;
+                    return {
+                        ok: count > 0,
+                        detail: `grantedAttackRequirements: ${count}`,
+                    };
+                },
+            };
+        }
         if (op.ability === undefined) return null;
         const ability = op.ability;
-        const permId = scenario.targetPermanentIds[op.target.target];
         return {
             label: `grant "${ability}" to permanent ${permId}`,
             check: (post) => {

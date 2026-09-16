@@ -544,6 +544,11 @@ export interface CardInstance {
      *  whether that cost is affordable. Only ever set on the controller's own
      *  projection. */
     canTurnFaceUp?: boolean;
+    /** CR 508.1d (issue #1972) — during declare attackers, this creature is
+     *  required to attack and able to (printed, granted or this-turn
+     *  requirement alike). Server-derived (`isRequiredAttacker`,
+     *  `convex/gre/combat.ts`) — the client never re-derives it. */
+    mustAttack?: true;
 }
 
 export interface Combat {

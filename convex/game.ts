@@ -416,7 +416,7 @@ import {
     validateAttackerEligibility,
     validateBlockerEligibility,
     getRequiredAttackerIds,
-    mustAttack,
+    isRequiredAttacker,
     getMaxBlockTargets,
     getAttackerCapEffect,
     getBlockerCapEffect,
@@ -11278,14 +11278,12 @@ function deselectAttacker(
     const player = getPlayer(state, playerId);
     const card = player.battlefield.find((c) => c.id === cardInstanceId);
     if (!card) throw new Error("Card not on battlefield");
-    const defenderBattlefield = getPlayer(
-        state,
-        getOpponentId(state, playerId)
-    ).battlefield;
     const idx = combat.attackerIds.indexOf(cardInstanceId);
     if (idx === -1) return;
-    // CR 508.1d: can't deselect a creature required to attack
-    if (mustAttack(card, state, defenderBattlefield)) {
+    // CR 508.1d: can't deselect a creature required to attack.
+    // `isRequiredAttacker` is the same call the wire projection's `mustAttack`
+    // flag makes, so the client's guard and this refusal cannot disagree.
+    if (isRequiredAttacker(card, state)) {
         throw new Error(
             `${getDefinition(card.card.id as string).name} must attack this combat if able`
         );

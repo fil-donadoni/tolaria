@@ -1265,17 +1265,32 @@ export function collectAttackManaTax(state: GameState): AttackManaCharge[] {
     return charges;
 }
 
-/** True if `card` carries an `attack-requirement` static effect
- *  (CR 508.1d) or has been forced to attack this turn by an external
- *  effect (Nettling Imp — `mustAttackThisTurn`). A `condition` on the
- *  `attack-requirement` (CR 611.2c "as long as ...") is evaluated fresh
- *  against `state` here — the recomputed kind, no refresh sweep needed. */
+/** True if `card` is affected by an "attacks each combat if able"
+ *  requirement (CR 508.1d), from any of its sources:
+ *  - forced to attack this turn by an external effect (Nettling Imp —
+ *    `mustAttackThisTurn`) or a mass effect naming its controller;
+ *  - GRANTED by a resolving ability (`grantedAttackRequirements`, the
+ *    `grantAbility` Op's `attackRequirement` payload — CR 613.1f layer 6,
+ *    issue #1972), indefinite or until its duration expires;
+ *  - PRINTED as an `attack-requirement` static effect on its definition. A
+ *    `condition` on it (CR 611.3a "as long as ...") is evaluated fresh against
+ *    `state` here — the recomputed kind, no refresh sweep needed.
+ *
+ *  This is the ONLY reader of attack requirements. Declaration legality
+ *  (`mustAttack` / `getRequiredAttackerIds` → `game.ts`, `phases.ts`), the
+ *  Bot's enumeration (`moves.ts`) and the client affordance (the projected
+ *  `mustAttack` flag, via `isRequiredAttacker`) all go through it, so a new
+ *  source — a defender-pinned requirement (issue #3247) — widens THIS
+ *  function rather than adding a second reader. (The Bot's enumeration passes
+ *  no `massAttackPlayerId`, so it sees the per-creature sources but not the
+ *  mass one; `confirmAttackers` folds that in regardless.) */
 function hasAttackRequirement(
     card: CardInstanceState,
     state: GameState,
     massAttackPlayerId?: string
 ): boolean {
     if (card.mustAttackThisTurn) return true;
+    if (card.grantedAttackRequirements?.length) return true;
     if (
         massAttackPlayerId &&
         card.controllerId === massAttackPlayerId &&
@@ -1318,6 +1333,25 @@ export function mustAttack(
     if (!hasAttackRequirement(card, state, massAttackPlayerId)) return false;
     return validateAttackerEligibility(card, defenderBattlefield, state)
         .eligible;
+}
+
+/** CR 508.1d — `mustAttack` for a permanent on the board, with the defending
+ *  battlefield and the mass-attack player read off `state` exactly as the
+ *  attacker-declaration confirm does. The one-call form for a site that has a
+ *  permanent and the game and nothing else: the deselect guard in `game.ts`
+ *  and the wire projection's `mustAttack` flag, so the client's "can't
+ *  deselect" affordance and the mutation's refusal are the same answer. */
+export function isRequiredAttacker(
+    card: CardInstanceState,
+    state: GameState
+): boolean {
+    const defender = state.players.find((p) => p.id !== card.controllerId);
+    return mustAttack(
+        card,
+        state,
+        defender?.battlefield,
+        state.allCreaturesMustAttack
+    );
 }
 
 /** Ids of creatures on `battlefield` that are required to attack this combat.

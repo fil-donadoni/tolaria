@@ -3473,6 +3473,12 @@ export const OP_EXECUTORS: {
                 );
             }
         }
+        if (op.attackRequirement) {
+            // CR 508.1d / 613.1f (issue #1972) — "This creature attacks each
+            // combat if able", granted per-instance. One primitive covers both
+            // durations: an omitted `duration` is indefinite (CR 611.2a).
+            ctx.grantAttackRequirement(target, op.duration);
+        }
     },
     // CR 613.1d layer 4 (issue #1194) — add a subtype to a permanent
     // INDEFINITELY, in addition to its other types. A thin declarative skin

@@ -4241,6 +4241,8 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             ability: isNonEmptyString,
             grantedActivatedId: isNonEmptyString,
             grantedTriggeredId: isNonEmptyString,
+            // CR 508.1d (issue #1972) — "attacks each combat if able".
+            attackRequirement: (v: unknown) => v === true,
             // CR 611.2b / 611.2c — omitted is an INDEFINITE grant on ALL THREE
             // legs: keyword (`grantStaticAbilityPermanent`, issue #1746),
             // triggered (`grantTriggeredAbilityPermanent`, issue #1665) and
@@ -4256,12 +4258,16 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             const hasKeyword = "ability" in op;
             const hasActivated = "grantedActivatedId" in op;
             const hasTriggered = "grantedTriggeredId" in op;
-            const payloads = [hasKeyword, hasActivated, hasTriggered].filter(
-                Boolean
-            ).length;
+            const hasAttackRequirement = "attackRequirement" in op;
+            const payloads = [
+                hasKeyword,
+                hasActivated,
+                hasTriggered,
+                hasAttackRequirement,
+            ].filter(Boolean).length;
             if (payloads !== 1) {
                 return [
-                    'requires exactly one of "ability", "grantedActivatedId" or "grantedTriggeredId"',
+                    'requires exactly one of "ability", "grantedActivatedId", "grantedTriggeredId" or "attackRequirement"',
                 ];
             }
             return [];
