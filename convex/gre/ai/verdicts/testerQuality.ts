@@ -164,18 +164,17 @@ export function testerQualityOf(
             .map((a) => a.author);
     const persons = personsOf(verdicts.flatMap(explicitAuthorsOf), aliases);
 
-    // position key → verdict id → the persons who explicitly gave it.
-    const givenAt = new Map<string, Map<string, Set<string>>>();
+    // position key → every explicit verdict id at it.
+    const givenAt = new Map<string, Set<string>>();
     // person → position key → the verdict ids the person gave there.
     const mine = new Map<string, Map<string, Set<string>>>();
     for (const v of verdicts) {
-        const atKey =
-            givenAt.get(v.positionKey) ?? new Map<string, Set<string>>();
+        const atKey = givenAt.get(v.positionKey) ?? new Set<string>();
         givenAt.set(v.positionKey, atKey);
+        atKey.add(v.verdictId);
         const who = new Set(
             explicitAuthorsOf(v).map((author) => persons.get(author)!)
         );
-        atKey.set(v.verdictId, who);
         for (const person of who) {
             const keys = mine.get(person) ?? new Map<string, Set<string>>();
             mine.set(person, keys);
@@ -199,12 +198,11 @@ export function testerQualityOf(
             person,
             authors: [...authorsOf.get(person)!].sort(byString),
             given: positionsOf(keys, () => true),
+            // Every explicit verdict has an explicit author, so one the person
+            // did not give was given by someone else — while one person's two
+            // accounts, joined, gave both answers themselves.
             contradicted: positionsOf(keys, (key, own) =>
-                [...givenAt.get(key)!].some(
-                    ([verdictId, who]) =>
-                        !own.has(verdictId) &&
-                        [...who].some((other) => other !== person)
-                )
+                [...givenAt.get(key)!].some((verdictId) => !own.has(verdictId))
             ),
             quarantined: positionsOf(keys, (key) => contestedKeys.has(key)),
             unsatisfied: positionsOf(
