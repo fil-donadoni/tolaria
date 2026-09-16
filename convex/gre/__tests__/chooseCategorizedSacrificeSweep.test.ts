@@ -24,6 +24,7 @@ import {
     pushSpell,
 } from "../../cards/__tests__/setup";
 import { resolveTopOfStack, type GameState } from "../state";
+import { compactState, expandState } from "../serialize";
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
 import { validateEffectScript } from "../effects/validate";
 import { registerTokenDefinition } from "../../cards";
@@ -216,15 +217,42 @@ describe("chooseCategorized sacrifice sweep (CR 701.21a, issue #3712)", () => {
         });
         pushSpell(state, globalRuin.id, "p1");
         expect(resolveTopOfStack(state)).toBeNull();
-        const head = state.pendingChoices![0];
+        // The suspension is a stable point: the game is persisted and
+        // reloaded here, so p1's frozen answer must survive the round-trip.
+        const reloaded = expandState(compactState(state));
+        const head = reloaded.pendingChoices![0];
         expect(head.playerId).toBe("p2");
         // p1's forced answer was not applied yet — the typeless land stands.
-        expect(ids(state.players[0].battlefield)).toEqual(
+        expect(ids(reloaded.players[0].battlefield)).toEqual(
             ["p1-plains", "p1-waste"].sort()
         );
-        submit(state, ["p2-mountain-a"]);
-        expect(ids(state.players[0].battlefield)).toEqual(["p1-plains"]);
-        expect(ids(state.players[1].battlefield)).toEqual(["p2-mountain-a"]);
+        submit(reloaded, ["p2-mountain-a"]);
+        expect(ids(reloaded.players[0].battlefield)).toEqual(["p1-plains"]);
+        expect(ids(reloaded.players[1].battlefield)).toEqual(["p2-mountain-a"]);
+    });
+
+    it("a zero-branch answer ([]) frozen before a later suspension survives persistence and still sweeps (CR 101.4)", () => {
+        const state = makeState({
+            players: [
+                // No basic-typed land at all: p1's answer is the empty set.
+                makePlayer("p1", {
+                    battlefield: [perm(WASTELAND.id, "p1", "p1-waste")],
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        perm(mountain.id, "p2", "p2-mountain-a"),
+                        perm(mountain.id, "p2", "p2-mountain-b"),
+                    ],
+                }),
+            ],
+        });
+        pushSpell(state, globalRuin.id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull();
+        const reloaded = expandState(compactState(state));
+        expect(ids(reloaded.players[0].battlefield)).toEqual(["p1-waste"]);
+        submit(reloaded, ["p2-mountain-b"]);
+        expect(reloaded.players[0].battlefield).toHaveLength(0);
+        expect(ids(reloaded.players[1].battlefield)).toEqual(["p2-mountain-b"]);
     });
 
     it("Ajani −4 shape: an artifact creature answers artifact AND creature; lands are never swept", () => {
@@ -326,7 +354,8 @@ describe("chooseCategorized sweep validation (issue #3712)", () => {
         };
         expect(forEach([swept])).toEqual([]);
         // No sweep — nothing the CR 101.4 split was admitted for.
-        const { sweep: _omit, ...unswept } = swept;
+        const unswept: Record<string, unknown> = { ...swept };
+        delete unswept.sweep;
         expect(forEach([unswept]).join("\n")).toMatch(/simultaneous/);
         // One Op wider — rejected, never a silent sequential fallback.
         expect(
