@@ -1,4 +1,4 @@
-// Token-carried triggered abilities (CR 707.2, issue #2364) — GRE +
+// Token-carried triggered abilities (CR 111.3, issue #2364) — GRE +
 // wire-format coverage for `EffectTokenSpec.triggeredAbilities` through the
 // real `createToken` Op path, mirroring the Blood token's own
 // `activatedAbilities` e2e test (`bloodToken.test.ts`) one ability-kind
@@ -70,7 +70,7 @@ function registerPestSpell(id: string): string {
     return id;
 }
 
-describe("Token-carried triggered abilities (CR 707.2, issue #2364)", () => {
+describe("Token-carried triggered abilities (CR 111.3, issue #2364)", () => {
     it("createToken produces a Pest carrying its own dies-trigger ability", () => {
         const id = registerPestSpell("test-pest-create");
         const state = makeState({
@@ -140,7 +140,7 @@ describe("Token-carried triggered abilities (CR 707.2, issue #2364)", () => {
         expect(def.triggeredAbilities?.[0]?.event).toBe("CREATURE_DIED");
     });
 
-    // CR 707.2 (review of #2426) — the genuine COLD-decode path: a `token:`
+    // CR 111.3 (review of #2426) — the genuine COLD-decode path: a `token:`
     // id computed the same way `tokenDefinitionId` would, WITHOUT ever
     // calling `registerTokenDefinition`/`createToken` in this isolate first
     // (the exact scenario `tokenRegistry.test.ts`'s own module header
@@ -205,7 +205,7 @@ describe("Token-carried triggered abilities (CR 707.2, issue #2364)", () => {
         expect(getPlayer(state, "p1").life).toBe(lifeBefore + 1);
     });
 
-    // CR 508.1m / 707.2 (issue #2399) — the SAME cold-decode path for the
+    // CR 508.1m / 111.3 (issue #2399) — the SAME cold-decode path for the
     // `ATTACKERS_DECLARED` kind. `maybeSynthesizeToken`'s rebuild used to gate
     // on a hand-written `d.event === "PERMANENT_ENTERED" || d.event ===
     // "CREATURE_DIED"` chain no compiler checked, so a newly added kind would

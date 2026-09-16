@@ -1,4 +1,4 @@
-// Blood token (CR 707.2, issue #778) — "Artifact — Blood" with "{1}, {T},
+// Blood token (CR 111.10g, issue #778) — "Artifact — Blood" with "{1}, {T},
 // Discard a card, Sacrifice this token: Draw a card." GRE + wire-format
 // coverage for the shared `BLOOD_TOKEN_SPEC`, mirroring the Treasure e2e
 // activation test (cmr/__tests__/blue.test.ts) and the discard-filter cost
@@ -80,7 +80,7 @@ function activateBlood(
     return pending;
 }
 
-describe("Blood token (CR 707.2, issue #778)", () => {
+describe("Blood token (CR 111.10g, issue #778)", () => {
     it("createToken produces an Artifact — Blood with the sac-discard-draw ability", () => {
         const id = registerBloodSpell("test-blood-create");
         const state = makeState({

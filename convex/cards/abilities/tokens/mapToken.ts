@@ -2,7 +2,7 @@
 // A Map is a colorless Map artifact token with "{1}, {T}, Sacrifice this
 // token: Target creature you control explores. Activate only as a sorcery."
 //
-// This is exactly a `createToken` Op (CR 111 / 707.2) with an
+// This is exactly a `createToken` Op (CR 111 / 701.7) with an
 // `EffectTokenSpec` carrying a token-scoped `activatedAbilities[]` — the
 // Clue / Food / Blood shape (`clueToken.ts`, issue #1191). No dedicated
 // "create a Map" Op exists or is needed ("generalize, don't add"). Every Map
@@ -34,12 +34,12 @@ import type {
  *    and can be responded to.
  *  - `targetRequirement: { type: "Creature", count: 1, controller: "you" }` —
  *    "target creature YOU control" (CR 115.1), announced at activation.
- *  - `sorcerySpeedOnly: true` — "Activate only as a sorcery" (CR 602.3b via
+ *  - `sorcerySpeedOnly: true` — "Activate only as a sorcery" (CR 602.5d via
  *    307.5's timing template).
  *  - `effects: [{ op: "explore", target: { target: 0 } }]` — the announced
  *    creature explores (CR 701.44).
  *
- *  `colors` omitted = colorless (CR 105.2 / 110.5); `Map` is an ARTIFACT
+ *  `colors` omitted = colorless (CR 105.2 / 202.2b); `Map` is an ARTIFACT
  *  subtype (CR 205.3g), never a creature type, so the token has no P/T. */
 export const MAP_TOKEN_SPEC: EffectTokenSpec = {
     name: "Map",

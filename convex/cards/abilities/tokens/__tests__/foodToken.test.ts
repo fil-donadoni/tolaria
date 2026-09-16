@@ -1,4 +1,4 @@
-// Food token (CR 707.2, issue #778) — "Artifact — Food" with "{2}, {T},
+// Food token (CR 111.10b, issue #778) — "Artifact — Food" with "{2}, {T},
 // Sacrifice this token: Gain 3 life." No catalogue producer ships yet (engine
 // infra) — proven directly via the `createToken` Op path, mirroring
 // `bloodToken.test.ts` / the Treasure e2e activation test.
@@ -64,7 +64,7 @@ function activateFood(
     return pending;
 }
 
-describe("Food token (CR 707.2, issue #778)", () => {
+describe("Food token (CR 111.10b, issue #778)", () => {
     it("createToken produces an Artifact — Food with the sac-gain-life ability", () => {
         const id = registerFoodSpell("test-food-create");
         const state = makeState({
