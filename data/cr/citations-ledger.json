@@ -18021,6 +18021,7 @@
         {"id":"601.3c","line":"/** CR 601.3c — true when casting THIS card from the viewer's OWN hand right","sites":1,"status":"baseline"},
         {"id":"601.3c","line":"/** CR 601.3c — true when casting this own-hand card RIGHT NOW owes its","sites":1,"status":"baseline"},
         {"id":"601.3c","line":"// #2934 — CR 601.3c: the conditional-flash surcharge is a COST, so it renders","sites":1,"status":"baseline"},
+        {"id":"601.3c","line":"// - Twilight's Call shipped below (issue #2146 — the CR 601.3c","sites":1,"status":"confirmed","ruleHash":"2c2ffb71ffee09d7"},
         {"id":"601.3c","line":"// 1. `castTimingBaseLegal` — legal to ANNOUNCE. CR 601.3c: \"that player may","sites":1,"status":"baseline"},
         {"id":"601.3c","line":"// 601.3c is explicit that the player may BEGIN the surcharged cast","sites":1,"status":"baseline"},
         {"id":"601.3c","line":"// Bot-lane half of the conditional-flash SURCHARGE (CR 601.3c, issue #2146):","sites":1,"status":"baseline"},
