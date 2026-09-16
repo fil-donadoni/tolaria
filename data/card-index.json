@@ -13790,6 +13790,14 @@
         "source": "compiled"
     },
     {
+        "name": "Global Ruin",
+        "scryfallId": "336474b4-2cf5-44c0-b72c-f75f1a7ed928",
+        "oracleId": "4a7b89b2-5fe9-4d39-9d42-3ca78bcf6d40",
+        "firstSet": "inv",
+        "firstPrintId": "336474b4-2cf5-44c0-b72c-f75f1a7ed928",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Gloom",
         "scryfallId": "a8d10bc7-daeb-4c0d-9e4a-8eae8d11699f",
         "oracleId": "4d022f53-b1fb-4071-afcc-0af3214fe604",

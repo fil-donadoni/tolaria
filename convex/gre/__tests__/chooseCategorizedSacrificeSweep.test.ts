@@ -141,7 +141,7 @@ describe("chooseCategorized sacrifice sweep (CR 701.21a, issue #3712)", () => {
         expect(ids(state.players[0].battlefield)).toEqual(
             ["p1-bear", "p1-tundra"].sort()
         );
-        // The graveyard also holds the resolved sorcery itself (CR 608.2k).
+        // The graveyard also holds the resolved sorcery itself (CR 608.2n).
         expect(
             ids(
                 state.players[0].graveyard.filter(

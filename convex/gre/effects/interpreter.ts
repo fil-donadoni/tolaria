@@ -4380,7 +4380,7 @@ export const OP_EXECUTORS: {
             destination
         );
     },
-    // CR 601.2b / 701.9 / 701.21a — per-category choice from an already-
+    // CR 608.2d / 701.9 / 701.21a — per-category choice from an already-
     // visible set; the full design note sits on `execChooseCategorized`.
     chooseCategorized(ctx, op) {
         return execChooseCategorized(ctx, op, categorizedPhaseOf(op));
