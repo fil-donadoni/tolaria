@@ -18,7 +18,7 @@ import { getEffectivePower } from "../../../../gre/layers";
 import { tapSourceIntoPayment } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
 import type { GameEvent, TriggerStateView } from "../../../types";
-import { getCardByName, getDefinition } from "../../../index";
+import { getDefinition } from "../../../index";
 
 const copperlineGorge = getDefinition("28f1d784-f286-418d-a712-bc07ad10d4a2");
 const moxOpal = getDefinition("6be9b1d5-9ab8-4adb-ba54-2c0117e842fa");
@@ -220,7 +220,7 @@ describe("Myr Battlesphere (CR 111.1 / 508.1m / 118.12 / 506.2)", () => {
             isTapped: true,
             isAttacking: true,
         });
-        const walker = getCardByName("Karn, Scion of Urza")!;
+        const walker = getDefinition("07a3d9e8-8597-498b-869c-cff79e0df516"); // Karn, Scion of Urza
         const state = makeState({
             phase: "DECLARE_ATTACKERS" as GameState["phase"],
             players: [

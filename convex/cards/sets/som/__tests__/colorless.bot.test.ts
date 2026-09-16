@@ -24,7 +24,7 @@ import { CHOICE_CANDIDATE_GENERATORS } from "../../../../gre/ai/choiceCandidates
 import { applyMoveInSearch } from "../../../../gre/search";
 import { cloneGameState } from "../../../../gre/clone";
 import type { CardType, GameEvent } from "../../../types";
-import { getCardByName, getDefinition } from "../../../index";
+import { getDefinition } from "../../../index";
 
 const generate = CHOICE_CANDIDATE_GENERATORS["choose-permanents"]!;
 
@@ -32,7 +32,7 @@ const generate = CHOICE_CANDIDATE_GENERATORS["choose-permanents"]!;
  *  Myr at home; the trigger is resolved up to its choice. */
 function suspendedAtTheTapChoice(): GameState {
     const battlesphere = getDefinition("b0ae94ed-7314-470b-baba-f2f58bbc894a");
-    const karn = getCardByName("Karn, Scion of Urza")!;
+    const karn = getDefinition("07a3d9e8-8597-498b-869c-cff79e0df516"); // Karn, Scion of Urza
     const state = makeState({
         phase: "DECLARE_ATTACKERS" as GameState["phase"],
         players: [
