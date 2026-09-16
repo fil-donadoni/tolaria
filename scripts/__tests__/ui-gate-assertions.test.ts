@@ -31,6 +31,13 @@ function surface(
     return { id, asserts };
 }
 
+/** The accessible names a surface's role+name promises address. */
+function promisedNames(id: string): string[] {
+    return (SURFACES.find((s) => s.id === id)?.asserts ?? []).flatMap((a) =>
+        "name" in a.locator ? [a.locator.name] : []
+    );
+}
+
 const OK_ASSERT: NamedAssertion = {
     label: "primary action",
     locator: { selector: "[data-lobby-primary]" },
@@ -91,6 +98,92 @@ describe("check:ui surface table — Named Assertions", () => {
         ]) {
             expect(locators, entryPoint).toContain(entryPoint);
         }
+    });
+
+    /**
+     * Issue #3651's half of the same contract: the game, debug and admin
+     * surfaces, each held to the entry points its runbook names
+     * (`docs/guides/ui-runbooks.md`) — the controller's primary action, the
+     * debug sheet's toggle and scenario list, the AI trace's Judge action,
+     * the yield rows and their remove action, the admin pages' primary
+     * controls — plus the zone pile whose CTA carries `contrast`
+     * (`docs/findings/2900-zone-cta-not-in-check-ui-dom.md`).
+     */
+    it("the game, debug and admin surfaces promise their entry points", () => {
+        const promised = (id: string): string[] =>
+            (SURFACES.find((s) => s.id === id)?.asserts ?? []).map(
+                (a) =>
+                    `${a.check} ${
+                        "selector" in a.locator
+                            ? a.locator.selector
+                            : `role=${a.locator.role} name=${a.locator.name}`
+                    }`
+            );
+        const owed: Record<string, readonly string[]> = {
+            "game-board": [
+                'reachable [data-controller-primary="action"]',
+                "reachable role=button name=Pass Turn",
+            ],
+            "game-stress": [
+                'reachable [data-controller-primary="action"]',
+                "reachable role=button name=Pass Turn",
+            ],
+            "game-card-preview": [
+                "visible [data-card-preview-anchored]",
+                "visible [data-engine-view-tree]",
+            ],
+            "game-zone-pile": [
+                "reachable role=button name=Flashback",
+                "contrast role=button name=Flashback",
+            ],
+            "game-debug-sheet": [
+                "reachable [data-debug-sheet-toggle]",
+                "reachable role=textbox name=search scenarios",
+                "reachable role=button name=UI stress — full board, full hand, deep piles",
+            ],
+            "game-debug-sheet-ai": [
+                "visible [data-ai-trace-body]",
+                "reachable role=button name=Judge this move",
+            ],
+            "game-manage-yields": [
+                "visible [data-manage-yields-row]",
+                "reachable [data-manage-yields-remove]",
+            ],
+            "admin-card-profiles": [
+                "visible role=radiogroup name=Profile Scope",
+                "reachable role=button name=Mark reviewed & next",
+            ],
+            "admin-verdicts": [
+                "visible role=form name=Resolve this position",
+                "reachable role=button name=← All positions",
+            ],
+            "design-system": [
+                "visible role=heading name=Design system census",
+                "reachable role=button name=Open live demo",
+            ],
+            "design-system-dialog": [
+                "visible role=dialog name=GameDialog",
+                "reachable role=button name=Done",
+            ],
+        };
+        for (const [id, entryPoints] of Object.entries(owed)) {
+            for (const entryPoint of entryPoints) {
+                expect(promised(id), `${id}: ${entryPoint}`).toContain(
+                    entryPoint
+                );
+            }
+        }
+    });
+
+    /** The stress row the debug-sheet promise names is the lane's own
+     *  payload's label — a renamed payload must move the promise with it. */
+    it("the debug sheet's scenario-row promise names the stress payload's label", async () => {
+        const { laneScenarioSeeds } =
+            await import("../ui-gate/lane-account.ts");
+        const stress = laneScenarioSeeds().find((seed) =>
+            seed.label.startsWith("UI stress")
+        );
+        expect(promisedNames("game-debug-sheet")).toContain(stress?.label);
     });
 
     it("refuses a surface that declares nothing and is not in the debt list", () => {

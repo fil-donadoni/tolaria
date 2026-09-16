@@ -1,6 +1,6 @@
 {
     "label": "UI board — ordinary mid-game position",
-    "prompt": "ui-gate `game-board` surface (scripts/ui-gate/surfaces.ts, issue #3695, ADR 0132 §4). The TYPICAL board — the screen a player looks at for most of a game: three lands and one or two creatures a side, a four-card hand, shallow graveyards, nothing in exile. Deliberately NOT `stress-scenario.json`, which `game-stress` already measures: that one is the 55-card extreme, and reusing it here would print two identical rows and leave the ordinary board unmeasured. `activePlayer`/`priority` both on \"me\" (ADR 0132 §4): nothing the probe measures may depend on the coin toss or on the other seat. Seed with: bunx convex run debugScenarios:seedScenarioDirect \"$(cat scripts/ui-gate/board-scenario.json)\". Deployment-local by design (ADR 0044) — the lane seeds it at bootstrap.",
+    "prompt": "ui-gate `game-board` surface (scripts/ui-gate/surfaces.ts, issue #3695, ADR 0132 §4). The TYPICAL board — the screen a player looks at for most of a game: three lands and one or two creatures a side, a four-card hand, shallow graveyards, nothing in exile. The viewer's graveyard holds Cabal Therapy for `game-zone-pile` (issue #3651): its flashback cost is a creature sacrifice and no mana, so with priority on \"me\" in a main phase and an empty stack the pile's Flashback CTA renders ENABLED — axe's `color-contrast` rule skips a disabled control, so a disabled CTA would make that surface's `contrast` promise one that could never fail. Deliberately NOT `stress-scenario.json`, which `game-stress` already measures: that one is the 55-card extreme, and reusing it here would print two identical rows and leave the ordinary board unmeasured. `activePlayer`/`priority` both on \"me\" (ADR 0132 §4): nothing the probe measures may depend on the coin toss or on the other seat. Seed with: bunx convex run debugScenarios:seedScenarioDirect \"$(cat scripts/ui-gate/board-scenario.json)\". Deployment-local by design (ADR 0044) — the lane seeds it at bootstrap.",
     "spec": {
         "phase": "PRECOMBAT_MAIN",
         "turn": 4,
@@ -77,6 +77,11 @@
             },
             {
                 "name": "Lightning Bolt",
+                "owner": "me",
+                "zone": "graveyard"
+            },
+            {
+                "name": "Cabal Therapy",
                 "owner": "me",
                 "zone": "graveyard"
             },
