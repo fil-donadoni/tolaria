@@ -143,9 +143,12 @@ decision is a [resolution](#g-resolution), and it is resolved at
 `/admin/verdicts`:
 
 1. The page lists every contested position and every resolved one. On a
-   deployment holding the write [key](#g-key) it reads the whole
+   deployment holding the write [key](#g-key), or a local backend holding the
+   reader [key](#g-key) in its environment (issue #3746), it reads the whole
    [bucket](#g-bucket) plus the rows its [outbox](#g-outbox) has not stored
-   yet; on a local backend it reads the [outbox](#g-outbox) alone and says so.
+   yet, one verdict per id. With neither, it reads the [outbox](#g-outbox)
+   alone and says so. See
+   [Local backend: review the whole store](#local-backend-review-the-whole-store).
 2. Opening a position rebuilds the board from its spec with the deciding
    seat's hand, lists the candidates, and shows the answers side by side with
    everyone who gave each.
@@ -227,6 +230,31 @@ leaves the rows fat for the next hour's retry.
 `VERDICT_STORE_FORWARD_TOKENS` and set the list again. From then on the route
 answers 401 to that token. On the local backend,
 `bunx convex env remove VERDICT_STORE_FORWARD_TOKEN` stops the forwarding.
+
+## Local backend: review the whole store
+
+A local backend's `/admin/verdicts` sees the judgements testers gave on
+production only if it can read the [bucket](#g-bucket). Give it the reader
+[key](#g-key) in its environment (issue #3746). Reading is what a development
+machine already holds (ADR 0128), and the reader account cannot write. Run
+this from the checkout whose `.env.local` names the `local:…` deployment, so
+the bare `env set` targets the local backend:
+
+```bash
+bunx convex env set VERDICT_STORE_READ_KEY \
+  "$(cat ~/.config/tolaria/verdict-store-reader.json)"
+```
+
+The value is the same reader [key](#g-key) as the
+[development machine's](#development-machine). It lives in the backend's
+environment and is never copied into a checkout. The review then reads the
+whole [bucket](#g-bucket) plus the backend's own rows not yet forwarded,
+deduplicated by verdict id. A position contested between a local judgement
+and a production one shows up with both. The writer's [key](#g-key) is
+refused under that name by its service account (`VERDICT_STORE_READ_KEY holds
+the verdict-store-writer service account`), so it cannot be put there by
+mistake. `bunx convex env remove VERDICT_STORE_READ_KEY` goes back to the
+outbox-only review.
 
 ## Development machine
 
