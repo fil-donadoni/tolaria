@@ -19,13 +19,12 @@
 // `lib.dom`, which reds an unrelated script in the `scripts` project.
 import { describe, expect, it } from "vitest";
 import { BLADE_SCENARIOS } from "../registry";
+import { committedVerdictCorpus } from "../../__tests__/committedVerdictCorpus";
 import {
     censusByClass,
     classesBelowFloor,
     collectVerdictReport,
     formatCensus,
-    verdictCorpus,
-    VERDICT_DIR,
 } from "../../verdicts";
 
 const ENV: Record<string, string | undefined> =
@@ -82,29 +81,9 @@ describe.runIf(RUN)("verdict coverage (runner)", () => {
         const scenarios = BLADE_SCENARIOS.filter(
             (s) => tier === "all" || s.tier === tier
         );
-        // Same dynamic import as the sibling runners: the verdict modules are
-        // pure by design (they take file CONTENTS, never a path), so the
-        // filesystem belongs to whoever has one, and this project is not
-        // node-typed.
-        const fsIn = (await import(/* @vite-ignore */ "node" + ":fs")) as {
-            existsSync: (p: string) => boolean;
-            readdirSync: (p: string) => string[];
-            readFileSync: (p: string, enc: string) => string;
-        };
-        const files = fsIn.existsSync(VERDICT_DIR)
-            ? fsIn
-                  .readdirSync(VERDICT_DIR)
-                  .filter((name) => name.endsWith(".json"))
-                  .sort()
-                  .map((name) => ({
-                      path: `${VERDICT_DIR}/${name}`,
-                      contents: fsIn.readFileSync(
-                          `${VERDICT_DIR}/${name}`,
-                          "utf8"
-                      ),
-                  }))
-            : [];
-        const { verdicts, gaps } = verdictCorpus(files, scenarios);
+        // The committed corpus (issue #3584): the registry, then the Verdict
+        // Lock — the same reader the reproducibility guard fits over.
+        const { verdicts, gaps } = await committedVerdictCorpus(scenarios);
         const report = collectVerdictReport(verdicts, { gaps });
         const census = censusByClass(report, verdicts);
         console.log(`\n${formatCensus(census)}`);

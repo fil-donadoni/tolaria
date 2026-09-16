@@ -32,7 +32,6 @@ import {
     internalMutation,
     internalQuery,
     mutation,
-    query,
     type MutationCtx,
 } from "./_generated/server";
 import { assertIsAdmin, assertIsTester } from "./auth";
@@ -76,23 +75,6 @@ const deckKnowledgeValidator = v.object({
 });
 
 const deploymentKindValidator = v.union(v.literal("cloud"), v.literal("local"));
-
-/** The row as `list` projects it — everything `verdicts:pull` needs to write a
- *  `Verdict` file, and nothing else. */
-const verdictRowValidator = v.object({
-    _id: v.id("verdicts"),
-    spec: v.any(),
-    setup: v.optional(v.any()),
-    seat: seatValidator,
-    candidates: v.array(candidateValidator),
-    answer: answerValidator,
-    botPickIndex: v.optional(v.number()),
-    gameId: v.optional(v.string()),
-    seq: v.optional(v.number()),
-    author: v.string(),
-    createdAt: v.number(),
-    note: v.optional(v.string()),
-});
 
 /** The drain, by name: `verdictsDrain.ts` is a `"use node"` module, and a
  *  reference by string keeps this file's typecheck independent of codegen
@@ -473,64 +455,5 @@ export const markStored = internalMutation({
             storedAt: args.storedAt,
         });
         return "slimmed";
-    },
-});
-
-/**
- * Every verdict still carrying its judgement, oldest first (issue #3402) —
- * what `bun run verdicts:pull` reads.
- *
- * A SLIMMED row is not listed (issue #3580): it no longer holds a judgement to
- * export, and its judgement lives in the Verdict Store. `verdicts:pull` never
- * prunes, so a file it wrote before the row slimmed stays where it is.
- *
- * `authorId` is deliberately NOT projected. The exported file records the
- * nickname the account carried when it judged, which is what a reader of a
- * diff years later can use; a user id resolves to nothing outside the
- * deployment it came from.
- *
- * Admin-gated rather than tester-gated: submitting your own judgement and
- * reading everybody's are different things, and the export is an admin
- * operation. Ordered by the `by_createdAt` index so the export is
- * deterministic without the script having to sort.
- */
-export const list = query({
-    args: {},
-    returns: v.array(verdictRowValidator),
-    handler: async (ctx) => {
-        await assertIsAdmin(ctx);
-        const rows = await ctx.db
-            .query("verdicts")
-            .withIndex("by_createdAt")
-            .order("asc")
-            .collect();
-        return rows.flatMap((row) => {
-            if (
-                row.spec === undefined ||
-                row.seat === undefined ||
-                row.candidates === undefined ||
-                row.answer === undefined
-            ) {
-                return [];
-            }
-            return [
-                {
-                    _id: row._id,
-                    spec: row.spec,
-                    ...(row.setup === undefined ? {} : { setup: row.setup }),
-                    seat: row.seat,
-                    candidates: row.candidates,
-                    answer: row.answer,
-                    ...(row.botPickIndex === undefined
-                        ? {}
-                        : { botPickIndex: row.botPickIndex }),
-                    ...(row.gameId === undefined ? {} : { gameId: row.gameId }),
-                    ...(row.seq === undefined ? {} : { seq: row.seq }),
-                    author: row.author,
-                    createdAt: row.createdAt,
-                    ...(row.note === undefined ? {} : { note: row.note }),
-                },
-            ];
-        });
     },
 });

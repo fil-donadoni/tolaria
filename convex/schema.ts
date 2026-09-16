@@ -1180,17 +1180,17 @@ export default defineSchema({
     // of a board and "the right move was X" survives every refit
     // (`convex/gre/ai/verdicts/types.ts` carries the full derivation).
     //
-    // WHY THE TABLE AT ALL, given that the corpus that FEEDS the fit is
-    // `data/verdicts/**` in git. Judgements are given in a browser, mid-game,
-    // by whoever is playing — there is no filesystem there. The table is the
-    // INTAKE; `bun run verdicts:pull` is the one-way door from it into git,
-    // and the fit never reads this table. That is deliberate: a fit whose
-    // corpus lived in a deployment would be non-reproducible from a checkout,
-    // which ADR 0124 §3 forbids.
+    // WHY THE TABLE AT ALL, given that the corpus that FEEDS the fit is the
+    // Verdict Store, selected by the committed Verdict Lock (ADR 0128).
+    // Judgements are given in a browser, mid-game, by whoever is playing. The
+    // table is the INTAKE and the fit never reads it: a fit whose corpus lived
+    // in one deployment would be non-reproducible from a checkout, which ADR
+    // 0124 §3 forbids. (Until issue #3584 the corpus was `data/verdicts/**` in
+    // git, fed by a `verdicts:pull` export; both are gone.)
     //
     // `spec`/`setup` are `v.any()` for exactly the reason `debugScenarios.spec`
     // is (ADR 0044): the shapes grow, and a row written under today's shape
-    // must still export after a field is added. The WRITE path is where the
+    // must still upload after a field is added. The WRITE path is where the
     // shape is checked — `submit`'s own argument validators.
     //
     // OUTBOX (issue #3580, ADR 0128 §5). The table is now the Verdict Store's

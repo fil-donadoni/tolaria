@@ -44,9 +44,8 @@ export type AiTraceRecord = {
     at: number;
     /** The state version the search ran on, when the pusher supplied a
      *  position. Provenance for a Verdict given here (issue #3405): nothing
-     *  rebuilds from it — the board is in the spec — but it is what lets a file
-     *  in `data/verdicts/` be traced back to the moment in the match that
-     *  produced it. */
+     *  rebuilds from it — the board is in the spec — but it is what lets a
+     *  verdict be traced back to the moment in the match that produced it. */
     seq?: number;
     /** Set once a tester has judged this decision through the verdict quiz
      *  (issue #3405). Kept ON the record rather than in a second map because

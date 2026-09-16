@@ -5,7 +5,6 @@ export * from "./types";
 export * from "./features";
 export * from "./position";
 export * from "./registrySource";
-export * from "./fileSource";
 export * from "./judgement";
 export * from "./upcasters";
 export * from "./lockSource";

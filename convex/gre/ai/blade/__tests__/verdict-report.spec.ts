@@ -23,12 +23,11 @@
 // lives next to the runner.
 import { describe, expect, it } from "vitest";
 import { BLADE_SCENARIOS } from "../registry";
+import { committedVerdictCorpus } from "../../__tests__/committedVerdictCorpus";
 import {
     collectVerdictReport,
     formatVerdictReport,
     formatVerdictRow,
-    verdictCorpus,
-    VERDICT_DIR,
 } from "../../verdicts";
 
 const ENV: Record<string, string | undefined> =
@@ -76,31 +75,9 @@ describe.runIf(RUN)("verdict report (runner)", () => {
                 (!label || s.label.includes(label))
         );
         const t0 = performance.now();
-        // THE WHOLE CORPUS, not just the registry (issue #3402). The runner
-        // reads `data/verdicts/**` itself because this module is pure by
-        // design — it takes file CONTENTS, never a path — so the filesystem
-        // belongs to whoever has one. Same dynamic-import trick the
-        // `BLADE_VERDICTS_OUT` write below uses, for the same reason: this
-        // project is not node-typed.
-        const fsIn = (await import(/* @vite-ignore */ "node" + ":fs")) as {
-            existsSync: (p: string) => boolean;
-            readdirSync: (p: string) => string[];
-            readFileSync: (p: string, enc: string) => string;
-        };
-        const files = fsIn.existsSync(VERDICT_DIR)
-            ? fsIn
-                  .readdirSync(VERDICT_DIR)
-                  .filter((name) => name.endsWith(".json"))
-                  .sort()
-                  .map((name) => ({
-                      path: `${VERDICT_DIR}/${name}`,
-                      contents: fsIn.readFileSync(
-                          `${VERDICT_DIR}/${name}`,
-                          "utf8"
-                      ),
-                  }))
-            : [];
-        const { verdicts, gaps } = verdictCorpus(files, scenarios);
+        // The committed corpus (issue #3584): the registry, then the Verdict
+        // Lock — the same reader the reproducibility guard fits over.
+        const { verdicts, gaps } = await committedVerdictCorpus(scenarios);
         const report = collectVerdictReport(verdicts, {
             gaps,
             onRow: (row) => console.log(formatVerdictRow(row)),
@@ -123,7 +100,6 @@ describe.runIf(RUN)("verdict report (runner)", () => {
                             tier,
                             label: label ?? null,
                             entries: scenarios.length,
-                            files: files.length,
                             verdicts: verdicts.length,
                         },
                         text,
