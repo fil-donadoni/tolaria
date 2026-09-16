@@ -1,4 +1,4 @@
-// CR 602.5b — the Bot evaluates an activated ability's own `canActivate`
+// CR 602.1b / 602.5 — the Bot evaluates an activated ability's own `canActivate`
 // closure instead of skipping every ability that carries one (issue #3441).
 //
 // Before this, `enumerateAbilityMoves` (`gre/moves.ts`) and
@@ -88,7 +88,7 @@ function ringActivations(state: GameState) {
     );
 }
 
-describe("enumerateAbilityMoves evaluates `canActivate` (CR 602.5b, issue #3441)", () => {
+describe("enumerateAbilityMoves evaluates `canActivate` (CR 602.5, issue #3441)", () => {
     it("offers the threshold ability with seven cards in the controller's graveyard", () => {
         expect(ringActivations(ringBoard(7)).length).toBeGreaterThan(0);
     });
@@ -120,7 +120,7 @@ describe("enumerateAbilityMoves evaluates `canActivate` (CR 602.5b, issue #3441)
     });
 });
 
-describe("hasFlexibleActivation evaluates `canActivate` (CR 602.5b, issue #3441)", () => {
+describe("hasFlexibleActivation evaluates `canActivate` (CR 602.5, issue #3441)", () => {
     /** p1 controls Phyrexian Battleflies ("activate no more than twice each
      *  turn") and an untapped Swamp (the `{B}` is affordable), having
      *  activated the pump `used` times this turn. */

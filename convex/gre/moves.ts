@@ -3672,7 +3672,7 @@ function enumerateAbilityMoves(
         // A dynamic target requirement needs a target selection the move
         // shape does not carry.
         if (ability.getTargetRequirement) continue;
-        // CR 602.5b (issue #3441) — the ability's own printed restriction
+        // CR 602.5 (issue #3441) — the ability's own printed restriction
         // (`canActivate`), evaluated through the SAME predicate the mutation's
         // legality gate reads, against the source exactly as the server
         // resolves it (a battlefield permanent, or the graveyard/hand card of

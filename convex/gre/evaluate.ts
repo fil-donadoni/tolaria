@@ -595,7 +595,7 @@ function activationsInFlight(
  *      functions from another zone, so it is not an option this permanent offers.
  *    * `getTargetRequirement` — a dynamic target this leaf heuristic does not
  *      evaluate, exactly as the move enumerator refuses to (`moves.ts`).
- *    * `canActivate` (CR 602.5b) — evaluated through
+ *    * `canActivate` (CR 602.5) — evaluated through
  *      `activationPreconditionViolation`, the predicate the enumerator and the
  *      mutation share: an option only while the closure holds.
  *    * `activatableByOpponentsOnly` (CR 602.1) — an ability only the OPPONENT
@@ -639,7 +639,7 @@ function hasFlexibleActivation(
         if (!isDeferrableStackAbility(ability)) continue;
         if (ability.activateFromHand || ability.activateFromGraveyard) continue;
         if (ability.getTargetRequirement) continue;
-        // CR 602.5b (issue #3441) — the printed restriction, through the SAME
+        // CR 602.5 (issue #3441) — the printed restriction, through the SAME
         // predicate `enumerateAbilityMoves` and the mutation read: a closure
         // that currently fails is not an option held, one that holds is.
         if (activationPreconditionViolation(state, perm, ability) !== null) {

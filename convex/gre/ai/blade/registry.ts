@@ -5101,7 +5101,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Half 2 of the Boast pair (issue #2375). The positive direction of the CR 702.142a gate: a boast must be reachable and preferred once the creature has attacked. Measured: reds when the enumerator gate is made to always fire, while half 1 stays green.",
     },
     {
-        // ACTIVATION RESTRICTION CLOSURE, HALF 1 — THE GATE (CR 602.5b, issue
+        // ACTIVATION RESTRICTION CLOSURE, HALF 1 — THE GATE (CR 602.5, issue
         // #3441). The negative half of a discriminating pair: Barbarian Ring's
         // threshold ability ("Activate only if seven or more cards are in your
         // graveyard") with SIX cards there. Forced by the rules: the ability is
@@ -5139,7 +5139,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Half 1 of the activation-restriction pair (issue #3441). Guards that the enumerator evaluates the `canActivate` closure rather than offering the ability unconditionally.",
     },
     {
-        // ACTIVATION RESTRICTION CLOSURE, HALF 2 — THE PAYOFF (CR 602.5b, issue
+        // ACTIVATION RESTRICTION CLOSURE, HALF 2 — THE PAYOFF (CR 602.5, issue
         // #3441). Same board with a SEVENTH graveyard card: the threshold
         // ability is legal and deals the opponent's last 2 life — the only
         // winning play, no judgement involved. Before issue #3441 the

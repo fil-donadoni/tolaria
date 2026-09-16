@@ -5,7 +5,7 @@ import type {
 } from "../cards/types";
 
 /**
- * CR 602.5b — an activated ability's own printed restriction ("Activate only
+ * CR 602.1b / 602.5 — an activated ability's own printed restriction ("Activate only
  * if…", "Activate no more than twice each turn") carried as a `canActivate`
  * closure on the definition. Returns the rejection message, or `null` when the
  * ability carries no closure or the closure currently holds.
