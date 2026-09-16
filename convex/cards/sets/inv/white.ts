@@ -1128,6 +1128,7 @@ export const prisonBarricade: CardDefinition = {
 // is necessarily sacrificed. "Each player chooses …, then sacrifices" is
 // CR 101.4: `simultaneous: true` makes every player's pick, in APNAP order,
 // before any land is sacrificed.
+// compiler-gap: "Each player chooses from the lands they control a land of each basic land type, then sacrifices the rest." (#2693)
 export const globalRuin: CardDefinition = {
     id: "336474b4-2cf5-44c0-b72c-f75f1a7ed928",
     name: "Global Ruin",
