@@ -42,12 +42,13 @@
 //         once the control-exchange capability landed (no longer a stub).
 //       - Desperate Research shipped below (issue #1085 — the `nameCard` +
 //         `digMatchingToHand` Ops it surfaced are now implemented).
-//       - Defiling Tears, Tsabo's Decree, Twilight's Call → tracked-by #1405
-//         (residual gaps surfaced while closing #1085: a temporary granted
-//         costed activated ability, a "choose a creature type" capability
-//         stacked with #2150's hand-sweep gap, and a pay-more-for-flash
-//         cast-timing rider, respectively — setColor itself, #1085's own
-//         Op, shipped and is no longer these cards' blocker).
+//       - Twilight's Call shipped below (issue #2146 — the CR 601.3c
+//         `flashSurcharge` rider).
+//       - Defiling Tears → tracked-by #3720 (a plain DSL ship: every
+//         clause is covered by shipped Ops, see its stub).
+//       - Tsabo's Decree → tracked-by #3721 (a resolution-time "choose a
+//         creature type" Op + subtype-ref filter), itself blocked by #2150
+//         (the hand-side bulk discard).
 //       - Yawgmoth's Agenda → tracked-by #2246 (the card slice). Was #686,
 //         then #1238; #1238 was re-audited and split, since two of its three
 //         premises had drifted — the redirect clause is already shipped infra
@@ -335,17 +336,14 @@ export const cursedFleshInv: CardPrint = {
     rarity: "common",
 };
 
-// STOP-AND-ISSUE (tracked-by: #1405) — Defiling Tears: "Until end of turn,
+// UNSHIPPED STUB (tracked-by: #3720) — Defiling Tears: "Until end of turn,
 // target creature becomes black, gets +1/-1, and gains '{B}: Regenerate this
-// creature.'" The color-change blocker this stub originally cited (`setColor`)
-// SHIPPED (issue #1083) and the +1/-1 pump is already composable (`pump` Op),
-// but a SECOND, distinct gap remains: granting a NEW, COSTED activated
-// ability ("{B}: Regenerate this creature.") to a target permanent
-// temporarily (until end of turn) has no home — `grantAbility` only grants a
-// free-form KEYWORD string, and `grantTemplates`/`StaticActivatedGrant` is a
-// permanent's own always-on continuous grant, not a one-shot spell effect
-// with an end-of-turn expiry. Not invented; left a stub — see #1405 for the
-// full design note.
+// creature.'" NOT blocked on any engine gap: `setColor` (issue #1083), `pump`,
+// and `grantAbility`'s `grantedActivatedId` + `duration` payload (issue #738)
+// cover all three clauses — the last one is the exact Touch of Vitae shape
+// (`ice/green.ts`), a `grantTemplates[]` entry whose effect is `regenerate`
+// on `$source`. An earlier note here claimed a timed costed-ability grant
+// "has no home"; that was wrong (audit of issue #1405, 2026-09-16).
 // export const defilingTears: CardDefinition = {
 //     id: "db7cba29-9472-4874-bd54-37edf70645b2", // INV 99
 //     name: "Defiling Tears",
@@ -1269,16 +1267,16 @@ export const tsabosAssassin: CardDefinition = {
     ],
 };
 
-// STOP-AND-ISSUE (tracked-by: #1405) — Tsabo's Decree: "Choose a creature
+// STOP-AND-ISSUE (tracked-by: #3721) — Tsabo's Decree: "Choose a creature
 // type. Target player reveals their hand and discards all creature cards of
 // that type. Then destroy all creatures of that type that player controls.
-// They can't be regenerated." TWO stacked gaps: (1) a "choose a creature
-// type" capability that doesn't exist anywhere in the registry or engine —
-// distinct from `nameCard` (which names a printed CARD, not an abstract
-// creature type); (2) the mandatory hand-side bulk discard ("discards ALL
-// creature cards of that type", no player choice) is the SAME root cause
-// tracked by #2150 (no hand-zone bulk discard-by-filter capability; it was
-// #1120 gap 6b until that tracker was retired on 2026-08-04) — shipping (1)
+// They can't be regenerated." TWO stacked gaps: (1) a RESOLUTION-TIME "choose
+// a creature type" Op with a bindable answer, plus an `EffectCardFilter`
+// subtype position that reads it — the choice itself exists only AS A
+// PERMANENT ENTERS (`asEnters: { kind: "subtypes" }` → `chosenSubtypes`,
+// Engineered Plague), which a resolving instant cannot use; (2) the mandatory
+// hand-side bulk discard ("discards ALL creature cards of that type", no
+// player choice), tracked by #2150. #3721 is blocked by #2150 — shipping (1)
 // alone would not unblock this card. Not invented; left a stub.
 // export const tsabosDecree: CardDefinition = {
 //     id: "0c1a0ebd-1add-49e6-b5e6-5b26abb1de88", // INV 129
