@@ -11,8 +11,12 @@ import { describe, expect, it } from "vitest";
 import type { VerdictJudgement } from "../gre/ai/verdicts/identity";
 import { verdictIdOf } from "../gre/ai/verdicts/identity";
 import {
+    ALIAS_OBJECT_PREFIX,
     VERDICT_OBJECT_PREFIX,
     VerdictStoreIntegrityError,
+    decodeAliasObject,
+    encodeAliasObject,
+    putAlias,
     encodeVerdictObject,
     putVerdict,
     readVerdict,
@@ -193,5 +197,45 @@ describe("a read whose bytes do not match the requested hash fails loudly", () =
         await expect(readVerdict(store, verdictId)).rejects.toThrow(
             /unreadable/
         );
+    });
+});
+
+describe("author aliases (issue #3585)", () => {
+    const DEV = "dev-a:owner1";
+    const PROD = "prod-b:owner2";
+
+    it("names one fact once, whichever order the authors come in", async () => {
+        const store = createMemoryVerdictStore();
+        const first = await putAlias(store, { authors: [PROD, DEV] });
+        const second = await putAlias(store, { authors: [DEV, PROD] });
+        expect(first).toEqual({
+            name: `${ALIAS_OBJECT_PREFIX}${DEV}/${PROD}`,
+            outcome: "created",
+        });
+        expect(second.outcome).toBe("exists");
+        expect(
+            decodeAliasObject(first.name, (await store.get(first.name))!)
+        ).toEqual({ authors: [DEV, PROD] });
+    });
+
+    it("refuses an alias joining an author to itself, or naming an email", () => {
+        expect(() => encodeAliasObject({ authors: [DEV, DEV] })).toThrow(
+            /to itself/
+        );
+        expect(() =>
+            encodeAliasObject({ authors: [DEV, "someone@example.com"] })
+        ).toThrow(/Not a verdict author/);
+    });
+
+    it("refuses an object that joins other authors than its name promises, or is not canonical", () => {
+        const { name, bytes } = encodeAliasObject({ authors: [DEV, PROD] });
+        const elsewhere = `${ALIAS_OBJECT_PREFIX}${DEV}/prod-b:someone`;
+        expect(() => decodeAliasObject(elsewhere, bytes)).toThrow(
+            VerdictStoreIntegrityError
+        );
+        const spaced = bytesOf(
+            JSON.stringify({ authors: [DEV, PROD] }, null, 2)
+        );
+        expect(() => decodeAliasObject(name, spaced)).toThrow(/canonical/);
     });
 });
