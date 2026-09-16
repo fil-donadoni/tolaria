@@ -17,14 +17,26 @@
 // Mounted only for a vs-AI game (see `debug-sheet.tsx`). Reads the client-only
 // trace store via the inner `AiDecisionTrace`.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Panel } from "~/components/ui/panel";
+import { installAiTraceSeam } from "~/lib/ai/dev-trace-seam";
 import AiDecisionTrace from "./ai-decision-trace";
 import AiEscalationLog from "./ai-escalation-log";
 import AiDecisionLog from "./ai-decision-log";
 
 export default function AiDecisionTraceBox() {
     const [open, setOpen] = useState(true);
+
+    // The DEV-only trace seam (issue #3652), installed HERE because this box
+    // is the one mount that exists exactly when a populated ring matters: a
+    // vs-AI game with the debug sheet open. `check:ui`'s `game-debug-sheet-ai`
+    // surface measures this box over a declared position (ADR 0132 §4), which
+    // parks priority on the human seat — so the Bot never moves under the
+    // probe and never writes the ring either. The seam is what puts a fixed
+    // decision in it; `installAiTraceSeam` is a no-op in a production build.
+    useEffect(() => {
+        installAiTraceSeam();
+    }, []);
 
     return (
         <Panel density="compact" className="w-full min-w-0 shrink-0 px-3 py-2">

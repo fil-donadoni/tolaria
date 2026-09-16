@@ -1,9 +1,11 @@
 {
     "label": "UI stress — full board, full hand, deep piles",
-    "prompt": "ui-gate `game-stress` surface (scripts/ui-gate/surfaces.ts). Seed with: bunx convex run debugScenarios:seedScenarioDirect \"$(cat scripts/ui-gate/stress-scenario.json)\". Deployment-local by design (ADR 0044) — re-seed on a fresh deployment.",
+    "prompt": "ui-gate `game-stress` / `game-debug-sheet` / `game-card-preview` surfaces (scripts/ui-gate/surfaces.ts). `activePlayer`/`priority` both on \"me\" since issue #3652 (ADR 0132 §4): without them the position inherited the dealt game's turn holder, so which seat the viewer followed was decided by the coin toss. Seed with: bunx convex run debugScenarios:seedScenarioDirect \"$(cat scripts/ui-gate/stress-scenario.json)\". Deployment-local by design (ADR 0044) — the lane seeds it at bootstrap.",
     "spec": {
         "phase": "PRECOMBAT_MAIN",
         "turn": 6,
+        "activePlayer": "me",
+        "priority": "me",
         "libraryCount": 30,
         "cards": [
             {

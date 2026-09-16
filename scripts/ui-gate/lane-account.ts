@@ -33,6 +33,7 @@ import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 import { ConvexHttpClient } from "convex/browser";
 import { anyApi } from "convex/server";
 import { laneAccountEmail } from "../../convex/lib/uiGateLaneAccount";
@@ -78,6 +79,50 @@ export function fixtureLabelsFor(runId: string): FixtureLabels {
         open: uiGateOpenLabel(runId),
         draft: uiGateDraftLabel(runId),
     };
+}
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+
+/** The declared positions the game surfaces load (ADR 0132 §4), in the order
+ *  the bootstrap seeds them.
+ *
+ *  They ship as payloads in this directory rather than as rows, because a
+ *  debug scenario is DEPLOYMENT-LOCAL by design (ADR 0044) and a lane that
+ *  cannot reach a surface reports a coverage hole. Seeding them at bootstrap —
+ *  beside the Limited fixtures, issue #3652 — is what makes a fresh deployment
+ *  walkable without anyone re-deriving three positions by hand.
+ *
+ *  UNLIKE the fixtures, these are NOT run-scoped: `seedScenarioDirect` upserts
+ *  by label and the payload is a constant, so two concurrent runs write the
+ *  same bytes to the same row and neither can drop the other's. They therefore
+ *  outlive the account, which is also why they carry no per-run data. */
+const SCENARIO_FILES = [
+    "stress-scenario.json",
+    "yields-scenario.json",
+    "ai-trace-scenario.json",
+] as const;
+
+export interface ScenarioSeed {
+    label: string;
+    spec: unknown;
+    prompt?: string;
+}
+
+/** Read the payloads off disk. A pure function of the directory, so
+ *  `ui-gate-lane-account.test.ts` asserts what the bootstrap will send
+ *  without a deployment. */
+export function laneScenarioSeeds(dir: string = HERE): ScenarioSeed[] {
+    return SCENARIO_FILES.map((file) => {
+        const seed = JSON.parse(
+            fs.readFileSync(path.join(dir, file), "utf8")
+        ) as ScenarioSeed;
+        if (!seed.label || !seed.spec) {
+            throw new LaneAccountError(
+                `${file} is not a scenario payload — it needs a \`label\` and a \`spec\``
+            );
+        }
+        return seed;
+    });
 }
 
 /** One `convex run` against the local deployment; returns the parsed result,
@@ -195,6 +240,21 @@ export function createLaneLifecycle(deps: LaneLifecycleDeps): LaneLifecycle {
             run("verdictResolutions:seedUiGateContestedPosition", {
                 email: account.email,
             });
+            // The game surfaces' declared positions (issue #3652). Upsert by
+            // label, so this is idempotent and concurrent-run safe; it is the
+            // step that makes "debug scenario absent from this deployment"
+            // (`ensureScenarioBoard`'s Unreachable) unreachable in turn.
+            const scenarios = laneScenarioSeeds();
+            for (const seed of scenarios) {
+                run("debugScenarios:seedScenarioDirect", {
+                    label: seed.label,
+                    spec: seed.spec,
+                    ...(seed.prompt === undefined
+                        ? {}
+                        : { prompt: seed.prompt }),
+                });
+            }
+            log(`ui-gate: seeded ${scenarios.length} debug scenario(s)`);
             log(
                 `ui-gate: run ${account.runId} — lane account ${account.email}`
             );
