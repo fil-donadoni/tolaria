@@ -121,6 +121,24 @@ describe("per-tester quality — the four numbers (issue #3585)", () => {
     });
 });
 
+describe("the blade registry is someone else too (issue #3585)", () => {
+    it("counts a position the registry judges differently as contradicted and quarantined", () => {
+        const j = judgement(9, 1);
+        const q = quarantineContestedPositions([j], [attest(j, DEV)]);
+        const apart = rowOf(testerQualityOf(q, [], null), DEV);
+        expect(apart.contradicted).toEqual([]);
+        const report = testerQualityOf(
+            q,
+            [],
+            null,
+            new Set([positionKeyOf(j)])
+        );
+        const owner = rowOf(report, DEV);
+        expect(keys(owner.contradicted)).toEqual([positionKeyOf(j)]);
+        expect(keys(owner.quarantined)).toEqual([positionKeyOf(j)]);
+    });
+});
+
 describe("one person across deployments (issue #3585)", () => {
     it("aggregates two accounts joined by an alias into one row", () => {
         const onDev = judgement(1, 1);

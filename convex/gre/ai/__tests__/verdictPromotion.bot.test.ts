@@ -503,6 +503,22 @@ describe("verdicts:testers — the engine step (issue #3585)", () => {
         expect(bob).toContain(`${positionKeyOf(flipped)}  ${flippedId}`);
     });
 
+    it("counts a store verdict the blade registry judges differently as contradicted and quarantined", async () => {
+        const [, flipped] = satisfiedAndFlipped();
+        const store = createMemoryVerdictStore();
+        await stored(store, flipped, [["prod-b:bob", "explicit"]]);
+        const out = runVerdictPromotionStep({
+            mode: "testers",
+            lock: null,
+            evalWeightsSource: "",
+            verdictObjects: await b64(store, VERDICT_OBJECT_PREFIX),
+            attestationObjects: await b64(store, ATTESTATION_OBJECT_PREFIX),
+        });
+        expect(out.text).toMatch(/contradicted : 1/);
+        expect(out.text).toMatch(/quarantined {2}: 1/);
+        expect(out.text).toContain("attestation problems: 0");
+    });
+
     it("says unsatisfied is not measured when no lock is committed, and lists an alias that does not read", async () => {
         const store = createMemoryVerdictStore();
         await stored(store, satisfiedAndFlipped()[0]);

@@ -243,8 +243,8 @@ often a term the evaluation lacks as a wrong judgement. With no lock
 committed it prints "not measured".
 
 Nothing is counted and stored. Each run reads the [bucket](#g-bucket) and the
-committed lock, then re-derives the fit report the way the reproducibility
-guard does.
+committed lock, then re-derives the unsatisfied pairs at the committed weights,
+as `verdicts:promote` reports them.
 
 One person with accounts on several deployments is several authors until an
 [alias](#g-alias) joins them. Record one on the deployment holding the writer

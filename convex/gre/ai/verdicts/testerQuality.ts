@@ -11,6 +11,11 @@
 //     other is not "someone else" — that is quarantined, never contradicted.
 //   - QUARANTINED — positions the person judged that are contested NOW, i.e.
 //     held out of the lock until a resolution (`quarantine.ts`).
+//
+//   The blade registry is someone else too: a store verdict at a position the
+//   registry judges differently is held out of the lock as contested
+//   (`validateStoreObjects`), though no two STORE verdicts disagree there, so
+//   the caller names those keys and they count as both.
 //   - UNSATISFIED — positions where a verdict the person gave is in the
 //     committed Verdict Lock and the Weight Fit could not satisfy it.
 //
@@ -139,13 +144,17 @@ function positionsOf(
  * The four numbers for every person with an explicit judgement. `fit` is the
  * report over the committed lock, or `null` when none is committed.
  *
+ * `registryContested` names the position keys where the blade registry
+ * judges differently from a store verdict (see the header).
+ *
  * Throws on an unsatisfied id the lock does not name: that report is not over
  * this lock, and reading it would count what no fit ran over.
  */
 export function testerQualityOf(
     quarantine: VerdictQuarantine,
     aliases: readonly VerdictAuthorAlias[],
-    fit: TesterFitReport | null
+    fit: TesterFitReport | null,
+    registryContested: ReadonlySet<string> = new Set()
 ): TesterQualityReport {
     const locked = new Set(fit?.lock.verdictIds ?? []);
     const unsatisfied = new Set(fit?.unsatisfiedVerdictIds ?? []);
@@ -201,10 +210,18 @@ export function testerQualityOf(
             // Every explicit verdict has an explicit author, so one the person
             // did not give was given by someone else — while one person's two
             // accounts, joined, gave both answers themselves.
-            contradicted: positionsOf(keys, (key, own) =>
-                [...givenAt.get(key)!].some((verdictId) => !own.has(verdictId))
+            contradicted: positionsOf(
+                keys,
+                (key, own) =>
+                    registryContested.has(key) ||
+                    [...givenAt.get(key)!].some(
+                        (verdictId) => !own.has(verdictId)
+                    )
             ),
-            quarantined: positionsOf(keys, (key) => contestedKeys.has(key)),
+            quarantined: positionsOf(
+                keys,
+                (key) => contestedKeys.has(key) || registryContested.has(key)
+            ),
             unsatisfied: positionsOf(
                 new Map(
                     [...keys]

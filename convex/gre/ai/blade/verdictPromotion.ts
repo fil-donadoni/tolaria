@@ -180,12 +180,18 @@ function fitReportOverLock(
         ({ name, bytes }) => {
             const verdictId = verdictIdOfObjectName(name);
             if (verdictId === null || !locked.has(verdictId)) return [];
-            return [
-                {
-                    verdictId,
-                    payload: JSON.parse(new TextDecoder().decode(bytes)),
-                },
-            ];
+            try {
+                return [
+                    {
+                        verdictId,
+                        payload: JSON.parse(new TextDecoder().decode(bytes)),
+                    },
+                ];
+            } catch (error) {
+                throw new Error(
+                    `${name}: the lock names it, but it is not JSON (${error instanceof Error ? error.message : String(error)})`
+                );
+            }
         }
     );
     const corpus = lockedVerdictCorpus(lock, payloads, scenarios);
@@ -232,13 +238,36 @@ function testersText(
             );
         }
     }
+    // A store verdict the blade registry judges differently is held out of the
+    // lock as `contested` while the store-only quarantine calls it promotable.
+    const keyOf = new Map(
+        validation.quarantine.promotable.map((v) => [
+            v.verdictId,
+            v.positionKey,
+        ])
+    );
+    const registryContested = new Set(
+        validation.rows
+            .filter((r) => r.status === "contested" && r.verdictId !== null)
+            .map((r) => keyOf.get(r.verdictId!))
+            .filter((key): key is string => key !== undefined)
+    );
     const report = testerQualityOf(
         validation.quarantine,
         aliases,
-        fitReportOverLock(input, scenarios)
+        fitReportOverLock(input, scenarios),
+        registryContested
     );
+    // An attestation or resolution that does not read changes who gave what,
+    // so its count is printed beside the numbers it moved.
+    const unread = [
+        `attestation problems: ${validation.attestationProblems.length}`,
+        `resolution problems: ${validation.resolutionProblems.length}`,
+    ];
     return [
         formatTesterQuality(report),
+        "",
+        ...unread,
         ...(problems.length > 0
             ? ["", `alias problems: ${problems.length}`, ...problems]
             : []),
