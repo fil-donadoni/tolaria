@@ -607,6 +607,60 @@ export const FOOD_TOKEN: EffectTokenSpec = {
     ],
 };
 
+/** Mutagen token (CR 111 / 707.2, issue #3230). "Token Artifact — Mutagen"
+ *  with "{1}, {T}, Sacrifice this token: Put a +1/+1 counter on target
+ *  creature. Activate only as a sorcery."
+ *
+ *  SHARED rather than inlined on its one current producer: Michelangelo,
+ *  Weirdness to 11 creates one, and Mutagen Man, Living Ooze (TMT) creates X of
+ *  the same token — two producers whose Mutagens must be the SAME object, which
+ *  is what a content-derived `tokenDefinitionId` gives them only if they pass
+ *  the identical spec.
+ *
+ *  The ability is the Map token's shape (`abilities/tokens/mapToken.ts`): a
+ *  `{1}`/`{T}`/sacrifice-this cost (CR 602.1), `useStack: true` (not a mana
+ *  ability, CR 605.1a), an announced `targetRequirement` (CR 601.2c) and
+ *  `sorcerySpeedOnly` for "Activate only as a sorcery" (CR 602.5d via CR
+ *  307.5's timing template). Both of those last two fields are plain data, so
+ *  the spec stays JSON-pure (ADR 0046) — `isTokenActivatedAbility`
+ *  (`gre/effects/validate.ts`) admits them since issue #2376.
+ *
+ *  "Target creature" carries NO `controller` narrowing — the printed text does
+ *  not say "you control", so an opponent's creature is a legal target.
+ *
+ *  `colors` omitted = colorless (CR 105.2); `Mutagen` is an ARTIFACT subtype
+ *  (CR 205.3g), so the token has no P/T. */
+export const MUTAGEN_TOKEN: EffectTokenSpec = {
+    name: "Mutagen",
+    types: ["Artifact"],
+    subtypes: ["Mutagen"],
+    activatedAbilities: [
+        {
+            id: "mutagen-token-sacrifice-counter",
+            oracleText:
+                "{1}, {T}, Sacrifice this token: Put a +1/+1 counter on target creature. Activate only as a sorcery.",
+            cost: { mana: { generic: 1 }, tap: true, sacrifice: true },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            sorcerySpeedOnly: true,
+            effects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "+1/+1",
+                    target: { target: 0 },
+                    count: 1,
+                },
+            ],
+        },
+    ],
+    // Real printed Mutagen token art (ttmt, the TMT token set). Pinned rather
+    // than left to the per-producer reverse-link, exactly as the Map token is:
+    // every Mutagen in the game is the same object, and both of its producers
+    // are themselves TMT cards.
+    imagePrintId: "6559c423-449c-4e8e-8384-3ce78183e317",
+};
+
 /** CR 208.2 (issue #2384) — collapse an `EffectTokenSpec` power/toughness to
  *  the plain number `TokenSpec` takes.
  *

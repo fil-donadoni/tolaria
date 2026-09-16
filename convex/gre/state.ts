@@ -272,12 +272,14 @@ import {
 import { colorWordsPresent, landTypesPresent } from "./textChanges";
 import { randomInt, seededShuffle } from "./rng";
 import {
+    applyCounterPlacedReplacements,
     applyDamageReplacements,
     applyDestroyReplacements,
     applyDiscardReplacements,
     applyGraveyardRedirectCounters,
     applyLifeChangeReplacements,
     applyTapReplacements,
+    applyTokenCreatedReplacements,
     applyTransientDamageRedirections,
     describeDamageSource,
     enterBattlefieldDestinationFor,
@@ -7840,9 +7842,37 @@ export function applyEntersWithCounters(
     ) {
         return {};
     }
+    // CR 122.1 / 614 (issue #3230) — the SECOND counter-placement seam, sharing
+    // `addCounterToCard`'s replacement helper. Counters put on a permanent AS
+    // it enters ARE put onto it, so the Hardened Scales / Michelangelo family
+    // applies here too (two replacement effects on one event, CR 616.1). The
+    // rewritten delta is what `card.counters` takes AND what the caller emits
+    // as `COUNTER_ADDED` (`emitEntersWithCounterEvents`), so a Saga's chapter
+    // trigger and a "whenever counters are put on" trigger both see the real
+    // number. `state` is absent only on the pure-fixture probe path (see the
+    // parameter's own doc) — with no board there is no replacement to find.
+    if (state) {
+        for (const type of types) {
+            delta[type] = applyCounterPlacedReplacements(state, {
+                kind: "counter-placed",
+                cardInstanceId: card.id,
+                controllerId: card.controllerId,
+                types: [...card.types],
+                subtypes: [...card.subtypes],
+                counterType: type,
+                count: delta[type],
+            }).count;
+            // A rewrite to zero means no counters of that type are put on at
+            // all — drop the key rather than stamping a `0` entry nothing else
+            // in the engine writes and announcing a zero-count COUNTER_ADDED.
+            if (delta[type] <= 0) delete delta[type];
+        }
+    }
+    const remaining = Object.keys(delta);
+    if (remaining.length === 0) return {};
     const before = card.counters ?? {};
     const counters: Record<string, number> = { ...before };
-    for (const type of types)
+    for (const type of remaining)
         counters[type] = (counters[type] ?? 0) + delta[type];
     card.counters = counters;
     if (state && !opts?.deferEvents) {
@@ -7856,7 +7886,7 @@ export function applyEntersWithCounters(
     // LATER `addCounter` call happens to touch the same type). Only fires on
     // the 0 → present transition, one grant per type, mirroring `addCounter`'s
     // `wasZero` guard.
-    for (const type of types) {
+    for (const type of remaining) {
         if ((before[type] ?? 0) === 0 && counters[type] > 0) {
             // `state` is absent only on the ENTERS-WITH probe path (see the
             // parameter's own doc). The grant still derives from `counters`
@@ -12600,9 +12630,27 @@ export function addCounterToCard(
     count: number
 ): void {
     if (count <= 0) return;
+    // CR 122.1 / 614 (issue #3230) — counter-placement replacement chokepoint
+    // (Michelangelo, Weirdness to 11: "that many plus one +1/+1 counters are
+    // put on it instead"). This mutator is ONE of the two seams that put
+    // counters on a permanent; the other is `applyEntersWithCounters`, which
+    // writes `card.counters` directly for a CR 614.1c "enters with" declaration
+    // and calls the SAME helper. "If one or more counters WOULD be put on"
+    // never fires on a non-positive count, and a replacement that rewrites the
+    // count to zero puts none on — no event, no keyword grant, no recompute.
+    const placed = applyCounterPlacedReplacements(state, {
+        kind: "counter-placed",
+        cardInstanceId: card.id,
+        controllerId: card.controllerId,
+        types: [...card.types],
+        subtypes: [...card.subtypes],
+        counterType: type,
+        count,
+    }).count;
+    if (placed <= 0) return;
     const wasZero = (card.counters?.[type] ?? 0) === 0;
     const next = { ...(card.counters ?? {}) };
-    next[type] = (next[type] ?? 0) + count;
+    next[type] = (next[type] ?? 0) + placed;
     card.counters = next;
     if (wasZero) applyKeywordCounterGrant(state, card, type);
     // CR 613.5 (issue #1711) — a counter-gated MATERIALIZED static (Dread
@@ -12617,7 +12665,7 @@ export function addCounterToCard(
             instanceId: card.id,
             controllerId: card.controllerId,
             counterType: type,
-            added: count,
+            added: placed,
             total: next[type],
             types: [...card.types],
             subtypes: [...card.subtypes],
@@ -22810,6 +22858,31 @@ export function createTokenPermanents(
     opts?: { copyOf?: { source: CopySource; copyOpts?: CopyOptions } }
 ): string[] {
     const owner = getPlayer(state, controllerId);
+    // CR 111.1 / 614 (issue #3230) — the token-CREATION replacement chokepoint
+    // (Elspeth, Storm Slayer: "twice that many of those tokens are created
+    // instead"). Sited here, before the per-token loop, for CR 616.1g: creating
+    // a token CONTAINS each token's entry as a sub-event, and the containing
+    // event's replacement must be applied first — the rule's own example is
+    // exactly this family plus a token copy of Voice of All. Moving it into the
+    // loop would invert that and, worse, let a doubler re-double its own output
+    // (CR 614.5 gives it one opportunity per event, and there is one creation
+    // event here no matter how many tokens it makes).
+    //
+    // "If one or more tokens WOULD be created" — a zero/negative count is not a
+    // creation at all, so the event does not fire and the loop below is a no-op
+    // exactly as before.
+    let effectiveCount = count;
+    if (effectiveCount > 0) {
+        effectiveCount = applyTokenCreatedReplacements(state, {
+            kind: "token-created",
+            controllerId,
+            tokenName: spec.name,
+            types: [...spec.types],
+            subtypes: spec.subtypes ? [...spec.subtypes] : [],
+            isCopy: opts?.copyOf !== undefined,
+            count: effectiveCount,
+        }).count;
+    }
     const ids: string[] = [];
     const manaCost: CardManaCost = {};
     for (const c of spec.colors ?? []) {
@@ -22879,7 +22952,7 @@ export function createTokenPermanents(
             ? { entersWith: { asEnters: spec.entersWith.asEnters } }
             : {}),
     });
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < effectiveCount; i++) {
         state.nextTokenSeq = (state.nextTokenSeq ?? 0) + 1;
         const id = `token-${state.nextTokenSeq}`;
         const token: CardInstanceState = {
@@ -23082,14 +23155,18 @@ export function createTokenPermanents(
     // different cardinalities — this one once per CALL, that one once per
     // token that actually ENTERED. Emitted regardless of the CR 614 destination
     // any individual copy ended up in (exile included) — the tokens were
-    // still CREATED (CR 111.1); `count` mirrors the requested batch size.
-    if (count > 0) {
+    // still CREATED (CR 111.1). The count is the POST-replacement one (issue
+    // #3230): a CR 614 replacement rewrites how many tokens are created, so
+    // "twice that many" is how many a "whenever you create one or more tokens"
+    // trigger sees, and a rider that scales off the number created
+    // (`TOKENS_CREATED.count`) must scale off the doubled number.
+    if (effectiveCount > 0) {
         state.pendingEvents = [
             ...(state.pendingEvents ?? []),
             {
                 type: "TOKENS_CREATED",
                 controllerId,
-                count,
+                count: effectiveCount,
                 types: [...spec.types],
                 subtypes: spec.subtypes ? [...spec.subtypes] : [],
             },

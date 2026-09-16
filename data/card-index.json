@@ -10160,6 +10160,14 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Elspeth, Storm Slayer",
+        "scryfallId": "73a065e3-b530-4e62-ab3c-4f6f908184ec",
+        "oracleId": "f78af825-023a-42e9-8374-5c52303a1417",
+        "firstSet": "tdm",
+        "firstPrintId": "73a065e3-b530-4e62-ab3c-4f6f908184ec",
+        "firstPrintSet": "tdm"
+    },
+    {
         "name": "Elven Fortress",
         "scryfallId": "9387105d-46d0-4db0-8980-dd0fded15eef",
         "oracleId": "29f34e18-2102-4ded-912f-4ac3e9e6744c",
@@ -21742,6 +21750,14 @@
         "firstSet": "mkm",
         "firstPrintId": "652236c2-84ef-45e4-b5fc-ed6170bc3d6c",
         "firstPrintSet": "mkm"
+    },
+    {
+        "name": "Michelangelo, Weirdness to 11",
+        "scryfallId": "18477047-218d-4b2a-a086-37431b6a3025",
+        "oracleId": "170ab932-9d50-4ce7-9a42-08e1edce7e7c",
+        "firstSet": "tmt",
+        "firstPrintId": "18477047-218d-4b2a-a086-37431b6a3025",
+        "firstPrintSet": "tmt"
     },
     {
         "name": "Midnight Assassin",

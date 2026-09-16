@@ -27,6 +27,7 @@ import type {
     AsEntersChoice,
     CardType,
     Color,
+    CounterPlacedReplacementEvent,
     DamageEffectKind,
     DamageReplacementEvent,
     DestroyReplacementEvent,
@@ -44,6 +45,7 @@ import type {
     ReplacementEventKind,
     ReplacementStateView,
     TapReplacementEvent,
+    TokenCreatedReplacementEvent,
 } from "../cards/types";
 import { tryGetDefinition } from "../cards";
 import { getColorsFromCost } from "../cards/colors";
@@ -389,6 +391,13 @@ function applyReplacementsLoop(
     const used = new Set<string>();
     for (let i = 0; i < 64; i++) {
         const candidates = collectReplacements(state, kind, event);
+        // Nothing on the board carries this kind at all — the overwhelmingly
+        // common case at the two HOT chokepoints this loop now also serves
+        // (every counter placed, every token created). Returning here skips
+        // `buildStateView`, which maps every permanent of every player and is
+        // the only expensive step in an iteration that was always going to
+        // pick nothing.
+        if (candidates.length === 0) return event;
         let pick: {
             source: CardInstanceState;
             effect: ReplacementEffect;
@@ -854,6 +863,68 @@ export function applyEnterBattlefieldReplacements(
 ): EntersBattlefieldReplacementEvent {
     const result = applyReplacementsLoop(state, "enters-battlefield", event);
     return (result as EntersBattlefieldReplacementEvent | null) ?? event;
+}
+
+/** Runs CR 614 token-creation replacements (issue #3230) — "If one or more
+ *  tokens would be created under your control, twice that many of those tokens
+ *  are created instead" (Elspeth, Storm Slayer; the Doubling Season / Parallel
+ *  Lives / Anointed Procession family).
+ *
+ *  Called from the single token chokepoint, `createTokenPermanents`
+ *  (`gre/state.ts`), BEFORE its per-token loop — CR 616.1g: creating a token
+ *  contains the token's entry as a sub-event, and the containing event's
+ *  replacement is chosen first (the rule's own worked example is this family
+ *  plus a token copy of Voice of All).
+ *
+ *  ORDER WHEN SEVERAL APPLY (CR 616.1). The affected object's controller picks;
+ *  the engine has no such prompt (issue #2054) and applies the deterministic
+ *  `collectReplacements` order instead — APNAP from the active player, then
+ *  battlefield-declaration order within a player. For this kind the choice is
+ *  UNOBSERVABLE while every member is a multiplier (multiplication commutes:
+ *  two doublers give 4 either way, CR 614.5's own example), and becomes
+ *  observable only once an additive member ships; the counter twin below
+ *  already has one, and says so there.
+ *
+ *  Never returns null. "No tokens" is `count: 0`, so a `{ kind: "consumed" }`
+ *  from a replacement author is a contract violation, not a shape to
+ *  interpret — the `?? event` below is that guard, not an expected path. */
+export function applyTokenCreatedReplacements(
+    state: GameState,
+    event: TokenCreatedReplacementEvent
+): TokenCreatedReplacementEvent {
+    const result = applyReplacementsLoop(state, "token-created", event);
+    return (result as TokenCreatedReplacementEvent | null) ?? event;
+}
+
+/** Runs CR 614 counter-placement replacements (issue #3230) — "If one or more
+ *  +1/+1 counters would be put on a creature you control, that many plus one
+ *  +1/+1 counters are put on it instead" (Michelangelo, Weirdness to 11; the
+ *  Hardened Scales / Corpsejack Menace / Winding Constrictor family).
+ *
+ *  Called from BOTH counter-placement seams — `addCounterToCard` (the shared
+ *  low-level mutator every effect, keyword action and damage form goes through)
+ *  and `applyEntersWithCounters` (the CR 614.1c "enters with N counters"
+ *  declaration, which writes `card.counters` directly and so cannot route
+ *  through the mutator). Two call sites, ONE replacement seam: the discovery,
+ *  the CR 614.5 one-shot bookkeeping and the ordering all live here, so the two
+ *  seams cannot answer differently.
+ *
+ *  ORDER WHEN SEVERAL APPLY (CR 616.1) — OBSERVABLE for this kind, unlike the
+ *  token twin above: Michelangelo's "+1" and a hypothetical doubler do not
+ *  commute (1 → (1+1)×2 = 4 vs 1 → 1×2+1 = 3). Paper gives the choice to the
+ *  affected permanent's controller; the engine has no such prompt (issue #2054)
+ *  and applies `collectReplacements`'s deterministic order — APNAP from the
+ *  active player, then battlefield-declaration order. With Michelangelo the
+ *  only shipped member of the family there is nothing yet to order against, and
+ *  the prompt is #2054's to add, not this seam's to invent.
+ *
+ *  Never returns null, for the same reason the token twin does not. */
+export function applyCounterPlacedReplacements(
+    state: GameState,
+    event: CounterPlacedReplacementEvent
+): CounterPlacedReplacementEvent {
+    const result = applyReplacementsLoop(state, "counter-placed", event);
+    return (result as CounterPlacedReplacementEvent | null) ?? event;
 }
 
 /** ADR 0100 D1 — what the CR 614 entry chokepoint answers. It used to answer
