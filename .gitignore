@@ -62,3 +62,7 @@ data/oracle-corpus.json.gz
 
 # opencode local permissions — machine-specific, and it leaks absolute paths
 .opencode/settings.local.json
+
+# cr:audit work directory (issue #3675) — collected citations, the paid-for
+# assessment cache, report and review; lives in the primary checkout
+.cr-audit/

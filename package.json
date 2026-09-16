@@ -26,6 +26,7 @@
         "check:ts": "tsc -b --noEmit",
         "check:ui": "bun scripts/ui-gate/index.ts",
         "cr": "bun scripts/cr.ts",
+        "cr:audit": "bun scripts/cr-audit.ts",
         "cr:check": "bun scripts/cr.ts check",
         "cr:ledger": "bun scripts/cr-ledger.ts",
         "cr:lint": "bun scripts/check-cr-citations.ts",
