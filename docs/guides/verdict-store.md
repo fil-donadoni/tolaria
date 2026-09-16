@@ -218,9 +218,9 @@ unset T
 The next drain forwards every fat row, including rows written before the
 outbox. The hourly cron runs one anyway. A refused row stays fat, and the
 drain report gives the reason: `forward refused (401)` means the token,
-`(403)` an author or deployment outside it, `(422)` a judgement `submit` would
-refuse, a date past the writer's clock, or a resolution from a token without
-`"resolutions": true`. A writer outage, or one that takes longer than 30 s,
+`(403)` an author or deployment outside it, or a resolution from a token
+without `"resolutions": true`, and `(422)` a judgement `submit` would refuse or
+a date past the writer's clock. A writer outage, or one that takes longer than 30 s,
 leaves the rows fat for the next hour's retry.
 
 **Revoke it** on the writer: remove its entry from
