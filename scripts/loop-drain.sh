@@ -288,7 +288,7 @@ driver_alive() {
 if [ "$SINGLE_INSTANCE" -eq 1 ] && driver_alive; then
     echo "loop-drain: a driver is already running (pid $(cat "$PID_FILE")) — refusing to start a second one over the same queue." >&2
     echo ""
-    echo "loop-drain summary: passes=0 reason=already-running queue_start=? queue_end=? final_pct=n/a"
+    echo "loop-drain summary: passes=0 reason=already-running queue_start=? queue_end=? final_pct=n/a spent=n/a budget=n/a"
     exit 0
 fi
 
@@ -354,8 +354,18 @@ fi
 # exercises dozens of behaviours that are not about the budget guard. Never
 # set it for a real run.
 BUDGET_ENABLED=1
-case "$BUDGET" in
-    "" | 0 | 0.0 | -*)
+# NUMERIC, not a list of literals (PR #3704 review). The list it replaces
+# (`"" | 0 | 0.0 | -*`) missed `0.00`, `.0` and `00`, each of which then read
+# as a REAL budget — and a zero budget can never trip a percentage, so the
+# driver ran unthrottled forever instead of refusing to start, which is the
+# precise failure ADR 0109 exists to prevent. `awk` answers the question the
+# list was approximating: is this budget a positive number.
+_budget_positive=0
+if is_number "${BUDGET:-}"; then
+    _budget_positive=$(awk -v b="$BUDGET" 'BEGIN { print (b + 0 > 0) ? 1 : 0 }')
+fi
+case "$_budget_positive" in
+    0)
         if [ -n "${TOLARIA_LOOP_ALLOW_NO_BUDGET:-}" ]; then
             BUDGET_ENABLED=0
             echo "loop-drain: TOLARIA_LOOP_ALLOW_NO_BUDGET set (test-only hatch) — the token-budget guard is DISABLED for this run." >&2
@@ -606,7 +616,7 @@ if [ "$START_DELAY" -gt 0 ]; then
     echo "loop-drain: waiting ${START_DELAY}s before the first pass (handoff grace period)." >&2
     interruptible_sleep "$START_DELAY" || {
         echo ""
-        echo "loop-drain summary: passes=0 reason=stop-file queue_start=? queue_end=? final_pct=n/a"
+        echo "loop-drain summary: passes=0 reason=stop-file queue_start=? queue_end=? final_pct=n/a spent=0 budget=${BUDGET:-n/a}"
         exit 0
     }
 fi
@@ -669,21 +679,23 @@ while :; do
         usage_json=$(bun run usage:window --since "$RUN_START_MS" --run "$RUN_ID" --budget "$BUDGET" 2>&1) && usage_rc=0 || usage_rc=$?
         pct=$(printf '%s' "$usage_json" | grep -o '"pct":[0-9.eE+-]*' | head -1 | cut -d: -f2)
         weighted=$(printf '%s' "$usage_json" | grep -o '"weighted":[0-9.eE+-]*' | head -1 | cut -d: -f2)
-        # High-water mark, then derive the pct from it rather than trusting
-        # the reader's — so the figure this guard compares, logs and reports
-        # can only ever rise within a run.
-        if is_number "${weighted:-}"; then
-            spent=$(awk -v a="$spent" -v b="$weighted" 'BEGIN { print (b + 0 > a + 0) ? b : a }')
-            if is_number "$pct"; then
-                pct=$(awk -v s="$spent" -v b="$BUDGET" 'BEGIN { if (b + 0 <= 0) { print 0 } else { print s * 100 / b } }')
-            fi
-        fi
+        # FAIL CLOSED FIRST, then account. The order matters: a reading the
+        # guard is about to declare unreadable must not move the run's spend
+        # on its way out, or the summary reports a figure the guard itself
+        # just refused to trust (PR #3704 review).
         if [ "$usage_rc" -ne 0 ] || [ -z "$pct" ] || ! is_number "$pct"; then
             stop_reason="usage-error"
             pct="n/a"
             echo "loop-drain: budget guard FAILED CLOSED — could not read a usable pct from 'bun run usage:window' (exit ${usage_rc}). This stops the run rather than skipping the check, per ADR 0097. Reader output was:" >&2
             printf '%s\n' "$usage_json" >&2
             break
+        fi
+        # High-water mark, then derive the pct from it rather than trusting
+        # the reader's — so the figure this guard compares, logs and reports
+        # can only ever rise within a run.
+        if is_number "${weighted:-}"; then
+            spent=$(awk -v a="$spent" -v b="$weighted" 'BEGIN { print (b + 0 > a + 0) ? b : a }')
+            pct=$(awk -v s="$spent" -v b="$BUDGET" 'BEGIN { if (b + 0 <= 0) { print 0 } else { print s * 100 / b } }')
         fi
         over=$(awk -v p="$pct" -v m="$MAX_PCT" 'BEGIN { print (p + 0 >= m + 0) ? 1 : 0 }')
         if [ "$over" -eq 1 ]; then

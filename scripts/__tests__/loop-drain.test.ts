@@ -604,6 +604,35 @@ describe("budget threshold", () => {
         expect(passLogCount()).toBe(1);
     });
 
+    it("REFUSES a budget that is numerically zero however it is spelled (#3704 review)", () => {
+        // The disable-guard used to be a list of literals — `"" | 0 | 0.0 |
+        // -*` — so `0.00`, `.0` and `00` read as REAL budgets. A zero budget
+        // can never trip a percentage, so the driver ran unthrottled forever
+        // instead of refusing to start: the precise failure ADR 0109 exists
+        // to prevent, reached by a typo.
+        for (const b of ["0.00", "00", "0e0"]) {
+            stubGhCountingFrom(0);
+            const r = run({
+                args: ["--claude-args", "x", "--budget", b],
+                env: { TOLARIA_LOOP_ALLOW_NO_BUDGET: "" },
+            });
+            expect(r.status, `expected refusal for --budget ${b}`).toBe(1);
+            expect(r.stderr).toMatch(/refuses to run unbudgeted/);
+            expect(passLogCount()).toBe(0);
+        }
+        // `.0` is refused one step earlier, by the numeric validation, with
+        // its own exit code — also a refusal, and the message names the real
+        // problem ("a plain number"), so it is not folded into the branch
+        // above.
+        stubGhCountingFrom(0);
+        const leading = run({
+            args: ["--claude-args", "x", "--budget", ".0"],
+            env: { TOLARIA_LOOP_ALLOW_NO_BUDGET: "" },
+        });
+        expect(leading.status).toBe(2);
+        expect(leading.stderr).toMatch(/--budget must be a plain number/);
+    });
+
     it("REFUSES to run when no budget is configured (mandatory, ADR 0109)", () => {
         // The opt-in era ended 2026-08-27: every launcher after 2026-08-23
         // forgot the flag and the driver ran unthrottled for days.
@@ -945,6 +974,29 @@ describe("driver identity — pid file and single-instance", () => {
         expect(fs.readFileSync(envFile, "utf8").trim()).toBe(
             "TOLARIA_LOOP_DRAIN=[1]"
         );
+    });
+
+    it("exports TOLARIA_LOOP_RUN_ID into the pass — the whole budget rests on it (#3699)", () => {
+        // The load-bearing assumption of the run-scoped budget: the pass's
+        // SessionStart hook reads this variable and records it beside the
+        // session id, and `usage:window --run` sums exactly those transcripts.
+        // If it never arrives, every run's session set is empty, every reading
+        // is zero, and the budget silently never trips — the failure is
+        // indistinguishable from a healthy cheap run. Asserted the same way
+        // TOLARIA_LOOP_DRAIN is, next to it.
+        const envFile = path.join(tmp, "seen-run-id");
+        stubGhCountingFrom(1);
+        writeStub(
+            "claude",
+            [
+                `echo "RUN=[$TOLARIA_LOOP_RUN_ID]" > "${envFile}"`,
+                `q=$(cat "${queueFile}"); echo $((q - 1)) > "${queueFile}"`,
+                `exit 0`,
+            ].join("\n")
+        );
+        run({ args: ["--claude-args", "x"] });
+        const seen = fs.readFileSync(envFile, "utf8").trim();
+        expect(seen).toMatch(/^RUN=\[\d+-\d+\]$/);
     });
 });
 
