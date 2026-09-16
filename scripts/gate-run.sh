@@ -55,6 +55,8 @@
 #   TOLARIA_GATE_RUN_TAIL       log lines printed with the verdict (default 60)
 #   TOLARIA_GATE_RUN_DIR        where run state lives (default under the cache)
 #   TOLARIA_GATE_RUN_KEEP_DAYS  prune run dirs older than this (default 7)
+#   TOLARIA_GATE_RUN_KEY        name this run instead of keying it on the cwd
+#                               (for `land`, which deletes the cwd it ran from)
 #
 # Exit codes: the gate's own on completion; 75 = still running, call again;
 # 2 = usage; 70 = the detached runner vanished without writing an exit code.
@@ -89,7 +91,17 @@ done
 # One run dir per (cwd, command). The cwd is part of the key because two
 # worktrees gating concurrently are two different runs of the same script —
 # attaching one to the other's log would report the wrong tree's verdict.
-_key=$(printf '%s|%s' "$(pwd)" "$*" | cksum | tr -cd '0-9')
+#
+# TOLARIA_GATE_RUN_KEY replaces the cwd component when the cwd is not a stable
+# name for the run (issue #3706). The case that forces this is `land`: it runs
+# from the PR's own worktree — it refuses to run from the base branch — and it
+# DELETES that worktree when it merges. So a `land` that returns 75 leaves the
+# next call with a cwd that no longer exists, and a call from anywhere else
+# computes a different key and starts a SECOND `land`, re-paying the whole
+# gate. With an explicit key the same run is addressable from any directory.
+_key_scope="${TOLARIA_GATE_RUN_KEY:-}"
+[ -n "$_key_scope" ] || _key_scope="$(pwd)"
+_key=$(printf '%s|%s' "$_key_scope" "$*" | cksum | tr -cd '0-9')
 _safe=$(printf '%s' "$1" | tr -c 'A-Za-z0-9._-' '-')
 RUN_DIR="$RUN_ROOT/$_safe-$_key"
 LOG="$RUN_DIR/log"
