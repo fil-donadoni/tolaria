@@ -38544,7 +38544,6 @@
         {"id":"702.47a","line":"* this card is in its owner's HAND (CR 702.47a): as its owner casts a","sites":1,"status":"confirmed","ruleHash":"d703dbff80d2fa25"},
         {"id":"702.47a","line":"* {@link ManaCost}: CR 702.47a defers to \"the rules for paying additional","sites":1,"status":"confirmed","ruleHash":"d703dbff80d2fa25"},
         {"id":"702.47a","line":"/** CR 702.47a — every splice option `hand` offers for a spell with `subtypes`","sites":1,"status":"confirmed","ruleHash":"d703dbff80d2fa25"},
-        {"id":"702.47a","line":"/** CR 702.47a — every subtype some shipped card's splice ability is gated on","sites":1,"status":"confirmed","ruleHash":"d703dbff80d2fa25"},
         {"id":"702.47a","line":"/** CR 702.47a — one splice option: the hand card that would be revealed and","sites":1,"status":"confirmed","ruleHash":"d703dbff80d2fa25"},
         {"id":"702.47a","line":"/** CR 702.47a — what the caster pays to reveal this card. */","sites":1,"status":"confirmed","ruleHash":"d703dbff80d2fa25"},
         {"id":"702.47a","line":"/** CR 702.47a/b — is `def` a card that can be REVEALED to splice its text on?","sites":1,"status":"confirmed","ruleHash":"d703dbff80d2fa25"},

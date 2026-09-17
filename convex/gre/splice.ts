@@ -52,7 +52,6 @@
 // which leaves the stack with the item.
 import type { CardDefinition, EffectOp, KickerCost } from "../cards/types";
 import { tryGetDefinition } from "../cards/registry";
-import { getAllCards } from "../cards/catalogue";
 import type { CardInstanceState, PlayerState } from "./state";
 
 /** Prefix of the synthesized {@link KickerCost.id} of a splice option. The id
@@ -118,29 +117,6 @@ export function spliceCardIsSupported(def: CardDefinition): boolean {
         (def.staticEffects?.length ?? 0) === 0 &&
         (def.delayedTriggers?.length ?? 0) === 0
     );
-}
-
-/** CR 702.47a — every subtype some shipped card's splice ability is gated on
- *  ("Arcane"), computed once and memoized.
- *
- *  It exists to keep {@link spliceAugmentedDefinition} O(1) on a board with no
- *  splice in it. That seam runs once per castable card inside
- *  `enumerateCastMoves`, i.e. at every ISMCTS node, and without a gate each of
- *  those would walk the whole hand looking up a definition per slot — quadratic
- *  in the hand, on every node, for a mechanic almost no board has. A catalogue
- *  scan is safe to memoize: `getAllCards()` is the static card list, and the
- *  only mutation the registry accepts at runtime is `registerTokenDefinition`,
- *  which no splice card can arrive through. */
-let SPLICED_ONTO_SUBTYPES: Set<string> | undefined;
-export function splicedOntoSubtypes(): ReadonlySet<string> {
-    if (!SPLICED_ONTO_SUBTYPES) {
-        SPLICED_ONTO_SUBTYPES = new Set(
-            getAllCards()
-                .map((c) => c.splice?.subtype)
-                .filter((t): t is string => t !== undefined)
-        );
-    }
-    return SPLICED_ONTO_SUBTYPES;
 }
 
 /** CR 702.47a — one splice option: the hand card that would be revealed and
@@ -216,15 +192,15 @@ export function spliceAugmentedDefinition<
     T extends CardDefinition | undefined | null,
 >(def: T, player: PlayerState, castInstanceId: string): T {
     if (!def || !spliceAcceptsSpell(def)) return def;
-    // The subtype gate FIRST, off a catalogue-wide set, so the hand walk below
-    // runs only for a spell some shipped splice card could ever be revealed
-    // onto. This seam is called once per castable card inside
-    // `enumerateCastMoves`, i.e. at every ISMCTS node: without this, every cast
-    // of every card would pay a `tryGetDefinition` per hand slot, quadratic in
-    // the hand for a mechanic almost no board has.
-    if (!(def.subtypes ?? []).some((s) => splicedOntoSubtypes().has(s))) {
-        return def;
-    }
+    // The cheapest possible gate first. This seam runs once per castable card
+    // inside `enumerateCastMoves`, i.e. at every ISMCTS node, and the hand walk
+    // below costs one registry lookup per slot — so a subtype-less spell (most
+    // instants and sorceries) must not pay for it. A catalogue-wide
+    // "spliced-onto subtypes" set would gate harder still, and is deliberately
+    // NOT used: it would make this module depend on the whole card catalogue,
+    // and the frontend imports it (`affordableKickersForCard`), so the gain
+    // would be paid for in the client's module graph.
+    if ((def.subtypes?.length ?? 0) === 0) return def;
     const options = enumerateSpliceOptions(
         player.hand,
         def.subtypes ?? [],
