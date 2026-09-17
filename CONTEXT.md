@@ -890,6 +890,18 @@ _Avoid_: Reparse, verification, self-test
 What it means when a card has both a hand-written and a **Compiled Definition** and, once every declared cosmetic encoding is normalised away, the two do not match. Neither side is presumed right: the disagreement is a defect on one of them, and which one is a question a person answers, not a precedence rule. Distinct from a **documented divergence** (a clause an author knowingly dropped, which is about one definition against its own Oracle text).
 _Avoid_: Divergence (taken — see the dropped-clause sense), conflict, mismatch
 
+**Fragment**:
+One line of a card's Oracle text that no slot of the **Oracle Compiler** consumed, recorded in the **Oracle Lockfile** with the count of corpus cards that share it. It is the raw evidence of a missing grammar — per line, per card — and says only THAT the line was refused, never which rule was missing.
+_Avoid_: Gap (that is the attributed unit — see **Grammar Gap**), parse error, unsupported text
+
+**Grammar Rule**:
+One clause form the **Oracle Compiler** accepts in a slot or a shared sub-grammar, delivered together with the golden fixtures that fix what it must produce. The unit of grammar work: a rule is composed by other rules, so the cards it unlocks are counted across the whole corpus, not on the card that asked for it.
+_Avoid_: Parser, template, pattern, line match
+
+**Grammar Gap**:
+A **Grammar Rule** the corpus needs and the grammar does not have, attributed from **Fragments** and ranked by the cards it would unlock — in the set being rolled out and across the corpus. The backlog unit of grammar-first work, and the reason an Op may exist without the grammar that emits it: every such Op names its gap, and the list of them only shrinks.
+_Avoid_: Missing feature, TODO, unparsed (that is a **Compile State**)
+
 **Card Retirement**:
 Deleting a hand-written **Card Definition** once its compiled twin is proven to behave identically, leaving the **Oracle Lockfile** as the only copy. The card's own test does not go with it — it moves onto the registry lookup, because it is the only standing proof that the compilation was ever right. A retired card's lockfile row is marked as such, so a later change to it is reviewed rather than merely diffed.
 _Avoid_: Deletion, deprecation, cleanup

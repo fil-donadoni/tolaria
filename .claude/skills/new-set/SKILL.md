@@ -83,17 +83,27 @@ So: **delegate the gathering to `model: sonnet` subagents, keep the bucketing
 on the session tier (run this skill on Opus).** Each subagent returns a compact
 list, not file dumps — that is the point.
 
-| Sub-step                                         | Who                                   |
-| ------------------------------------------------ | ------------------------------------- |
-| **A** Set data + blob profile (steps 1, 3)       | `Explore`, `model: sonnet`            |
-| **B** Prior-work scan (step 2) → `done`/`staged` | `Explore`, `model: sonnet`            |
-| **C** Registry snapshot (feeds step 6)           | `Explore`, `model: sonnet`            |
-| **D** Mechanical pre-filter (splits step 4)      | `Explore`, `model: sonnet`, after A+C |
-| **Triage verdicts** (step 4), step 5 gap calls   | **main thread, session tier**         |
-| Closure invariant + manifest                     | **main thread, session tier**         |
+| Sub-step                                         | Who                                      |
+| ------------------------------------------------ | ---------------------------------------- |
+| **A** Set data + blob profile (steps 1, 3)       | `Explore`, `model: sonnet`               |
+| **B** Prior-work scan (step 2) → `done`/`staged` | `Explore`, `model: sonnet`               |
+| **C** Registry snapshot (feeds step 6)           | `Explore`, `model: sonnet`               |
+| **D** Mechanical pre-filter (splits step 4)      | `Explore`, `model: sonnet`, after A+C    |
+| **D′** Re-validation of D (whole, not sampled)   | **main thread, session tier**            |
+| **E** Engine evidence per capability question    | `Explore`, `model: sonnet`, 2–3 parallel |
+| **E′** Re-verification of every NO / PARTIAL     | **main thread, session tier**            |
+| **Triage verdicts** (step 4), step 5 gap calls   | **main thread, session tier**            |
+| Closure invariant + manifest                     | **main thread, session tier**            |
 
 A, B and C are independent — spawn them in **one message, three tool calls**.
-D depends on A+C, so it goes in a second message.
+D depends on A+C, so it goes in a second message. E goes out once D′ has
+passed and the main thread has read every `needs-judgement` card.
+
+**A Sonnet result is an input, never a verdict.** Everything D and E return is
+re-derived or re-verified on the main thread before it decides a bucket (D′,
+E′). On APC (2026-09-17) E′ overturned two claimed gaps — a discard replacement
+event and a "controls a permanent of colour X" condition both already shipped —
+which would otherwise have become two needless capability clusters.
 
 **A — set data + profile.** Ensure `data/json/<CODE_UPPER>.json` exists
 (download per step 1 if not), then run the step-3 `jq` profiling. Returns:
@@ -106,7 +116,9 @@ candidates). Not the blob, not per-card dumps.
 `done` (active `CardDefinition` export, or present in the lockfile) and
 `staged` (commented-out stub block, with its `// tracked-by:` tag if any).
 Names only. It must also report whether the directory exists at all — that
-gates the never-overwrite rule in step 2.
+gates the never-overwrite rule in step 2. A lockfile row with **no** definition
+under `convex/cards/sets/` is normal, not drift: `source: "compiled"` rows are
+shipped by the Oracle compiler (ADR 0105) and count as `done`.
 
 **C — registry snapshot.** Returns, from
 `convex/cards/mechanicsRegistry.ts`: every keyword row with
@@ -127,10 +139,41 @@ list, split every not-yet-`done`/`staged` card into:
   main thread can bucket it without re-fetching.
 
 D exists to keep the expensive tier's input to the cards that actually need
-reasoning; on a typical old set it removes 30–50% of the pool. Because its rule
-is syntactic, the main thread **spot-checks it**: sample ~10 `trivial-free`
-cards and confirm each really is keyword-only. A card wrongly filtered into
-`trivial-free` is invisible to every downstream gate.
+reasoning; on a typical old set it removes 30–50% of the pool (on a late set
+with few vanillas it can remove none — APC: 0). A card wrongly filtered into
+`trivial-free` is invisible to every downstream gate, so a sample is not
+enough.
+
+**D′ — re-validate D whole, on the main thread.** Extract the blob
+independently (`jq` → one `name ⇥ manaCost ⇥ type ⇥ text` row per unique name,
+into the scratchpad) and check mechanically, not by reading:
+
+- **Partition** — `done ∪ D's buckets` equals the blob's name set: no name
+  missing (`comm -13`), none invented (`comm -23`), none in two buckets
+  (`uniq -d`).
+- **Verdict** — recompute `trivial-free` from the blob (empty text, or every
+  line keyword-only with no `:` / sentence) and diff it against D's list.
+- **Text fidelity** — compare D's returned Oracle text to the blob for the
+  riskiest cards (long, multi-line, cost-bearing); a paraphrased clause
+  mis-buckets the card.
+- **`done` provenance** — every `done` name is either an active definition or
+  a lockfile row (compiled rows have no definition — see B).
+
+**E — engine evidence.** After reading every `needs-judgement` card, the main
+thread writes the concrete capability questions the triage hinges on (one per
+clause shape: "multiple kicker costs + which one was paid?", "cost: tap two
+untapped creatures you control?", "damage redirection keyed on the recipient?").
+Split them across 2–3 `Explore` / `model: sonnet` agents in one message. Each
+answer is **YES** (a shipped card with the same shape, or the field/Op, with
+`file:line`), **PARTIAL** (what exists, what is missing) or **NO** (what was
+searched) — evidence, no proposals.
+
+**E′ — re-verify every NO and PARTIAL that would create a capability bucket**
+with your own `grep` over `convex/cards/types.ts`, `convex/cards/filters.ts`,
+`convex/gre/` and `convex/cards/sets/**`. A YES for an unexercised
+_combination_ of shipped primitives stays `free`, flagged in its slice as
+"unexercised composition — prove it with a test, or move the card to a new
+capability slice".
 
 The main thread then buckets `needs-judgement` (+ D's `trivial-free` ⇒ `free`)
 into free / capability / out-of-scope, does the step-5 engine cross-check and
@@ -163,6 +206,9 @@ CardDefinition` (and `CardPrint`) are implemented; **commented-out** stub
    by colour, by rarity, and — critically — by **card layout** (`normal` vs
    `transform`/`modal_dfc`/`split`/`adventure`/`flip`/`meld`/`saga`/`leveler`/
    `class`). Unmodelled layouts are out-of-scope (ADR 0010 / ADR 0041).
+   **`split` is modelled** — a generic split-card mechanism (`defineSplitCard`,
+   `CardDefinition.splitHalves`), so split cards triage like any other card.
+   Before calling any other layout unmodelled, grep for its engine support.
 4. **Triage every card into five buckets** — **main thread, never delegated**
    (sub-agent D only pre-filters the input, see the routing block above).
    This IS the scope, and it must
@@ -189,6 +235,21 @@ the blob`, with the buckets **disjoint**. If the sum is short, a card is
 5. **Cross-check** each capability candidate against the engine — many
    mechanics already shipped (layers, replacements, complex triggers, APNAP).
    Flag a real gap explicitly; never assume "deferred". (`project_lost_cards_audit`)
+   This is sub-steps E + E′. Two more checks per surviving gap and per free
+   card:
+    - **An open issue may already own the gap.** Search open issues by
+      MECHANISM, not card name (`gh issue list --search "<mechanism words>"`).
+      If one exists, the cluster is **blocked by** it and reuses it — never a
+      duplicate (APC C5 → issue #3721).
+    - **The Oracle compiler may already hold the card.** Read each card's
+      `state` in `data/oracle-compiled.json` (the whole Scryfall corpus):
+      `ready` ⇒ shipped by the compiler once the lockfile is refreshed — `done`,
+      not a slice; `quarantine` ⇒ the compiler produced a definition but a gate
+      withheld it (`quarantineReasons`, typically the smoke scenario cannot
+      reach the card) — still a slice, but its ticket gets an "Oracle compiler
+      head start" section naming the card and reason, plus a hand-written
+      per-card test (states are computed, never assigned — ADR 0105);
+      `unparsed` ⇒ hand-authored as usual.
 6. **Mechanics Registry closure check (ADR 0045/0046).** _(sub-agent C supplies
    the registry lists; the gap verdicts are main-thread.)_ Cross-reference every
    keyword ability and keyword action the set's cards use against
@@ -206,13 +267,19 @@ Invoke the **`grill-with-docs`** skill and run the interview, seeded with the
 Phase 0 triage. Drive it toward these set-specific decisions (one question per
 turn, recommended answer stated each time):
 
-- **Cluster organization** — pick the axis explicitly with the user:
-    - _Free tranche + feature clusters_ (default; DRK #409, LEG #369, ICE #628).
-      Large reuse-only tranche first, split by colour for review-sized batches;
-      then a small number of capability clusters, **one new mechanic each**.
-    - _Thematic faction clusters_ (FEM #566) — when nearly every card belongs to
-      a colour faction; reuse-only cards live inside their faction's cluster
-      alongside that faction's new capability.
+- **Cluster organization — PIVOT 2026-09-17, grammar-first.** The maintainer
+  set the Oracle Compiler grammar as the project priority (pilot: APC, PRD
+  issue #3795): a set's cards come out of the compiler, and the slice axis is
+  **Grammar Gaps ranked by cards unlocked** (set + corpus), not colour modules
+  of hand-written cards. The old axis — free tranche per colour module +
+  capability clusters (DRK #409, ICE #628) — is the pre-pivot default and is
+  kept here only until the grammar-first PRD rewrites this skill (`/new-set`
+  v2, PRD #2693 story 25). Hand-authoring remains the Guard C fallback for
+  the cards the grammar does not reach, never the plan.
+- **Priority** — the umbrella PRD goes on the "Tolaria Backlog" board with
+  `Priority` **P1** unless the user names another band; children inherit the
+  band from their parent (issue #3212), so the children are not prioritised
+  individually.
 - **Cluster ordering** — by reuse × foundationality × risk. The cluster that
   mutates a player-state seam goes first (e.g. poison, the legend rule). A
   foundational primitive other clusters reuse precedes its consumers.
@@ -262,7 +329,13 @@ data/json/<CODE_UPPER>.json` → the colour-split `convex/cards/sets/<code>/`
   only the missing cards (see Phase 0, step 2).
 - The emit contract: free cards → active `CardDefinition`s; capability cards →
   **commented-out stubs** (uncommented by their cluster PR so the build stays
-  green); unmodelled layouts → out-of-scope, no stub.
+  green); unmodelled layouts → out-of-scope, no stub. When `<code>/` already
+  exists and no import runs, capability cards need no stubs at all: each
+  cluster slice authors its own cards when its capability lands (nothing to
+  orphan).
+- **The capability evidence table** — one row per cluster: missing capability,
+  cards, and the E′-verified evidence of the gap (what exists, what does not).
+  The cluster ticket points back to it instead of re-deriving the gap.
 - **Lockfile refresh as an explicit engineering story**: after import/wiring,
   top up `data/card-index.json` with `bun run scripts/backfill-card-index.ts`
   (add `--prune` only if the guard reports pollution), and `bun run check:index`
@@ -301,13 +374,27 @@ Conventions to hold it to:
   starve. The edge is also what `subIssuesSummary` reads, which is what lets
   the loop close the umbrella in Phase 4 once the last cluster lands. The
   `## Parent` body line below is for humans and is NOT the sort key.
-- **Walking skeleton first** (scaffold the `sets/<code>/` directory — 7 colour
-  modules + `index.ts` barrel, per-colour `__tests__/` — plus registry wiring
-  via `import * as <code> from "./sets/<code>"` + import), then free-tranche
-  slices, then capability-cluster slices.
-- Issue title conventions: free tranche → `[<CODE>] Free tranche — <Colour>`;
-  cluster → `[<CODE>] C<n> — <capability> (CR <ref>)`
+- **Walking skeleton first — only if `sets/<code>/` does not exist yet**
+  (scaffold the directory — 7 colour modules + `index.ts` barrel, per-colour
+  `__tests__/` — plus registry wiring via
+  `import * as <code> from "./sets/<code>"` + import). When the directory is
+  already registered, skip it: free-tranche and cluster slices have no
+  blockers of their own.
+- Issue title conventions: free tranche → `[<CODE>] Free tranche — <Colour>`
+  (`— Multicolor A` / `— Multicolor B` when split); cluster →
+  `[<CODE>] C<n> — <capability> (CR <ref>)`
   (e.g. `[DRK] C1 — Poison counters + loss SBA (CR 122 / 704.5c)`).
+  Every CR id in a title is **printed** with `bun run cr <id>` first, never
+  recalled.
+- **Labels and tiers by slice kind** — free slice: `ready-for-agent` +
+  `area:cards`, no `model:*` label (Sonnet default). Capability cluster:
+  `ready-for-agent` + `area:mechanics` + `model:opus` (it sets a shape later
+  cards copy). A cluster that changes the frozen Effect Script structural
+  grammar (`bind` / `ref` / `if` / `forEach`, ADR 0045/0046) is **HITL**
+  (`⚠️ HITL` body line + `needs-design`) and starts with an ADR for approval.
+- **Accepted `resolve()` budget is 0 per slice** unless the grill recorded
+  otherwise: a free slice that reaches for `resolve()` has found an unverified
+  gap — stop, report on the umbrella, move the card to a new capability slice.
 - Cluster-issue body (model on DRK C1 #418): `## Parent` (→ umbrella) ·
   `## What to build` (end-to-end, no file paths) · `## Design decisions
 (grill <date> → ADR NNNN)` · `## Acceptance criteria` (checkboxes, ending

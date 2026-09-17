@@ -184,6 +184,42 @@ run, so `check:oracle` exited 0 on a stale lockfile on the clean checkout
 direction too — it covers files like `gold.ts` that cannot change the output —
 because a redundant regeneration is cheap and a missed one is silent.
 
+### 7. Amendment 2026-09-17 (ADR 0137) — quarantine classes, Bot-play sweep, derived Op census
+
+States stay computed and exhaustive (§ 3); what changes is what the smoke gate
+may conclude, one new gate, and one census the lockfile now yields.
+
+**7.1 Two classes of smoke skip.** A generated-scenario skip whose reason is
+covered by the Op's own permanent test (a dormant regeneration shield, an Op
+that suspends for a Pay/Skip decision, an untap the generator already seeds
+untapped) no longer quarantines the card — it is the per-Op regime of ADR 0045
+applied to a Compiled Definition exactly as to a hand-written one. A skip that
+is card-dependent (`$source` targeting, a zone or object the generator does not
+model, an amount announced at cast time) quarantines the card until the form
+that produced the clause has a golden fixture (ADR 0137) — which is computed,
+because the Grammar Rule that emitted the clause carries its fixtures. Measured
+before the amendment: 711 of 823 quarantined cards were smoke skips, 395 of
+them the `$source` class.
+
+**7.2 Bot-play sweep.** Every card that reaches `ready` is played by the Bot at
+both seats in its generated scenario — deterministic, fixed iterations — and
+the lockfile records `botReach`: `played`, `ignored` (never chosen while
+affordable, neutral valuation) or `frozen` (no legal move, or an expected
+input the driver cannot answer). `frozen` is a new computed quarantine reason,
+`bot-unreachable`; `ignored` does not withhold the card. Reasons aggregate by
+form into Bot Gaps, ranked like Grammar Gaps. The sweep runs in
+`oracle:compile`, incrementally (cache keyed by definition hash and Bot
+hash) — never in `check:pr` or `land`.
+
+**7.3 Derived Op census.** An Op of the Mechanics Registry is grammar-covered
+when at least one Compiled Definition — `ready` or `quarantine`, since
+quarantine is a trust gate on the card, not on the grammar — emits it. An
+implemented Op that no definition emits must have a row in the Grammar Gap
+allowlist naming its issue; the allowlist can only shrink, and a new Op never
+enters it. Presence is checked offline by `check:gaps`, which runs in
+`health` (per batch of landings and before a release), not in the PR gate;
+liveness of the issues is the network sweep's, as for Guard B.
+
 ## Consequences
 
 - Grammar v0 covers vanilla cards, keyword lines and mana abilities: **1,127
