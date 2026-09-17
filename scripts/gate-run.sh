@@ -111,6 +111,9 @@ RC="$RUN_DIR/rc"
 PIDF="$RUN_DIR/pid"
 PIDSTART="$RUN_DIR/pidstart"
 HEAD_F="$RUN_DIR/head"
+BASE_F="$RUN_DIR/base"
+CMD_F="$RUN_DIR/command"
+GREEN_F="$RUN_DIR/green"
 STARTF="$RUN_DIR/started"
 LOCK="$RUN_DIR/.lock"
 
@@ -149,6 +152,17 @@ pid_ident() {
 
 git_head() {
     git rev-parse HEAD 2>/dev/null || echo ""
+}
+
+# The base tip the gate ran against: `origin/<base>`, the base branch named in
+# `tolaria.config.json` (read with jq, the way `deny-guard.sh` reads it — no
+# branch literal lives here). Empty when there is no repo, no config or no such
+# ref, and an empty base can never match anything `land` compares it with.
+git_base() {
+    _cfg="$(git rev-parse --show-toplevel 2>/dev/null || echo .)/tolaria.config.json"
+    _branch=$(jq -r '.branches.base // empty' "$_cfg" 2>/dev/null || true)
+    [ -n "$_branch" ] || { echo ""; return 0; }
+    git rev-parse --verify --quiet "origin/$_branch" 2>/dev/null || echo ""
 }
 
 # The attach-or-start decision is the one critical section: two concurrent
@@ -216,10 +230,18 @@ elif [ -f "$RC" ] &&
 fi
 
 if [ "$attached" -eq 0 ] && [ "$finished" -eq 0 ]; then
-    rm -f "$RC" "$PIDF" "$PIDSTART"
+    rm -f "$RC" "$PIDF" "$PIDSTART" "$GREEN_F"
     : >"$LOG"
     date +%s >"$STARTF"
     git_head >"$HEAD_F"
+    # (head, base, command, green) is the record `land` reads to skip a lane it
+    # would pay a second time on the same tree (ADR 0136 §2): the rebased tip
+    # equal to `head`, the base tip equal to `base`, `command` exactly
+    # `check:lane`, and `green` present. `green` is removed above BEFORE
+    # `head`/`base` are rewritten, so a half-written record never reads as a
+    # green run of the new tree.
+    git_base >"$BASE_F"
+    printf '%s\n' "$*" >"$CMD_F"
     # `set -m` puts the background job in its OWN process group, so a
     # group-directed signal aimed at the dying pass does not reach the gate;
     # `trap '' HUP` covers the hangup that reaches it anyway. Together they are
@@ -243,7 +265,12 @@ if [ "$attached" -eq 0 ] && [ "$finished" -eq 0 ]; then
         # (PR #3707).
         unset TOLARIA_GATE_RUN_KEY
         bun run "$@" >"$LOG" 2>&1
-        echo $? >"$RC"
+        _rc=$?
+        # `green` outlives the `rc` file on purpose: `rc` is cleared the moment
+        # a caller reads the verdict, `green` stays until the next run of the
+        # same command in the same place starts — it is what `land` reads.
+        [ "$_rc" -ne 0 ] || : >"$GREEN_F"
+        echo "$_rc" >"$RC"
     ) </dev/null >/dev/null 2>&1 &
     _pid=$!
     set +m 2>/dev/null || true

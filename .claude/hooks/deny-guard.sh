@@ -556,19 +556,19 @@ fi
 # <<<GATE-RULE>>>
 # RUNNING A GATE. A gate never runs detached from the call that must read its
 # verdict: not `run_in_background` (the notification never arrives — under
-# `claude -p` the end of a turn is the end of the process), and not piped into
-# a pager (the exit code becomes the pager's). A gate that can outlive the Bash
-# tool's cap — every pre-PR gate, which queues behind the machine-wide gate
-# mutex — runs through `bun run gate:run <script>` instead, issued with the
-# tool's `timeout` set to its 600000ms MAXIMUM, because the 120000ms DEFAULT is
-# shorter than the wait this script does: each call blocks in the FOREGROUND for
-# at most 480s and then either returns the gate's real exit code or exits 75,
-# "still running"; re-running the IDENTICAL command re-attaches to the same run
-# and never starts a second gate. Re-run it until an exit code comes back. This
-# rule is the same attended and unattended — the only difference is the cost of
-# breaking it: an attended session that lets a gate be promoted to the background
-# sees the promotion and can re-attach by hand, a driven pass dies with the turn
-# and takes the gate's verdict with it.
+# `claude -p` the end of a turn is the end of the process), and not piped into a
+# pager (the exit code becomes the pager's). A gate that can outlive the Bash
+# tool's cap — `land`, and any lane gate run by hand, both of which queue behind
+# the machine-wide gate mutex — runs through `bun run gate:run <script>`
+# instead, issued with the tool's `timeout` set to its 600000ms MAXIMUM, because
+# the 120000ms DEFAULT is shorter than the wait this script does: each call
+# blocks in the FOREGROUND for at most 480s and then either returns the gate's
+# real exit code or exits 75, "still running"; re-running the IDENTICAL command
+# re-attaches to the same run and never starts a second gate. Re-run it until an
+# exit code comes back. This rule is the same attended and unattended — the only
+# difference is the cost of breaking it: an attended session that lets a gate be
+# promoted to the background sees the promotion and can re-attach by hand, a
+# driven pass dies with the turn and takes the gate's verdict with it.
 # <<<END GATE-RULE>>>
 #
 # **Reuses §3's own predicate — not a second notion of what a gate is.**

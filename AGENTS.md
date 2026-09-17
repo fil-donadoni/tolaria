@@ -254,19 +254,18 @@ Rationale, lane contents and measurements: `docs/agents/quality-gates.md`.
 | When      | Run                                                                                                                          |
 | --------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | Iterating | targeted only — `bunx vitest run <path>`. Formatting is automatic.                                                           |
-| Pre-PR    | `bunx vitest run <paths touched>` + **`bun run check:lane`** (falls back to `check:pr` verbatim)                             |
+| Pre-PR    | `bunx vitest run <paths touched>` + review — **no lane gate** (ADR 0136)                                                     |
 | Merge     | `bun run land <PR#>` — rebase onto the base branch + **`check:lane`** under the machine mutex, merge into it (ADR 0110/0116) |
 | Release   | **`bun run release`** — full gate (`check:all` + 3 suites) on the base tip, then fast-forward the release branch (ADR 0116)  |
 
-- **`bun run check:lane` is the default pre-PR path** (#2738/#2741/#2743). It
-  classifies the diff into `skin` (`src/**` only) / `engine` (`convex/**`,
-  `scripts/**`, `data/**`) / `docs` (markdown under `docs/**`, a root `.md`
-  or a nested `CLAUDE.md`/`AGENTS.md`, delegating to `check:docs` verbatim) /
-  `full`, and runs exactly that lane's checks. Prose beside code keeps the
-  code's lane plus `node[docs]` (ADR 0136 §3). On anything it cannot
-  affirmatively place — `src/**` mixed with `convex/**`, `package.json`, a
-  lockfile, `.claude/**`, an unrecognised path — it degrades to `check:pr`
-  **verbatim**, so the fallback can never rot.
+- **`check:lane` is paid ONCE, by `land`, on the rebased tip** (ADR 0136;
+  skipped when that tip and base were already gated green). It classifies the
+  diff into `skin` (`src/**` only) / `engine` (`convex/**`, `scripts/**`,
+  `data/**`) / `cards` / `docs` (prose only, `check:docs` verbatim) / `full`,
+  and runs exactly that lane's checks. Prose beside code keeps the code's lane
+  plus `node[docs]`. On anything it cannot affirmatively place — `src/**`
+  mixed with `convex/**`, `package.json`, a lockfile, `.claude/**` — it
+  degrades to `check:pr` **verbatim**, so the fallback can never rot.
   **No lane ever scopes a project's tests to the diff**: the diff decides
   whether a project runs at all, never a diff-derived slice of it (ADR 0104,
   derivation in `docs/agents/quality-gates.md`).
@@ -309,8 +308,8 @@ measurements: `docs/agents/quality-gates.md` § Worktree isolation.
 
 **Branches are configuration** (ADR 0116): `tolaria.config.json` names the
 **base** branch (PRs target it, `land` merges into it) and the **release**
-branch (production). Only `scripts/lib/branches.ts` and `deny-guard.sh` read
-it; an `origin/<name>` literal anywhere else reds `branches.test.ts`.
+branch (production). Only `lib/branches.ts`, `deny-guard.sh`, `gate-run.sh`
+read it; an `origin/<name>` literal elsewhere reds `branches.test.ts`.
 
 **Merging goes through `bun run land <PR#>`, from anywhere** (#2537). The gate
 mutex serialises gating; `land` extends it across rebase → `check:lane` →

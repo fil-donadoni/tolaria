@@ -85,7 +85,6 @@ describe("the gate rule is ONE rule (#3698)", () => {
         // A rule stated and then contradicted two sections later by the
         // command the session actually copies is not a rule.
         const skill = fs.readFileSync(SKILL, "utf8");
-        expect(skill).toMatch(/bun run gate:run check:lane/);
         expect(skill).toMatch(/bun run gate:run land <PR#>/);
         // The hygiene section's own "start it with `run_in_background`" line
         // is what a pass read before it backgrounded its gate. It survives —
