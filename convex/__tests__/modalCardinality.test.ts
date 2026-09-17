@@ -17,7 +17,10 @@ import { hullBreach } from "../cards/sets/pls/multicolor";
 import { grizzlyBears, plains } from "../cards/sets/lea";
 import { fork, hillGiant } from "../cards/sets/lea/red";
 import { prodigalSorcerer } from "../cards/sets/lea/blue";
-import { withTemporaryDefinitionAsync } from "../cards";
+import {
+    withTemporaryDefinition,
+    withTemporaryDefinitionAsync,
+} from "../cards";
 import type { CardDefinition, ModeSelection, SpellMode } from "../cards/types";
 import { announceCast, selectTargets } from "../game";
 import {
@@ -444,6 +447,39 @@ describe("copies (CR 700.2g)", () => {
                 );
             }
         );
+    });
+});
+
+describe("the permanent domain (CR 700.2, ADR 0094)", () => {
+    it("a resolving modal permanent spell stores its first announced mode as chosenModeId", () => {
+        const modalBears: CardDefinition = {
+            ...grizzlyBears,
+            modes: [
+                { id: "x", label: "x", oracleText: "x" },
+                { id: "y", label: "y", oracleText: "y" },
+            ],
+        };
+        withTemporaryDefinition(modalBears, () => {
+            const state = board({});
+            state.stack.push({
+                ...makeInstance(grizzlyBears.id, {
+                    id: "modal-bears",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    zone: "stack",
+                }),
+                castById: "p1",
+                chosenModeIds: ["y"],
+            });
+            resolveTopOfStack(state);
+            const entered = state.players[0].battlefield.find(
+                (c) => c.id === "modal-bears"
+            )!;
+            expect(entered.chosenModeId).toBe("y");
+            expect(
+                (entered as { chosenModeIds?: string[] }).chosenModeIds
+            ).toBeUndefined();
+        });
     });
 });
 
