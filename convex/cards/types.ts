@@ -9611,7 +9611,8 @@ export type StaticEffect =
      *  Effects Registry covers (ADR 0082 decision 2). Only these may declare
      *  {@link SourceDepartureLinger}: a lingering effect is a stored registry
      *  entry, and a kind the registry does not carry has nothing to linger AS. */
-    (| ((
+    (
+        | ((
               | StaticPTBuff
               | StaticPTCDA
               | StaticPTSet
