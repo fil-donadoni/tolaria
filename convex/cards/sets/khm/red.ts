@@ -18,6 +18,7 @@ import { EFFECT_TREASURE_TOKEN } from "../../sharedTokens";
 //   library search on the cross-dimension `EffectCardFilter.any` (issue #897).
 //   CR 701.23b: finding nothing is legal, so the pick is `{ min: 0, max: 1 }`
 //   and the shuffle happens regardless.
+// compiler-gap: "Other Dwarves you control get +1/+0." (#2693)
 export const magdaBrazenOutlaw: CardDefinition = {
     id: "079e6263-e54c-4899-a336-5315909b9322",
     name: "Magda, Brazen Outlaw",
