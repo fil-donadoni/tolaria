@@ -79,9 +79,12 @@
  * this was decided.
  *
  * Shape of the committed file: one entry per line, sorted by id then line,
- * fixed key order, no header hash or tally — so two branches confirming two
- * different citations touch disjoint lines and git merges them (the
- * `generated-artifacts.ts` discriminator: no whole-file state).
+ * fixed key order, no header hash or tally — so a confirmation is ONE changed
+ * line in review (the `generated-artifacts.ts` discriminator: no whole-file
+ * state, hence nothing to regenerate). That shape was also read as immunity to
+ * conflicts, and it is not: rows sort by id, so two branches confirming two
+ * different citations under the SAME id land in the same hunk. That is what
+ * {@link mergeLedgers} and the `merge=cr-ledger` driver resolve (issue #3768).
  */
 import { printedRule, ruleHash, type Rule } from "./cr-rules.ts";
 
@@ -271,8 +274,9 @@ export function parseLedger(text: string): Ledger {
 
 /**
  * Deterministic serializer: one entry per line, sorted by id then line, fixed
- * key order — so a confirmation is one changed line in review and two
- * branches confirming different citations merge without a conflict.
+ * key order — so a confirmation is one changed line in review, and so the
+ * `merge=cr-ledger` driver can write a merged entry set here and get bytes
+ * indistinguishable from the ones `cr:ledger` itself would commit.
  */
 export function serializeLedger(ledger: Ledger): string {
     const rows = [...ledger.entries]
