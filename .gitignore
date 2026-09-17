@@ -25,6 +25,10 @@ dist-ssr
 
 convex/_generated
 *.tsbuildinfo
+# eslint's DEFAULT cache location. `lint` pins the cache under
+# `node_modules/.cache/` (issue #3776, already ignored with node_modules); this
+# keeps a bare `eslint --cache` from leaving a stray file at the root.
+.eslintcache
 
 .ralph/logs/
 

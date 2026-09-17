@@ -364,6 +364,21 @@ cache is the larger saving, and it lands only where the whole-tree
 `format:check` runs (`check:pr`, `check:all`, `check:docs`); the lanes'
 diff-scoped `format(diff)` was already small.
 
+`lint` passes eslint's `--cache --cache-strategy content`, with the cache
+pinned to the FILE `node_modules/.cache/eslint.json` (a directory location
+makes eslint name the file after a hash of the cwd, unreachable from any other
+worktree). Unlike prettier's, this cache and tsc's `node_modules/.tmp/
+*.tsbuildinfo` do NOT stay cold per worktree: `bun run worktree:init` seeds
+both from the primary checkout (issue #3776, ADR 0136 §9,
+`scripts/lib/worktree-seed.ts`). Both validate by content, so a stale seed is
+safe — tsc stores paths relative to the buildinfo file and re-checks only the
+files whose hash moved; eslint keys by absolute path, so the seed rewrites the
+primary's prefix to the worktree's. Measured 2026-09-17 in a fresh worktree:
+`tsc -b --noEmit` 113.8s cold (load 12.3) → 66.0s seeded with a week-old
+primary file (load 15.7) → 0.2s warm; `eslint .` 77.2s cold (load 19.0) →
+2.3s seeded (load 14.4). Prettier's cache was tried the same way and gained
+nothing (46.8s seeded vs 46.4s cold), so it is not seeded.
+
 ## Why the suites are three separate invocations
 
 `bun run test` = `test:app` (everything not `*.bot.test.ts`, ~580 files) →

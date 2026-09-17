@@ -29,12 +29,20 @@
  * Run: bun run worktree:init        (safe to re-run; only fills what's missing)
  *      bun run worktree:init --force  (re-copy even if present)
  *
- * Zero imports beyond node builtins ON PURPOSE — it must run in a worktree that
- * has no node_modules yet.
+ * It also seeds the per-tree build caches — `node_modules/.tmp/*.tsbuildinfo`
+ * and the eslint result cache — from the primary checkout (issue #3776, ADR
+ * 0136 §9), so the first `check:ts` and `lint` in this tree are incremental
+ * instead of cold. Both validate by content, so a stale seed is safe; the
+ * mechanism and the measurements live in `scripts/lib/worktree-seed.ts`.
+ *
+ * Zero imports beyond node builtins ON PURPOSE (transitively — the one repo
+ * module it imports is builtins-only too, and the test pins both) — it must
+ * run in a worktree that has no node_modules yet.
  */
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { seedWorktreeCaches } from "./lib/worktree-seed";
 
 const force = process.argv.includes("--force");
 const cwd = process.cwd();
@@ -135,6 +143,21 @@ if (!existsSync(join(cwd, "node_modules")) || force) {
     else failed.push("bun install");
 } else {
     skipped.push("node_modules (present)");
+}
+
+// ── build caches seeded from the primary (issue #3776) ──────────────────────
+// After deps on purpose: `bun install` owns `node_modules/`, and the caches
+// live under it. A cache is an optimisation, never an input — a missing or
+// unusable source is a skip, and so is anything unexpected: this step cannot
+// fail the bootstrap.
+if (primary) {
+    try {
+        const seeded = seedWorktreeCaches({ primary, cwd, force });
+        done.push(...seeded.done);
+        skipped.push(...seeded.skipped);
+    } catch (err) {
+        skipped.push(`build caches (seed failed — cold run: ${String(err)})`);
+    }
 }
 
 // ── git hooks ───────────────────────────────────────────────────────────────

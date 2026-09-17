@@ -3,6 +3,11 @@ import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import {
+    ESLINT_CACHE_FILE,
+    TSBUILDINFO_DIR,
+    seedWorktreeCaches,
+} from "../lib/worktree-seed";
 
 /**
  * Guards for the "a fresh worktree is not runnable" failure class.
@@ -33,18 +38,44 @@ describe("worktree bootstrap wiring", () => {
         );
     });
 
-    it("bootstrap script imports node builtins only", () => {
+    it("bootstrap script imports node builtins only, transitively", () => {
         // It runs in a worktree that has no node_modules yet — a single
-        // third-party import would make it unable to do its own job.
-        const src = fs.readFileSync(
-            path.join(REPO_ROOT, "scripts", "bootstrap-worktree.ts"),
-            "utf8"
+        // third-party import would make it unable to do its own job. A
+        // RELATIVE import is allowed (bun resolves it without node_modules)
+        // and is followed: the module it names is held to the same rule.
+        // The `from` clause is optional in the pattern: a bare side-effect
+        // `import "x";` loads x all the same, and the previous pattern let
+        // one through (seen red-less under proof-of-failure, issue #3776).
+        // The clause may span lines (a wrapped `{ a, b }`) but never a `;`:
+        // a `[\s\S]*?` there backtracked across a bare import's terminator
+        // and reported only the NEXT statement's specifier (PR #3790 review).
+        const importsOf = (file: string): string[] =>
+            [
+                ...fs
+                    .readFileSync(file, "utf8")
+                    .matchAll(/^import (?:[^;]*? from )?"([^"]+)";$/gm),
+            ].map((m) => m[1]);
+        const seen = new Set<string>();
+        const walk = (file: string) => {
+            if (seen.has(file)) return;
+            seen.add(file);
+            const imports = importsOf(file);
+            expect(imports.length, file).toBeGreaterThan(0);
+            for (const spec of imports) {
+                if (spec.startsWith(".")) {
+                    const target = path.resolve(path.dirname(file), spec);
+                    walk(fs.existsSync(target) ? target : `${target}.ts`);
+                } else {
+                    expect(spec, `${file} imports ${spec}`).toMatch(/^node:/);
+                }
+            }
+        };
+        walk(path.join(REPO_ROOT, "scripts", "bootstrap-worktree.ts"));
+        // The seed helper is the one relative import today; the walk must
+        // have reached it, or the transitive rule guards nothing.
+        expect([...seen]).toContain(
+            path.join(REPO_ROOT, "scripts", "lib", "worktree-seed.ts")
         );
-        const imports = [...src.matchAll(/^import .* from "(.+)";$/gm)].map(
-            (m) => m[1]
-        );
-        expect(imports.length).toBeGreaterThan(0);
-        for (const spec of imports) expect(spec).toMatch(/^node:/);
     });
 });
 
@@ -475,5 +506,176 @@ describe("light pre-PR gate", () => {
         expect(scripts["check:guards"]).toMatch(
             /vitest run --project node --project dom(?:\s*&&|\s*"?$)/
         );
+    });
+});
+
+describe("build-cache seeding (issue #3776, ADR 0136 §9)", () => {
+    // `tsc -b --noEmit` measured 56s over 365 runs a fortnight (5.7h) and
+    // `eslint .` 69s over 42 runs, and all of it was the cold start: both
+    // caches are gitignored and every worktree begins without them. The
+    // bootstrap now seeds them from the primary. Both validate by content,
+    // so a stale seed is safe; these cases pin the seeding itself.
+    let tmp: string;
+    let primary: string;
+    let cwd: string;
+
+    const write = (root: string, rel: string, content: string) => {
+        const file = path.join(root, rel);
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file, content);
+    };
+
+    beforeEach(() => {
+        tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tolaria-seed-"));
+        primary = path.join(tmp, "tolaria");
+        cwd = path.join(tmp, "tolaria-issue-1");
+        fs.mkdirSync(primary);
+        fs.mkdirSync(cwd);
+    });
+
+    afterAll(() => {
+        fs.rmSync(tmp, { recursive: true, force: true });
+    });
+
+    it("copies every tsbuildinfo the primary has and names each one in the receipt", () => {
+        write(primary, `${TSBUILDINFO_DIR}/tsconfig.app.tsbuildinfo`, "app");
+        write(primary, `${TSBUILDINFO_DIR}/tsconfig.convex.tsbuildinfo`, "cvx");
+        write(primary, `${TSBUILDINFO_DIR}/unrelated.txt`, "no");
+
+        const r = seedWorktreeCaches({ primary, cwd });
+
+        expect(r.done).toContain(
+            "tsbuildinfo seed (2 files from primary: tsconfig.app.tsbuildinfo, tsconfig.convex.tsbuildinfo)"
+        );
+        expect(
+            fs.readFileSync(
+                path.join(cwd, TSBUILDINFO_DIR, "tsconfig.app.tsbuildinfo"),
+                "utf8"
+            )
+        ).toBe("app");
+        expect(
+            fs.existsSync(path.join(cwd, TSBUILDINFO_DIR, "unrelated.txt"))
+        ).toBe(false);
+    });
+
+    it("skips cleanly when the primary has none — nothing created, nothing thrown", () => {
+        const r = seedWorktreeCaches({ primary, cwd });
+
+        expect(r.done).toEqual([]);
+        expect(r.skipped).toEqual([
+            "tsbuildinfo seed (primary has none — cold type-check)",
+            "eslint cache (primary has none — cold run)",
+        ]);
+        expect(fs.existsSync(path.join(cwd, "node_modules"))).toBe(false);
+    });
+
+    it("rewrites the eslint cache's absolute keys from the primary's path to this worktree's", () => {
+        // file-entry-cache keys every entry by ABSOLUTE path (and repeats it
+        // in the cached result's `filePath`), so a byte copy could never hit.
+        // The trailing separator is what keeps `…/tolaria/` from matching
+        // inside a sibling `…/tolaria-issue-9/`.
+        const foreign = `${tmp}/tolaria-issue-9/src/z.ts`;
+        write(
+            primary,
+            ESLINT_CACHE_FILE,
+            JSON.stringify([
+                { [`${primary}/src/a.ts`]: "1", [foreign]: "2" },
+                {
+                    "1": {
+                        meta: { results: { filePath: `${primary}/src/a.ts` } },
+                    },
+                    "2": { meta: { results: { filePath: foreign } } },
+                },
+            ])
+        );
+
+        const r = seedWorktreeCaches({ primary, cwd });
+
+        expect(r.done).toContain(
+            "eslint cache (seeded from primary, 2 paths rewritten)"
+        );
+        const seeded = JSON.parse(
+            fs.readFileSync(path.join(cwd, ESLINT_CACHE_FILE), "utf8")
+        );
+        expect(Object.keys(seeded[0])).toEqual([`${cwd}/src/a.ts`, foreign]);
+        expect(seeded[1]["1"].meta.results.filePath).toBe(`${cwd}/src/a.ts`);
+        expect(seeded[1]["2"].meta.results.filePath).toBe(foreign);
+    });
+
+    it("keeps the JSON valid when a checkout path needs escaping", () => {
+        // Rewriting inside the JSON TEXT means the prefixes must be matched
+        // in their escaped form — a quote in a directory name is the cheapest
+        // way to make the naive (unescaped) replace miss and leave a cold
+        // cache behind, and it would be silent.
+        const quoted = path.join(tmp, 'pri"mary');
+        fs.mkdirSync(quoted);
+        write(
+            quoted,
+            ESLINT_CACHE_FILE,
+            JSON.stringify([{ [`${quoted}/src/a.ts`]: "1" }, {}])
+        );
+
+        const r = seedWorktreeCaches({ primary: quoted, cwd });
+
+        expect(r.done).toContain(
+            "eslint cache (seeded from primary, 1 paths rewritten)"
+        );
+        const seeded = JSON.parse(
+            fs.readFileSync(path.join(cwd, ESLINT_CACHE_FILE), "utf8")
+        );
+        expect(Object.keys(seeded[0])).toEqual([`${cwd}/src/a.ts`]);
+    });
+
+    it("leaves a present cache alone unless forced", () => {
+        write(primary, `${TSBUILDINFO_DIR}/tsconfig.app.tsbuildinfo`, "new");
+        write(primary, ESLINT_CACHE_FILE, "[{},{}]");
+        write(cwd, `${TSBUILDINFO_DIR}/tsconfig.app.tsbuildinfo`, "mine");
+        write(cwd, ESLINT_CACHE_FILE, "[{},{}]");
+
+        const r = seedWorktreeCaches({ primary, cwd });
+        expect(r.done).toEqual([]);
+        expect(r.skipped).toEqual([
+            "tsbuildinfo seed (1 present: tsconfig.app.tsbuildinfo)",
+            "eslint cache (present)",
+        ]);
+        expect(
+            fs.readFileSync(
+                path.join(cwd, TSBUILDINFO_DIR, "tsconfig.app.tsbuildinfo"),
+                "utf8"
+            )
+        ).toBe("mine");
+
+        const forced = seedWorktreeCaches({ primary, cwd, force: true });
+        expect(forced.done).toHaveLength(2);
+        expect(
+            fs.readFileSync(
+                path.join(cwd, TSBUILDINFO_DIR, "tsconfig.app.tsbuildinfo"),
+                "utf8"
+            )
+        ).toBe("new");
+    });
+
+    it("`lint` writes the cache where the seed reads it, keyed by CONTENT, and never repairs", () => {
+        // `metadata` (eslint's default strategy) keys on mtime+size: a fresh
+        // checkout's mtimes differ from the primary's on every file, so the
+        // seed would miss on all of them and look like it worked.
+        const scripts = readPkg().scripts;
+        const flags = `--cache --cache-location ${ESLINT_CACHE_FILE} --cache-strategy content`;
+        expect(scripts.lint).toBe(`eslint . ${flags}`);
+        expect(scripts["lint:fix"]).toBe(`eslint . --fix ${flags}`);
+        // check:all VERIFIES, it does not repair (#1807): the inner script
+        // runs `lint`, and `lint` carries no `--fix`.
+        expect(scripts["check:all:inner"]).toMatch(/&& bun run lint &&/);
+        expect(scripts.lint).not.toContain("--fix");
+    });
+
+    it("the eslint cache location is gitignored, and so is eslint's default one", () => {
+        for (const file of [ESLINT_CACHE_FILE, ".eslintcache"]) {
+            const r = spawnSync("git", ["check-ignore", "-q", file], {
+                cwd: REPO_ROOT,
+                encoding: "utf8",
+            });
+            expect(r.status, `${file} is not gitignored`).toBe(0);
+        }
     });
 });
