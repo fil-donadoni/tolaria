@@ -24,8 +24,8 @@ import {
     buildPlanRecord,
     planFilename,
     admitPick,
-    heldClaims,
     liveClaims,
+    releasedClaims,
     type AdmissionInput,
     type BatchPlan,
     type BoardPriority,
@@ -2153,72 +2153,73 @@ describe("admission — release health RED (ADR 0136 §6, issue #3775)", () => {
 });
 
 describe("admission — live claims are the RECONCILIATION (issue #3775)", () => {
-    it("counts only issues the ledger holds AND the tracker still labels", () => {
-        expect(liveClaims([10, 20, 30], [20, 30, 40])).toEqual([20, 30]);
+    it("counts the open in-progress labels, minus what the ledger gave back", () => {
+        expect(liveClaims([10, 20, 30], [20])).toEqual([10, 30]);
     });
 
-    it("drops a ledger row whose label is gone — a released claim holds no slot", () => {
-        expect(liveClaims([10], [])).toEqual([]);
+    it("counts a label the ledger never mentions — the journal is best-effort, the cap is not", () => {
+        // The direction a first cut had backwards: intersecting the two made
+        // the cap fail open to ZERO whenever the journal could not be read,
+        // and a live queue with four claims on it planned a fifth pick
+        // without a word.
+        expect(liveClaims([10, 20, 30], [])).toEqual([10, 20, 30]);
     });
 
-    it("drops an orphan label with no ledger row — three of those would wedge the queue", () => {
-        expect(liveClaims([], [10, 20, 30])).toEqual([]);
+    it("drops a released claim whose label outlived it — nobody is doing that work", () => {
+        expect(liveClaims([10], [10])).toEqual([]);
     });
 
     it("is sorted and deduplicated, so the refusal message is reproducible", () => {
-        expect(liveClaims([30, 10, 10, 20], [10, 20, 30])).toEqual([
-            10, 20, 30,
-        ]);
+        expect(liveClaims([30, 10, 10, 20], [])).toEqual([10, 20, 30]);
     });
 });
 
 describe("admission — the claim journal fold (issue #3775)", () => {
-    const row = (issue: number, event: string, extra = "") =>
-        `{"ts":1,"session":"s","issue":${issue},"event":"${event}"${extra}}`;
+    const row = (issue: number, event: string) =>
+        `{"ts":1,"session":"s","issue":${issue},"event":"${event}"}`;
 
-    it("holds a claimed issue and gives back a released one — last row wins", () => {
+    it("reports a released issue and not a claimed one — last row wins", () => {
         const ledger = [
             row(10, "claim"),
             row(20, "claim"),
             row(10, "released"),
             row(30, "claim"),
         ].join("\n");
-        expect(heldClaims(ledger)).toEqual([20, 30]);
+        expect(releasedClaims(ledger)).toEqual([10]);
     });
 
-    it("re-claiming after a release holds it again", () => {
+    it("re-claiming after a release takes it back", () => {
         expect(
-            heldClaims(
+            releasedClaims(
                 [row(10, "claim"), row(10, "released"), row(10, "claim")].join(
                     "\n"
                 )
             )
-        ).toEqual([10]);
+        ).toEqual([]);
     });
 
-    it("counts a row with no owner — unlike parseClaimOwners, which asks a different question", () => {
+    it("an ownerless claim row still holds — unlike parseClaimOwners, which asks a different question", () => {
         // `loop-doctor.ts`'s fold drops ownerless rows because it answers
         // "WHO owns this"; every row written before #2627 is ownerless, and
-        // dropping those here would under-count the cap by exactly the claims
-        // an older session took.
-        expect(heldClaims(row(10, "claim"))).toEqual([10]);
+        // treating those as released here would hand the cap free slots.
+        expect(releasedClaims(row(10, "claim"))).toEqual([]);
     });
 
-    it("skips a torn line rather than refusing to count", () => {
+    it("skips a torn line rather than misreading the rest", () => {
         // The journal is appended to by a shell hook under `2>/dev/null`, so
         // a half-written last line is a normal thing to find.
-        const ledger = `${row(10, "claim")}\n{"issue":20,"event":"cl`;
-        expect(heldClaims(ledger)).toEqual([10]);
+        const ledger = `${row(10, "released")}\n{"issue":20,"event":"rel`;
+        expect(releasedClaims(ledger)).toEqual([10]);
     });
 
     it("ignores a row with no issue number", () => {
-        expect(heldClaims('{"event":"claim"}\n' + row(10, "claim"))).toEqual([
-            10,
-        ]);
+        expect(
+            releasedClaims('{"event":"released"}\n' + row(10, "released"))
+        ).toEqual([10]);
     });
 
-    it("reads an empty journal as no claims", () => {
-        expect(heldClaims("")).toEqual([]);
+    it("reads an empty journal as nothing released", () => {
+        expect(releasedClaims("")).toEqual([]);
     });
 });
 

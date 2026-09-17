@@ -950,50 +950,56 @@ export interface HealthMarker {
 }
 
 /**
- * Live claims: the claims record reconciled against the open `in-progress`
- * issues, i.e. the INTERSECTION of the two.
+ * Live claims: the open `in-progress` issues the planner did not already
+ * classify as stale, reconciled against the claims record.
  *
- * Both directions of the reconciliation are load-bearing, and both are
- * failures this repo has already paid for:
+ * The LABEL is the count and the ledger only subtracts from it. That
+ * direction is the whole design, and it is the one a first cut got backwards:
+ * counting the INTERSECTION made the cap fail open to zero the moment the
+ * journal could not be found, and a live queue with four claims on it planned
+ * a fifth pick without a word. A throughput knob that silently never fires is
+ * indistinguishable from one that was never built.
  *
- *   * a ledger row whose label is gone was released by some other path
- *     (`claim-sweep.sh`, `loop:doctor`, a human) — counting it would let a
- *     finished pass hold a slot forever;
- *   * an `in-progress` label with no ledger row is an ORPHAN — the class
- *     `loop:doctor` exists to reclaim (eight claims, four of them P0, sat
- *     for days) — and counting those would let three stale labels wedge the
- *     queue shut with no session running at all.
+ * So:
  *
- * Fail-open is deliberate in one direction: with no ledger at all (a fresh
- * checkout, a machine whose hooks never ran) this returns nothing and the cap
- * never refuses. A cap is a throughput tuning knob, not a safety — the thing
- * it protects is PR/h, and the cost of it failing open is a slow hour, while
- * the cost of it failing closed is a checkout that can never pick an issue.
+ *   * an `in-progress` label with no ledger row at all COUNTS — the ledger is
+ *     per-machine and best-effort (a shell hook under `2>/dev/null`), while
+ *     the cap is a property of the repository's throughput, measured in PR/h
+ *     by ACTIVE SESSIONS wherever they run;
+ *   * an issue whose last ledger row is `released` does NOT count — the label
+ *     outliving the release is exactly the orphan window `claim-sweep.sh` and
+ *     `loop:doctor` close, and holding a slot for it would wedge the queue on
+ *     work nobody is doing;
+ *   * a claim the planner reports as STALE is excluded by the caller before it
+ *     gets here (`BatchPlan.staleClaims` — no open PR and untouched past
+ *     `staleClaimHours`), for the same reason.
  *
  * Sorted ascending so a refusal message is reproducible.
  */
-export function liveClaims(held: number[], inProgress: number[]): number[] {
-    const open = new Set(inProgress);
-    return [...new Set(held)].filter((n) => open.has(n)).sort((a, b) => a - b);
+export function liveClaims(inProgress: number[], released: number[]): number[] {
+    const gone = new Set(released);
+    return [...new Set(inProgress)]
+        .filter((n) => !gone.has(n))
+        .sort((a, b) => a - b);
 }
 
 /**
- * Fold the claim journal (`.claude/telemetry/claims.jsonl`) into the issues it
- * says are STILL HELD. Last row per issue wins: a `claim` row takes it, any
- * other event (`released`) gives it back.
+ * Fold the claim journal (`.claude/telemetry/claims.jsonl`) into the issues
+ * whose LAST row gave the claim back. Last row per issue wins: a `claim` row
+ * takes it, any other event (`released`) returns it.
  *
  * Pure over the file's text, and deliberately NOT `loop-doctor.ts`'s
  * `parseClaimOwners`: that fold answers "WHO owns this claim" and therefore
  * drops every row written before owners were recorded (#2627). Here a row with
- * no owner is still a claim, and dropping it would under-count the cap by
- * exactly the rows an older session wrote.
+ * no owner is a perfectly good claim, and an issue the journal never mentions
+ * is not released — it is simply unknown, which `liveClaims` counts.
  *
  * Malformed lines are skipped rather than thrown on — a shell hook appends to
  * this journal under `2>/dev/null`, so a torn last line is a normal thing to
- * find and refusing to count because of one is worse than ignoring it.
+ * find and refusing to read the rest because of one is worse than ignoring it.
  */
-export function heldClaims(ledgerText: string): number[] {
-    const held = new Set<number>();
+export function releasedClaims(ledgerText: string): number[] {
+    const released = new Set<number>();
     for (const line of ledgerText.split("\n")) {
         if (line.trim() === "") continue;
         let row: { issue?: unknown; event?: unknown };
@@ -1003,10 +1009,10 @@ export function heldClaims(ledgerText: string): number[] {
             continue;
         }
         if (typeof row.issue !== "number") continue;
-        if (row.event === "claim") held.add(row.issue);
-        else held.delete(row.issue);
+        if (row.event === "claim") released.delete(row.issue);
+        else released.add(row.issue);
     }
-    return [...held].sort((a, b) => a - b);
+    return [...released].sort((a, b) => a - b);
 }
 
 export interface AdmissionInput {

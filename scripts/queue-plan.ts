@@ -51,8 +51,8 @@ import {
 import {
     admitPick,
     buildPlanRecord,
-    heldClaims,
     liveClaims,
+    releasedClaims,
     planBatch,
     planFilename,
     type BoardPriority,
@@ -586,20 +586,26 @@ export function readHealthMarker(root: string): HealthMarker | null {
 }
 
 /**
- * The claim journal's still-held issues.
+ * The claim journal's RELEASED issues — what `liveClaims` subtracts from the
+ * `in-progress` labels.
  *
- * Read at `claimLedgerPath()`'s default root — `CLAUDE_PROJECT_DIR` — because
- * that is exactly where `.claude/hooks/claim-ledger.sh` writes it, and a
- * reader that resolved its root differently from the writer would count zero
- * claims forever. (The health marker above resolves to the primary checkout
- * instead, because THAT is where its writer puts it. Same rule, two answers.)
+ * `claimLedgerPath()`'s own default root is `CLAUDE_PROJECT_DIR ?? "."`, and
+ * that bare `.` is the trap: `queue:plan` runs from wherever the session
+ * happens to be, and from an issue worktree it resolved to a directory with
+ * no journal in it at all. `.claude/hooks/claim-ledger.sh` writes under the
+ * session's project directory — the primary checkout — so that is what this
+ * resolves to when the environment does not name one. (The health marker
+ * above resolves to the primary checkout for the same reason: read a record
+ * where its writer puts it, never where the caller happens to stand.)
+ *
+ * Total: an unreadable or absent journal subtracts nothing, which leaves the
+ * labels counting on their own. That is the safe direction — see `liveClaims`.
  */
-function heldClaimsOnThisMachine(): number[] {
+function releasedClaimsOnThisMachine(): number[] {
+    const root = process.env.CLAUDE_PROJECT_DIR ?? primaryCheckout();
     try {
-        return heldClaims(readFileSync(claimLedgerPath(), "utf8"));
+        return releasedClaims(readFileSync(claimLedgerPath(root), "utf8"));
     } catch {
-        // No journal yet (fresh checkout, hooks never ran) — see `liveClaims`
-        // on why this direction fails OPEN.
         return [];
     }
 }
@@ -673,7 +679,7 @@ function main(): void {
         .filter((n) => !plan.staleClaims.includes(n));
 
     const admission = admitPick({
-        claims: liveClaims(heldClaimsOnThisMachine(), claimedNow),
+        claims: liveClaims(claimedNow, releasedClaimsOnThisMachine()),
         cap: SESSION_CAP,
         noCap: process.argv.includes("--no-cap"),
         red: readHealthMarker(primaryCheckout()),

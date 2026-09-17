@@ -693,16 +693,25 @@ through `scripts/lib/branches.ts`, the same reader the branch names go through,
 so the number is configuration and never a literal in the planner. The refusal
 names the claimed issues; `--no-cap` is the announced escape.
 
-"Live claims" is the claim journal (`.claude/telemetry/claims.jsonl`, written
-by `.claude/hooks/claim-ledger.sh`) **reconciled against the open `in-progress`
-issues** — the intersection, with the planner's own stale claims removed. Both
-directions are failures this repo has already paid for: a ledger row whose
-label is gone was released by some other path and must not hold a slot forever,
-and an `in-progress` label with no live ledger row is an orphan (the class
-`loop:doctor` exists to reclaim — eight of them, four P0, once sat for days),
-which counted three times would wedge the queue shut with no session running at
-all. With no journal at all the cap fails OPEN: it is a throughput knob, not a
-safety, and a checkout that can never pick an issue is worse than a slow hour.
+"Live claims" is the set of open `in-progress` issues the planner did not
+already classify as STALE, reconciled against the claim journal
+(`.claude/telemetry/claims.jsonl`, written by `.claude/hooks/claim-ledger.sh`).
+The reconciliation only ever SUBTRACTS: an issue whose last journal row is
+`released` does not count — the label outliving the release is exactly the
+orphan window `claim-sweep.sh` and `loop:doctor` close — while a label the
+journal never mentions counts on its own.
+
+That direction is load-bearing, and the first cut of #3775 had it backwards.
+Counting the INTERSECTION made the cap fail open to zero the moment the journal
+could not be read, which is every invocation from an issue worktree
+(`claimLedgerPath()` defaults to `CLAUDE_PROJECT_DIR ?? "."`, and that bare `.`
+is wherever the session happens to stand). Measured against the live queue at
+the time: four `in-progress` claims, cap lowered to 1, and the planner admitted
+a pick without a word. A throughput knob that silently never fires is
+indistinguishable from one that was never built — so the labels are the count,
+the journal is a correction to it, and both records are read where their
+WRITERS put them (the journal under the session's project directory, the health
+marker under the primary checkout) rather than relative to the caller's cwd.
 
 **The derivation.** The cap is measured, from the PRs-per-hour-by-concurrency
 row of `bun run telemetry:latency`:
