@@ -37,28 +37,31 @@ import {
     type PendingTarget,
 } from "../state";
 import { applyPendingChoiceSubmit } from "../pendingChoiceSubmit";
+import { tryAutoCommitPendingCast } from "../activation";
 import { fireDelayedTriggers } from "../phases";
 import { compactState, expandState } from "../serialize";
 import {
     makeInstance,
     makePlayer,
     makeState,
+    pushSpell,
 } from "../../cards/__tests__/setup";
 import { projectPublicState } from "../../gameProjections";
 import { lavaSpike, throughTheBreach } from "../../cards/sets/chk/red";
-import { grizzlyBears } from "../../cards/sets/lea";
+import { fork, grizzlyBears } from "../../cards/sets/lea";
 
 const SPIKE = "spike1";
 const BREACH = "breach1";
 const BREACH_2 = "breach2";
 const BEARS = "bears1";
+const BEARS_2 = "bears2";
 
 /** The board every block starts from: Lava Spike in hand ready to cast at the
  *  opponent, one or two Through the Breach beside it, a creature for the
  *  spliced text to find, and exactly enough mana in the pool for the printed
  *  `{R}` plus `breaches` × `{2}{R}{R}` (CR 702.47a — the splice cost is paid on
  *  top of the spell's own). */
-function board(breaches: number): GameState {
+function board(breaches: number, creatures = 1): GameState {
     const hand = [
         makeInstance(lavaSpike.id, {
             id: SPIKE,
@@ -66,12 +69,14 @@ function board(breaches: number): GameState {
             ownerId: "p1",
             zone: "hand",
         }),
-        makeInstance(grizzlyBears.id, {
-            id: BEARS,
-            controllerId: "p1",
-            ownerId: "p1",
-            zone: "hand",
-        }),
+        ...[BEARS, BEARS_2].slice(0, creatures).map((id) =>
+            makeInstance(grizzlyBears.id, {
+                id,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            })
+        ),
         ...[BREACH, BREACH_2].slice(0, breaches).map((id) =>
             makeInstance(throughTheBreach.id, {
                 id,
@@ -105,7 +110,8 @@ function board(breaches: number): GameState {
  *  payment does). */
 function castSpikeSplicing(
     state: GameState,
-    revealed: string[]
+    revealed: string[],
+    opts: { expectOnStack?: boolean } = {}
 ): NonNullable<GameState["stack"][number]> {
     const payments: Record<string, number> = {};
     for (const id of revealed) payments[spliceCostId(id)] = 1;
@@ -119,6 +125,9 @@ function castSpikeSplicing(
     };
     finalizeTargetSelection(state, pt, "p1");
     const item = state.stack.find((s) => s.id === SPIKE);
+    if (opts.expectOnStack === false) {
+        return item as NonNullable<GameState["stack"][number]>;
+    }
     expect(item, "Lava Spike never reached the stack").toBeDefined();
     return item!;
 }
@@ -299,8 +308,8 @@ describe("splice — the spell gains the TEXT and the card stays in hand (CR 702
         expect(p1.hand.map((c) => c.id)).toContain(BEARS);
     });
 
-    it("CR 702.47b — several revealed cards COMPOSE, each paid separately", () => {
-        const state = board(2);
+    it("CR 702.47b — several revealed cards COMPOSE, each paid separately, and each copy's text gets its OWN bindings", () => {
+        const state = board(2, 2);
         const item = castSpikeSplicing(state, [BREACH, BREACH_2]);
         // Two separate payments, two copies of the text.
         expect(item.unkickedCostPayments).toEqual({
@@ -318,32 +327,55 @@ describe("splice — the spell gains the TEXT and the card stays in hand (CR 702
         );
         // The main spell's op is still first (CR 702.47b).
         expect(merged[0]).toEqual(lavaSpike.effects![0]);
-        // Both copies run in order: the first puts the Bears in play, and the
-        // second's own `choose-hand-card` finds no creature left in hand, so it
-        // auto-resolves to no pick and its remaining Ops are CR 608.2b no-ops.
-        // The spell finishes with no choice still pending — which is what makes
-        // the composition a resolution rather than a soft-lock.
+        // THE REGRESSION. A binding is not an in-memory variable: `recallChoice`
+        // scans the persisted `collectedChoices` keys and returns the FIRST
+        // whose name matches, so two copies of one splice card sharing `$picked`
+        // would have copy 2 read copy 1's snapshot — the caster answers the
+        // second prompt and nothing happens. `spliceMergedEffects` renames each
+        // segment's own bindings, so the second answer is the second creature.
         resolveAnswering(state, [BEARS]);
-        expect(state.pendingChoices ?? []).toHaveLength(0);
-        expect(state.stack).toHaveLength(0);
+        const second = state.pendingChoices?.[0];
+        expect(
+            second,
+            "the second spliced copy never asked its own question"
+        ).toBeDefined();
+        applyPendingChoiceSubmit(state, {
+            playerId: second!.playerId,
+            stackItemId: second!.stackItemId,
+            step: second!.step,
+            choiceId: second!.choiceId,
+            cardInstanceIds: [BEARS_2],
+        });
         const p1 = getPlayer(state, "p1");
-        expect(p1.battlefield.map((c) => c.id)).toContain(BEARS);
-        expect(p1.hand.map((c) => c.id)).toEqual(
-            expect.arrayContaining([BREACH, BREACH_2])
-        );
-        // Each copy of the text created its own CR 603.7 delayed sacrifice, and
-        // the second captured nothing — so firing both sacrifices the one
-        // creature that entered and the empty one is a CR 608.2b no-op, not a
-        // crash and not a second victim. (Identical to activating Sneak Attack
-        // twice with one creature in hand; nothing splice-specific.)
-        expect(state.delayedTriggers ?? []).toHaveLength(2);
+        expect(state.stack).toHaveLength(0);
+        // BOTH creatures entered, each with haste, each with its OWN delayed
+        // sacrifice capturing itself (CR 603.7) — not one creature granted
+        // haste twice and captured twice.
+        expect(p1.battlefield.map((c) => c.id).sort()).toEqual([
+            BEARS,
+            BEARS_2,
+        ]);
+        for (const id of [BEARS, BEARS_2]) {
+            const entered = p1.battlefield.find((c) => c.id === id)!;
+            expect(
+                entered.staticAbilities.filter((a) => a === "haste")
+            ).toEqual(["haste"]);
+        }
+        expect((state.delayedTriggers ?? []).map((t) => t.payload)).toEqual([
+            { captured: BEARS },
+            { captured: BEARS_2 },
+        ]);
+        // Both revealed cards are still in hand (CR 702.47c).
+        expect(p1.hand.map((c) => c.id).sort()).toEqual([BREACH, BREACH_2]);
         fireDelayedTriggers(state, "next-end-step");
         while (state.stack.length > 0) resolveTopOfStack(state);
         const after = getPlayer(state, "p1");
-        expect(after.battlefield.some((c) => c.id === BEARS)).toBe(false);
-        // Lava Spike itself and the sacrificed creature — and neither revealed
-        // Through the Breach, which never left hand (CR 702.47c).
-        expect(after.graveyard.map((c) => c.id)).toEqual([SPIKE, BEARS]);
+        expect(after.battlefield).toEqual([]);
+        expect(after.graveyard.map((c) => c.id).sort()).toEqual([
+            BEARS,
+            BEARS_2,
+            SPIKE,
+        ]);
     });
 });
 
@@ -383,6 +415,101 @@ describe("splice — the added text's targets are the one shape that fails CLOSE
         expect(
             spliceAugmentedDefinition(imperative, p1, SPIKE).kickers
         ).toBeUndefined();
+    });
+});
+
+describe("splice — the reveal survives the PARKED cast commit (CR 601.2h)", () => {
+    it("stamps the text when the caster taps for the cost after announcing", () => {
+        // The commit path a HUMAN takes. `announceCast` /
+        // `finalizeTargetSelection` commit inline only when the pool already
+        // covers the folded cost; otherwise they PARK and
+        // `tryAutoCommitPendingCast` commits once the caster has paid. Tapping
+        // lands for {R} + {2}{R}{R} is therefore the ordinary route, and it
+        // reads the cast definition through a THIRD lookup of its own.
+        const state = board(1);
+        getPlayer(state, "p1").manaPool = {
+            W: 0,
+            U: 0,
+            B: 0,
+            R: 0,
+            G: 0,
+            C: 0,
+        };
+        castSpikeSplicing(state, [BREACH], { expectOnStack: false });
+        expect(
+            state.pendingCast,
+            "an unaffordable spliced cast did not park"
+        ).toBeDefined();
+        // CR 702.47a — the parked cost is the printed {R} PLUS the splice cost.
+        expect(state.pendingCast!.manaCost).toEqual({ R: 3, X: 2 });
+        getPlayer(state, "p1").manaPool = {
+            W: 0,
+            U: 0,
+            B: 0,
+            R: 3,
+            G: 0,
+            C: 2,
+        };
+        expect(tryAutoCommitPendingCast(state, "p1")).not.toBeNull();
+        const item = state.stack.find((si) => si.id === SPIKE)!;
+        expect(
+            item.splicedCardIds,
+            "the splice cost was charged and the text was not gained"
+        ).toEqual([throughTheBreach.id]);
+        resolveAnswering(state, [BEARS]);
+        expect(
+            getPlayer(state, "p1").battlefield.some((c) => c.id === BEARS)
+        ).toBe(true);
+    });
+});
+
+describe("splice — the gained text is not copied and does not outlive the stack (CR 702.47e / 707.2)", () => {
+    it("CR 702.47e — a resolved spell's card carries no splice back, so a recast is unspliced", () => {
+        const state = board(1);
+        castSpikeSplicing(state, [BREACH]);
+        resolveAnswering(state, [BEARS]);
+        const p1 = getPlayer(state, "p1");
+        const spent = p1.graveyard.find((c) => c.id === SPIKE)!;
+        expect(
+            (spent as { splicedCardIds?: string[] }).splicedCardIds,
+            "the spell kept its splice changes after leaving the stack"
+        ).toBeUndefined();
+        // And the card recast from that graveyard copy gains nothing: the
+        // second creature stays in hand, because nothing was revealed.
+        p1.graveyard = p1.graveyard.filter((c) => c.id !== SPIKE);
+        p1.hand.push({ ...spent, zone: "hand" });
+        p1.manaPool = { W: 0, U: 0, B: 0, R: 1, G: 0, C: 0 };
+        const before = p1.battlefield.length;
+        castSpikeSplicing(state, []);
+        resolveAnswering(state, []);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(getPlayer(state, "p1").battlefield).toHaveLength(before);
+    });
+
+    it("CR 707.2 — a COPY of a spliced spell is a copy of the main spell alone", () => {
+        // CR 707.2: "Other effects (including … text-changing effects) … are
+        // not copied", and CR 702.47c makes the reveal a text-changing effect —
+        // unlike `kickerPayments`, which a copy does inherit.
+        const state = board(1);
+        const spliced = castSpikeSplicing(state, [BREACH]);
+        expect(spliced.splicedCardIds).toEqual([throughTheBreach.id]);
+        // The real copy path: Fork, resolving on top of the spliced spell.
+        pushSpell(state, fork.id, "p1", [{ type: "spell", id: SPIKE }]);
+        resolveTopOfStack(state);
+        // CR 707.10 — Fork offers the copy new targets; keep the originals.
+        delete state.pendingTarget;
+        const copy = state.stack.find((si) => si.isCopy)!;
+        expect(copy, "Fork made no copy").toBeDefined();
+        expect(
+            copy.splicedCardIds,
+            "the copy inherited the spliced text"
+        ).toBeUndefined();
+        // Resolving the copy deals the damage and does nothing else.
+        resolveAnswering(state, []);
+        expect(getPlayer(state, "p2").life).toBe(20 - 3);
+        expect(
+            getPlayer(state, "p1").battlefield.some((c) => c.id === BEARS)
+        ).toBe(false);
     });
 });
 

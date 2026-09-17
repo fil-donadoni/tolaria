@@ -23,7 +23,9 @@ import {
     SPLICE_COST_ID_PREFIX,
     spliceAcceptsSpell,
     spliceCardIsSupported,
+    spliceMergedEffects,
 } from "../../gre/splice";
+import { validateEffectScript } from "../../gre/effects/validate";
 
 const allCards = getAllCards();
 const spliceCards = allCards.filter((c) => c.splice !== undefined);
@@ -100,6 +102,46 @@ describe("Splice declarations (CR 702.47, issue #2394)", () => {
             declared,
             "cards declaring a splice cost entry by hand — declare `splice: { subtype, cost, description }` instead"
         ).toEqual([]);
+    });
+
+    it("every reachable MERGE validates — no duplicate binding in the spell the caster actually resolves", () => {
+        // The merged script is synthesized, so no authoring-time sweep sees it:
+        // `effectScripts.test.ts` validates each card's own `effects`, and the
+        // one thing merging can break is the invariant `validateEffectScript`
+        // states out loud — "binding names must be unique within a script …
+        // the persisted store keys by name". `recallChoice` returns the FIRST
+        // key matching a name, so a duplicate makes a later copy silently read
+        // an earlier one's snapshot: the caster is prompted, answers, and
+        // nothing happens. Proven over every pairing a board can reach —
+        // every spliced-onto spell × up to two reveals of every splice card,
+        // which is the shape (two copies of ONE card) that collides.
+        const spells = allCards.filter(
+            (c) =>
+                (c.subtypes ?? []).some((t) => splicedOntoSubtypes.has(t)) &&
+                spliceAcceptsSpell(c)
+        );
+        expect(spells.length).toBeGreaterThan(0);
+        const failures: string[] = [];
+        for (const spell of spells) {
+            for (const card of spliceCards) {
+                for (const reveals of [[card.id], [card.id, card.id]]) {
+                    const merged = spliceMergedEffects(spell, reveals);
+                    if (!merged) {
+                        failures.push(
+                            `${spell.name} + ${reveals.length}× ${card.name}: merged to nothing`
+                        );
+                        continue;
+                    }
+                    const errors = validateEffectScript({
+                        id: `${spell.id}+splice`,
+                        name: `${spell.name} + ${reveals.length}× ${card.name}`,
+                        effects: merged,
+                    } as Parameters<typeof validateEffectScript>[0]);
+                    failures.push(...errors);
+                }
+            }
+        }
+        expect(failures).toEqual([]);
     });
 
     it("the splice ability's subtype is one the card's own type line could ever meet", () => {

@@ -945,11 +945,20 @@ export function kickerLegPermanentSlotWouldCollide(
  *  rationale above. */
 const MULTIKICKER_REPEAT_SAMPLES = [1, 2] as const;
 
-/** Hard backstop on the cartesian product below, independent of how many
- *  Kickers a future card declares — never reached by the shipped catalogue
- *  (max 2 Kickers × {0,1} states = 4), but keeps this function's own
- *  contribution to the search's per-node move count bounded even if that
- *  changes. */
+/** Hard backstop on the cartesian product below, independent of how many cost
+ *  entries a cast offers.
+ *
+ *  It was a theoretical guard while every entry was DECLARED on the card (max 2
+ *  Kickers × {0,1} states = 4). Splice (CR 702.47, issue #2394) made the entry
+ *  list a function of the caster's HAND — `spliceAugmentedDefinition` appends
+ *  one per splice-eligible card — so five reveals in hand is 32 combinations
+ *  and this backstop is REACHED. What it then does is truncate, and the
+ *  truncation is biased rather than a sample: `break outer` drops the
+ *  later axes' combinations wholesale. The Bot therefore cannot see some
+ *  multi-reveal combinations on a hand that deep. That is fail-CLOSED (a Move
+ *  it never offers, never an illegal one) and is the same bound every other
+ *  cost axis accepts, but it is a real horizon, not the unreachable ceiling
+ *  this constant used to describe. */
 const MAX_KICKER_COMBINATIONS = 16;
 
 /** CR 702.33 (issue #2081) — every Kicker-payment variant the Bot's cast

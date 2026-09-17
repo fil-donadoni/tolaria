@@ -25,6 +25,7 @@ import { projectPublicState } from "@convex/gameProjections";
 import type { CardDefinition } from "@convex/cards/types";
 import { affordableKickersForCard } from "../card-utils";
 import { additionalCostPrintedLabel } from "@convex/gre/kicker";
+import { PLACEHOLDER_CARD_ID } from "@convex/gre/constants";
 import type { CardInstance, Player } from "~/types/game";
 
 // Bloodchief's Thirst — {B}, "Kicker {2}{B}": the mana-only shape all 25
@@ -240,6 +241,74 @@ describe("affordableKickersForCard — cast-cost dialog gate (CR 702.33a, ADR 00
             offered.some((k) => k.id === "splice:spell1"),
             "the card being cast was offered as a splice onto itself"
         ).toBe(false);
+    });
+
+    it("survives a HIDDEN hand slot rather than throwing the dialog away", () => {
+        // `projectPublicState` nulls a `PLACEHOLDER_CARD_ID` slot even in the
+        // VIEWER's own hand (issue #3452 — what a `hiddenHand` scenario seeds),
+        // so the projected hand is `(CardInstance | null)[]`. Before the splice
+        // seam this function early-returned on a card with no `kickers` and
+        // never touched the hand at all; now it walks it, and a dereferenced
+        // null slot would throw inside the cast-cost gate and stop the dialog
+        // from opening for ANY spell on such a board.
+        const spike = getCardByName("Lava Spike");
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        makeInstance(spike.id, {
+                            id: "spell1",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                        {
+                            // An opaque placeholder slot, the shape the
+                            // scenario builder seeds for a hidden hand
+                            // (`PLACEHOLDER_CARD_ID` has no definition, so it
+                            // cannot go through `makeInstance`).
+                            ...makeInstance(spike.id, {
+                                id: "hidden1",
+                                controllerId: "p1",
+                                ownerId: "p1",
+                                zone: "hand",
+                            }),
+                            card: { id: PLACEHOLDER_CARD_ID },
+                        },
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+        const view = projectPublicState(state, 1, "p1") as unknown as {
+            players: Player[];
+            activePlayerId: string;
+        };
+        expect(
+            view.players[0].hand,
+            "the projection stopped nulling the placeholder slot — this test no longer covers anything"
+        ).toContain(null);
+        const card = view.players[0].hand.find(
+            (c) => c?.id === "spell1"
+        ) as CardInstance;
+        expect(() =>
+            affordableKickersForCard(
+                card,
+                "p1",
+                view.players,
+                view.activePlayerId
+            )
+        ).not.toThrow();
+        expect(
+            affordableKickersForCard(
+                card,
+                "p1",
+                view.players,
+                view.activePlayerId
+            )
+        ).toEqual([]);
     });
 
     it("offers NO splice reveal when the spell is not of the spliced-onto subtype", () => {

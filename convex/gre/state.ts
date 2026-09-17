@@ -8245,6 +8245,16 @@ export function emitEntersWithCounterEvents(
  *  once the delayed trigger is built, not before. Any new call site must
  *  keep the same invariant: everything this function deletes must already be
  *  read by the caller before the call. */
+/** CR 707.2 / 702.47c — `item` without the splice reveal's text change, for
+ *  every site that produces a COPY of a spell (CR 707.10 — a copy is put onto
+ *  the stack, not cast, and "other effects, including text-changing effects,
+ *  are not copied"). A mutating helper on an item the caller has just cloned,
+ *  so the two copy sites state the rule once. */
+function spliceStripped(item: StackItem): StackItem {
+    delete item.splicedCardIds;
+    return item;
+}
+
 function resetStackTransientState(item: StackItem): void {
     delete (item as { castById?: string }).castById;
     delete item.targets;
@@ -8257,6 +8267,13 @@ function resetStackTransientState(item: StackItem): void {
     // cleared on one side and left on the other is exactly the drift the split
     // exists to prevent.
     delete item.unkickedCostPayments;
+    // CR 702.47e — "The spell loses any splice changes once it leaves the stack
+    // for any reason." Left on, exactly the `buybackPaid` bug shape recurs and
+    // worse: a spliced spell that resolved, was countered or was bounced
+    // carries its gained TEXT into the graveyard and back, so the next hard
+    // cast of that card runs the spliced script for free, with nothing revealed
+    // and nothing paid.
+    delete item.splicedCardIds;
     delete item.buybackPaid;
     delete item.targetAmounts;
     delete item.chosenModeIds;
@@ -12377,7 +12394,11 @@ function pushCastCopyTrigger(
         // resolves. The `castCopySnapshot` below keeps the spell's own marker,
         // which is what the copies need.
         overloaded: undefined,
-        castCopySnapshot: structuredClone(castSpell),
+        // CR 707.2 / 702.47c (issue #2394) — the snapshot exists ONLY to build
+        // copies, and a copy does not inherit a text-changing effect, so the
+        // splice reveal is stripped here rather than at each consumer: a
+        // Replicate/Storm copy of an Arcane spell is a copy of the MAIN spell.
+        castCopySnapshot: spliceStripped(structuredClone(castSpell)),
         castCopiesRemaining: copies,
     };
     state.stack.push(triggerItem);
@@ -15624,6 +15645,18 @@ function cloneSpellOntoStack(
     // permanent whose check-time condition could read it) — but the identical
     // containment argument applies to `escaped`, which is cleared anyway.
     delete copy.castOffSorceryTiming;
+    // CR 707.2 — "Other effects (including type-changing and TEXT-CHANGING
+    // effects) … are not copied", and CR 702.47c says a splice reveal IS a
+    // text-changing effect (rule 612). So the copy is a copy of the MAIN spell
+    // alone. CR 707.10's "copies … all decisions made for it, including …
+    // additional or alternative costs" does NOT reach it: that clause is why
+    // `kickerPayments` rides along (the copy is kicked if the original was) and
+    // why a copy of Fling reads the creature the ORIGINAL sacrificed — a cost
+    // decision, not text the spell gained. Left on, a Fork of a spliced Lava
+    // Spike would put a second creature into play with nothing revealed and
+    // nothing paid — and the same hole reaches `castCopySnapshot`, which strips
+    // it through the same helper.
+    spliceStripped(copy);
     // CR 707.10b / 707.12 — the copy is controlled by the controller of the
     // effect that created it (e.g. Fork's controller, or the resolving spell's
     // own controller for "copy this spell"), unless the effect names a specific

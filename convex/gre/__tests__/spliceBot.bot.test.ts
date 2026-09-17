@@ -29,12 +29,8 @@ import { describe, it, expect } from "vitest";
 import { enumerateMoves } from "../moves";
 import { applyMoveForSearch } from "../applyMove";
 import { applyMoveInSearch } from "../search";
-import {
-    getPlayer,
-    resolveTopOfStack,
-    type GameState,
-    type Move,
-} from "../state";
+import { getPlayer, resolveTopOfStack, type GameState } from "../state";
+import type { Move } from "../moves";
 import { spliceCostId } from "../splice";
 import {
     makeInstance,

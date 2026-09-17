@@ -383,9 +383,12 @@ export type KickerCost = CostLegs & {
  *  printed splice card is mana-only today. */
 export type SpliceAbility = {
     /** The spell subtype the reveal is gated on — "Arcane" for every printed
-     *  splice card (CR 702.47a's "[quality]"). Matched against the spell's
-     *  `subtypes`, so a spell that has the subtype for ANY reason offers the
-     *  reveal. */
+     *  splice card (CR 702.47a's "[quality]"). Matched against the PRINTED
+     *  `subtypes` of the spell being cast, not the live layer-4 type line: a
+     *  spell that gained the subtype from a continuous effect does not offer
+     *  the reveal today. Nothing in the catalogue grants Arcane, so the two
+     *  cannot yet differ; a card that grants it owes this seam the live read
+     *  (`gre/splice.ts`, `spliceAugmentedDefinition`). */
     subtype: string;
     /** CR 702.47a — what the caster pays to reveal this card. */
     cost: CostLegs;
