@@ -28,13 +28,27 @@ import { Database as Sqlite } from "bun:sqlite";
 import { primaryCheckout } from "./lib/primary-checkout.ts";
 import {
     allSessionLatencies,
+    formatAdr0136Rows,
     formatReport,
     isIssueClosing,
     isNextIssue,
+    laneHistogram,
+    blockingFindingRate,
+    redOnRedBaseline,
+    hourlyThroughput,
+    throughputByConcurrency,
     summarise,
     type LatencySpan,
     type LatencyTurn,
     type SessionMeta,
+    type MergedPr,
+    type ReviewSpan,
+    type CommitEvent,
+    type SessionMergeFact,
+    type VitestRunSpan,
+    type SessionBaseSha,
+    type HealthVerdict,
+    type GateRunLane,
 } from "./lib/telemetry-latency.ts";
 
 function arg(name: string): string | null {
@@ -119,6 +133,60 @@ const metaRows = db
     prs: string | null;
 }>;
 
+// ─── The four ADR 0136 KPI rows (issue #3777) ──────────────────────────────
+
+const reviewSpanRows = db
+    .query(
+        `SELECT session, ts AS startS, (ts + dur_s) AS endS, model_req AS model
+         FROM spans
+         WHERE session IN (${SESSIONS_IN_WINDOW}) AND role = 'review'`
+    )
+    .all(from, to) as ReviewSpan[];
+
+const commitEvents = db
+    .query(
+        `SELECT session, ts
+         FROM spans
+         WHERE session IN (${SESSIONS_IN_WINDOW})
+           AND tool = 'Bash' AND cmd LIKE '%git commit%'`
+    )
+    .all(from, to) as CommitEvent[];
+
+const vitestSpanRows = db
+    .query(
+        `SELECT session, ts, is_error AS isError
+         FROM spans
+         WHERE session IN (${SESSIONS_IN_WINDOW})
+           AND tool = 'Bash' AND cmd LIKE '%vitest run%' AND is_error IS NOT NULL`
+    )
+    .all(from, to) as Array<{ session: string; ts: number; isError: number }>;
+
+// Not window-filtered by SESSIONS_IN_WINDOW: a PR's merge and a health verdict
+// are facts about the base branch, not about any one session, and row 3 asks
+// about a LATER health verdict — necessarily outside the session's own window.
+const prMetaRows = db
+    .query(
+        "SELECT pr, merged_at AS mergedAt FROM pr_meta WHERE merged_at IS NOT NULL"
+    )
+    .all() as Array<{ pr: number; mergedAt: string }>;
+
+const gateRunRows = db
+    .query("SELECT cmd, base, lane, green, started FROM gate_runs")
+    .all() as Array<{
+    cmd: string;
+    base: string | null;
+    lane: string | null;
+    green: number;
+    started: number | null;
+}>;
+
+const healthRows = db
+    .query("SELECT sha12, red FROM health_runs")
+    .all() as Array<{
+    sha12: string;
+    red: number;
+}>;
+
 db.close();
 
 if (turns.length === 0) {
@@ -131,6 +199,76 @@ const meta: SessionMeta[] = metaRows.map((r) => ({
     cmd: r.cmd,
     prs: r.prs ? (JSON.parse(r.prs) as number[]) : [],
 }));
+
+// Row 1 — PRs landed per hour, by active sessions that hour.
+const merges: MergedPr[] = prMetaRows
+    .map((r) => ({
+        number: r.pr,
+        mergedAtS: Math.floor(Date.parse(r.mergedAt) / 1000),
+    }))
+    .filter((m) => {
+        if (Number.isNaN(m.mergedAtS)) return false;
+        const day = isoDay(new Date(m.mergedAtS * 1000));
+        return day >= from && day <= to;
+    });
+const concurrency = throughputByConcurrency(hourlyThroughput(turns, merges));
+
+// Row 2 — blocking-finding rate per reviewer model. A session's merge time
+// caps how late a commit can still count as "fixed after review" — the
+// earliest of its own PRs' merges, since ADR 0110's one-shot worktrees mean
+// nothing legitimate is committed to that session after its own PR lands.
+const mergedAtByPr = new Map(
+    prMetaRows.map((r) => [r.pr, Math.floor(Date.parse(r.mergedAt) / 1000)])
+);
+const sessionMerges: SessionMergeFact[] = [];
+for (const m of meta) {
+    const times = m.prs
+        .map((pr) => mergedAtByPr.get(pr))
+        .filter((t): t is number => t !== undefined && !Number.isNaN(t));
+    if (times.length > 0)
+        sessionMerges.push({
+            session: m.session,
+            mergedAtS: Math.min(...times),
+        });
+}
+const reviewers = blockingFindingRate(
+    reviewSpanRows,
+    commitEvents,
+    sessionMerges
+);
+
+// Row 3 — targeted-vitest reds on a base tip later marked RED by health.
+// The session's base sha comes from its OWN `land <PR#>` gate-run record,
+// joined by PR number — `sessions.prs` names the same PR.
+const vitestSpans: VitestRunSpan[] = vitestSpanRows.map((r) => ({
+    session: r.session,
+    ts: r.ts,
+    red: r.isError === 1,
+}));
+const sessionByPr = new Map<number, string>();
+for (const m of meta) for (const pr of m.prs) sessionByPr.set(pr, m.session);
+const sessionBases: SessionBaseSha[] = [];
+for (const g of gateRunRows) {
+    const m = g.cmd.match(/^land (\d+)$/);
+    if (!m || !g.base) continue;
+    const session = sessionByPr.get(Number(m[1]));
+    if (session) sessionBases.push({ session, base: g.base });
+}
+const health: HealthVerdict[] = healthRows.map((r) => ({
+    sha12: r.sha12,
+    red: r.red === 1,
+}));
+const redOnRed = redOnRedBaseline(vitestSpans, sessionBases, health);
+
+// Row 4 — gate-run lane histogram, windowed by the run's own start time (a
+// gate run has no session in the general case — a hand-run `check:lane`
+// links to none — so it cannot be windowed through SESSIONS_IN_WINDOW).
+const fromS = Math.floor(new Date(`${from}T00:00:00`).getTime() / 1000);
+const toS = Math.floor(new Date(`${to}T23:59:59`).getTime() / 1000);
+const gateRunLanes: GateRunLane[] = gateRunRows
+    .filter((g) => g.started !== null && g.started >= fromS && g.started <= toS)
+    .map((g) => ({ lane: g.lane, green: g.green === 1 }));
+const lanes = laneHistogram(gateRunLanes);
 
 const maxSeconds = maxHours * 3600;
 const rows = allSessionLatencies(turns, spans, meta).filter(
@@ -158,6 +296,7 @@ if (asJson) {
                 maxHours,
                 cohorts,
                 sessions: rows.slice(0, showSessions),
+                adr0136: { concurrency, reviewers, redOnRed, lanes },
             },
             null,
             2
@@ -165,6 +304,8 @@ if (asJson) {
     );
 } else {
     console.log(formatReport(from, to, cohorts, maxHours));
+    console.log("");
+    console.log(formatAdr0136Rows(concurrency, reviewers, redOnRed, lanes));
     if (showSessions > 0) {
         console.log("");
         console.log(`  slowest ${showSessions} sessions`);

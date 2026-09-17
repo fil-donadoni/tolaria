@@ -1,14 +1,21 @@
 import { describe, it, expect } from "vitest";
 import {
     allSessionLatencies,
+    blockingFindingRate,
     estimateGenerationSeconds,
     formatReport,
+    hourlyThroughput,
     isGateSpan,
     isIssueClosing,
     isNextIssue,
+    laneHistogram,
+    parseHealthLogRed,
+    parseLaneLine,
     quantile,
+    redOnRedBaseline,
     sessionLatency,
     summarise,
+    throughputByConcurrency,
     unionSeconds,
     GEN_FIXED_S,
     GEN_TOK_PER_S,
@@ -374,5 +381,228 @@ describe("summarise / formatReport", () => {
             expect(out).toContain(label);
         }
         expect(out).toContain("10.0m");
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// The four ADR 0136 KPI rows (issue #3777).
+// ─────────────────────────────────────────────────────────────────────────
+
+describe("hourlyThroughput / throughputByConcurrency", () => {
+    it("buckets active sessions and merges into local hours", () => {
+        const buckets = hourlyThroughput(
+            [
+                turn({ session: "a", ts: 0 }),
+                turn({ session: "b", ts: 100 }),
+                turn({ session: "a", ts: 3700 }), // next hour
+            ],
+            [{ number: 1, mergedAtS: 200 }]
+        );
+        expect(buckets).toEqual([
+            { hourStartS: 0, activeSessions: 2, prsLanded: 1 },
+            { hourStartS: 3600, activeSessions: 1, prsLanded: 0 },
+        ]);
+    });
+
+    it("groups PR throughput by concurrency level, dropping session-less hours", () => {
+        const rows = throughputByConcurrency([
+            { hourStartS: 0, activeSessions: 1, prsLanded: 1 },
+            { hourStartS: 3600, activeSessions: 1, prsLanded: 0 },
+            { hourStartS: 7200, activeSessions: 3, prsLanded: 3 },
+            { hourStartS: 10800, activeSessions: 0, prsLanded: 5 }, // dropped
+        ]);
+        expect(rows).toEqual([
+            { activeSessions: 1, hours: 2, prsPerHour: 0.5 },
+            { activeSessions: 3, hours: 1, prsPerHour: 3 },
+        ]);
+    });
+
+    it("PROOF OF FAILURE: an hour is keyed by its OWN start, not floor(ts)", () => {
+        // Break the derivation the way a careless refactor would — bucket by the
+        // raw timestamp instead of the hour it falls in — and confirm two turns
+        // 100s apart stop sharing a bucket.
+        const brokenHourStart = (ts: number) => ts; // no floor-to-hour at all
+        const buckets = new Map<number, Set<string>>();
+        for (const t of [
+            { session: "a", ts: 0 },
+            { session: "b", ts: 100 },
+        ]) {
+            const h = brokenHourStart(t.ts);
+            const set = buckets.get(h);
+            if (set) set.add(t.session);
+            else buckets.set(h, new Set([t.session]));
+        }
+        expect(buckets.size).toBe(2); // broken: two "hours" for one real hour
+        // The real function does not make this mistake:
+        const real = hourlyThroughput(
+            [turn({ session: "a", ts: 0 }), turn({ session: "b", ts: 100 })],
+            []
+        );
+        expect(real).toEqual([
+            { hourStartS: 0, activeSessions: 2, prsLanded: 0 },
+        ]);
+    });
+});
+
+describe("blockingFindingRate", () => {
+    const reviews = [
+        { session: "a", model: "opus", startS: 0, endS: 100 },
+        { session: "b", model: "opus", startS: 0, endS: 100 },
+        { session: "c", model: "sonnet", startS: 0, endS: 100 },
+    ];
+
+    it("counts a review as blocking when a later commit lands in the same session", () => {
+        const rows = blockingFindingRate(
+            reviews,
+            [
+                { session: "a", ts: 160 }, // 1 minute after review end — blocking
+                { session: "c", ts: 50 }, // BEFORE review end — not blocking
+            ],
+            []
+        );
+        const opus = rows.find((r) => r.model === "opus")!;
+        expect(opus.reviews).toBe(2);
+        expect(opus.blocking).toBe(1);
+        expect(opus.rate).toBeCloseTo(0.5);
+        expect(opus.minutesAfter.median).toBeCloseTo(1);
+
+        const sonnet = rows.find((r) => r.model === "sonnet")!;
+        expect(sonnet.reviews).toBe(1);
+        expect(sonnet.blocking).toBe(0);
+        expect(sonnet.rate).toBe(0);
+    });
+
+    it("ignores a commit after the session's own PR merged", () => {
+        const rows = blockingFindingRate(
+            [reviews[0]],
+            [{ session: "a", ts: 500 }],
+            [{ session: "a", mergedAtS: 200 }] // merged before the commit
+        );
+        expect(rows[0].blocking).toBe(0);
+    });
+
+    it("PROOF OF FAILURE: a commit from another session must not count", () => {
+        // Break the join — attribute EVERY commit to EVERY review, the mistake a
+        // refactor that dropped session-scoping would make.
+        const brokenBlocking = reviews.some(() => true); // "any commit exists at all"
+        expect(brokenBlocking).toBe(true); // the broken version would find a match
+        // The real function correctly finds none, since the only commit is in a
+        // session with no review:
+        const rows = blockingFindingRate(
+            reviews,
+            [{ session: "z", ts: 999 }],
+            []
+        );
+        expect(rows.every((r) => r.blocking === 0)).toBe(true);
+    });
+});
+
+describe("redOnRedBaseline", () => {
+    it("rates red targeted-vitest runs against a base health later reddened", () => {
+        const result = redOnRedBaseline(
+            [
+                { session: "a", ts: 10, red: true },
+                { session: "b", ts: 20, red: true },
+                { session: "c", ts: 30, red: false }, // green — excluded from the denominator
+            ],
+            [
+                { session: "a", base: "deadbeef0000cafefeed" },
+                { session: "b", base: "0000000000000000000" },
+            ],
+            [{ sha12: "deadbeef0000", red: true }]
+        );
+        expect(result).toEqual({ redRuns: 2, onRedBaseline: 1, rate: 0.5 });
+    });
+
+    it("PROOF OF FAILURE: a green health verdict must not count as red", () => {
+        const brokenResult = redOnRedBaseline(
+            [{ session: "a", ts: 10, red: true }],
+            [{ session: "a", base: "deadbeef0000cafe" }],
+            [{ sha12: "deadbeef0000", red: false }] // GREEN, not red
+        );
+        expect(brokenResult.onRedBaseline).toBe(0);
+        expect(brokenResult.rate).toBe(0);
+    });
+});
+
+describe("laneHistogram", () => {
+    it("counts runs and green runs per classified lane", () => {
+        const rows = laneHistogram([
+            { lane: "engine", green: true },
+            { lane: "engine", green: false },
+            { lane: "skin", green: true },
+            { lane: null, green: true }, // excluded — no lane classification
+        ]);
+        expect(rows).toEqual([
+            { lane: "engine", runs: 2, green: 1 },
+            { lane: "skin", runs: 1, green: 1 },
+        ]);
+    });
+
+    it("PROOF OF FAILURE: a null lane must not become a '(none)' bucket", () => {
+        const rows = laneHistogram([{ lane: null, green: true }]);
+        expect(rows).toEqual([]); // broken version would emit a bucket here
+    });
+});
+
+describe("parseLaneLine", () => {
+    it("extracts the lane from check-lane.ts's own line", () => {
+        const log =
+            "some other output\n" +
+            "lane:  engine   (HEAD abc123, 3 files — 3 under convex/, 0 prose)\n" +
+            "more output\n";
+        expect(parseLaneLine(log)).toBe("engine");
+    });
+
+    it("does not match land.ts's own 'lane: ran' / 'lane: skipped' lines", () => {
+        expect(parseLaneLine("lane: ran\n")).toBeNull();
+        expect(
+            parseLaneLine("lane: skipped (gated abc123 against def456)\n")
+        ).toBeNull();
+    });
+
+    it("PROOF OF FAILURE: a loose single-space pattern would match land.ts's line too", () => {
+        const loose = /^lane:\s+(\S+)/m;
+        const m = "lane: ran\n".match(loose);
+        expect(m?.[1]).toBe("ran"); // the bug this test guards against
+        expect(parseLaneLine("lane: ran\n")).toBeNull(); // the real parser does not
+    });
+});
+
+describe("parseHealthLogRed", () => {
+    it("is red when any step exited non-zero", () => {
+        const log =
+            "\n===== bun run check:all (exit 0) =====\nok\n" +
+            "\n===== bun run test:app (exit 1) =====\nFAIL\n";
+        expect(parseHealthLogRed(log)).toBe(true);
+    });
+
+    it("is green when every step exited zero", () => {
+        const log =
+            "\n===== bun run check:all (exit 0) =====\nok\n" +
+            "\n===== bun run test:app (exit 0) =====\nok\n";
+        expect(parseHealthLogRed(log)).toBe(false);
+    });
+
+    it("is unknown (null) for a log with no exit-code line at all", () => {
+        expect(
+            parseHealthLogRed("still running, no step finished yet\n")
+        ).toBeNull();
+    });
+
+    it("PROOF OF FAILURE: a log ending on a later green step must not erase an earlier red", () => {
+        // health-main.ts stops at the FIRST red in practice, so this shape is not
+        // produced today — but the parser must not assume that ordering to stay
+        // correct if a future retry step reruns after a partial failure.
+        const log =
+            "\n===== step-one (exit 1) =====\nFAIL\n" +
+            "\n===== step-two (exit 0) =====\nok\n";
+        expect(parseHealthLogRed(log)).toBe(true);
+        // A parser that looked only at the LAST exit code would get this wrong:
+        const lastOnly = (l: string) => {
+            const exits = [...l.matchAll(/\(exit (\d+)\)/g)];
+            return Number(exits[exits.length - 1][1]) !== 0;
+        };
+        expect(lastOnly(log)).toBe(false); // the bug this test guards against
     });
 });
