@@ -346,7 +346,7 @@ Only a record whose command is exactly `check:lane` counts; the receipt says
 `lane: ran` or `lane: skipped (gated <sha> against <base>)`. A hand-run
 `check:lane` gates whatever HEAD is, stale or not.
 
-## The base branch and `release` — where the full gate went (ADR 0116)
+## The base branch, the batch, and `release` — where the full gate went (ADR 0116, re-cadenced by ADR 0136 §6)
 
 Under ADR 0110 every landing detached `health:main` after the merge: the full
 offline gate, ~13 min with 7 workers, queued on the same machine mutex as the
@@ -361,17 +361,71 @@ queued behind it.
 So the full gate moved. `tolaria.config.json` names a **base** branch
 (`staging`) and a **release** branch (`main`):
 
-| Step                 | Runs                                                              | Mutex         |
-| -------------------- | ----------------------------------------------------------------- | ------------- |
-| `bun run land <PR#>` | rebase onto `origin/<base>` → `check:lane` → push → merge to base | 3-5 min       |
-| `bun run release`    | `health` on the `origin/<base>` tip → fast-forward `<release>`    | ~13 min, once |
-| `bun run health`     | the same full gate, by hand, on the base tip                      | ~13 min       |
+| Step                   | Runs                                                              | Mutex           |
+| ---------------------- | ----------------------------------------------------------------- | --------------- |
+| `bun run land <PR#>`   | rebase onto `origin/<base>` → `check:lane` → push → merge to base | 3-5 min         |
+| batch health, detached | `health` on the CURRENT `origin/<base>` tip, per 5 landings / 2 h | ~10 min, yields |
+| `bun run release`      | `health` on the `origin/<base>` tip → fast-forward `<release>`    | ~13 min, once   |
+| `bun run health`       | the same full gate, by hand, on the base tip                      | ~13 min         |
 
 `land` refuses a PR whose base is not the base branch (the API merge lands
 wherever the PR points). `release` moves the release branch only on a GREEN
 record about exactly the tip it gated, by plain-refspec push. A RED blocks the
-release, not development: the base branch bisects its batch at release time
-(⌈log₂ N⌉ health runs for N landings, worst case).
+release, not development.
+
+### The batch cadence (ADR 0136 §6)
+
+Moving the full gate to `release` fixed the mutex cost and created a second
+problem the same measurement shows: between releases — 1–2 days observed — a
+red base tip stands, and every worktree born in that window branches from it,
+so each of those sessions debugs a failure that is not theirs. Bisecting at
+release time (⌈log₂ N⌉ health runs for N landings) pays for the diagnosis, not
+for the exposure.
+
+So the full gate keeps its home at `release` and gains a CADENCE between
+releases. `land` appends the merged tip to
+`.claude/telemetry/health/cadence.json` and detaches `health-cadence.ts
+detach`; the decision is pure (`scripts/lib/health-cadence.ts`,
+`health-cadence.test.ts`) over four inputs — the landing count, the age of the
+first un-healthed landing, the last GREEN sha, the current tip:
+
+- fires on the **5th landing since the last GREEN**, or **2 h after the first**
+  un-healthed one;
+- **dedups by sha** twice — a tip already GREEN, and a tip already fired for —
+  so five quick landings cost ONE run, which is the ADR 0116 property that had
+  to survive;
+- gates the tip **current at its start**, so one run covers everything that
+  landed while it waited — and the ledger reconciles against the sha the
+  health RECORD names (`reconcileHealthRun`), never the sha the trigger
+  snapshotted: yielding to queued lands is precisely what advances the tip
+  between the two, so an equality check there would reject the verdict of the
+  run it started and re-fire a full gate on every later landing;
+- **GREEN** prunes every landing up to the gated tip and rewrites `green-sha`;
+  **RED** writes the same durable marker as always, which refuses the next
+  PICK in `queue:plan` and never the next LAND, and hands the tip to
+  `health-fix.ts` unchanged. The counter is deliberately not reset on RED, so
+  the landing carrying the fix-forward is gated at once rather than waiting out
+  another batch.
+
+Amortised: ~10 min of full gate per 5 landings, against the ~17 min per landing
+ADR 0136 measured before it, and an exposure window of ≤ 5 landings or 2 h
+instead of ≤ 2 days.
+
+**The mutex gains a third acquisition for this: `yield`.** Health holds the
+lock ~10 min and a landing ~4, and the tip health is about does not get staler
+while a land runs — the land only adds a commit the next run covers anyway. So
+the batch gate steps aside while any waiter declares `TOLARIA_GATE_ROLE=land`
+(`land`'s `lockedEnv` sets it), and `health-main --under-lock` passes its three
+steps through that ONE acquisition instead of queuing three times, so the block
+a landing waits out is one block rather than three. Stepping aside is
+**bounded** — `TOLARIA_GATE_YIELD_BOUND_MS`, 30 min — because at the measured
+2.5 PR/h with three sessions there is frequently SOME land queued, and an
+unbounded yield means the tip is never gated at all. Worst case for a landing:
+10 min plus the lands ahead of it, ≤ 18 min at the admission cap of 3, at most
+once per 5 landings. The decision is `yieldVerdict` in
+`scripts/lib/gate-liveness.ts`, tested pure beside the stall and reclaim
+verdicts (issue #3792's shape: a starvable subprocess makes the verdict a
+property of the machine's load).
 
 **Branch names are not literals.** `scripts/lib/branches.ts` is the one
 reader; `deny-guard.sh` reads the same JSON with `jq`;
@@ -674,6 +728,12 @@ whenever the holder changes, and on every 60-second retry rather than a bare
 "still waiting". `bun run gate:who` prints the same line plus the holder's
 measured descendant CPU and its time-to-reclaim, so the two-hour reconstruction
 above is one command.
+
+Since ADR 0136 §6 every heavy-tier waiter also writes itself into
+`~/.cache/tolaria/gate.waiters/<pid>.json` — pid, role, cwd, command, since —
+removed on acquisition and pruned on a dead pid by whoever reads it next. That
+made the QUEUE readable, not just the holder: `gate:who` prints it, and the
+`yield` acquisition above is the first thing that depends on it.
 
 Reclaims are loud and typed, in stderr and in `.claude/telemetry/gate-lock.jsonl`:
 a **dead** holder is an orphan, a **stalled** one is a live pid whose command is

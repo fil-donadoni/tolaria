@@ -13,12 +13,13 @@
  * 10s, and the bot suite blowing its 60s per-test ceiling under load — i.e.
  * FALSE REDS, whose debugging cost dwarfs the raw slowdown.
  *
- * MODEL. Two tiers:
+ * MODEL. Two tiers, the heavier of which has two acquisitions:
  *
  *   heavy — the full suites and `check:all`. Hold a machine-wide exclusive
  *           mutex and get the full worker count, CAPPED (see below). One at a
  *           time, but each runs at solo speed instead of N running at 1/N
  *           speed. Callers queue.
+ *   yield — heavy, but lands go first. See YIELD below.
  *   light — targeted vitest, `check:ts`, `lint`. No lock, but vitest is capped
  *           at TOLARIA_VITEST_WORKERS (default 2, see vitest.config.ts), so
  *           four concurrent light jobs fit in ncpu.
@@ -36,14 +37,31 @@
  * CPU time is still advancing, and a subtree frozen for STALL_BEATS beats
  * stops the refresh, handing the lock to the existing STALE_MS reclaim path.
  *
+ * YIELD. A third spelling of the heavy tier, for the per-batch health gate
+ * (ADR 0136 §6): identical in every way — same mutex, same worker count, same
+ * heartbeat — except that it steps aside while any `land` is QUEUED. Health
+ * holds the mutex ~10 min and a landing ~4, and the tip health is about does
+ * not get staler while a land runs, so letting the landings through first
+ * costs health nothing and saves each of them ten minutes. Bounded by
+ * TOLARIA_GATE_YIELD_BOUND_MS so it cannot starve; the decision itself is
+ * `yieldVerdict` in `lib/gate-liveness.ts`, tested pure. Every waiter records
+ * itself under `gate.waiters/` while it queues, which is what makes the set of
+ * queued lands readable at all — and what `who` now prints.
+ *
  * Usage:
  *   bun scripts/gate.ts heavy '<shell command>'
+ *   bun scripts/gate.ts yield '<shell command>'   # heavy, but lands go first
  *   bun scripts/gate.ts light '<shell command>'
  *   bun scripts/gate.ts who              # who holds the mutex, and is it alive?
  *
  * Env:
  *   TOLARIA_GATE_HELD=1        set by this script for the child; a nested heavy
  *                              call passes straight through (no self-deadlock)
+ *   TOLARIA_GATE_ROLE          what this caller is — `land`, `health`, or
+ *                              unset; recorded on the waiter entry and read by
+ *                              the yield decision
+ *   TOLARIA_GATE_YIELD_BOUND_MS  how long a `yield` acquisition steps aside
+ *                              before taking the mutex anyway (default 30 min)
  *   TOLARIA_ALLOW_FULL_SUITE=1 escape hatch for the issue-worktree guard
  *   TOLARIA_VITEST_WORKERS     worker cap read by vitest.config.ts
  *   TOLARIA_HEAVY_WORKERS_CAP  ceiling on the heavy tier's worker count
@@ -57,6 +75,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import {
     mkdirSync,
+    readdirSync,
     rmSync,
     readFileSync,
     writeFileSync,
@@ -70,6 +89,8 @@ import {
     heartbeatStep,
     reclaimVerdict,
     subtreeFromPs,
+    yieldVerdict,
+    type GateWaiter,
 } from "./lib/gate-liveness";
 
 // Overridable so the test suite can exercise the mutex against a temp dir
@@ -78,6 +99,22 @@ const LOCK_ROOT =
     process.env.TOLARIA_GATE_LOCK_ROOT ?? join(homedir(), ".cache", "tolaria");
 const LOCK_DIR = join(LOCK_ROOT, "gate.lock");
 const OWNER_FILE = join(LOCK_DIR, "owner.json");
+/** One file per process currently QUEUED on the mutex — beside the lock, not
+ *  inside it, because the lock directory IS the lock and is removed whole on
+ *  release. The `yield` tier reads this set; nothing else depends on it, so a
+ *  write that fails is ignored everywhere. */
+const WAITERS_DIR = join(LOCK_ROOT, "gate.waiters");
+/** What this caller is, for the yield decision. `land` sets it in `lockedEnv`,
+ *  the batch health gate in `health-cadence.ts`; everything else is "". */
+const ROLE = process.env.TOLARIA_GATE_ROLE ?? "";
+/** How long a `yield` acquisition steps aside for queued lands before taking
+ *  the mutex anyway. Thirty minutes is ~7 landings at the measured 4 min hold,
+ *  so the bound only ever bites when the queue genuinely never empties — and
+ *  when it does, health runs at most half an hour later than its trigger asked
+ *  for, instead of never. Overridable so the test suite drives it in ms. */
+const YIELD_BOUND_MS = Number(
+    process.env.TOLARIA_GATE_YIELD_BOUND_MS ?? 30 * 60 * 1000
+);
 /** A lock whose owner stamp is older than this is assumed orphaned even if its
  *  pid still exists. `ts` is a HEARTBEAT, not the acquisition time: the holder
  *  refreshes it every HEARTBEAT_MS for as long as its subtree keeps making
@@ -210,6 +247,86 @@ function tryAcquire(): boolean {
     return true;
 }
 
+// ── waiter registry ─────────────────────────────────────────────────────────
+// A queued gate is invisible from outside its own terminal: `owner.json` names
+// the HOLDER and nothing named the queue. The `yield` tier needs that queue —
+// "is a land waiting?" is its whole decision — so every heavy-tier caller
+// writes one small file while it waits and removes it the moment it acquires.
+// Best-effort throughout: a registry that cannot be written degrades a `yield`
+// acquisition to an ordinary `heavy` one, which is the safe direction.
+
+function waiterFile(pid: number = process.pid): string {
+    return join(WAITERS_DIR, `${pid}.json`);
+}
+
+function registerWaiter() {
+    try {
+        mkdirSync(WAITERS_DIR, { recursive: true });
+        const entry: GateWaiter = {
+            pid: process.pid,
+            role: ROLE,
+            label: command.slice(0, 120),
+            cwd: process.cwd(),
+            since: Date.now(),
+        };
+        writeFileSync(waiterFile(), JSON.stringify(entry));
+    } catch {
+        /* the registry is never load-bearing */
+    }
+}
+
+function unregisterWaiter() {
+    try {
+        rmSync(waiterFile(), { force: true });
+    } catch {
+        /* best effort */
+    }
+}
+
+/** Every OTHER waiter whose pid is still alive. Dead entries are pruned as
+ *  they are read — a session killed mid-queue must not keep a `yield`
+ *  acquisition stepping aside for a land that no longer exists. */
+function liveWaiters(): GateWaiter[] {
+    let names: string[];
+    try {
+        names = readdirSync(WAITERS_DIR);
+    } catch {
+        return [];
+    }
+    const out: GateWaiter[] = [];
+    for (const name of names) {
+        const file = join(WAITERS_DIR, name);
+        let entry: GateWaiter;
+        try {
+            entry = JSON.parse(readFileSync(file, "utf8")) as GateWaiter;
+        } catch {
+            continue; // torn write or foreign file — never a verdict
+        }
+        if (typeof entry.pid !== "number" || entry.pid === process.pid)
+            continue;
+        // Dead pid, OR an entry too old to be a real queue. The age bound is
+        // not belt-and-braces: a gate killed while still QUEUED installs no
+        // teardown handler (`installTeardown` runs only once `acquire`
+        // returns), so its entry outlives it, and macOS reuses pids within
+        // hours on a busy machine. One reused pid on a long-lived process and
+        // every batch health run would yield the full bound, for ever. Same
+        // threshold the owner stamp already uses.
+        const stale =
+            typeof entry.since !== "number" ||
+            Date.now() - entry.since > STALE_MS;
+        if (!alive(entry.pid) || stale) {
+            try {
+                rmSync(file, { force: true });
+            } catch {
+                /* another waiter pruned it first */
+            }
+            continue;
+        }
+        out.push(entry);
+    }
+    return out;
+}
+
 function release() {
     const owner = readOwner();
     if (owner && owner.pid !== process.pid) return; // not ours — never steal on exit
@@ -251,13 +368,44 @@ function logWait(waitedMs: number) {
     logEvent({ event: "acquired", waited_ms: waitedMs });
 }
 
-async function acquire() {
+async function acquire(yielding: boolean) {
     mkdirSync(LOCK_ROOT, { recursive: true });
     const t0 = Date.now();
     let announcedFor: number | null = null;
     let lastAnnounce = 0;
+    let lastYieldAnnounce = 0;
+    // Registered BEFORE the first attempt, not after the first failure: a
+    // `yield` acquisition reads this set to decide, and a land that has failed
+    // `tryAcquire` but not yet written its entry is a land the health gate
+    // would step over. Registering first closes that window in the safe
+    // direction — at worst health yields to a land that is about to acquire.
+    registerWaiter();
     for (;;) {
+        // The YIELD rule (ADR 0136 §6), consulted only BEFORE taking the
+        // mutex: nothing here can touch a gate that is already running, this
+        // one included.
+        if (yielding) {
+            const decision = yieldVerdict({
+                waiters: liveWaiters(),
+                yieldingSince: t0,
+                now: Date.now(),
+                boundMs: YIELD_BOUND_MS,
+            });
+            if (decision.verdict === "yield") {
+                const now = Date.now();
+                if (now - lastYieldAnnounce >= 60_000) {
+                    console.error(`[gate] yielding — ${decision.reason}`);
+                    lastYieldAnnounce = now;
+                }
+                await new Promise((r) =>
+                    setTimeout(r, POLL_MS + Math.random() * 500)
+                );
+                continue;
+            }
+            if (decision.bounded) console.error(`[gate] ${decision.reason}`);
+        }
         if (tryAcquire()) {
+            unregisterWaiter();
             const waitedMs = Date.now() - t0;
             // Close the wait the retry lines opened (issue #3487): without it
             // a terminal whose last line is "waiting …" still reads as queued
@@ -341,14 +489,27 @@ function who(): number {
         console.log(
             "[gate]   holder went silent — the next waiter reclaims it"
         );
+    // The queue behind the holder — what nothing printed before the waiter
+    // registry existed, and the thing a blocked session actually wants (and
+    // the batch health gate's `yield` decision reads).
+    for (const w of liveWaiters())
+        console.log(
+            `[gate]   queued — pid ${w.pid}${w.role ? ` [${w.role}]` : ""} · waiting ${fmtDuration(now - w.since)} · ${w.cwd} · ${w.label}`
+        );
     return 0;
 }
 
 if (tier === "who") process.exit(who());
 
-if ((tier !== "heavy" && tier !== "light") || !command) {
+/** `yield` is the heavy tier in every respect but its acquisition (ADR 0136
+ *  §6): same mutex, same worker count, same heartbeat, same teardown. */
+const HEAVY_TIERS = ["heavy", "yield"] as const;
+const isHeavyTier = (t: string): boolean =>
+    (HEAVY_TIERS as readonly string[]).includes(t);
+
+if ((!isHeavyTier(tier) && tier !== "light") || !command) {
     console.error(
-        "usage: bun scripts/gate.ts <heavy|light> '<shell command>' | bun scripts/gate.ts who"
+        "usage: bun scripts/gate.ts <heavy|yield|light> '<shell command>' | bun scripts/gate.ts who"
     );
     process.exit(2);
 }
@@ -370,7 +531,7 @@ function isIssueWorktree(): boolean {
 }
 
 if (
-    tier === "heavy" &&
+    isHeavyTier(tier) &&
     !process.env.TOLARIA_GATE_HELD &&
     !process.env.TOLARIA_ALLOW_FULL_SUITE &&
     isIssueWorktree()
@@ -512,11 +673,13 @@ function killChildTree(signal: NodeJS.Signals) {
 function installTeardown(holdsLock: boolean) {
     process.on("exit", () => {
         killChildTree("SIGKILL");
+        unregisterWaiter();
         if (holdsLock) release();
     });
     for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
         process.on(sig, () => {
             killChildTree(sig);
+            unregisterWaiter();
             if (holdsLock) release();
             process.exit(130);
         });
@@ -525,20 +688,23 @@ function installTeardown(holdsLock: boolean) {
 
 async function main() {
     const nested = process.env.TOLARIA_GATE_HELD === "1";
-    const holdsLock = tier === "heavy" && !nested;
+    const heavy = isHeavyTier(tier);
+    const holdsLock = heavy && !nested;
     if (holdsLock) {
-        await acquire();
+        // A NESTED yield call would deadlock nothing but would also decide
+        // nothing: it already runs under a hold. Only the outermost
+        // acquisition yields.
+        await acquire(tier === "yield");
         startHeartbeat();
         installTeardown(true);
     }
 
     const env = {
         ...process.env,
-        TOLARIA_GATE_HELD:
-            tier === "heavy" ? "1" : process.env.TOLARIA_GATE_HELD,
+        TOLARIA_GATE_HELD: heavy ? "1" : process.env.TOLARIA_GATE_HELD,
         TOLARIA_VITEST_WORKERS:
             process.env.TOLARIA_VITEST_WORKERS ??
-            (tier === "heavy" ? String(HEAVY_WORKERS) : undefined),
+            (heavy ? String(HEAVY_WORKERS) : undefined),
     } as NodeJS.ProcessEnv;
 
     child = spawn("sh", ["-c", command], {
