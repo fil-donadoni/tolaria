@@ -9,6 +9,15 @@ import {
 } from "node:fs";
 import { cpus, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import {
+    INITIAL_HEARTBEAT,
+    SubtreeProgress,
+    heartbeatStep,
+    parseCpuMs,
+    reclaimVerdict,
+    subtreeFromPs,
+    type BeatVerdict,
+} from "../lib/gate-liveness";
 
 /**
  * CPU admission control (scripts/gate.ts) — see CLAUDE.md § Quality gates.
@@ -20,6 +29,16 @@ import { join, resolve } from "node:path";
  *
  * The lock root is redirected to a temp dir (TOLARIA_GATE_LOCK_ROOT) so the
  * suite never contends with — or blocks on — a real gate run on this machine.
+ *
+ * What goes through a subprocess is the WIRING only — lock dir, owner stamp,
+ * waiter and STALLED lines — and every such test waits for an observable
+ * event, never for a wall-clock window. The liveness DECISIONS (progress /
+ * silent / stalled, reclaim or wait) are pure functions in
+ * `scripts/lib/gate-liveness.ts`, asserted over hand-built samples below
+ * (issue #3792): asserting them through a real CPU burner made the verdict a
+ * property of the machine's load — a starved spinner reads as a stall — and a
+ * false red in `health:main` writes the durable RED marker. The end-to-end
+ * burner runs live in `gate.perf.test.ts`, which is never gated.
  */
 const GATE = resolve(__dirname, "..", "gate.ts");
 
@@ -55,18 +74,10 @@ function run(
     });
 }
 
-/** A shell command that burns real CPU for `seconds` — the only kind of hold
- *  the heartbeat is allowed to vouch for since issue #2999. `sleep` is its
- *  opposite: alive, zero CPU, indistinguishable from the hung vitest that
- *  blocked three sessions for 2h13m. */
-function burnCpu(seconds: number) {
-    return `end=$(( $(date +%s) + ${seconds} )); while [ $(date +%s) -lt $end ]; do :; done`;
-}
-
 /** Resolve once the spawned holder has actually written owner.json: `spawn`
  *  returns before bun has even started, so a waiter launched immediately would
  *  win the lock and test nothing. */
-async function waitForLock(timeoutMs = 5000) {
+async function waitForLock(timeoutMs = 20_000) {
     const f = join(lockRoot, "gate.lock", "owner.json");
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
@@ -76,28 +87,19 @@ async function waitForLock(timeoutMs = 5000) {
     throw new Error("holder never took the lock");
 }
 
-/** A hold shaped like every real one: a heavy PARALLEL phase whose children
- *  then exit, followed by a lighter single-process phase that keeps working.
- *  The full suite is three sequential vitest invocations, each tearing down a
- *  worker pool; `check:all:inner` walks a chain of separate tools. The live
- *  CPU snapshot COLLAPSES at each turnover, so a progress signal that is not
- *  monotonic reads this healthy command as frozen. */
-function burstThenSteady(
-    parallel: number,
-    burstSeconds: number,
-    tailSeconds: number
-) {
-    const burn = (n: number) =>
-        `end=$(( $(date +%s) + ${n} )); while [ $(date +%s) -lt $end ]; do :; done`;
-    return (
-        `for i in $(seq 1 ${parallel}); do ( ${burn(burstSeconds)} ) & done; wait; ` +
-        `${burn(tailSeconds)}; echo PHASES-DONE`
-    );
-}
-
 function readOwnerTs(): number {
     const f = join(lockRoot, "gate.lock", "owner.json");
     return (JSON.parse(readFileSync(f, "utf8")) as { ts: number }).ts;
+}
+
+/** Poll `done` until it holds or a generous deadline passes. Every subprocess
+ *  test waits for an EVENT through this — a bound sized so only a hang, never
+ *  a loaded machine, can exhaust it. */
+async function waitFor(done: () => boolean, timeoutMs = 20_000) {
+    const deadline = Date.now() + timeoutMs;
+    while (!done() && Date.now() < deadline)
+        await new Promise((r) => setTimeout(r, 50));
+    return done();
 }
 
 beforeEach(() => {
@@ -187,8 +189,9 @@ describe("gate.ts — machine-wide mutex", () => {
         let outA = "";
         first.stdout!.on("data", (d) => (outA += d));
 
-        // Let the first acquire before the second races for the lock.
-        await new Promise((r) => setTimeout(r, 400));
+        // Let the first acquire before the second races for the lock — on
+        // the lock file itself, not a guessed delay a slow bun start outruns.
+        await waitForLock();
         const second = run(["heavy", stamp("B-start")]);
 
         await new Promise<void>((r) => first.on("exit", () => r()));
@@ -210,61 +213,32 @@ describe("gate.ts — machine-wide mutex", () => {
         );
     }, 20_000);
 
-    it("heartbeats the owner stamp while the held command BURNS CPU — a long hold never reads stale (issue #1924)", async () => {
-        // ── Why the beat is 400ms and not 150ms ────────────────────────────
-        //
-        // The progress signal is `ps -o time=`, which reports CENTISECONDS —
-        // so a beat sees "progress" only if the subtree gained >= 10ms of CPU
-        // since the last sample. That is free on an idle machine and NOT free
-        // here: this test runs inside the full suite, which saturates the box
-        // with `ncpu - 1` vitest workers, and a starved burner gets a few
-        // percent of a core. At 5% CPU a 150ms beat earns ~7.5ms — under one
-        // tick — so two consecutive beats could legitimately observe no
-        // change and the gate would correctly declare STALLED. The test then
-        // failed for a property of the MACHINE rather than of the code, which
-        // is what made it flaky on main (it was red in `health:main` and in
-        // the #2699 merge gate, and green in isolation every time).
-        //
-        // 400ms beats earn ~20ms at 5% CPU — two ticks, with margin — so a
-        // STALLED verdict now needs the burner held under ~1.25% of a core for
-        // 800ms straight. The ASSERTION is unchanged; only the sampling window
-        // is wide enough to make the measurement.
-        //
-        // This is the HOUSE REMEDY, not a new one: the monotonic-total test
-        // below already carries the same 400ms beat and says why, in the same
-        // terms ("under a loaded machine a 150ms beat can legitimately see no
-        // measurable change on a starved process"). That test was widened when
-        // someone hit this; this one is the last with the vulnerable shape —
-        // asserting the ABSENCE of a stall while burning. The `stallEnv` tests
-        // keep 150ms correctly: they assert a zero-CPU `sleep` DOES trip, and
-        // starvation only makes that fire sooner.
-        //
-        // Production never had the problem at all: HEARTBEAT_MS defaults to
-        // five MINUTES (`scripts/gate.ts`), where a 10ms tick is never the
-        // limiting factor. Do not re-compress this to chase a faster test.
-        const child = spawn("bun", [GATE, "heavy", burnCpu(6)], {
+    it("refreshes the owner stamp on every beat short of a stall verdict — a long hold never reads stale (issue #1924)", async () => {
+        // The WIRING only: the beat rewrites owner.json. Whether a beat is
+        // progress is `heartbeatStep`'s call, tested pure below — so the stall
+        // threshold here is out of reach, and a holder the machine starves
+        // still refreshes. (Asserting this through a CPU burner was issue
+        // #3792's false red: three starved beats read as a stall.)
+        const child = spawn("bun", [GATE, "heavy", "sleep 60"], {
             cwd: lockRoot,
             env: env({
-                TOLARIA_GATE_HEARTBEAT_MS: "400",
-                TOLARIA_GATE_STALL_BEATS: "2",
+                TOLARIA_GATE_HEARTBEAT_MS: "100",
+                TOLARIA_GATE_STALL_BEATS: "1000000",
             }),
             stdio: ["ignore", "ignore", "pipe"],
         } as never);
         let err = "";
         child.stderr!.on("data", (d) => (err += d));
-        await new Promise((r) => setTimeout(r, 1200));
+        await waitForLock();
         const t1 = readOwnerTs();
-        await new Promise((r) => setTimeout(r, 1200));
-        const t2 = readOwnerTs();
+        const refreshed = await waitFor(() => readOwnerTs() > t1);
+        child.kill("SIGKILL");
         await new Promise<void>((r) => child.on("exit", () => r()));
-        // The stamp must advance while the command runs: waiters measure
-        // staleness from it, so a refreshed stamp is what protects a
-        // multi-hour ladder hold from the 45-min prune. The command has to
-        // burn real CPU for that — the stamp attests to the SUBTREE making
-        // progress, not to the gate process existing (issue #2999).
-        expect(t2).toBeGreaterThan(t1);
+        // Waiters measure staleness from this stamp, so a refreshed stamp is
+        // what protects a multi-hour ladder hold from the 45-min prune.
+        expect(refreshed).toBe(true);
         expect(err).not.toContain("STALLED");
-    }, 20_000);
+    }, 30_000);
 
     it("prunes a lock whose holder is dead instead of waiting for it", () => {
         // A lock dir with no readable owner is indistinguishable from an
@@ -276,62 +250,191 @@ describe("gate.ts — machine-wide mutex", () => {
     }, 20_000);
 });
 
-describe("gate.ts — liveness (issue #2999)", () => {
+describe("gate-liveness — the stall decision, pure (issue #3792)", () => {
+    const STALL = 3;
+
+    /** Drive `heartbeatStep` over a sample sequence; one verdict per beat. */
+    function beats(
+        samples: (number | null)[],
+        stallBeats = STALL
+    ): BeatVerdict[] {
+        let state = INITIAL_HEARTBEAT;
+        return samples.map((cpu) => {
+            const step = heartbeatStep(state, cpu, stallBeats);
+            state = step.state;
+            return step.verdict;
+        });
+    }
+
+    /** The phase turnover every real hold goes through: four burners at a
+     *  steady 400ms/beat, then they exit and ONE tail keeps working at
+     *  50ms/beat — far under the burst's peak for its whole life. */
+    function phaseTurnover(): Map<number, number>[] {
+        const snaps: Map<number, number>[] = [];
+        for (let beat = 1; beat <= 5; beat++)
+            snaps.push(
+                new Map([101, 102, 103, 104].map((p) => [p, beat * 400]))
+            );
+        for (let beat = 1; beat <= 20; beat++)
+            snaps.push(new Map([[200, beat * 50]]));
+        return snaps;
+    }
+
+    it("steady progress never stalls, however long the hold (issue #1924)", () => {
+        const samples = Array.from({ length: 500 }, (_, i) => i * 10);
+        expect(beats(samples)).not.toContain("stalled");
+        expect(new Set(beats(samples))).toEqual(new Set(["progress"]));
+    });
+
+    it("flat samples stall at exactly STALL_BEATS — the first sample is the baseline", () => {
+        expect(beats([700, 700, 700, 700, 700])).toEqual([
+            "progress",
+            "silent",
+            "silent",
+            "stalled",
+            "latched",
+        ]);
+        expect(beats([700, 700], 1)).toEqual(["progress", "stalled"]);
+    });
+
+    it("a stall latches — a later rise never re-arms the heartbeat", () => {
+        expect(beats([700, 700, 700, 700, 9000, 9999])).toEqual([
+            "progress",
+            "silent",
+            "silent",
+            "stalled",
+            "latched",
+            "latched",
+        ]);
+    });
+
+    it("a rise resets the silent count", () => {
+        expect(beats([1, 1, 1, 2, 2, 2, 3])).not.toContain("stalled");
+    });
+
+    it("unmeasurable samples count as progress — never reclaim a holder we cannot judge", () => {
+        expect(beats([null, null, null, null, null, null])).not.toContain(
+            "stalled"
+        );
+        // …and they reset a silent run rather than extending it.
+        expect(beats([700, 700, 700, null, 700, 700, null, 700])).not.toContain(
+            "stalled"
+        );
+    });
+
+    it("a phase turnover is monotonic and never stalls", () => {
+        const progress = new SubtreeProgress();
+        const totals = phaseTurnover().map((s) => progress.observe(s)!);
+        for (let i = 1; i < totals.length; i++)
+            expect(totals[i]).toBeGreaterThan(totals[i - 1]);
+        expect(beats(totals)).not.toContain("stalled");
+
+        // The fixture discriminates: the RAW live snapshot collapses at the
+        // turnover and a non-monotonic signal stalls this healthy hold.
+        const raw = phaseTurnover().map((s) =>
+            [...s.values()].reduce((a, b) => a + b, 0)
+        );
+        expect(beats(raw)).toContain("stalled");
+    });
+
+    it("a null snapshot neither resets nor advances the accumulated total", () => {
+        const progress = new SubtreeProgress();
+        expect(progress.observe(new Map([[1, 500]]))).toBe(500);
+        expect(progress.observe(null)).toBeNull();
+        expect(progress.observe(new Map([[2, 30]]))).toBe(530);
+    });
+
+    it("a waiter reclaims a dead or silent holder, and only those", () => {
+        const now = 1_000_000;
+        const stale = 45 * 60 * 1000;
+        expect(reclaimVerdict(null, false, now, stale)).toBe("dead");
+        expect(reclaimVerdict({ ts: now }, false, now, stale)).toBe("dead");
+        expect(reclaimVerdict({ ts: now - stale - 1 }, false, now, stale)).toBe(
+            "dead"
+        );
+        expect(reclaimVerdict({ ts: now - stale - 1 }, true, now, stale)).toBe(
+            "stalled"
+        );
+        expect(
+            reclaimVerdict({ ts: now - stale }, true, now, stale)
+        ).toBeNull();
+        expect(reclaimVerdict({ ts: now }, true, now, stale)).toBeNull();
+    });
+
+    it("parses `ps` CPU time on both platforms, and refuses garbage", () => {
+        expect(parseCpuMs("0:01.50")).toBe(1500);
+        expect(parseCpuMs("01:02:03")).toBe(3_723_000);
+        expect(parseCpuMs("2-00:00:01")).toBe(172_801_000);
+        expect(parseCpuMs("n/a")).toBeNull();
+    });
+
+    it("the subtree is every live descendant — not the gate, not the `ps` that measured it", () => {
+        const ps = [
+            "    1     0   9:99.00",
+            "   50     1   0:00.10", // the gate
+            "   60    50   0:01.00", // sh
+            "   61    60   0:02.00", // vitest
+            "   62    61   0:03.00", // worker
+            "   70    50   0:00.02", // ps itself
+            "   80     1   5:00.00", // unrelated
+            "garbage line",
+        ].join("\n");
+        expect(subtreeFromPs(ps, 50, 70)).toEqual(
+            new Map([
+                [60, 1000],
+                [61, 2000],
+                [62, 3000],
+            ])
+        );
+        expect(subtreeFromPs(ps, 999)).toEqual(new Map());
+        expect(subtreeFromPs("", 50)).toBeNull();
+    });
+});
+
+describe("gate.ts — liveness wiring (issue #2999)", () => {
     /**
      * The incident this suite exists for: a `health:main` whose vitest hung at
      * startup burned 16.86 s of CPU in 2h13m and kept heartbeating the whole
      * time, because the heartbeat attested to the GATE process being alive
-     * rather than to the wrapped command making progress. `alive(pid)` was
-     * true and the stamp was never stale, so no waiter could reclaim it.
-     * `sleep` reproduces exactly that shape in milliseconds: a live subtree
-     * burning no CPU at all.
+     * rather than to the wrapped command making progress. `sleep` reproduces
+     * exactly that shape: a live subtree burning no CPU at all. Load can only
+     * make a zero-CPU subtree stall SOONER, so these never false-red — and
+     * each waits for the STALLED line instead of a guessed window.
      */
-    const stallEnv = (extra: Record<string, string> = {}) =>
+    const stallEnv = () =>
         env({
             TOLARIA_GATE_HEARTBEAT_MS: "150",
             TOLARIA_GATE_STALL_BEATS: "2",
-            ...extra,
         });
 
-    it("stops heartbeating once the held subtree makes no progress", async () => {
-        const child = spawn("bun", [GATE, "heavy", "sleep 5"], {
+    function spawnSilentHolder() {
+        const child = spawn("bun", [GATE, "heavy", "sleep 60"], {
             cwd: lockRoot,
             env: stallEnv(),
             stdio: ["ignore", "ignore", "pipe"],
         } as never);
-        let err = "";
-        child.stderr!.on("data", (d) => (err += d));
-        // Wait for the VERDICT, then sample — never sample on a wall-clock
-        // guess. The beat is a 150ms `setInterval`, and under the load this
-        // suite creates it fires late; a fixed 1200ms window can therefore
-        // land BEFORE the stall is declared, catching the stamp mid-advance
-        // and failing `t2 === t1` for a property of the machine. (Observed:
-        // t2 - t1 = 1227ms, co-scheduled with the catalogue round-trip file.)
-        // The property under test is "once stalled, the stamp stops", which
-        // says nothing about when the stall lands — so wait for it.
-        const stalledBy = Date.now() + 10_000;
-        while (!err.includes("STALLED") && Date.now() < stalledBy)
-            await new Promise((r) => setTimeout(r, 50));
-        expect(err).toContain("STALLED");
+        const out = { err: "" };
+        child.stderr!.on("data", (d) => (out.err += d));
+        return { child, out };
+    }
+
+    it("stops heartbeating once the held subtree makes no progress", async () => {
+        const { child, out } = spawnSilentHolder();
+        expect(await waitFor(() => out.err.includes("STALLED"))).toBe(true);
         const t1 = readOwnerTs();
+        // Latched: after the verdict no beat writes again, so any wait shows
+        // the same stamp — the length only has to cover a few beats.
         await new Promise((r) => setTimeout(r, 600));
         const t2 = readOwnerTs();
         child.kill("SIGKILL");
         await new Promise<void>((r) => child.on("exit", () => r()));
         // Frozen subtree ⇒ frozen stamp ⇒ the existing STALE_MS path can fire.
         expect(t2).toBe(t1);
-    }, 20_000);
+    }, 30_000);
 
     it("a waiter reclaims a stalled holder's lock through the STALE_MS path", async () => {
-        const holder = spawn("bun", [GATE, "heavy", "sleep 10"], {
-            cwd: lockRoot,
-            env: stallEnv(),
-            stdio: ["ignore", "ignore", "pipe"],
-        } as never);
-        // Let it beat, go silent, and then age past the (shortened) staleness
-        // threshold — the reclaim itself is the UNCHANGED 45-min path, only
-        // fed an honest input.
-        await new Promise((r) => setTimeout(r, 1500));
+        const { child, out } = spawnSilentHolder();
+        expect(await waitFor(() => out.err.includes("STALLED"))).toBe(true);
 
         // Bounded on purpose: if the holder never goes silent, this call
         // blocks forever in acquire()'s poll loop, and a spawnSync that hangs
@@ -340,10 +443,10 @@ describe("gate.ts — liveness (issue #2999)", () => {
             encoding: "utf8",
             cwd: lockRoot,
             env: env({ TOLARIA_GATE_STALE_MS: "600" }),
-            timeout: 8000,
+            timeout: 20_000,
         });
-        holder.kill("SIGKILL");
-        await new Promise<void>((r) => holder.on("exit", () => r()));
+        child.kill("SIGKILL");
+        await new Promise<void>((r) => child.on("exit", () => r()));
 
         expect(waiter.status, waiter.stdout + waiter.stderr).toBe(0);
         expect(waiter.stdout).toContain("RECLAIMED");
@@ -352,113 +455,48 @@ describe("gate.ts — liveness (issue #2999)", () => {
         // holder's orphan.
         expect(waiter.stderr).toContain("reclaiming the heavy mutex");
         expect(waiter.stderr).toContain("STALLED holder");
-    }, 25_000);
-
-    it("never reclaims a holder that IS making progress, however long it runs (issue #1924)", async () => {
-        const holder = spawn("bun", [GATE, "heavy", burnCpu(6)], {
-            cwd: lockRoot,
-            env: stallEnv(),
-            stdio: "ignore",
-        } as never);
-        await waitForLock();
-        // Staleness at 10x the heartbeat period and a bound at 2x staleness:
-        // a holder still attesting cannot age out inside the bound, while one
-        // that stopped attesting goes stale at ~1.7s and would be reclaimed
-        // well before it — so this bound discriminates instead of merely
-        // running out. A false reclaim here is the issue #1924 ladder
-        // regression and nothing else.
-        const waiter = spawnSync(
-            "bun",
-            [GATE, "heavy", "echo SHOULD-NOT-RUN"],
-            {
-                encoding: "utf8",
-                cwd: lockRoot,
-                env: env({ TOLARIA_GATE_STALE_MS: "1500" }),
-                timeout: 3000,
-            }
-        );
-        holder.kill("SIGKILL");
-
-        // Still blocked when the bound fired ⇒ the lock was never taken from
-        // a live, working holder.
-        expect(waiter.signal).toBe("SIGTERM");
-        expect(waiter.stdout).not.toContain("SHOULD-NOT-RUN");
-        expect(waiter.stderr).not.toContain("reclaiming");
-    }, 20_000);
-
-    it("survives a phase turnover — a heavy parallel phase exiting is not a stall", async () => {
-        // Without a monotonic total this is a FALSE reclaim: the four burners
-        // push the live snapshot to ~8 CPU-seconds, they exit, and the single
-        // tail process cannot climb back past that peak within its lifetime —
-        // so every remaining beat reads "no progress" on a command that is
-        // working and will exit 0.
-        // A slower beat than the other liveness tests on purpose: `ps` reports
-        // CPU at 10ms granularity, so under a loaded machine a 150ms beat can
-        // legitimately see no measurable change on a starved process. 3 beats
-        // of 400ms needs 1.2s of ZERO measurable CPU to trip — unreachable for
-        // a spinning process at any share of a core, while still firing well
-        // inside the 5s tail if the total is not monotonic.
-        const child = spawn("bun", [GATE, "heavy", burstThenSteady(4, 2, 5)], {
-            cwd: lockRoot,
-            env: env({
-                TOLARIA_GATE_HEARTBEAT_MS: "400",
-                TOLARIA_GATE_STALL_BEATS: "3",
-            }),
-            stdio: ["ignore", "pipe", "pipe"],
-        } as never);
-        let out = "";
-        let err = "";
-        child.stdout!.on("data", (d) => (out += d));
-        child.stderr!.on("data", (d) => (err += d));
-        const code = await new Promise<number>((r) =>
-            child.on("exit", (c) => r(c ?? 1))
-        );
-
-        expect(code, err).toBe(0);
-        expect(out).toContain("PHASES-DONE");
-        expect(err).not.toContain("STALLED");
-    }, 30_000);
+    }, 40_000);
 
     it("a waiter's first line names the holder — pid, cwd, label and held-for", async () => {
-        const holder = spawn("bun", [GATE, "heavy", "sleep 10"], {
+        const holder = spawn("bun", [GATE, "heavy", "sleep 60"], {
             cwd: lockRoot,
             env: env(),
             stdio: "ignore",
         } as never);
         await waitForLock();
+        // The line is printed on the first poll; the bound only has to outlast
+        // a bun start, and the holder's 60s is never reached.
         const waiter = spawnSync("bun", [GATE, "heavy", "echo NOPE"], {
             encoding: "utf8",
             cwd: lockRoot,
             env: env(),
-            timeout: 3000,
+            timeout: 10_000,
         });
         holder.kill("SIGKILL");
 
         // Three sessions sat blocked for two hours with no way to tell who
         // held the mutex; every field below was already in owner.json.
         expect(waiter.stderr).toMatch(
-            /\[gate\] waiting \S+ for the heavy mutex — pid \d+ · held \S+ · last progress \S+ ago · \S+ · sleep 10/
+            /\[gate\] waiting \S+ for the heavy mutex — pid \d+ · held \S+ · last progress \S+ ago · \S+ · sleep 60/
         );
-    }, 20_000);
+    }, 30_000);
 
     it("`who` reports the holder plus its descendant CPU, or says the mutex is free", async () => {
         expect(run(["who"]).stdout).toContain("heavy mutex is free");
 
-        const holder = spawn("bun", [GATE, "heavy", "sleep 10"], {
+        const holder = spawn("bun", [GATE, "heavy", "sleep 60"], {
             cwd: lockRoot,
             env: env(),
             stdio: "ignore",
         } as never);
         await waitForLock();
-        // `sh -c "sleep 10"` burns a few ms at startup, so the descendant
-        // total is small but present — the point is that it is MEASURED.
-        await new Promise((r) => setTimeout(r, 300));
         const out = run(["who"]).stdout;
         holder.kill("SIGKILL");
 
+        // The figure may be 0.00s — the point is that it is MEASURED.
         expect(out).toMatch(/pid \d+ · held \S+ · last progress \S+ ago/);
         expect(out).toMatch(/holder pid alive · subtree CPU \d+\.\d\ds/);
-    }, 20_000);
+    }, 30_000);
 });
 
 describe("gate.ts — issue-worktree guard", () => {
