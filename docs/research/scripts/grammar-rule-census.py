@@ -783,12 +783,20 @@ def main() -> None:
     print()
 
     # ── Item 5: first 30 premodern shapes and first 30 cube shapes ──────
+    # `cnt` is cards blocked BY THE SHAPE (shape[1], the normalised clause
+    # text) -- the printed line is only ONE representative raw example of a
+    # line that contains that shape, never the whole story on its own (a
+    # "duration" shape's example line is a full trigger sentence; the SHAPE
+    # is just its "until end of turn" tail).
     def print_top30(order_name: str):
-        print(f"=== Item 5: first 30 {order_name} shapes, verbatim ===")
+        print(f"=== Item 5: first 30 {order_name} shapes ===")
+        print("(cnt = cards blocked BY THE SHAPE; the example line is one "
+              "raw occurrence of it, for readability only)")
         for i, (shape, cnt) in enumerate(rankings[order_name][:30], start=1):
             example_text, _ = shape_examples[shape].most_common(1)[0]
             note = registry_note_for(example_text, registry)
-            print(f"{i:2d}. [{cnt:4d} cards] ({shape[0]}) {example_text!r}")
+            print(f"{i:2d}. [{cnt:4d} cards] ({shape[0]}) shape: {shape[1]!r}")
+            print(f"      e.g.: {example_text!r}")
             print(f"      note: {note}")
         print()
 

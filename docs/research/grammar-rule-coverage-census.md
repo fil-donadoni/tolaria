@@ -442,79 +442,85 @@ cannot parse yet (those show up as `structural-gap` shapes instead, already
 visible in item 2's cube top-15: `land with a basic land type`, `layout "…"
 is not in grammar v0`).
 
-## 5. First 30 shapes, verbatim, premodern and cube orderings
+## 5. First 30 shapes, premodern and cube orderings
 
-Each row: rank, cards blocked (in that Target), clause category, one
-representative RAW gap line (the most-frequent exact line contributing to
-this shape, weighted by that line's own global corpus card count — not
-scoped to the Target), and a Mechanics Registry keyword-mention note (see
-Caveat 4).
+**`cnt` (cards blocked) is the count for the SHAPE — the normalised clause
+text — not for the example line.** Each row: rank, cards blocked (in that
+Target) by the shape, clause category, the **shape** itself (the normalised
+clause text every one of those cards actually shares — this is the thing
+being ranked), then one representative RAW example line containing that
+shape (the most-frequent exact line contributing to it, weighted by that
+line's own global corpus card count, not scoped to the Target — shown only
+for readability, it is NOT what the count measures), and a Mechanics
+Registry keyword-mention note (see Caveat 4). Row 1 below, for instance, is
+blocked by the `end-of-turn` DURATION clause, not by "Landfall" — the example
+line is just one of the 794 cards' lines that happens to contain that clause.
 
 ### First 30 premodern shapes
 
-1. [794] (duration) `Landfall — Whenever a land you control enters, this creature gets +2/+2 until end of turn.` — no registry keyword mentioned; grammar-only gap.
-2. [436] (cost) `{T}: Add one mana of any color.` — no registry keyword mentioned; grammar-only gap.
-3. [289] (effect-opaque) `Enchant creature` — mentions Enchant (implemented); grammar-only gap.
-4. [282] (zone-ref) `If this card is in your opening hand, you may begin the game with it on the battlefield.` — no registry keyword mentioned; grammar-only gap.
-5. [228] (zone-ref) `Exile {self}.` — mentions Exile (implemented); grammar-only gap.
-6. [213] (zone-ref) `You may look at the top card of your library any time.` — no registry keyword mentioned; grammar-only gap.
-7. [201] (trigger-head) `At the beginning of your upkeep, surveil 1.` — mentions Surveil (implemented); grammar-only gap.
-8. [195] (trigger-head) `When this creature enters, you get {E}{E} .` — no registry keyword mentioned; grammar-only gap.
-9. [195] (zone-ref) `Search your library for a card, put that card into your hand, then shuffle.` — mentions Search, Shuffle (implemented); grammar-only gap.
-10. [185] (zone-ref) `You may play lands from your graveyard.` — mentions Play (implemented); grammar-only gap.
-11. [162] (cost) `{1}, {T}: Add one mana of any color.` — no registry keyword mentioned; grammar-only gap.
-12. [139] (effect-pattern) `Destroy all enchantments.` — mentions Destroy (implemented); grammar-only gap.
-13. [130] (target-filter) `{T}: Prevent the next 1 damage that would be dealt to any target this turn.` — no registry keyword mentioned; grammar-only gap.
-14. [103] (effect-pattern) `Landfall — Whenever a land you control enters, this creature gets +2/+2 until end of turn.` — no registry keyword mentioned; grammar-only gap.
-15. [99] (effect-pattern) `Destroy target attacking or blocking creature.` — mentions Destroy (implemented); grammar-only gap.
-16. [99] (target-filter) `Exile target creature.` — mentions Exile (implemented); grammar-only gap.
-17. [97] (zone-ref) `When this Aura is put into a graveyard from the battlefield, return it to its owner's hand.` — no registry keyword mentioned; grammar-only gap.
-18. [91] (effect-pattern) `{self} deals 3 damage to each creature.` — no registry keyword mentioned; grammar-only gap.
-19. [89] (effect-pattern) `When this land enters, it deals 1 damage to target opponent.` — no registry keyword mentioned; grammar-only gap.
-20. [88] (effect-pattern) `When this Aura is put into a graveyard from the battlefield, return it to its owner's hand.` — no registry keyword mentioned; grammar-only gap.
-21. [87] (cost) `{4}{W}: Creatures you control get +1/+1 until end of turn.` — no registry keyword mentioned; grammar-only gap.
-22. [87] (effect-opaque) `Counter target spell.` — mentions Counter (implemented); grammar-only gap.
-23. [73] (effect-opaque) `Cycling {2}` — mentions Cycling (implemented); grammar-only gap.
-24. [66] (cost) `{T}, Sacrifice this artifact: Add one mana of any color.` — mentions Sacrifice (implemented); grammar-only gap.
-25. [66] (effect-pattern) `Create a 0/1 black Wizard creature token with "Whenever you cast a noncreature spell, this token deals 1 damage to each opponent."` — mentions Cast, Create (implemented); grammar-only gap.
-26. [55] (cost) `{1}{U}, {T}: Draw a card, then discard a card.` — mentions Discard (implemented); grammar-only gap.
-27. [54] (effect-opaque) `Enchanted creature gets +1/+1.` — no registry keyword mentioned; grammar-only gap.
-28. [51] (trigger-head) `When this creature dies, create a Treasure token.` — mentions Create (implemented); grammar-only gap.
-29. [50] (effect-opaque) `Protection from black` — mentions Protection (implemented); grammar-only gap.
-30. [49] (cost) `Sacrifice this Aura: Regenerate enchanted creature.` — mentions Regenerate, Sacrifice (implemented); grammar-only gap.
+1. [794] (duration) shape: `end-of-turn` — e.g. `Landfall — Whenever a land you control enters, this creature gets +2/+2 until end of turn.` — no registry keyword mentioned; grammar-only gap.
+2. [436] (cost) shape: `SYM` — e.g. `{T}: Add one mana of any color.` — no registry keyword mentioned; grammar-only gap.
+3. [289] (effect-opaque) shape: `Enchant creature` — e.g. `Enchant creature` — mentions Enchant (implemented); grammar-only gap.
+4. [282] (zone-ref) shape: `the battlefield` — e.g. `If this card is in your opening hand, you may begin the game with it on the battlefield.` — no registry keyword mentioned; grammar-only gap.
+5. [228] (zone-ref) shape: `exile` — e.g. `Exile {self}.` — mentions Exile (implemented); grammar-only gap.
+6. [213] (zone-ref) shape: `your library` — e.g. `You may look at the top card of your library any time.` — no registry keyword mentioned; grammar-only gap.
+7. [201] (trigger-head) shape: `at the beginning of your upkeep` — e.g. `At the beginning of your upkeep, surveil 1.` — mentions Surveil (implemented); grammar-only gap.
+8. [195] (trigger-head) shape: `when SELF_OBJ enters` — e.g. `When this creature enters, you get {E}{E} .` — no registry keyword mentioned; grammar-only gap.
+9. [195] (zone-ref) shape: `your hand` — e.g. `Search your library for a card, put that card into your hand, then shuffle.` — mentions Search, Shuffle (implemented); grammar-only gap.
+10. [185] (zone-ref) shape: `your graveyard` — e.g. `You may play lands from your graveyard.` — mentions Play (implemented); grammar-only gap.
+11. [162] (cost) shape: `SYM, SYM` — e.g. `{1}, {T}: Add one mana of any color.` — no registry keyword mentioned; grammar-only gap.
+12. [139] (effect-pattern) shape: `DESTROY(subject=SUBJECT_OTHER)` — e.g. `Destroy all enchantments.` — mentions Destroy (implemented); grammar-only gap.
+13. [130] (target-filter) shape: `any target` — e.g. `{T}: Prevent the next 1 damage that would be dealt to any target this turn.` — no registry keyword mentioned; grammar-only gap.
+14. [103] (effect-pattern) shape: `PUMP(subject=SUBJECT_OTHER)` — e.g. `Landfall — Whenever a land you control enters, this creature gets +2/+2 until end of turn.` — no registry keyword mentioned; grammar-only gap.
+15. [99] (effect-pattern) shape: `DESTROY(subject=TARGET)` — e.g. `Destroy target attacking or blocking creature.` — mentions Destroy (implemented); grammar-only gap.
+16. [99] (target-filter) shape: `target creature` — e.g. `Exile target creature.` — mentions Exile (implemented); grammar-only gap.
+17. [97] (zone-ref) shape: `its owner's hand` — e.g. `When this Aura is put into a graveyard from the battlefield, return it to its owner's hand.` — no registry keyword mentioned; grammar-only gap.
+18. [91] (effect-pattern) shape: `DEAL_DAMAGE(from=SELF,to=SUBJECT_OTHER)` — e.g. `{self} deals 3 damage to each creature.` — no registry keyword mentioned; grammar-only gap.
+19. [89] (effect-pattern) shape: `DEAL_DAMAGE(from=SUBJECT_OTHER,to=TARGET)` — e.g. `When this land enters, it deals 1 damage to target opponent.` — no registry keyword mentioned; grammar-only gap.
+20. [88] (effect-pattern) shape: `RETURN(subject=SUBJECT_OTHER,zone=ZONE_KNOWN)` — e.g. `When this Aura is put into a graveyard from the battlefield, return it to its owner's hand.` — no registry keyword mentioned; grammar-only gap.
+21. [87] (cost) shape: `SYM SYM` — e.g. `{4}{W}: Creatures you control get +1/+1 until end of turn.` — no registry keyword mentioned; grammar-only gap.
+22. [87] (effect-opaque) shape: `Counter TARGET_SLOT` — e.g. `Counter target spell.` — mentions Counter (implemented); grammar-only gap.
+23. [73] (effect-opaque) shape: `Cycling SYM` — e.g. `Cycling {2}` — mentions Cycling (implemented); grammar-only gap.
+24. [66] (cost) shape: `SYM, Sacrifice SELF_OBJ` — e.g. `{T}, Sacrifice this artifact: Add one mana of any color.` — mentions Sacrifice (implemented); grammar-only gap.
+25. [66] (effect-pattern) shape: `DEAL_DAMAGE(from=SUBJECT_OTHER,to=SUBJECT_OTHER)` — e.g. `Create a 0/1 black Wizard creature token with "Whenever you cast a noncreature spell, this token deals 1 damage to each opponent."` — mentions Cast, Create (implemented); grammar-only gap. (Splitter limitation: this shape comes from the DAMAGE pattern matching a sentence inside the token's own QUOTED granted-ability text, not a top-level sentence of the printed card — see Caveats.)
+26. [55] (cost) shape: `SYM SYM, SYM` — e.g. `{1}{U}, {T}: Draw a card, then discard a card.` — mentions Discard (implemented); grammar-only gap.
+27. [54] (effect-opaque) shape: `Enchanted creature gets N/N` — e.g. `Enchanted creature gets +1/+1.` — no registry keyword mentioned; grammar-only gap.
+28. [51] (trigger-head) shape: `when SELF_OBJ dies` — e.g. `When this creature dies, create a Treasure token.` — mentions Create (implemented); grammar-only gap.
+29. [50] (effect-opaque) shape: `Protection from COLOR` — e.g. `Protection from black` — mentions Protection (implemented); grammar-only gap.
+30. [49] (cost) shape: `Sacrifice SELF_OBJ` — e.g. `Sacrifice this Aura: Regenerate enchanted creature.` — mentions Regenerate, Sacrifice (implemented); grammar-only gap.
 
 ### First 30 cube shapes
 
-1. [80] (zone-ref) `Exile {self}.` — mentions Exile (implemented); grammar-only gap.
-2. [61] (zone-ref) `You may look at the top card of your library any time.` — no registry keyword mentioned; grammar-only gap.
-3. [53] (trigger-head) `When this creature enters, you get {E}{E} .` — no registry keyword mentioned; grammar-only gap.
-4. [51] (zone-ref) `Search your library for a card, put that card into your hand, then shuffle.` — mentions Search, Shuffle (implemented); grammar-only gap.
-5. [50] (zone-ref) `If this card is in your opening hand, you may begin the game with it on the battlefield.` — no registry keyword mentioned; grammar-only gap.
-6. [44] (duration) `Landfall — Whenever a land you control enters, this creature gets +2/+2 until end of turn.` — no registry keyword mentioned; grammar-only gap.
-7. [41] (cost) `{T}: Add one mana of any color.` — no registry keyword mentioned; grammar-only gap.
-8. [40] (structural-gap) `land with a basic land type — intrinsic mana ability (CR 305.6) is not in grammar v0` — no registry keyword mentioned; grammar-only gap.
-9. [35] (zone-ref) `You may play lands from your graveyard.` — mentions Play (implemented); grammar-only gap.
-10. [21] (cost) `+1: Draw a card.` — no registry keyword mentioned; grammar-only gap. (This is a planeswalker loyalty-ability cost line, `+1:` — see item 4.)
-11. [19] (structural-gap) `layout "front_card" is not in grammar v0 (multi-faced cards)` — no registry keyword mentioned; grammar-only gap.
-12. [16] (effect-opaque) `When this enchantment enters, exile target nonland permanent an opponent controls until this enchantment leaves the battlefield.` — mentions Exile (implemented); grammar-only gap.
-13. [15] (target-filter) `{T}: Prevent the next 1 damage that would be dealt to any target this turn.` — no registry keyword mentioned; grammar-only gap.
-14. [14] (effect-opaque) `Counter target spell.` — mentions Counter (implemented); grammar-only gap.
-15. [13] (effect-opaque) `{T}: Add one mana of any color.` — no registry keyword mentioned; grammar-only gap.
-16. [13] (target-filter) `Exile target creature.` — mentions Exile (implemented); grammar-only gap.
-17. [13] (trigger-head) `Whenever this creature attacks, it gets +2/+0 until end of turn.` — no registry keyword mentioned; grammar-only gap.
-18. [12] (effect-pattern) `Whenever this creature deals combat damage to a player, put a +1/+1 counter on it.` — mentions Counter (implemented); grammar-only gap.
-19. [12] (effect-pattern) `When this artifact is put into a graveyard from the battlefield, draw a card.` — no registry keyword mentioned; grammar-only gap.
-20. [11] (cost) `{T}, Pay 1 life, Sacrifice this land: Search your library for a basic land card, put it onto the battlefield, then shuffle.` — mentions Sacrifice, Search, Shuffle (implemented); grammar-only gap.
-21. [11] (cost) `{1}, {T}: Add one mana of any color.` — no registry keyword mentioned; grammar-only gap.
-22. [11] (zone-ref) `Look at the top two cards of your library. Put one of them into your hand and the other on the bottom of your library.` — no registry keyword mentioned; grammar-only gap.
-23. [10] (cost) `{T}, Sacrifice this artifact: Add one mana of any color.` — mentions Sacrifice (implemented); grammar-only gap.
-24. [10] (effect-opaque) `{T}, Pay 1 life, Sacrifice this land: Search your library for a Forest or Island card, put it onto the battlefield, then shuffle.` — mentions Sacrifice, Search, Shuffle (implemented); grammar-only gap.
-25. [10] (effect-opaque) `This land enters tapped unless you control two or fewer other lands.` — no registry keyword mentioned; grammar-only gap.
-26. [10] (effect-pattern) `Destroy target attacking or blocking creature.` — mentions Destroy (implemented); grammar-only gap.
-27. [9] (trigger-head) `At the beginning of your upkeep, surveil 1.` — mentions Surveil (implemented); grammar-only gap.
-28. [8] (effect-pattern) `{T}: Add {U} or {R}. This land deals 1 damage to you.` — no registry keyword mentioned; grammar-only gap.
-29. [8] (target-filter) `You may tap or untap target artifact, creature, or land.` — no registry keyword mentioned; grammar-only gap.
-30. [8] (target-filter) `Counter target spell unless its controller pays {2}.` — mentions Counter (implemented); grammar-only gap.
+1. [80] (zone-ref) shape: `exile` — e.g. `Exile {self}.` — mentions Exile (implemented); grammar-only gap.
+2. [61] (zone-ref) shape: `your library` — e.g. `You may look at the top card of your library any time.` — no registry keyword mentioned; grammar-only gap.
+3. [53] (trigger-head) shape: `when SELF_OBJ enters` — e.g. `When this creature enters, you get {E}{E} .` — no registry keyword mentioned; grammar-only gap.
+4. [51] (zone-ref) shape: `your hand` — e.g. `Search your library for a card, put that card into your hand, then shuffle.` — mentions Search, Shuffle (implemented); grammar-only gap.
+5. [50] (zone-ref) shape: `the battlefield` — e.g. `If this card is in your opening hand, you may begin the game with it on the battlefield.` — no registry keyword mentioned; grammar-only gap.
+6. [44] (duration) shape: `end-of-turn` — e.g. `Landfall — Whenever a land you control enters, this creature gets +2/+2 until end of turn.` — no registry keyword mentioned; grammar-only gap.
+7. [41] (cost) shape: `SYM` — e.g. `{T}: Add one mana of any color.` — no registry keyword mentioned; grammar-only gap.
+8. [40] (structural-gap) shape: `land with a basic land type — intrinsic mana ability (CR 305.6) is not in grammar v0` — e.g. (same text; this category's "example" is always its own reason string) — no registry keyword mentioned; grammar-only gap.
+9. [35] (zone-ref) shape: `your graveyard` — e.g. `You may play lands from your graveyard.` — mentions Play (implemented); grammar-only gap.
+10. [21] (cost) shape: `N` — e.g. `+1: Draw a card.` — no registry keyword mentioned; grammar-only gap. (This is a planeswalker loyalty-ability cost line, `+1:` — see item 4.)
+11. [19] (structural-gap) shape: `layout <X> is not in grammar v0 (multi-faced cards)` — e.g. `layout "front_card" is not in grammar v0 (multi-faced cards)` — no registry keyword mentioned; grammar-only gap.
+12. [16] (effect-opaque) shape: `ZONE_SLOT TARGET_SLOT` — e.g. `When this enchantment enters, exile target nonland permanent an opponent controls until this enchantment leaves the battlefield.` — mentions Exile (implemented); grammar-only gap.
+13. [15] (target-filter) shape: `any target` — e.g. `{T}: Prevent the next 1 damage that would be dealt to any target this turn.` — no registry keyword mentioned; grammar-only gap.
+14. [14] (effect-opaque) shape: `Counter TARGET_SLOT` — e.g. `Counter target spell.` — mentions Counter (implemented); grammar-only gap.
+15. [13] (effect-opaque) shape: `Add N mana of any color` — e.g. `{T}: Add one mana of any color.` — no registry keyword mentioned; grammar-only gap.
+16. [13] (target-filter) shape: `target creature` — e.g. `Exile target creature.` — mentions Exile (implemented); grammar-only gap.
+17. [13] (trigger-head) shape: `whenever SELF_OBJ attacks` — e.g. `Whenever this creature attacks, it gets +2/+0 until end of turn.` — no registry keyword mentioned; grammar-only gap.
+18. [12] (effect-pattern) shape: `COUNTERS(subject=SUBJECT_OTHER)` — e.g. `Whenever this creature deals combat damage to a player, put a +1/+1 counter on it.` — mentions Counter (implemented); grammar-only gap.
+19. [12] (effect-pattern) shape: `DRAW(player=PLAYER_YOU)` — e.g. `When this artifact is put into a graveyard from the battlefield, draw a card.` — no registry keyword mentioned; grammar-only gap.
+20. [11] (cost) shape: `SYM, Pay N life, Sacrifice SELF_OBJ` — e.g. `{T}, Pay 1 life, Sacrifice this land: Search your library for a basic land card, put it onto the battlefield, then shuffle.` — mentions Sacrifice, Search, Shuffle (implemented); grammar-only gap.
+21. [11] (cost) shape: `SYM, SYM` — e.g. `{1}, {T}: Add one mana of any color.` — no registry keyword mentioned; grammar-only gap.
+22. [11] (zone-ref) shape: `the bottom of your library` — e.g. `Look at the top two cards of your library. Put one of them into your hand and the other on the bottom of your library.` — no registry keyword mentioned; grammar-only gap.
+23. [10] (cost) shape: `SYM, Sacrifice SELF_OBJ` — e.g. `{T}, Sacrifice this artifact: Add one mana of any color.` — mentions Sacrifice (implemented); grammar-only gap.
+24. [10] (effect-opaque) shape: `Search ZONE_SLOT for N BASICLAND or BASICLAND card, put it onto ZONE_SLOT, then shuffle` — e.g. `{T}, Pay 1 life, Sacrifice this land: Search your library for a Forest or Island card, put it onto the battlefield, then shuffle.` — mentions Sacrifice, Search, Shuffle (implemented); grammar-only gap.
+25. [10] (effect-opaque) shape: `This land enters tapped unless you control N or fewer other lands` — e.g. `This land enters tapped unless you control two or fewer other lands.` — no registry keyword mentioned; grammar-only gap.
+26. [10] (effect-pattern) shape: `DESTROY(subject=TARGET)` — e.g. `Destroy target attacking or blocking creature.` — mentions Destroy (implemented); grammar-only gap.
+27. [9] (trigger-head) shape: `at the beginning of your upkeep` — e.g. `At the beginning of your upkeep, surveil 1.` — mentions Surveil (implemented); grammar-only gap.
+28. [8] (effect-pattern) shape: `DEAL_DAMAGE(from=SUBJECT_OTHER,to=PLAYER_YOU)` — e.g. `{T}: Add {U} or {R}. This land deals 1 damage to you.` — no registry keyword mentioned; grammar-only gap.
+29. [8] (target-filter) shape: `target artifact` — e.g. `You may tap or untap target artifact, creature, or land.` — no registry keyword mentioned; grammar-only gap.
+30. [8] (target-filter) shape: `target spell unless its controller pays SYM` — e.g. `Counter target spell unless its controller pays {2}.` — mentions Counter (implemented); grammar-only gap.
 
 **Every one of these 60 rows is a "grammar-only gap" or a structural (layout)
 gap** — none is blocked by a `planned` (unimplemented) Mechanics Registry
