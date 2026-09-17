@@ -959,15 +959,17 @@ describe("queue planner — lane homogeneity (issue #2743, closing PRD #2738)", 
     });
 
     /**
-     * The mix guard lives INSIDE one issue's own lane computation, not in the
-     * homogeneity check: `lane` is `laneFor(targetFiles.map(classifyPath))`
-     * per issue, so an issue whose OWN target files span prose and code is
-     * the only shape that reaches it. A batch of one prose issue and one code
-     * issue is already handled by homogeneity and proves nothing about the
-     * guard — the first version of this test did exactly that and stayed
-     * green when the guard was deleted.
+     * `lane` is `laneFor(targetFiles.map(classifyPath))` per issue — the SAME
+     * predicate `check:lane` runs against a real diff — so an issue whose OWN
+     * target files span prose and code takes whatever that predicate says.
+     * Under ADR 0136 §3 that is the CODE's lane (prose rides with the code;
+     * `check:lane` appends the `check:docs` node files to the plan), never
+     * `full` and never `docs`. This test used to assert `full` under the
+     * "prose mixes with nothing" rule; it now pins the planner to the
+     * classifier's current answer, so a divergence between the two shows up
+     * here rather than as a batch gated in one lane and landed in another.
      */
-    it("an issue whose own target files mix prose and code is `full`, never `engine`", () => {
+    it("an issue whose own target files mix prose and code takes the code's lane (ADR 0136 §3)", () => {
         const plan = planBatch(
             [issue(100, {})],
             CONFIG,
@@ -982,7 +984,7 @@ describe("queue planner — lane homogeneity (issue #2743, closing PRD #2738)", 
                 },
             })
         );
-        expect(plan.batch[0].lane).toBe("full");
+        expect(plan.batch[0].lane).toBe("engine");
     });
 
     it("treats `docs` as its own homogeneity class, and defers a cross-lane candidate", () => {

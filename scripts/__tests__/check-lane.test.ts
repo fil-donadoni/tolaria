@@ -14,6 +14,7 @@ import {
     type LanePlan,
     type RunResult,
 } from "../check-lane";
+import { DOC_GATE_TESTS } from "../lib/doc-gate-tests";
 
 /**
  * `bun run check:lane` (issue #2741, wiring execution onto the classifier
@@ -53,6 +54,25 @@ describe("check-lane — path classification (issue #2740)", () => {
         expect(classifyPath("scripts/land.ts")).toBe("engine");
     });
 
+    /**
+     * ADR 0136 §3. `data/**` sat in `FULL_PATTERNS` and sent 40 of 300 PRs to
+     * `check:pr` whole for the two artefacts every card PR regenerates. It is
+     * engine input — generated or vendored — and the guards that read it
+     * (`check:index`, `check:oracle`, `cr:lint`) run in the engine lane.
+     */
+    it("classifies data/** as engine (ADR 0136 §3)", () => {
+        for (const p of [
+            "data/card-index.json",
+            "data/cr/citations-ledger.json",
+            "data/cr/comprehensive-rules.txt",
+            "data/oracle-compiled.json",
+            "data/json/LEA.json",
+            "data/pick-ratings/vintage-cube.json",
+        ]) {
+            expect(classifyPath(p), p).toBe("engine");
+        }
+    });
+
     it("classifies shared tooling inputs as full", () => {
         for (const p of [
             "package.json",
@@ -66,7 +86,6 @@ describe("check-lane — path classification (issue #2740)", () => {
             "convex/tsconfig.json",
             "eslint.config.js",
             ".prettierrc",
-            "data/cr/comprehensive-rules.txt",
             ".claude/hooks/deny-guard.sh",
         ]) {
             expect(classifyPath(p), p).toBe("full");
@@ -176,17 +195,23 @@ describe("check-lane — path classification (issue #2740)", () => {
     });
 
     /**
-     * Prose mixes with nothing (`laneFor`), so moving a rule's body into a
-     * nested `CLAUDE.md` cannot narrow the gate for a real code change that
-     * happens to touch it in the same commit.
+     * Prose rides with the code (ADR 0136 §3): a nested `CLAUDE.md` next to a
+     * real code change takes the CODE's lane — never a narrower one than the
+     * code alone would get, and the docs guards are appended (see the lane
+     * selection block below).
      */
-    it("a nested CLAUDE.md alongside code still pays the full gate", () => {
+    it("a nested CLAUDE.md alongside code takes the code's lane", () => {
         expect(
             classifyLane(["src/CLAUDE.md", "src/lib/card-utils.ts"]).lane
-        ).toBe("full");
+        ).toBe("skin");
         expect(
             classifyLane(["convex/CLAUDE.md", "convex/gre/sba.ts"]).lane
-        ).toBe("full");
+        ).toBe("engine");
+        // …and prose from the OTHER side does not narrow the lane either:
+        // `convex/CLAUDE.md` in a `src` diff is not a `convex/**` code change.
+        expect(
+            classifyLane(["convex/CLAUDE.md", "src/lib/card-utils.ts"]).lane
+        ).toBe("skin");
     });
 });
 
@@ -235,28 +260,71 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
     });
 
     /**
-     * Prose mixes with nothing. `laneFor`'s pre-existing
-     * `!classes.includes("skin") ⇒ engine` clause would otherwise hand a
-     * docs+convex diff the engine lane by omission — a widening arrived at
-     * without an argument. Every mix keeps paying the full gate exactly as it
-     * did before this lane existed.
+     * ADR 0136 §3 — prose in a mixed diff no longer forces `full`. 75 of 300
+     * PRs (2026-09-03 → 09-17) paid `check:pr` whole for an ADR or a guide
+     * that travelled with the code it described. The code decides the lane
+     * and the run list ENDS with the docs lane's own node test list — the
+     * same `DOC_GATE_TESTS` that `check:docs` runs, so the prose is proven by
+     * exactly the guards that read it. Three cases, each proven to fail once.
      */
-    it("prose mixed with code ⇒ full, never a narrowed lane", () => {
-        expect(classifyLane(["CONTEXT.md", "convex/gre/phases.ts"]).lane).toBe(
-            "full"
+    const docsNodeCommand = `bunx vitest run --project node ${DOC_GATE_TESTS.join(" ")}`;
+
+    it("prose + engine code ⇒ engine, run list ending with the check:docs node files", () => {
+        for (const files of [
+            ["CONTEXT.md", "convex/gre/phases.ts"],
+            ["docs/adr/0111.md", "scripts/check-lane.ts"],
+            [
+                "docs/guides/land-and-release.md",
+                "convex/CLAUDE.md",
+                "convex/gre/sba.ts",
+            ],
+        ]) {
+            const plan = classifyLane(files);
+            expect(plan.lane, files.join(",")).toBe("engine");
+            const last = plan.run.at(-1)!;
+            expect(last.id).toBe("node[docs]");
+            expect(last.command).toBe(docsNodeCommand);
+            expect(plan.rationale).toContain("prose");
+        }
+    });
+
+    it("prose + skin code ⇒ skin, run list ending with the check:docs node files", () => {
+        const plan = classifyLane([
+            "docs/adr/0111.md",
+            "src/components/board/Card.tsx",
+        ]);
+        expect(plan.lane).toBe("skin");
+        const last = plan.run.at(-1)!;
+        expect(last.id).toBe("node[docs]");
+        expect(last.command).toBe(docsNodeCommand);
+        expect(plan.rationale).toContain("prose");
+    });
+
+    it("pure code appends nothing — node[docs] appears only when prose is in the diff", () => {
+        expect(ids(classifyLane(["convex/gre/phases.ts"]).run)).not.toContain(
+            "node[docs]"
         );
         expect(
-            classifyLane(["docs/adr/0111.md", "src/components/board/Card.tsx"])
-                .lane
-        ).toBe("full");
-        expect(
-            classifyLane(["docs/adr/0111.md", "scripts/check-lane.ts"]).lane
-        ).toBe("full");
-        // …and the rationale says WHY, rather than reusing the src-vs-engine
-        // mixed-diff wording that would be a false statement here.
-        expect(
-            classifyLane(["CONTEXT.md", "convex/gre/phases.ts"]).rationale
-        ).toContain("mixing prose with code");
+            ids(classifyLane(["src/components/board/Card.tsx"]).run)
+        ).not.toContain("node[docs]");
+    });
+
+    it("prose over a src + convex mix is still full — prose never narrows a mixed code diff", () => {
+        const plan = classifyLane([
+            "docs/adr/0111.md",
+            "src/components/board/Card.tsx",
+            "convex/gre/phases.ts",
+        ]);
+        expect(plan.lane).toBe("full");
+        expect(ids(plan.run)).toEqual(["check:pr"]);
+        expect(plan.rationale).toContain("spanning src/**");
+        expect(plan.rationale).not.toContain("prose");
+    });
+
+    it("prose over an unrecognised path is still full", () => {
+        expect(classifyLane(["docs/adr/0111.md", "package.json"]).lane).toBe(
+            "full"
+        );
     });
 
     it("convex-only ⇒ engine", () => {
@@ -291,13 +359,35 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
         );
     });
 
-    it("data/** ⇒ full", () => {
+    /**
+     * ADR 0136 §3. The card PR shape — the definition plus the two artefacts
+     * it regenerates — is the single most common diff in the repo and it was
+     * `full` for the artefacts alone.
+     */
+    it("a card PR — definition + regenerated data/** artefacts — ⇒ engine", () => {
+        const plan = classifyLane([
+            "convex/cards/sets/lea/red.ts",
+            "data/card-index.json",
+            "data/cr/citations-ledger.json",
+        ]);
+        expect(plan.lane).toBe("engine");
+        expect(plan.rationale).toContain("all under");
+        // …and the guards that READ data/** are in the plan.
+        expect(ids(plan.run)).toEqual(
+            expect.arrayContaining(["check:index", "check:oracle", "cr:lint"])
+        );
+    });
+
+    it("data/** alone ⇒ engine; data/** beside src/** ⇒ full", () => {
         expect(classifyLane(["data/cr/comprehensive-rules.txt"]).lane).toBe(
-            "full"
+            "engine"
         );
         expect(
             classifyLane(["convex/gre/engine.ts", "data/cr/VERSION.json"]).lane
-        ).toBe("full");
+        ).toBe("engine");
+        expect(classifyLane(["src/app.tsx", "data/card-index.json"]).lane).toBe(
+            "full"
+        );
     });
 
     it("a css/asset-only diff under convex|scripts ⇒ engine, never skin (#2740 review)", () => {
@@ -371,6 +461,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "tsc[convex,node]",
             "check:index",
             "check:stubs",
+            "check:oracle",
             "bot fast lane",
             "node[convex]",
         ]);
@@ -383,6 +474,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "tsc[all]",
             "check:index",
             "check:stubs",
+            "check:oracle",
             "bundle",
             "cr:lint",
             "bot fast lane",
@@ -427,17 +519,28 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             ["convex/gre/theme.css", "convex/cards/art/x.svg"],
             ["convex/gre/engine.ts", "scripts/gate.ts"],
             ["scripts/gate.ts"],
+            ["convex/cards/sets/lea/red.ts", "data/card-index.json"],
+            // Prose rides with the code (ADR 0136 §3): a nested CLAUDE.md
+            // sits UNDER the directory the reasons name, so they say "no
+            // changed CODE under X" and the claim is checked against the
+            // code paths — the prose is carried by node[docs] instead.
+            ["src/CLAUDE.md", "convex/gre/engine.ts"],
+            ["convex/CLAUDE.md", "src/components/board/Card.tsx"],
+            ["src/CLAUDE.md", "convex/CLAUDE.md"],
         ];
         for (const files of diffs) {
             const plan = classifyLane(files);
             for (const s of plan.skip) {
                 const claim = s.reason.match(
-                    /no changed path under ([^—]+?)\s*—/
+                    /no changed (path|code) under ([^—]+?)\s*—/
                 );
                 if (!claim) continue;
-                for (const glob of claim[1].split(/\s+or\s+/)) {
+                const [, kind, globs] = claim;
+                for (const glob of globs.split(/\s*(?:,|or)\s+/)) {
                     const prefix = glob.trim().replace(/\*+$/, "");
                     for (const f of plan.files) {
+                        if (kind === "code" && classifyPath(f) === "docs")
+                            continue;
                         expect(
                             f.startsWith(prefix),
                             `lane=${plan.lane} skip=${s.id} claims "${s.reason}" but the diff contains ${f}`
@@ -456,7 +559,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
     it("the rationale's 'all under X' claim tells the truth for every lane", () => {
         const allowed: Record<string, RegExp> = {
             skin: /^(src\/|public\/|index\.html$)/,
-            engine: /^(convex\/|scripts\/)/,
+            engine: /^(convex\/|scripts\/|data\/)/,
         };
         for (const files of [
             ["src/components/board/Card.tsx", "src/index.css"],
@@ -464,12 +567,33 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             ["scripts/ui-gate/report.css"],
             ["convex/gre/theme.css", "scripts/gate.ts"],
             ["convex/gre/engine.ts"],
+            ["convex/cards/sets/lea/red.ts", "data/card-index.json"],
         ]) {
             const plan = classifyLane(files);
             const re = allowed[plan.lane];
             expect(re, `${plan.lane} is not a narrowed lane`).toBeDefined();
             expect(plan.rationale).toContain("all under");
             for (const f of plan.files) {
+                expect(
+                    re.test(f),
+                    `lane=${plan.lane} says "${plan.rationale}" but the diff contains ${f}`
+                ).toBe(true);
+            }
+        }
+        // With prose in the diff the claim is "N under X, M prose": the code
+        // paths must match the lane and the prose paths must be prose.
+        for (const files of [
+            ["docs/adr/0136.md", "convex/gre/engine.ts"],
+            ["CONTEXT.md", "src/components/board/Card.tsx", "src/CLAUDE.md"],
+        ]) {
+            const plan = classifyLane(files);
+            const re = allowed[plan.lane];
+            expect(re, `${plan.lane} is not a narrowed lane`).toBeDefined();
+            expect(plan.rationale).not.toContain("all under");
+            const prose = plan.files.filter((f) => classifyPath(f) === "docs");
+            expect(plan.rationale).toContain(`${prose.length} prose`);
+            for (const f of plan.files) {
+                if (classifyPath(f) === "docs") continue;
                 expect(
                     re.test(f),
                     `lane=${plan.lane} says "${plan.rationale}" but the diff contains ${f}`
@@ -548,6 +672,7 @@ describe("check-lane — every planned check is invokable today (issue #2740)", 
         classifyLane(["src/app.tsx"]),
         classifyLane(["convex/gre/engine.ts"]),
         classifyLane(["docs/adr/0111-extra-phases.md"]),
+        classifyLane(["docs/adr/0111-extra-phases.md", "convex/gre/engine.ts"]),
         classifyLane(["package.json"]),
     ];
 
@@ -585,6 +710,19 @@ describe("check-lane — every planned check is invokable today (issue #2740)", 
                     );
                 }
             }
+        }
+    });
+
+    it("every test file node[docs] names exists on disk", () => {
+        const mixed = classifyLane(["CONTEXT.md", "convex/gre/engine.ts"]);
+        const docs = mixed.run.find((c) => c.id === "node[docs]")!;
+        const files = docs.command.split(" ").filter((w) => w.endsWith(".ts"));
+        expect(files.length).toBeGreaterThan(0);
+        for (const file of files) {
+            expect(
+                () => readFileSync(resolve(ROOT, file), "utf8"),
+                file
+            ).not.toThrow();
         }
     });
 

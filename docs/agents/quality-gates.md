@@ -104,8 +104,11 @@ node lane and catches it at light-gate speed.
 `bun run check:lane` (PRD #2738: #2739 tsconfig cache → #2740 classifier landed
 inert → #2741 wiring/execution → #2743 batch homogeneity + this section) picks
 a lane from the diff — `skin` (`src/**`/`public/**`/`index.html` only),
-`engine` (no `src/**` at all) or `full` (anything else, fail-closed) — and
-runs exactly that lane's checks. It is now the default pre-PR path
+`engine` (`convex/**`, `scripts/**`, `data/**`; no `src/**` at all), `docs`
+(prose only) or `full` (anything else, fail-closed) — and runs exactly that
+lane's checks. Prose beside code does not change the lane: the code decides
+it and the plan ends with `node[docs]`, the `check:docs` test list (ADR 0136
+§3, below). It is now the default pre-PR path
 (CLAUDE.md § Quality gates); `check:pr` is the fallback the classifier itself
 runs verbatim on a `full` diff.
 
@@ -175,11 +178,13 @@ now confirm.
 | `check:ts`            | `app` + `scripts` projects | whole       |
 | `check:bundle`        | yes                        | yes         |
 | `check:index`/`stubs` | no                         | yes         |
+| `check:oracle`        | no                         | yes         |
 | `cr:lint`             | yes                        | yes         |
 | bot fast lane         | no                         | yes         |
 | `node` — `convex/**`  | no                         | yes         |
 | `node` — `scripts/**` | yes                        | yes         |
 | `node` — `src/**`     | yes                        | no          |
+| `node[docs]`          | if prose in the diff       | same        |
 | `dom`                 | whole                      | no          |
 
 Three rows are decisions, not oversights (PRD #2738 § Implementation
@@ -196,6 +201,34 @@ Decisions has the full reasoning; summarised here):
   that make dropping `dom` safe for this lane.
 - **`skin` keeps `check:bundle`** — 12s, and the only check that catches the
   duplicate-import class that crashes the app on cold load.
+
+Two rules were loosened by ADR 0136 §3, on the 300 PRs of 2026-09-03 → 09-17
+(224 fell to `full`; 40 only for `data/**`, 75 only for prose in a mix, 31
+both; 109 classify as `engine` after the change, against 34 before):
+
+- **The `data/` tree is engine, not full.** It used to sit in
+  `FULL_PATTERNS`, so the two artefacts every card PR regenerates
+  (`data/card-index.json`, `data/cr/citations-ledger.json`) sent the whole PR
+  to `check:pr`. What lives there is generated or vendored engine input, and
+  the guards that read it — `check:index`, `check:oracle`, `cr:lint` — are all
+  in the engine lane (`check:oracle` was added to it in the same change: its
+  offline tier is header hashes). A `data/` path beside `src/` is still a
+  mixed diff, still `full`.
+- **Prose rides with the code.** "Prose mixes with nothing" forced `full` on
+  any docs path in a non-pure diff. Now the code paths alone decide the lane
+  and the plan's run list ENDS with `node[docs]` — `DOC_GATE_TESTS`, the same
+  fixed list `check:docs` runs (`scripts/lib/doc-gate-tests.ts`, one list,
+  two consumers). The other two things `check:docs` owes are already in every
+  code lane: `format(diff)` carries the `.md` paths and `cr:lint` is a fixed
+  entry of both. Today `engine`'s `node[all]` and `skin`'s
+  `node[src,scripts]` already select those files, so the entry is redundant
+  in seconds but not in meaning: ADR 0136 §5 splits `node` into
+  content-classified partitions, and the lane that stops running
+  `scripts/__tests__` whole is the lane this entry keeps honest. A FIXED list,
+  never a diff-derived one — ADR 0104's admission rule is untouched. The
+  receipt's skip reasons say "no changed **code** under X" for exactly this
+  reason: a nested `CLAUDE.md` sits under the directory they name, and the
+  truth test in `check-lane.test.ts` checks the claim against the code paths.
 
 ### Batch homogeneity and the batch-level `check:ui`
 
@@ -635,7 +668,10 @@ the queue for the seconds it merges in, and for nothing else. The cheap gate is
 untouched; `bun run check:docs` on its own still takes no lock.
 
 `docs:ship` refuses a changeset containing anything that is not `*.md` or under
-`docs/`: a mixed change goes through the ordinary branch and the full gate.
+`docs/`: a mixed change goes through the ordinary branch, where the code
+decides the lane and the `check:docs` test list is appended to it (ADR 0136
+§3, § What each lane skips above) — prose never narrows a code diff, and never
+widens it to `full` either.
 
 **The list is the lane's weak point, so it is guarded.** `docs-lane.test.ts`
 runs a census: any test under `scripts/__tests__` whose source reads a

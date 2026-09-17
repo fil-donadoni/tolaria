@@ -54,40 +54,11 @@ export function isDocPath(p: string): boolean {
     return false;
 }
 
-/**
- * The guard tests that read documentation. `check:docs` runs exactly these, so
- * the lane's cheapness is bounded by a list — and a list drifts. The census in
- * `docs-lane.test.ts` fails when a NEW test under `scripts/__tests__` reads a
- * documentation path without being classified here, which is the only way this
- * list stays honest as guards get added.
- */
-export const DOC_GATE_TESTS = [
-    "scripts/__tests__/action-space.test.ts",
-    "scripts/__tests__/adr-index.test.ts",
-    "scripts/__tests__/agents-md-drift.test.ts",
-    "scripts/__tests__/bot-globs.test.ts",
-    // The CR citation ledger (ADR 0133) is accountable for every `CR` line
-    // in prose too — an ADR or guide that adds a citation owes an entry — so
-    // the lane that merges a doc edit runs its whole-tree assertion
-    // (`bun run cr:lint`, already in `check:docs:inner`, runs the same scan;
-    // the test is what keeps the gate honest if that wiring changes).
-    "scripts/__tests__/cr-citation-ledger.test.ts",
-    // Scans the SKILLS for two destructive data-regeneration recipes. A skill
-    // step is prose the docs lane will happily carry on its own, and the
-    // recipes got into the skills by being copied from a guard hint in the
-    // first place — so the lane that merges a skill edit has to be the lane
-    // that re-runs this.
-    "scripts/__tests__/destructive-data-recipes.test.ts",
-    "scripts/__tests__/findings.test.ts",
-    // The ONE gate-running rule, held in two files at once (issue #3698):
-    // `.claude/hooks/deny-guard.sh` § 3b and the `/next-issue` skill. Both
-    // copies are prose the docs lane will carry on its own, and the whole
-    // point of the guard is that they cannot drift — so the lane that merges
-    // an edit to either has to be the lane that re-runs it.
-    "scripts/__tests__/gate-rule-parity.test.ts",
-    "scripts/__tests__/project-skills.test.ts",
-    "scripts/__tests__/resident-context-budget.test.ts",
-];
+// `DOC_GATE_TESTS` lives in `lib/doc-gate-tests.ts` (a pure module) because
+// `check-lane.ts` appends it to a code lane carrying prose (ADR 0136 §3) and
+// this file imports `land.ts`, which imports `check-lane.ts`. Re-exported so
+// the census in `docs-lane.test.ts` keeps one import site for list + exclusions.
+export { DOC_GATE_TESTS } from "./lib/doc-gate-tests";
 
 /**
  * Tests whose source mentions a documentation path but which do not GUARD one —
@@ -107,7 +78,7 @@ export const DOC_GATE_TESTS_EXCLUDED: Record<string, string> = {
     "scripts/__tests__/queue-plan.test.ts":
         "plans over GitHub issues; the .md mention is an issue-body fixture",
     "scripts/__tests__/check-lane.test.ts":
-        "the docs/adr and *.md paths are synthetic changed-path fixtures fed to classifyPath() — the test asserts the lane classifier treats them as UNRECOGNISED (fail-closed ⇒ full gate); it reads no repo document",
+        "the docs/adr and *.md paths are synthetic changed-path fixtures fed to classifyPath() — the test asserts which lane the classifier picks for them; it reads no repo document",
     "scripts/__tests__/ui-gate-infra-verdict.test.ts":
         "the CONTEXT.md mention is a header comment citing the glossary term it implements; the test reads no repo document",
     "scripts/__tests__/ui-gate-settle.test.ts":
