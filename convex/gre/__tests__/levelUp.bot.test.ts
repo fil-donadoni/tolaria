@@ -100,7 +100,7 @@ describe("Level Up — Bot reachability (CR 702.87)", () => {
     it("seam 2 — the move raises no choice for the Bot to answer", () => {
         const [move] = levelUpMoves(board().state);
         expect(move.targets).toEqual([]);
-        expect(move.chosenModeId).toBeUndefined();
+        expect(move.chosenModeIds?.[0]).toBeUndefined();
     });
 
     it("seam 3 — the script value is positive, not a neutral score", () => {

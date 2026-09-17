@@ -174,7 +174,7 @@ describe("cast-click mode gate for an as-enters choice (CR 614.12a, #2019)", () 
         expect(announceCast.mock.calls[0][0]).toMatchObject({
             cardInstanceId: "voice1",
         });
-        expect(announceCast.mock.calls[0][0].chosenModeId).toBeUndefined();
+        expect(announceCast.mock.calls[0][0].chosenModeIds).toBeUndefined();
     });
 
     it("Vision Charm (the must-NOT row): an ordinary modal spell still opens the picker before announcing", () => {
@@ -199,7 +199,7 @@ describe("cast-click mode gate for an as-enters choice (CR 614.12a, #2019)", () 
         expect(announceCast).toHaveBeenCalledTimes(1);
         expect(announceCast.mock.calls[0][0]).toMatchObject({
             cardInstanceId: "charm1",
-            chosenModeId: "mill",
+            chosenModeIds: ["mill"],
         });
     });
 });

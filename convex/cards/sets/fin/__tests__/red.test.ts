@@ -34,7 +34,7 @@ describe("Suplex (CR 700.2 modal — damage-then-exile a creature or exile an ar
                 zone: "stack",
             }),
             castById: "p1",
-            chosenModeId: "damage",
+            chosenModeIds: ["damage"],
             targets: [{ type: "permanent", id: "creature-1" }],
         });
         resolveTopOfStack(state);
@@ -68,7 +68,7 @@ describe("Suplex (CR 700.2 modal — damage-then-exile a creature or exile an ar
                 zone: "stack",
             }),
             castById: "p1",
-            chosenModeId: "exile",
+            chosenModeIds: ["exile"],
             targets: [{ type: "permanent", id: "artifact-1" }],
         });
         resolveTopOfStack(state);

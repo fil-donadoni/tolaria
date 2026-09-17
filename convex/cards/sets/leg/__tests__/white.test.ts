@@ -1010,7 +1010,7 @@ describe("Alabaster Potion (modal: gain X life / prevent X damage, CR 700.2)", (
         const item = pushSpell(state, alabasterPotion.id, "p1", [
             { type: "player", id: "p1" },
         ]);
-        item.chosenModeId = "gain-life";
+        item.chosenModeIds = ["gain-life"];
         item.chosenX = 3;
         resolveTopOfStack(state);
         expect(state.players[0].life).toBe(23);

@@ -108,14 +108,14 @@ function engineMutations(state: GameState): MoveMutations {
             cardInstanceId,
             abilityId,
             chosenX,
-            chosenModeId,
+            chosenModeIds,
         }) => {
             activateAbilityOnState(state, {
                 playerId,
                 cardInstanceId,
                 abilityId,
                 ...(chosenX !== undefined ? { chosenX } : {}),
-                ...(chosenModeId !== undefined ? { chosenModeId } : {}),
+                ...(chosenModeIds !== undefined ? { chosenModeIds } : {}),
             });
         },
         activateManaAbility: reject,

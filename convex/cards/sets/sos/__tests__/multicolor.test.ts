@@ -174,7 +174,7 @@ describe("Witherbloom Charm (CR 700.2 modal — may-sacrifice, life gain, or des
             ],
         });
         const item = pushSpell(state, witherbloomCharm.id, "p1");
-        item.chosenModeId = "sacrifice-draw";
+        item.chosenModeIds = ["sacrifice-draw"];
         expect(resolveTopOfStack(state)).toBeNull(); // suspended on may-pay
         applyMayPaySubmit(state, { playerId: "p1", accept: true });
         expect(
@@ -201,7 +201,7 @@ describe("Witherbloom Charm (CR 700.2 modal — may-sacrifice, life gain, or des
             ],
         });
         const item = pushSpell(state, witherbloomCharm.id, "p1");
-        item.chosenModeId = "sacrifice-draw";
+        item.chosenModeIds = ["sacrifice-draw"];
         resolveTopOfStack(state);
         const head = state.pendingChoices?.[0];
         expect(head?.kind).toBe("may-pay");
@@ -241,7 +241,7 @@ describe("Witherbloom Charm (CR 700.2 modal — may-sacrifice, life gain, or des
             ],
         });
         const item = pushSpell(state, witherbloomCharm.id, "p1");
-        item.chosenModeId = "sacrifice-draw";
+        item.chosenModeIds = ["sacrifice-draw"];
         expect(resolveTopOfStack(state)).toBeNull(); // suspended on may-pay
 
         // The choice lights up the battlefield with both permanents as candidates.
@@ -294,7 +294,7 @@ describe("Witherbloom Charm (CR 700.2 modal — may-sacrifice, life gain, or des
             ],
         });
         const item = pushSpell(state, witherbloomCharm.id, "p1");
-        item.chosenModeId = "sacrifice-draw";
+        item.chosenModeIds = ["sacrifice-draw"];
         resolveTopOfStack(state);
         expect(() =>
             applyMayPaySubmit(state, { playerId: "p1", accept: true })
@@ -321,7 +321,7 @@ describe("Witherbloom Charm (CR 700.2 modal — may-sacrifice, life gain, or des
             ],
         });
         const item = pushSpell(state, witherbloomCharm.id, "p1");
-        item.chosenModeId = "sacrifice-draw";
+        item.chosenModeIds = ["sacrifice-draw"];
         resolveTopOfStack(state);
         expect(() =>
             applyMayPaySubmit(state, {
@@ -345,7 +345,7 @@ describe("Witherbloom Charm (CR 700.2 modal — may-sacrifice, life gain, or des
             ],
         });
         const item = pushSpell(state, witherbloomCharm.id, "p1");
-        item.chosenModeId = "sacrifice-draw";
+        item.chosenModeIds = ["sacrifice-draw"];
         expect(resolveTopOfStack(state)).toBeNull();
         applyMayPaySubmit(state, { playerId: "p1", accept: false });
         expect(
@@ -359,7 +359,7 @@ describe("Witherbloom Charm (CR 700.2 modal — may-sacrifice, life gain, or des
             players: [makePlayer("p1", { life: 20 }), makePlayer("p2")],
         });
         const item = pushSpell(state, witherbloomCharm.id, "p1");
-        item.chosenModeId = "gain-life";
+        item.chosenModeIds = ["gain-life"];
         resolveTopOfStack(state);
         expect(state.players[0].life).toBe(25);
     });
@@ -379,7 +379,7 @@ describe("Witherbloom Charm (CR 700.2 modal — may-sacrifice, life gain, or des
         const item = pushSpell(state, witherbloomCharm.id, "p1", [
             { type: "permanent", id: "cheap" },
         ]);
-        item.chosenModeId = "destroy";
+        item.chosenModeIds = ["destroy"];
         resolveTopOfStack(state);
         expect(state.players[1].battlefield.some((c) => c.id === "cheap")).toBe(
             false
@@ -403,7 +403,7 @@ describe("Silverquill Charm (CR 700.2 modal — counters, exile-weak-creature, o
         const item = pushSpell(state, silverquillCharm.id, "p1", [
             { type: "permanent", id: "creature-1" },
         ]);
-        item.chosenModeId = "counters";
+        item.chosenModeIds = ["counters"];
         resolveTopOfStack(state);
         const perm = state.players[0].battlefield.find(
             (c) => c.id === "creature-1"
@@ -427,7 +427,7 @@ describe("Silverquill Charm (CR 700.2 modal — counters, exile-weak-creature, o
         const item = pushSpell(state, silverquillCharm.id, "p1", [
             { type: "permanent", id: "weakling" },
         ]);
-        item.chosenModeId = "exile";
+        item.chosenModeIds = ["exile"];
         resolveTopOfStack(state);
         expect(state.players[1].exile.some((c) => c.id === "weakling")).toBe(
             true
@@ -442,7 +442,7 @@ describe("Silverquill Charm (CR 700.2 modal — counters, exile-weak-creature, o
             ],
         });
         const item = pushSpell(state, silverquillCharm.id, "p1");
-        item.chosenModeId = "drain";
+        item.chosenModeIds = ["drain"];
         resolveTopOfStack(state);
         expect(state.players[0].life).toBe(23);
         expect(state.players[1].life).toBe(17);
@@ -456,7 +456,7 @@ describe("Quandrix Charm (CR 700.2 modal — counter-unless-pay, destroy enchant
         const item = pushSpell(state, quandrixCharm.id, "p1", [
             { type: "spell", id: filler.id },
         ]);
-        item.chosenModeId = "counter";
+        item.chosenModeIds = ["counter"];
         expect(resolveTopOfStack(state)).toBeNull(); // suspended on may-pay
         applyMayPaySubmit(state, { playerId: "p2", accept: false });
         expect(state.stack.find((s) => s.id === filler.id)).toBeUndefined();
@@ -478,7 +478,7 @@ describe("Quandrix Charm (CR 700.2 modal — counter-unless-pay, destroy enchant
         const item = pushSpell(state, quandrixCharm.id, "p1", [
             { type: "spell", id: filler.id },
         ]);
-        item.chosenModeId = "counter";
+        item.chosenModeIds = ["counter"];
         expect(resolveTopOfStack(state)).toBeNull();
         applyMayPaySubmit(state, { playerId: "p2", accept: true });
         expect(state.stack.find((s) => s.id === filler.id)).toBeDefined();
@@ -499,7 +499,7 @@ describe("Quandrix Charm (CR 700.2 modal — counter-unless-pay, destroy enchant
         const item = pushSpell(state, quandrixCharm.id, "p1", [
             { type: "permanent", id: "ench-1" },
         ]);
-        item.chosenModeId = "destroy-enchantment";
+        item.chosenModeIds = ["destroy-enchantment"];
         resolveTopOfStack(state);
         expect(
             state.players[1].battlefield.some((c) => c.id === "ench-1")
@@ -521,7 +521,7 @@ describe("Quandrix Charm (CR 700.2 modal — counter-unless-pay, destroy enchant
         const item = pushSpell(state, quandrixCharm.id, "p1", [
             { type: "permanent", id: "tiger-1" },
         ]);
-        item.chosenModeId = "set-pt";
+        item.chosenModeIds = ["set-pt"];
         resolveTopOfStack(state);
         expect(getEffectivePower(state, creature)).toBe(5);
         expect(getEffectiveToughness(state, creature)).toBe(5);
@@ -542,7 +542,7 @@ describe("Quandrix Charm (CR 700.2 modal — counter-unless-pay, destroy enchant
         const item = pushSpell(state, quandrixCharm.id, "p1", [
             { type: "permanent", id: "tiger-2" },
         ]);
-        item.chosenModeId = "set-pt";
+        item.chosenModeIds = ["set-pt"];
         resolveTopOfStack(state);
         const projected = projectPublicState(state, 1, "p1");
         const slim = projected.players[1].battlefield.find(
@@ -582,7 +582,7 @@ describe("Lorehold Charm (CR 700.2 modal — edict sacrifice, graveyard reanimat
             ],
         });
         const item = pushSpell(state, loreholdCharm.id, "p1");
-        item.chosenModeId = "sacrifice-artifact";
+        item.chosenModeIds = ["sacrifice-artifact"];
         expect(resolveTopOfStack(state)).toBeNull(); // suspended on the opponent's pick
 
         // The choice belongs to the OPPONENT (CR 701.21a) and only the
@@ -661,7 +661,7 @@ describe("Lorehold Charm (CR 700.2 modal — edict sacrifice, graveyard reanimat
         const item = pushSpell(state, loreholdCharm.id, "p1", [
             { type: "graveyard-card", id: "gy-lotus-2", playerId: "p1" },
         ]);
-        item.chosenModeId = "reanimate";
+        item.chosenModeIds = ["reanimate"];
         resolveTopOfStack(state);
 
         expect(
@@ -695,7 +695,7 @@ describe("Lorehold Charm (CR 700.2 modal — edict sacrifice, graveyard reanimat
             ],
         });
         const item = pushSpell(state, loreholdCharm.id, "p1");
-        item.chosenModeId = "pump-trample";
+        item.chosenModeIds = ["pump-trample"];
         resolveTopOfStack(state);
 
         const mine1After = state.players[0].battlefield.find(
@@ -898,7 +898,7 @@ describe("Prismari Charm (CR 700.2 modal, 701.25 surveil, 601.2c one-or-two targ
             ],
         });
         const item = pushSpell(state, prismariCharm.id, "p1");
-        item.chosenModeId = "surveil-draw";
+        item.chosenModeIds = ["surveil-draw"];
         expect(resolveTopOfStack(state)).toBeNull(); // suspended on surveil
 
         const head = state.pendingChoices![0];
@@ -934,7 +934,7 @@ describe("Prismari Charm (CR 700.2 modal, 701.25 surveil, 601.2c one-or-two targ
         const item = pushSpell(state, prismariCharm.id, "p1", [
             { type: "permanent", id: "victim" },
         ]);
-        item.chosenModeId = "damage-one-or-two";
+        item.chosenModeIds = ["damage-one-or-two"];
         resolveTopOfStack(state);
 
         const live = state.players[1].battlefield.find(
@@ -963,7 +963,7 @@ describe("Prismari Charm (CR 700.2 modal, 701.25 surveil, 601.2c one-or-two targ
             { type: "permanent", id: "victim" },
             { type: "player", id: "p2" },
         ]);
-        item.chosenModeId = "damage-one-or-two";
+        item.chosenModeIds = ["damage-one-or-two"];
         resolveTopOfStack(state);
 
         const live = state.players[1].battlefield.find(
@@ -988,7 +988,7 @@ describe("Prismari Charm (CR 700.2 modal, 701.25 surveil, 601.2c one-or-two targ
         const item = pushSpell(state, prismariCharm.id, "p1", [
             { type: "permanent", id: "victim" },
         ]);
-        item.chosenModeId = "bounce-nonland";
+        item.chosenModeIds = ["bounce-nonland"];
         resolveTopOfStack(state);
 
         expect(state.players[1].battlefield).toHaveLength(0);

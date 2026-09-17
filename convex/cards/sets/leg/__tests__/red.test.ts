@@ -650,7 +650,7 @@ describe("Active Volcano (modal: destroy blue / return Island, CR 700.2)", () =>
         const item = pushSpell(state, activeVolcano.id, "p1", [
             { type: "permanent", id: "isl" },
         ]);
-        item.chosenModeId = "return-island";
+        item.chosenModeIds = ["return-island"];
         resolveTopOfStack(state);
         expect(
             state.players[1].battlefield.find((c) => c.id === "isl")
@@ -672,7 +672,7 @@ describe("Active Volcano (modal: destroy blue / return Island, CR 700.2)", () =>
         const item = pushSpell(state, activeVolcano.id, "p1", [
             { type: "permanent", id: "drake" },
         ]);
-        item.chosenModeId = "destroy-blue";
+        item.chosenModeIds = ["destroy-blue"];
         resolveTopOfStack(state);
         expect(
             state.players[1].battlefield.find((c) => c.id === "drake")

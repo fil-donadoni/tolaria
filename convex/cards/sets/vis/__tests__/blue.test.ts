@@ -46,7 +46,7 @@ function pushModalVisionCharm(
     targets: StackItem["targets"] = []
 ): StackItem {
     const item = pushSpell(state, visionCharm.id, "p1", targets);
-    item.chosenModeId = modeId;
+    item.chosenModeIds = [modeId];
     return item;
 }
 

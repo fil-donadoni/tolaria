@@ -135,7 +135,7 @@ describe("modal triggered abilities — announcement (CR 603.3c)", () => {
         raiseTriggerTargetSelection(state);
 
         submitHead(state, "tap-theirs");
-        expect(trig.chosenModeId).toBe("tap-theirs");
+        expect(trig.chosenModeIds?.[0]).toBe("tap-theirs");
         // The board holds two permanents; only ONE is legal under the announced
         // mode, so it auto-selects. Under the sibling mode's requirement — or
         // under an un-scoped one — the other bear would be legal too and a
@@ -169,7 +169,7 @@ describe("modal triggered abilities — announcement (CR 603.3c)", () => {
 
         expect(raiseTriggerTargetSelection(state)).toBe(false);
         expect(state.pendingChoices).toBeUndefined();
-        expect(trig.chosenModeId).toBe("untap-yours");
+        expect(trig.chosenModeIds?.[0]).toBe("untap-yours");
         expect(trig.targets).toEqual([{ type: "permanent", id: "mine" }]);
     });
 
@@ -198,7 +198,7 @@ describe("modal triggered abilities — announcement (CR 603.3c)", () => {
         // pick is locked once made.
         expect(raiseTriggerTargetSelection(state)).toBe(false);
         expect(state.pendingChoices).toBeUndefined();
-        expect(trig.chosenModeId).toBe("tap-theirs");
+        expect(trig.chosenModeIds?.[0]).toBe("tap-theirs");
 
         resolveTopOfStack(state);
         // The ANNOUNCED mode's script ran (tap), not its sibling's (untap):
@@ -254,11 +254,11 @@ describe("modal triggered abilities — the trigger item is built un-announced (
             } as GameEvent,
         ]);
         expect(triggers).toHaveLength(1);
-        expect(triggers[0].chosenModeId).toBeUndefined();
+        expect(triggers[0].chosenModeIds?.[0]).toBeUndefined();
 
         placeTriggersOnStack(state, triggers);
         const item = state.stack[0];
-        expect(item.chosenModeId).toBeUndefined();
+        expect(item.chosenModeIds?.[0]).toBeUndefined();
         // The announcement is actually owed — the controller is prompted with
         // both modes rather than the trigger sailing through un-announced.
         const head = state.pendingChoices![0];
@@ -340,7 +340,7 @@ describe("modal triggered abilities — client-facing seams", () => {
         // imported from the convex tsconfig project).
         const projected = projectPublicState(state, 1, "p2");
         const row = projected.stack.find((s) => s.id === "t1")!;
-        expect(row.chosenModeId).toBe("tap-theirs");
+        expect(row.chosenModeIds?.[0]).toBe("tap-theirs");
     });
 
     it("the pending mode choice is visible to both viewers while it is owed", () => {
@@ -367,7 +367,7 @@ describe("modal triggered abilities — client-facing seams", () => {
 
         const restored = expandState(compactState(state));
         const item = restored.stack.find((s) => s.id === "t1")!;
-        expect(item.chosenModeId).toBe("tap-theirs");
+        expect(item.chosenModeIds?.[0]).toBe("tap-theirs");
         expect(item.targets).toEqual([{ type: "permanent", id: "theirs" }]);
     });
 });

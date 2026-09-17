@@ -122,7 +122,7 @@ describe("modal activated ability — announcement (CR 700.2 / 602.2b)", () => {
                 playerId: state.players[0].id,
                 cardInstanceId: jitte.id,
                 abilityId: JITTE_MODES,
-                chosenModeId: "not-a-mode",
+                chosenModeIds: ["not-a-mode"],
             })
         ).toThrow(/unknown mode id/i);
         expect(state.stack).toHaveLength(0);
@@ -135,7 +135,7 @@ describe("modal activated ability — announcement (CR 700.2 / 602.2b)", () => {
                 playerId: state.players[0].id,
                 cardInstanceId: jitte.id,
                 abilityId: "umezawas-jitte-equip",
-                chosenModeId: "pump-equipped",
+                chosenModeIds: ["pump-equipped"],
             })
         ).toThrow(/not modal/i);
     });
@@ -148,7 +148,7 @@ describe("modal activated ability — a NON-targeting mode (CR 700.2d)", () => {
             playerId: state.players[0].id,
             cardInstanceId: jitte.id,
             abilityId: JITTE_MODES,
-            chosenModeId: "gain-life",
+            chosenModeIds: ["gain-life"],
         });
 
         // No target prompt — the chosen mode declares none, even though a
@@ -156,7 +156,7 @@ describe("modal activated ability — a NON-targeting mode (CR 700.2d)", () => {
         expect(state.pendingTarget).toBeUndefined();
         expect(state.stack).toHaveLength(1);
         expect(state.stack[0].abilityId).toBe(JITTE_MODES);
-        expect(state.stack[0].chosenModeId).toBe("gain-life");
+        expect(state.stack[0].chosenModeIds?.[0]).toBe("gain-life");
         // CR 122.6 — the counter cost is paid as the ability is activated.
         expect(
             state.players[0].battlefield.find((c) => c.id === jitte.id)!
@@ -173,7 +173,7 @@ describe("modal activated ability — a NON-targeting mode (CR 700.2d)", () => {
             playerId: state.players[0].id,
             cardInstanceId: jitte.id,
             abilityId: JITTE_MODES,
-            chosenModeId: "pump-equipped",
+            chosenModeIds: ["pump-equipped"],
         });
         expect(state.pendingTarget).toBeUndefined();
         expect(state.stack[0].targets ?? []).toHaveLength(0);
@@ -200,7 +200,7 @@ describe("modal activated ability — a NON-targeting mode (CR 700.2d)", () => {
             playerId: state.players[0].id,
             cardInstanceId: jitte.id,
             abilityId: JITTE_MODES,
-            chosenModeId: "pump-equipped",
+            chosenModeIds: ["pump-equipped"],
         });
         expect(() => resolveTopOfStack(state)).not.toThrow();
         const bear = find(state, "Grizzly Bears");
@@ -215,7 +215,7 @@ describe("modal activated ability — a TARGETING mode (CR 601.2c / 700.2d)", ()
             playerId: state.players[0].id,
             cardInstanceId: jitte.id,
             abilityId: JITTE_MODES,
-            chosenModeId: "shrink-target",
+            chosenModeIds: ["shrink-target"],
         });
 
         // CR 601.2c — targets are chosen after the mode, before the ability
@@ -225,7 +225,7 @@ describe("modal activated ability — a TARGETING mode (CR 601.2c / 700.2d)", ()
         expect(state.pendingTarget?.abilityId).toBe(JITTE_MODES);
         expect(state.pendingTarget?.targetType).toBe("Creature");
         // The mode rides the prompt so it survives onto the stack item.
-        expect(state.pendingTarget?.chosenModeId).toBe("shrink-target");
+        expect(state.pendingTarget?.chosenModeIds?.[0]).toBe("shrink-target");
 
         const giant = state.players[1].battlefield[0];
         state.pendingTarget!.selected = [{ type: "permanent", id: giant.id }];
@@ -237,7 +237,7 @@ describe("modal activated ability — a TARGETING mode (CR 601.2c / 700.2d)", ()
         state.pendingTarget = undefined;
 
         expect(state.stack).toHaveLength(1);
-        expect(state.stack[0].chosenModeId).toBe("shrink-target");
+        expect(state.stack[0].chosenModeIds?.[0]).toBe("shrink-target");
         resolveTopOfStack(state);
 
         const shrunk = state.players[1].battlefield.find(

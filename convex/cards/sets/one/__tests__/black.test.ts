@@ -34,7 +34,7 @@ function answer(state: GameState, picks: string[]): void {
  *  onto the stack item before the spell hits the stack. */
 function pushEdict(state: GameState, modeId: string): StackItem {
     const item = pushSpell(state, sheoldredsEdict.id, "p1", []);
-    item.chosenModeId = modeId;
+    item.chosenModeIds = [modeId];
     return item;
 }
 

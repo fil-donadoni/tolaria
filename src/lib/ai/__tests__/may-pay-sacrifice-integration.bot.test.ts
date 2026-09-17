@@ -113,7 +113,7 @@ function seedTwoFodder(): GameState {
         priorityPlayerId: BOT,
     });
     const item = pushSpell(state, WITHERBLOOM_CHARM, BOT);
-    item.chosenModeId = "sacrifice-draw";
+    item.chosenModeIds = ["sacrifice-draw"];
     resolveTopOfStack(state); // suspend on the may-pay pick
     return state;
 }

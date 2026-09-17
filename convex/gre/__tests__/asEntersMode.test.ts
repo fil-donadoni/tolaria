@@ -271,7 +271,7 @@ describe("CR 614.12a — a CAST permanent is asked exactly once, at entry", () =
         const item = pushSpell(state, voiceOfAll.id, "p1");
         // The stack item carries NO `chosenModeId` — `announceCast` no longer
         // accepts one for this card.
-        expect(item.chosenModeId).toBeUndefined();
+        expect(item.chosenModeIds?.[0]).toBeUndefined();
         expect(state.pendingChoices ?? []).toHaveLength(0);
 
         resolveTopOfStack(state);

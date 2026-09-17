@@ -184,7 +184,7 @@ describe("applyMoveInSearch puts an activated ability on the stack (CR 602.2a)",
             zone: item.zone,
             castById: item.castById,
             abilityId: item.abilityId,
-            chosenModeId: item.chosenModeId,
+            chosenModeIds: item.chosenModeIds,
             chosenX: item.chosenX,
             grantedSourceCardId: item.grantedSourceCardId,
             additionalSacrificeSnapshot: item.additionalSacrificeSnapshot,
@@ -261,7 +261,7 @@ describe("applyMoveInSearch puts an activated ability on the stack (CR 602.2a)",
             abilityId: SORCERER_ZAP,
             targets: [{ type: "permanent", id: "gob" }],
             targetAmounts: { "permanent:gob": 2 },
-            chosenModeId: "mode-a",
+            chosenModeIds: ["mode-a"],
             chosenX: 3,
             grantedSourceCardId: "granting-card",
             additionalSacrificeSnapshot: snapshot,
@@ -269,7 +269,7 @@ describe("applyMoveInSearch puts an activated ability on the stack (CR 602.2a)",
         });
         expect(full.targets).toEqual([{ type: "permanent", id: "gob" }]);
         expect(full.targetAmounts).toEqual({ "permanent:gob": 2 });
-        expect(full.chosenModeId).toBe("mode-a");
+        expect(full.chosenModeIds?.[0]).toBe("mode-a");
         expect(full.chosenX).toBe(3);
         expect(full.grantedSourceCardId).toBe("granting-card");
         expect(full.additionalSacrificeSnapshot).toEqual(snapshot);
@@ -285,7 +285,7 @@ describe("applyMoveInSearch puts an activated ability on the stack (CR 602.2a)",
         for (const key of [
             "targets",
             "targetAmounts",
-            "chosenModeId",
+            "chosenModeIds",
             "chosenX",
             "grantedSourceCardId",
             "additionalSacrificeSnapshot",

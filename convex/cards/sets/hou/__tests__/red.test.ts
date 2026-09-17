@@ -34,7 +34,7 @@ describe("Abrade (CR 700.2 modal — damage a creature or destroy an artifact)",
                 zone: "stack",
             }),
             castById: "p1",
-            chosenModeId: "damage",
+            chosenModeIds: ["damage"],
             targets: [{ type: "permanent", id: "creature-1" }],
         });
         resolveTopOfStack(state);
@@ -64,7 +64,7 @@ describe("Abrade (CR 700.2 modal — damage a creature or destroy an artifact)",
                 zone: "stack",
             }),
             castById: "p1",
-            chosenModeId: "destroy",
+            chosenModeIds: ["destroy"],
             targets: [{ type: "permanent", id: "artifact-1" }],
         });
         resolveTopOfStack(state);
