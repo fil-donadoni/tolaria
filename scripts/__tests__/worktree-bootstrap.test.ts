@@ -43,11 +43,14 @@ describe("worktree bootstrap wiring", () => {
         // third-party import would make it unable to do its own job. A
         // RELATIVE import is allowed (bun resolves it without node_modules)
         // and is followed: the module it names is held to the same rule.
+        // The `from` clause is optional in the pattern: a bare side-effect
+        // `import "x";` loads x all the same, and the previous pattern let
+        // one through (seen red-less under proof-of-failure, issue #3776).
         const importsOf = (file: string): string[] =>
             [
                 ...fs
                     .readFileSync(file, "utf8")
-                    .matchAll(/^import[\s\S]*? from "(.+)";$/gm),
+                    .matchAll(/^import (?:[\s\S]*? from )?"(.+)";$/gm),
             ].map((m) => m[1]);
         const seen = new Set<string>();
         const walk = (file: string) => {
