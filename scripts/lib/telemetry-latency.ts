@@ -700,6 +700,26 @@ export function laneHistogram(rows: GateRunLane[]): LaneCount[] {
 }
 
 /**
+ * Does `cmd` actually INVOKE `git commit`, rather than merely mention the
+ * words? `spans.cmd` is the verbatim (160-char-truncated) shell command, so a
+ * `grep -rn "git commit" ...` run in the SAME session as a review span would
+ * otherwise read as a post-review fixup commit and inflate
+ * {@link blockingFindingRate}'s numerator. Requires "git commit" at the start
+ * of the command or right after a real shell separator (`&&`, `;`, `|`) —
+ * never inside a quoted argument, which is exactly where a grep pattern
+ * lives.
+ */
+export function isGitCommitCommand(cmd: string): boolean {
+    return /(^|&&|[;|])\s*git\s+commit\b/.test(cmd);
+}
+
+/** Same shape check as {@link isGitCommitCommand}, for a targeted
+ *  `vitest run <path>` invocation feeding {@link redOnRedBaseline}. */
+export function isTargetedVitestCommand(cmd: string): boolean {
+    return /(^|&&|[;|])\s*(bunx |npx )?vitest run\b/.test(cmd);
+}
+
+/**
  * Extract the lane from a `check:lane` run's captured stdout — the exact
  * line `check-lane.ts` prints: `` `lane:  ${lane}   (HEAD ${head}, …)` ``.
  * `land.ts` ALSO writes a "lane:" line to the same log when it runs
@@ -715,15 +735,21 @@ export function parseLaneLine(log: string): string | null {
 /**
  * Did a `health-main.ts` per-sha log record any failing step? Each step is
  * appended as `===== <cmd> (exit <status>) =====` (`lib/health-step.ts`);
- * ANY non-zero status is red — the steps run in series and stop at the
- * first one. `null` — "unknown", not "green" — when the log has no such line
- * at all (truncated, or predates this log shape): a parse gap must never
- * manufacture a false green in the one row that exists to catch a red.
+ * ANY status other than `0` is red — the steps run in series and stop at the
+ * first one. `status` is Node's `child.on("close", (code, signal) => …)`
+ * code, which is `null` (not a number) when the step was killed by a signal
+ * or failed to spawn — the log then literally reads `(exit null)`, and a
+ * regex that only captured `\d+` would silently drop that line and read a
+ * killed run as green if an earlier step happened to exit 0. Matching the
+ * exit TOKEN, not just a digit run, closes that. `null` — "unknown", not
+ * "green" — only when the log has no `(exit …)` line at all (truncated, or
+ * predates this log shape): a parse gap must never manufacture a false
+ * green in the one row that exists to catch a red.
  */
 export function parseHealthLogRed(log: string): boolean | null {
-    const exits = [...log.matchAll(/\(exit (\d+)\)/g)].map((m) => Number(m[1]));
+    const exits = [...log.matchAll(/\(exit (\S+)\)/g)].map((m) => m[1]);
     if (exits.length === 0) return null;
-    return exits.some((code) => code !== 0);
+    return exits.some((token) => token !== "0");
 }
 
 function pad(s: string, w: number, right = true): string {

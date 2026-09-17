@@ -6,8 +6,10 @@ import {
     formatReport,
     hourlyThroughput,
     isGateSpan,
+    isGitCommitCommand,
     isIssueClosing,
     isNextIssue,
+    isTargetedVitestCommand,
     laneHistogram,
     parseHealthLogRed,
     parseLaneLine,
@@ -417,29 +419,16 @@ describe("hourlyThroughput / throughputByConcurrency", () => {
         ]);
     });
 
-    it("PROOF OF FAILURE: an hour is keyed by its OWN start, not floor(ts)", () => {
-        // Break the derivation the way a careless refactor would — bucket by the
-        // raw timestamp instead of the hour it falls in — and confirm two turns
-        // 100s apart stop sharing a bucket.
-        const brokenHourStart = (ts: number) => ts; // no floor-to-hour at all
-        const buckets = new Map<number, Set<string>>();
-        for (const t of [
-            { session: "a", ts: 0 },
-            { session: "b", ts: 100 },
-        ]) {
-            const h = brokenHourStart(t.ts);
-            const set = buckets.get(h);
-            if (set) set.add(t.session);
-            else buckets.set(h, new Set([t.session]));
-        }
-        expect(buckets.size).toBe(2); // broken: two "hours" for one real hour
-        // The real function does not make this mistake:
-        const real = hourlyThroughput(
-            [turn({ session: "a", ts: 0 }), turn({ session: "b", ts: 100 })],
-            []
-        );
+    it("PROOF OF FAILURE: hour boundaries must floor, not round", () => {
+        // A plausible-but-wrong alternate: round to the nearest hour instead of
+        // flooring. 1900s is 31.6 minutes into its hour — nowhere near the next
+        // one — but naive rounding still walks it into hour 1.
+        const wrongHourStart = (ts: number) => Math.round(ts / 3600) * 3600;
+        expect(wrongHourStart(1900)).toBe(3600); // the bug: hour 1, not hour 0
+        // The real function keeps it in the hour it actually falls in:
+        const real = hourlyThroughput([turn({ session: "a", ts: 1900 })], []);
         expect(real).toEqual([
-            { hourStartS: 0, activeSessions: 2, prsLanded: 0 },
+            { hourStartS: 0, activeSessions: 1, prsLanded: 0 },
         ]);
     });
 });
@@ -482,12 +471,17 @@ describe("blockingFindingRate", () => {
     });
 
     it("PROOF OF FAILURE: a commit from another session must not count", () => {
-        // Break the join — attribute EVERY commit to EVERY review, the mistake a
-        // refactor that dropped session-scoping would make.
-        const brokenBlocking = reviews.some(() => true); // "any commit exists at all"
-        expect(brokenBlocking).toBe(true); // the broken version would find a match
-        // The real function correctly finds none, since the only commit is in a
-        // session with no review:
+        // A plausible-but-wrong alternate: drop session-scoping and ask "did ANY
+        // commit land after this review's end", the mistake a refactor that
+        // forgot the join key would make.
+        const brokenBlocking = (
+            reviewList: typeof reviews,
+            allCommits: { session: string; ts: number }[]
+        ) => reviewList.map((r) => allCommits.some((c) => c.ts > r.endS));
+        const broken = brokenBlocking(reviews, [{ session: "z", ts: 999 }]);
+        expect(broken.every(Boolean)).toBe(true); // the bug: every review "blocks"
+        // The real function scopes the commit to the review's OWN session, and
+        // the only commit here belongs to a session with no review at all:
         const rows = blockingFindingRate(
             reviews,
             [{ session: "z", ts: 999 }],
@@ -569,6 +563,34 @@ describe("parseLaneLine", () => {
     });
 });
 
+describe("isGitCommitCommand / isTargetedVitestCommand", () => {
+    it("recognises a real invocation, at the start or after a shell separator", () => {
+        expect(isGitCommitCommand("git commit -m 'fix'")).toBe(true);
+        expect(isGitCommitCommand("cd worktree && git commit -am wip")).toBe(
+            true
+        );
+        expect(
+            isTargetedVitestCommand("bunx vitest run scripts/x.test.ts")
+        ).toBe(true);
+        expect(
+            isTargetedVitestCommand("cd wt && vitest run scripts/x.test.ts")
+        ).toBe(true);
+    });
+
+    it("PROOF OF FAILURE: a grep for the words must not count as the command", () => {
+        // The exact false positive `blockingFindingRate` would otherwise inflate
+        // on: reviewing THIS module involves grepping for its own literal text.
+        const grep = 'grep -rn "git commit" scripts/';
+        expect(isGitCommitCommand(grep)).toBe(false);
+        // A naive substring test is what would get this wrong:
+        expect(grep.includes("git commit")).toBe(true); // the bug this guards against
+
+        const grepVitest = 'grep -rn "vitest run" scripts/';
+        expect(isTargetedVitestCommand(grepVitest)).toBe(false);
+        expect(grepVitest.includes("vitest run")).toBe(true);
+    });
+});
+
 describe("parseHealthLogRed", () => {
     it("is red when any step exited non-zero", () => {
         const log =
@@ -588,6 +610,19 @@ describe("parseHealthLogRed", () => {
         expect(
             parseHealthLogRed("still running, no step finished yet\n")
         ).toBeNull();
+    });
+
+    it("PROOF OF FAILURE: a killed step (exit null) must read as red, not be silently dropped", () => {
+        // health-step.ts's own exit code is Node's child.on("close", (code) => …)
+        // value, which is `null` — not a number — when the step was killed by a
+        // signal or failed to spawn; the log then literally reads "(exit null)".
+        const log = "\n===== bun run check:all (exit null) =====\nkilled\n";
+        // A regex that only captures digits is the exact bug this guards
+        // against: it finds no numeric exit at all and calls the run "unknown".
+        const digitsOnly = (l: string) =>
+            [...l.matchAll(/\(exit (\d+)\)/g)].map((m) => Number(m[1]));
+        expect(digitsOnly(log)).toEqual([]); // the bug: the killed step vanishes
+        expect(parseHealthLogRed(log)).toBe(true); // the real parser calls it red
     });
 
     it("PROOF OF FAILURE: a log ending on a later green step must not erase an earlier red", () => {

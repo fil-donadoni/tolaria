@@ -879,11 +879,16 @@ function refreshPrMeta(db: Sqlite): number {
         }
     })();
 
+    // Only 'open' is refetched — the same finality test refreshIssueMeta uses.
+    // A PR closed WITHOUT merging is as final as a merged one in this
+    // workflow (`land` merges through the API the moment it decides to);
+    // treating it as non-final would refetch it every 6h forever for no PR
+    // that can ever change state again.
     const wanted = db
         .query<{ pr: number }, [number]>(
             `SELECT pr FROM pr_meta
              WHERE state IS NULL
-                OR (state != 'merged' AND state != 'unknown' AND fetched < ?)
+                OR (state = 'open' AND fetched < ?)
              ORDER BY pr DESC
              LIMIT 60`
         )
@@ -945,25 +950,48 @@ function refreshPrMeta(db: Sqlite): number {
     return n;
 }
 
-/** True while `pid` names a live process — mirrors `gate-run.sh`'s own
- *  `is_alive`, checked from a different process (this one). */
-function isAlivePid(pid: number): boolean {
+/**
+ * Is `pid` still running the SAME process `gate-run.sh` recorded — never
+ * just "is *a* process running with this number"? The run dir outlives the
+ * process, and a pid is recycled by the OS in hours; a bare `kill(pid, 0)`
+ * from a different process (this one) reads a recycled pid as "still
+ * running" forever, silently dropping that gate run from `gate_runs` once
+ * `TOLARIA_GATE_RUN_KEEP_DAYS` prunes its directory. `gate-run.sh` closes
+ * exactly this gap for itself by pairing the pid with `pid_ident` (`ps`'s own
+ * `lstart` + full command line, captured once at spawn into `pidstart`); this
+ * mirrors that check from a second process. No `pidstart` recorded (an older
+ * run predating that file, or one gate-run.sh itself could not identify) is
+ * treated as NOT alive — the safe direction, since a duplicate ingest of a
+ * finished run is idempotent and a run wrongly believed live is invisible
+ * forever.
+ */
+function isRunGateAlive(pid: number, pidstart: string | null): boolean {
+    if (!pidstart) return false;
     try {
         process.kill(pid, 0);
-        return true;
     } catch {
         return false;
     }
+    const p = Bun.spawnSync([
+        "ps",
+        "-o",
+        "lstart=,command=",
+        "-p",
+        String(pid),
+    ]);
+    if (!p.success) return false;
+    const ident = p.stdout.toString().split("\n")[0].replace(/ +/g, " ").trim();
+    return ident === pidstart.trim();
 }
 
 /**
  * Mirror `gate-run.sh`'s cache dir into `gate_runs` before its own
  * `TOLARIA_GATE_RUN_KEEP_DAYS` pruning drops it (issue #3777, ADR 0136 rows
- * 1 and 4). A run still in flight (its recorded pid is alive) is skipped and
- * revisited on the next ingest — reading it now would freeze an incomplete
- * log's lane parse and a not-yet-written `green` marker into the row
- * forever, since a run dir's `started` stamp (this function's dedup key)
- * does not change again once the run begins.
+ * 3 and 4). A run still in flight is skipped and revisited on the next
+ * ingest — reading it now would freeze an incomplete log's lane parse and a
+ * not-yet-written `green` marker into the row forever, since a run dir's
+ * `started` stamp (this function's dedup key) does not change again once the
+ * run begins.
  */
 function ingestGateRuns(db: Sqlite): number {
     const root = join(
@@ -1005,7 +1033,9 @@ function ingestGateRuns(db: Sqlite): number {
 
         const pidStr = readOpt("pid");
         const pid = pidStr ? Number(pidStr) : null;
-        if (pid !== null && !Number.isNaN(pid) && isAlivePid(pid)) continue;
+        const pidstart = readOpt("pidstart");
+        if (pid !== null && !Number.isNaN(pid) && isRunGateAlive(pid, pidstart))
+            continue;
 
         const log = readOpt("log") ?? "";
         put.run(

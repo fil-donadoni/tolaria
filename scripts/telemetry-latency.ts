@@ -34,6 +34,8 @@ import {
     isNextIssue,
     laneHistogram,
     blockingFindingRate,
+    isGitCommitCommand,
+    isTargetedVitestCommand,
     redOnRedBaseline,
     hourlyThroughput,
     throughputByConcurrency,
@@ -143,23 +145,36 @@ const reviewSpanRows = db
     )
     .all(from, to) as ReviewSpan[];
 
-const commitEvents = db
-    .query(
-        `SELECT session, ts
-         FROM spans
-         WHERE session IN (${SESSIONS_IN_WINDOW})
-           AND tool = 'Bash' AND cmd LIKE '%git commit%'`
-    )
-    .all(from, to) as CommitEvent[];
+// `cmd LIKE '%…%'` is a cheap pre-filter only — SQLite has no regex here, and
+// a bare substring match would count a `grep -rn "git commit" ...` as a
+// commit (`isGitCommitCommand`/`isTargetedVitestCommand` do the real,
+// shape-aware check once the candidate rows are back in JS).
+const commitEvents = (
+    db
+        .query(
+            `SELECT session, ts, cmd
+             FROM spans
+             WHERE session IN (${SESSIONS_IN_WINDOW})
+               AND tool = 'Bash' AND cmd LIKE '%commit%'`
+        )
+        .all(from, to) as Array<{ session: string; ts: number; cmd: string }>
+).filter((r) => isGitCommitCommand(r.cmd)) as CommitEvent[];
 
-const vitestSpanRows = db
-    .query(
-        `SELECT session, ts, is_error AS isError
-         FROM spans
-         WHERE session IN (${SESSIONS_IN_WINDOW})
-           AND tool = 'Bash' AND cmd LIKE '%vitest run%' AND is_error IS NOT NULL`
-    )
-    .all(from, to) as Array<{ session: string; ts: number; isError: number }>;
+const vitestSpanRows = (
+    db
+        .query(
+            `SELECT session, ts, cmd, is_error AS isError
+             FROM spans
+             WHERE session IN (${SESSIONS_IN_WINDOW})
+               AND tool = 'Bash' AND cmd LIKE '%vitest%' AND is_error IS NOT NULL`
+        )
+        .all(from, to) as Array<{
+        session: string;
+        ts: number;
+        cmd: string;
+        isError: number;
+    }>
+).filter((r) => isTargetedVitestCommand(r.cmd));
 
 // Not window-filtered by SESSIONS_IN_WINDOW: a PR's merge and a health verdict
 // are facts about the base branch, not about any one session, and row 3 asks

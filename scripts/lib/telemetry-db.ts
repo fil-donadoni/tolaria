@@ -172,7 +172,7 @@ CREATE TABLE IF NOT EXISTS pr_meta (
 );
 
 -- One row per gate-run record ever seen under gate-run.sh's cache dir
--- (issue #3777, ADR 0136 rows 1 and 4). The cache dir itself prunes after
+-- (issue #3777, ADR 0136 rows 3 and 4). The cache dir itself prunes after
 -- TOLARIA_GATE_RUN_KEEP_DAYS (default 7); this table is the durable copy,
 -- keyed by the run dir's own name so a re-ingest of the same dir is a no-op.
 CREATE TABLE IF NOT EXISTS gate_runs (
