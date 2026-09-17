@@ -8973,6 +8973,31 @@ export type CostReductionAmount =
     | CountDrivenCostReduction
     | DomainDrivenCostReduction;
 
+/** The fixed-literal {@link CostReductionAmount} narrowed to what a CR 601.2f
+ *  reduction can actually apply (issue #3340): GENERIC mana only, and no
+ *  variable `{X}` marker.
+ *
+ *  A structural subset of {@link ManaCost} rather than a brand, so it is
+ *  assignable to `ManaCost` wherever the engine wants one (it feeds
+ *  `resolveCostReductionGeneric` unchanged) while making the two shapes that
+ *  would reduce less than they read a COMPILE error at the card, not a runtime
+ *  validator error at the gate:
+ *
+ *   - a coloured pip (`{ U: 1 }`, or a mixed `{ generic: 1, U: 1 }`) — 601.2f
+ *     reductions never touch coloured pips, so the pip is silently dropped;
+ *   - `X: "X"` — a reduction installed at resolution has no cast in progress
+ *     and so no chosen X to read.
+ *
+ *  Excess-property checking only fires on object LITERALS, which is where card
+ *  definitions live; `isFixedGenericReduction`
+ *  (`gre/effects/validate.ts`) is still the authority for a value that reaches
+ *  the DSL any other way, and the two must agree. */
+export type FixedGenericReduction = {
+    X?: number;
+    generic?: number;
+    xFactor?: number;
+};
+
 /** CR 601.2f SELF-HOST cost reduction (ADR 0063): a spell's OWN intrinsic
  *  reduction to its own cast cost, declared directly on its `CardDefinition`
  *  rather than discovered via the battlefield `staticEffects` scan that
@@ -14106,14 +14131,16 @@ export type EffectOp =
      *  which is what the state entry and the primitive carry, so the floating
      *  site and the static site share `resolveCostReductionGeneric` and can
      *  never disagree about what a reduction may touch (generic mana only —
-     *  coloured pips are never reduced, CR 601.2f). The count-driven and
-     *  `amount` must contribute at least one unit of GENERIC mana and must not
-     *  carry the VARIABLE `{X}` marker — both are validator-rejected, because
-     *  either one would validate cleanly and then reduce NOTHING: 601.2f
-     *  reductions never touch coloured pips, and a reduction installed at
-     *  resolution has no cast in progress and so no chosen X to read. Generic
-     *  may arrive as a numeric `X` or via the `generic` field; both fold into
-     *  the same total.
+     *  coloured pips are never reduced, CR 601.2f).
+     *
+     *  It must contribute at least one unit of GENERIC mana and must carry
+     *  NEITHER a coloured pip NOR the variable `{X}` marker — all three are
+     *  validator-rejected, because each would validate cleanly and then reduce
+     *  less than it reads: 601.2f reductions never touch coloured pips (so a
+     *  mixed `{ generic: 1, U: 1 }` silently drops its `{U}`), and a reduction
+     *  installed at resolution has no cast in progress and so no chosen X to
+     *  read. Generic may arrive as a numeric `X` or via the `generic` field;
+     *  both fold into the same total.
      *
      *  The count-driven and
      *  Domain-driven members are deliberately NOT reachable from the DSL yet:
@@ -14129,7 +14156,7 @@ export type EffectOp =
     | {
           op: "reduceSpellCostThisTurn";
           player: EffectPlayerRef;
-          amount: ManaCost;
+          amount: FixedGenericReduction;
           filter?: SpellFilter;
       }
     /** CR 609.4b / 118.14 (issue #2890 — North Star: "For one spell this turn,

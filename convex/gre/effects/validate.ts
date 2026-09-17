@@ -2349,17 +2349,6 @@ const MANA_PIP_KEYS = new Set([
     "generic",
     "xFactor",
 ]);
-/** True if `value` is a well-formed `SpellFilter` (issue #3340) — the ordinary
- *  cast selector `spellCastTrigger` already matches against, validated
- *  fail-CLOSED: an unknown key is a rejection, so a typo'd field can never
- *  widen the filter to "every spell" the way a silently-ignored key would.
- *  Five fields, all optional, each a member or non-empty array of members of
- *  the SAME closed vocabularies the token validators use (`TOKEN_CARD_TYPES`
- *  for CR 205 card types, `TOKEN_COLORS` for CR 105 colours); `subtypes` is
- *  free-form text, as it is everywhere else (CR 205.3). An EMPTY object is
- *  rejected: `{}` means "no constraint", which the Op already expresses by
- *  omitting `filter` entirely, and accepting both would give one meaning two
- *  spellings. */
 /** True if `value` is a CR 601.2f reduction AMOUNT this Op can actually apply
  *  (issue #3340): a `ManaCost` contributing at least one unit of GENERIC mana,
  *  with the VARIABLE `{X}` marker rejected.
@@ -2372,21 +2361,50 @@ const MANA_PIP_KEYS = new Set([
  *     is installed at RESOLUTION, with no cast in progress and therefore no
  *     chosen X to read, so the marker has no value to resolve and
  *     `normalizeManaCost` would fold it in as 0.
- *   - An amount with only COLOURED pips (`{ U: 1 }`) reduces nothing either:
- *     CR 601.2f reductions only ever touch the generic portion, so
- *     `resolveCostReductionGeneric` reads the generic total and ignores the
- *     rest. Requiring a positive generic contribution is what turns "this Op
- *     does nothing" into a filing error.
+ *   - A COLOURED pip reduces nothing, because CR 601.2f reductions only ever
+ *     touch the generic portion — `resolveCostReductionGeneric` reads the
+ *     generic total and ignores the rest. So ANY coloured pip is a rejection,
+ *     not merely a coloured-ONLY amount: a mixed `{ generic: 1, U: 1 }` has a
+ *     positive generic and would pass a "has some generic" check while its
+ *     `{U}` was silently dropped. Rejecting the pip outright is what turns
+ *     "this Op quietly under-reduces" into a filing error.
  *
  *  Generic can arrive as a numeric `X` or as the `generic` field (which
  *  `normalizeManaCost` folds into the same total), so both count. */
 function isFixedGenericReduction(value: unknown): boolean {
     if (!isManaCost(value)) return false;
-    const cost = value as { X?: number | string; generic?: number };
+    const cost = value as Record<string, number | string | undefined>;
     if (typeof cost.X === "string") return false;
-    return (cost.X ?? 0) + (cost.generic ?? 0) > 0;
+    for (const color of ["W", "U", "B", "R", "G", "C"]) {
+        if ((cost[color] ?? 0) !== 0) return false;
+    }
+    const x = typeof cost.X === "number" ? cost.X : 0;
+    const generic = typeof cost.generic === "number" ? cost.generic : 0;
+    return x + generic > 0;
 }
 
+/** True if `value` is a well-formed `SpellFilter` (issue #3340) — the ordinary
+ *  cast selector `spellCastTrigger` already matches against, validated
+ *  fail-CLOSED: an unknown key is a rejection, so a typo'd field can never
+ *  widen the filter to "every spell" the way a silently-ignored key would.
+ *  Five fields, all optional, each a member or non-empty array of members of
+ *  the SAME closed vocabularies the token validators use (`TOKEN_CARD_TYPES`
+ *  for CR 205 card types, `TOKEN_COLORS` for CR 105 colours); `subtypes` is
+ *  free-form text, as it is everywhere else (CR 205.3). An EMPTY object is
+ *  rejected: `{}` means "no constraint", which the Op already expresses by
+ *  omitting `filter` entirely, and accepting both would give one meaning two
+ *  spellings.
+ *
+ *  `colors: ["C"]` is rejected too, for the same reason a coloured-only
+ *  `amount` is: colourless is the ABSENCE of colour (CR 202.2b), never a sixth
+ *  colour, so `getColorsFromCost` never emits `"C"` and such a filter could
+ *  only ever match NOTHING. The `SpellFilter` spelling for a colourless spell
+ *  is `excludeColors: ["W","U","B","R","G"]` — a spell with none of the five.
+ *
+ *  The key list is not pinned to `SpellFilter` by any guard (unlike
+ *  `OP_SCHEMAS` ↔ `SCHEMA_OP_NAMES`), and deliberately needs none: a SIXTH
+ *  field added to `SpellFilter` would fail CLOSED here, so every card using it
+ *  reds loudly rather than silently widening. */
 function isSpellFilter(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
@@ -2403,7 +2421,14 @@ function isSpellFilter(value: unknown): boolean {
         if (k === "colors" || k === "excludeColors") {
             return isValueOrArray(
                 v,
-                (m) => typeof m === "string" && TOKEN_COLORS.has(m)
+                (m) =>
+                    typeof m === "string" &&
+                    TOKEN_COLORS.has(m) &&
+                    // CR 202.2b — colourless is the absence of colour, so
+                    // `getColorsFromCost` never emits "C" and a filter naming
+                    // it matches nothing. Fail closed; the colourless
+                    // selector is `excludeColors: [W,U,B,R,G]`.
+                    m !== "C"
             );
         }
         if (k === "subtypes") {

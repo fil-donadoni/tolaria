@@ -20,13 +20,21 @@
  *      cast trigger matches against selects it, so a non-matching spell is
  *      left alone and an omitted filter reduces everything.
  *
- * Plus the wire-format assertion the GRE testing convention requires: the
- * reduction has to survive a DB round-trip, because the cast it discounts may
- * be announced at any later stable point in the SAME turn.
+ * Plus a SERIALIZATION round-trip (`compactState`/`expandState`, not the wire
+ * projection): the reduction has to survive the DB hop because the cast it
+ * discounts may be announced at any later stable point in the SAME turn.
+ *
+ * No `projectPublicState` assertion is owed, and for a specific reason rather
+ * than an omission: the field rides `PublicGameState`'s `...state` spread
+ * un-projected, so there is no reducer between the engine and the client that
+ * could drop it. Nothing renders it either — every per-card cost in the UI is
+ * the printed `manaCost`, and the only place a post-modifier total is shown is
+ * the payment banner, which reads `pendingCast.manaCost` that `announceCast`
+ * had already folded these modifiers into.
  */
 
 import { describe, expect, it } from "vitest";
-import type { EffectOp } from "../../cards/types";
+import type { ActivatedAbility, EffectOp } from "../../cards/types";
 import { registerTokenDefinition } from "../../cards";
 import {
     getCostModifiers,
@@ -299,6 +307,133 @@ describe("Effect Script Op: reduceSpellCostThisTurn (CR 601.2f / 514.2)", () => 
         expect(chargedCost(restored, card, ARTIFACT_ID)).toEqual({ X: 1 });
     });
 
+    it("matches colours through getEffectiveColors, so layer 5 counts (CR 105.2 / 613.1d)", () => {
+        // A colour filter must read the card's CURRENT colours, not the
+        // registry definition's printed ones: `getEffectiveColors` is the ONE
+        // declared derivation and folds in layer 5. `colorOverride` REPLACES
+        // every other derivation, so a {1}{U} instant laced red is red — a
+        // red-filtered reduction must catch it, and a blue-filtered one must
+        // not.
+        const id = registerScript("test-op-reduce-colour-layer", [
+            {
+                op: "reduceSpellCostThisTurn",
+                player: "controller",
+                amount: { X: 1 },
+                filter: { colors: ["R"] },
+            },
+        ]);
+        const state = makeState();
+        const laced = addToHand(state, "p1", INSTANT_ID, "ins-laced");
+        // Printed {1}{U}: without the override the red filter matches nothing.
+        expect(getCostModifiers(state, laced, "spell").reductionGeneric).toBe(
+            0
+        );
+        resolveUrzaPlusTwo(state, id, "p1");
+        expect(getCostModifiers(state, laced, "spell").reductionGeneric).toBe(
+            0
+        );
+
+        (laced as unknown as { colorOverride?: string[] }).colorOverride = [
+            "R",
+        ];
+        expect(getCostModifiers(state, laced, "spell").reductionGeneric).toBe(
+            1
+        );
+        expect(chargedCost(state, laced, INSTANT_ID)).toEqual({ U: 1 });
+    });
+
+    it("actually reduces by the `generic` spelling at runtime, not just at validation", () => {
+        // The validator ACCEPTS `{ generic: 2 }`; its whole justification is
+        // "reject amounts that reduce nothing", so the accepted spelling owes
+        // a runtime assertion of its own.
+        const id = registerScript("test-op-reduce-generic-runtime", [
+            {
+                op: "reduceSpellCostThisTurn",
+                player: "controller",
+                amount: { generic: 2 },
+            },
+        ]);
+        const state = makeState();
+        const artifact = addToHand(state, "p1", ARTIFACT_ID, "art1");
+        resolveUrzaPlusTwo(state, id, "p1");
+
+        expect(
+            getCostModifiers(state, artifact, "spell").reductionGeneric
+        ).toBe(2);
+        expect(chargedCost(state, artifact, ARTIFACT_ID)).toEqual({ X: 1 });
+    });
+
+    // ── "You cast" is the ANNOUNCER, which is not always the zone owner ──
+    //
+    // CR 601.2a: the player who moves the card to the stack "becomes its
+    // controller". For a CROSS-PLAYER exile cast (Robber of the Rich, Dauthi
+    // Voidwalker) the card stays in the DEFENDER's exile with their
+    // `controllerId`, and `castSubjectView` never rewrites it — `castZoneOwner`
+    // (`gre/activation.ts`) exists precisely because "the player whose zone
+    // holds a card being cast may differ from the CASTER". So reading
+    // `card.controllerId` as the caster is wrong in BOTH directions, and both
+    // are asserted here.
+
+    /** A card sitting in `ownerId`'s exile under a cast grant to `grantedTo` —
+     *  the Robber of the Rich shape: the instance keeps the DEFENDER's
+     *  `controllerId`, the caster is somebody else. */
+    function exiledUnderGrant(
+        state: GameState,
+        zoneOwnerId: string,
+        grantedTo: string
+    ): CardInstanceState {
+        const owner = state.players.find((p) => p.id === zoneOwnerId)!;
+        const card = makeInstance(ARTIFACT_ID, {
+            id: "stolen1",
+            controllerId: zoneOwnerId,
+            ownerId: zoneOwnerId,
+            zone: "exile",
+        });
+        card.castableFromExileBy = grantedTo;
+        owner.exile.push(card);
+        return card;
+    }
+
+    it("reduces the ANNOUNCER's cast of a card exiled from the opponent's zone", () => {
+        const id = registerScript("test-op-reduce-announcer", URZA_PLUS_TWO);
+        const state = makeState();
+        // p1 holds the reduction and is the caster; the card sits in p2's exile.
+        const stolen = exiledUnderGrant(state, "p2", "p1");
+        resolveUrzaPlusTwo(state, id, "p1");
+
+        expect(
+            getCostModifiers(state, stolen, "spell", undefined, "p1")
+                .reductionGeneric
+        ).toBe(2);
+    });
+
+    it("does NOT reduce when the reduction belongs to the zone owner rather than the announcer", () => {
+        const id = registerScript("test-op-reduce-zone-owner", URZA_PLUS_TWO);
+        const state = makeState();
+        // p2 holds the reduction; p1 is the caster of p2's exiled card. p2's
+        // effect must not pay for p1's spell.
+        const stolen = exiledUnderGrant(state, "p2", "p1");
+        resolveUrzaPlusTwo(state, id, "p2");
+
+        expect(
+            getCostModifiers(state, stolen, "spell", undefined, "p1")
+                .reductionGeneric
+        ).toBe(0);
+    });
+
+    // `FixedGenericReduction` makes each of these a COMPILE error at a card's
+    // object literal, which is the point of the type. The validator is the
+    // authority for a value that reaches the DSL any other way (a compiler
+    // emission, a JSON fixture), and that is what these cases exercise — so
+    // they cast past the type deliberately.
+    const malformed = (amount: unknown, filter?: unknown): EffectOp =>
+        ({
+            op: "reduceSpellCostThisTurn",
+            player: "controller",
+            amount,
+            ...(filter === undefined ? {} : { filter }),
+        }) as unknown as EffectOp;
+
     // ── Validator: the two amounts that would reduce NOTHING at runtime ──
     //
     // Both of these pass `isManaCost` and would validate cleanly under a naive
@@ -310,13 +445,7 @@ describe("Effect Script Op: reduceSpellCostThisTurn (CR 601.2f / 514.2)", () => 
         const errors = validateEffectScript({
             id: "test-host-reduce-x-marker",
             name: "Test Host",
-            effects: [
-                {
-                    op: "reduceSpellCostThisTurn",
-                    player: "controller",
-                    amount: { X: "X" },
-                },
-            ],
+            effects: [malformed({ X: "X" })],
         });
         expect(errors).toHaveLength(1);
         expect(errors[0]).toMatch(/reduceSpellCostThisTurn/);
@@ -327,16 +456,37 @@ describe("Effect Script Op: reduceSpellCostThisTurn (CR 601.2f / 514.2)", () => 
         const errors = validateEffectScript({
             id: "test-host-reduce-coloured",
             name: "Test Host",
+            effects: [malformed({ U: 1 })],
+        });
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toMatch(/amount/);
+    });
+
+    it("rejects a MIXED amount — a coloured pip beside generic would be silently dropped", () => {
+        const errors = validateEffectScript({
+            id: "test-host-reduce-mixed",
+            name: "Test Host",
+            effects: [malformed({ generic: 1, U: 1 })],
+        });
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toMatch(/amount/);
+    });
+
+    it('rejects `colors: ["C"]` — colourless is the absence of colour, so the filter could only match nothing (CR 202.2b)', () => {
+        const errors = validateEffectScript({
+            id: "test-host-reduce-colourless-filter",
+            name: "Test Host",
             effects: [
                 {
                     op: "reduceSpellCostThisTurn",
                     player: "controller",
-                    amount: { U: 1 },
+                    amount: { X: 1 },
+                    filter: { colors: ["C"] },
                 },
             ],
         });
         expect(errors).toHaveLength(1);
-        expect(errors[0]).toMatch(/amount/);
+        expect(errors[0]).toMatch(/filter/);
     });
 
     it("accepts generic carried by the `generic` field, which normalizeManaCost folds into the same total", () => {
@@ -372,9 +522,26 @@ describe("Effect Script Op: reduceSpellCostThisTurn (CR 601.2f / 514.2)", () => 
         resolveUrzaPlusTwo(state, id, "p1");
 
         // The Oracle says "spells you cast"; an ability activation is a
-        // separate 602.2b cost determination and takes no discount.
+        // separate 602.2b cost determination and takes no discount. Asserted
+        // with a REAL `ActivatedAbility` handed in, not a bare `undefined`, so
+        // the ability arm is genuinely walked: `getCostModifiers` reaches its
+        // `kind === "ability"` self-reduction branch and the floating fold is
+        // still skipped.
+        const ability: ActivatedAbility = {
+            id: "test-reduce-ability",
+            cost: { mana: { X: 3 } },
+            effects: [{ op: "draw", player: "controller", count: 1 }],
+        };
         expect(
-            getCostModifiers(state, onBoard, "ability").reductionGeneric
+            getCostModifiers(state, onBoard, "ability", ability, "p1")
+                .reductionGeneric
         ).toBe(0);
+        // …and the same board, same ability, priced as a SPELL does take it —
+        // so the zero above is the spell/ability boundary and not an inert
+        // fixture.
+        expect(
+            getCostModifiers(state, onBoard, "spell", undefined, "p1")
+                .reductionGeneric
+        ).toBe(2);
     });
 });

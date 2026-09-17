@@ -2981,7 +2981,12 @@ function enumerateCastMovesFromZone(
     // loop. If a future `appliesToSpell` predicate becomes mode/X-dependent,
     // this hoist must be revisited (move the call back inside the loop).
     const costModifiers =
-        phyPips === 0 ? getCostModifiers(state, card, "spell") : undefined;
+        phyPips === 0
+            ? // CR 601.2a — the CASTER, explicitly (see `announcerId`): the
+              // default `card.controllerId` is the zone owner for a
+              // cross-player exile cast, not the announcing player.
+              getCostModifiers(state, card, "spell", undefined, player.id)
+            : undefined;
 
     // CR 601.3c / 601.2f (issue #2146) — the conditional-flash SURCHARGE the
     // Invasion cycle prices its off-window cast at ("You may cast this spell as
@@ -3293,7 +3298,13 @@ function enumerateCastMovesFromZone(
         foldFlashSurchargeCost(bestowCost, flashSurcharge, flashSurchargeOwed);
         // CR 601.2f — the same battlefield cost modifiers the printed-cost
         // branch folds; a bestow cost is a mana cost like any other.
-        const bestowModifiers = getCostModifiers(state, card, "spell");
+        const bestowModifiers = getCostModifiers(
+            state,
+            card,
+            "spell",
+            undefined,
+            player.id
+        );
         applyCostModifiers(bestowCost, bestowModifiers);
         const bestowTapPlans = castTapPlans(state, player, bestowCost, {
             cardInstanceId: card.id,
@@ -3440,7 +3451,13 @@ function enumerateCastMovesFromZone(
             foldFlashSurchargeCost(altCost, flashSurcharge, flashSurchargeOwed);
             // CR 601.2f — the same battlefield cost modifiers every other cast
             // branch folds.
-            const altModifiers = getCostModifiers(state, card, "spell");
+            const altModifiers = getCostModifiers(
+                state,
+                card,
+                "spell",
+                undefined,
+                player.id
+            );
             applyCostModifiers(altCost, altModifiers);
             for (const altTapPlan of castTapPlans(state, player, altCost, {
                 cardInstanceId: card.id,
@@ -3487,7 +3504,13 @@ function enumerateCastMovesFromZone(
         // alternative-cost rules, so the same battlefield cost modifiers every
         // other cast branch folds apply to the OVERLOAD cost, not the printed
         // one.
-        const overloadModifiers = getCostModifiers(state, card, "spell");
+        const overloadModifiers = getCostModifiers(
+            state,
+            card,
+            "spell",
+            undefined,
+            player.id
+        );
         applyCostModifiers(overloadCost, overloadModifiers);
         for (const overloadTapPlan of castTapPlans(
             state,
@@ -3564,7 +3587,10 @@ function enumerateCastMovesFromZone(
         // CR 601.2f–h — 715.3 / 709.3 route these casts through the
         // ordinary alternative-cost rules, so the battlefield cost
         // modifiers every other cast branch folds apply to the HALF's cost.
-        applyCostModifiers(altCost, getCostModifiers(state, subject, "spell"));
+        applyCostModifiers(
+            altCost,
+            getCostModifiers(state, subject, "spell", undefined, player.id)
+        );
         const altTapPlans = castTapPlans(state, player, altCost, {
             cardInstanceId: card.id,
             cardDef: subjectDef,

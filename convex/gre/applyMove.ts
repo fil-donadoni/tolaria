@@ -249,7 +249,11 @@ export function applyDelveExileForSearch(
     // enumerator; skipped for a Phyrexian-mana spell (same carve-out as
     // `enumerateSpellMoves`, moves.ts:582 — no shipped card combines the two).
     if (phyrexianPipCount(rawCost) === 0) {
-        applyCostModifiers(normCost, getCostModifiers(state, card, "spell"));
+        applyCostModifiers(
+            normCost,
+            // CR 601.2a — the CASTER, explicitly (see `announcerId`).
+            getCostModifiers(state, card, "spell", undefined, player.id)
+        );
     }
     const shortfall = genericManaShortfall(player, card, normCost, state);
     const delveCount = Math.min(
