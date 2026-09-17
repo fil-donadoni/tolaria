@@ -1,41 +1,63 @@
 ---
-title: Titania's Song models an other-object P/T set as pt-cda, so it applies in sublayer 7a instead of 7b
+title: Nine shipped cards declare a non-CDA P/T effect as pt-cda, so it applies in sublayer 7a instead of 7b or 7c
 discoveredBy: 3726
 status: draft
-confidence: medium
+confidence: high
 ---
 
-**What is wrong.** CR 604.3a lists five criteria for a static ability to be a
-characteristic-defining ability, and criterion (3) is that it "does not directly
-affect the characteristics of any other objects". Titania's Song's "power and
-toughness each equal to its mana value" affects OTHER permanents — every
-noncreature artifact on the battlefield — so it is not a CDA. Under CR 613.4b it
-is an effect that "set[s] power and/or toughness to a specific number or value",
-which is sublayer **7b**, not 7a.
+**What is wrong.** CR 604.3a gives five criteria for a static ability to be a
+characteristic-defining ability. Criterion (2) is that it "is printed on the
+card it affects"; criterion (3) is that it "does not directly affect the
+characteristics of any other objects". Nine shipped cards declare
+`kind: "pt-cda"` for a P/T effect that meets neither, so every one of them
+derives in sublayer **7a** (`LAYER_7_STATIC_EFFECT_KINDS`,
+`convex/gre/layers.ts:706`) with `characteristicDefining: true`, when CR 613.4
+puts it in 7b or 7c.
 
-**Evidence.** `convex/cards/sets/atq/green.ts` declares the clause as
-`kind: "pt-cda"`. `LAYER_7_STATIC_EFFECT_KINDS` (`convex/gre/layers.ts:706`) maps
-`pt-cda` to `"7a"` and `deriveLayer7` sets `characteristicDefining: sublayer ===
-"7a"`, so the effect derives at 7a with the CDA flag. The reason is mechanical
-rather than a rules judgement: `StaticPTSet` carries literal `power` / `toughness`
-numbers and has no computed form, so `pt-cda` is the only layer-7 kind with a
-`compute(source, state, ctx, target)` closure — the only one that can express
-"equal to its mana value" at all.
+**Evidence.** 123 `pt-cda` declarations across `convex/cards/sets/**`; all but
+these use `EFFECT_AFFECTS_SELF` and are genuine CDAs. The exceptions split by
+what the oracle line actually does:
 
-**What it would change.** Two things, both observable. Ordering: 7a is applied
-before 7b, so any effect that SETS the artifact's P/T (Humility, a base-P/T set)
-currently loses to the Song where it should win. Dependency: CR 613.8a clause (c)
-makes a dependency exist only when neither effect is from a CDA or both are, and
-the flag is read straight off the entry by `gre/dependency.ts`, so the
-misclassification also suppresses edges that should exist.
+Should be **7c** (CR 613.4c — "effects and counters that modify power and/or
+toughness"), because the line reads "gets +X/+X":
 
-**Why it may not deserve its own issue.** The fix is not the card, it is the
-missing primitive: a computed `pt-set`, or a `computeFor` field on `StaticPTSet`
-of the shape `StaticSubtypeSet.subtypesFor` already has (ADR 0050's two forms).
-That is a `cards/types.ts` + `gre/layers.ts` slice, and it should be scoped
-against every `pt-cda` in the catalogue that affects other objects rather than
-against this one card — a grep, not a ticket, until someone has counted them.
+- `neo/white.ts:41` Lion Sash — "Equipped creature gets +1/+1 for each +1/+1 counter on this"
+- `ice/colorless.ts:954` Infinite Hourglass — "All creatures get +1/+0 for each time counter on this artifact"
+- `inv/white.ts:1416` Strength of Unity — "Enchanted creature gets +1/+1 for each basic land type among lands you control"
+- `pls/white.ts:187` Heroic Defiance — "Enchanted creature gets +3/+3 unless ..."
+- `mh2/colorless.ts:335` Nettlecyst — equipped creature gets +1/+1 for each artifact and enchantment you control
+- `ice/green.ts:1372` Snowblind — "Enchanted creature gets -X/-Y"
+- `inv/black.ts:1534` Exotic Curse — "Enchanted creature gets -1/-1 for each basic land type among lands you control"
 
-Untouched by issue #3726: `gre/lingeringStatics.ts` preserves whatever slot and
-flag the live derivation gave the effect, so the snapshot is exactly as right or
-wrong as the card is. Fixing the kind fixes both sides at once.
+Should be **7b** (CR 613.4b — "effects that set power and/or toughness to a
+specific number or value"):
+
+- `atq/green.ts:377` Titania's Song — "an artifact creature with power and toughness each equal to its mana value"
+- `lea/blue.ts:82` Animate Artifact — "an artifact creature with power and toughness each equal to its mana value"
+
+**What it changes, observably.** CR 613.4 applies the sublayers in order, so 7a
+runs FIRST. Infinite Hourglass's "+1/+0 for each time counter" is therefore
+applied before any base-P/T SET and is wiped by it: put Humility or Life and
+Limb on the board and the time counters stop counting, where CR 613.4c says a
+modify applied in 7c survives a 7b set. The same inversion hits every Aura and
+Equipment in the 7c list. Second effect: CR 613.8a clause (c) makes a dependency
+exist only when neither effect is from a characteristic-defining ability or both
+are, and `gre/dependency.ts` reads the flag straight off the entry — so the
+misclassification also suppresses dependency edges that should exist.
+
+**Root cause is a missing primitive, not nine cards.** `StaticPTBuff` and
+`StaticPTSet` both carry literal `power` / `toughness` numbers and neither has
+a computed form, so `pt-cda` is the only layer-7 kind with a
+`compute(source, state, ctx, target)` closure — the only one that can say "for
+each basic land type" or "equal to its mana value" at all. The fix is a
+`computeFor` field on each, the shape `StaticSubtypeSet.subtypesFor` already has
+(ADR 0050's two forms), then re-pointing the nine declarations. It is one
+`cards/types.ts` + `gre/layers.ts` slice.
+
+**Why this is a draft and not an issue.** It is defensible without the card
+that surfaced it, which clears the bar — but the loop drains the queue and does
+not fill it, so the call is a human's.
+
+Untouched by issue #3726: `gre/lingeringStatics.ts` snapshots whatever slot and
+flag the live derivation produced, so a lingering effect is exactly as right or
+wrong as its card is. Fixing the kind fixes both sides at once.
