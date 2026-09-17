@@ -225,6 +225,10 @@ describe("node partitions — which lane runs which (ADR 0136 §5)", () => {
             classifyLane(["src/app.tsx"]),
             engine,
             classifyLane(["scripts/land.ts"]),
+            classifyLane([
+                "convex/cards/sets/lea/red.ts",
+                "data/card-index.json",
+            ]),
             classifyLane(["docs/adr/0111.md"]),
             classifyLane(["CONTEXT.md", "convex/gre/engine.ts"]),
             classifyLane(["package.json"]),

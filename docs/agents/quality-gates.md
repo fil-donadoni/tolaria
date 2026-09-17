@@ -293,7 +293,25 @@ from every general project and selected by its own `ladder` project, which
 `bun run test:perf` runs. It is a harness smoke for a strength instrument
 (ADR 0124), not a per-landing correctness guard.
 
-<!-- MEASUREMENTS -->
+Measured on the same tree, `TOLARIA_VITEST_WORKERS=4`, with `uptime` beside
+each figure because this machine's load swings the wall more than the change
+does (2026-09-17):
+
+| Run                                 | Before                      | After                               | Load avg (1m) |
+| ----------------------------------- | --------------------------- | ----------------------------------- | ------------- |
+| `bot-node` + `bot-dom` (`test:bot`) | 222.7 s, 248 files          | 85.0 s, 247 files                   | 32 → 8        |
+| `node` / `node-engine`              | 89.9 s, 1063 files (`node`) | 111.7 s, 1016 files (`node-engine`) | 30 → 21       |
+| `node-tooling`                      | —                           | 82.4 s, 47 files                    | 21            |
+| `ladder` alone (2 workers)          | inside `test:bot`           | 122.8 s, 11 tests                   | ~30           |
+
+The bot row is the ladder leaving (its one file was the suite's tail). The
+node rows do NOT show `node-engine` slower than `node`: the before run was at
+load 30 on a different moment, and the two partitions' test time (211 s +
+175 s) sums past the whole project's 266 s the same way — contention, not
+content. The node rows predate the review fix that follows path literals
+through reached modules: the split is now 97 `scripts` tests in `node-engine`
+and 34 in `node-tooling` (was 84 / 47). Re-derive at a quiet moment before quoting a speed-up; the split's
+counts (predicate-fixed at config load) are the stable part.
 
 ### Batch homogeneity and the batch-level `check:ui`
 

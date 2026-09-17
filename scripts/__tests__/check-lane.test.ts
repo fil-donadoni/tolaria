@@ -587,7 +587,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
         expect(ids(cards.skip)).toEqual([
             "tsc[app,scripts]",
             "bot fast lane",
-            "node[all]",
+            "node-engine+node-tooling",
             "dom",
         ]);
         const out = renderPlan(cards, "4f2a91c");

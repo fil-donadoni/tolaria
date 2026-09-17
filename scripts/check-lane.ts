@@ -450,7 +450,7 @@ export function classifyLane(
             // card borrowed by another set's test is still proven.
             {
                 id: "node[cards]",
-                command: "bunx vitest run --project node convex/cards/",
+                command: "bunx vitest run --project node-engine convex/cards/",
             },
             // The three bot censuses (aiEffectsGuard, opValuerCoverage,
             // opBeneficenceCensus) plus the sets' own bot files: 16 files, 8s.
@@ -469,7 +469,7 @@ export function classifyLane(
                 reason: "every code path is a card definition or a data/** artefact — a card on exercised Ops cannot move a search or eval test; its censuses run as bot[cards], and a card that adds an Op touches convex/gre/** and is engine (ADR 0136 §4)",
             },
             {
-                id: "node[all]",
+                id: "node-engine+node-tooling",
                 reason: "every code path is a card definition or a data/** artefact — the catalogue guards and every set's tests run as node[cards]; a card on exercised Ops cannot reach an engine or tooling test (ADR 0136 §4)",
             },
             {
