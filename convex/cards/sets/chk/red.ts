@@ -29,8 +29,8 @@ export const lavaSpike: CardDefinition = {
 //
 // The put-with-haste-then-sacrifice half is Sneak Attack's Effect Script
 // verbatim (`usg/red.ts`, issue #1151) with its activation cost replaced by
-// casting this instant: `choice(choose-hand-card)` picks the creature (CR
-// 601.2 — "you MAY", so `{ min: 0 }` makes declining legal),
+// casting this instant: `choice(choose-hand-card)` picks the creature, with
+// `{ min: 0 }` because the Oracle line says "you MAY" and declining is legal,
 // `moveZone(hand → battlefield, bind)` puts it in play without casting it
 // (CR 400.7 — a new object, so no ETB-from-cast trigger, and a Containment
 // Priest replacement can still redirect it), `grantAbility(haste)` is the
