@@ -153,7 +153,8 @@ slip), add `model:opus` to the issue so the NEXT routing is right.
 lane and runs nothing, so asking costs no gate:
 
 - **`cards`** (the diff is entirely under `convex/cards/sets/**` plus the
-  regenerated `data/**`): the SHORT PATH — write the definition, the
+  regenerated `data/**`, with prose free to ride along — ADR 0136 §3): the
+  SHORT PATH — write the definition, the
   `## Preset scenario` JSON and the regenerated artefacts, confirm the CR
   lines (`bun run cr <id>`, then `bun run cr:ledger confirm <file>:<line>`).
   **No hand-written test, no proof-of-failure, no bot or frontend seam walk**:
