@@ -573,3 +573,112 @@ describe("gate.ts — issue-worktree guard", () => {
         expect(r.stdout).toContain("MAIN-OK");
     });
 });
+
+describe("gate.ts — the wrapped tree dies with the gate (issue #3821)", () => {
+    /** Live? `signal 0` performs the permission and existence check only. */
+    function alive(pid: number): boolean {
+        try {
+            process.kill(pid, 0);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * Every descendant of `root`, by walking `ps` — not by matching a command
+     * line. The processes under test are plain `sleep`s, indistinguishable from
+     * any other session's on this shared machine; parentage is the only thing
+     * that identifies them, and it is also exactly what the fix is about.
+     */
+    function descendants(root: number): number[] {
+        const r = spawnSync("ps", ["-Ao", "pid,ppid"], { encoding: "utf8" });
+        const kids = new Map<number, number[]>();
+        for (const line of r.stdout.split("\n").slice(1)) {
+            const [pid, ppid] = line.trim().split(/\s+/).map(Number);
+            if (!Number.isFinite(pid) || !Number.isFinite(ppid)) continue;
+            kids.set(ppid, [...(kids.get(ppid) ?? []), pid]);
+        }
+        const out: number[] = [];
+        const queue = [...(kids.get(root) ?? [])];
+        while (queue.length) {
+            const pid = queue.shift()!;
+            out.push(pid);
+            queue.push(...(kids.get(pid) ?? []));
+        }
+        return out;
+    }
+
+    let strays: number[] = [];
+
+    afterEach(() => {
+        // This suite is about not leaking processes; it does not get to leak
+        // its own when it fails.
+        for (const pid of strays) {
+            try {
+                process.kill(pid, "SIGKILL");
+            } catch {
+                /* already gone */
+            }
+        }
+        strays = [];
+    });
+
+    it("a targeted signal reaps the grandchildren, not just the shell", async () => {
+        // Two `sleep`s under one `sh`: `child.kill()` reaches the shell alone,
+        // so before the fix both of these outlived the gate, reparented to
+        // PID 1, with nothing left to reclaim them.
+        const gate = spawn("bun", [GATE, "light", "sleep 120 & sleep 120"], {
+            cwd: tmpdir(),
+            env: env(),
+            stdio: "ignore",
+        });
+        const gatePid = gate.pid!;
+
+        let tree: number[] = [];
+        // The shell plus both sleeps — anything less and the assertion below
+        // would pass on a tree that never got built.
+        await waitFor(() => (tree = descendants(gatePid)).length >= 3);
+        strays = [gatePid, ...tree];
+        expect(tree.length).toBeGreaterThanOrEqual(3);
+
+        // The signal a session teardown sends: the gate's pid alone. A Ctrl-C
+        // would reach the whole foreground group and hide the defect entirely.
+        process.kill(gatePid, "SIGTERM");
+
+        const reaped = await waitFor(() => tree.every((pid) => !alive(pid)));
+        expect(reaped, `survivors: ${tree.filter(alive).join(", ")}`).toBe(
+            true
+        );
+    });
+
+    it("gives the wrapped command its own process group, so the group is the handle", async () => {
+        const gate = spawn("bun", [GATE, "light", "sleep 120"], {
+            cwd: tmpdir(),
+            env: env(),
+            stdio: "ignore",
+        });
+        const gatePid = gate.pid!;
+
+        let tree: number[] = [];
+        await waitFor(() => (tree = descendants(gatePid)).length >= 1);
+        strays = [gatePid, ...tree];
+
+        const sh = tree[0]!;
+        const pgid = Number(
+            spawnSync("ps", ["-o", "pgid=", "-p", String(sh)], {
+                encoding: "utf8",
+            }).stdout.trim()
+        );
+        // A leader's group id IS its pid. Without `detached` the child inherits
+        // the gate's group, and `process.kill(-pid)` then either misses or —
+        // far worse — takes the gate and this test suite down with it.
+        expect(pgid).toBe(sh);
+        expect(pgid).not.toBe(gatePid);
+
+        process.kill(gatePid, "SIGTERM");
+        expect(await waitFor(() => tree.every((pid) => !alive(pid)))).toBe(
+            true
+        );
+    });
+});

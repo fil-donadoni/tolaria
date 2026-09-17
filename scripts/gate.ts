@@ -449,18 +449,87 @@ function startHeartbeat() {
     hb.unref(); // the timer must never keep the process alive
 }
 
+/**
+ * The wrapped command's process tree, killable as ONE unit.
+ *
+ * `child` is only ever the `sh` wrapper; the CPU lives in its descendants —
+ * vitest and its worker pool, `tsc -b`, eslint. `child.kill()` reaches `sh`
+ * alone and leaves every one of them running, reparented to PID 1, where
+ * nothing reclaims them: `gate:who` (issue #2999) reclaims the LOCK from a
+ * dead holder, never the processes. Measured on issue #3821, a targeted
+ * SIGTERM to the gate left three descendants of a single `sh` alive; the same
+ * shape, from other tooling, held this machine at load average 181 with ~600%
+ * of the CPU burned by sessions that had already exited.
+ *
+ * So the child is spawned `detached`, making it the leader of its own process
+ * group, and every teardown path signals the GROUP (`-pid`). The group id
+ * survives reparenting, which is exactly why it is the only handle that still
+ * works once the parent is gone. Playwright solves the identical problem the
+ * identical way for the browser it launches (`detached` + `process.kill(-pid)`,
+ * see `node_modules/playwright-core`), which is why an interrupted `check:ui`
+ * leaves no orphan Chromium.
+ */
+let child: ReturnType<typeof spawn> | undefined;
+
+/**
+ * Signal the child's whole process group. Idempotent: a throw means the group
+ * is already gone (ESRCH), which is the outcome we wanted anyway.
+ */
+function killChildTree(signal: NodeJS.Signals) {
+    const pid = child?.pid;
+    if (pid === undefined) return;
+    try {
+        process.kill(-pid, signal);
+    } catch {
+        /* already reaped */
+    }
+}
+
+/**
+ * Teardown for every path out of this process: the wrapped tree dies, then —
+ * for the tier that took it — the mutex is freed. That ORDER is load-bearing.
+ * The reverse hands the lock to a waiter while the outgoing holder's workers
+ * are still saturating the CPU the mutex exists to ration.
+ *
+ * WHEN this is installed is load-bearing too, and the two tiers differ:
+ *
+ *   heavy — only once `acquire()` has RETURNED, exactly where the release-only
+ *           handlers used to go. A gate still queuing for the mutex must keep
+ *           dying by the signal itself: `land.test.ts` reads `r.signal ===
+ *           "SIGTERM"` as the proof that the call was genuinely blocked in the
+ *           poll loop rather than merely slow, and an early handler turns that
+ *           into a clean `exit(130)` that proves nothing. Nothing is lost by
+ *           waiting — before `acquire()` returns there is no child to reap and
+ *           no lock of ours to free.
+ *   light / nested — after the spawn, because there is no lock to guard and
+ *           nothing to install before the child exists.
+ *
+ * For the non-holding tiers these handlers are new, and they are not optional:
+ * detaching the child removed it from the terminal's foreground process group,
+ * so a Ctrl-C no longer reaches it on its own and the gate is now the only
+ * route a signal has to the command it wraps.
+ */
+function installTeardown(holdsLock: boolean) {
+    process.on("exit", () => {
+        killChildTree("SIGKILL");
+        if (holdsLock) release();
+    });
+    for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
+        process.on(sig, () => {
+            killChildTree(sig);
+            if (holdsLock) release();
+            process.exit(130);
+        });
+    }
+}
+
 async function main() {
     const nested = process.env.TOLARIA_GATE_HELD === "1";
-    if (tier === "heavy" && !nested) {
+    const holdsLock = tier === "heavy" && !nested;
+    if (holdsLock) {
         await acquire();
         startHeartbeat();
-        process.on("exit", release);
-        for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
-            process.on(sig, () => {
-                release();
-                process.exit(130);
-            });
-        }
+        installTeardown(true);
     }
 
     const env = {
@@ -472,9 +541,14 @@ async function main() {
             (tier === "heavy" ? String(HEAVY_WORKERS) : undefined),
     } as NodeJS.ProcessEnv;
 
-    const child = spawn("sh", ["-c", command], { stdio: "inherit", env });
+    child = spawn("sh", ["-c", command], {
+        stdio: "inherit",
+        env,
+        detached: true,
+    });
+    if (!holdsLock) installTeardown(false);
     child.on("exit", (code, signal) => {
-        release();
+        if (holdsLock) release();
         process.exit(signal ? 128 : (code ?? 1));
     });
 }
