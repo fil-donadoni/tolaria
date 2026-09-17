@@ -311,7 +311,10 @@ Conventions to hold it to:
 - Cluster-issue body (model on DRK C1 #418): `## Parent` (→ umbrella) ·
   `## What to build` (end-to-end, no file paths) · `## Design decisions
 (grill <date> → ADR NNNN)` · `## Acceptance criteria` (checkboxes, ending
-  with "`bun run check:all` + `bun run test` green") · `## Blocked by` ·
+  with "`bun run check:all` + `bun run test` green") · `## Blocked by` (every ref ALSO wired natively —
+  `gh issue edit <n> --add-blocked-by <m>` — then the parity read-back of
+  `/new-qa-issue` Step 8b′ over every cut issue: body-only edges look like
+  ready work on the board, native-only edges get picked and bounced) ·
   `## Related` · `## Target files` (module/glob-level scheduling metadata for
   the processing loop's disjoint batching — e.g. the colour files + engine
   registries the cluster touches; coarse ok, `- *` if it touches everything).
