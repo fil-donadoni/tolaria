@@ -77,15 +77,59 @@ export function normalizeChosenModeIds(
     return [...ids].sort((a, b) => rank(a) - rank(b));
 }
 
-/** Validates and normalises an announced mode list (CR 700.2a / 700.2d /
- *  609.3). Throws on an empty list, an unknown id, a repeat the list does not
- *  allow, or a count outside the resolved bounds. `isModeLegal` answers CR
- *  700.2a's "a mode that would be illegal can't be chosen" and is consulted
- *  only to size a SHORTFALL: when fewer legal modes exist than `min`, CR 609.3
- *  ("does only as much as possible") lets the controller announce with as many
- *  as can be chosen. A chosen mode that is itself illegal is rejected by the
- *  per-group target validation that follows, exactly as for a single mode.
- *  Returns the ids in printed order. */
+/** Why an announced mode list is illegal (CR 700.2a / 700.2d / 609.3), or
+ *  `undefined` when it is a legal announcement: an empty list, an unknown id, a
+ *  repeat the list does not allow, or a count outside the resolved bounds.
+ *  `isModeLegal` answers CR 700.2a's "a mode that would be illegal can't be
+ *  chosen" and is consulted only to size a SHORTFALL: when fewer legal modes
+ *  exist than `min`, CR 609.3 ("does only as much as possible") lets the
+ *  controller announce with as many as can be chosen. A chosen mode that is
+ *  itself illegal is rejected by the per-group target validation that follows,
+ *  exactly as for a single mode.
+ *
+ *  The non-throwing core of {@link validateChosenModeIds}, so the Bot's move
+ *  enumerator ({@link announceableModeCombinations}) asks the SAME question the
+ *  server does instead of a copy of it. */
+export function chosenModeIdsViolation(args: {
+    modes: readonly { id: string }[];
+    selection: ModeSelection | undefined;
+    ids: readonly string[] | undefined;
+    facts: ModeSelectionFacts;
+    isModeLegal: (modeId: string) => boolean;
+    ownerName: string;
+}): string | undefined {
+    const { modes, selection, facts, isModeLegal, ownerName } = args;
+    const ids = args.ids ?? [];
+    if (ids.length === 0) {
+        return "Modal spell — must choose a mode at announcement";
+    }
+    for (const id of ids) {
+        if (!modes.some((m) => m.id === id)) {
+            return `Unknown mode id "${id}" for ${ownerName}`;
+        }
+    }
+    const bounds = modeSelectionBounds(selection, facts);
+    if (!bounds.repeats && new Set(ids).size !== ids.length) {
+        return `${ownerName} — the same mode can't be chosen more than once (CR 700.2d)`;
+    }
+    if (ids.length > bounds.max) {
+        return `${ownerName} — at most ${bounds.max} mode(s) may be chosen`;
+    }
+    if (ids.length < bounds.min) {
+        const legal = modes.filter((m) => isModeLegal(m.id)).length;
+        // With repeats one legal mode fills every slot; without, each slot
+        // needs a distinct legal mode.
+        const reachable = bounds.repeats ? (legal > 0 ? bounds.min : 0) : legal;
+        if (ids.length < Math.min(bounds.min, reachable)) {
+            return `${ownerName} — at least ${bounds.min} mode(s) must be chosen`;
+        }
+    }
+    return undefined;
+}
+
+/** Validates and normalises an announced mode list — throws
+ *  {@link chosenModeIdsViolation}'s message on an illegal one. Returns the ids
+ *  in printed order. */
 export function validateChosenModeIds(args: {
     modes: readonly { id: string }[];
     selection: ModeSelection | undefined;
@@ -94,39 +138,52 @@ export function validateChosenModeIds(args: {
     isModeLegal: (modeId: string) => boolean;
     ownerName: string;
 }): string[] {
-    const { modes, selection, facts, isModeLegal, ownerName } = args;
-    const ids = args.ids ?? [];
-    if (ids.length === 0) {
-        throw new Error("Modal spell — must choose a mode at announcement");
-    }
-    for (const id of ids) {
-        if (!modes.some((m) => m.id === id)) {
-            throw new Error(`Unknown mode id "${id}" for ${ownerName}`);
-        }
-    }
+    const violation = chosenModeIdsViolation(args);
+    if (violation !== undefined) throw new Error(violation);
+    return normalizeChosenModeIds(args.modes, args.ids ?? []);
+}
+
+/** Every mode list `args` could legally announce (CR 700.2a / 700.2d / 609.3),
+ *  each in printed order, sizes ascending — the mode-combination level of the
+ *  Bot's two-level cast enumeration (issue #2265).
+ *
+ *  Deliberately UNCAPPED: the space is small (C(4,2) = 6 for "choose two" of
+ *  four, the 3-of-3 multiset of three modes is 10) and it is the level that
+ *  must never be cut — a dropped combination deletes a whole line of play from
+ *  the search's view, where a dropped target tuple only thins one. The target
+ *  level below it is what gets budgeted.
+ *
+ *  Legality is {@link chosenModeIdsViolation}, the server's own question, so a
+ *  list offered here is one the announcement accepts. A list naming a mode with
+ *  no legal target is still offered; the target enumeration yields no tuple
+ *  for it, exactly as for a single illegal mode. Absent `selection` yields one
+ *  single-mode list per mode, in printed order — the pre-ADR-0094 shape. */
+export function announceableModeCombinations(args: {
+    modes: readonly { id: string }[];
+    selection: ModeSelection | undefined;
+    facts: ModeSelectionFacts;
+    isModeLegal: (modeId: string) => boolean;
+    ownerName: string;
+}): string[][] {
+    const { modes, selection, facts } = args;
     const bounds = modeSelectionBounds(selection, facts);
-    if (!bounds.repeats && new Set(ids).size !== ids.length) {
-        throw new Error(
-            `${ownerName} — the same mode can't be chosen more than once (CR 700.2d)`
-        );
-    }
-    if (ids.length > bounds.max) {
-        throw new Error(
-            `${ownerName} — at most ${bounds.max} mode(s) may be chosen`
-        );
-    }
-    if (ids.length < bounds.min) {
-        const legal = modes.filter((m) => isModeLegal(m.id)).length;
-        // With repeats one legal mode fills every slot; without, each slot
-        // needs a distinct legal mode.
-        const reachable = bounds.repeats ? (legal > 0 ? bounds.min : 0) : legal;
-        if (ids.length < Math.min(bounds.min, reachable)) {
-            throw new Error(
-                `${ownerName} — at least ${bounds.min} mode(s) must be chosen`
-            );
+    const out: string[][] = [];
+    // Non-decreasing mode indices: distinct (strictly increasing) without
+    // repeats, a multiset with them — either way printed order by construction.
+    const extend = (prefix: number[], from: number, size: number) => {
+        if (prefix.length === size) {
+            const ids = prefix.map((i) => modes[i].id);
+            if (chosenModeIdsViolation({ ...args, ids }) === undefined) {
+                out.push(ids);
+            }
+            return;
         }
-    }
-    return normalizeChosenModeIds(modes, ids);
+        for (let i = from; i < modes.length; i++) {
+            extend([...prefix, i], bounds.repeats ? i : i + 1, size);
+        }
+    };
+    for (let size = 1; size <= bounds.max; size++) extend([], 0, size);
+    return out;
 }
 
 /** The shape of a mode that declares targets — `SpellMode` and `AbilityMode`

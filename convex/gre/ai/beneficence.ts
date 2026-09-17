@@ -305,10 +305,30 @@ function slotSignerFor(
         // of the same card scored the same way.
         const def = definitionOfInstance(state, move.cardInstanceId);
         if (!def) return undefined;
-        // ADR 0094 — a slot maps onto one mode only when one was chosen; with
-        // several, the per-instance spans are not on the Move, so no opinion.
+        // ADR 0094 — with several mode instances a flat slot belongs to the
+        // instance whose span covers it (`modeTargetCounts`, stamped by the
+        // enumerator, issue #2265), and reads THAT mode's script at its local
+        // slot. No spans → no opinion rather than a guessed mapping.
+        const chosen = move.chosenModeIds ?? [];
+        if (chosen.length > 1) {
+            const spans = move.modeTargetCounts;
+            if (!spans || spans.length !== chosen.length) return undefined;
+            return (slot) => {
+                let offset = 0;
+                for (const [i, span] of spans.entries()) {
+                    if (slot < offset + span) {
+                        return targetSlotBeneficence(
+                            def,
+                            chosen[i],
+                            slot - offset
+                        );
+                    }
+                    offset += span;
+                }
+                return "neutral";
+            };
+        }
         const modeId = soleChosenModeId(move.chosenModeIds);
-        if ((move.chosenModeIds?.length ?? 0) > 1) return undefined;
         return (slot) => targetSlotBeneficence(def, modeId, slot);
     }
     if (move.kind === "activate-ability") {
@@ -318,6 +338,31 @@ function slotSignerFor(
             (a) => a.id === move.abilityId
         );
         if (!ability) return undefined;
+        // A MODAL ability's scripts live on its modes (CR 700.2 / 602.2b):
+        // read the chosen instance's own script at its local slot, exactly as
+        // the cast branch does (issue #2265 review).
+        const abilityModes = ability.modes;
+        const chosenIds = move.chosenModeIds ?? [];
+        if (abilityModes && abilityModes.length > 0 && chosenIds.length > 0) {
+            const spans =
+                chosenIds.length === 1
+                    ? [move.targets.length]
+                    : move.modeTargetCounts;
+            if (!spans || spans.length !== chosenIds.length) return undefined;
+            return (slot) => {
+                let offset = 0;
+                for (const [i, span] of spans.entries()) {
+                    if (slot < offset + span) {
+                        const mode = abilityModes.find(
+                            (m) => m.id === chosenIds[i]
+                        );
+                        return scriptSlotSign(mode?.effects, slot - offset);
+                    }
+                    offset += span;
+                }
+                return "neutral";
+            };
+        }
         return (slot) => abilityTargetSlotBeneficence(ability, slot);
     }
     return undefined;
