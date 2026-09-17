@@ -27,7 +27,9 @@ import {
 import { announceableModeCombinations } from "../modeSelection";
 import { dslSpellScriptOpValue } from "../ai/cardScriptValue";
 import { misdirectedTargetCount } from "../ai/beneficence";
-import type { GameState } from "../state";
+import { resolveTopOfStack, type GameState } from "../state";
+import { cloneGameState } from "../clone";
+import { applyMoveInSearch } from "../search";
 import { buildStateFromScenario } from "../scenarioBuilder";
 import { createInitialGameState, type PlayerInput } from "../setup";
 import { umezawasJitte } from "../../cards/sets/bok/colorless";
@@ -51,6 +53,9 @@ function board(opts: {
     oppCreatures?: number;
     graveyardCreatures?: number;
     oppLife?: number;
+    /** The modal card in hand (default: the charm fixture). */
+    cardId?: string;
+    lands?: string[];
 }): GameState {
     const land = (name: string, i: number) =>
         makeInstance(getCardByName(name).id, {
@@ -63,18 +68,16 @@ function board(opts: {
         players: [
             makePlayer(BOT, {
                 hand: [
-                    makeInstance(CHARM.id, {
+                    makeInstance(opts.cardId ?? CHARM.id, {
                         id: "charm",
                         controllerId: BOT,
                         ownerId: BOT,
                         zone: "hand",
                     }),
                 ],
-                battlefield: [
-                    land("Swamp", 0),
-                    land("Mountain", 0),
-                    land("Forest", 0),
-                ],
+                battlefield: (
+                    opts.lands ?? ["Swamp", "Mountain", "Forest"]
+                ).map((name) => land(name, 0)),
                 graveyard: Array.from(
                     { length: opts.graveyardCreatures ?? 0 },
                     (_, i) =>
@@ -288,7 +291,7 @@ describe("two-level cast enumeration (issue #2265)", () => {
         );
     });
 
-    it("a non-modal enumeration reports nothing and keeps the whole window", () => {
+    it("a mode list with no selection reports nothing under its per-mode share; one combination keeps the whole window", () => {
         expect(modeCombinationBudget(1)).toBe(MAX_COMBINATIONS);
         const truncations: ModeCombinationTruncation[] = [];
         castsOf(board({ oppCreatures: 10, graveyardCreatures: 1 }), (t) =>
@@ -307,7 +310,17 @@ describe("multi-mode valuation composes (issue #2265)", () => {
             charmWith({ min: 2, max: 2 }),
             () => dslSpellScriptOpValue(charmWith({ min: 2, max: 2 }))!
         );
-        expect(pair.points).toBeGreaterThan(single.points);
+        const perMode = CHARM.modes!.map(
+            (mode) =>
+                dslSpellScriptOpValue({
+                    ...CHARM,
+                    modes: undefined,
+                    effects: mode.effects,
+                })!.points
+        );
+        const [best, second] = [...perMode].sort((a, b) => b - a);
+        expect(single.points).toBe(best);
+        expect(pair.points).toBeCloseTo(best + second);
     });
 
     it("no selection keeps the best single mode", () => {
@@ -434,10 +447,61 @@ describe("two-level ACTIVATION enumeration (CR 602.2b / 700.2, issue #2265)", ()
                     expect(m.modeTargetCounts).toBeUndefined();
                     continue;
                 }
+                // One span per chosen instance, a targetless one included —
+                // `pump-equipped+gain-life` has no targets at all.
+                expect(m.modeTargetCounts).toHaveLength(
+                    m.chosenModeIds!.length
+                );
                 expect(m.modeTargetCounts!.reduce((a, b) => a + b, 0)).toBe(
                     m.targets.length
                 );
+                // The search resolves exactly what it enumerated.
+                const probe = cloneGameState(state);
+                applyMoveInSearch(probe, state.players[0].id, m);
+                expect(() => resolveTopOfStack(probe)).not.toThrow();
             }
+            // A shrink instance aimed at the bot's own creature is misdirected
+            // (the ability's scripts live on its modes).
+            const bear = state.players[0].battlefield.find(
+                (c) => c.id !== jitte.id && c.types.includes("Creature")
+            )!;
+            const selfShrink = activations.find(
+                (m) =>
+                    m.chosenModeIds?.join("+") === "shrink-target+gain-life" &&
+                    m.targets[0]?.id === bear.id
+            )!;
+            expect(selfShrink).toBeDefined();
+            expect(
+                misdirectedTargetCount(state, selfShrink, state.players[0].id)
+            ).toBe(1);
         });
+    });
+});
+
+describe("a targetless mode instance keeps its span (issue #2265 review)", () => {
+    const DROMAR = getCardByName("Dromar's Charm");
+
+    it("gain-life + shrink stamps [0, 1] and resolves in the search", () => {
+        withTemporaryDefinition(
+            { ...DROMAR, modeSelection: { min: 2, max: 2 } },
+            () => {
+                const state = board({
+                    oppCreatures: 1,
+                    cardId: DROMAR.id,
+                    lands: ["Plains", "Island", "Swamp"],
+                });
+                const casts = castsOf(state);
+                const both = casts.filter(
+                    (m) => m.chosenModeIds?.join("+") === "gain-life+shrink"
+                );
+                expect(both.length).toBeGreaterThan(0);
+                for (const m of both) {
+                    expect(m.modeTargetCounts).toEqual([0, 1]);
+                    const probe = cloneGameState(state);
+                    applyMoveInSearch(probe, BOT, m);
+                    expect(() => resolveTopOfStack(probe)).not.toThrow();
+                }
+            }
+        );
     });
 });

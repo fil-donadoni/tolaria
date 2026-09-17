@@ -2475,9 +2475,12 @@ function enumerateTargetTuples(
  *  deriving it from `targets.length` treats a multi-group cast's fixed prefix
  *  as if it filled the variable group.
  *
- *  `groupInstances` (ADR 0094, issue #2265) tags each group with the mode
- *  INSTANCE that owns it, for an announcement of several instances. Each tuple
- *  then also carries `modeTargetCounts` — the per-instance spans the server's
+ *  `modeInstances` (ADR 0094, issue #2265) describes an announcement of
+ *  several mode instances: `count` is how many were chosen and
+ *  `groupInstances` tags each group with the instance that owns it. Each tuple
+ *  then also carries `modeTargetCounts` — ONE span per chosen instance, a
+ *  targetless instance included (the server seeds `chosenModeIds.map(() =>
+ *  0)`; a shorter list makes `modeInstances` throw at resolution) — the per-instance spans the server's
  *  target walk tallies — and "another target" (CR 115.3) excludes only the
  *  picks of the group's OWN instance: CR 700.2d lets a different instance
  *  choose the same object (`priorTargetsOfSameModeInstance`, the walk's rule). */
@@ -2487,7 +2490,7 @@ function enumerateTargetGroupTuples(
     card: CardInstanceState,
     groups: (TargetRequirement | undefined)[],
     chosenX: number | undefined,
-    groupInstances?: readonly number[]
+    modeInstances?: { count: number; groupInstances: readonly number[] }
 ): {
     targets: TargetSelection[];
     lastGroupSize: number;
@@ -2498,15 +2501,17 @@ function enumerateTargetGroupTuples(
         lastGroupSize: number;
         modeTargetCounts?: number[];
     };
-    const instanceCount = groupInstances
-        ? Math.max(-1, ...groupInstances) + 1
-        : 0;
+    const groupInstances = modeInstances?.groupInstances;
     let acc: Tuple[] = [
         {
             targets: [],
             lastGroupSize: 0,
-            ...(groupInstances
-                ? { modeTargetCounts: new Array<number>(instanceCount).fill(0) }
+            ...(modeInstances
+                ? {
+                      modeTargetCounts: new Array<number>(
+                          modeInstances.count
+                      ).fill(0),
+                  }
                 : {}),
         },
     ];
@@ -3478,7 +3483,9 @@ function enumerateCastMovesFromZone(
                     card,
                     groups,
                     x,
-                    groupInstances
+                    chosenModeIds && groupInstances
+                        ? { count: chosenModeIds.length, groupInstances }
+                        : undefined
                 )) {
                     if (
                         perModeCombination &&
@@ -4419,7 +4426,9 @@ function enumerateAbilityMoves(
                 perm,
                 abilityGroups,
                 undefined,
-                groupInstances
+                chosenModeIds && groupInstances
+                    ? { count: chosenModeIds.length, groupInstances }
+                    : undefined
             )) {
                 // CR 107.3 (issue #3117) — the derived-X price is PER TARGET,
                 // not per ability: a cheaper spell target can be affordable

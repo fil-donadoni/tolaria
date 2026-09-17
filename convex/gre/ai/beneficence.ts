@@ -338,6 +338,31 @@ function slotSignerFor(
             (a) => a.id === move.abilityId
         );
         if (!ability) return undefined;
+        // A MODAL ability's scripts live on its modes (CR 700.2 / 602.2b):
+        // read the chosen instance's own script at its local slot, exactly as
+        // the cast branch does (issue #2265 review).
+        const abilityModes = ability.modes;
+        const chosenIds = move.chosenModeIds ?? [];
+        if (abilityModes && abilityModes.length > 0 && chosenIds.length > 0) {
+            const spans =
+                chosenIds.length === 1
+                    ? [move.targets.length]
+                    : move.modeTargetCounts;
+            if (!spans || spans.length !== chosenIds.length) return undefined;
+            return (slot) => {
+                let offset = 0;
+                for (const [i, span] of spans.entries()) {
+                    if (slot < offset + span) {
+                        const mode = abilityModes.find(
+                            (m) => m.id === chosenIds[i]
+                        );
+                        return scriptSlotSign(mode?.effects, slot - offset);
+                    }
+                    offset += span;
+                }
+                return "neutral";
+            };
+        }
         return (slot) => abilityTargetSlotBeneficence(ability, slot);
     }
     return undefined;
