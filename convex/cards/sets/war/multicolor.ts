@@ -116,6 +116,8 @@ export const teferiTimeRaveler: CardDefinition = {
     ],
 };
 
+const SAHEELI_SUBLIME_ARTIFICER_ID = "5a10b543-d5d4-42a8-9ee8-dada59a2ad7e";
+
 // ─────────────────────────────────────────────────────────────────────────
 // Saheeli, Sublime Artificer — {1}{U/R}{U/R} Legendary Planeswalker — Saheeli,
 // starting loyalty 5 (CR 306.5b). Vintage Cube (issue #3236).
@@ -135,8 +137,6 @@ export const teferiTimeRaveler: CardDefinition = {
 //     artifact creature.
 // compiler-gap: "Whenever you cast a noncreature spell, create a 1/1 colorless Servo artifact creature token." (#2693)
 // compiler-gap: "−2: Target artifact you control becomes a copy of another target artifact or creature you control until end of turn, except it's an artifact in addition to its other types." (#2693)
-const SAHEELI_SUBLIME_ARTIFICER_ID = "5a10b543-d5d4-42a8-9ee8-dada59a2ad7e";
-
 export const saheeliSublimeArtificer: CardDefinition = {
     id: SAHEELI_SUBLIME_ARTIFICER_ID, // WAR 234
     name: "Saheeli, Sublime Artificer",
