@@ -3877,6 +3877,54 @@ describe("validateEffectScript — createTokenCopy `source` is an OBJECT positio
     });
 });
 
+// CR 707.2 / 611.2a (issue #3236) — the `becomeCopy` Op. Two OBJECT positions
+// on one Op (recipient and copied object), which is what makes the "same
+// selector twice" mistake possible at all: it validates cleanly against every
+// per-field rule and resolves to a permanent copying itself, a no-op the
+// author cannot have meant. The clause the Oracle text actually carries —
+// "except it's an artifact in addition to its other types" — is the shared
+// `except` bag's new `additionalTypes` key (CR 707.9b).
+describe("validateEffectScript — becomeCopy (issue #3236)", () => {
+    const script = (op: unknown) => host({ effects: [op as EffectOp] });
+
+    it("accepts two announced target slots with an additionalTypes except clause", () => {
+        expect(
+            validateEffectScript(
+                script({
+                    op: "becomeCopy",
+                    target: { target: 0 },
+                    source: { target: 1 },
+                    except: { additionalTypes: ["Artifact"] },
+                    duration: { phase: "end-of-turn" },
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("rejects the SAME selector in both positions (CR 707.2 — a copy of itself)", () => {
+        const errors = validateEffectScript(
+            script({
+                op: "becomeCopy",
+                target: { target: 0 },
+                source: { target: 0 },
+            })
+        );
+        expect(errors.join("\n")).toContain("copy of itself");
+    });
+
+    it("rejects a mistyped additionalTypes entry", () => {
+        const errors = validateEffectScript(
+            script({
+                op: "becomeCopy",
+                target: { target: 0 },
+                source: { target: 1 },
+                except: { additionalTypes: ["Zombie"] },
+            })
+        );
+        expect(errors.join("\n")).toContain("except");
+    });
+});
+
 // issue #1568 — `{ opponentOf: EffectPlayerRef }`'s `collectRefUses` branch
 // (validate.ts, "the wrapped ref occupies the EXACT SAME player position as
 // the wrapping key"). A `{ ref }` nested inside `{ opponentOf }` must be

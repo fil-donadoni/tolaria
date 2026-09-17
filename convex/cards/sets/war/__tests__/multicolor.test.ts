@@ -14,7 +14,14 @@
 import { describe, it, expect } from "vitest";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
-import type { GameState } from "../../../../gre/state";
+import type { CardInstanceState, GameState } from "../../../../gre/state";
+import {
+    activateAbilityOnState,
+    applyOneTargetSelection,
+} from "../../../../game";
+import { finalizeCleanup } from "../../../../gre/phases";
+import { getEffectivePower } from "../../../../gre/layers";
+import { presentedDefId } from "../../../../gre/copy";
 import { assertLegalAction, getLegalActions } from "../../../../gre/rules";
 import { advancePhase } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
@@ -26,6 +33,11 @@ import type { TargetSelection } from "../../../types";
 import { getDefinition } from "../../../index";
 
 const teferiTimeRaveler = getDefinition("5cb76266-ae50-4bbc-8f96-d98f309b02d3");
+const saheeliSublimeArtificer = getDefinition(
+    "5a10b543-d5d4-42a8-9ee8-dada59a2ad7e"
+);
+const serraAngel = getDefinition("f8ac5006-91bd-4803-93da-f87cf196dd2f"); // 4/4 flying, vigilance
+const blackLotus = getDefinition("b0faa7f2-b547-42c4-a810-839da50dadfe"); // noncreature artifact
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
 const braingeyser = getDefinition("62b19a12-6914-430e-81ce-dcfca47884df");
@@ -47,13 +59,12 @@ function teferiOnBattlefield(loyalty = 4) {
 function activate(
     state: GameState,
     abilityId: string,
-    targets?: TargetSelection[]
+    targets?: TargetSelection[],
+    sourceId = "teferi1"
 ): void {
-    const teferi = state.players[0].battlefield.find(
-        (c) => c.id === "teferi1"
-    )!;
+    const source = state.players[0].battlefield.find((c) => c.id === sourceId)!;
     state.stack.push({
-        ...teferi,
+        ...source,
         zone: "stack",
         castById: "p1",
         abilityId,
@@ -464,5 +475,126 @@ describe("Teferi, Time Raveler — −3: bounce up to one A/C/E + draw (CR 400.7
         // draw still happens.
         activate(state, MINUS3, []);
         expect(state.players[0].hand.map((c) => c.id)).toEqual(["top1"]);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Saheeli, Sublime Artificer (issue #3236) — the catalogue's first COPY effect
+// with a duration, and the first reachable from an Effect Script (`becomeCopy`).
+// The Op's own mechanics (expiry, overlapping effects, the CR 400.7 re-entry,
+// serialization, the wire projection) are `gre/__tests__/timedCopy.test.ts`;
+// what is asserted HERE is the card: the two announced target groups walked
+// through the REAL announce path, where "ANOTHER target" (CR 115.3) lives, and
+// the resolution-to-cleanup round trip those picks drive.
+
+const MINUS2 = "saheeli-sublime-artificer-minus2";
+
+function saheeliBoard(extra: CardInstanceState[] = []): GameState {
+    return makeState({
+        players: [
+            makePlayer("p1", {
+                battlefield: [
+                    makeInstance(saheeliSublimeArtificer.id, {
+                        id: "saheeli1",
+                        controllerId: "p1",
+                        ownerId: "p1",
+                        counters: { loyalty: 5 },
+                    }),
+                    makeInstance(blackLotus.id, {
+                        id: "lotus",
+                        controllerId: "p1",
+                    }),
+                    ...extra,
+                ],
+            }),
+            makePlayer("p2"),
+        ],
+        activePlayerId: "p1",
+        priorityPlayerId: "p1",
+    });
+}
+
+const onBattlefield = (state: GameState, id: string): CardInstanceState =>
+    state.players[0].battlefield.find((c) => c.id === id)!;
+
+describe("Saheeli, Sublime Artificer — −2 copy until end of turn (CR 707.2 / 611.2a)", () => {
+    it('announces two groups and refuses the FIRST group\'s pick for the second (CR 115.3 "another target")', () => {
+        const state = saheeliBoard([
+            makeInstance(serraAngel.id, { id: "angel", controllerId: "p1" }),
+        ]);
+        activateAbilityOnState(state, {
+            playerId: "p1",
+            cardInstanceId: "saheeli1",
+            abilityId: MINUS2,
+        });
+        // Group 0 — "target artifact you control".
+        expect(state.pendingTarget!.targetType).toBe("Artifact");
+        applyOneTargetSelection(state, "p1", {
+            targetType: "permanent",
+            targetId: "lotus",
+        });
+        // Group 1 — "ANOTHER target artifact or creature you control": the
+        // directive is lowered onto the registered `excludeInstanceIds` filter,
+        // so the recipient is not offered and cannot be submitted.
+        expect(state.pendingTarget!.excludeInstanceIds).toContain("lotus");
+        expect(() =>
+            applyOneTargetSelection(state, "p1", {
+                targetType: "permanent",
+                targetId: "lotus",
+            })
+        ).toThrow();
+        applyOneTargetSelection(state, "p1", {
+            targetType: "permanent",
+            targetId: "angel",
+        });
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].targets).toEqual([
+            { type: "permanent", id: "lotus" },
+            { type: "permanent", id: "angel" },
+        ]);
+    });
+
+    it("refuses to ANNOUNCE when the lone artifact is the only candidate for both groups (CR 115.3)", () => {
+        const state = saheeliBoard();
+        expect(() =>
+            activateAbilityOnState(state, {
+                playerId: "p1",
+                cardInstanceId: "saheeli1",
+                abilityId: MINUS2,
+            })
+        ).toThrow(/legal targets/);
+        // Nothing committed: no pending target, and the loyalty is unpaid
+        // (CR 606.5).
+        expect(state.pendingTarget).toBeUndefined();
+        expect(onBattlefield(state, "saheeli1").counters?.loyalty).toBe(5);
+    });
+
+    it("makes the artifact a copy of the creature, artifact in addition (CR 707.9b), reverting at cleanup (CR 514.2)", () => {
+        const state = saheeliBoard([
+            makeInstance(serraAngel.id, { id: "angel", controllerId: "p1" }),
+        ]);
+        activate(
+            state,
+            MINUS2,
+            [
+                { type: "permanent", id: "lotus" },
+                { type: "permanent", id: "angel" },
+            ],
+            "saheeli1"
+        );
+
+        const copy = onBattlefield(state, "lotus");
+        expect(presentedDefId(copy)).toBe(serraAngel.id);
+        expect(copy.types).toEqual(
+            expect.arrayContaining(["Creature", "Artifact"])
+        );
+        expect(getEffectivePower(state, copy)).toBe(4);
+        expect(copy.staticAbilities).toContain("flying");
+
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
+        const reverted = onBattlefield(state, "lotus");
+        expect(presentedDefId(reverted)).toBe(blackLotus.id);
+        expect(reverted.types).toEqual(["Artifact"]);
     });
 });

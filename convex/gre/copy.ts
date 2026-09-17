@@ -96,18 +96,23 @@ export function applyTimedCopy(
     opts: CopyOptions,
     duration: Duration
 ): void {
-    const underlying =
-        recipient.timedCopyEffects?.underlying ??
-        (recipient.copiedFrom
-            ? copyLayerOf(
-                  {
-                      card: { id: presentedDefId(recipient) },
-                      copyExcept: recipient.copyExcept,
-                  } as CopySource,
-                  recipient.copyOptions ?? {}
-              )
-            : null);
-    const effects = recipient.timedCopyEffects?.effects ?? [];
+    // A ledger ALREADY answers what these timed effects cover — including the
+    // answer "nothing" (`null`), which is why this is a presence test and not
+    // a `??` fallback: recomputing it here would record the FIRST timed copy
+    // as the thing the second one covers, and layer 1 would never come back.
+    const ledger = recipient.timedCopyEffects;
+    const underlying = ledger
+        ? ledger.underlying
+        : recipient.copiedFrom
+          ? copyLayerOf(
+                {
+                    card: { id: presentedDefId(recipient) },
+                    copyExcept: recipient.copyExcept,
+                } as CopySource,
+                recipient.copyOptions ?? {}
+            )
+          : null;
+    const effects = ledger?.effects ?? [];
     const layer = copyLayerOf(source, opts);
     applyCopyEffect(state, recipient, source, opts);
     recipient.timedCopyEffects = {
