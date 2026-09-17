@@ -21,6 +21,11 @@ import {
 import { resolveTopOfStack, type GameState } from "../state";
 import { checkStateBasedActions, checkZeroLoyaltySBA } from "../sba";
 import { assertLoyaltyActivationLegal, payLoyaltyCost } from "../../game";
+import {
+    DEFAULT_LOYALTY_ACTIVATION_ALLOWANCE,
+    loyaltyActivationAllowance,
+} from "../loyalty";
+import { withTemporaryDefinition } from "../../cards/registry";
 import { projectPublicState } from "../../gameProjections";
 import { lightningBolt } from "../../cards/sets/lea/red";
 import { lilianaOfTheVeil } from "../../cards/sets/isd/black";
@@ -149,7 +154,7 @@ describe("0-loyalty SBA (CR 704.5i)", () => {
 });
 
 describe("loyalty-ability cost payment (CR 606.2/606.5)", () => {
-    it("+N adds loyalty counters and sets the once-per-turn lock", () => {
+    it("+N adds loyalty counters and spends one of the turn's activations", () => {
         const pw = makeInstance(LILIANA, { counters: { loyalty: 3 } });
         payLoyaltyCost(pw, { cost: { loyalty: 1 } });
         expect(pw.counters?.loyalty).toBe(4);
@@ -240,6 +245,133 @@ describe("loyalty-ability activation gates (CR 606.3/606.5)", () => {
         expect(() =>
             assertLoyaltyActivationLegal(state, pw, { cost: {} })
         ).not.toThrow();
+    });
+});
+
+// CR 606.3 is an ALLOWANCE, not a lock (issue #3339). The rule reads "only if
+// no player has previously activated a loyalty ability of that permanent that
+// turn" — a count of ONE, which a permanent's own static text may raise ("You
+// may activate the loyalty abilities of Urza twice each turn rather than only
+// once"). The grant is a `loyalty-activation-allowance` static effect read off
+// the permanent's own effective static effects, never a per-card branch, so the
+// variant below is exactly what a future card carrying the clause declares.
+//
+// No shipped card declares one yet (Urza, Planeswalker is meld — PRD #3227
+// slice 3), so the variant is built with `withTemporaryDefinition`: the
+// catalogue is frozen and a test may not mutate a definition in place.
+describe("loyalty-activation allowance (CR 606.3, issue #3339)", () => {
+    /** Liliana with `extra` additional loyalty activations per turn. Shallow
+     *  spread of the frozen original, per `withTemporaryDefinition`'s contract. */
+    function lilianaWithExtraActivations(extra: number) {
+        return {
+            ...lilianaOfTheVeil,
+            staticEffects: [
+                ...(lilianaOfTheVeil.staticEffects ?? []),
+                { kind: "loyalty-activation-allowance" as const, extra },
+            ],
+        };
+    }
+
+    function stateWithPw(used: number): {
+        state: GameState;
+        pw: import("../state").CardInstanceState;
+    } {
+        const pw = makeInstance(LILIANA, {
+            id: "pw",
+            controllerId: "p1",
+            ownerId: "p1",
+            counters: { loyalty: 3 },
+            ...(used > 0 ? { loyaltyActivationsThisTurn: used } : {}),
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [pw] }),
+                makePlayer("p2"),
+            ],
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            stack: [],
+        });
+        return { state, pw };
+    }
+
+    it("defaults to exactly one activation for a permanent declaring nothing", () => {
+        const pw = makeInstance(LILIANA, { counters: { loyalty: 3 } });
+        expect(loyaltyActivationAllowance(pw)).toBe(
+            DEFAULT_LOYALTY_ACTIVATION_ALLOWANCE
+        );
+        expect(DEFAULT_LOYALTY_ACTIVATION_ALLOWANCE).toBe(1);
+    });
+
+    it("adds every declared `extra` on top of the default", () => {
+        withTemporaryDefinition(lilianaWithExtraActivations(1), () => {
+            const pw = makeInstance(LILIANA, { counters: { loyalty: 3 } });
+            expect(loyaltyActivationAllowance(pw)).toBe(2);
+        });
+    });
+
+    it("permits a SECOND activation the turn a permanent's allowance is two", () => {
+        withTemporaryDefinition(lilianaWithExtraActivations(1), () => {
+            const { state, pw } = stateWithPw(1);
+            expect(() =>
+                assertLoyaltyActivationLegal(state, pw, {
+                    cost: { loyalty: 1 },
+                })
+            ).not.toThrow();
+        });
+    });
+
+    it("refuses the THIRD activation on the same permanent (the allowance is a number, not a waiver)", () => {
+        withTemporaryDefinition(lilianaWithExtraActivations(1), () => {
+            const { state, pw } = stateWithPw(2);
+            expect(() =>
+                assertLoyaltyActivationLegal(state, pw, {
+                    cost: { loyalty: 1 },
+                })
+            ).toThrow(/already been activated/);
+        });
+    });
+
+    it("REGRESSION — every shipped planeswalker still gets exactly one activation", () => {
+        // The default half of the pair above: the same position, the same
+        // predicate, the PRINTED definition. A grant that leaked into the
+        // default (e.g. an allowance computed as `1 + effects.length`) passes
+        // the two tests above and fails this one.
+        const { state, pw } = stateWithPw(1);
+        expect(() =>
+            assertLoyaltyActivationLegal(state, pw, { cost: { loyalty: 1 } })
+        ).toThrow(/already been activated/);
+        expect(loyaltyActivationAllowance(pw)).toBe(1);
+    });
+
+    it("counts activations ACROSS the permanent's different loyalty abilities (CR 606.3)", () => {
+        withTemporaryDefinition(lilianaWithExtraActivations(1), () => {
+            const { state, pw } = stateWithPw(0);
+            payLoyaltyCost(pw, { cost: { loyalty: 1 } });
+            expect(pw.loyaltyActivationsThisTurn).toBe(1);
+            // A DIFFERENT ability of the same permanent — CR 606.3 counts per
+            // permanent, so the second activation spends the last of the two.
+            expect(() =>
+                assertLoyaltyActivationLegal(state, pw, {
+                    cost: { loyalty: -2 },
+                })
+            ).not.toThrow();
+            payLoyaltyCost(pw, { cost: { loyalty: -2 } });
+            expect(pw.loyaltyActivationsThisTurn).toBe(2);
+            expect(() =>
+                assertLoyaltyActivationLegal(state, pw, {
+                    cost: { loyalty: 1 },
+                })
+            ).toThrow(/already been activated/);
+        });
+    });
+
+    it("clamps a negative `extra` at the printed allowance (CR 606.3 never grants fewer than one)", () => {
+        withTemporaryDefinition(lilianaWithExtraActivations(-5), () => {
+            const pw = makeInstance(LILIANA, { counters: { loyalty: 3 } });
+            expect(loyaltyActivationAllowance(pw)).toBe(1);
+        });
     });
 });
 

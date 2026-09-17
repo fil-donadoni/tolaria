@@ -25,6 +25,8 @@ import { createInitialGameState, type PlayerInput } from "../gre/setup";
 import { resolveTopOfStack } from "../gre/state";
 import { applyPendingChoiceSubmit } from "../gre/pendingChoiceSubmit";
 import { getCardByName } from "../cards";
+import { withTemporaryDefinition } from "../cards/registry";
+import type { CardDefinition } from "../cards/types";
 import type { CardInstanceState, GameState } from "../gre/state";
 import type { ScenarioSpec } from "../debugScenarioSpec";
 
@@ -162,5 +164,82 @@ describe("Liliana of the Veil's -2, end to end (CR 606)", () => {
         ).toThrow(/Not enough loyalty/);
         expect(state.stack).toHaveLength(0);
         expect(walker(state).counters?.loyalty).toBe(3);
+    });
+});
+
+// CR 606.3's limit is an ALLOWANCE, not a lock (issue #3339). The whole point
+// of the generalisation is that a permanent whose own static text raises the
+// number gets a SECOND activation through the real mutation path — not merely a
+// predicate that returns a bigger integer in a unit test. Two pieces passing
+// individually and failing together is a shipped bug, so this walks the second
+// activation end to end exactly as the first one above is walked.
+//
+// `withTemporaryDefinition` because no shipped card declares the allowance yet
+// (Urza, Planeswalker is meld — PRD #3227 slice 3) and the catalogue is frozen.
+describe("a raised loyalty-activation allowance, end to end (CR 606.3, issue #3339)", () => {
+    function lilianaWithTwoActivations(): CardDefinition {
+        const printed = getCardByName(LILIANA);
+        return {
+            ...printed,
+            staticEffects: [
+                ...(printed.staticEffects ?? []),
+                { kind: "loyalty-activation-allowance", extra: 1 },
+            ],
+        };
+    }
+
+    const PLUS_ONE = "liliana-veil-plus1";
+
+    it("lets the SAME walker activate a second loyalty ability through the mutation path", () => {
+        withTemporaryDefinition(lilianaWithTwoActivations(), () => {
+            const state = build();
+            const [me, opp] = state.players;
+            const liliana = walker(state);
+
+            // Activation one: the `+1` (a discard, no target) goes straight on
+            // the stack and resolves, clearing CR 606.3's empty-stack clause.
+            activateAbilityOnState(state, {
+                playerId: me.id,
+                cardInstanceId: liliana.id,
+                abilityId: PLUS_ONE,
+            });
+            expect(walker(state).loyaltyActivationsThisTurn).toBe(1);
+            while (state.stack.length > 0) resolveTopOfStack(state);
+            // This harness drives the mutation core directly and runs no
+            // priority loop (see the file header), so the post-resolution
+            // hand-back the engine would do is done here: the discard choices
+            // Liliana's `+1` opens are dropped and priority returns to the
+            // active player, which is CR 606.3's window.
+            state.pendingChoices = undefined;
+            state.priorityPlayerId = me.id;
+
+            // Activation two, on the SAME permanent in the SAME turn: legal
+            // only because the allowance is two. The printed walker throws here
+            // (the `-2` case at the top of this file asserts exactly that).
+            activateAbilityOnState(state, {
+                playerId: me.id,
+                cardInstanceId: walker(state).id,
+                abilityId: MINUS_TWO,
+            });
+            applyOneTargetSelection(state, me.id, {
+                targetType: "player",
+                targetId: opp.id,
+            });
+            // CR 606.4 — both costs really paid: 3 → 4 on the `+1`, 4 → 2 here.
+            expect(walker(state).counters?.loyalty).toBe(2);
+            expect(walker(state).loyaltyActivationsThisTurn).toBe(2);
+            expect(state.stack[0]?.abilityId).toBe(MINUS_TWO);
+
+            // …and the allowance is a NUMBER, not a waiver: the third is out.
+            expect(() =>
+                assertLoyaltyActivationLegal(
+                    state,
+                    walker(state),
+                    getCardByName(LILIANA).activatedAbilities!.find(
+                        (a) => a.id === PLUS_ONE
+                    )!
+                )
+            ).toThrow(/already been activated this turn/);
+        });
     });
 });
