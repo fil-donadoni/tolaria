@@ -9,7 +9,8 @@
 // raw `CardInstanceState` as the self object.
 
 /** Number of Creature cards stacked ABOVE `self` in its owner's graveyard
- *  (CR 404.1 — "three or more creature cards above this card"). Returns 0 when
+ *  (CR 404.2 — the pile keeps its order, so "above" is a higher index; read by
+ *  "three or more creature cards above this card"). Returns 0 when
  *  the state is absent or `self` isn't found in its owner's graveyard. */
 export function creatureCardsAboveInGraveyard(
     state:
