@@ -193,7 +193,8 @@ import {
     INLINE_DELAYED_TRIGGER_ID,
     runDelayedTriggerBody,
 } from "./effects/interpreter";
-import { matchesPermanentFilter } from "../cards/filters";
+import { matchesPermanentFilter, matchesSpellFilter } from "../cards/filters";
+import type { SpellFilter } from "../cards/filters";
 import { castProhibitionReason } from "../cards/castRestrictions";
 // CR 307.1 / 117.1a / 601.3a (issue #2473) — the shared "cast off sorcery
 // timing" snapshot predicate, called only inside function bodies below
@@ -5604,6 +5605,38 @@ export type GameState = {
      *  player's next turn (via `advanceTurn`) — the "until your next turn"
      *  boundary, mirroring `islandSanctuaryProtection`, NOT CLEANUP. */
     castTimingFlashGrants?: { playerId: string; cardTypes?: CardType[] }[];
+    /** CR 601.2f / 514.2 (issue #3340, Urza, Planeswalker's +2: "Artifact,
+     *  instant, and sorcery spells you cast this turn cost {2} less to cast")
+     *  — FLOATING, turn-scoped, per-player cost reductions over the spells
+     *  their `playerId` casts. The floating twin of the `cost-modifier`
+     *  StaticEffect: that one lives on a permanent and dies with it, this one
+     *  outlives its source entirely (Urza's +2 keeps reducing after Urza has
+     *  left) and ends at CLEANUP, the "this turn" boundary of CR 514.2 —
+     *  NOT `advanceTurn`'s "until your next turn" boundary that
+     *  `castTimingFlashGrants` above uses.
+     *
+     *  Read by the single 601.2f collector `getCostModifiers`, in the same
+     *  accumulation as the battlefield scan and the two self-host arms, so
+     *  every cast path, `canAffordCard`'s affordability probe and the Bot's
+     *  `enumerateCastMoves` see it without a second code path. `filter` is an
+     *  ordinary `SpellFilter` — the same selector `spellCastTrigger` matches a
+     *  cast against — so the reduction is filter-shaped, never type-hard-coded
+     *  (Urza: `{ types: ["Artifact", "Instant", "Sorcery"] }`); omitted matches
+     *  every spell that player casts. `costReduction` is the shared
+     *  `CostReductionAmount`, resolved by `resolveCostReductionGeneric` exactly
+     *  as the static site resolves its own, so both can only ever reduce
+     *  GENERIC mana and both floor at {0}.
+     *
+     *  A LIST, and additive rather than idempotent: CR 601.2f is "minus all
+     *  cost reductions", so two +2 activations in a turn genuinely stack to
+     *  {4}, and two different filters must not clobber each other. SPELL-only,
+     *  per the Oracle's "spells you cast" — the `kind: "ability"` arm of
+     *  `getCostModifiers` never folds these in. */
+    spellCostReductionsThisTurn?: {
+        playerId: string;
+        costReduction: CostReductionAmount;
+        filter?: SpellFilter;
+    }[];
     /** CR 609.4b / 118.14 (issue #2890) — per-player ONE-SHOT "for one spell
      *  this turn, you may spend mana as though it were mana of any type/color"
      *  grants (North Star). Keyed by player id; a LIST because each activation
@@ -20069,6 +20102,28 @@ export function buildSpellContext(
             state.castTimingFlashGrants = list;
         },
 
+        reduceSpellCostThisTurn(
+            playerId: string,
+            costReduction: CostReductionAmount,
+            filter?: SpellFilter
+        ): void {
+            // CR 601.2f — "spells you cast this turn cost {N} less to cast"
+            // (Urza, Planeswalker's +2). Additive, NOT idempotent: 601.2f is
+            // "minus ALL cost reductions", so two activations in one turn
+            // genuinely stack. The entry is floating — it is deliberately not
+            // keyed to a source permanent, because the reduction outlives its
+            // source (Urza's +2 keeps applying after Urza dies), which is the
+            // whole reason it cannot be a `cost-modifier` static. Cleared at
+            // CLEANUP (CR 514.2).
+            const list = state.spellCostReductionsThisTurn ?? [];
+            list.push(
+                filter
+                    ? { playerId, costReduction, filter }
+                    : { playerId, costReduction }
+            );
+            state.spellCostReductionsThisTurn = list;
+        },
+
         grantSpellManaSubstitution(
             playerId: string,
             breadth: ManaSubstitutionBreadth
@@ -25870,6 +25925,56 @@ export function getCostModifiers(
                     }
                 }
             }
+        }
+    }
+    // CR 601.2f / 514.2 (issue #3340) — the FLOATING turn-scoped reductions
+    // (`reduceSpellCostThisTurn`, Urza, Planeswalker's +2). Folded here, in the
+    // same accumulation as the battlefield scan above, precisely because it is
+    // NOT a battlefield effect: the reduction outlives the permanent that
+    // installed it, so no `cost-modifier` static can express it. Accumulating
+    // it in this ONE collector is what makes every cast path, `canAffordCard`'s
+    // affordability probe and the Bot's `enumerateCastMoves` honour it without
+    // a second code path — and what floors it at {0} via `applyCostModifiers`.
+    //
+    // SPELL-only, per the Oracle's "spells you cast": an activated ability's
+    // cost never sees these (CR 601.2f applies to a SPELL's total cost; an
+    // ability's is 602.2b's separate determination, and no shipped wording
+    // scopes a floating reduction to both).
+    //
+    // "You cast" is the CONTROLLER of the announced spell (CR 601.2a — the
+    // player announcing it), so an entry only applies to its own player's
+    // casts; an opponent's spell is never reduced.
+    if (kind === "spell" && state.spellCostReductionsThisTurn?.length) {
+        const spellCardId = (card as unknown as { card?: { id?: string } }).card
+            ?.id;
+        const spellDef = spellCardId ? tryGetDefinition(spellCardId) : null;
+        // Same projection `emitSpellCastEvent` builds for a SPELL_CAST event,
+        // so a `SpellFilter` selects identically whether it is gating a cast
+        // TRIGGER or this cost reduction — one derivation, no second notion of
+        // what a spell's types/subtypes/colors are. Colours come from the
+        // printed mana cost (CR 202.2), exactly as the cast event derives them.
+        const announced = {
+            types: card.types,
+            subtypes: card.subtypes,
+            colors: spellDef?.manaCost
+                ? getColorsFromCost(spellDef.manaCost)
+                : [],
+        };
+        for (const entry of state.spellCostReductionsThisTurn) {
+            if (entry.playerId !== card.controllerId) continue;
+            if (
+                entry.filter !== undefined &&
+                !matchesSpellFilter(announced, entry.filter)
+            ) {
+                continue;
+            }
+            const owner = state.players.find((p) => p.id === entry.playerId);
+            if (!owner) continue;
+            reductionGeneric += resolveCostReductionGeneric(
+                entry.costReduction,
+                owner,
+                state
+            );
         }
     }
     if (kind === "spell") {

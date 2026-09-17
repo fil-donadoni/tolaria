@@ -1719,6 +1719,27 @@ const grantCastTiming: Valuer<"grantCastTiming"> = () => ({
     tags: ["tempo"],
 });
 
+const reduceSpellCostThisTurn: Valuer<"reduceSpellCostThisTurn"> = (
+    op,
+    ctx
+) => {
+    // CR 601.2f (issue #3340, Urza +2) — a floating "spells you cast this turn
+    // cost {N} less" reduction. Only the GENERIC portion of `amount` ever
+    // reduces anything (coloured pips are immovable at 601.2f), so that is the
+    // whole magnitude; a `{}`-shaped amount is rejected by the validator and
+    // cannot reach here.
+    const generic = op.amount.X ?? 0;
+    // Priced at HALF a ramped mana rather than the full `addMana` rate: a
+    // ritual's mana is in the pool and spendable on anything, while this
+    // reduction only pays out if a MATCHING spell is actually cast before
+    // cleanup — a contingency the context-free scalar cannot see. `ramp` is
+    // the honest basis dimension (mana efficiency), `tempo` the secondary one.
+    return {
+        points: pricedFraction(ctx, "ramp", { num: 1, den: 2 }, generic),
+        tags: ["ramp", "tempo"],
+    };
+};
+
 const grantSpellManaSubstitution: Valuer<
     "grantSpellManaSubstitution"
 > = () => ({
@@ -1996,6 +2017,7 @@ export const OP_VALUERS: {
     restrictActivation,
     restrictCasting,
     grantCastTiming,
+    reduceSpellCostThisTurn,
     grantSpellManaSubstitution,
     restrictCombat,
     setIslandSanctuaryProtection,
@@ -2182,6 +2204,11 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     randomExileToHand: "beneficial",
     grantGraveyardPlay: "beneficial",
     grantCastTiming: "beneficial",
+    // CR 601.2f (issue #3340) — a discount on the RECIPIENT's own future
+    // casts. "Spells YOU cast" makes the player named by the Op the sole
+    // beneficiary, with no cost paid by anyone, so a redirect reader landing
+    // here is looking at a gift.
+    reduceSpellCostThisTurn: "beneficial",
     grantSpellManaSubstitution: "beneficial",
     castDuringResolution: "beneficial",
     // CR 702.85a (issue #3216) — a free extra spell for the cascading spell's

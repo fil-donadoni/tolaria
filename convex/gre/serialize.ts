@@ -2138,6 +2138,13 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "islandSanctuaryProtection",
     "playerProtectionFromEverything",
     "castTimingFlashGrants",
+    // CR 601.2f / 514.2 (issue #3340) — the floating turn-scoped spell-cost
+    // reductions (Urza, Planeswalker's +2). Plain data (a player id, a filter
+    // of string arrays, a `ManaCost` of integers) with no fat card refs, so it
+    // round-trips through the generic optional-key loop; it must survive the DB
+    // round-trip because the reduction has to still apply to a cast announced
+    // at any later stable point in the SAME turn.
+    "spellCostReductionsThisTurn",
     "spellManaSubstitutionGrants",
     "allCreaturesMustAttack",
     "abilityResolutionCounts",

@@ -2349,6 +2349,46 @@ const MANA_PIP_KEYS = new Set([
     "generic",
     "xFactor",
 ]);
+/** True if `value` is a well-formed `SpellFilter` (issue #3340) — the ordinary
+ *  cast selector `spellCastTrigger` already matches against, validated
+ *  fail-CLOSED: an unknown key is a rejection, so a typo'd field can never
+ *  widen the filter to "every spell" the way a silently-ignored key would.
+ *  Five fields, all optional, each a member or non-empty array of members of
+ *  the SAME closed vocabularies the token validators use (`TOKEN_CARD_TYPES`
+ *  for CR 205 card types, `TOKEN_COLORS` for CR 105 colours); `subtypes` is
+ *  free-form text, as it is everywhere else (CR 205.3). An EMPTY object is
+ *  rejected: `{}` means "no constraint", which the Op already expresses by
+ *  omitting `filter` entirely, and accepting both would give one meaning two
+ *  spellings. */
+function isSpellFilter(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const entries = Object.entries(value);
+    if (entries.length === 0) return false;
+    return entries.every(([k, v]) => {
+        if (k === "types" || k === "excludeTypes") {
+            return isValueOrArray(
+                v,
+                (m) => typeof m === "string" && TOKEN_CARD_TYPES.has(m)
+            );
+        }
+        if (k === "colors" || k === "excludeColors") {
+            return isValueOrArray(
+                v,
+                (m) => typeof m === "string" && TOKEN_COLORS.has(m)
+            );
+        }
+        if (k === "subtypes") {
+            return isValueOrArray(
+                v,
+                (m) => typeof m === "string" && m.length > 0
+            );
+        }
+        return false;
+    });
+}
+
 function isManaCost(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
@@ -3390,6 +3430,21 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             player: isPlayerRef,
             breadth: (v: unknown) => v === "any-color" || v === "any-type",
         },
+    },
+    // CR 601.2f / 514.2 (issue #3340, Urza, Planeswalker's +2) — install a
+    // FLOATING turn-scoped cost reduction on the spells `player` casts this
+    // turn. `amount` is REQUIRED and must carry at least one positive pip: a
+    // `{}` reduction is a no-op that would validate cleanly and then do
+    // nothing at runtime, the same "empty object is truthy" hazard
+    // `hasManaCostPip` guards for `manaChoices`. `filter` (optional) narrows
+    // it to the matching spells (Urza: types artifact/instant/sorcery);
+    // omitted reduces every spell that player casts.
+    reduceSpellCostThisTurn: {
+        required: {
+            player: isPlayerRef,
+            amount: (v: unknown) => isManaCost(v) && hasManaCostPip(v),
+        },
+        optional: { filter: isSpellFilter },
     },
     // CR 305.1-analog / 601 (issue #1149) — grant a turn-scoped, player-wide
     // graveyard play/cast permission (Yawgmoth's Will). `player` names the

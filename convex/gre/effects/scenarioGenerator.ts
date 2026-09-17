@@ -591,6 +591,13 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // state.castTimingFlashGrants (asserted below).
             analysePlayer(op.player, req, false);
             return;
+        case "reduceSpellCostThisTurn":
+            // CR 601.2f / 514.2 (issue #3340, Urza +2) — a floating turn-scoped
+            // cost reduction on the named player's casts; the deterministic
+            // outcome is the entry landing in state.spellCostReductionsThisTurn
+            // (asserted below).
+            analysePlayer(op.player, req, false);
+            return;
         case "grantSpellManaSubstitution":
             // CR 609.4b / 118.14 (issue #2890, North Star) — a per-player
             // one-shot "spend mana as though any type/color" grant; the
@@ -1873,6 +1880,35 @@ const OP_ASSERTORS: Record<string, Assertor> = {
                 return {
                     ok: granted && !wasGranted,
                     detail: `granted=${granted} (was ${wasGranted})`,
+                };
+            },
+        };
+    },
+    // `reduceSpellCostThisTurn` (CR 601.2f / 514.2, issue #3340, Urza +2) — a
+    // deterministic same-resolution state change: one more floating reduction
+    // entry for the named player lands in state.spellCostReductionsThisTurn.
+    // Counted rather than merely tested for presence, because the Op is
+    // ADDITIVE (601.2f "minus all cost reductions") — a second resolution must
+    // push a second entry, not be swallowed as a duplicate.
+    reduceSpellCostThisTurn(rawOp, _scenario, pre) {
+        const op = rawOp as Extract<
+            EffectOp,
+            { op: "reduceSpellCostThisTurn" }
+        >;
+        const pid = assertionPlayerId(op.player);
+        const before =
+            pre.spellCostReductionsThisTurn?.filter((e) => e.playerId === pid)
+                .length ?? 0;
+        return {
+            label: `reduceSpellCostThisTurn installs a floating cost reduction for player ${pid} this turn`,
+            check: (post) => {
+                const after =
+                    post.spellCostReductionsThisTurn?.filter(
+                        (e) => e.playerId === pid
+                    ).length ?? 0;
+                return {
+                    ok: after === before + 1,
+                    detail: `entries=${after} (was ${before})`,
                 };
             },
         };

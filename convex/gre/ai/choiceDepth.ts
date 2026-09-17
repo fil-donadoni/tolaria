@@ -87,6 +87,7 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     optionChoice: true,
     putBack: true,
     rangedTopdeck: true,
+    reduceSpellCostThisTurn: false,
     revealAndCategorize: true,
     // Both of these reach the same suspension through `ctx.orderTop` rather
     // than a `ctx.request*` method — the reason the first cut of this census

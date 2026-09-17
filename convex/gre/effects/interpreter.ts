@@ -2657,6 +2657,18 @@ export const OP_EXECUTORS: {
         if (playerId === undefined) return;
         ctx.grantCastTiming(playerId, op.cardTypes);
     },
+    // CR 601.2f / 514.2 (issue #3340, Urza, Planeswalker's +2) — install a
+    // floating, turn-scoped cost reduction on the spells `player` casts for the
+    // rest of the turn, narrowed by an ordinary `SpellFilter`. The Op carries
+    // the FIXED-literal member of `CostReductionAmount`; the primitive and the
+    // state entry carry the full union, so the floating site shares
+    // `resolveCostReductionGeneric` with the static one. Skipped when the
+    // player is gone (CR 608.2b).
+    reduceSpellCostThisTurn(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return;
+        ctx.reduceSpellCostThisTurn(playerId, op.amount, op.filter);
+    },
     // CR 609.4b / 118.14 (issue #2890, North Star) — grant `player` a one-shot
     // "for one spell this turn, you may spend mana as though it were mana of
     // any type/color to pay that spell's mana cost" permission. Skipped when
