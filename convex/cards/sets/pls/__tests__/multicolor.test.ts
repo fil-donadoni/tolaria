@@ -1302,7 +1302,7 @@ describe("Hull Breach ({R}{G} — modal, third mode takes TWO independent target
                 gameId: "game-1" as Id<"games">,
                 playerId: "p1",
                 cardInstanceId: "breach-1",
-                chosenModeId: "both",
+                chosenModeIds: ["both"],
             }
         );
         const pt = harness.state().pendingTarget!;
@@ -1734,7 +1734,7 @@ describe("Crosis's Charm ({U}{B}{R} modal instant, CR 601.2b, issue #1954)", () 
         const item = pushSpell(state, crosissCharm.id, "p1", [
             { type: "permanent", id: "raiders" },
         ]);
-        item.chosenModeId = "destroy-nonblack-creature";
+        item.chosenModeIds = ["destroy-nonblack-creature"];
         resolveTopOfStack(state);
         expect(
             state.players[1].battlefield.find((c) => c.id === "raiders")
@@ -1759,7 +1759,7 @@ describe("Crosis's Charm ({U}{B}{R} modal instant, CR 601.2b, issue #1954)", () 
         const item = pushSpell(state, crosissCharm.id, "p1", [
             { type: "permanent", id: "lotus" },
         ]);
-        item.chosenModeId = "bounce";
+        item.chosenModeIds = ["bounce"];
         resolveTopOfStack(state);
         expect(state.players[1].hand.some((c) => c.id === "lotus")).toBe(true);
     });
@@ -1779,7 +1779,7 @@ describe("Crosis's Charm ({U}{B}{R} modal instant, CR 601.2b, issue #1954)", () 
         const item = pushSpell(state, crosissCharm.id, "p1", [
             { type: "permanent", id: "lotus2" },
         ]);
-        item.chosenModeId = "destroy-artifact";
+        item.chosenModeIds = ["destroy-artifact"];
         resolveTopOfStack(state);
         expect(state.players[1].graveyard.some((c) => c.id === "lotus2")).toBe(
             true
@@ -1804,7 +1804,7 @@ describe("Darigaaz's Charm ({B}{R}{G} modal instant, CR 601.2b, issue #1954)", (
         const item = pushSpell(state, darigaazsCharm.id, "p1", [
             { type: "graveyard-card", id: "dead-bears", playerId: "p1" },
         ]);
-        item.chosenModeId = "regrowth-creature";
+        item.chosenModeIds = ["regrowth-creature"];
         resolveTopOfStack(state);
         expect(state.players[0].hand.some((c) => c.id === "dead-bears")).toBe(
             true
@@ -1818,7 +1818,7 @@ describe("Darigaaz's Charm ({B}{R}{G} modal instant, CR 601.2b, issue #1954)", (
         const item = pushSpell(state, darigaazsCharm.id, "p1", [
             { type: "player", id: "p2" },
         ]);
-        item.chosenModeId = "damage";
+        item.chosenModeIds = ["damage"];
         resolveTopOfStack(state);
         expect(state.players[1].life).toBe(17);
     });
@@ -1838,7 +1838,7 @@ describe("Darigaaz's Charm ({B}{R}{G} modal instant, CR 601.2b, issue #1954)", (
         const item = pushSpell(state, darigaazsCharm.id, "p1", [
             { type: "permanent", id: "bear" },
         ]);
-        item.chosenModeId = "pump";
+        item.chosenModeIds = ["pump"];
         resolveTopOfStack(state);
         const live = state.players[0].battlefield.find((c) => c.id === "bear")!;
         expect(getEffectivePower(state, live)).toBe(5);
@@ -1852,7 +1852,7 @@ describe("Dromar's Charm ({W}{U}{B} modal instant, CR 601.2b, issue #1954)", () 
             players: [makePlayer("p1"), makePlayer("p2")],
         });
         const item = pushSpell(state, dromarsCharm.id, "p1");
-        item.chosenModeId = "gain-life";
+        item.chosenModeIds = ["gain-life"];
         resolveTopOfStack(state);
         expect(state.players[0].life).toBe(25);
     });
@@ -1867,7 +1867,7 @@ describe("Dromar's Charm ({W}{U}{B} modal instant, CR 601.2b, issue #1954)", () 
         const item = pushSpell(state, dromarsCharm.id, "p1", [
             { type: "spell", id: victim.id },
         ]);
-        item.chosenModeId = "counter";
+        item.chosenModeIds = ["counter"];
         resolveTopOfStack(state);
         expect(state.stack.some((s) => s.id === victim.id)).toBe(false);
         expect(state.players[1].graveyard.some((c) => c.id === victim.id)).toBe(
@@ -1890,7 +1890,7 @@ describe("Dromar's Charm ({W}{U}{B} modal instant, CR 601.2b, issue #1954)", () 
         const item = pushSpell(state, dromarsCharm.id, "p1", [
             { type: "permanent", id: "bear-shrink" },
         ]);
-        item.chosenModeId = "shrink";
+        item.chosenModeIds = ["shrink"];
         resolveTopOfStack(state);
         const live = state.players[1].battlefield.find(
             (c) => c.id === "bear-shrink"
@@ -1916,7 +1916,7 @@ describe("Treva's Charm ({G}{W}{U} modal instant, CR 601.2b, issue #1954)", () =
         const item = pushSpell(state, trevasCharm.id, "p1", [
             { type: "permanent", id: "ench-1" },
         ]);
-        item.chosenModeId = "destroy-enchantment";
+        item.chosenModeIds = ["destroy-enchantment"];
         resolveTopOfStack(state);
         expect(state.players[1].graveyard.some((c) => c.id === "ench-1")).toBe(
             true
@@ -1948,7 +1948,7 @@ describe("Treva's Charm ({G}{W}{U} modal instant, CR 601.2b, issue #1954)", () =
         const item = pushSpell(state, trevasCharm.id, "p1", [
             { type: "permanent", id: "attacker" },
         ]);
-        item.chosenModeId = "exile-attacker";
+        item.chosenModeIds = ["exile-attacker"];
         resolveTopOfStack(state);
         expect(state.players[1].exile.some((c) => c.id === "attacker")).toBe(
             true
@@ -1966,7 +1966,7 @@ describe("Treva's Charm ({G}{W}{U} modal instant, CR 601.2b, issue #1954)", () =
             players: [makePlayer("p1", { library: [drawn] }), makePlayer("p2")],
         });
         const item = pushSpell(state, trevasCharm.id, "p1");
-        item.chosenModeId = "loot";
+        item.chosenModeIds = ["loot"];
         expect(resolveTopOfStack(state)).toBeNull(); // suspends at the discard choice
         expect(
             state.players[0].hand.some((c) => c.id === "top-of-library")
@@ -2313,7 +2313,7 @@ describe("Rith's Charm ({R}{G}{W} Instant — three modes, CR 700.2)", () => {
         targets: StackItem["targets"] = []
     ): void {
         const item = pushSpell(state, rithsCharm.id, "p1", targets);
-        item.chosenModeId = modeId;
+        item.chosenModeIds = [modeId];
         resolveTopOfStack(state);
     }
 

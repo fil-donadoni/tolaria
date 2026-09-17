@@ -887,7 +887,7 @@ describe("Essence Filter (CR 700.2 modal mass enchantment destroy)", () => {
                 zone: "stack",
             }),
             castById: "p1",
-            chosenModeId: "all",
+            chosenModeIds: ["all"],
             targets: [],
         });
         resolveTopOfStack(state);
@@ -919,7 +919,7 @@ describe("Essence Filter (CR 700.2 modal mass enchantment destroy)", () => {
                 zone: "stack",
             }),
             castById: "p1",
-            chosenModeId: "nonwhite",
+            chosenModeIds: ["nonwhite"],
             targets: [],
         });
         resolveTopOfStack(state);

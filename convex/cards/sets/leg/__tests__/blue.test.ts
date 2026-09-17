@@ -361,7 +361,7 @@ describe("Flash Flood (modal: destroy red / return Mountain, CR 700.2)", () => {
         const item = pushSpell(state, flashFlood.id, "p1", [
             { type: "permanent", id: "m" },
         ]);
-        item.chosenModeId = "return-mountain";
+        item.chosenModeIds = ["return-mountain"];
         resolveTopOfStack(state);
         expect(
             state.players[1].battlefield.find((c) => c.id === "m")

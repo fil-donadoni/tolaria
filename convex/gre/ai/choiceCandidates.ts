@@ -1081,7 +1081,7 @@ const handPickCandidates: ChoiceCandidateGenerator = (state, choice) => {
 function castVariantIdentity(move: Move): string {
     if (move.kind !== "cast-spell") return "";
     return [
-        move.chosenModeId ?? "",
+        move.chosenModeIds?.join("+") ?? "",
         move.alternativeCostId ?? "",
         move.chosenX === undefined ? "" : `X${move.chosenX}`,
         // CR 601.2b / 702.33 / 702.27 (PR #2995 review finding 3) — the three

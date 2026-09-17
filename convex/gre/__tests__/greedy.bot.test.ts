@@ -249,7 +249,7 @@ describe("applyMoveForSearch — sandbox is pure (issue #111)", () => {
             kind: "cast-spell",
             cardInstanceId: "bolt",
             chosenX: undefined,
-            chosenModeId: undefined,
+            chosenModeIds: undefined,
             confirmTargets: false,
             targets: [{ type: "permanent", id: "ogre" }],
             tapPlan: [{ cardInstanceId: "mtn" }],

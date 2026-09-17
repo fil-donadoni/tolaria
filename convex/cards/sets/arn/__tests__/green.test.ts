@@ -618,7 +618,7 @@ describe("Metamorphosis (CR 106.6 restricted mana / 118.8 additional cost)", () 
         sacrificedMv: number
     ): void {
         const item = pushSpell(state, metamorphosis.id, "p1");
-        item.chosenModeId = modeId;
+        item.chosenModeIds = [modeId];
         item.additionalSacrificeSnapshot = {
             cardInstanceId: "sac",
             mv: sacrificedMv,

@@ -1236,7 +1236,7 @@ export function useBattlefieldInteraction(player: Player) {
                                 abilityId: s.abilityId,
                                 keepPriority: s.keepPriority || undefined,
                                 chosenX: undefined,
-                                chosenModeId: modeId,
+                                chosenModeIds: [modeId],
                             })
                         );
                     }}

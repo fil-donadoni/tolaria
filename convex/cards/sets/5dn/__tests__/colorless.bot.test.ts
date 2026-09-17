@@ -46,7 +46,7 @@ function prismActivations(state: GameState) {
 describe("Pentad Prism — the any-colour mana choice is a Move-level decision (CR 700.2)", () => {
     it("enumerates ONE move per colour, so the search picks the colour", () => {
         const moves = prismActivations(boardWithCharges(1));
-        expect(moves.map((m) => m.chosenModeId).sort()).toEqual([
+        expect(moves.map((m) => m.chosenModeIds?.[0]).sort()).toEqual([
             "add-b",
             "add-g",
             "add-r",

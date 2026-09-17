@@ -1643,7 +1643,7 @@ describe("Modal spells (CR 700.2) — Healing Salve / Blue & Red Elemental Blast
         const item = pushSpell(state, healingSalve.id, "p1", [
             { type: "player", id: "p1" },
         ]);
-        item.chosenModeId = "gain-life";
+        item.chosenModeIds = ["gain-life"];
         resolveTopOfStack(state);
         expect(state.players[0].life).toBe(16);
     });
@@ -1663,7 +1663,7 @@ describe("Modal spells (CR 700.2) — Healing Salve / Blue & Red Elemental Blast
         const salve = pushSpell(state, healingSalve.id, "p1", [
             { type: "permanent", id: "bear" },
         ]);
-        salve.chosenModeId = "prevent";
+        salve.chosenModeIds = ["prevent"];
         resolveTopOfStack(state);
         // Bolt would deal 3 — fully prevented.
         pushSpell(state, lightningBolt.id, "p2", [
@@ -1686,7 +1686,7 @@ describe("Modal spells (CR 700.2) — Healing Salve / Blue & Red Elemental Blast
         const blast = pushSpell(state, blueElementalBlast.id, "p2", [
             { type: "spell", id: bolt.id },
         ]);
-        blast.chosenModeId = "counter";
+        blast.chosenModeIds = ["counter"];
         resolveTopOfStack(state); // resolve the counter mode → removes bolt
         // Now resolve what's left — should NOT be the bolt anymore.
         expect(state.stack.find((s) => s.id === bolt.id)).toBeUndefined();
@@ -1707,7 +1707,7 @@ describe("Modal spells (CR 700.2) — Healing Salve / Blue & Red Elemental Blast
         const blast = pushSpell(state, redElementalBlast.id, "p1", [
             { type: "permanent", id: "merfolk" },
         ]);
-        blast.chosenModeId = "destroy";
+        blast.chosenModeIds = ["destroy"];
         resolveTopOfStack(state);
         expect(
             state.players[1].battlefield.find((c) => c.id === "merfolk")

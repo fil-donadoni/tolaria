@@ -4121,7 +4121,7 @@ describe("Word of Command (controlled cast, ADR 0037, CR 601 / 305.2)", () => {
             (s) => (s.card as { id?: string }).id === redElementalBlast.id
         );
         expect(blast?.castById).toBe("p2");
-        expect(blast?.chosenModeId).toBe("destroy");
+        expect(blast?.chosenModeIds?.[0]).toBe("destroy");
         expect(blast?.targets).toEqual([
             { type: "permanent", id: "blue-merfolk" },
         ]);

@@ -383,7 +383,7 @@ describe("Pyroblast (CR 700.2 modal, blue-gated)", () => {
                 zone: "stack",
             }),
             castById: "p1",
-            chosenModeId: "destroy",
+            chosenModeIds: ["destroy"],
             targets: [{ type: "permanent", id: "blue" }],
         });
         resolveTopOfStack(state);

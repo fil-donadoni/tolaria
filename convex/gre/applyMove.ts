@@ -167,6 +167,7 @@ import type { CastFromZone } from "./castCost";
 import { consumeMadnessCastChoice, declineMadness } from "./madness";
 import { consumeReboundCastChoice, declineRebound } from "./rebound";
 import { phyrexianPipCount } from "./phyrexian";
+import { announcedModeFields } from "./modeSelection";
 
 /** CR 614.12 / ADR 0051 — drain every pending stackless `land-entry-tapped`
  *  pay-choice (a shock land played OR put onto the battlefield by an effect)
@@ -1563,9 +1564,7 @@ export function applyMoveForSearch(
                 ...(move.chosenX !== undefined
                     ? { chosenX: move.chosenX }
                     : {}),
-                ...(move.chosenModeId
-                    ? { chosenModeId: move.chosenModeId }
-                    : {}),
+                ...announcedModeFields(move),
                 // CR 702.33 / 702.27a (issue #2081) — snapshot the payment
                 // record onto the stack item exactly where the real commit
                 // paths snapshot it (`PendingCast.kickerPayments` /

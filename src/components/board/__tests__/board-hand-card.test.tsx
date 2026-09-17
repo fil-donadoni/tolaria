@@ -389,7 +389,7 @@ describe("BoardHandCard drag-commit parity (seam 3, #254)", () => {
         expect(dragArgs).toEqual(clickArgs);
         expect(dragArgs).toMatchObject({
             cardInstanceId: "modal",
-            chosenModeId: "mode-1",
+            chosenModeIds: ["mode-1"],
         });
     });
 
@@ -972,7 +972,7 @@ describe("BoardHandCard touch tap = stage + confirm (#1767)", () => {
 
         expect(announceCast).toHaveBeenCalledTimes(1);
         expect(announceCast.mock.calls[0][0]).toMatchObject({
-            chosenModeId: "mode-1",
+            chosenModeIds: ["mode-1"],
         });
         expect(el().getAttribute("data-tap-staged")).toBeNull();
         expect(pill()).toBeNull();

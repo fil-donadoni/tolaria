@@ -37,7 +37,7 @@ function stateWithModalOnStack(modeId: string) {
     const item = pushSpell(state, visionCharm.id, "p1", [
         { type: "player", id: "p2" },
     ]);
-    item.chosenModeId = modeId;
+    item.chosenModeIds = [modeId];
     return state;
 }
 
@@ -64,7 +64,7 @@ describe("stack chosen-mode highlight survives the wire (issue #1274, CR 700.2c)
             const projected = projectPublicState(state, 1, viewerId);
             const slimItem = projected.stack[0];
             // chosenModeId crossed the wire (SlimStackItem keeps it).
-            expect(slimItem.chosenModeId).toBe("phase");
+            expect(slimItem.chosenModeIds?.[0]).toBe("phase");
             const lines = getStackModeLines(slimItem);
             expect(lines, `viewer ${viewerId}`).not.toBeNull();
             expect(
@@ -157,7 +157,7 @@ describe("stack chosen-mode highlight for a modal TRIGGER (CR 603.3c, issue #246
             const slimItem = projected.stack.find(
                 (s) => s.id === "exarch-trig"
             )!;
-            expect(slimItem.chosenModeId, `viewer ${viewerId}`).toBe(
+            expect(slimItem.chosenModeIds?.[0], `viewer ${viewerId}`).toBe(
                 "tap-theirs"
             );
             const lines = getStackModeLines(slimItem);

@@ -3508,7 +3508,7 @@ describe("Magical Hack (text-changing effect — CR 612, layer 3)", () => {
         const spell = pushSpell(state, magicalHack.id, "p1", [
             { type: targetType, id: targetId },
         ]);
-        spell.chosenModeId = toMode;
+        spell.chosenModeIds = [toMode];
         resolveTopOfStack(state);
     }
 
@@ -3718,7 +3718,7 @@ describe("Sleight of Mind (color-word text change — CR 612, layer 3)", () => {
         const spell = pushSpell(state, sleightOfMind.id, "p1", [
             { type: targetType, id: targetId },
         ]);
-        spell.chosenModeId = toMode;
+        spell.chosenModeIds = [toMode];
         resolveTopOfStack(state);
     }
 

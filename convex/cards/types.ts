@@ -1171,11 +1171,53 @@ export interface ActivatedAbilityContext {
     addMana: (cost: ManaCost) => void;
 }
 
+/** The board-state or cost-choice fact a {@link ModeSelection}'s conditional
+ *  count reads at announcement (ADR 0094). JSON-pure by design — it has three
+ *  readers: the server validating the announcement, the client sizing the
+ *  mode picker BEFORE any mutation is called, and the Bot enumerating moves.
+ *  A closure would force all three to execute card code.
+ *
+ *  - `controls` — the announcing player controls a permanent matching the
+ *    filter "as you cast this spell" (Flame of Anor's Wizard clause). Plain
+ *    card text evaluated at announcement; no CR rule governs it.
+ *  - `kicked` — CR 601.4: a mode choice may consider the kicker decision that
+ *    is normally announced later in CR 601.2b (Inscription of Abundance). */
+export type ModeCountCondition =
+    | { controls: PermanentFilter }
+    | { kicked: true };
+
+/** Cardinality of an announce-time mode LIST (ADR 0094, CR 700.2) — how many
+ *  modes the controller chooses, not a property of any one mode. Declared next
+ *  to `modes` on {@link CardDefinition} and {@link ActivatedAbility}; ABSENT
+ *  means exactly one mode, the shape every modal card shipped before it uses.
+ *
+ *  - fixed N, distinct modes — `{ min: 2, max: 2 }` (Kolaghan's Command,
+ *    "Choose two —");
+ *  - fixed N with repeats — `{ min: 3, max: 3, repeats: true }` (Fiery
+ *    Confluence, "You may choose the same mode more than once", CR 700.2d);
+ *  - a range — `{ min: 1, max: 3 }` ("choose one or more");
+ *  - a conditional count — `when` REPLACES the bounds while its condition
+ *    holds at announcement: Flame of Anor's "you may choose two instead if you
+ *    control a Wizard" is `{ min: 1, max: 1, when: { condition: { controls:
+ *    { subtypes: ["Wizard"] } }, min: 1, max: 2 } }`.
+ *
+ *  A count above one on a mode list whose modes carry `staticEffects` is
+ *  rejected catalogue-wide: a modal PERMANENT stores one mode
+ *  (`CardInstanceState.chosenModeId`). */
+export interface ModeSelection {
+    min: number;
+    max: number;
+    /** CR 700.2d — the same mode may be chosen more than once. */
+    repeats?: boolean;
+    when?: { condition: ModeCountCondition; min: number; max: number };
+}
+
 /** One mode of a modal spell (CR 700.2 — "Choose one — • ..."). The caster
- *  picks exactly one mode at announcement; the chosen mode supplies the
- *  spell's target requirement (if any) and the resolution body. Mode
- *  selection is locked at announce (CR 700.2c) and propagated through
- *  pendingCast / pendingTarget / stack item via `chosenModeId`. */
+ *  picks the mode(s) at announcement (CR 700.2a) — how many is the list's
+ *  {@link ModeSelection}; each chosen mode supplies its target requirement (if
+ *  any) and its resolution body. The picks are locked at announcement and
+ *  propagated through pendingCast / pendingTarget / stack item via
+ *  `chosenModeIds` (ADR 0094). */
 export interface ModeOption {
     /** Stable id within the owning definition (e.g. "gain-life", "prevent").
      *  Used by the UI to identify the chosen option and by the engine to
@@ -1245,7 +1287,7 @@ export interface SpellMode extends ModeOption {
  *  for a trigger — never in what a mode IS, which is why one type serves both.
  *
  *  Deliberately the activated-ability twin of {@link SpellMode}, sharing its
- *  {@link ModeOption} display surface and riding the SAME `chosenModeId`
+ *  {@link ModeOption} display surface and riding the SAME `chosenModeIds`
  *  plumbing the modal-spell path already uses (pendingTarget →
  *  pendingActivation → stack item, CR 700.2c). It carries no `staticEffects`:
  *  a mode of a one-shot activated ability has no continuous half (that is a
@@ -1942,9 +1984,11 @@ export interface ActivatedAbility {
      *  announcement; the chosen mode's `targetRequirement` drives target
      *  selection (overriding the ability-level `targetRequirement` /
      *  `getTargetRequirement`) and its `effects`/`resolve` runs on resolution
-     *  (the ability-level ones are ignored). Only "choose one" is supported,
-     *  mirroring the modal-spell shape. */
+     *  (the ability-level ones are ignored). How many modes are chosen is
+     *  `modeSelection` — the modal-spell shape, shared (ADR 0094). */
     modes?: AbilityMode[];
+    /** Cardinality of `modes` (ADR 0094). Absent = exactly one. */
+    modeSelection?: ModeSelection;
     /** Dynamic target requirement computed at activation time from the source
      *  permanent's state. If set, overrides `targetRequirement`. Used by
      *  abilities whose target legality depends on the source (Stone Giant:
@@ -6944,8 +6988,9 @@ export interface SpellContext {
      *  opponent's resources:
      *   - `chosenX` — the value of X (CR 107.3); folded into the generic cost
      *     (honoring `xFactor`) and snapshotted on the stack item for `getX()`.
-     *   - `chosenModeId` — the chosen mode (CR 700.2c); written onto the stack
-     *     item so the mode's `resolve` runs and its `staticEffects` apply.
+     *   - `chosenModeIds` — the chosen mode(s) (CR 700.2a, ADR 0094); written
+     *     onto the stack item so the modes' bodies run. Both shipped callers
+     *     pick exactly one mode.
      *   - `additionalSacrificeId` — a permanent on the CONTROLLED OPPONENT's
      *     battlefield to sacrifice as an additional cost (CR 118.8). It is
      *     sacrificed on commit and its pre-sacrifice mana value snapshotted for
@@ -6961,7 +7006,7 @@ export interface SpellContext {
         opts?: {
             targets?: TargetSelection[];
             chosenX?: number;
-            chosenModeId?: string;
+            chosenModeIds?: string[];
             additionalSacrificeId?: string;
             /** CR 608.2f (issue #1477) — the zone the card is cast FROM.
              *  Defaults to `"hand"` (Word of Command's controlled cast). The
@@ -11455,13 +11500,13 @@ export interface TriggeredAbility {
      *  auto-announces when only one is.
      *
      *  Deliberately the SAME {@link AbilityMode} list `ActivatedAbility.modes`
-     *  uses, riding the SAME `chosenModeId` plumbing (stack item → resolution
+     *  uses, riding the SAME `chosenModeIds` plumbing (stack item → resolution
      *  dispatch) — a triggered ability's modes differ from an activated
      *  ability's only in WHEN the announcement happens (CR 700.2a as part of
      *  activating vs CR 700.2b as part of going on the stack), never in what
      *  a mode is. Cardinality is therefore whatever the shared announce-time
-     *  mode-list model says (exactly one today; ADR 0094's `ModeSelection`
-     *  applies here unchanged when it lands) — never a trigger-local variant.
+     *  mode-list model says (ADR 0094's `ModeSelection`, which a modal trigger
+     *  does not declare yet: exactly one) — never a trigger-local variant.
      *
      *  MUTUALLY EXCLUSIVE with the ability-level body (`effects` / `resolve` /
      *  `resolveSteps`): the mode carries the body. Enforced statically by
@@ -18144,10 +18189,10 @@ export interface CardDefinition {
      *  mode at announcement (CR 601.2b) — the chosen mode's
      *  `targetRequirement` drives target selection, and its `resolve` runs
      *  on stack resolution. The card-level `targetRequirement`/`resolve` are
-     *  ignored. Only "choose one" is supported for now; "choose any number"
-     *  / "choose one or both" / "choose X" can be added by extending this
-     *  shape later. */
+     *  ignored. How many modes are chosen is `modeSelection` (ADR 0094). */
     modes?: SpellMode[];
+    /** Cardinality of `modes` (ADR 0094, CR 700.2). Absent = exactly one. */
+    modeSelection?: ModeSelection;
     /** Declarative shorthand for spells whose entire effect maps to a single
      *  registered primitive (see `convex/cards/effectRegistry.ts`). The engine
      *  compiles the shorthand into a resolve closure at lookup time. Use this

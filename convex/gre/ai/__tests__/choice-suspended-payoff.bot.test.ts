@@ -62,7 +62,7 @@ function position(opponent: ScenarioCard[] = []): {
  *  resolution-time option choices (CR 608.2). */
 function landTypeMode(state: GameState, botId: string): Move {
     const move = enumerateMoves(state, botId).find(
-        (m) => m.kind === "cast-spell" && m.chosenModeId === "land-type"
+        (m) => m.kind === "cast-spell" && m.chosenModeIds?.[0] === "land-type"
     );
     expect(move, "the land-type mode must be enumerable here").toBeDefined();
     return move!;
@@ -221,7 +221,7 @@ describe("a mode whose whole effect is behind a Pending Choice", () => {
         // false for it whatever it does to the board.
         const { state, botId } = position();
         const mill = enumerateMoves(state, botId).find(
-            (m) => m.kind === "cast-spell" && m.chosenModeId === "mill"
+            (m) => m.kind === "cast-spell" && m.chosenModeIds?.[0] === "mill"
         );
         expect(mill).toBeDefined();
         expect(reachesOnlyOwnSideThroughChoice(state, mill!, botId)).toBe(

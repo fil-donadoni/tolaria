@@ -1801,7 +1801,7 @@ export const wordOfCommand: CardDefinition = {
         ctx.castChosenSpell(opponentId, chosenId, controllerId, {
             targets: chosenTargets,
             chosenX,
-            chosenModeId,
+            chosenModeIds: chosenModeId ? [chosenModeId] : undefined,
             additionalSacrificeId,
         });
     },

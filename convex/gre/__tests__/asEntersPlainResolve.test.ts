@@ -341,7 +341,7 @@ function pushTrigger(
             controllerId: "p1",
             types: ["Creature"],
         } as StackItem["triggerEvent"],
-        ...(chosenModeId ? { chosenModeId } : {}),
+        ...(chosenModeId ? { chosenModeIds: [chosenModeId] } : {}),
     };
     state.stack.push(item);
     return item;
@@ -362,7 +362,7 @@ function pushActivation(
         }),
         castById: "p1",
         abilityId,
-        ...(chosenModeId ? { chosenModeId } : {}),
+        ...(chosenModeId ? { chosenModeIds: [chosenModeId] } : {}),
     };
     state.stack.push(item);
     return item;
@@ -405,7 +405,7 @@ describe("plain resolve() + as-enters park (CR 608.3, ADR 0100 D5)", () => {
     it("spell, modal mode: the mode body commits exactly once", () => {
         const state = board();
         const item = pushSpell(state, SPELL_MODAL_ID, "p1");
-        item.chosenModeId = "gain-and-token";
+        item.chosenModeIds = ["gain-and-token"];
 
         resolveTopOfStack(state);
 

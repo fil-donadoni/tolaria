@@ -2,7 +2,9 @@ import {
     type ActivatedAbility,
     type AnimateSpec,
     type AsEntersChoice,
+    type AbilityMode,
     type CardDefinition,
+    type SpellMode,
     type CardSupertype,
     type CardType,
     type Color,
@@ -192,6 +194,7 @@ import {
 import {
     INLINE_DELAYED_TRIGGER_ID,
     runDelayedTriggerBody,
+    runModeInstanceScripts,
 } from "./effects/interpreter";
 import { matchesPermanentFilter, matchesSpellFilter } from "../cards/filters";
 import { getEffectiveColors } from "../cards/effectiveColors";
@@ -217,6 +220,7 @@ import {
     buildSpellKickedEvents,
     totalKickerCount,
 } from "./kicker";
+import { modeInstances, soleChosenModeId } from "./modeSelection";
 import type { SacrificeSelection } from "./sacrificeChoice";
 // ADR 0079 — the may-pay PERMANENT leg's `action: "return"` terminal step runs
 // through the unified permanent-cost layer, the same one Gush / Thwart / Daze
@@ -2404,7 +2408,7 @@ export type PlayerState = {
     };
 };
 
-export type StackItem = CardInstanceState & {
+export type StackItem = Omit<CardInstanceState, "chosenModeId"> & {
     castById: string;
     /** Targets chosen during spell announcement (CR 601.2c). Never a
      *  `lookDistribute`-bind-only "hand-card" in practice (issue #1101) — see the
@@ -2477,10 +2481,20 @@ export type StackItem = CardInstanceState & {
      *  explicit split (the resolver then auto-divides ≥1-each). Used by Fire
      *  Covenant, Fiery Justice, Meteor Shower, Spoils of War. */
     targetAmounts?: Record<string, number>;
-    /** Mode id chosen at announcement for modal spells (CR 700.2). On
-     *  resolution, dispatch lookups the matching entry in
-     *  `card.modes` and runs `mode.resolve` instead of `card.resolve`. */
-    chosenModeId?: string;
+    /** Mode ids chosen at announcement for a modal spell or ability (CR
+     *  700.2a / 700.2b, ADR 0094) — one entry per MODE INSTANCE, normalised to
+     *  printed order with a repeated mode's instances consecutive (CR 608.2c /
+     *  700.2d), so array order IS execution order. On resolution each
+     *  instance's body runs in turn instead of the card/ability-level body.
+     *  A copy carries the whole array (CR 700.2g). */
+    chosenModeIds?: string[];
+    /** How many entries of the flat `targets` list each instance of
+     *  `chosenModeIds` owns, index-aligned (ADR 0094): instance `i` reads
+     *  `targets` from the sum of the spans before it. Stored, never inferred —
+     *  a variable-count requirement makes the span undecidable after the fact.
+     *  Written whenever more than one instance was chosen; a multi-instance
+     *  item without it is an engine error, never an assumed zero. */
+    modeTargetCounts?: number[];
     /** Snapshot of the permanent sacrificed OR exiled as an additional cost at
      *  announcement (CR 118.8 / 601.2f). Captured at commit and read at
      *  resolve via `SpellContext.getAdditionalSacrificeMv` (mana value) and
@@ -2928,9 +2942,13 @@ export type PendingCast = {
      *  is paid the instant the spell moves hand → stack. Undefined / 0 when no
      *  life cost applies. */
     payLife?: number;
-    /** Mode id chosen at announcement for modal spells (CR 700.2 / 700.2c).
-     *  Undefined for non-modal spells. Propagated to the stack item. */
-    chosenModeId?: string;
+    /** Mode ids chosen at announcement for a modal spell (CR 700.2a, ADR
+     *  0094), printed order. Undefined for non-modal spells. Propagated to the
+     *  stack item. */
+    chosenModeIds?: string[];
+    /** Per-instance target spans of `chosenModeIds` — see
+     *  `StackItem.modeTargetCounts`. */
+    modeTargetCounts?: number[];
     /** Acting Player (ADR 0037): the player who answers every resolution choice
      *  for this cast, split off from the controller (`playerId`) for a
      *  controlled cast (Word of Command). Defaults to `playerId` when absent —
@@ -3177,11 +3195,14 @@ export type PendingActivation = {
     fromHand?: boolean;
     /** Ability id on the source's card definition. */
     abilityId: string;
-    /** CR 700.2c / 602.2b (issue #1341) — mode locked in at announcement for a
-     *  MODAL activated ability (Umezawa's Jitte). Propagated to the stack item
-     *  at commit so resolution dispatches the chosen mode's body. Undefined for
-     *  a non-modal ability. */
-    chosenModeId?: string;
+    /** CR 700.2a / 602.2b (issue #1341, ADR 0094) — modes locked in at
+     *  announcement for a MODAL activated ability (Umezawa's Jitte), printed
+     *  order. Propagated to the stack item at commit so resolution dispatches
+     *  the chosen modes' bodies. Undefined for a non-modal ability. */
+    chosenModeIds?: string[];
+    /** Per-instance target spans of `chosenModeIds` — see
+     *  `StackItem.modeTargetCounts`. */
+    modeTargetCounts?: number[];
     manaCost: Record<string, number>;
     /** Land ids tapped during this payment, for rollback on cancel. */
     tappedLandIds: string[];
@@ -4562,10 +4583,20 @@ export type PendingTarget = {
      *  auto-resolve to the most-life affordable split. Used by targeted
      *  Phyrexian spells (Dismember, Gitaxian Probe). */
     phyrexianLifePips?: number;
-    /** Mode id chosen at announcement for modal spells (CR 700.2 / 700.2c).
-     *  Propagated through pendingCast → stack item. Determines which mode's
-     *  `targetRequirement` governs this selection. */
-    chosenModeId?: string;
+    /** Mode ids chosen at announcement for a modal spell or ability (CR
+     *  700.2a, ADR 0094), printed order. Propagated to the stack item. Their
+     *  target groups are flattened, instance by instance, into this
+     *  selection's group queue (`remainingRequirements`). */
+    chosenModeIds?: string[];
+    /** Which mode INSTANCE (index into `chosenModeIds`) owns the group being
+     *  chosen now, then each queued group in `remainingRequirements` order
+     *  (ADR 0094). Undefined unless more than one instance was chosen. */
+    groupModeInstances?: number[];
+    /** Targets each earlier-completed instance has locked in so far, index-
+     *  aligned with `chosenModeIds` — becomes the stack item's
+     *  `modeTargetCounts` at finalization. Undefined unless more than one
+     *  instance was chosen. */
+    modeTargetCounts?: number[];
     /** CR 118.9 — id of a chosen ALTERNATIVE casting cost
      *  (`CardDefinition.alternativeCosts`), propagated from announcement so it
      *  is paid at cast commit (`finalizeTargetSelection`) instead of the mana
@@ -6607,11 +6638,15 @@ function spellTargetStillMeetsRestrictions(
     }
     const cardId = (item.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
-    // CR 700.2d — a modal spell targets under its CHOSEN mode's requirement.
+    // CR 700.2c — a modal spell targets under its CHOSEN mode's requirement.
+    // ADR 0094 — more than one mode instance spreads the targets over several
+    // requirements; this single-requirement recheck cannot place them, so it
+    // keeps the zone-existence answer (fail-open, as documented above).
+    if ((item.chosenModeIds?.length ?? 0) > 1) return true;
+    const soleModeId = soleChosenModeId(item.chosenModeIds);
     const req =
-        (item.chosenModeId
-            ? def?.modes?.find((m) => m.id === item.chosenModeId)
-                  ?.targetRequirement
+        (soleModeId
+            ? def?.modes?.find((m) => m.id === soleModeId)?.targetRequirement
             : undefined) ?? def?.targetRequirement;
     if (!req || !requirementAdmitsSpellTarget(req)) return true;
     const values = lowerSpellOnlyFilters(req, item.chosenX);
@@ -6692,10 +6727,11 @@ function resolvingTargetRequirement(
                 ? { req: ability.targetRequirement, hasAdditionalGroups: false }
                 : undefined;
         }
-        // CR 700.2c/700.2d — a modal trigger targets under its ANNOUNCED
+        // CR 700.2c — a modal trigger targets under its ANNOUNCED
         // mode's requirement only; no mode chosen yet reads as "unknown".
-        if (!item.chosenModeId) return undefined;
-        const mode = ability.modes.find((m) => m.id === item.chosenModeId);
+        const soleModeId = soleChosenModeId(item.chosenModeIds);
+        if (!soleModeId) return undefined;
+        const mode = ability.modes.find((m) => m.id === soleModeId);
         return mode?.targetRequirement
             ? { req: mode.targetRequirement, hasAdditionalGroups: false }
             : undefined;
@@ -6750,8 +6786,11 @@ function resolvingTargetRequirement(
                   }
                 : undefined;
         }
-        if (!item.chosenModeId) return undefined;
-        const mode = ability.modes.find((m) => m.id === item.chosenModeId);
+        // ADR 0094 — several instances = several requirements over one flat
+        // list; unknown here, like no mode at all.
+        const soleModeId = soleChosenModeId(item.chosenModeIds);
+        if (!soleModeId) return undefined;
+        const mode = ability.modes.find((m) => m.id === soleModeId);
         return mode?.targetRequirement
             ? {
                   req: effectiveRequirementForSource(
@@ -6776,8 +6815,12 @@ function resolvingTargetRequirement(
     // — a modal spell with only CARD-level groups used to reconstruct as
     // `hasAdditionalGroups: false` here (issue #1853 review round 2 finding
     // 2b).
-    if (item.chosenModeId) {
-        const mode = cardDef?.modes?.find((m) => m.id === item.chosenModeId);
+    if (item.chosenModeIds && item.chosenModeIds.length > 0) {
+        // ADR 0094 — more than one instance: no single requirement governs the
+        // flat list, so report "unknown" and let the caller fail open.
+        const soleModeId = soleChosenModeId(item.chosenModeIds);
+        if (!soleModeId) return undefined;
+        const mode = cardDef?.modes?.find((m) => m.id === soleModeId);
         return mode?.targetRequirement
             ? {
                   req: mode.targetRequirement,
@@ -7243,6 +7286,61 @@ function resolutionSuspendedOnChoice(
     });
 }
 
+/** Runs a modal stack item's announced mode instance(s) (CR 700.2, ADR 0094)
+ *  in place of the card/ability-level body. Returns true when the resolution
+ *  suspended on a choice. Shared by the spell, activated and triggered
+ *  branches of `resolveTopOfStackInner`.
+ *
+ *  One instance takes the single-mode path every pre-ADR-0094 card resolves
+ *  through, unchanged (a mode's Effect Script through `getAbilityEffectFn`, ADR
+ *  0045 issue #1280, else its imperative `resolve`). Several instances run as
+ *  ONE Effect Script (`runModeInstanceScripts`), in printed order (CR 608.2c /
+ *  700.2d), each reading its own slice of the flat target list. An id naming
+ *  no declared mode resolves as nothing — a defensive engine fallback, not a
+ *  rules case. */
+function resolveChosenModes(
+    state: GameState,
+    top: StackItem,
+    modes: readonly (SpellMode | AbilityMode)[]
+): boolean {
+    const ids = top.chosenModeIds ?? [];
+    if (ids.length === 1) {
+        const mode = modes.find((m) => m.id === ids[0]);
+        if (!mode) return false;
+        const scriptFn = getAbilityEffectFn(mode);
+        if (scriptFn) {
+            scriptFn(buildSpellContext(state, top));
+            return resolutionSuspendedOnChoice(state, "checkpointed");
+        }
+        if (mode.resolve) {
+            const ctx = buildSpellContext(state, top);
+            const resolveMode = mode.resolve;
+            withCardsPutIntoLibraryBatch(state, () => resolveMode(ctx));
+            return resolutionSuspendedOnChoice(state, "completed");
+        }
+        return false;
+    }
+    if (ids.length === 0) return false;
+    const ctx = buildSpellContext(state, top);
+    const instances = modeInstances(ids, top.modeTargetCounts, ctx.targets).map(
+        (instance) => {
+            const mode = modes.find((m) => m.id === instance.modeId);
+            // A multi-instance resolution is ONE checkpointed script; an
+            // imperative body has no checkpoint and would replay earlier
+            // instances on resume. The catalogue guard rejects the
+            // shape statically — this is the runtime backstop.
+            if (mode?.resolve) {
+                throw new Error(
+                    `Mode "${mode.id}" resolves imperatively but was chosen alongside other modes — a multi-mode list must author every mode as an Effect Script (ADR 0094)`
+                );
+            }
+            return { effects: mode?.effects ?? [], targets: instance.targets };
+        }
+    );
+    runModeInstanceScripts(ctx, instances);
+    return resolutionSuspendedOnChoice(state, "checkpointed");
+}
+
 function resolveTopOfStackInner(state: GameState): StackItem | null {
     if (state.stack.length === 0) throw new Error("Stack is empty");
 
@@ -7668,36 +7766,17 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
             } else if (ability.modes && ability.modes.length > 0) {
                 // CR 603.3c / 700.2b (issue #2461) — a MODAL triggered ability
                 // dispatches the mode its controller announced as the ability
-                // went on the stack, which rode here as `chosenModeId`. The
+                // went on the stack, which rode here as `chosenModeIds`. The
                 // ability-level body is ignored (a modal ability has none —
                 // `validateAbilityEffectScript` rejects declaring both). A
-                // `chosenModeId` naming no declared mode, or a trigger that
+                // `chosenModeIds` naming no declared mode, or a trigger that
                 // somehow reached resolution un-announced, resolves as nothing:
                 // a defensive engine fallback, not a rules case — CR 700.2b
                 // removes a mode-less ability from the stack long before this.
                 // The mode body is an `AbilityMode`, the same
                 // shape a modal ACTIVATED ability resolves below, so its
                 // `resolve` takes no event argument.
-                const mode = top.chosenModeId
-                    ? ability.modes.find((m) => m.id === top.chosenModeId)
-                    : undefined;
-                if (mode) {
-                    const scriptFn = getAbilityEffectFn(mode);
-                    if (scriptFn) {
-                        const ctx = buildSpellContext(state, top);
-                        scriptFn(ctx);
-                        if (resolutionSuspendedOnChoice(state, "checkpointed"))
-                            return null;
-                    } else if (mode.resolve) {
-                        const ctx = buildSpellContext(state, top);
-                        const resolveMode = mode.resolve;
-                        withCardsPutIntoLibraryBatch(state, () =>
-                            resolveMode(ctx)
-                        );
-                        if (resolutionSuspendedOnChoice(state, "completed"))
-                            return null;
-                    }
-                }
+                if (resolveChosenModes(state, top, ability.modes)) return null;
             } else {
                 // ADR 0045 (issue #803) — an Effect Script resolves through the
                 // SAME interpreter seam as a spell-site script; otherwise fall
@@ -7762,18 +7841,19 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
         } else if (ability) {
             // CR 700.2 / 602.2b (issue #1341) — a MODAL activated ability
             // dispatches the mode locked in at announcement (CR 700.2c), which
-            // rode here as `chosenModeId` through pendingTarget /
+            // rode here as `chosenModeIds` through pendingTarget /
             // pendingActivation. The ability-level effects/resolve are ignored
             // for a modal ability, exactly as the card-level ones are for a
-            // modal spell (see the spell branch below). A `chosenModeId` that
-            // names no declared mode resolves as nothing (CR 608.2b).
-            const modalTarget =
-                top.chosenModeId && ability.modes && ability.modes.length > 0
-                    ? (ability.modes.find((m) => m.id === top.chosenModeId) ??
-                      null)
-                    : undefined;
-            const body = modalTarget === undefined ? ability : modalTarget;
-            if (body) {
+            // modal spell (see the spell branch below). A `chosenModeIds` entry that
+            // names no declared mode resolves as nothing (engine fallback).
+            if (
+                (top.chosenModeIds?.length ?? 0) > 0 &&
+                ability.modes &&
+                ability.modes.length > 0
+            ) {
+                if (resolveChosenModes(state, top, ability.modes)) return null;
+            } else {
+                const body = ability;
                 // ADR 0045 (issue #803) — Effect Script through the shared
                 // interpreter seam, else the imperative `resolve`.
                 const scriptFn = getAbilityEffectFn(body);
@@ -7801,27 +7881,12 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
     // resolve. The mode id was locked at announcement (CR 700.2c) and rides
     // through pendingCast → stack item.
     if (cardDef) {
-        if (top.chosenModeId && cardDef.modes && cardDef.modes.length > 0) {
-            const mode = cardDef.modes.find((m) => m.id === top.chosenModeId);
-            if (mode) {
-                // ADR 0045 (issue #1280) — a mode's Effect Script runs through
-                // the SAME interpreter seam as every other effect site;
-                // `getAbilityEffectFn` also enforces mutual exclusivity with
-                // `resolve`.
-                const scriptFn = getAbilityEffectFn(mode);
-                if (scriptFn) {
-                    const ctx = buildSpellContext(state, top);
-                    scriptFn(ctx);
-                    if (resolutionSuspendedOnChoice(state, "checkpointed"))
-                        return null;
-                } else if (mode.resolve) {
-                    const ctx = buildSpellContext(state, top);
-                    const resolveMode = mode.resolve;
-                    withCardsPutIntoLibraryBatch(state, () => resolveMode(ctx));
-                    if (resolutionSuspendedOnChoice(state, "completed"))
-                        return null;
-                }
-            }
+        if (
+            (top.chosenModeIds?.length ?? 0) > 0 &&
+            cardDef.modes &&
+            cardDef.modes.length > 0
+        ) {
+            if (resolveChosenModes(state, top, cardDef.modes)) return null;
         } else {
             const resolveFn = getResolveFn(cardDef);
             if (resolveFn) {
@@ -8160,7 +8225,11 @@ function resetStackTransientState(item: StackItem): void {
     delete item.unkickedCostPayments;
     delete item.buybackPaid;
     delete item.targetAmounts;
-    delete item.chosenModeId;
+    delete item.chosenModeIds;
+    delete item.modeTargetCounts;
+    // The permanent-domain pick a recast card still carries from its last
+    // time on the battlefield (CR 400.7 — a new object) goes too.
+    delete (item as CardInstanceState).chosenModeId;
     delete item.additionalSacrificeSnapshot;
     delete item.notedManaSpent;
     delete item.dynamicCantBeCountered;
@@ -8680,6 +8749,16 @@ function finalizeSpellResolution(
         } else {
             delete item.chosenXOnCast;
         }
+        // ADR 0094 — the announcement domain ends at the battlefield. A
+        // permanent stores ONE mode (`CardInstanceState.chosenModeId`, read by
+        // the layer system), stamped from the first announced instance; a
+        // count above one on a list whose modes carry `staticEffects` is
+        // rejected catalogue-wide, so nothing is lost here.
+        if (item.chosenModeIds && item.chosenModeIds.length > 0) {
+            (item as CardInstanceState).chosenModeId = item.chosenModeIds[0];
+        }
+        delete item.chosenModeIds;
+        delete item.modeTargetCounts;
         controller.battlefield.push(item);
         // CR 106.6 / 611.2c (issue #3354, Arena of Glory) — the mana-provenance
         // haste rider's HAND-OFF, the one step of that rider with no
@@ -15552,9 +15631,10 @@ export function requestCopyRetargetOn(state: GameState, copy: StackItem): void {
     // A copy of a modal spell retargets within its chosen mode
     // (CR 700.2); otherwise use the card-level requirement.
     const req =
-        (copy.chosenModeId
-            ? def?.modes?.find((m) => m.id === copy.chosenModeId)
-                  ?.targetRequirement
+        (soleChosenModeId(copy.chosenModeIds) !== undefined
+            ? def?.modes?.find(
+                  (m) => m.id === soleChosenModeId(copy.chosenModeIds)
+              )?.targetRequirement
             : undefined) ?? def?.targetRequirement;
     if (!req) return; // copied spell targets nothing — keep as-is
     // CR 107.3 / 601.2c — resolve an "X" target count (exact `"X"` or an "up
@@ -15665,9 +15745,10 @@ function requestCastCopyRetarget(state: GameState, copy: StackItem): void {
     const cardId = (copy.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
     const req =
-        (copy.chosenModeId
-            ? def?.modes?.find((m) => m.id === copy.chosenModeId)
-                  ?.targetRequirement
+        (soleChosenModeId(copy.chosenModeIds) !== undefined
+            ? def?.modes?.find(
+                  (m) => m.id === soleChosenModeId(copy.chosenModeIds)
+              )?.targetRequirement
             : undefined) ?? def?.targetRequirement;
     if (!req) return; // untargeted (Empty the Warrens) — nothing to offer
     const legal = getLegalTargets(
@@ -22668,7 +22749,7 @@ export function buildSpellContext(
             // from their battlefield.
             const targets = opts?.targets;
             const chosenX = opts?.chosenX;
-            const chosenModeId = opts?.chosenModeId;
+            const chosenModeIds = opts?.chosenModeIds;
             const additionalSacrificeId = opts?.additionalSacrificeId;
             // CR 608.2f (issue #1477) — the source zone (default hand, Word of
             // Command) and the free-cast waiver (Malcolm casts the discarded
@@ -22876,11 +22957,12 @@ export function buildSpellContext(
             if (targets && targets.length > 0) stackItem.targets = targets;
             // CR 107.3 / 700.2c / 118.8 — the X / mode / sacrifice-snapshot
             // chosen by the Acting Player ride onto the stack item so the
-            // resolve reads them back via getX / chosenModeId dispatch /
+            // resolve reads them back via getX / chosenModeIds dispatch /
             // getAdditionalSacrificeMv. Omitted when absent so the item stays
             // clean (matches the normal-cast stack item shape).
             if (chosenX !== undefined) stackItem.chosenX = chosenX;
-            if (chosenModeId) stackItem.chosenModeId = chosenModeId;
+            if (chosenModeIds && chosenModeIds.length > 0)
+                stackItem.chosenModeIds = chosenModeIds;
             if (additionalSacrificeSnapshot) {
                 stackItem.additionalSacrificeSnapshot =
                     additionalSacrificeSnapshot;

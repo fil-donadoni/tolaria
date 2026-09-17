@@ -653,7 +653,7 @@ describe("gameStates serialize round-trip", () => {
                 zone: "stack",
                 castById: "p1",
                 chosenX: 0,
-                chosenModeId: "destroy",
+                chosenModeIds: ["destroy"],
                 targets: [{ type: "player", id: "p2" }],
             },
         ];
@@ -662,7 +662,7 @@ describe("gameStates serialize round-trip", () => {
         const top = expanded.stack[0];
         expect(top.castById).toBe("p1");
         expect(top.chosenX).toBe(0);
-        expect(top.chosenModeId).toBe("destroy");
+        expect(top.chosenModeIds?.[0]).toBe("destroy");
         expect(top.targets).toEqual([{ type: "player", id: "p2" }]);
     });
 

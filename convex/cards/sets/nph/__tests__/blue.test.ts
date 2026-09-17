@@ -328,7 +328,7 @@ describe("Deceiver Exarch ETB (modal: untap yours / tap an opponent's, CR 603.3c
         expect(state.pendingTarget).toBeUndefined();
 
         announceMode(state, "tap-theirs");
-        expect(trig.chosenModeId).toBe("tap-theirs");
+        expect(trig.chosenModeIds?.[0]).toBe("tap-theirs");
         // The opponent's bear is the ONLY legal target UNDER THIS MODE, so it
         // auto-selects. It would not if the Exarch's own untap requirement
         // still applied — that is CR 700.2c in one assertion.
@@ -353,7 +353,7 @@ describe("Deceiver Exarch ETB (modal: untap yours / tap an opponent's, CR 603.3c
         });
         const { trig } = announceEtb(state, exarch);
         announceMode(state, "untap-yours");
-        expect(trig.chosenModeId).toBe("untap-yours");
+        expect(trig.chosenModeIds?.[0]).toBe("untap-yours");
         // Two legal targets under this mode (the Exarch and the tapped bear),
         // so the controller is prompted through the ordinary trigger
         // PendingTarget rather than auto-selected.
@@ -373,7 +373,7 @@ describe("Deceiver Exarch ETB (modal: untap yours / tap an opponent's, CR 603.3c
         const { state, exarch, ownBear } = board({ ownTapped: true });
         const { trig } = announceEtb(state, exarch);
         expect(state.pendingChoices).toBeUndefined();
-        expect(trig.chosenModeId).toBe("untap-yours");
+        expect(trig.chosenModeIds?.[0]).toBe("untap-yours");
         const pt = state.pendingTarget!;
         pt.selected = [{ type: "permanent", id: "own-bear" }];
         finalizeTargetSelection(state, pt, "p1");

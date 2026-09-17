@@ -100,7 +100,7 @@ function castMoves(state: GameState, cardInstanceId: string): CastMove[] {
 describe("bot enumeration — mode-level additional target groups (Hull Breach, CR 601.2c / issue #1953)", () => {
     it("enumerates mode `both` with ONE target per group, in declaration order", () => {
         const moves = castMoves(hullBreachBoard(), "breach-1");
-        const both = moves.filter((m) => m.chosenModeId === "both");
+        const both = moves.filter((m) => m.chosenModeIds?.[0] === "both");
         expect(both.length).toBeGreaterThan(0);
         for (const m of both) {
             // Group 0 = the artifact, group 1 = the enchantment: the flat order
@@ -115,12 +115,12 @@ describe("bot enumeration — mode-level additional target groups (Hull Breach, 
         const moves = castMoves(hullBreachBoard(), "breach-1");
         expect(
             moves
-                .filter((m) => m.chosenModeId === "artifact")
+                .filter((m) => m.chosenModeIds?.[0] === "artifact")
                 .map((m) => m.targets.map((t) => t.id))
         ).toEqual([["art-1"]]);
         expect(
             moves
-                .filter((m) => m.chosenModeId === "enchantment")
+                .filter((m) => m.chosenModeIds?.[0] === "enchantment")
                 .map((m) => m.targets.map((t) => t.id))
         ).toEqual([["ench-1"]]);
     });
@@ -132,7 +132,7 @@ describe("bot enumeration — mode-level additional target groups (Hull Breach, 
         const stackTargets = (modeId: string): string[] => {
             const state = hullBreachBoard();
             const move = castMoves(state, "breach-1").find(
-                (m) => m.chosenModeId === modeId
+                (m) => m.chosenModeIds?.[0] === modeId
             )!;
             applyMoveInSearch(state, "p1", move);
             const item = state.stack.find((s) => s.id === "breach-1")!;
@@ -149,8 +149,10 @@ describe("bot enumeration — mode-level additional target groups (Hull Breach, 
             (c) => c.id !== "ench-1"
         );
         const moves = castMoves(state, "breach-1");
-        expect(moves.some((m) => m.chosenModeId === "both")).toBe(false);
-        expect(moves.some((m) => m.chosenModeId === "artifact")).toBe(true);
+        expect(moves.some((m) => m.chosenModeIds?.[0] === "both")).toBe(false);
+        expect(moves.some((m) => m.chosenModeIds?.[0] === "artifact")).toBe(
+            true
+        );
     });
 
     // The card-level twin of the same seam — Fumarole ("Destroy target creature
@@ -271,7 +273,7 @@ describe("bot enumeration — a mode with no requirement falls back to the CARD'
         // failure shape this file exists for.
         const moves = castMoves(prismaticWardBoard(), "ward-1");
         expect(moves).toHaveLength(1);
-        expect(moves[0].chosenModeId).toBeUndefined();
+        expect(moves[0].chosenModeIds?.[0]).toBeUndefined();
     });
 });
 
@@ -279,7 +281,7 @@ describe("bot execution — the enumerated multi-group move is executable end to
     it("replays mode `both` through the real mutations without stranding a target group", async () => {
         const state = hullBreachBoard();
         const allModes = new Set(
-            castMoves(state, "breach-1").map((m) => m.chosenModeId)
+            castMoves(state, "breach-1").map((m) => m.chosenModeIds?.[0])
         );
         // CR 700.2c (the must-NOT row for issue #2019) — an ordinary modal
         // SPELL is still enumerated one Move per mode; only a card whose modes
@@ -287,7 +289,7 @@ describe("bot execution — the enumerated multi-group move is executable end to
         expect(allModes.size).toBeGreaterThan(1);
         expect(allModes.has(undefined)).toBe(false);
         const move = castMoves(state, "breach-1").find(
-            (m) => m.chosenModeId === "both"
+            (m) => m.chosenModeIds?.[0] === "both"
         )!;
         const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
         const base = {
@@ -302,7 +304,7 @@ describe("bot execution — the enumerated multi-group move is executable end to
             {
                 ...base,
                 cardInstanceId: move.cardInstanceId,
-                chosenModeId: move.chosenModeId,
+                chosenModeIds: move.chosenModeIds,
             }
         );
 
@@ -353,7 +355,7 @@ describe("bot execution — the enumerated multi-group move is executable end to
             "art-1",
             "ench-1",
         ]);
-        expect(item.chosenModeId).toBe("both");
+        expect(item.chosenModeIds?.[0]).toBe("both");
     });
 
     it("replays a mode-with-no-requirement cast (Prismatic Ward) through the real mutations", async () => {
@@ -361,7 +363,7 @@ describe("bot execution — the enumerated multi-group move is executable end to
         const move = castMoves(state, "ward-1")[0];
         // CR 614.12a (issue #2019) — no mode is announced; the colour pick is
         // raised as the Aura ENTERS, on every entry path.
-        expect(move.chosenModeId).toBeUndefined();
+        expect(move.chosenModeIds?.[0]).toBeUndefined();
         const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
         const base = {
             gameId: "game-1" as Id<"games">,
@@ -374,7 +376,7 @@ describe("bot execution — the enumerated multi-group move is executable end to
             {
                 ...base,
                 cardInstanceId: move.cardInstanceId,
-                chosenModeId: move.chosenModeId,
+                chosenModeIds: move.chosenModeIds,
             }
         );
 
@@ -420,10 +422,10 @@ describe("bot execution — the enumerated multi-group move is executable end to
         const item = after.stack.find((s) => s.card.id === prismaticWard.id)!;
         expect(item).toBeDefined();
         expect((item.targets ?? []).map((t) => t.id)).toEqual(["bears-1"]);
-        expect(item.chosenModeId).toBeUndefined();
+        expect(item.chosenModeIds?.[0]).toBeUndefined();
     });
 
-    it("CR 614.12a — announceCast REJECTS a chosenModeId for an as-enters card (fail-closed)", async () => {
+    it("CR 614.12a — announceCast REJECTS chosenModeIds for an as-enters card (fail-closed)", async () => {
         // The discriminator is the card's own declaration, not "is it a
         // permanent": a stale client that still sends the announcement-time
         // pick is rejected rather than silently double-picking.
@@ -440,7 +442,7 @@ describe("bot execution — the enumerated multi-group move is executable end to
                     gameId: "game-1" as Id<"games">,
                     playerId: "p1",
                     cardInstanceId: "ward-1",
-                    chosenModeId: "W",
+                    chosenModeIds: ["W"],
                 }
             )
         ).rejects.toThrow(/as it enters/i);

@@ -231,7 +231,7 @@ describe("Pentad Prism — 'Remove a charge counter: Add one mana of any color' 
             playerId: "p1",
             cardInstanceId: "prism",
             abilityId: "pentad-prism-any-color",
-            chosenModeId: "add-b",
+            chosenModeIds: ["add-b"],
         });
         // CR 122.6 — the counter is removed as a COST, at announcement.
         expect(prismOnBoard(state).counters?.charge).toBe(1);
@@ -256,7 +256,7 @@ describe("Pentad Prism — 'Remove a charge counter: Add one mana of any color' 
                 playerId: "p1",
                 cardInstanceId: "prism",
                 abilityId: "pentad-prism-any-color",
-                chosenModeId: modeId,
+                chosenModeIds: [modeId],
             });
             resolveTopOfStack(state);
             expect(state.players[0].manaPool[color]).toBe(1);
@@ -271,7 +271,7 @@ describe("Pentad Prism — 'Remove a charge counter: Add one mana of any color' 
                 playerId: "p1",
                 cardInstanceId: "prism",
                 abilityId: "pentad-prism-any-color",
-                chosenModeId: "add-r",
+                chosenModeIds: ["add-r"],
             })
         ).toThrow();
         expect(state.stack).toEqual([]);

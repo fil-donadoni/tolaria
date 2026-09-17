@@ -11,7 +11,7 @@ type StackModeLinesProps = {
  *  players can see which mode is resolving before deciding whether to respond.
  *
  *  Presentational only — the caller supplies `lines` from `getStackModeLines`,
- *  which reads the wire-preserved `chosenModeId`. */
+ *  which reads the wire-preserved `chosenModeIds`. */
 export default function StackModeLines({ lines }: StackModeLinesProps) {
     return (
         <div

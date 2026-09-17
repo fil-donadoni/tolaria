@@ -119,7 +119,7 @@ describe("modal mode picker closes on cast (Lorehold Charm)", () => {
         expect(announceCast).toHaveBeenCalledTimes(1);
         expect(announceCast.mock.calls[0][0]).toMatchObject({
             cardInstanceId: "charm",
-            chosenModeId: "reanimate",
+            chosenModeIds: ["reanimate"],
         });
         // …and no mode button is left on screen.
         expect(screen.queryByRole("button", { name: /Mode one/ })).toBeNull();

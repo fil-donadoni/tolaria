@@ -126,7 +126,7 @@ describe("Class level bars — Bot reachability (CR 716.2a)", () => {
     it("seam 2 — the bar raises no choice for the Bot to answer", () => {
         const [move] = barMoves(board({ islands: 4 }).state);
         expect(move.targets).toEqual([]);
-        expect(move.chosenModeId).toBeUndefined();
+        expect(move.chosenModeIds?.[0]).toBeUndefined();
     });
 
     it("seam 3 — the card's ability script values above zero, not neutral", () => {

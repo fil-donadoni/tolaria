@@ -63,6 +63,7 @@ import type { GameState } from "../state";
 import type { Move } from "../moves";
 import { tryGetDefinition } from "../../cards";
 import { type Beneficence, opBeneficence } from "./opValuers";
+import { soleChosenModeId } from "../modeSelection";
 
 /** Merge two signs for the same slot. Agreement keeps the sign; disagreement
  *  (a "target player draws a card and loses 2 life" shape) collapses to
@@ -304,7 +305,11 @@ function slotSignerFor(
         // of the same card scored the same way.
         const def = definitionOfInstance(state, move.cardInstanceId);
         if (!def) return undefined;
-        return (slot) => targetSlotBeneficence(def, move.chosenModeId, slot);
+        // ADR 0094 — a slot maps onto one mode only when one was chosen; with
+        // several, the per-instance spans are not on the Move, so no opinion.
+        const modeId = soleChosenModeId(move.chosenModeIds);
+        if ((move.chosenModeIds?.length ?? 0) > 1) return undefined;
+        return (slot) => targetSlotBeneficence(def, modeId, slot);
     }
     if (move.kind === "activate-ability") {
         if (move.targets.length === 0) return undefined;
