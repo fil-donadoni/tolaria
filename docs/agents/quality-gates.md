@@ -206,13 +206,14 @@ Two rules were loosened by ADR 0136 §3, on the 300 PRs of 2026-09-03 → 09-17
 (224 fell to `full`; 40 only for `data/**`, 75 only for prose in a mix, 31
 both; 109 classify as `engine` after the change, against 34 before):
 
-- **`data/**`is engine, not full.** It used to sit in`FULL_PATTERNS`, so the
-two artefacts every card PR regenerates (`data/card-index.json`,
-`data/cr/citations-ledger.json`) sent the whole PR to `check:pr`. What lives
-there is generated or vendored engine input, and the guards that read it —
-`check:index`, `check:oracle`, `cr:lint` — are all in the engine lane
-(`check:oracle`was added to it in the same change: its offline tier is
-header hashes).`data/**`beside`src/**`is still a mixed diff, still`full`.
+- **The `data/` tree is engine, not full.** It used to sit in
+  `FULL_PATTERNS`, so the two artefacts every card PR regenerates
+  (`data/card-index.json`, `data/cr/citations-ledger.json`) sent the whole PR
+  to `check:pr`. What lives there is generated or vendored engine input, and
+  the guards that read it — `check:index`, `check:oracle`, `cr:lint` — are all
+  in the engine lane (`check:oracle` was added to it in the same change: its
+  offline tier is header hashes). A `data/` path beside `src/` is still a
+  mixed diff, still `full`.
 - **Prose rides with the code.** "Prose mixes with nothing" forced `full` on
   any docs path in a non-pure diff. Now the code paths alone decide the lane
   and the plan's run list ENDS with `node[docs]` — `DOC_GATE_TESTS`, the same
