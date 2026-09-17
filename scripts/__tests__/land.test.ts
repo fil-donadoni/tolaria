@@ -447,28 +447,32 @@ describe("land.ts — the locked command", () => {
         expect(step.endsWith("; true)")).toBe(true);
     });
 
-    it("detaches the batch-health decision LAST, with the lock hold scrubbed, non-gating", () => {
+    it("starts the batch-health decision LAST, through `spawn` and never by backgrounding it", () => {
         const cmd = buildLockedCommand(base);
         const step = healthDetachStep("/repo");
         expect(cmd).toContain(step);
-        expect(step).toContain("health-cadence.ts' detach");
-        // Detached: the run takes ~10 min under the mutex this shell is
-        // holding right now, so the shell must be free to release it.
-        expect(step).toContain("nohup");
-        // The hold this locked shell exports is released the moment it exits;
-        // a health run that inherited it would think it already had the mutex.
-        expect(step).toContain("-u TOLARIA_GATE_HELD");
-        expect(step).toContain("-u TOLARIA_ALLOW_FULL_SUITE");
+        expect(step).toContain("health-cadence.ts' spawn");
+        // NOT `nohup … &`, and this is the whole point (issue #3780 review,
+        // finding 1). `gate.ts` runs this locked command `detached`, so the
+        // `sh` around it leads its own process group, and EVERY teardown path
+        // — the ordinary exit handler after a clean child exit included —
+        // SIGKILLs that group (issue #3821). `nohup` does not leave the
+        // process group and neither does `&`, so a decision backgrounded here
+        // dies milliseconds later while `land` reports a green landing: a
+        // feature that looks installed and does nothing. `spawn` re-launches
+        // it through `setsid(2)`, into a session no group signal can reach.
+        // The topology itself is proven in `health-cadence-spawn.test.ts`.
+        expect(step).not.toContain("nohup");
+        expect(step).not.toContain("&)");
         // Last, so the health worktree is not created while the teardown above
         // is removing this one.
         expect(cmd.endsWith(step)).toBe(true);
-        // `|| true` INSIDE the outer parens — a bare `… && (X &) || true`
-        // launders every earlier failure in the chain into a success.
-        expect(step.endsWith("|| true)")).toBe(true);
-        expect(step.startsWith("((cd '/repo' && ")).toBe(true);
+        // Non-gating: the PR is already merged.
+        expect(step.endsWith("; true)")).toBe(true);
+        expect(step.startsWith("(cd '/repo' && ")).toBe(true);
     });
 
-    it("--keep still counts and still detaches — the batch is about the BASE branch, not the worktree", () => {
+    it("--keep still counts and still starts the decision — the batch is about the BASE branch, not the worktree", () => {
         const cmd = buildLockedCommand({ ...base, teardown: false });
         expect(cmd).toContain(recordLandingStep("/repo"));
         expect(cmd).toContain(healthDetachStep("/repo"));

@@ -395,7 +395,11 @@ first un-healthed landing, the last GREEN sha, the current tip:
   so five quick landings cost ONE run, which is the ADR 0116 property that had
   to survive;
 - gates the tip **current at its start**, so one run covers everything that
-  landed while it waited;
+  landed while it waited — and the ledger reconciles against the sha the
+  health RECORD names (`reconcileHealthRun`), never the sha the trigger
+  snapshotted: yielding to queued lands is precisely what advances the tip
+  between the two, so an equality check there would reject the verdict of the
+  run it started and re-fire a full gate on every later landing;
 - **GREEN** prunes every landing up to the gated tip and rewrites `green-sha`;
   **RED** writes the same durable marker as always, which refuses the next
   PICK in `queue:plan` and never the next LAND, and hands the tip to

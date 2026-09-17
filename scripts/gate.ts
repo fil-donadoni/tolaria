@@ -304,7 +304,17 @@ function liveWaiters(): GateWaiter[] {
         }
         if (typeof entry.pid !== "number" || entry.pid === process.pid)
             continue;
-        if (!alive(entry.pid)) {
+        // Dead pid, OR an entry too old to be a real queue. The age bound is
+        // not belt-and-braces: a gate killed while still QUEUED installs no
+        // teardown handler (`installTeardown` runs only once `acquire`
+        // returns), so its entry outlives it, and macOS reuses pids within
+        // hours on a busy machine. One reused pid on a long-lived process and
+        // every batch health run would yield the full bound, for ever. Same
+        // threshold the owner stamp already uses.
+        const stale =
+            typeof entry.since !== "number" ||
+            Date.now() - entry.since > STALE_MS;
+        if (!alive(entry.pid) || stale) {
             try {
                 rmSync(file, { force: true });
             } catch {

@@ -112,8 +112,11 @@ is not, because each of them then debugs a failure that is not theirs.
    after the 5th landing since the last GREEN, or 2 h after the first
    un-healthed landing, whichever comes first; deduplicated by sha; gating
    the base tip CURRENT at its start, so one run covers everything landed
-   meanwhile; it takes the heavy mutex only when no `land` is queued and is
-   never interrupted once running. `bun run release` is unchanged and still
+   meanwhile; it takes the heavy mutex only when no `land` is queued —
+   **bounded**, because at 2.5 PR/h with three sessions there is frequently
+   SOME land queued and an unbounded yield would mean the tip is never gated
+   at all; past the bound (30 min) it takes the mutex with lands still queued
+   — and is never interrupted once running. `bun run release` is unchanged and still
    requires GREEN on the exact tip. A RED marker **refuses the next pick**
    in `queue:plan` and spawns `/health-fix`; `land` warns and proceeds, so a
    session already mid-issue finishes and the fix-forward has a way in.

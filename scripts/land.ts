@@ -757,30 +757,34 @@ export function recordLandingStep(primaryCheckout: string): string {
 }
 
 /**
- * Detach the batch-health DECISION (ADR 0136 §6). Conditional inside the
+ * Start the batch-health DECISION (ADR 0136 §6). Conditional inside the
  * script, not in the shell: `health-cadence detach` re-reads the ledger and
  * the CURRENT tip and holds unless a threshold tripped, so this step is one
  * cheap spawn per landing and the trigger logic stays where it is tested
  * (`lib/health-cadence.ts`) instead of half-living in a shell string.
  *
- * `nohup … &` because the session that triggers health is never the session
- * that waits for it: the run takes ~10 min under the mutex `land` is holding
- * right now, and `land` must be free to release it. `env -u` scrubs the hold
- * this locked shell exports — it is released the moment the shell exits, and
- * a health run that inherited it would think it already had the mutex.
+ * SYNCHRONOUS, and `spawn` rather than `nohup … &` — this is load-bearing and
+ * was got wrong once. `gate.ts` runs this locked command `detached`, so the
+ * `sh` around it leads its own process GROUP, and every teardown path (the
+ * ordinary `exit` handler after a CLEAN child exit included) SIGKILLs that
+ * whole group — `killChildTree`, issue #3821. `nohup` ignores SIGHUP and
+ * redirects output; it does not leave the process group, and neither does
+ * `&`. A health run backgrounded here therefore dies milliseconds later, with
+ * `land` reporting a green landing: measured, the marker a backgrounded
+ * `sleep 4` should have written never appeared. The batch gate would have
+ * looked installed and done nothing, silently, for ever.
  *
- * `|| true` stays INSIDE the outer parens: a bare `… && (X &) || true` step
- * launders every earlier failure in the `&&` chain into a success — the exact
- * precedence bug `VERIFY_MERGED_TIP` documents, and the one the locked
- * command's own laundering test caught the last time this step existed.
+ * So `land` calls `health-cadence.ts spawn`, which re-launches the decision
+ * through node's `spawn(…, { detached: true })` — i.e. `setsid(2)`, a new
+ * SESSION no group signal to `land`'s tree can reach — and returns. ~60 ms,
+ * inside the lock, once per landing.
+ *
+ * `; true` so it can never gate the landing: the PR is already merged.
  */
 export function healthDetachStep(primaryCheckout: string): string {
-    const healthDir = join(primaryCheckout, ".claude/telemetry/health");
     return (
-        `((cd ${shQuote(primaryCheckout)} && mkdir -p ${shQuote(healthDir)} && ` +
-        `nohup env -u TOLARIA_GATE_HELD -u TOLARIA_ALLOW_FULL_SUITE -u TOLARIA_GATE_ROLE ` +
-        `bun ${shQuote(HEALTH_CADENCE)} detach ` +
-        `>> ${shQuote(join(healthDir, "detach.log"))} 2>&1 &) || true)`
+        `(cd ${shQuote(primaryCheckout)} && bun ${shQuote(HEALTH_CADENCE)} spawn || ` +
+        `echo "land: could not start the batch health decision" >&2; true)`
     );
 }
 

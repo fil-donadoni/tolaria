@@ -134,10 +134,13 @@ command so the tree that lands is the tree that was gated:
    issue N; deletes the remote and local branch and removes the worktree
    (`--keep` keeps all three; `--no-merge` stops after step 5).
 
-9. Records the landing in `.claude/telemetry/health/cadence.json` and detaches
-   `scripts/health-cadence.ts detach`, which decides whether the
-   [batch health gate](#g-batch-health) fires. Both non-gating, both outside
-   the lock's critical path.
+9. Records the landing in `.claude/telemetry/health/cadence.json` and starts
+   the [batch health gate](#g-batch-health)'s decision —
+   `scripts/health-cadence.ts spawn`, which re-launches the decision in its own
+   session and returns in ~60 ms. Both steps non-gating. (`spawn`, not
+   `nohup … &`: the locked command's `sh` leads a process group that the gate
+   SIGKILLs on its way out, issue #3821, so anything merely backgrounded here
+   dies with it.)
 
 **No health gate per landing**, and none held by the landing's own lock. A
 landing costs the mutex 3–5 minutes; a landing whose lane is skipped costs only
@@ -162,9 +165,15 @@ BATCH (ADR 0136 §6).
   un-healthed landing**, whichever comes first — and holds otherwise, so the
   step costs one process per landing and nothing else.
 - **Dedup.** By sha, twice over: a tip already GREEN, and a tip health has
-  already been started for. Five quick landings are ONE health run.
+  already been started for (that second stamp expires after 90 min, so a run
+  killed before it wrote a verdict costs one window, not that batch's whole
+  coverage). Five quick landings are ONE health run, and one run is in flight
+  at a time.
 - **Coverage.** It gates the tip current when it starts, not the tip that
-  triggered it, so one run covers everything that landed meanwhile.
+  triggered it, so one run covers everything that landed meanwhile — and the
+  ledger reconciles against the sha the health RECORD names, never the one the
+  trigger saw, because yielding to queued lands is exactly what moves the tip
+  between the two.
 - **Precedence.** It takes the mutex through `gate.ts yield`: it steps aside
   while any `land` is queued, and once it holds the lock nothing interrupts it.
   The stepping aside is **bounded** (`TOLARIA_GATE_YIELD_BOUND_MS`, 30 min), or

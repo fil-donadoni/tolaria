@@ -1,15 +1,19 @@
 import { describe, it, expect } from "vitest";
 import {
     EMPTY_CADENCE,
+    FIRE_DEDUP_MS,
     LANDINGS_PER_BATCH,
     MAX_BATCH_AGE_MS,
     afterFire,
     afterGreen,
+    healthRunInFlight,
     healthTrigger,
     parseCadence,
     recordLanding,
+    reconcileHealthRun,
     serializeCadence,
     type CadenceState,
+    type HealthRecord,
 } from "../lib/health-cadence";
 
 /**
@@ -130,9 +134,11 @@ describe("health cadence — the batch trigger (ADR 0136 §6)", () => {
             state: state({
                 landings: landings(LANDINGS_PER_BATCH),
                 lastFiredSha: "tipF",
+                lastFiredAt: T0,
             }),
             tip: "tipF",
-            now: T0 + MAX_BATCH_AGE_MS,
+            // Inside the dedup window — its expiry is its own describe below.
+            now: T0 + 30 * MIN,
         });
         expect(v.kind).toBe("hold");
         expect(v.reason).toContain("already started");
@@ -144,7 +150,8 @@ describe("health cadence — the batch trigger (ADR 0136 §6)", () => {
         // past the dedup and re-gates immediately (scenario C).
         const after = afterFire(
             state({ landings: landings(LANDINGS_PER_BATCH) }),
-            "tipRed"
+            "tipRed",
+            T0
         );
         expect(
             healthTrigger({ state: after, tip: "tipRed", now: T0 }).kind
@@ -222,7 +229,8 @@ describe("health cadence — the ledger", () => {
     it("round-trips through the file format", () => {
         const s = afterFire(
             afterGreen(state({ landings: landings(3) }), "0".repeat(40), T0),
-            "1".repeat(40)
+            "1".repeat(40),
+            T0
         );
         expect(parseCadence(serializeCadence(s))).toEqual(s);
     });
@@ -238,5 +246,188 @@ describe("health cadence — the ledger", () => {
                 '{"landings":[{"sha":"a","at":1},{"sha":2,"at":3},{"at":4}]}'
             ).landings
         ).toEqual([{ sha: "a", at: 1 }]);
+    });
+});
+
+describe("health cadence — the fire dedup expires (issue #3780 review, finding 9)", () => {
+    const fired = () =>
+        afterFire(
+            state({ landings: landings(LANDINGS_PER_BATCH) }),
+            "tipF",
+            T0
+        );
+
+    it("suppresses a second fire on the same tip inside the window", () => {
+        expect(
+            healthTrigger({
+                state: fired(),
+                tip: "tipF",
+                now: T0 + FIRE_DEDUP_MS - 1,
+            }).kind
+        ).toBe("hold");
+    });
+
+    it("fires again once the window passes — a run that died leaves no permanent wedge", () => {
+        // A reboot, a `gate:who` reclaim, a machine asleep: the run never
+        // wrote a verdict, so nothing clears the stamp. Without an expiry that
+        // batch is never gated at all — the exposure ADR 0136 §6 bounds at
+        // "≤ 5 landings or 2 h" becomes unbounded.
+        expect(
+            healthTrigger({
+                state: fired(),
+                tip: "tipF",
+                now: T0 + FIRE_DEDUP_MS,
+            }).kind
+        ).toBe("fire");
+    });
+
+    it("a stamp with no timestamp behind it does not suppress anything", () => {
+        // A ledger written by an older build carries `lastFiredSha` and no
+        // `lastFiredAt`. Fail OPEN: gate once more rather than never again.
+        expect(
+            healthTrigger({
+                state: state({
+                    landings: landings(LANDINGS_PER_BATCH),
+                    lastFiredSha: "tipF",
+                    lastFiredAt: null,
+                }),
+                tip: "tipF",
+                now: T0,
+            }).kind
+        ).toBe("fire");
+    });
+});
+
+describe("health cadence — reconciling a finished run (issue #3780 review, finding 2)", () => {
+    const FIRED_AT = T0 + 10 * MIN;
+
+    function record(over: Partial<HealthRecord> = {}): HealthRecord {
+        return {
+            sha: "gated".padEnd(40, "0"),
+            status: "green",
+            startedAt: new Date(FIRED_AT + MIN).toISOString(),
+            ...over,
+        };
+    }
+
+    it("adopts the sha the RECORD names, not the one the fire snapshotted", () => {
+        // THE defect this function exists for. `detach` snapshots the tip,
+        // stamps it, then yields to queued lands — each of which advances the
+        // tip — and `health-main` gates whatever is current when it finally
+        // runs, which is what ADR 0136 §6 asks for. An equality check against
+        // the snapshot rejects the verdict of the run it started: nothing is
+        // pruned, `lastGreenSha` is never written, and every later landing
+        // fires another ~10 min full gate — the ADR 0110 regime, silently.
+        const s = state({ landings: landings(6) });
+        const gated = s.landings[3].sha; // the tip moved on past the snapshot
+        const action = reconcileHealthRun(s, {
+            last: record({ sha: gated }),
+            firedAt: FIRED_AT,
+        });
+        expect(action.kind).toBe("green");
+        if (action.kind !== "green") return;
+        expect(action.sha).toBe(gated);
+        expect(action.state.lastGreenSha).toBe(gated);
+        // …and it prunes exactly what that tip covers.
+        expect(action.state.landings.map((l) => l.sha)).toEqual(
+            s.landings.slice(4).map((l) => l.sha)
+        );
+    });
+
+    it("adopts a GREEN whoever produced it, and reconciles it only once", () => {
+        // `bun run release`, or a concurrent run, proving the tip is not a
+        // reason to re-prove it.
+        const s = state({ landings: landings(3) });
+        const first = reconcileHealthRun(s, {
+            last: record({ sha: "x".repeat(40) }),
+            firedAt: FIRED_AT,
+        });
+        expect(first.kind).toBe("green");
+        if (first.kind !== "green") return;
+        expect(
+            reconcileHealthRun(first.state, {
+                last: record({ sha: "x".repeat(40) }),
+                firedAt: FIRED_AT,
+            }).kind
+        ).toBe("none");
+    });
+
+    it("hands over a RED that started at or after the fire, and stamps the sha it gated", () => {
+        const s = state({ landings: landings(LANDINGS_PER_BATCH) });
+        const action = reconcileHealthRun(s, {
+            last: record({ status: "red", failedStep: "test" }),
+            firedAt: FIRED_AT,
+        });
+        expect(action.kind).toBe("red");
+        if (action.kind !== "red") return;
+        expect(action.reason).toContain("test");
+        expect(action.state.lastFiredSha).toBe(action.sha);
+        // The counter is NOT reset on RED — the fix-forward's landing is what
+        // gets gated next.
+        expect(action.state.landings).toHaveLength(LANDINGS_PER_BATCH);
+    });
+
+    it("does not re-hand-over a RED that predates this run", () => {
+        expect(
+            reconcileHealthRun(state({ landings: landings(2) }), {
+                last: record({
+                    status: "red",
+                    startedAt: new Date(FIRED_AT - MIN).toISOString(),
+                }),
+                firedAt: FIRED_AT,
+            }).kind
+        ).toBe("none");
+    });
+
+    it("does nothing on a missing, unparseable or still-running record", () => {
+        const at = { firedAt: FIRED_AT };
+        expect(
+            reconcileHealthRun(EMPTY_CADENCE, { last: null, ...at }).kind
+        ).toBe("none");
+        expect(
+            reconcileHealthRun(EMPTY_CADENCE, {
+                last: record({ startedAt: "not a date" }),
+                ...at,
+            }).kind
+        ).toBe("none");
+        expect(
+            reconcileHealthRun(EMPTY_CADENCE, {
+                last: record({ status: "running" }),
+                ...at,
+            }).kind
+        ).toBe("none");
+    });
+});
+
+describe("health cadence — one run in flight at a time (issue #3780 review, finding 10)", () => {
+    const running = (startedAt: number): HealthRecord => ({
+        sha: "r".repeat(40),
+        status: "running",
+        startedAt: new Date(startedAt).toISOString(),
+    });
+
+    it("holds while a run is in flight, whatever sha it is about", () => {
+        // RED refuses the next PICK but not the next LAND, so the sessions
+        // already mid-issue each land on a new tip — past both dedup checks.
+        // Without this, each of those landings pays a full ~10 min gate.
+        expect(healthRunInFlight(running(T0), T0 + MIN)).toContain("in flight");
+    });
+
+    it("ignores a `running` record too old to be a live run", () => {
+        expect(healthRunInFlight(running(T0), T0 + FIRE_DEDUP_MS)).toBeNull();
+    });
+
+    it("says nothing about a terminal record or no record at all", () => {
+        expect(healthRunInFlight(null, T0)).toBeNull();
+        expect(
+            healthRunInFlight(
+                {
+                    sha: "a",
+                    status: "green",
+                    startedAt: new Date(T0).toISOString(),
+                },
+                T0 + MIN
+            )
+        ).toBeNull();
     });
 });

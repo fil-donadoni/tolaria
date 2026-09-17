@@ -40,18 +40,28 @@ export interface CadenceState {
     lastGreenSha: string | null;
     /** The sha health was last STARTED for — the dedup key (ADR 0136 §6). */
     lastFiredSha: string | null;
+    /** When that fire happened. The dedup EXPIRES: a run that never wrote a
+     *  verdict — a reboot, a `gate:who` reclaim, a machine asleep — would
+     *  otherwise wedge that tip's batch for ever, which is precisely the
+     *  exposure §6 bounds at "≤ 5 landings or 2 h". */
+    lastFiredAt: number | null;
 }
 
 export const EMPTY_CADENCE: CadenceState = {
     landings: [],
     lastGreenSha: null,
     lastFiredSha: null,
+    lastFiredAt: null,
 };
 
 /** Landings since the last GREEN after which the batch gate fires. */
 export const LANDINGS_PER_BATCH = 5;
 /** Age of the FIRST un-healthed landing after which it fires regardless. */
 export const MAX_BATCH_AGE_MS = 2 * 60 * 60 * 1000;
+/** How long a fire suppresses another on the same tip. The same 90 minutes
+ *  `health-main.ts` gives its own `running` record, and for the same reason:
+ *  past it, a run that left no verdict is assumed gone rather than slow. */
+export const FIRE_DEDUP_MS = 90 * 60 * 1000;
 
 export type CadenceVerdict =
     | {
@@ -71,6 +81,7 @@ export interface TriggerInput {
     now: number;
     landingsPerBatch?: number;
     maxAgeMs?: number;
+    fireDedupMs?: number;
 }
 
 function short(sha: string): string {
@@ -106,6 +117,7 @@ export function healthTrigger(input: TriggerInput): CadenceVerdict {
         now,
         landingsPerBatch = LANDINGS_PER_BATCH,
         maxAgeMs = MAX_BATCH_AGE_MS,
+        fireDedupMs = FIRE_DEDUP_MS,
     } = input;
 
     if (state.landings.length === 0)
@@ -115,7 +127,11 @@ export function healthTrigger(input: TriggerInput): CadenceVerdict {
             kind: "hold",
             reason: `tip ${short(tip)} is already GREEN`,
         };
-    if (tip === state.lastFiredSha)
+    if (
+        tip === state.lastFiredSha &&
+        state.lastFiredAt !== null &&
+        now - state.lastFiredAt < fireDedupMs
+    )
         return {
             kind: "hold",
             reason: `health already started for tip ${short(tip)}`,
@@ -161,9 +177,15 @@ export function recordLanding(
 }
 
 /** Health has been started for `sha` — the dedup stamp, written BEFORE the
- *  gate runs so a second detach on the same tip holds even while it runs. */
-export function afterFire(state: CadenceState, sha: string): CadenceState {
-    return { ...state, lastFiredSha: sha };
+ *  gate runs so a second detach on the same tip holds even while it runs. It
+ *  expires (`FIRE_DEDUP_MS`), so a fire that dies without a verdict costs one
+ *  dedup window rather than that batch's whole coverage. */
+export function afterFire(
+    state: CadenceState,
+    sha: string,
+    at: number
+): CadenceState {
+    return { ...state, lastFiredSha: sha, lastFiredAt: at };
 }
 
 /**
@@ -174,8 +196,10 @@ export function afterFire(state: CadenceState, sha: string): CadenceState {
  * while it ran (scenario B, #6–#11). The gated tip is normally one of the
  * recorded landings, and everything up to and including it is covered; when it
  * is not (a push that did not come through `land`), `startedAt` is the
- * fallback cut — a landing recorded after the run began is a descendant of the
- * gated tip and stays un-healthed.
+ * fallback cut — a landing recorded at or after the run began is a descendant
+ * of the gated tip and stays un-healthed. The boundary keeps the landing
+ * rather than dropping it: an un-healthed landing costs one extra gate, a
+ * landing wrongly marked covered costs the coverage this file exists for.
  */
 export function afterGreen(
     state: CadenceState,
@@ -186,7 +210,7 @@ export function afterGreen(
     const landings =
         idx >= 0
             ? state.landings.slice(idx + 1)
-            : state.landings.filter((l) => l.at > startedAt);
+            : state.landings.filter((l) => l.at >= startedAt);
     return { ...state, landings, lastGreenSha: gatedSha };
 }
 
@@ -223,9 +247,125 @@ export function parseCadence(raw: string | null): CadenceState {
             typeof record.lastFiredSha === "string"
                 ? record.lastFiredSha
                 : null,
+        lastFiredAt:
+            typeof record.lastFiredAt === "number" &&
+            Number.isFinite(record.lastFiredAt)
+                ? record.lastFiredAt
+                : null,
     };
 }
 
 export function serializeCadence(state: CadenceState): string {
     return `${JSON.stringify(state, null, 2)}\n`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Reconciling a finished run with the ledger
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The part of `health-main.ts`'s `last.json` this module reasons about. */
+export interface HealthRecord {
+    sha: string;
+    status: "running" | "green" | "red";
+    /** ISO, as `health-main.ts` writes it. */
+    startedAt: string;
+    failedStep?: string;
+}
+
+export type ReconcileAction =
+    | { kind: "green"; state: CadenceState; sha: string; reason: string }
+    | { kind: "red"; state: CadenceState; sha: string; reason: string }
+    | { kind: "none"; reason: string };
+
+/**
+ * What a finished health run does to the ledger.
+ *
+ * **The gated sha is the RECORD's, never the one the fire snapshotted.** That
+ * is the whole point of this function. `health-cadence detach` reads the tip,
+ * stamps it, and then queues on the mutex — deliberately stepping aside for
+ * queued lands, each of which ADVANCES the tip. By the time `health-main` runs
+ * it re-resolves `origin/<base>` and gates whatever is current, which is
+ * exactly what ADR 0136 §6 asks for ("gating the base tip CURRENT at its
+ * start, so one run covers everything landed meanwhile") and is routinely NOT
+ * the sha the fire saw. An equality check against the snapshot therefore
+ * rejects the verdict of the very run it started: `lastGreenSha` is never
+ * written, nothing is pruned, and the next landing fires another full gate —
+ * the ADR 0110 regime, one ~10 min gate per landing, reinstated silently.
+ * Scenario B in `docs/guides/next-issue-flow.md` § 2 is that case verbatim.
+ *
+ * A GREEN is adopted whoever produced it: a proven tip is proven, and a
+ * concurrent run or `bun run release` proving it is not a reason to re-prove
+ * it. A RED is only OURS to hand over if the record started at or after the
+ * fire — an older RED marker has already been handed over once.
+ */
+export function reconcileHealthRun(
+    state: CadenceState,
+    input: { last: HealthRecord | null; firedAt: number }
+): ReconcileAction {
+    const { last, firedAt } = input;
+    if (last === null) return { kind: "none", reason: "no health record" };
+    const startedAt = Date.parse(last.startedAt);
+    if (!Number.isFinite(startedAt))
+        return {
+            kind: "none",
+            reason: `health record for ${short(last.sha)} has an unreadable startedAt`,
+        };
+    if (last.status === "running")
+        return {
+            kind: "none",
+            reason: `${short(last.sha)} is still being gated`,
+        };
+    if (last.status === "green") {
+        if (last.sha === state.lastGreenSha)
+            return {
+                kind: "none",
+                reason: `${short(last.sha)} was already reconciled`,
+            };
+        return {
+            kind: "green",
+            sha: last.sha,
+            state: afterFire(
+                afterGreen(state, last.sha, startedAt),
+                last.sha,
+                startedAt
+            ),
+            reason: `GREEN @ ${short(last.sha)} — batch reset`,
+        };
+    }
+    if (startedAt < firedAt)
+        return {
+            kind: "none",
+            reason: `the RED record about ${short(last.sha)} predates this run`,
+        };
+    return {
+        kind: "red",
+        sha: last.sha,
+        state: afterFire(state, last.sha, startedAt),
+        reason: `RED @ ${short(last.sha)}${last.failedStep ? ` (${last.failedStep})` : ""}`,
+    };
+}
+
+/**
+ * Is a health run already in flight? Then hold, whatever the ledger says and
+ * whatever sha that run is about.
+ *
+ * Without this, the RED window costs a full gate per landing: RED refuses the
+ * next PICK but not the next LAND, so the two or three sessions already
+ * mid-issue each land, each lands on a new tip, and each new tip clears both
+ * dedup checks. Up to ~30 mutex-minutes exactly when throughput matters most.
+ * One run at a time is the invariant; the counter still is not reset on RED,
+ * so the fix-forward is still gated as soon as the current run is done.
+ *
+ * `staleMs` mirrors `health-main.ts`'s own `STALE_RUNNING_MS`: a `running`
+ * record older than that belongs to a run that died.
+ */
+export function healthRunInFlight(
+    last: HealthRecord | null,
+    now: number,
+    staleMs: number = FIRE_DEDUP_MS
+): string | null {
+    if (last === null || last.status !== "running") return null;
+    const startedAt = Date.parse(last.startedAt);
+    if (!Number.isFinite(startedAt) || now - startedAt >= staleMs) return null;
+    return `a health run on ${short(last.sha)} is already in flight`;
 }
