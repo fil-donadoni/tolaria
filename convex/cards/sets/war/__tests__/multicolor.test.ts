@@ -563,8 +563,8 @@ describe("Saheeli, Sublime Artificer — −2 copy until end of turn (CR 707.2 /
                 abilityId: MINUS2,
             })
         ).toThrow(/legal targets/);
-        // Nothing committed: no pending target, and the loyalty is unpaid
-        // (CR 606.5).
+        // Nothing committed: no pending target, and the loyalty COST — putting
+        // on or removing loyalty counters (CR 606.4) — is unpaid.
         expect(state.pendingTarget).toBeUndefined();
         expect(onBattlefield(state, "saheeli1").counters?.loyalty).toBe(5);
     });
