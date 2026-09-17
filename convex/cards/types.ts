@@ -11220,13 +11220,13 @@ export interface TriggeredAbility {
      *  resolution-time pick has no response window and cannot lock a target at
      *  announcement. */
     modes?: AbilityMode[];
-    /** Zone the source must be in for this ability to be scanned (CR 603.6e —
-     *  abilities that function while the card is in a zone other than the
-     *  battlefield). Defaults to the battlefield when omitted. `"graveyard"`
+    /** Zone the source must be in for this ability to be scanned (CR 113.6b —
+     *  an ability that states which zones it functions in functions only from
+     *  those zones). Defaults to the battlefield when omitted. `"graveyard"`
      *  opts the card into `collectTriggers`' graveyard scan path (Nether
      *  Shadow's upkeep self-reanimation). */
     zone?: "graveyard";
-    /** CR 603.6e (issue #2319) — this ability functions while its own card is
+    /** CR 113.6k (issue #2319) — this ability functions while its own card is
      *  ON THE STACK as a spell, so it must be scanned there rather than on the
      *  battlefield: "When you cast this spell, …" (Emrakul, the Aeons Torn's
      *  extra turn; Mana Vortex's counter-unless-you-sacrifice-a-land).

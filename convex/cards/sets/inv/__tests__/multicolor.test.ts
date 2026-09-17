@@ -3541,3 +3541,170 @@ describe.each([
         });
     }
 );
+
+// ---------------------------------------------------------------------------
+// Pyre Zombie (issue #1419)
+//
+// Pure-DSL card over already-exercised Ops, but two things the per-Op regime
+// cannot prove are pinned here. (1) The CR 603.4 intervening-if: the
+// `zone: "graveyard"` scan gates only the moment the ability fires, and only
+// the DECLARED `interveningIf` reaches the resolution-time re-check — a card
+// exiled off the graveyard in response must fizzle the trigger rather than
+// bill {1}{B}{B} for a no-op self-return. (2) The sac ability's board outcome
+// through `projectPublicState`, which is the surface the client actually reads.
+const pyreZombie = getDefinition("6c030108-2995-4fb0-9b80-efdfdd0f11e0");
+
+describe("Pyre Zombie (CR 113.6m graveyard upkeep recursion; CR 602.1 sac-for-damage)", () => {
+    const UPKEEP_RETURN = "pyre-zombie-upkeep-return";
+    const SAC_DAMAGE = "pyre-zombie-sac-damage";
+
+    const upkeep = {
+        type: "PHASE_BEGIN" as const,
+        phase: "UPKEEP" as const,
+        activePlayerId: "p1",
+    };
+
+    function gyState(): GameState {
+        const zombie = makeInstance(pyreZombie.id, {
+            id: "zombie",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        return makeState({
+            activePlayerId: "p1",
+            phase: "UPKEEP",
+            players: [
+                makePlayer("p1", { graveyard: [zombie], manaPool: { B: 3 } }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    it("triggers on its controller's upkeep from the graveyard", () => {
+        const state = gyState();
+        const triggers = collectTriggers(state, [upkeep]);
+        expect(triggers).toHaveLength(1);
+        expect(triggers[0].triggeredAbilityId).toBe(UPKEEP_RETURN);
+    });
+
+    it("does NOT trigger on the opponent's upkeep", () => {
+        const state = gyState();
+        expect(
+            collectTriggers(state, [{ ...upkeep, activePlayerId: "p2" }])
+        ).toHaveLength(0);
+    });
+
+    it("does NOT trigger while it sits on the battlefield", () => {
+        const zombie = makeInstance(pyreZombie.id, {
+            id: "zombie",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            activePlayerId: "p1",
+            phase: "UPKEEP",
+            players: [
+                makePlayer("p1", { battlefield: [zombie] }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(collectTriggers(state, [upkeep])).toHaveLength(0);
+    });
+
+    it("returns itself to hand for {1}{B}{B} when the payment is accepted", () => {
+        const state = gyState();
+        state.stack.push(...collectTriggers(state, [upkeep]));
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on may-pay
+
+        const pending = state.pendingChoices![0];
+        expect(pending.kind).toBe("may-pay");
+        expect(pending.cost).toMatchObject({ X: 1, B: 2 });
+
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        const p1 = state.players[0];
+        expect(p1.manaPool.B).toBe(0);
+        expect(p1.hand.some((c) => c.id === "zombie")).toBe(true);
+        expect(p1.graveyard.some((c) => c.id === "zombie")).toBe(false);
+    });
+
+    it("stays in the graveyard and spends no mana when declined", () => {
+        const state = gyState();
+        state.stack.push(...collectTriggers(state, [upkeep]));
+        resolveTopOfStack(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        const p1 = state.players[0];
+        expect(p1.manaPool.B).toBe(3);
+        expect(p1.graveyard.some((c) => c.id === "zombie")).toBe(true);
+        expect(p1.hand.some((c) => c.id === "zombie")).toBe(false);
+    });
+
+    it("fizzles without offering the payment when it leaves the graveyard in response (CR 603.4)", () => {
+        const state = gyState();
+        state.stack.push(...collectTriggers(state, [upkeep]));
+
+        // In response, the card is exiled off the graveyard. The
+        // intervening-if is false as the trigger resolves, so it leaves the
+        // stack doing nothing — no prompt, no mana spent.
+        const p1 = state.players[0];
+        const [exiled] = p1.graveyard.splice(0, 1);
+        p1.exile = [...(p1.exile ?? []), { ...exiled, zone: "exile" }];
+
+        expect(resolveTopOfStack(state)).not.toBeNull();
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(p1.manaPool.B).toBe(3);
+        expect(p1.hand.some((c) => c.id === "zombie")).toBe(false);
+        expect(p1.exile.some((c) => c.id === "zombie")).toBe(true);
+    });
+
+    it("the sac ability deals a fixed 2 damage to any target (CR 120.1)", () => {
+        const zombie = makeInstance(pyreZombie.id, {
+            id: "zombie",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [zombie] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.players[1].life = 20;
+        resolveActivated(state, zombie, SAC_DAMAGE, [
+            { type: "player", id: "p2" },
+        ]);
+        expect(state.players[1].life).toBe(18);
+    });
+
+    it("wire format: the damage the sac ability dealt survives the projection", () => {
+        const zombie = makeInstance(pyreZombie.id, {
+            id: "zombie",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const foe = makeInstance(airElemental.id, {
+            id: "foe",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [zombie] }),
+                makePlayer("p2", { battlefield: [foe] }),
+            ],
+        });
+        resolveActivated(state, zombie, SAC_DAMAGE, [
+            { type: "permanent", id: "foe" },
+        ]);
+        const projected = projectPublicState(state, 1, "p1");
+        const slimFoe = projected.players[1].battlefield.find(
+            (c) => c.id === "foe"
+        )!;
+        expect(slimFoe.damageMarked).toBe(2);
+        expect(
+            getEffectiveToughness(projected, slimFoe) -
+                (slimFoe.damageMarked ?? 0)
+        ).toBe(2);
+    });
+});

@@ -32,7 +32,7 @@ const gristTheHungerTide = getDefinition(
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 const xantidSwarm = getDefinition("6a87911a-3931-46aa-9348-2728c4b73b96");
 
-describe("Master of Death (CR 701.25 ETB surveil 2; CR 603.6e graveyard-zone upkeep return for 1 life)", () => {
+describe("Master of Death (CR 701.25 ETB surveil 2; CR 113.6m graveyard-zone upkeep return for 1 life)", () => {
     function gyState(): GameState {
         const mod = makeInstance(masterOfDeath.id, {
             id: "mod",
@@ -95,6 +95,26 @@ describe("Master of Death (CR 701.25 ETB surveil 2; CR 603.6e graveyard-zone upk
         expect(p1.life).toBe(20);
         expect(p1.graveyard.some((c) => c.id === "mod")).toBe(true);
         expect(p1.hand.some((c) => c.id === "mod")).toBe(false);
+    });
+
+    it("fizzles without offering the payment when the card leaves the graveyard in response (CR 603.4)", () => {
+        const state = gyState();
+        state.players[0].life = 20;
+        state.stack.push(...collectTriggers(state, [upkeep]));
+
+        // In response, an opponent exiles Master of Death off the graveyard.
+        // The intervening-if is false as the ability resolves, so it leaves
+        // the stack doing nothing — no life paid, no may-pay prompt raised.
+        const p1 = state.players[0];
+        const [exiled] = p1.graveyard.splice(0, 1);
+        p1.exile = [...(p1.exile ?? []), { ...exiled, zone: "exile" }];
+
+        expect(resolveTopOfStack(state)).not.toBeNull();
+        expect(state.stack).toHaveLength(0);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(p1.life).toBe(20);
+        expect(p1.hand.some((c) => c.id === "mod")).toBe(false);
+        expect(p1.exile.some((c) => c.id === "mod")).toBe(true);
     });
 });
 

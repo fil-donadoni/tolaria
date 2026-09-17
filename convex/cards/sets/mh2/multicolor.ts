@@ -8,6 +8,7 @@ import type {
 import { countDomain, EFFECT_AFFECTS_SELF } from "../../types";
 import { INSECT_TOKEN, literalTokenPT } from "../../sharedTokens";
 import { tokenPrintIdFor } from "../../tokenPrintLookup";
+import { cardIsInOwnerGraveyard } from "../../graveyardOrder";
 import { attacksTrigger } from "../../abilities/triggers/attacksTrigger";
 
 // Master of Death — {1}{U}{B} Creature — Zombie Wizard, 3/1. "When this
@@ -18,12 +19,13 @@ import { attacksTrigger } from "../../abilities/triggers/attacksTrigger";
 //   - ETB surveil 2 (CR 701.25): the `scryReorder` Op with `destination:
 //     "graveyard"` and `count: 2`, the same shape as the MKM surveil-land
 //     cycle (mkm/colorless.ts) and Consider (mid/blue.ts).
-//   - Graveyard-zone upkeep recursion (CR 603.6e — `zone: "graveyard"`
-//     triggered ability, Squee, Goblin Nabob's shape in mmq/red.ts, CR 117.3a
-//     optional cost): `mayPay(cost: { life: 1 })` gates the `moveZone`
-//     graveyard → hand self-return on the "if you do" clause. The "if this
-//     card is in your graveyard" intervening-if is carried by the graveyard
-//     zone scan itself.
+//   - Graveyard-zone upkeep recursion (CR 113.6m — an ability whose effect
+//     moves the card out of a zone functions only in that zone, so the
+//     triggered ability opts into the graveyard scan via `zone: "graveyard"`;
+//     Squee, Goblin Nabob's shape in mmq/red.ts): `mayPay(cost: { life: 1 })`
+//     gates the `moveZone` graveyard → hand self-return on the "if you do"
+//     clause. The "if this card is in your graveyard" intervening-if is a
+//     declared `interveningIf` (CR 603.4) — see the note on the ability.
 export const masterOfDeath: CardDefinition = {
     id: "b9775175-6763-4826-afc8-dc520a235c36",
     name: "Master of Death",
@@ -59,10 +61,20 @@ export const masterOfDeath: CardDefinition = {
                 "At the beginning of your upkeep, if this card is in your graveyard, you may pay 1 life. If you do, return it to your hand.",
             event: "PHASE_BEGIN",
             zone: "graveyard",
-            matches: (event, self) =>
+            matches: (event, self, state) =>
                 event.type === "PHASE_BEGIN" &&
                 event.phase === "UPKEEP" &&
-                event.activePlayerId === self.controllerId,
+                event.activePlayerId === self.controllerId &&
+                cardIsInOwnerGraveyard(state, self),
+            // CR 603.4 — "if this card is in your graveyard" is an
+            // intervening-if, re-checked as the ability RESOLVES and not only
+            // when it fires. The graveyard zone scan supplies the first check;
+            // only a declared predicate reaches the second, so without this a
+            // response that exiles the card off the graveyard still charged the
+            // life for a no-op self-return. Shared with Pyre Zombie
+            // (`inv/multicolor.ts`), the other card on this Oracle sentence.
+            interveningIf: (_event, self, state) =>
+                cardIsInOwnerGraveyard(state, self),
             effects: [
                 {
                     op: "mayPay",

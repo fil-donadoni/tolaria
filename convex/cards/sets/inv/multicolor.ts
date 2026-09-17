@@ -27,6 +27,8 @@ import { colorChoiceModes } from "../../abilities/chooseColor";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { additionalCostPaidCondition } from "../../abilities/triggers/shared";
+import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
+import { cardIsInOwnerGraveyard } from "../../graveyardOrder";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Domain cluster (parent PRD #1063, issue #1066)
@@ -1619,10 +1621,14 @@ export const shivanEmissary: CardDefinition = {
 // `gre/protection.ts` the CHARACTERISTIC quality form) — both are live
 // `CardDefinition`s in this file, Tsabo Tavoc just below.
 //
-// Still deferred: Cauldron Dance (#1418) and Pyre Zombie (#1419), whose
-// engine blockers turned out to be already closed — both are now plain card
-// work; Cinder Shade (#1417), the one genuine surviving engine gap; and Void
-// (#1421 + #2150), which needs two capabilities that do not exist yet.
+// Also shipped since: Pyre Zombie (#1419) — its "no triggered-ability
+// graveyard scan variant exists" premise was wrong, not merely stale, and it
+// is a live `CardDefinition` below.
+//
+// Still deferred: Cauldron Dance (#1418), whose engine blocker turned out to
+// be already closed — plain card work now; Cinder Shade (#1417), the one
+// genuine surviving engine gap; and Void (#1421 + #2150), which needs two
+// capabilities that do not exist yet.
 // ─────────────────────────────────────────────────────────────────────────
 
 // Cauldron Dance — {4}{B}{R} Instant. "Cast this spell only during combat.
@@ -1659,21 +1665,90 @@ export const shivanEmissary: CardDefinition = {
 // Supplicant `ice/green.ts`, `resolve()`-only for want of a DSL skin.
 // "Never ship silent partials" means the whole card waits.
 
-// Pyre Zombie — {1}{B}{R} Creature — Zombie, 2/1. "At the beginning of your
-// upkeep, if this card is in your graveyard, you may pay {1}{B}{B}. If you
-// do, return it to your hand. {1}{R}{R}, Sacrifice this creature: It deals
-// 2 damage to any target." tracked-by: #1419 — the original premise was
-// simply WRONG, not merely stale: it claimed "no triggered-ability graveyard
-// scan variant exists". `collectTriggers` (`gre/triggers.ts`) scans graveyard
-// cards for `zone: "graveyard"` abilities against the ENTIRE event batch with
-// no event-type restriction, so a CR 603.6e upkeep trigger from the graveyard
-// fires. **Master of Death** (`mh2/multicolor.ts`) ships the identical Oracle
-// sentence in pure DSL — `zone: "graveyard"` + `event: "PHASE_BEGIN"` with an
-// UPKEEP/active-player `matches`, then `mayPay(bind)` → `if` →
-// `moveZone({ ref: "$source" }, to: "hand")` — differing from Pyre Zombie only
-// in the cost (1 life vs {1}{B}{B}, both shapes `mayPay` accepts). The
-// battlefield sac-for-damage half is a free fixed-amount `dealDamage`: no
-// power reference, so it never touched the Cinder Shade gap above.
+// Pyre Zombie — {1}{B}{R} Creature — Zombie, 2/1 (INV 261). Both halves are
+// Effect Scripts (ADR 0045) over already-exercised Ops.
+//
+//   * Upkeep recursion — a `zone: "graveyard"` `phaseTrigger`, `scope: "your"`.
+//     The ability functions from the graveyard because its effect moves the
+//     card out of that zone (CR 113.6m, the Reassembling Skeleton example), and
+//     `collectTriggers` scans graveyard cards that opt in via `zone`. The
+//     "if this card is in your graveyard" clause is an intervening-if
+//     (CR 603.4), so it is DECLARED as `interveningIf` rather than left to the
+//     zone scan: the scan gates only the moment the ability fires, while
+//     CR 603.4 also requires the condition re-checked as the ability RESOLVES.
+//     Only a declared predicate reaches that second check, so without it an
+//     opponent exiling the card off the graveyard in response would still get
+//     the {1}{B}{B} charged for a no-op self-return. `mayPay` with a bare
+//     `ManaCost` gates the `moveZone({ ref: "$source" }, to: "hand")` on the
+//     "if you do" clause — Master of Death's shape (`mh2/multicolor.ts`), which
+//     differs only in the cost (1 life) and now shares this predicate.
+//   * Sacrifice-for-damage — Mogg Fanatic's shape (`tmp/red.ts`): the mana leg
+//     plus `sacrifice: true` as the activation cost (CR 602.1), then a single
+//     `dealDamage` to the announced any-target (CR 120.1). The amount is a
+//     FIXED 2 — it never reads the sacrificed creature's own power, so this
+//     half never touched the Cinder Shade last-known-information gap above
+//     (#1417), which the original roll-up had bundled it with.
+//
+// compiler-gap: "At the beginning of your upkeep, if this card is in your graveyard, you may pay {1}{B}{B}. If you do, return it to your hand." (#2693)
+// compiler-gap: "{1}{R}{R}, Sacrifice this creature: It deals 2 damage to any target." (#2693)
+export const pyreZombie: CardDefinition = {
+    id: "6c030108-2995-4fb0-9b80-efdfdd0f11e0", // INV 261
+    rarity: "rare",
+    name: "Pyre Zombie",
+    oracleText:
+        "At the beginning of your upkeep, if this card is in your graveyard, you may pay {1}{B}{B}. If you do, return it to your hand.\n{1}{R}{R}, Sacrifice this creature: It deals 2 damage to any target.",
+    manaCost: { X: 1, B: 1, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Zombie"],
+    power: 2,
+    toughness: 1,
+    triggeredAbilities: [
+        phaseTrigger({
+            id: "pyre-zombie-upkeep-return",
+            oracleText:
+                "At the beginning of your upkeep, if this card is in your graveyard, you may pay {1}{B}{B}. If you do, return it to your hand.",
+            phase: "UPKEEP",
+            scope: "your",
+            zone: "graveyard",
+            // CR 603.4 intervening-if — checked when the ability would fire AND
+            // again as it resolves, so a response that moves the card off the
+            // graveyard fizzles the trigger instead of billing for nothing.
+            interveningIf: (_event, self, state) =>
+                cardIsInOwnerGraveyard(state, self),
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
+                    cost: { X: 1, B: 2 },
+                    prompt: "Pay {1}{B}{B} to return Pyre Zombie to your hand?",
+                    bind: "$return",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$return" },
+                    then: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$source" },
+                            to: "hand",
+                        },
+                    ],
+                },
+            ],
+        }),
+    ],
+    activatedAbilities: [
+        {
+            id: "pyre-zombie-sac-damage",
+            oracleText:
+                "{1}{R}{R}, Sacrifice this creature: It deals 2 damage to any target.",
+            cost: { mana: { X: 1, R: 2 }, sacrifice: true },
+            useStack: true,
+            targetRequirement: { type: "any", count: 1 },
+            effects: [{ op: "dealDamage", amount: 2, to: { target: 0 } }],
+        },
+    ],
+};
 
 // Tsabo Tavoc — {5}{B}{R} Legendary Creature — Phyrexian Horror, 7/4.
 // "First strike, protection from legendary creatures. {B}{B}, {T}: Destroy

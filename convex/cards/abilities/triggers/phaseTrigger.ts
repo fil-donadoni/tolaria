@@ -45,9 +45,12 @@ export interface PhaseTriggerArgs {
     oracleText: string;
     /** Which step's PHASE_BEGIN to listen for (CR 500.1). */
     phase: Phase;
-    /** Zone the source must be in to be scanned (CR 603.6e). Defaults to the
-     *  battlefield; set `"graveyard"` for upkeep triggers that fire while the
-     *  card sits in the graveyard (Nether Shadow). */
+    /** Zone the source must be in to be scanned (CR 113.6b — an ability that
+     *  states which zones it functions in functions only from those zones).
+     *  Defaults to the battlefield; set `"graveyard"` for upkeep triggers that
+     *  fire while the card sits in the graveyard (Nether Shadow, Pyre Zombie —
+     *  both of whose effects move the card OUT of the graveyard, which is what
+     *  puts the ability there in the first place, CR 113.6m). */
     zone?: "graveyard";
     /** CR 603.3d (issue #1193) — announcement-time target requirement for a
      *  TARGETED phase trigger (Reya Dawnbringer's "you may return target
