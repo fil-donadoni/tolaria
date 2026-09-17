@@ -26532,6 +26532,14 @@
         "firstPrintSet": "arn"
     },
     {
+        "name": "Pyre Zombie",
+        "scryfallId": "6c030108-2995-4fb0-9b80-efdfdd0f11e0",
+        "oracleId": "accb82be-4f90-4d9a-bafd-f8de3622b3a3",
+        "firstSet": "inv",
+        "firstPrintId": "6c030108-2995-4fb0-9b80-efdfdd0f11e0",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Pyroblast",
         "scryfallId": "c342cac5-08ae-4428-9c2c-f6c5904e54d2",
         "oracleId": "ecc435e2-deb1-420a-a79f-01dd08747314",

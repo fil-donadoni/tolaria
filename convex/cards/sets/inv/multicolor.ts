@@ -1687,7 +1687,10 @@ export const shivanEmissary: CardDefinition = {
 //     `dealDamage` to the announced any-target (CR 120.1). The amount is a
 //     FIXED 2 — it never reads the sacrificed creature's own power, so this
 //     half never touched the Cinder Shade last-known-information gap above
-//     (#1417), which is what the deferral had bundled it with.
+//     (#1417), which the original roll-up had bundled it with.
+//
+// compiler-gap: "At the beginning of your upkeep, if this card is in your graveyard, you may pay {1}{B}{B}. If you do, return it to your hand." (#2693)
+// compiler-gap: "{1}{R}{R}, Sacrifice this creature: It deals 2 damage to any target." (#2693)
 export const pyreZombie: CardDefinition = {
     id: "6c030108-2995-4fb0-9b80-efdfdd0f11e0", // INV 261
     rarity: "rare",
