@@ -16,9 +16,9 @@ import { pinEmptyProjectDir } from "../lib/pin-empty-project-dir";
 /**
  * `telemetry-serve.ts` (#2623) — the request handler extracted from the
  * `Bun.serve` listener so every route is callable with an in-memory
- * `Request`. This suite runs in the `node` vitest project (confirmed by
+ * `Request`. This suite runs in a node vitest project (confirmed by
  * hand: the plain `Bun` global and `bun:sqlite` are BOTH unavailable here —
- * `node[all]`/`bunx vitest run --project node`, `check-lane.ts`'s own
+ * `bunx vitest run --project node-tooling`, `check-lane.ts`'s own
  * command, genuinely executes under Node, not Bun), so nothing here may
  * reference `Bun.*` — `startServer()`'s own `Bun.serve` call is exercised
  * only by the manual check in the PR description, never by this file.

@@ -241,7 +241,16 @@ function runSwapped(
 ): { status: number | null; log: string } {
     const result = spawnSync(
         "bunx",
-        ["vitest", "run", "--project", "node", testFile, "-t", name],
+        [
+            "vitest",
+            "run",
+            // A card test lives under `convex/cards/**`: `node-engine`.
+            "--project",
+            "node-engine",
+            testFile,
+            "-t",
+            name,
+        ],
         {
             cwd: ROOT,
             encoding: "utf8",

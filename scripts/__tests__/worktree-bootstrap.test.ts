@@ -504,7 +504,7 @@ describe("light pre-PR gate", () => {
         // command — never by a positional token, which vitest reads as a path
         // filter. (Issue #2429 appended `&& bun run cr:lint` as a third lane.)
         expect(scripts["check:guards"]).toMatch(
-            /vitest run --project node --project dom(?:\s*&&|\s*"?$)/
+            /vitest run --project node-engine --project node-tooling --project dom(?:\s*&&|\s*"?$)/
         );
     });
 });

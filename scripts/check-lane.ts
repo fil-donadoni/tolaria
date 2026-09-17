@@ -64,6 +64,9 @@ import { resolve } from "node:path";
 import { ORIGIN_BASE } from "./lib/branches";
 import { DOC_GATE_TESTS } from "./lib/doc-gate-tests";
 
+/** The whole node project, as its two fixed partitions (ADR 0136 §5). */
+export const NODE_PARTITIONS = "--project node-engine --project node-tooling";
+
 // ─────────────────────────────────────────────────────────────────────────
 // Path classification
 // ─────────────────────────────────────────────────────────────────────────
@@ -341,7 +344,7 @@ export function classifyLane(
                     reason: "no changed code under src/** — no component, style or asset changed",
                 },
                 {
-                    id: "node[all]",
+                    id: "node-engine+node-tooling",
                     reason: "check:docs runs the node files that READ prose (adr-index, findings, project-skills, resident-context-budget); the rest cannot see a markdown edit",
                 },
             ],
@@ -388,9 +391,11 @@ export function classifyLane(
             // `src-test-env-split.test.ts` lives, the guard against a new
             // `src` test file being selected by neither vitest project — and
             // skin is precisely the lane that adds `src` test files (#2738).
+            // Both node partitions (ADR 0136 §5): the DOM-free `src` tests are
+            // in `node-engine`, that guard is in `node-tooling`.
             {
                 id: "node[src,scripts]",
-                command: "bunx vitest run --project node src/ scripts/",
+                command: `bunx vitest run ${NODE_PARTITIONS} src/ scripts/`,
             },
             { id: "dom", command: "bunx vitest run --project dom" }
         );
@@ -496,12 +501,29 @@ export function classifyLane(
             command:
                 "TOLARIA_BOT_FAST=1 bunx vitest run --project bot-node --project bot-dom",
         },
-        { id: "node[all]", command: "bunx vitest run --project node" }
+        // The FIXED `node-engine` partition, whole (ADR 0136 §5): `convex/**`,
+        // the DOM-free `src` tests, and every `scripts` test that reaches
+        // `convex/` or `data/` (`scripts/test-env-split.ts`).
+        { id: "node-engine", command: "bunx vitest run --project node-engine" }
     );
     skip.push({
         id: "dom",
         reason: "no changed code under src/** — the whole type-check and convex-cards-barrel-mock.test.ts are the backstops (#2738)",
     });
+    // `node-tooling` is admitted by the diff, whole or not at all — the
+    // ADR 0104 admission rule, never a slice: a `scripts/**` edit can red a
+    // tooling test, a `convex/**` or `data/**` edit cannot reach one.
+    if (files.some((p) => p.startsWith("scripts/"))) {
+        run.push({
+            id: "node-tooling",
+            command: "bunx vitest run --project node-tooling",
+        });
+    } else {
+        skip.push({
+            id: "node-tooling",
+            reason: "no changed code under scripts/** — no tooling test imports convex/ or data/ or names either as a path (scripts/test-env-split.ts)",
+        });
+    }
     appendDocsGuards(files, run);
     return { lane, rationale: engineRationale(files), files, run, skip };
 }
@@ -514,18 +536,17 @@ export function classifyLane(
  * carries the `.md` paths (prettier has a markdown parser) and `cr:lint` is
  * a fixed entry of both `skin` and `engine`.
  *
- * Today `engine`'s `node[all]` and `skin`'s `node[src,scripts]` both select
- * these files already, so the entry is redundant in wall-clock (seconds) but
- * not in meaning: ADR 0136 §5 splits `node` into content-classified
- * partitions, and the lane that stops running `scripts/__tests__` whole is
- * the lane this entry keeps honest. A FIXED list, never a diff-derived one —
- * ADR 0104's admission rule is untouched.
+ * `skin`'s `node[src,scripts]` selects these files already; `engine` runs
+ * `node-engine` and admits `node-tooling` only for a `scripts/**` diff
+ * (ADR 0136 §5), so for a `convex/**` + prose diff this entry is what runs the
+ * prose guards that live in `node-tooling`. A FIXED list, never a
+ * diff-derived one — ADR 0104's admission rule is untouched.
  */
 function appendDocsGuards(files: string[], run: PlannedCheck[]): void {
     if (!files.some((p) => classifyPath(p) === "docs")) return;
     run.push({
         id: "node[docs]",
-        command: `bunx vitest run --project node ${DOC_GATE_TESTS.join(" ")}`,
+        command: `bunx vitest run ${NODE_PARTITIONS} ${DOC_GATE_TESTS.join(" ")}`,
     });
 }
 

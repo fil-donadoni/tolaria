@@ -111,3 +111,116 @@ export function splitSrcTests(root: string): SrcTestSplit {
     }
     return { node, dom };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The node project, partitioned: `node-engine` / `node-tooling` (ADR 0136 §5).
+//
+// `scripts/__tests__` holds two different populations under one directory:
+// guards over the ENGINE (catalogue censuses, the card-index and oracle
+// artefacts, bundle purity, CR citations) and tests of the repo's TOOLING
+// (gate, land, hooks, loop, telemetry, dashboard) — the second half mostly
+// subprocess-heavy, and none of it reachable from a `convex/**` edit. The
+// `engine` lane pays for the first and, since ADR 0136, not the second.
+//
+// A FIXED partition, classified by content, never by the diff (ADR 0104 §2 as
+// amended): the predicate reads the test and its local import graph, not the
+// changed files. It is conservative toward `engine`, the partition every code
+// lane runs — a false `engine` costs seconds, a false `tooling` is a guard a
+// `convex/**` diff stops running until the next health run. So a file is
+// `engine` when EITHER
+//
+//   - its transitive local imports (relative specifiers and the `@convex/`,
+//     `~/`, `@/` aliases, followed through `scripts/**` and `src/**`) reach a
+//     module under `convex/` or `data/`, or
+//   - the test itself names `convex` or `data` as a path literal (`"convex/…"`,
+//     `join(ROOT, "convex")`) — the census shape, which reads the engine tree
+//     through `fs` and imports none of it.
+//
+// What the predicate cannot see is a subprocess: a tooling test that spawns a
+// script which imports `convex/`. None exists as of ADR 0136; one that appears
+// is caught at the health run, the backstop ADR 0104 already names.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Import specifiers: `from "x"`, `import("x")`, bare `import "x"`. */
+const IMPORT_SPECIFIER =
+    /(?:import|export)\s[^'"]*?from\s*["']([^"']+)["']|import\(\s*["']([^"']+)["']\s*\)|^\s*import\s*["']([^"']+)["']/gm;
+
+/** A string literal naming the engine tree or its data as a path. */
+const ENGINE_PATH_LITERAL = /["'`](convex|data)(["'`]|\/)/;
+
+const ENGINE_ROOTS = ["convex/", "data/"];
+
+function resolveLocal(
+    root: string,
+    from: string,
+    specifier: string
+): string | null {
+    let base: string;
+    if (specifier.startsWith(".")) {
+        base = path.resolve(path.dirname(from), specifier);
+    } else if (specifier.startsWith("@convex/")) {
+        base = path.join(root, "convex", specifier.slice("@convex/".length));
+    } else if (specifier.startsWith("~/") || specifier.startsWith("@/")) {
+        base = path.join(root, "src", specifier.slice(2));
+    } else {
+        return null;
+    }
+    for (const candidate of [
+        base,
+        `${base}.ts`,
+        `${base}.tsx`,
+        path.join(base, "index.ts"),
+    ]) {
+        if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+            return candidate;
+        }
+    }
+    // Unresolved: still a location — `../../convex/_generated/api` is an
+    // engine import whether or not the generated file is on disk.
+    return base;
+}
+
+/** True when `testFile` belongs to `node-engine` (see the block above). */
+export function reachesEngine(root: string, testFile: string): boolean {
+    if (ENGINE_PATH_LITERAL.test(fs.readFileSync(testFile, "utf8"))) {
+        return true;
+    }
+    const seen = new Set<string>();
+    const stack = [testFile];
+    while (stack.length > 0) {
+        const file = stack.pop()!;
+        if (seen.has(file)) continue;
+        seen.add(file);
+        const rel = path.relative(root, file).split(path.sep).join("/");
+        if (ENGINE_ROOTS.some((r) => rel.startsWith(r))) return true;
+        if (!/\.tsx?$/.test(file) || !fs.existsSync(file)) continue;
+        const source = fs.readFileSync(file, "utf8");
+        for (const m of source.matchAll(IMPORT_SPECIFIER)) {
+            const resolved = resolveLocal(root, file, m[1] ?? m[2] ?? m[3]);
+            if (resolved) stack.push(resolved);
+        }
+    }
+    return false;
+}
+
+export interface ScriptsTestSplit {
+    /** `scripts` tests in `node-engine`, repo-relative, posix. */
+    engine: string[];
+    /** `scripts` tests in `node-tooling`, repo-relative, posix. */
+    tooling: string[];
+}
+
+/**
+ * Partitions every general `scripts/**\/*.test.ts` — bot tests belong to
+ * `bot-node` and perf tests to `perf`, so neither is classified here.
+ */
+export function splitScriptsTests(root: string): ScriptsTestSplit {
+    const engine: string[] = [];
+    const tooling: string[] = [];
+    for (const file of collect(path.join(root, "scripts")).sort()) {
+        if (/\.(bot|perf)\.test\.ts$/.test(file)) continue;
+        const rel = path.relative(root, file).split(path.sep).join("/");
+        (reachesEngine(root, file) ? engine : tooling).push(rel);
+    }
+    return { engine, tooling };
+}
