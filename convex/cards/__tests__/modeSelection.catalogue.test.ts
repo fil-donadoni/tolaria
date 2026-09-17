@@ -7,8 +7,8 @@
 //      mode with a continuous half would be dropped with no error.
 //   2. every mode must be an Effect Script. Several instances resolve as ONE
 //      checkpointed script (`runModeInstanceScripts`); an imperative `resolve`
-//      has no checkpoint and would replay earlier instances on a resume (CR
-//      608.3). The engine throws at resolution as a backstop — this sweep
+//      has no checkpoint and would replay earlier instances on a resume. The
+//      engine throws at resolution as a backstop — this sweep
 //      catches it at definition time.
 
 import { describe, expect, it } from "vitest";

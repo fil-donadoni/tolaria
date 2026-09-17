@@ -7327,7 +7327,7 @@ function resolveChosenModes(
             const mode = modes.find((m) => m.id === instance.modeId);
             // A multi-instance resolution is ONE checkpointed script; an
             // imperative body has no checkpoint and would replay earlier
-            // instances on resume (CR 608.3). The catalogue guard rejects the
+            // instances on resume. The catalogue guard rejects the
             // shape statically — this is the runtime backstop.
             if (mode?.resolve) {
                 throw new Error(

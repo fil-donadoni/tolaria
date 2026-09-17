@@ -6752,8 +6752,8 @@ export interface ModeInstanceScript {
  *
  *  They share the pre-order cursor, exactly as a `forEach` body's iterations
  *  do, so every Op of every instance has a distinct position: a suspension in
- *  instance 2 resumes there, and instance 1's side effects never replay (CR
- *  608.3). Two things are per instance:
+ *  instance 2 resumes there, and instance 1's side effects never replay. Two
+ *  things are per instance:
  *    - `targets` — the instance's own slice, so its script reads `{ target: 0 }`
  *      as ITS first target;
  *    - `$`-binding names — scoped per instance through the same wrapper

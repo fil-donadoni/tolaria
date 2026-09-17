@@ -351,7 +351,7 @@ describe("mode instances — targets, order, resolution (CR 608.2c / 700.2d)", (
         );
     });
 
-    it("a repeated mode's choice suspends and prompts afresh per instance (CR 608.3)", async () => {
+    it("a repeated mode's choice suspends and prompts afresh per instance (CR 700.2d)", async () => {
         const hand = ["h1", "h2"].map((id) =>
             makeInstance(plains.id, {
                 id,
