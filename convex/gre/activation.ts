@@ -2604,7 +2604,7 @@ export function activateAbilityOnState(
                 ? multiModeGroups.slice(1).map((g) => g.requirement)
                 : (ability.additionalTargetRequirements ?? [])
         ).map(effectiveRequirement);
-        for (const extra of abilityAdditionalRequirements) {
+        for (const [g, extra] of abilityAdditionalRequirements.entries()) {
             const extraLegal = getLegalTargets(
                 state,
                 extra,
@@ -2626,7 +2626,13 @@ export function activateAbilityOnState(
             // other artifact or creature has two non-empty groups and still no
             // legal announcement. (Exact for the shipped count-1 pairs; the
             // walk's own `excludeInstanceIds` merge is the authority either way.)
-            if (extra.excludePriorTargets) {
+            // ADR 0094 — only meaningful when this group and the primary
+            // belong to the same mode instance (see `announceCast`).
+            const sameInstanceAsPrimary =
+                !multiModeGroups ||
+                multiModeGroups[g + 1]?.instance ===
+                    multiModeGroups[0]?.instance;
+            if (extra.excludePriorTargets && sameInstanceAsPrimary) {
                 const distinct = new Set(
                     [...legal, ...extraLegal].map((t) => t.id)
                 );

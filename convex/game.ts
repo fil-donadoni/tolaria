@@ -7543,8 +7543,17 @@ export const announceCast = mutation({
         // modal card uses; several flatten into independent target groups.
         const chosenMode: SpellMode | undefined =
             chosenModes.length === 1 ? chosenModes[0] : undefined;
+        // CR 702.96b — an overloaded cast has no targets at all, while several
+        // instances resolve over per-instance target slices; the two do not
+        // compose (and no card prints both), so refuse rather than resolve a
+        // mis-sliced list.
+        if (chosenModes.length > 1 && isOverloadCost) {
+            throw new Error(
+                `${cardDef.name} — an overloaded cast can't choose more than one mode`
+            );
+        }
         const multiModeGroups =
-            chosenModes.length > 1 && !isOverloadCost
+            chosenModes.length > 1
                 ? modeInstanceTargetGroups(
                       cardDef.modes!,
                       chosenModeIds!
@@ -7737,7 +7746,7 @@ export const announceCast = mutation({
                 : (chosenMode?.additionalTargetRequirements ??
                   cardDef.additionalTargetRequirements ??
                   []);
-            for (const extra of additionalRequirements) {
+            for (const [g, extra] of additionalRequirements.entries()) {
                 const extraLegal = getLegalTargets(
                     state,
                     extra,
@@ -7756,7 +7765,15 @@ export const announceCast = mutation({
                 // group that may not re-pick an earlier group's permanent needs
                 // enough DISTINCT candidates across both, or the announcement
                 // dead-ends on a group the first pick just emptied.
-                if (extra.excludePriorTargets) {
+                // ADR 0094 — the pair compared here is the PRIMARY group and
+                // this one; with several mode instances that pair is only
+                // meaningful inside one instance (CR 700.2d lets another
+                // instance re-pick). The walk excludes exactly either way.
+                const sameInstanceAsPrimary =
+                    !multiModeGroups ||
+                    multiModeGroups[g + 1]?.instance ===
+                        multiModeGroups[0]?.instance;
+                if (extra.excludePriorTargets && sameInstanceAsPrimary) {
                     const distinct = new Set(
                         [...legalTargets, ...extraLegal].map((t) => t.id)
                     );

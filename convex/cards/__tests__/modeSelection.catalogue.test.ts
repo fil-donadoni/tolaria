@@ -10,6 +10,11 @@
 //      has no checkpoint and would replay earlier instances on a resume. The
 //      engine throws at resolution as a backstop — this sweep
 //      catches it at definition time.
+//   3. its bounds are sane (1 <= min <= max, for the base and for `when`), and
+//      — until the Bot enumerates multi-mode moves (issue #2265) and the picker
+//      can send them (issue #2264) — no minimum exceeds one: both still send a
+//      single mode, which `announceCast` would reject, so the card would be
+//      uncastable and freeze the Bot. Lift that half with issue #2265.
 
 import { describe, expect, it } from "vitest";
 import type { CardDefinition, ModeSelection } from "../types";
@@ -22,20 +27,46 @@ type ModeListShape = {
     resolve?: unknown;
 };
 
+function boundsOffences(where: string, selection: ModeSelection): string[] {
+    const ranges = [
+        ["base", selection.min, selection.max],
+        ...(selection.when
+            ? [["when", selection.when.min, selection.when.max] as const]
+            : []),
+    ] as const;
+    return ranges.flatMap(([label, min, max]) => [
+        ...(min < 1 || min > max
+            ? [
+                  `${where}: ${label} bounds ${min}..${max} are not 1 <= min <= max`,
+              ]
+            : []),
+        ...(min > 1
+            ? [`${where}: ${label} min ${min} > 1 before issue #2265`]
+            : []),
+    ]);
+}
+
 function modeListOffences(
     where: string,
     selection: ModeSelection | undefined,
     modes: readonly (ModeListShape & { id: string })[] | undefined
 ): string[] {
-    if (!modes || maxModeCount(selection) <= 1) return [];
-    return modes.flatMap((m) => [
-        ...(m.staticEffects?.length
-            ? [`${where} mode ${m.id}: staticEffects on a multi-mode list`]
-            : []),
-        ...(m.resolve
-            ? [`${where} mode ${m.id}: imperative resolve on a multi-mode list`]
-            : []),
-    ]);
+    if (!modes || !selection) return [];
+    const bounds = boundsOffences(where, selection);
+    if (maxModeCount(selection) <= 1) return bounds;
+    return [
+        ...bounds,
+        ...modes.flatMap((m) => [
+            ...(m.staticEffects?.length
+                ? [`${where} mode ${m.id}: staticEffects on a multi-mode list`]
+                : []),
+            ...(m.resolve
+                ? [
+                      `${where} mode ${m.id}: imperative resolve on a multi-mode list`,
+                  ]
+                : []),
+        ]),
+    ];
 }
 
 function cardOffences(card: CardDefinition): string[] {
@@ -81,6 +112,15 @@ describe("ModeSelection catalogue guard (ADR 0094)", () => {
         expect(cardOffences(offender)).toEqual([
             "Hull Breach mode enchantment: staticEffects on a multi-mode list",
             "Hull Breach mode imperative: imperative resolve on a multi-mode list",
+        ]);
+        expect(
+            cardOffences({
+                ...hullBreach,
+                modeSelection: { min: 3, max: 2 },
+            })
+        ).toEqual([
+            "Hull Breach: base bounds 3..2 are not 1 <= min <= max",
+            "Hull Breach: base min 3 > 1 before issue #2265",
         ]);
         // The same list at exactly one mode is the modal-permanent shape.
         expect(cardOffences({ ...offender, modeSelection: undefined })).toEqual(

@@ -62,6 +62,7 @@ import { migrateLegacyAbilityLossHolds } from "./layer6";
 import { resolveZoneCharacteristics } from "./zoneCharacteristics";
 import { declaresAsEntersMode } from "./constants";
 import type { GrantedAbilityOrigin } from "./activatedAbilities";
+import { resolveGrantedActivatedAbility } from "./activatedAbilities";
 
 type CompactCard = Record<string, unknown>;
 // [instanceId, cardId] for the common case; a third element carries persistent
@@ -1859,7 +1860,14 @@ function legacyAnnouncedModeIds(
         ? def.triggeredAbilities?.find((t) => t.id === item.triggeredAbilityId)
               ?.modes
         : item.abilityId
-          ? def.activatedAbilities?.find((a) => a.id === item.abilityId)?.modes
+          ? (item.grantedSourceCardId
+                ? resolveGrantedActivatedAbility(
+                      item.grantedSourceCardId,
+                      item.abilityId,
+                      item.grantedAbilityOrigin
+                  )
+                : def.activatedAbilities?.find((a) => a.id === item.abilityId)
+            )?.modes
           : declaresAsEntersMode(def)
             ? undefined
             : def.modes;
@@ -2416,6 +2424,23 @@ export function expandState(data: Record<string, unknown>): GameState {
         const v = data[k];
         if (v === undefined || v === null) continue;
         (result as Record<string, unknown>)[k] = v;
+    }
+    // ADR 0094 deserialize shim — a pending announcement persisted before the
+    // move to `chosenModeIds` carries its one mode under the singular key.
+    // These three shapes only ever hold the ANNOUNCEMENT domain, so the
+    // promotion is unconditional.
+    for (const pending of [
+        result.pendingTarget,
+        result.pendingCast,
+        result.pendingActivation,
+    ]) {
+        const legacy = pending as
+            | { chosenModeId?: unknown; chosenModeIds?: string[] }
+            | undefined;
+        if (legacy && typeof legacy.chosenModeId === "string") {
+            legacy.chosenModeIds ??= [legacy.chosenModeId];
+            delete legacy.chosenModeId;
+        }
     }
     // CR 608.2h / 111.12 (ADR 0086) — mirror of `compactState`: the generic
     // loop above installed the COMPACT form (pooled definition indices), so

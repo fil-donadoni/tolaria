@@ -472,6 +472,21 @@ describe("the permanent domain (CR 700.2, ADR 0094)", () => {
             ).toBeUndefined();
         });
     });
+
+    it("a spell leaving the stack for a graveyard drops a stale permanent-domain mode (CR 400.7)", () => {
+        const state = board({});
+        const spell = state.players[0].hand.pop()!;
+        state.stack.push({
+            ...spell,
+            ...({ chosenModeId: "stale" } as object),
+            zone: "stack",
+            castById: "p1",
+            chosenModeIds: ["draw"],
+        });
+        resolveTopOfStack(state);
+        const gy = state.players[0].graveyard.find((c) => c.id === SPELL)!;
+        expect(gy.chosenModeId).toBeUndefined();
+    });
 });
 
 describe("serialization — chosenModeIds / modeTargetCounts (ADR 0094)", () => {
@@ -498,6 +513,28 @@ describe("serialization — chosenModeIds / modeTargetCounts (ADR 0094)", () => 
         row.chosenModeId = "enchantment";
         const item = expandState(compact).stack[0];
         expect(item.chosenModeIds).toEqual(["enchantment"]);
+    });
+
+    it("promotes a legacy singular chosenModeId on a pending announcement", () => {
+        const state = board({});
+        state.pendingTarget = {
+            playerId: "p1",
+            cardInstanceId: SPELL,
+            targetType: "Artifact",
+            count: 1,
+            selected: [],
+            chosenModeIds: ["x"],
+        };
+        const compact = compactState(state);
+        const pt = compact.pendingTarget as Record<string, unknown>;
+        delete pt.chosenModeIds;
+        pt.chosenModeId = "artifact";
+        const expanded = expandState(compact).pendingTarget as Record<
+            string,
+            unknown
+        >;
+        expect(expanded.chosenModeIds).toEqual(["artifact"]);
+        expect(expanded.chosenModeId).toBeUndefined();
     });
 
     it("does not mistake a legacy id that names no announce-time mode for one", () => {

@@ -6638,7 +6638,7 @@ function spellTargetStillMeetsRestrictions(
     }
     const cardId = (item.card as { id?: string }).id;
     const def = cardId ? tryGetDefinition(cardId) : undefined;
-    // CR 700.2d — a modal spell targets under its CHOSEN mode's requirement.
+    // CR 700.2c — a modal spell targets under its CHOSEN mode's requirement.
     // ADR 0094 — more than one mode instance spreads the targets over several
     // requirements; this single-requirement recheck cannot place them, so it
     // keeps the zone-existence answer (fail-open, as documented above).
@@ -6727,7 +6727,7 @@ function resolvingTargetRequirement(
                 ? { req: ability.targetRequirement, hasAdditionalGroups: false }
                 : undefined;
         }
-        // CR 700.2c/700.2d — a modal trigger targets under its ANNOUNCED
+        // CR 700.2c — a modal trigger targets under its ANNOUNCED
         // mode's requirement only; no mode chosen yet reads as "unknown".
         const soleModeId = soleChosenModeId(item.chosenModeIds);
         if (!soleModeId) return undefined;
@@ -7845,7 +7845,7 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
             // pendingActivation. The ability-level effects/resolve are ignored
             // for a modal ability, exactly as the card-level ones are for a
             // modal spell (see the spell branch below). A `chosenModeIds` entry that
-            // names no declared mode resolves as nothing (CR 608.2b).
+            // names no declared mode resolves as nothing (engine fallback).
             if (
                 (top.chosenModeIds?.length ?? 0) > 0 &&
                 ability.modes &&
@@ -8227,6 +8227,9 @@ function resetStackTransientState(item: StackItem): void {
     delete item.targetAmounts;
     delete item.chosenModeIds;
     delete item.modeTargetCounts;
+    // The permanent-domain pick a recast card still carries from its last
+    // time on the battlefield (CR 400.7 — a new object) goes too.
+    delete (item as CardInstanceState).chosenModeId;
     delete item.additionalSacrificeSnapshot;
     delete item.notedManaSpent;
     delete item.dynamicCantBeCountered;
