@@ -20,6 +20,7 @@ import { assertSacrificeFilterCostAffordable } from "../../../../gre/activation"
 import { buildActivationSacrificeSelection } from "../../../../gre/activationCostPicks";
 import { applySacrificeSelection } from "../../../../gre/sacrificeChoice";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition } from "../../../index";
 import type { GameEvent } from "../../../types";
 
@@ -96,6 +97,13 @@ describe("Magda, Brazen Outlaw — anthem (CR 613.4c)", () => {
         expect(getEffectivePower(state, find("magda"))).toBe(2);
         expect(getEffectivePower(state, find("bear"))).toBe(2);
         expect(getEffectivePower(state, find("opp-dwarf"))).toBe(1);
+
+        // Wire format — the anthem survives the projection the client reads.
+        const projected = projectPublicState(state, 1, "p1");
+        const slimDwarf = projected.players[0].battlefield.find(
+            (c) => c.id === "dwarf"
+        )!;
+        expect(getEffectivePower(projected, slimDwarf)).toBe(2);
 
         getPlayer(state, "p1").battlefield = getPlayer(
             state,
