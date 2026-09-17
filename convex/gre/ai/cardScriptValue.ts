@@ -22,9 +22,14 @@ import type {
     AbilityMode,
     CardDefinition,
     EffectOp,
+    ModeSelection,
     PermanentView,
     TriggeredAbility,
 } from "../../cards/types";
+import {
+    announceableModeCombinations,
+    type ModeSelectionFacts,
+} from "../modeSelection";
 import {
     contextFreeGrounding,
     withGraveyardSource,
@@ -33,7 +38,7 @@ import {
     type LatentLens,
 } from "./grounding";
 import type { LatentWeights } from "./evalWeights";
-import { valueEffectScript } from "./opValuers";
+import { addValues, valueEffectScript } from "./opValuers";
 import type { OpValue, ValueTag } from "./featureBasis";
 
 /** A real `effects[]` script wins outright; otherwise fall back to the
@@ -232,42 +237,71 @@ export function dslSpellScriptOpValue(
 
 /** A CAST-TIME modal spell (CR 601.2b–c / 700.2, `modes[]`) carries its
  *  resolution in per-mode Effect Scripts, not in a card-level `effects[]` —
- *  so the plain script reader above finds nothing. Value it the same way the
- *  `optionChoice` walker values a resolution-time modal: worth its BEST mode,
- *  since the chooser picks it (`opValuers.ts` `valueOp`). Modes authored as
- *  `resolve()` closures contribute nothing (no script to walk); `undefined`
- *  when NO mode carries a script, which keeps the `aiValue` / `base + MV`
- *  fallback for a fully-imperative modal card. */
+ *  so the plain script reader above finds nothing. Value it at its best
+ *  announceable mode COMBINATION (`bestModeCombinationOpValue`); for a
+ *  one-mode list that is its best mode. */
 function modesScriptOpValue(
     def: CardDefinition,
     ctx: GroundingContext
 ): OpValue | undefined {
-    const modeScripts = (def.modes ?? [])
-        .map((mode) => effectiveScript(mode))
-        .filter((s): s is EffectOp[] => s !== undefined);
-    if (modeScripts.length === 0) return undefined;
-    let best: OpValue | undefined;
-    for (const script of modeScripts) {
-        const value = valueEffectScript(script, ctx);
-        if (!best || value.points > best.points) best = value;
-    }
-    return best;
+    return bestModeCombinationOpValue(def.modes, def.modeSelection, ctx);
 }
 
-/** The best-mode `OpValue` of an ABILITY-site mode list (CR 700.2 / 603.3c) —
- *  the `AbilityMode` twin of `modesScriptOpValue` above. `undefined` when there
- *  are no modes, or when no mode carries a script (an all-`resolve()` modal
- *  ability contributes nothing, same convention as a modal spell's). */
-function bestModeOpValue(
-    modes: AbilityMode[] | undefined,
+/** The facts a context-free valuation announces under: no board, no kicker —
+ *  a conditional count's `when` never holds, so a card is valued at the count
+ *  it is guaranteed, never at one a Wizard or a kicker would unlock. */
+const CONTEXT_FREE_MODE_FACTS: ModeSelectionFacts = {
+    controls: () => false,
+    kicked: false,
+};
+
+/** The value of a mode list (a spell's or an ability's, CR 700.2) at its best
+ *  announceable COMBINATION (issue #2265, ADR 0094). The chooser picks, so the
+ *  list is worth the combination they would pick — but the modes INSIDE one
+ *  combination all resolve (CR 700.2d / 608.2c), so their values COMPOSE:
+ *  each instance is valued as its own script (its own target slots and
+ *  bindings) and the instances add. That is deliberately not the
+ *  `optionChoice` best-of recursion (`opValuers.ts`), where the arms compete.
+ *  With no `selection` every combination is one mode, so this reduces to the
+ *  best single mode — the historical read. Modes authored as `resolve()`
+ *  closures contribute nothing (no script to walk); `undefined` when NO mode
+ *  carries a script, which keeps the `aiValue` / `base + MV` fallback for a
+ *  fully-imperative modal card. */
+function bestModeCombinationOpValue(
+    modes:
+        | readonly {
+              id: string;
+              effects?: EffectOp[];
+              aiEffects?: EffectOp[];
+          }[]
+        | undefined,
+    selection: ModeSelection | undefined,
     ctx: GroundingContext
 ): OpValue | undefined {
-    let best: OpValue | undefined;
-    for (const mode of modes ?? []) {
+    if (!modes || modes.length === 0) return undefined;
+    const valueById = new Map<string, OpValue>();
+    for (const mode of modes) {
         const script = effectiveScript(mode);
-        if (!script) continue;
-        const value = valueEffectScript(script, ctx);
-        if (!best || value.points > best.points) best = value;
+        if (script) valueById.set(mode.id, valueEffectScript(script, ctx));
+    }
+    if (valueById.size === 0) return undefined;
+    let best: OpValue | undefined;
+    for (const ids of announceableModeCombinations({
+        modes,
+        selection,
+        facts: CONTEXT_FREE_MODE_FACTS,
+        isModeLegal: () => true,
+        ownerName: "mode list",
+    })) {
+        let combined: OpValue | undefined;
+        for (const id of ids) {
+            const value = valueById.get(id);
+            if (!value) continue;
+            combined = combined ? addValues(combined, value) : value;
+        }
+        if (combined && (!best || combined.points > best.points)) {
+            best = combined;
+        }
     }
     return best;
 }
@@ -396,6 +430,7 @@ export function dslAbilityScriptOpValue(
         effects?: EffectOp[];
         aiEffects?: EffectOp[];
         modes?: AbilityMode[];
+        modeSelection?: ModeSelection;
         gate?: TriggeredAbility["gate"];
         zone?: TriggeredAbility["zone"];
         activateFromGraveyard?: boolean;
@@ -431,7 +466,11 @@ export function dslAbilityScriptOpValue(
         // is what replaces a hand-written `aiEffects` shadow sketch of one arm.
         const raw = script
             ? valueEffectScript(script, abilityCtx)
-            : bestModeOpValue(ability.modes, abilityCtx);
+            : bestModeCombinationOpValue(
+                  ability.modes,
+                  ability.modeSelection,
+                  abilityCtx
+              );
         if (!raw) continue;
         // CR 603.4 (issue #1936) — an ability that only fires under a
         // condition is not worth (or is not charged) its full script value.

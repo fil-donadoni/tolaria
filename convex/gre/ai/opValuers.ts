@@ -2061,7 +2061,10 @@ export const STRUCTURAL_CONSTRUCTS = new Set<EffectOp["op"]>([
     "coinFlipSync",
 ]);
 
-function addValues(a: OpValue, b: OpValue): OpValue {
+/** The sum of two values — points add, tags union. Exported for the
+ *  announce-time mode COMBINATION valuation (`cardScriptValue.ts`, issue
+ *  #2265), whose chosen instances all resolve and so compose. */
+export function addValues(a: OpValue, b: OpValue): OpValue {
     const tags = new Set<ValueTag>([...a.tags, ...b.tags]);
     return { points: a.points + b.points, tags: [...tags] };
 }

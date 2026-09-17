@@ -23,6 +23,7 @@ import type {
     CardDefinition,
     Color,
     ManaCost,
+    SpellMode,
     TargetRequirement,
     TargetSelection,
 } from "../cards/types";
@@ -65,10 +66,16 @@ import {
     foldKickerCosts,
     kickedTargetRequirement,
     kickerLegPermanentSlotWouldCollide,
+    kickedCountOfPayments,
     kickerLifeCost,
     type KickerPayments,
 } from "./kicker";
 import { spliceAugmentedDefinition } from "./splice";
+import {
+    announceableModeCombinations,
+    modeInstanceTargetGroups,
+} from "./modeSelection";
+import { announcementModeFacts, modeHasLegalTargets } from "./modeAnnouncement";
 import {
     getLegalActions,
     canCastSpellsFromTopOfLibrary,
@@ -408,9 +415,17 @@ export type Move =
            *  which have no `locateCastSource`. */
           castFromZone?: CastFromZone;
           /** CR 700.2a (ADR 0094) — the announced mode instances, printed
-           *  order. The enumerator emits one mode per move today; choose-N
-           *  enumeration is issue #2265. */
+           *  order. One Move per announceable mode COMBINATION (issue #2265,
+           *  `announceableModeCombinations`). */
           chosenModeIds?: string[];
+          /** ADR 0094 — how many of `targets` each mode instance owns, in
+           *  instance order; present only when more than one instance was
+           *  announced. The server tallies the same spans itself during the
+           *  target walk, so the executor sends nothing extra — this is for
+           *  the SANDBOXES, which copy `targets` straight onto the stack item
+           *  and would otherwise resolve a multi-instance spell with no spans
+           *  (`modeInstances` throws). */
+          modeTargetCounts?: number[];
           /** CR 118.9 — id of the ALTERNATIVE casting cost this variant pays
            *  instead of the printed mana cost, forwarded verbatim to
            *  `announceCast.alternativeCostId`. Absent = the ordinary cast.
@@ -486,11 +501,13 @@ export type Move =
           kind: "activate-ability";
           cardInstanceId: string;
           abilityId: string;
-          /** CR 700.2 / 602.2b (issue #1341) — the mode of a MODAL activated
-           *  ability (Umezawa's Jitte), locked in at announcement. One move
-           *  variant per mode, each carrying that mode's own targets (ADR 0094:
-           *  one instance per move until issue #2265). */
+          /** CR 700.2 / 602.2b (issue #1341) — the mode(s) of a MODAL
+           *  activated ability (Umezawa's Jitte), locked in at announcement.
+           *  One move variant per announceable mode combination (ADR 0094,
+           *  issue #2265), each carrying its instances' own targets. */
           chosenModeIds?: string[];
+          /** ADR 0094 — per-instance target spans, as on `cast-spell`. */
+          modeTargetCounts?: number[];
           chosenX?: number;
           targets: TargetSelection[];
           /** CR 601.2c via CR 602.2b — as on `cast-spell` above:
@@ -634,6 +651,82 @@ function landPlayMoves(card: CardInstanceState): Move[] {
  *  20-creature board from emitting 2^20 attacker subsets. Small real/test
  *  positions stay well under this and are enumerated exhaustively. */
 export const MAX_COMBINATIONS = 64;
+
+/** The floor of {@link modeCombinationBudget}: however many mode combinations
+ *  a card offers, each keeps at least this many moves beneath it. */
+export const MIN_MOVES_PER_MODE_COMBINATION = 4;
+
+/** Issue #2265 — how many moves ONE announced mode combination may emit (its
+ *  X values × payment plans × target tuples). The mode level itself is never
+ *  cut (`announceableModeCombinations`); the level beneath it shares the
+ *  per-card `MAX_COMBINATIONS` window evenly, so a "choose two" card's sixth
+ *  combination is enumerated at all rather than starved by the first one's
+ *  target tuples. One combination (a non-modal card) keeps the whole window —
+ *  its enumeration is unchanged. */
+export function modeCombinationBudget(combinationCount: number): number {
+    if (combinationCount <= 1) return MAX_COMBINATIONS;
+    return Math.max(
+        MIN_MOVES_PER_MODE_COMBINATION,
+        Math.floor(MAX_COMBINATIONS / combinationCount)
+    );
+}
+
+/** A mode combination whose moves hit {@link modeCombinationBudget} (issue
+ *  #2265). Never silent: an unreported cap reads as "covered everything".
+ *  `dropped` counts the moves refused at the budget — a LOWER bound, since the
+ *  target-tuple generator beneath is itself capped at `MAX_COMBINATIONS`. */
+export type ModeCombinationTruncation = {
+    cardInstanceId: string;
+    cardName: string;
+    /** Present for an activated ability's mode list. */
+    abilityId?: string;
+    chosenModeIds: string[];
+    emitted: number;
+    dropped: number;
+};
+
+/** Per-combination admission for {@link modeCombinationBudget}. `admit` says
+ *  whether one more move of combination `ids` fits; `report` hands every
+ *  combination that refused at least one move to `sink`. */
+function modeCombinationLedger(combinationCount: number) {
+    const budget = modeCombinationBudget(combinationCount);
+    const counts = new Map<
+        string,
+        { ids: string[]; emitted: number; dropped: number }
+    >();
+    return {
+        admit(ids: string[]): boolean {
+            const key = ids.join("+");
+            const row = counts.get(key) ?? { ids, emitted: 0, dropped: 0 };
+            counts.set(key, row);
+            if (row.emitted >= budget) {
+                row.dropped++;
+                return false;
+            }
+            row.emitted++;
+            return true;
+        },
+        report(
+            sink: ((t: ModeCombinationTruncation) => void) | undefined,
+            base: {
+                cardInstanceId: string;
+                cardName: string;
+                abilityId?: string;
+            }
+        ): void {
+            if (!sink) return;
+            for (const row of counts.values()) {
+                if (row.dropped === 0) continue;
+                sink({
+                    ...base,
+                    chosenModeIds: row.ids,
+                    emitted: row.emitted,
+                    dropped: row.dropped,
+                });
+            }
+        },
+    };
+}
 
 // ---------------------------------------------------------------------------
 // Mana payment planning
@@ -2380,18 +2473,44 @@ function enumerateTargetTuples(
  *  last group is the only one whose fill level decides whether the
  *  announcement rests for a `confirmTargets` (`announcedTargetsNeedConfirm`);
  *  deriving it from `targets.length` treats a multi-group cast's fixed prefix
- *  as if it filled the variable group. */
+ *  as if it filled the variable group.
+ *
+ *  `groupInstances` (ADR 0094, issue #2265) tags each group with the mode
+ *  INSTANCE that owns it, for an announcement of several instances. Each tuple
+ *  then also carries `modeTargetCounts` — the per-instance spans the server's
+ *  target walk tallies — and "another target" (CR 115.3) excludes only the
+ *  picks of the group's OWN instance: CR 700.2d lets a different instance
+ *  choose the same object (`priorTargetsOfSameModeInstance`, the walk's rule). */
 function enumerateTargetGroupTuples(
     state: GameState,
     player: PlayerState,
     card: CardInstanceState,
     groups: (TargetRequirement | undefined)[],
-    chosenX: number | undefined
-): { targets: TargetSelection[]; lastGroupSize: number }[] {
-    let acc: { targets: TargetSelection[]; lastGroupSize: number }[] = [
-        { targets: [], lastGroupSize: 0 },
+    chosenX: number | undefined,
+    groupInstances?: readonly number[]
+): {
+    targets: TargetSelection[];
+    lastGroupSize: number;
+    modeTargetCounts?: number[];
+}[] {
+    type Tuple = {
+        targets: TargetSelection[];
+        lastGroupSize: number;
+        modeTargetCounts?: number[];
+    };
+    const instanceCount = groupInstances
+        ? Math.max(-1, ...groupInstances) + 1
+        : 0;
+    let acc: Tuple[] = [
+        {
+            targets: [],
+            lastGroupSize: 0,
+            ...(groupInstances
+                ? { modeTargetCounts: new Array<number>(instanceCount).fill(0) }
+                : {}),
+        },
     ];
-    for (const req of groups) {
+    for (const [g, req] of groups.entries()) {
         const groupTuples = enumerateTargetTuples(
             state,
             player,
@@ -2403,9 +2522,19 @@ function enumerateTargetGroupTuples(
         // announcement illegal (`announceCast` throws "Not enough legal
         // targets"), so the cast is not a move at all.
         if (groupTuples.length === 0) return [];
-        const next: { targets: TargetSelection[]; lastGroupSize: number }[] =
-            [];
+        const instance = groupInstances?.[g];
+        const next: Tuple[] = [];
         for (const prefix of acc) {
+            // The picks "another target" may exclude: every earlier pick, or
+            // with mode instances only the trailing span this group's own
+            // instance has filled so far (instances fill in printed order).
+            const priorPicks =
+                instance !== undefined && prefix.modeTargetCounts
+                    ? prefix.targets.slice(
+                          prefix.targets.length -
+                              prefix.modeTargetCounts[instance]
+                      )
+                    : prefix.targets;
             for (const tuple of groupTuples) {
                 // CR 115.3 "another target" (issue #3236) — the group may not
                 // re-pick a permanent an earlier group chose; the engine lowers
@@ -2416,16 +2545,22 @@ function enumerateTargetGroupTuples(
                     tuple.some(
                         (t) =>
                             t.type === "permanent" &&
-                            prefix.targets.some(
+                            priorPicks.some(
                                 (p) => p.type === "permanent" && p.id === t.id
                             )
                     )
                 ) {
                     continue;
                 }
+                let modeTargetCounts = prefix.modeTargetCounts;
+                if (modeTargetCounts && instance !== undefined) {
+                    modeTargetCounts = [...modeTargetCounts];
+                    modeTargetCounts[instance] += tuple.length;
+                }
                 next.push({
                     targets: [...prefix.targets, ...tuple],
                     lastGroupSize: tuple.length,
+                    ...(modeTargetCounts ? { modeTargetCounts } : {}),
                 });
                 if (next.length >= MAX_COMBINATIONS) break;
             }
@@ -2584,6 +2719,9 @@ export function enumerateCastMoves(
     opts?: {
         lifeInsteadOfMana?: number;
         castFromZone?: CastFromZone;
+        /** Issue #2265 — receives every mode combination whose moves hit
+         *  `modeCombinationBudget`. */
+        onTruncated?: (t: ModeCombinationTruncation) => void;
     }
 ): Move[] {
     const castFromZone = opts?.castFromZone ?? "hand";
@@ -2657,6 +2795,7 @@ function enumerateCastMovesFromZone(
          *  branches below are skipped for it. The caller stamps the id onto
          *  every Move this pass returns. */
         freeCastAltCostId?: string;
+        onTruncated?: (t: ModeCombinationTruncation) => void;
     }
 ): Move[] {
     const cardId = (card.card as { id?: string }).id;
@@ -2787,13 +2926,73 @@ function enumerateCastMovesFromZone(
     // enumerating one Move per mode here would generate moves the mutation
     // throws on. The pick is answered later, at the CR 614 chokepoint, through
     // the ordinary `option-pick` PendingChoice the Brain already realises.
-    const modeShapes =
-        def?.modes && def.modes.length > 0 && !declaresAsEntersMode(def)
-            ? def.modes.map((m) => ({
-                  modeId: m.id as string | undefined,
-                  mode: m,
-              }))
-            : [{ modeId: undefined, mode: undefined }];
+    //
+    // Issue #2265 — the mode level is a COMBINATION, not a single mode: a
+    // "choose two" / "choose one or more" / repeatable list (ADR 0094) announces
+    // several instances at once. Every announceable combination is enumerated
+    // (`announceableModeCombinations`, the server's own legality question);
+    // only the moves beneath a combination are budgeted — see
+    // `modeCombinationBudget`. The count reads the announcement's facts, and
+    // CR 601.4 lets it consider the kicker decision, so the shapes are built
+    // per kicker variant.
+    const announcesModes =
+        !!def?.modes && def.modes.length > 0 && !declaresAsEntersMode(def);
+    const modeShapesFor = (
+        kickerPayments: KickerPayments | undefined
+    ): {
+        chosenModeIds: string[] | undefined;
+        mode: SpellMode | undefined;
+        groupInstances: number[] | undefined;
+        multiGroups: TargetRequirement[] | undefined;
+    }[] => {
+        if (!announcesModes || !def?.modes) {
+            return [
+                {
+                    chosenModeIds: undefined,
+                    mode: undefined,
+                    groupInstances: undefined,
+                    multiGroups: undefined,
+                },
+            ];
+        }
+        const modes = def.modes;
+        return announceableModeCombinations({
+            modes,
+            selection: def.modeSelection,
+            facts: announcementModeFacts(
+                player,
+                kickedCountOfPayments(def, kickerPayments) >= 1
+            ),
+            isModeLegal: (modeId) =>
+                modeHasLegalTargets(
+                    state,
+                    modes.find((m) => m.id === modeId)!,
+                    targetingSourceFromCard(card, true),
+                    player.id,
+                    undefined
+                ),
+            ownerName: def.name,
+        }).map((ids) => {
+            if (ids.length === 1) {
+                return {
+                    chosenModeIds: ids,
+                    mode: modes.find((m) => m.id === ids[0]),
+                    groupInstances: undefined,
+                    multiGroups: undefined,
+                };
+            }
+            // ADR 0094 — several instances flatten into independent groups in
+            // printed order, each tagged with the instance that owns it; no
+            // card-level fallback (`announceCast`'s `multiModeGroups`).
+            const tagged = modeInstanceTargetGroups(modes, ids);
+            return {
+                chosenModeIds: ids,
+                mode: undefined,
+                groupInstances: tagged.map((g) => g.instance),
+                multiGroups: tagged.map((g) => g.requirement),
+            };
+        });
+    };
 
     // CR 601.2b / 118.8 / 601.2h — a CASTER-CHOSEN additional cost is a real
     // decision with real board consequences (discard a card vs lose 3 life), so
@@ -2850,13 +3049,22 @@ function enumerateCastMovesFromZone(
             )
             .flatMap((kickerPayments) =>
                 buybackVariants.flatMap((buybackPaid) =>
-                    modeShapes.map(({ modeId, mode }) => ({
-                        modeId,
-                        additionalCostLegId,
-                        kickerPayments,
-                        buybackPaid,
-                        groups: groupsFor(mode, kickerPayments),
-                    }))
+                    modeShapesFor(kickerPayments).map(
+                        ({
+                            chosenModeIds,
+                            mode,
+                            groupInstances,
+                            multiGroups,
+                        }) => ({
+                            chosenModeIds,
+                            groupInstances,
+                            additionalCostLegId,
+                            kickerPayments,
+                            buybackPaid,
+                            groups:
+                                multiGroups ?? groupsFor(mode, kickerPayments),
+                        })
+                    )
                 )
             )
     );
@@ -3020,6 +3228,18 @@ function enumerateCastMovesFromZone(
     const flashSurcharge = flashSurchargeOf(card);
 
     const moves: Move[] = [];
+    // Issue #2265 — with more than one announceable mode combination, each
+    // combination gets its own share of the window (`modeCombinationBudget`)
+    // and the loop never returns early: a combination later in printed order
+    // must not be starved by an earlier one's target tuples. A single
+    // combination keeps the historical whole-window early return.
+    const modeCombinationCount = new Set(
+        announceVariants.flatMap((v) =>
+            v.chosenModeIds ? [v.chosenModeIds.join("+")] : []
+        )
+    ).size;
+    const perModeCombination = modeCombinationCount > 1;
+    const modeLedger = modeCombinationLedger(modeCombinationCount);
     // CR 709.3 — a SPLIT card has NO printed cast: "a player chooses which
     // half of a split card they are casting before putting it onto the
     // stack", so the only casts it offers are the two half options the
@@ -3028,7 +3248,8 @@ function enumerateCastMovesFromZone(
     // the #2283/#2284 bot-freeze shape. `offersPrintedCast`
     // (`cards/splitCard.ts`) is the same predicate the human gate reads.
     for (const {
-        modeId,
+        chosenModeIds,
+        groupInstances,
         groups,
         additionalCostLegId,
         kickerPayments,
@@ -3250,17 +3471,27 @@ function enumerateCastMovesFromZone(
                 for (const {
                     targets,
                     lastGroupSize,
+                    modeTargetCounts,
                 } of enumerateTargetGroupTuples(
                     state,
                     player,
                     card,
                     groups,
-                    x
+                    x,
+                    groupInstances
                 )) {
+                    if (
+                        perModeCombination &&
+                        chosenModeIds &&
+                        !modeLedger.admit(chosenModeIds)
+                    ) {
+                        continue;
+                    }
                     moves.push({
                         kind: "cast-spell",
                         cardInstanceId: card.id,
-                        ...(modeId ? { chosenModeIds: [modeId] } : {}),
+                        ...(chosenModeIds ? { chosenModeIds } : {}),
+                        ...(modeTargetCounts ? { modeTargetCounts } : {}),
                         ...(additionalCostLegId ? { additionalCostLegId } : {}),
                         ...(kickerPayments ? { kickerPayments } : {}),
                         ...(buybackPaid ? { buybackPaid } : {}),
@@ -3277,11 +3508,16 @@ function enumerateCastMovesFromZone(
                         ...(payLife > 0 ? { payLife } : {}),
                         ...(castCostPicks ? { castCostPicks } : {}),
                     });
-                    if (moves.length >= MAX_COMBINATIONS) return moves;
+                    if (!perModeCombination && moves.length >= MAX_COMBINATIONS)
+                        return moves;
                 }
             }
         }
     }
+    modeLedger.report(opts?.onTruncated, {
+        cardInstanceId: card.id,
+        cardName: def?.name ?? card.id,
+    });
 
     // CR 702.103a/b (issue #2388) — the BESTOW cast mode: "As you cast this
     // spell, you may choose to cast it bestowed. If you do, you pay [cost]
@@ -3664,6 +3900,8 @@ function enumerateAbilityMoves(
     opts?: {
         anyPlayerOnly?: boolean;
         zone?: "battlefield" | "graveyard" | "hand";
+        /** Issue #2265 — see `enumerateCastMoves`' `onTruncated`. */
+        onTruncated?: (t: ModeCombinationTruncation) => void;
     }
 ): Move[] {
     // CR 611.2a / 613.1f (layer 6) — read the POST-LAYER ability set, the
@@ -4060,18 +4298,73 @@ function enumerateAbilityMoves(
         const abilityExtraGroups = (
             ability.additionalTargetRequirements ?? []
         ).map((r) => selfExcluded(r));
-        const abilityModeVariants =
-            ability.modes && ability.modes.length > 0
-                ? ability.modes.map((m) => ({
-                      modeId: m.id as string | undefined,
-                      req: selfExcluded(m.targetRequirement),
-                  }))
+        // Issue #2265 — one variant per announceable mode COMBINATION
+        // (`announceableModeCombinations`, the question
+        // `resolveActivationModes` asks). A single instance keeps its mode's
+        // requirement plus the ability's extra groups; several flatten their
+        // instance groups in printed order with no ability-level extras,
+        // mirroring `activateAbilityOnState`'s `multiModeGroups`.
+        const abilityModes = ability.modes;
+        const abilityModeVariants: {
+            chosenModeIds: string[] | undefined;
+            groups: (TargetRequirement | undefined)[];
+            groupInstances: number[] | undefined;
+        }[] =
+            abilityModes && abilityModes.length > 0
+                ? announceableModeCombinations({
+                      modes: abilityModes,
+                      selection: ability.modeSelection,
+                      // An activation has no kicker (CR 601.4 is a casting rule).
+                      facts: announcementModeFacts(player, false),
+                      isModeLegal: (modeId) =>
+                          modeHasLegalTargets(
+                              state,
+                              abilityModes.find((m) => m.id === modeId)!,
+                              targetingSourceFromCard(perm, false),
+                              player.id,
+                              undefined
+                          ),
+                      ownerName: `ability "${ability.id}"`,
+                  }).map((ids) => {
+                      if (ids.length === 1) {
+                          const mode = abilityModes.find(
+                              (m) => m.id === ids[0]
+                          );
+                          return {
+                              chosenModeIds: ids,
+                              groups: [
+                                  selfExcluded(mode?.targetRequirement),
+                                  ...abilityExtraGroups,
+                              ],
+                              groupInstances: undefined,
+                          };
+                      }
+                      const tagged = modeInstanceTargetGroups(
+                          abilityModes,
+                          ids
+                      );
+                      return {
+                          chosenModeIds: ids,
+                          groups: tagged.map((g) =>
+                              selfExcluded(g.requirement)
+                          ),
+                          groupInstances: tagged.map((g) => g.instance),
+                      };
+                  })
                 : [
                       {
-                          modeId: undefined,
-                          req: selfExcluded(ability.targetRequirement),
+                          chosenModeIds: undefined,
+                          groups: [
+                              selfExcluded(ability.targetRequirement),
+                              ...abilityExtraGroups,
+                          ],
+                          groupInstances: undefined,
                       },
                   ];
+        const abilityPerModeCombination = abilityModeVariants.length > 1;
+        const abilityModeLedger = modeCombinationLedger(
+            abilityModeVariants.length
+        );
         // CR 602.1 / 118 — the deferred cost legs (discard / exile-from-
         // graveyard / tap-other) are paid by NAMING cards, and the server never
         // commits the activation until they are named. The picks therefore ride
@@ -4087,7 +4380,11 @@ function enumerateAbilityMoves(
         );
         if (pickVariants.length === 0) continue;
 
-        for (const { modeId, req } of abilityModeVariants) {
+        for (const {
+            chosenModeIds,
+            groups: abilityGroups,
+            groupInstances,
+        } of abilityModeVariants) {
             // CR 601.2c via CR 602.2b — one enumerator for both shapes (issue
             // #2870). The single-group case is `[req]`, which
             // `enumerateTargetGroupTuples` handles identically to the old
@@ -4097,7 +4394,6 @@ function enumerateAbilityMoves(
             // one-branch version read `req` (the FIRST group) against the WHOLE
             // flat tuple, so an ability with additional groups asked the wrong
             // requirement about the wrong count.
-            const abilityGroups = [req, ...abilityExtraGroups];
             // The ability-side twin of the cast path's identical guard
             // (#2905 review, item 3): a VARIABLE-count group does not
             // auto-advance inside the executor's one batched `selectTargets`, so
@@ -4113,12 +4409,17 @@ function enumerateAbilityMoves(
                 continue;
             }
             const lastAbilityReq = abilityGroups[abilityGroups.length - 1];
-            for (const { targets, lastGroupSize } of enumerateTargetGroupTuples(
+            for (const {
+                targets,
+                lastGroupSize,
+                modeTargetCounts,
+            } of enumerateTargetGroupTuples(
                 state,
                 player,
                 perm,
                 abilityGroups,
-                undefined
+                undefined,
+                groupInstances
             )) {
                 // CR 107.3 (issue #3117) — the derived-X price is PER TARGET,
                 // not per ability: a cheaper spell target can be affordable
@@ -4160,11 +4461,19 @@ function enumerateAbilityMoves(
                 }
                 if (tupleTapPlan === null) continue;
                 for (const costPicks of pickVariants) {
+                    if (
+                        abilityPerModeCombination &&
+                        chosenModeIds &&
+                        !abilityModeLedger.admit(chosenModeIds)
+                    ) {
+                        continue;
+                    }
                     moves.push({
                         kind: "activate-ability",
                         cardInstanceId: perm.id,
                         abilityId: ability.id,
-                        ...(modeId ? { chosenModeIds: [modeId] } : {}),
+                        ...(chosenModeIds ? { chosenModeIds } : {}),
+                        ...(modeTargetCounts ? { modeTargetCounts } : {}),
                         targets,
                         confirmTargets: announcedTargetsNeedConfirm(
                             lastAbilityReq,
@@ -4174,10 +4483,21 @@ function enumerateAbilityMoves(
                         tapPlan: tupleTapPlan,
                         ...(costPicks ? { costPicks } : {}),
                     });
-                    if (moves.length >= MAX_COMBINATIONS) return moves;
+                    if (
+                        !abilityPerModeCombination &&
+                        moves.length >= MAX_COMBINATIONS
+                    )
+                        return moves;
                 }
             }
         }
+        abilityModeLedger.report(opts?.onTruncated, {
+            cardInstanceId: perm.id,
+            cardName:
+                tryGetDefinition((perm.card as { id?: string }).id ?? "")
+                    ?.name ?? perm.id,
+            abilityId: ability.id,
+        });
     }
     return moves;
 }
@@ -4553,6 +4873,11 @@ export type EnumerateMovesOptions = {
     /** Called with each candidate `collapseInterchangeable` dropped and the
      *  representative it collapsed onto, in enumeration order. */
     onCollapsed?: (move: Move, representative: Move) => void;
+    /** Issue #2265 — receives every announced mode combination whose moves
+     *  hit `modeCombinationBudget` in the ordinary priority window. The mode
+     *  level is never cut; the level beneath it is, and it is reported here
+     *  rather than read as "covered everything". */
+    onTruncated?: (truncation: ModeCombinationTruncation) => void;
 };
 
 /** The complete set of legal macro-moves for `playerId` at the current decision
@@ -4669,6 +4994,7 @@ export function enumerateMoves(
     }
 
     const moves: Move[] = [{ kind: "pass" }];
+    const onTruncated = options?.onTruncated;
     // CR 116.2 / 702.139a (ADR 0064) — the companion summon special action.
     // Single source of truth for legality, shared with the human mutation
     // (`summonCompanion`, game.ts) and the legal-actions surface
@@ -4697,7 +5023,9 @@ export function enumerateMoves(
             moves.push(...landPlayMoves(card));
         }
         if (actions.includes("cast")) {
-            moves.push(...enumerateCastMoves(state, player, card));
+            moves.push(
+                ...enumerateCastMoves(state, player, card, { onTruncated })
+            );
         }
     }
     // CR 305.9 — a land can be played from a NON-hand zone whenever an effect
@@ -4748,6 +5076,7 @@ export function enumerateMoves(
         moves.push(
             ...enumerateCastMoves(state, player, card, {
                 castFromZone: "graveyard",
+                onTruncated,
             })
         );
     }
@@ -4787,6 +5116,7 @@ export function enumerateMoves(
         moves.push(
             ...enumerateCastMoves(state, player, card, {
                 castFromZone: "graveyard",
+                onTruncated,
             })
         );
     }
@@ -4820,6 +5150,7 @@ export function enumerateMoves(
             moves.push(
                 ...enumerateCastMoves(state, player, card, {
                     castFromZone: "exile",
+                    onTruncated,
                 })
             );
         }
@@ -4865,6 +5196,7 @@ export function enumerateMoves(
                 // for a library cast, and CR 601.2b forbids a second
                 // alternative method riding on the life substitution).
                 castFromZone: "library",
+                onTruncated,
                 // Only pass the substitution when the permission actually
                 // replaces the mana cost: a grant with no `manaCostReplacement`
                 // (Vizier of the Menagerie's shape) casts for the printed cost,
@@ -4877,7 +5209,9 @@ export function enumerateMoves(
         );
     }
     for (const perm of player.battlefield) {
-        moves.push(...enumerateAbilityMoves(state, player, perm));
+        moves.push(
+            ...enumerateAbilityMoves(state, player, perm, { onTruncated })
+        );
     }
     // CR 113.6 / 602.5b / 702.129a (issue #2339) — GRAVEYARD-source activated
     // abilities (Eternalize, Ashen Ghoul's reanimation). Only the graveyard's
@@ -4889,6 +5223,7 @@ export function enumerateMoves(
         moves.push(
             ...enumerateAbilityMoves(state, player, card, {
                 zone: "graveyard",
+                onTruncated,
             })
         );
     }
@@ -4899,7 +5234,10 @@ export function enumerateMoves(
     // never cycles and never ninjutsus, with no test anywhere going red.
     for (const card of player.hand) {
         moves.push(
-            ...enumerateAbilityMoves(state, player, card, { zone: "hand" })
+            ...enumerateAbilityMoves(state, player, card, {
+                zone: "hand",
+                onTruncated,
+            })
         );
     }
     // CR 113.3c — "any player may activate" abilities (Ifh-Bíff Efreet) can be
@@ -4911,6 +5249,7 @@ export function enumerateMoves(
             moves.push(
                 ...enumerateAbilityMoves(state, player, perm, {
                     anyPlayerOnly: true,
+                    onTruncated,
                 })
             );
         }

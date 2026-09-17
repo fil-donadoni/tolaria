@@ -87,7 +87,11 @@ import {
     markDeclaredBlockers,
     recordAttackerDeclared,
 } from "./combat";
-import { enumerateMoves, type Move } from "./moves";
+import {
+    enumerateMoves,
+    type ModeCombinationTruncation,
+    type Move,
+} from "./moves";
 // issue #2283 — the shared origin classification + raised-selection commit.
 import {
     applyRaisedTargetFinalization,
@@ -3015,6 +3019,11 @@ export type DecisionTrace = {
     mechanism: RootDecisionMechanism;
     /** Every root candidate weighed, most-visited first. */
     candidates: CandidateTrace[];
+    /** Issue #2265 — the announced mode combinations whose moves the root
+     *  enumeration cut at `modeCombinationBudget`: which card, which
+     *  combination, how many moves survived and how many were refused. Absent
+     *  when nothing was cut, so an untruncated decision's trace is unchanged. */
+    truncations?: ModeCombinationTruncation[];
 };
 
 /** Resolve `state`'s stack to a stable point so a one-shot eval breakdown
@@ -5273,7 +5282,9 @@ function runSearchWithTrace(
     // The dropped moves become a deny-set for the tree's root layer, so the
     // proof is paid for once and honoured everywhere it matters.
     const deniedAtRoot: Move[] = [];
+    const truncations: ModeCombinationTruncation[] = [];
     let moves = enumerateMoves(state, playerId, {
+        onTruncated: (t) => truncations.push(t),
         pruneDominatedNoOps: true,
         onPruned: (m) => deniedAtRoot.push(m),
         // Issue #3593 — two copies of a card the engine cannot tell apart are
@@ -5448,15 +5459,18 @@ function runSearchWithTrace(
     );
     return {
         move,
-        trace: buildTrace(
-            root,
-            state,
-            playerId,
-            stats,
-            move,
-            weights,
-            picked.mechanism
-        ),
+        trace: {
+            ...buildTrace(
+                root,
+                state,
+                playerId,
+                stats,
+                move,
+                weights,
+                picked.mechanism
+            ),
+            ...(truncations.length > 0 ? { truncations } : {}),
+        },
     };
 }
 
