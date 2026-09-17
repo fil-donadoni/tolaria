@@ -1669,6 +1669,12 @@ function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
     if (item.unkickedCostPayments) {
         base.unkickedCostPayments = item.unkickedCostPayments;
     }
+    // CR 702.47c (issue #2394) — the text a splice reveal added to this spell
+    // is applied AS IT WAS CAST, so the snapshot of which cards were revealed
+    // must survive a save/load while the spell sits on the stack: the merged
+    // Effect Script is rebuilt from this field on every resolution attempt, and
+    // a lost field would resolve the spell with its printed text alone.
+    if (item.splicedCardIds) base.splicedCardIds = item.splicedCardIds;
     if (item.targetAmounts) base.targetAmounts = item.targetAmounts;
     // ADR 0094 — the announced mode instances and their target spans. (A
     // parked as-enters mode is the PERMANENT-domain `chosenModeId`, which
@@ -1896,6 +1902,9 @@ function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
             string,
             number
         >;
+    }
+    if (compact.splicedCardIds) {
+        item.splicedCardIds = compact.splicedCardIds as string[];
     }
     if (compact.targetAmounts) {
         item.targetAmounts = compact.targetAmounts as Record<string, number>;

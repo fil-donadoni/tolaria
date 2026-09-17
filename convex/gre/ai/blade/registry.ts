@@ -28,6 +28,7 @@ import { isLand, manaValue } from "../../constants";
 import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
 import { getCardByName, getInstanceManaCost } from "../../../cards";
 import { activationSacrificeVictims } from "../../activationCostPicks";
+import { SPLICE_COST_ID_PREFIX } from "../../splice";
 
 /** CR 702.34a — five untapped Mountains, exactly Firebolt's {4}{R} flashback
  *  cost, shared by the two halves of the issue-#2971 graveyard-cast pair so the
@@ -7716,6 +7717,73 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                 "fetches Mishra's Bauble, not the blank {0} artifact or a basic",
         },
         note: "Issue #3383 — the bot's value model never walked `cardDef.delayedTriggers[]`, so a real `effects[]` on a template was worth exactly zero and Mishra's Bauble priced as if its delayed draw did not exist. The root decision is the live search-library choice (CR 701.23), reached by really casting and resolving Demonic Tutor. Proof-of-failure: making `delayedTriggerTemplateOpValue` (`gre/ai/cardScriptValue.ts`) return `undefined` reds this at every seed (the bot fetches a Plains).",
+    },
+    {
+        // SPLICE ONTO ARCANE reachability (CR 702.47, issue #2394). The bot's
+        // main phase, five untapped Mountains, and a hand of exactly three
+        // cards: Lava Spike ({R}, Arcane), Through the Breach ({4}{R}, Arcane,
+        // "Splice onto Arcane {2}{R}{R}") and Scaled Wurm — a 7/6 for {7}{G}
+        // it cannot cast this decade.
+        //
+        // Two lines cost the same five mana and put the same hasty 7/6 in play:
+        //
+        //   • CAST Through the Breach — the Breach goes to the graveyard.
+        //   • CAST Lava Spike, REVEALING the Breach to splice — the Spike goes
+        //     to the graveyard, the opponent takes 3 more, and CR 702.47c
+        //     leaves the revealed Breach IN HAND.
+        //
+        // So the splice line strictly dominates on both axes at identical
+        // cost, which is exactly why the mechanic is worth having. It is
+        // therefore a REACHABILITY claim first: the cost entries are
+        // SYNTHESIZED from the caster's hand (`spliceAugmentedDefinition`,
+        // `gre/splice.ts`), so an enumerator reading the printed definition
+        // offers no splice Move at all — and nothing else goes red when it
+        // breaks. The bot would simply cast Arcane spells unspliced forever,
+        // and the second half of every splice card would be dead in the one
+        // place no suite looks.
+        label: "splice onto Arcane: reveals Through the Breach off Lava Spike rather than casting it",
+        spec: {
+            cards: [
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Lava Spike", owner: "me", zone: "hand" },
+                { name: "Through the Breach", owner: "me", zone: "hand" },
+                { name: "Scaled Wurm", owner: "me", zone: "hand" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+            // CR 119.1 — the opponent at exactly 3 + 7, with nothing on the
+            // battlefield to block with. That makes the splice line LETHAL
+            // this turn and neither alternative is: 3 from the Spike alone
+            // leaves 7, and the hard-cast Breach's 7/6 alone leaves 3. Pinning
+            // the life total is what turns a claim the evaluator has to price
+            // (is a one-turn 7/6 worth four mana?) into one the win band
+            // answers outright.
+            life: { me: 20, opp: 10 },
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        // A PREDICATE, not a `moves` matcher, for the reason the depletion-land
+        // entry above gives: this is a reachability claim ("the bot can pay a
+        // splice cost at all"), and feeding a reachability position to the
+        // weight fit moves the vector on a claim that contains no preference.
+        expect: {
+            predicate: (move) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                Object.keys(move.kickerPayments ?? {}).some((id) =>
+                    id.startsWith(SPLICE_COST_ID_PREFIX)
+                ),
+            describe:
+                "casts an Arcane spell paying a splice cost, rather than hard-casting the splice card",
+        },
+        note: "CR 702.47 splice reachability, and the end-to-end cover for the splice seam in `enumerateCastMoves` plus the `splicedCardIds` stamp in BOTH search sandboxes (`applyMove.ts`, `search.ts`) — the deterministic halves are in `spliceBot.bot.test.ts`. Proof-of-failure: dropping the `spliceAugmentedDefinition` call in `moves.ts` (back to the printed definition) reds this at every seed — the bot hard-casts Through the Breach.",
     },
 ];
 

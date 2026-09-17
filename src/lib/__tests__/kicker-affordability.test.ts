@@ -25,6 +25,7 @@ import { projectPublicState } from "@convex/gameProjections";
 import type { CardDefinition } from "@convex/cards/types";
 import { affordableKickersForCard } from "../card-utils";
 import { additionalCostPrintedLabel } from "@convex/gre/kicker";
+import { PLACEHOLDER_CARD_ID } from "@convex/gre/constants";
 import type { CardInstance, Player } from "~/types/game";
 
 // Bloodchief's Thirst — {B}, "Kicker {2}{B}": the mana-only shape all 25
@@ -165,5 +166,191 @@ describe("affordableKickersForCard — cast-cost dialog gate (CR 702.33a, ADR 00
         // from ADDITIONAL_COST_KEYWORDS — the single label authority.
         expect(offered[0].description).toBe("Offspring {1}");
         expect(additionalCostPrintedLabel(offered[0])).toBe("Offspring");
+    });
+
+    // CR 702.47a (issue #2394) — Splice, the third keyword on this cost half
+    // and the only one whose entry is SYNTHESIZED from the caster's hand rather
+    // than declared on the card being cast. The gate is the whole client-side
+    // affordance: with no row here the caster can never reveal anything, so the
+    // card's second half is unreachable in the UI with a perfectly healthy
+    // server — the exact failure `.claude/rules/gre-development.md` § Frontend
+    // wiring analysis is about. Driven through the reducer, which matters more
+    // here than for a declared Kicker: the option list is derived from the
+    // caster's HAND, and an opponent's hand is projected as `null[]`.
+    it("OFFERS a splice reveal for an Arcane cast, one row per eligible hand card", () => {
+        const spike = getCardByName("Lava Spike");
+        const breach = getCardByName("Through the Breach");
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        makeInstance(spike.id, {
+                            id: "spell1",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                        makeInstance(breach.id, {
+                            id: "breach1",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                        makeInstance(breach.id, {
+                            id: "breach2",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+        const view = projectPublicState(state, 1, "p1") as unknown as {
+            players: Player[];
+            activePlayerId: string;
+        };
+        const card = view.players[0].hand.find(
+            (c) => c?.id === "spell1"
+        ) as CardInstance;
+        const offered = affordableKickersForCard(
+            card,
+            "p1",
+            view.players,
+            view.activePlayerId
+        );
+        // CR 702.47b — two copies in hand are two independently revealable
+        // CARDS, so two rows; the ids carry the instance, not the printing.
+        expect(offered.map((k) => k.id)).toEqual([
+            "splice:breach1",
+            "splice:breach2",
+        ]);
+        // The toggle renders `description` verbatim, and it must name the card
+        // being revealed: two rows reading only "Splice onto Arcane {2}{R}{R}"
+        // would be indistinguishable in the dialog.
+        expect(offered[0].description).toBe(
+            "Through the Breach — Splice onto Arcane {2}{R}{R}"
+        );
+        expect(additionalCostPrintedLabel(offered[0])).toBe("Splice");
+        // The mana leg is not gated (an empty pool must not hide the row), and
+        // the Arcane spell itself is never offered as a reveal onto itself.
+        expect(
+            offered.some((k) => k.id === "splice:spell1"),
+            "the card being cast was offered as a splice onto itself"
+        ).toBe(false);
+    });
+
+    it("survives a HIDDEN hand slot rather than throwing the dialog away", () => {
+        // `projectPublicState` nulls a `PLACEHOLDER_CARD_ID` slot even in the
+        // VIEWER's own hand (issue #3452 — what a `hiddenHand` scenario seeds),
+        // so the projected hand is `(CardInstance | null)[]`. Before the splice
+        // seam this function early-returned on a card with no `kickers` and
+        // never touched the hand at all; now it walks it, and a dereferenced
+        // null slot would throw inside the cast-cost gate and stop the dialog
+        // from opening for ANY spell on such a board.
+        const spike = getCardByName("Lava Spike");
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        makeInstance(spike.id, {
+                            id: "spell1",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                        {
+                            // An opaque placeholder slot, the shape the
+                            // scenario builder seeds for a hidden hand
+                            // (`PLACEHOLDER_CARD_ID` has no definition, so it
+                            // cannot go through `makeInstance`).
+                            ...makeInstance(spike.id, {
+                                id: "hidden1",
+                                controllerId: "p1",
+                                ownerId: "p1",
+                                zone: "hand",
+                            }),
+                            card: { id: PLACEHOLDER_CARD_ID },
+                        },
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+        const view = projectPublicState(state, 1, "p1") as unknown as {
+            players: Player[];
+            activePlayerId: string;
+        };
+        expect(
+            view.players[0].hand,
+            "the projection stopped nulling the placeholder slot — this test no longer covers anything"
+        ).toContain(null);
+        const card = view.players[0].hand.find(
+            (c) => c?.id === "spell1"
+        ) as CardInstance;
+        expect(() =>
+            affordableKickersForCard(
+                card,
+                "p1",
+                view.players,
+                view.activePlayerId
+            )
+        ).not.toThrow();
+        expect(
+            affordableKickersForCard(
+                card,
+                "p1",
+                view.players,
+                view.activePlayerId
+            )
+        ).toEqual([]);
+    });
+
+    it("offers NO splice reveal when the spell is not of the spliced-onto subtype", () => {
+        const breach = getCardByName("Through the Breach");
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        makeInstance(thirst.id, {
+                            id: "spell1",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                        makeInstance(breach.id, {
+                            id: "breach1",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+        const view = projectPublicState(state, 1, "p1") as unknown as {
+            players: Player[];
+            activePlayerId: string;
+        };
+        const card = view.players[0].hand.find(
+            (c) => c?.id === "spell1"
+        ) as CardInstance;
+        // Bloodchief's Thirst is not Arcane: its own Kicker is the only row.
+        expect(
+            affordableKickersForCard(
+                card,
+                "p1",
+                view.players,
+                view.activePlayerId
+            ).map((k) => k.id)
+        ).toEqual(["kicker"]);
     });
 });

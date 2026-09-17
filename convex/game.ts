@@ -321,6 +321,7 @@ import {
     resolveCastPermanentSelection,
     resolveKickerPayments,
 } from "./gre/kicker";
+import { spliceAugmentedDefinition } from "./gre/splice";
 import { liveSupertypesOf, countSnowLands } from "./gre/snow";
 import { computeSoloViewerId } from "./soloViewer";
 import { type ManualGameState, type ManualLogEntry } from "./manual";
@@ -6044,7 +6045,19 @@ export function finalizeTargetSelection(
     const castZone = castSource.zone;
     const cardInHand = castSource.card;
     if (!cardInHand) throw new Error("Card not in hand");
-    const cardDef = getDefinition((cardInHand.card as { id: string }).id);
+    // CR 702.47a (issue #2394) — THE SPLICE SEAM: the definition every
+    // additional-cost call below prices, validates and snapshots is the printed
+    // one PLUS one synthesized cost entry per splice-eligible card in the
+    // caster's hand. Augmenting the definition once, here at the lookup, is
+    // what makes the nine downstream kicker calls spliced-aware with no edit —
+    // and a tenth added later spliced-aware by construction. Identity-stable
+    // (`===` the printed definition) whenever there is no splice option, which
+    // is every cast in today's catalogue but an Arcane one.
+    const cardDef = spliceAugmentedDefinition(
+        getDefinition((cardInHand.card as { id: string }).id),
+        player,
+        cardInstanceId
+    );
 
     // CR 118.9 — the caster opted into an ALTERNATIVE casting cost at
     // announcement (Thwart returns Islands, Fireblast sacrifices Mountains); it
@@ -7054,7 +7067,14 @@ export const announceCast = mutation({
         // `removeFromZone` and to override the cost with the flashback cost.
         const castFromZone = castSource.zone;
 
-        const cardDef = getDefinition((cardInHand.card as { id: string }).id);
+        // CR 702.47a (issue #2394) — the splice seam; see the twin call in
+        // `finalizeTargetSelection` for why the augmentation lives at the
+        // definition lookup rather than at each additional-cost call.
+        const cardDef = spliceAugmentedDefinition(
+            getDefinition((cardInHand.card as { id: string }).id),
+            player,
+            args.cardInstanceId
+        );
         // CR 205.4a (issue #1559) — the spell's printed supertypes, for the
         // `legendary-spell` restriction's eligibility check (Delighted
         // Halfling). Shared by every mana-coverage/payment call below.

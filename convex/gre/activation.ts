@@ -60,6 +60,7 @@ import { assertExpectedInput } from "./expectedInput";
 import { turnFaceDown } from "./faceDown";
 import { findFlashbackCastable } from "./flashback";
 import { additionalCostPaymentSnapshot } from "./kicker";
+import { spliceAugmentedDefinition } from "./splice";
 import { STATIC_EFFECT_CTX, getEffectivePower } from "./layers";
 import {
     LOYALTY_VIOLATION_MESSAGE,
@@ -1540,8 +1541,21 @@ export function tryAutoCommitPendingCast(
     // Cauldron's "you may cast that card for as long as it remains exiled").
     const castSource = locateCastSource(state, player, castInstanceId);
     const castCard = castSource.card;
+    // CR 702.47a (issue #2394) — the splice seam, the third of the engine's
+    // three cast-definition lookups and the one a HUMAN takes most often: the
+    // inline commits in `announceCast` / `finalizeTargetSelection` run only
+    // when the pool already covers the folded cost, so a caster who taps lands
+    // for a spliced cast parks here and commits through this function. Without
+    // the augmentation `findKicker` misses the synthesized entry, the payment
+    // falls through to `unkickedCostPayments` and `splicedCardIds` is never
+    // stamped — the splice cost is charged and the spell resolves with its
+    // printed text alone.
     const castDef = castCard
-        ? tryGetDefinition((castCard.card as { id: string }).id)
+        ? spliceAugmentedDefinition(
+              tryGetDefinition((castCard.card as { id: string }).id),
+              player,
+              castInstanceId
+          )
         : undefined;
     const castTypes = castDef?.types ?? [];
     // CR 106.6 / 205.4a (issue #1559) — the printed supertypes of the spell

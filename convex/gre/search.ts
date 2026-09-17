@@ -120,6 +120,7 @@ import {
 } from "./applyMove";
 import { spendGraveyardPlayPermission } from "./rules";
 import { additionalCostPaymentSnapshot } from "./kicker";
+import { spliceAugmentedDefinition } from "./splice";
 import {
     castSourceForSearch,
     findCastSourceCard,
@@ -1348,9 +1349,20 @@ export function applyMoveInSearch(
                 // the write, exactly as the real commit paths partition it
                 // (`game.ts`), so the sandbox's resolving spell reads the same
                 // kicked-ness the mutation would have produced.
+                // CR 702.47c (issue #2394) — through the SAME splice seam the
+                // mutation and the enumerator use, so the sandbox's stack item
+                // carries `splicedCardIds` and the resolving spell runs the
+                // merged script. Without it the search would pay the splice
+                // cost the enumerator offered and then evaluate a board where
+                // the spliced text never happened — a silent, systematic
+                // undervaluation of every splice Move.
                 ...additionalCostPaymentSnapshot(
-                    tryGetDefinition(
-                        (spellCard.card as { id?: string }).id ?? ""
+                    spliceAugmentedDefinition(
+                        tryGetDefinition(
+                            (spellCard.card as { id?: string }).id ?? ""
+                        ),
+                        castSource.owner,
+                        move.cardInstanceId
                     ),
                     move.kickerPayments
                 ),

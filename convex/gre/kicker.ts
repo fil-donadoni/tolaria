@@ -34,6 +34,7 @@ import type {
 } from "../cards/types";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import { getStaticAdditionalSacrifices, normalizeManaCost } from "./state";
+import { splicedCardIdsOfEntries } from "./splice";
 import {
     buildCostLegsPermanentChoice,
     buildCostLegsHandChoice,
@@ -165,6 +166,23 @@ export const ADDITIONAL_COST_KEYWORDS: Record<
         // exactly as for squad: only the repeated form exists.
         printedLabel: { repeated: "Replicate" },
     },
+    // CR 702.47a/b (issue #2394) — the first member whose entries are
+    // SYNTHESIZED rather than declared: the cost prices a card revealed from
+    // HAND, so `gre/splice.ts` builds one entry per splice-eligible hand card
+    // at every cast of a matching-subtype spell and no `CardDefinition.kickers`
+    // array ever contains one. Never "kicked" (CR 702.33d is kicker costs
+    // only), no twin trigger — CR 702.47c's consequence is a TEXT CHANGE on the
+    // spell, applied at resolution by merging the revealed card's own Effect
+    // Script in — and never repeatable: CR 702.47b, "You can't splice any one
+    // card onto the same spell more than once", which `allowsMulti: false`
+    // makes `resolveKickerPayments` reject at announcement.
+    splice: {
+        countsAsKicked: false,
+        requiresTrigger: false,
+        castCopyTrigger: false,
+        allowsMulti: false,
+        printedLabel: { single: "Splice" },
+    },
 };
 
 /** CR 702.33c / 702.157a (issue #3220) — the word this cost entry PRINTS as,
@@ -233,6 +251,13 @@ export function kickerPaidCount(
 export type AdditionalCostPaymentRecords = {
     kickerPayments?: KickerPayments;
     unkickedCostPayments?: KickerPayments;
+    /** CR 702.47c (issue #2394) — the PRINTED card ids whose rules text this
+     *  cast's spell gained by a splice reveal, in execution order. A THIRD
+     *  snapshot field rather than a derivation of the record above, because the
+     *  record keys the revealed INSTANCE and CR 702.47a lets that instance
+     *  leave the hand before the spell resolves (its own example discards it to
+     *  the spell's cost) — see {@link splicedCardIdsFromPayments}. */
+    splicedCardIds?: string[];
 };
 
 /** CR 702.33a / 702.175a (ADR 0085) — how many times the NAMED cost entry was
@@ -381,20 +406,30 @@ export function additionalCostPaymentSnapshot(
     if (!payments) return {};
     const kicked: KickerPayments = {};
     const unkicked: KickerPayments = {};
+    const entries: KickerCost[] = [];
     for (const [id, raw] of Object.entries(payments)) {
         if (typeof raw !== "number" || raw <= 0) continue;
         const entry = cardDef ? findKicker(cardDef, id) : undefined;
+        if (entry) entries.push(entry);
         if (entry && costEntryCountsAsKicked(entry)) {
             kicked[id] = raw;
         } else {
             unkicked[id] = raw;
         }
     }
+    // CR 702.47c (issue #2394) — resolve the splice reveals of this cast to the
+    // PRINTED cards whose text the spell gained. Read off the synthesized cost
+    // ENTRY (`splicedCardId`), which is why this needs no hand: by the time a
+    // cast commits, its own additional costs have been paid and CR 702.47a's
+    // example ("It can even be discarded to pay a 'discard a card' cost of the
+    // spell it's spliced onto") puts the revealed card anywhere at all.
+    const splicedCardIds = splicedCardIdsOfEntries(entries);
     return {
         ...(Object.keys(kicked).length > 0 ? { kickerPayments: kicked } : {}),
         ...(Object.keys(unkicked).length > 0
             ? { unkickedCostPayments: unkicked }
             : {}),
+        ...(splicedCardIds ? { splicedCardIds } : {}),
     };
 }
 
@@ -910,11 +945,20 @@ export function kickerLegPermanentSlotWouldCollide(
  *  rationale above. */
 const MULTIKICKER_REPEAT_SAMPLES = [1, 2] as const;
 
-/** Hard backstop on the cartesian product below, independent of how many
- *  Kickers a future card declares — never reached by the shipped catalogue
- *  (max 2 Kickers × {0,1} states = 4), but keeps this function's own
- *  contribution to the search's per-node move count bounded even if that
- *  changes. */
+/** Hard backstop on the cartesian product below, independent of how many cost
+ *  entries a cast offers.
+ *
+ *  It was a theoretical guard while every entry was DECLARED on the card (max 2
+ *  Kickers × {0,1} states = 4). Splice (CR 702.47, issue #2394) made the entry
+ *  list a function of the caster's HAND — `spliceAugmentedDefinition` appends
+ *  one per splice-eligible card — so five reveals in hand is 32 combinations
+ *  and this backstop is REACHED. What it then does is truncate, and the
+ *  truncation is biased rather than a sample: `break outer` drops the
+ *  later axes' combinations wholesale. The Bot therefore cannot see some
+ *  multi-reveal combinations on a hand that deep. That is fail-CLOSED (a Move
+ *  it never offers, never an illegal one) and is the same bound every other
+ *  cost axis accepts, but it is a real horizon, not the unreachable ceiling
+ *  this constant used to describe. */
 const MAX_KICKER_COMBINATIONS = 16;
 
 /** CR 702.33 (issue #2081) — every Kicker-payment variant the Bot's cast
