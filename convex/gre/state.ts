@@ -25972,7 +25972,7 @@ export function getCostModifiers(
         // `getInstanceManaCost` (so an instance `manaCostOverride` or an
         // embedded fixture cost wins over the registry definition, which is
         // what the PAYMENT path already charges) and folds in layer 5 —
-        // `colorOverride` and `grantedColors`, CR 105.2 / 202.2 / 613.1d. That
+        // `colorOverride` and `grantedColors`, CR 105.2 / 202.2 / 613.1e. That
         // module exists because this derivation had been hand-copied four
         // times and every copy read the wrong colours; a fifth copy here would
         // be the same bug (CLAUDE.md § Code Organization — no local copies).

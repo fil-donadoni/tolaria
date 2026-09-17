@@ -1,8 +1,8 @@
-// CR 105.2 / 202.2 / 613.1d — the ONE derivation of a permanent's CURRENT
+// CR 105.2 / 202.2 / 613.1e — the ONE derivation of a permanent's CURRENT
 // colours, layer 5 included.
 //
 // A card's printed colour comes from its mana cost (`getColorsFromCost`,
-// `./colors`), but layer 5 (CR 613.1d) can change it two ways, and both live on
+// `./colors`), but layer 5 (CR 613.1e) can change it two ways, and both live on
 // the instance rather than the definition:
 //
 //   * `colorOverride` — a colour SET (Purelace-style lace instants, Painter's
@@ -37,7 +37,7 @@ type ColorLayerFields = {
     grantedColors?: readonly { color: string }[];
 };
 
-/** CR 202.2 / 613.1d — the permanent's effective colours.
+/** CR 202.2 / 613.1e — the permanent's effective colours.
  *
  *  Resolution order:
  *    1. `colorOverride` (layer-5 colour SET) wins outright — it replaces every

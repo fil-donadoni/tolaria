@@ -307,7 +307,7 @@ describe("Effect Script Op: reduceSpellCostThisTurn (CR 601.2f / 514.2)", () => 
         expect(chargedCost(restored, card, ARTIFACT_ID)).toEqual({ X: 1 });
     });
 
-    it("matches colours through getEffectiveColors, so layer 5 counts (CR 105.2 / 613.1d)", () => {
+    it("matches colours through getEffectiveColors, so layer 5 counts (CR 105.2 / 613.1e)", () => {
         // A colour filter must read the card's CURRENT colours, not the
         // registry definition's printed ones: `getEffectiveColors` is the ONE
         // declared derivation and folds in layer 5. `colorOverride` REPLACES
