@@ -9,10 +9,14 @@
 import { describe, it, expect } from "vitest";
 import { isAdminUser } from "../auth";
 import { debugLoadMySeatId } from "../matches";
-import { buildStateFromScenario } from "../gre/scenarioBuilder";
+import {
+    assertLoadableIntoLiveGame,
+    buildStateFromScenario,
+} from "../gre/scenarioBuilder";
 import { makePlayer, makeState } from "../cards/__tests__/setup";
 import { grizzlyBears } from "../cards/sets/lea/green";
-import { shivanDragon } from "../cards/sets/lea/red";
+import { lightningBolt, shivanDragon } from "../cards/sets/lea/red";
+import { forest } from "../cards/sets/lea/colorless";
 import type { Doc } from "../_generated/dataModel";
 import type { ScenarioSpec } from "../debugScenarioSpec";
 
@@ -46,6 +50,16 @@ describe("debugSetupScenario — admin gate (issue #768)", () => {
  *  convention would read as passing for the wrong reason. */
 const HUMAN_SEAT = "user_abc123-p1";
 const BOT_SEAT = "user_abc123-p2";
+
+/** The live game's `players[]` AFTER a `bot: "me"` Blade load — the Bot seat
+ *  first, the shape `buildBladeLoadState` persists (issue #3443). Shared by
+ *  every describe block below that needs to build against an
+ *  already-reordered live snapshot. */
+function postBladeLoadState() {
+    return makeState({
+        players: [makePlayer(BOT_SEAT), makePlayer(HUMAN_SEAT)],
+    });
+}
 
 /**
  * Which seat a Debug scenario's `"me"` resolves to (issue #3786) — the pure
@@ -102,24 +116,26 @@ describe('debugSetupScenario — which seat renders as "me" (issue #3786)', () =
  * hand-rolled stand-in for it.
  */
 describe("debugSetupScenario — a scenario renders from the human's point of view even after a Blade load reordered the live snapshot (issue #3786)", () => {
-    /** The live game's `players[]` AFTER a `bot: "me"` Blade load — the Bot
-     *  seat first, the shape `buildBladeLoadState` persists. */
-    function postBladeLoadState() {
-        return makeState({
-            players: [makePlayer(BOT_SEAT), makePlayer(HUMAN_SEAT)],
-        });
-    }
-
+    // No `hiddenHand`: `assertLoadableIntoLiveGame` (CR 400.2, issue #3452)
+    // refuses one for THIS exact loader — a card of unknown identity has no
+    // characteristics for the cleanup discard or a hand pick to read — so a
+    // spec carrying one could never reach `debugSetupScenario`'s handler.
+    // The named `zone: "hand"` card below proves the same per-seat HAND
+    // mapping without that impossible combination.
     const spec: ScenarioSpec = {
         cards: [
             { name: grizzlyBears.name, owner: "me" },
             { name: shivanDragon.name, owner: "opp" },
+            { name: forest.name, owner: "me", zone: "hand" },
         ],
         life: { me: 5, opp: 12 },
         activePlayer: "me",
         priority: "me",
-        hiddenHand: { me: 2 },
     };
+
+    it("is loadable into a live game — the fixture itself must clear the mutation's own refusal", () => {
+        expect(() => assertLoadableIntoLiveGame(spec)).not.toThrow();
+    });
 
     it("a fresh vs-AI game with no prior Blade load — cards, life and turn holder land on the human seat", () => {
         const mySeatId = debugLoadMySeatId({
@@ -142,6 +158,7 @@ describe("debugSetupScenario — a scenario renders from the human's point of vi
         expect(bot.battlefield.some((c) => c.card.id === shivanDragon.id)).toBe(
             true
         );
+        expect(human.hand.some((c) => c.card.id === forest.id)).toBe(true);
         expect(human.life).toBe(5);
         expect(bot.life).toBe(12);
         expect(state.activePlayerId).toBe(HUMAN_SEAT);
@@ -169,22 +186,25 @@ describe("debugSetupScenario — a scenario renders from the human's point of vi
         expect(bot.battlefield.some((c) => c.card.id === shivanDragon.id)).toBe(
             true
         );
+        expect(human.hand.some((c) => c.card.id === forest.id)).toBe(true);
         expect(human.life).toBe(5);
         expect(bot.life).toBe(12);
         expect(state.activePlayerId).toBe(HUMAN_SEAT);
         expect(state.priorityPlayerId).toBe(HUMAN_SEAT);
-        expect(human.hand).toHaveLength(2);
     });
 
-    it('a solo game the SAME Blade load just converted to vs-AI — the conversion alone changes nothing about which seat is "me"', () => {
+    it("a solo game the SAME Blade load just converted to vs-AI, loaded with no `vsAi` yet on the `games` row — the `players[0]` fallback still names the human", () => {
         // `debugLoadBladeScenario` patches `vsAi: true` onto the `games` row
-        // the moment it converts a solo game — `debugLoadMySeatId` reads
-        // exactly that field, so the converted row answers identically to an
-        // always-vs-AI one.
+        // the moment it converts a solo game, but this fixture deliberately
+        // omits it — the row as it stood the INSTANT BEFORE that patch — to
+        // exercise `debugLoadMySeatId`'s OTHER branch (the `players[0]`
+        // fallback) against an already-reordered live snapshot. The `games`
+        // row's own seat order is unaffected by the Blade load (issue
+        // #3443's whole point): the human is still its first seat.
         const mySeatId = debugLoadMySeatId({
-            vsAi: true,
             players: [{ id: HUMAN_SEAT }, { id: BOT_SEAT }],
         });
+        expect(mySeatId).toBe(HUMAN_SEAT);
         const state = buildStateFromScenario(
             postBladeLoadState(),
             spec,
@@ -193,5 +213,90 @@ describe("debugSetupScenario — a scenario renders from the human's point of vi
 
         expect(state.players.find((p) => p.id === HUMAN_SEAT)!.life).toBe(5);
         expect(state.activePlayerId).toBe(HUMAN_SEAT);
+    });
+});
+
+/**
+ * The four helpers `buildStateFromScenario` threads `mySeatId` through
+ * (issue #3786) — `seedDeclaredCombat`, `seedContinuousEffects`,
+ * `seedDeclaredStack` and `scenarioExpiry` — each independently re-derived
+ * `state.players[0]`/`[1]` before this fix, so every call site elsewhere in
+ * this file (which all pass the DEFAULT `mySeatId`) proves nothing about
+ * whether the threading actually landed: the default is equivalent to the
+ * old positional code by construction. This block is the only place a
+ * non-default seat exercises all four, against a live snapshot already
+ * reordered by a Blade load — the exact shape a Debug scenario faces in
+ * practice.
+ */
+describe("debugSetupScenario — combat, the stack and continuous effects also resolve from the human seat after a reorder (issue #3786)", () => {
+    it('an "opp"-controlled stack item, a per-seat combat record and an "opp" continuous-effect duration all land on the Bot', () => {
+        const mySeatId = debugLoadMySeatId({
+            vsAi: true,
+            players: [{ id: HUMAN_SEAT }, { id: BOT_SEAT }],
+        });
+        const spec: ScenarioSpec = {
+            cards: [
+                { name: grizzlyBears.name, owner: "me" },
+                { name: shivanDragon.name, owner: "opp" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            activePlayer: "me",
+            // `seedDeclaredCombat`'s CR 506.4 per-seat tally, applied
+            // independently of a declared attack: "opp"'s Shivan Dragon
+            // attacked THIS turn, searched on "opp"'s own battlefield.
+            combat: { attackedThisTurn: { opp: [shivanDragon.name] } },
+            // `seedDeclaredStack`: the controller/owner of a declared item.
+            stack: [
+                {
+                    kind: "spell",
+                    name: lightningBolt.name,
+                    controller: "opp",
+                    targets: [{ kind: "player", seat: "me" }],
+                },
+            ],
+            // `seedContinuousEffects` + `scenarioExpiry`: an "opp"-controlled
+            // effect on "opp"'s own permanent, expiring at the turn holder's
+            // OPPONENT'S next turn — the branch that reads `duration.player`.
+            continuousEffects: [
+                {
+                    layer: 6,
+                    controller: "opp",
+                    affected: { opp: [shivanDragon.name] },
+                    payload: { kind: "keyword-grant", keyword: "flying" },
+                    duration: { phase: "upkeep", player: "opp" },
+                },
+            ],
+        };
+
+        const state = buildStateFromScenario(
+            postBladeLoadState(),
+            spec,
+            mySeatId
+        );
+
+        expect(state.stack).toHaveLength(1);
+        expect(state.stack[0].controllerId).toBe(BOT_SEAT);
+        expect(state.stack[0].ownerId).toBe(BOT_SEAT);
+        expect(state.stack[0].targets?.[0]).toMatchObject({
+            type: "player",
+            id: HUMAN_SEAT,
+        });
+
+        const shivan = state.players
+            .find((p) => p.id === BOT_SEAT)!
+            .battlefield.find((c) => c.card.id === shivanDragon.id)!;
+        expect(shivan.card).toBeDefined();
+        expect(shivan.hasAttackedThisTurn).toBe(true);
+        const effect = state.continuousEffects?.find(
+            (e) =>
+                e.affected.kind === "instances" &&
+                e.affected.instanceIds.includes(shivan.id)
+        );
+        expect(effect).toBeDefined();
+        expect(effect!.expiry).toMatchObject({
+            kind: "duration",
+            controllerId: BOT_SEAT,
+            duration: { playerId: BOT_SEAT },
+        });
     });
 });

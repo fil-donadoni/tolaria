@@ -15982,6 +15982,12 @@ export const debugSetupScenario = mutation({
         // logged-in caller could otherwise overwrite any game's board.
         await assertIsAdmin(ctx);
 
+        // CR 400.2 (issue #3452) — a spec seeding cards of unknown identity is
+        // refused HERE, before either DB read below, rather than at the spec
+        // boundary: it is a valid spec, and the verdict quiz rebuilds it every
+        // time. What it is not is a board a live game can hold.
+        assertLoadableIntoLiveGame(args);
+
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
 
@@ -16000,11 +16006,6 @@ export const debugSetupScenario = mutation({
         // from a vitest test with no Convex runtime AND from this mutation —
         // `args` (minus `gameId`) already matches the `ScenarioSpec` shape
         // it takes.
-        // CR 400.2 (issue #3452) — a spec seeding cards of unknown identity is
-        // refused HERE rather than at the spec boundary: it is a valid spec,
-        // and the verdict quiz rebuilds it every time. What it is not is a
-        // board a live game can hold.
-        assertLoadableIntoLiveGame(args);
         const state = buildStateFromScenario(
             gameState.state as GameState,
             args,

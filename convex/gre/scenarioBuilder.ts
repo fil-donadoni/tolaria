@@ -2208,10 +2208,12 @@ function scenarioExpiry(
 /** Options for {@link specFromState}. */
 export type SpecFromStateOptions = {
     /** Which live `state.players[].id` becomes `"me"` in the lowered spec.
-     *  `ScenarioSpec`'s `"me"` is ALWAYS `players[0]` by convention
-     *  (`gre/ai/blade/types.ts`), which has no general relationship to a live
-     *  game's seat order — get this wrong and every card in the capture comes
-     *  out mirrored to the wrong side. */
+     *  Within a `ScenarioSpec`, `"me"` ALWAYS names that chosen seat — the
+     *  vocabulary `seatPlayerId` (`gre/ai/blade/matcher.ts`) and every blade
+     *  helper built on it read positionally — but the CHOICE of which live
+     *  id fills that role has no general relationship to `state.players[]`'s
+     *  own order (issue #3786): get this wrong and every card in the
+     *  capture comes out mirrored to the wrong side. */
     mySeatId: string;
 };
 
@@ -3235,9 +3237,11 @@ function lowerCombat(
     const onBattlefield = (id: string): CardInstanceState | undefined =>
         state.players[0].battlefield.find((c) => c.id === id) ??
         state.players[1].battlefield.find((c) => c.id === id);
-    // The SPEC's frame, not the live one: "me" is `players[0]` on the rebuild
-    // whichever live seat it was, so every list below must be emitted in that
-    // order for the builder's own resolution to land on the same permanents.
+    // The SPEC's frame, not the live one: the rebuild's `"me"` is whichever
+    // seat ITS OWN `mySeatId` names (issue #3786, not always `players[0]`),
+    // so every list below must be emitted in `seatOrder`'s order — [that
+    // seat, the other one] — for the builder's own resolution to land on the
+    // same permanents.
     const seatOrder = [
         state.players.find((p) => p.id === mySeatId)!,
         state.players.find((p) => p.id !== mySeatId)!,
@@ -4791,9 +4795,11 @@ function reportPlayerStateResidue(
  * everything that spec could NOT capture. Pure — no `ctx`, no mutation of
  * `state`.
  *
- * `opts.mySeatId` decides which live seat becomes `"me"` (`ScenarioSpec`'s
- * `"me"` is always `players[0]`, which has no relationship to a live game's
- * seat order — get this wrong and the capture comes out mirrored, #2148).
+ * `opts.mySeatId` decides which live seat becomes `"me"` — the choice has no
+ * general relationship to a live game's `players[]` order (issue #3786's
+ * `buildStateFromScenario` takes the matching `mySeatId`, not always
+ * `players[0]` either) — get this wrong and the capture comes out mirrored,
+ * #2148.
  *
  * Lossy by construction: `dropped` names every fact the spec couldn't carry
  * (the stack, a mid-flight payment, an instance-keyed restricted-mana

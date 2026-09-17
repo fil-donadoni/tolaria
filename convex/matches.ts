@@ -534,6 +534,11 @@ export function bladeLoadBotSeatId(game: {
  *
  * vs-AI: the non-bot seat, whichever position it landed in. Otherwise (solo,
  * two-player): the `games` row's own first seat — its order never changes.
+ *
+ * `ConvexError`, not `Error`, on a malformed row (ADR 0001 promises a `-p2`
+ * seat on every vs-AI game, so this is a genuine invariant violation, never a
+ * shape a real caller hits) — matching `bladeLoadBotSeatId`'s own refusal
+ * shape rather than a bare `undefined.id` `TypeError`.
  */
 export function debugLoadMySeatId(game: {
     vsAi?: boolean;
@@ -543,7 +548,13 @@ export function debugLoadMySeatId(game: {
         const human = game.players.find((p) => !isBotSeat(p.id));
         if (human) return human.id;
     }
-    return game.players[0].id;
+    const first = game.players[0];
+    if (!first) {
+        throw new ConvexError(
+            "This game has no seats to load a Debug scenario onto."
+        );
+    }
+    return first.id;
 }
 
 /** True when the recorded play/draw chooser is the AI bot, so the choice must
