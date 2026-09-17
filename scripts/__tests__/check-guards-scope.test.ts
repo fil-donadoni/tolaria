@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
+import vitestConfig from "../../vitest.config";
 import { classifyLane } from "../check-lane";
 
 /**
@@ -69,10 +70,12 @@ describe("check:guards scope — the light gate runs the whole node project", ()
     const guards = pkg.scripts["check:guards"];
     const segments = guards.split("&&").map((s) => s.trim());
     const nodeSegment = segments.find(
-        (s) => /--project\s+node\b/.test(s) && !/bot-node/.test(s)
+        (s) =>
+            /--project\s+node-engine\b/.test(s) &&
+            /--project\s+node-tooling\b/.test(s)
     );
 
-    it("has a node-project segment at all", () => {
+    it("has a node-project segment at all — both partitions (ADR 0136 §5)", () => {
         expect(
             nodeSegment,
             `check:guards must run the application suite's node project. Current value:\n  ${guards}`
@@ -126,8 +129,8 @@ describe("check:guards scope — the light gate runs the whole dom project (#265
     // tree, after review had already been paid for.
     const guards = pkg.scripts["check:guards"];
     const segments = guards.split("&&").map((s) => s.trim());
-    const nodeSegment = segments.find(
-        (s) => /--project\s+node\b/.test(s) && !/bot-node/.test(s)
+    const nodeSegment = segments.find((s) =>
+        /--project\s+node-engine\b/.test(s)
     );
     const domSegment = segments.find(
         (s) => /--project\s+dom\b/.test(s) && !/bot-dom/.test(s)
@@ -154,7 +157,8 @@ describe("check:guards scope — the light gate runs the whole dom project (#265
     });
 
     it("shares the node segment's invocation — no separate mutex, no separate lock", () => {
-        // `vitest run --project node --project dom` is ONE process inside ONE
+        // `vitest run --project node-engine --project node-tooling --project
+        // dom` is ONE process inside ONE
         // `check:guards` command, which check:pr already runs under
         // `bun scripts/gate.ts light` (pinned by
         // worktree-bootstrap.test.ts's "light pre-PR gate" describe block).
@@ -170,18 +174,81 @@ describe("check:guards scope — the light gate runs the whole dom project (#265
     });
 });
 
-describe("the node project is the whole backend half of the app suite", () => {
-    const config = fs.readFileSync(path.join(ROOT, "vitest.config.ts"), "utf8");
-    const nodeBlock = config.match(
-        /name:\s*"node"[\s\S]*?include:\s*\[([\s\S]*?)\]/
-    )?.[1];
+describe("the node partitions are the whole backend half of the app suite (ADR 0136 §5)", () => {
+    interface ProjectConfig {
+        test?: { name?: string; include?: string[] };
+    }
+    const projects =
+        (vitestConfig as { test?: { projects?: ProjectConfig[] } }).test
+            ?.projects ?? [];
+    const include = (name: string) =>
+        projects.find((p) => p.test?.name === name)?.test?.include ?? [];
 
-    it("includes both convex/** and scripts/**", () => {
-        expect(nodeBlock, "node project include not found").toBeTruthy();
-        // `check:guards` buys its coverage from this glob — if the project stops
-        // covering convex/, dropping the path filter above buys nothing.
-        expect(nodeBlock!).toContain("convex/**");
-        expect(nodeBlock!).toContain("scripts/**");
+    it("node-engine includes convex/** and node-tooling only scripts/**", () => {
+        // `check:guards` buys its coverage from these globs — if node-engine
+        // stops covering convex/, dropping the path filter above buys nothing.
+        expect(include("node-engine")).toContain("convex/**/*.test.ts");
+        const tooling = include("node-tooling");
+        expect(tooling.length).toBeGreaterThan(0);
+        for (const f of tooling) expect(f).toMatch(/^scripts\//);
+    });
+});
+
+/**
+ * ADR 0136 §5 amends ADR 0104 §2: a lane may run a FIXED partition of a
+ * project. The partition names are the contract — this pins which lane runs
+ * which, and that the retired `node` id is named nowhere: a `--project node`
+ * left in a script or a lane names a project that no longer exists.
+ */
+describe("node partitions — which lane runs which (ADR 0136 §5)", () => {
+    const vitestCommands = (cmd: string) =>
+        cmd.split("&&").filter((seg) => /vitest run/.test(seg));
+    const engine = classifyLane(["convex/gre/engine.ts"]);
+
+    it("the engine lane runs node-engine whole", () => {
+        const node = engine.run.find((c) => c.id === "node-engine");
+        expect(node?.command).toBe("bunx vitest run --project node-engine");
+        expect(positionalFilters(node!.command)).toEqual([]);
+    });
+
+    it("check:pr (via check:guards) and test:app run both partitions", () => {
+        for (const script of ["check:guards", "test:app"]) {
+            const cmd = pkg.scripts[script];
+            expect(cmd, script).toMatch(/--project\s+node-engine\b/);
+            expect(cmd, script).toMatch(/--project\s+node-tooling\b/);
+        }
+        expect(pkg.scripts["check:pr"]).toContain("check:guards");
+    });
+
+    it("no script and no lane names the retired `node` project", () => {
+        const plans = [
+            classifyLane(["src/app.tsx"]),
+            engine,
+            classifyLane(["scripts/land.ts"]),
+            classifyLane([
+                "convex/cards/sets/lea/red.ts",
+                "data/card-index.json",
+            ]),
+            classifyLane(["docs/adr/0111.md"]),
+            classifyLane(["CONTEXT.md", "convex/gre/engine.ts"]),
+            classifyLane(["package.json"]),
+        ];
+        const commands = [
+            ...Object.entries(pkg.scripts).flatMap(([name, cmd]) =>
+                vitestCommands(cmd).map((c) => [`package.json ${name}`, c])
+            ),
+            ...plans.flatMap((p) =>
+                p.run.map((c) => [`${p.lane} lane ${c.id}`, c.command])
+            ),
+        ];
+        const retired = commands.filter(([, c]) =>
+            /--project\s+node(?![\w-])/.test(c)
+        );
+        expect(
+            retired.map(([where]) => where),
+            "`--project node` names a project that no longer exists (ADR 0136 §5). " +
+                "Name node-engine, node-tooling, or both."
+        ).toEqual([]);
     });
 });
 

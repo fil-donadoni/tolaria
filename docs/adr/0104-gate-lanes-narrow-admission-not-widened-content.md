@@ -3,7 +3,10 @@
 ## Status
 
 accepted — amended 2026-09-09 (see below); §2 amended for `check:ui` alone
-by ADR 0131 (2026-09-15) — vitest projects keep §2 whole
+by ADR 0131 (2026-09-15); §2 amended by ADR 0136 §5 (2026-09-17): a lane may
+run a FIXED, content-classified partition of a vitest project
+(`node-engine` / `node-tooling`, issue #3774) — never a diff-derived subset,
+which stays forbidden
 
 ## Amendment (2026-09-09): the downstream total run moved; item 5 superseded
 

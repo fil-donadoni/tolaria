@@ -6,7 +6,7 @@
 // module graph, the compiler's lockfile and the card index — so the strongest
 // tier `scripts/check-oracle-lockfile.ts` has to tier around (regenerate and
 // diff) is available unconditionally here. A vitest file also runs in the
-// `engine` lane (`bunx vitest run --project node`), which is precisely the
+// `engine` lane (`bunx vitest run --project node-engine`), which is precisely the
 // lane a diff touching `convex/cards/sets/**` takes; `check:oracle` does not.
 // `bun run catalogue:check` is the same assertion at the CLI.
 //

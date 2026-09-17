@@ -26,7 +26,8 @@ Three lanes:
    episodes out of the gate: the lane and `test:bot` now run the same files,
    and the mechanism survives only for the next file that earns an exception.
 2. **The whole application suite — node AND dom, both WHOLE** —
-   `vitest run --project node --project dom`. `node` is `convex/**` +
+   `vitest run --project node-engine --project node-tooling --project dom`.
+   The node half — two fixed partitions since ADR 0136 §5 — is `convex/**` +
    `scripts/**` + every DOM-free `src` test (~30s at the light tier's 2
    workers: no dom env init and `isolate: false`, so the card registry is
    imported once per worker); `dom` (#2655) is every `src/**/*.test.{ts,tsx}`
@@ -119,12 +120,15 @@ here.** In one sentence: no lane scopes a `--project` invocation to a
 **diff-derived** subset of tests, which is the property #2431 established;
 where a lane's `--project` command carries a path argument at all it is a
 fixed literal written into the lane definition (`skin`'s
-`node[src,scripts]` = `bunx vitest run --project node src/ scripts/`), with
+`node[src,scripts]` = `bunx vitest run --project node-engine --project
+node-tooling src/ scripts/`), with
 a paired skip entry recording what that excludes. The only diff-derived
 commands are `format(diff)` / `lint(diff)`, which are prettier and eslint,
 not vitest projects. What a lane otherwise decides is whether a project runs
-**at all**: `skin` never runs the bot fast lane or the `node` project's
-`convex/**` half; `engine` never runs `dom` — and that last one **is** a
+**at all**: `skin` never runs the bot fast lane or the node project's
+`convex/**` half; `engine` runs `node-engine` and admits `node-tooling` only
+for a `scripts/**` diff (see § Node partitions below); `engine` never runs
+`dom` — and that last one **is** a
 deliberate narrowing of #2655's admission decision, not a preservation of
 it (ADR 0104 § Decision, with the three backstops that make it acceptable).
 
@@ -247,15 +251,67 @@ both; 109 classify as `engine` after the change, against 34 before):
   fixed list `check:docs` runs (`scripts/lib/doc-gate-tests.ts`, one list,
   two consumers). The other two things `check:docs` owes are already in every
   code lane: `format(diff)` carries the `.md` paths and `cr:lint` is a fixed
-  entry of both. Today `engine`'s `node[all]` and `skin`'s
-  `node[src,scripts]` already select those files, so the entry is redundant
-  in seconds but not in meaning: ADR 0136 §5 splits `node` into
-  content-classified partitions, and the lane that stops running
-  `scripts/__tests__` whole is the lane this entry keeps honest. A FIXED list,
-  never a diff-derived one — ADR 0104's admission rule is untouched. The
+  entry of both. `skin`'s `node[src,scripts]` already selects those files;
+  `engine` runs `node-engine` and admits `node-tooling` only for a
+  `scripts/**` diff, so for a `convex/**` + prose diff this entry is what runs
+  the prose guards living in `node-tooling`. A FIXED list, never a
+  diff-derived one — ADR 0104's admission rule is untouched. The
   receipt's skip reasons say "no changed **code** under X" for exactly this
   reason: a nested `CLAUDE.md` sits under the directory they name, and the
   truth test in `check-lane.test.ts` checks the claim against the code paths.
+
+### Node partitions — `node-engine` / `node-tooling` (ADR 0136 §5, issue #3774)
+
+The `node` project is two fixed partitions. `node-engine` is `convex/**`, the
+DOM-free `src` tests and every `scripts` test that reaches `convex/` or
+`data/`; `node-tooling` is the rest of `scripts/**` — gate, land, hooks, loop,
+telemetry, mostly subprocess-heavy. `test:app`, `check:guards` (so `check:pr`)
+and the `skin` lane run both; the `engine` lane runs `node-engine` and admits
+`node-tooling` whole when the diff touches `scripts/**`.
+
+Membership is a predicate, not a list (`splitScriptsTests` in
+`scripts/test-env-split.ts`, computed at config load beside the node/dom
+split). A scripts test is `engine` when its transitive local imports reach
+`convex/` or `data/`, OR when it — or any local module it reaches — names
+either tree as a path literal: the census shape that reads the engine through
+`fs` and imports none of it (the CR sweeps read `data/cr/` through a
+`scripts/lib` helper). It
+leans toward `engine` on purpose: a false `engine` costs seconds, a false
+`tooling` is a guard a `convex/**` diff stops running until the next health
+run. The one blind spot is a subprocess (a tooling test spawning a script that
+imports `convex/`); none exists today, and health is the backstop.
+
+`src-test-env-split.test.ts` resolves the real config against every test file
+in `convex/`, `scripts/`, `src/` and `dashboard/` and reds on a file selected
+by no project or by two; `check-guards-scope.test.ts` pins which lane names
+which partition and reds on any script or lane plan still naming
+`--project node`.
+
+`ladder.bot.test.ts` left `test:bot` and the bot fast lane the same way
+`*.perf.test.ts` left the general projects: a declared `LADDER_GLOB`, excluded
+from every general project and selected by its own `ladder` project, which
+`bun run test:perf` runs. It is a harness smoke for a strength instrument
+(ADR 0124), not a per-landing correctness guard.
+
+Measured on the same tree, `TOLARIA_VITEST_WORKERS=4`, with `uptime` beside
+each figure because this machine's load swings the wall more than the change
+does (2026-09-17):
+
+| Run                                 | Before                      | After                               | Load avg (1m) |
+| ----------------------------------- | --------------------------- | ----------------------------------- | ------------- |
+| `bot-node` + `bot-dom` (`test:bot`) | 222.7 s, 248 files          | 85.0 s, 247 files                   | 32 → 8        |
+| `node` / `node-engine`              | 89.9 s, 1063 files (`node`) | 111.7 s, 1016 files (`node-engine`) | 30 → 21       |
+| `node-tooling`                      | —                           | 82.4 s, 47 files                    | 21            |
+| `ladder` alone (2 workers)          | inside `test:bot`           | 122.8 s, 11 tests                   | ~30           |
+
+The bot row is the ladder leaving (its one file was the suite's tail). The
+node rows do NOT show `node-engine` slower than `node`: the before run was at
+load 30 on a different moment, and the two partitions' test time (211 s +
+175 s) sums past the whole project's 266 s the same way — contention, not
+content. The node rows predate the review fix that follows path literals
+through reached modules: the split is now 97 `scripts` tests in `node-engine`
+and 34 in `node-tooling` (was 84 / 47). Re-derive at a quiet moment before quoting a speed-up; the split's
+counts (predicate-fixed at config load) are the stable part.
 
 ### Batch homogeneity and the batch-level `check:ui`
 

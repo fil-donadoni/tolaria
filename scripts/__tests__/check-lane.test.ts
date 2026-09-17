@@ -285,7 +285,7 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
      * same `DOC_GATE_TESTS` that `check:docs` runs, so the prose is proven by
      * exactly the guards that read it. Three cases, each proven to fail once.
      */
-    const docsNodeCommand = `bunx vitest run --project node ${DOC_GATE_TESTS.join(" ")}`;
+    const docsNodeCommand = `bunx vitest run --project node-engine --project node-tooling ${DOC_GATE_TESTS.join(" ")}`;
 
     it("prose + engine code ⇒ engine, run list ending with the check:docs node files", () => {
         for (const files of [
@@ -506,7 +506,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "tsc[all]",
             "lint(diff)",
             "dom",
-            "node[all]",
+            "node-engine+node-tooling",
         ]);
     });
 
@@ -530,7 +530,28 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
         ]);
     });
 
-    it("engine keeps the WHOLE type-check and drops only dom", () => {
+    it("engine admits node-tooling whole for a scripts/** diff, never a slice (ADR 0136 §5)", () => {
+        const tooling = classifyLane(["scripts/land.ts"]);
+        expect(tooling.lane).toBe("engine");
+        expect(ids(tooling.run).slice(-2)).toEqual([
+            "node-engine",
+            "node-tooling",
+        ]);
+        expect(tooling.run.at(-1)!.command).toBe(
+            "bunx vitest run --project node-tooling"
+        );
+        expect(ids(tooling.skip)).toEqual(["dom"]);
+        for (const files of [
+            ["convex/gre/engine.ts"],
+            ["data/card-index.json"],
+        ]) {
+            expect(ids(classifyLane(files).skip), files[0]).toContain(
+                "node-tooling"
+            );
+        }
+    });
+
+    it("engine keeps the WHOLE type-check and drops only dom and node-tooling", () => {
         expect(ids(engine.run)).toEqual([
             "format(diff)",
             "lint(diff)",
@@ -541,9 +562,9 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "bundle",
             "cr:lint",
             "bot fast lane",
-            "node[all]",
+            "node-engine",
         ]);
-        expect(ids(engine.skip)).toEqual(["dom"]);
+        expect(ids(engine.skip)).toEqual(["dom", "node-tooling"]);
         // src/** imports convex/gre (ADR 0074), so an engine diff CAN break
         // the app project — the whole type-check is one of the three
         // backstops that make dropping `dom` safe (#2738).
@@ -566,7 +587,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
         expect(ids(cards.skip)).toEqual([
             "tsc[app,scripts]",
             "bot fast lane",
-            "node[all]",
+            "node-engine+node-tooling",
             "dom",
         ]);
         const out = renderPlan(cards, "4f2a91c");
@@ -793,7 +814,8 @@ describe("check-lane — every planned check is invokable today (issue #2740)", 
     });
 
     it("every `--project X` names a real vitest project", () => {
-        expect(projects).toContain("node");
+        expect(projects).toContain("node-engine");
+        expect(projects).toContain("node-tooling");
         for (const plan of plans) {
             for (const check of plan.run) {
                 for (const [, project] of check.command.matchAll(
@@ -876,7 +898,7 @@ describe("check-lane — the printed receipt renders the plan (issue #2740)", ()
         expect(parsed.head).toBe("4f2a91c");
         expect(parsed.lane).toBe("engine");
         expect(parsed.files).toEqual(["convex/gre/engine.ts"]);
-        expect(ids(parsed.run)).toContain("node[all]");
+        expect(ids(parsed.run)).toContain("node-engine");
         expect(renderPlan(plan, "4f2a91c")).toContain("4f2a91c");
     });
 
@@ -892,7 +914,7 @@ describe("check-lane — the printed receipt renders the plan (issue #2740)", ()
     it("also merges in the RunResult once the plan has executed", () => {
         const plan = classifyLane(["convex/gre/engine.ts"]);
         const result: RunResult = {
-            outcomes: [{ id: "node[all]", status: "pass", ms: 5 }],
+            outcomes: [{ id: "node-engine", status: "pass", ms: 5 }],
             ok: true,
             totalMs: 5,
         };

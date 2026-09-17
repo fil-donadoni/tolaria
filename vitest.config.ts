@@ -1,6 +1,6 @@
 import { defineConfig } from "vitest/config";
 import path from "path";
-import { splitSrcTests } from "./scripts/test-env-split";
+import { splitScriptsTests, splitSrcTests } from "./scripts/test-env-split";
 import { buildDefine } from "./scripts/lib/build-define";
 
 // Shared resolve aliases — must match tsconfig paths so both projects resolve
@@ -41,10 +41,26 @@ const baseExclude = [
 // ─────────────────────────────────────────────────────────────────────────────
 const PERF_GLOB = ["**/*.perf.test.ts"];
 
-/** Shared exclude for the four GENERAL projects. Perf tests are excluded here
- *  rather than per-project so a new project inherits the exclusion for free;
- *  the `perf` project uses `baseExclude` instead. */
-const exclude = [...baseExclude, ...PERF_GLOB];
+// ─────────────────────────────────────────────────────────────────────────────
+// THE LADDER SMOKE leaves the gated bot suite (ADR 0136 §5, issue #3774).
+//
+// `ladder.bot.test.ts` plays real self-play games — measured 92.5s, the tail
+// that bounded `test:bot` (106s wall) and the bot fast lane every `engine`
+// lane pays. What it pins is the ladder HARNESS contract (bit-reproducibility,
+// order-independence, variant-seam cleanup), which a correctness gate does not
+// need per landing: the ladder is a strength instrument (ADR 0124), run on
+// demand. It moves by the same declared-glob mechanism as `PERF_GLOB` —
+// excluded from every general project below, selected by its own `ladder`
+// project, run by `bun run test:perf` beside the perf tests. A glob, not a
+// deny-list entry: HEAVY_BOT_GLOB defers a file from the fast lane only, this
+// takes it out of `test:bot` too.
+// ─────────────────────────────────────────────────────────────────────────────
+const LADDER_GLOB = ["src/lib/ai/selfplay/ladder.bot.test.ts"];
+
+/** Shared exclude for the GENERAL projects. Perf and ladder tests are excluded
+ *  here rather than per-project so a new project inherits the exclusion for
+ *  free; the `perf` and `ladder` projects use `baseExclude` instead. */
+const exclude = [...baseExclude, ...PERF_GLOB, ...LADDER_GLOB];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TWO AXES: runtime environment (node / dom) × subsystem (app / bot).
@@ -137,6 +153,29 @@ const BOT_GLOB_DOM = ["src/**/*.bot.test.{ts,tsx}"];
 const SRC_NODE_TESTS = splitSrcTests(__dirname).node;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// AXIS 1, PARTITIONED — `node-engine` / `node-tooling` (ADR 0136 §5, amending
+// ADR 0104 §2; issue #3774).
+//
+// The node project is two FIXED partitions, never a diff-derived slice:
+//   - `node-engine`  → `convex/**`, the DOM-free `src` tests above, and every
+//                      `scripts` test that reaches `convex/` or `data/` —
+//                      by a transitive import or by naming the tree as a path.
+//   - `node-tooling` → the rest of `scripts/**`: gate, land, hooks, loop,
+//                      telemetry — subprocess-heavy, unreachable from an
+//                      engine edit.
+// The `engine` lane runs `node-engine` (plus `node-tooling` only when the diff
+// touches `scripts/**` — project admission, which ADR 0104 always allowed);
+// `test:app`, `check:pr` and the `skin` lane run both.
+//
+// Membership is the predicate in `scripts/test-env-split.ts`, computed at
+// config load like the node/dom split — no list to update. Pinned by
+// `scripts/__tests__/src-test-env-split.test.ts`: every test file is selected
+// by exactly one project, so a file in neither partition (runs nowhere) or in
+// both (runs twice) is a red.
+// ─────────────────────────────────────────────────────────────────────────────
+const SCRIPTS_SPLIT = splitScriptsTests(__dirname);
+
+// ─────────────────────────────────────────────────────────────────────────────
 // BOT FAST LANE — `TOLARIA_BOT_FAST=1` (issue #1912).
 //
 // The light pre-PR gate (`check:pr`) ran no tests at all, and the bot suite is
@@ -214,7 +253,7 @@ export default defineConfig({
             {
                 extends: true,
                 test: {
-                    name: "node",
+                    name: "node-engine",
                     environment: "node",
                     // Deep-freezes the shared catalogue: `isolate: false`
                     // shares module state across files, so an in-place
@@ -224,7 +263,7 @@ export default defineConfig({
                     setupFiles: ["./vitest.setup.node.ts"],
                     include: [
                         "convex/**/*.test.ts",
-                        "scripts/**/*.test.ts",
+                        ...SCRIPTS_SPLIT.engine,
                         ...SRC_NODE_TESTS,
                     ],
                     exclude: [...exclude, ...BOT_GLOB_NODE],
@@ -236,6 +275,20 @@ export default defineConfig({
                     // anything a unit test legitimately takes here and still
                     // tight enough to catch a genuine hang. A test that wants
                     // to ASSERT on elapsed time belongs in the `perf` project.
+                    testTimeout: 30_000,
+                },
+            },
+            {
+                extends: true,
+                test: {
+                    name: "node-tooling",
+                    environment: "node",
+                    // Same shared-module-state hazard and hang guard as
+                    // `node-engine` — the two are one project, partitioned.
+                    setupFiles: ["./vitest.setup.node.ts"],
+                    include: SCRIPTS_SPLIT.tooling,
+                    exclude: [...exclude, ...BOT_GLOB_NODE],
+                    isolate: false,
                     testTimeout: 30_000,
                 },
             },
@@ -255,7 +308,7 @@ export default defineConfig({
                         "dashboard/**/*.test.{ts,tsx}",
                     ],
                     exclude: [...exclude, ...BOT_GLOB_DOM, ...SRC_NODE_TESTS],
-                    // Same hang guard as the `node` project above (#3123).
+                    // Same hang guard as the node projects above (#3123).
                     testTimeout: 30_000,
                 },
             },
@@ -264,7 +317,7 @@ export default defineConfig({
                 test: {
                     name: "bot-node",
                     environment: "node",
-                    // Same shared-module-state hazard as the `node` project
+                    // Same shared-module-state hazard as the node projects
                     // (`isolate: false`) — same frozen catalogue.
                     setupFiles: ["./vitest.setup.node.ts"],
                     include: BOT_GLOB_NODE,
@@ -295,13 +348,28 @@ export default defineConfig({
                 test: {
                     name: "perf",
                     environment: "node",
-                    // Same frozen-catalogue setup as the `node` project.
+                    // Same frozen-catalogue setup as the node projects.
                     setupFiles: ["./vitest.setup.node.ts"],
                     include: PERF_GLOB,
                     // NOT `exclude` — that list is what banishes perf tests
                     // from the general projects; applying it here would leave
                     // this project selecting nothing at all.
                     exclude: baseExclude,
+                },
+            },
+            {
+                extends: true,
+                test: {
+                    name: "ladder",
+                    // The ladder harness is DOM-free; it ran under happy-dom
+                    // only because `src/**` bot tests did. Default isolation:
+                    // it drives the module-level search-variant seam.
+                    environment: "node",
+                    setupFiles: ["./vitest.setup.node.ts"],
+                    include: LADDER_GLOB,
+                    // NOT `exclude` — for the same reason as `perf`.
+                    exclude: baseExclude,
+                    testTimeout: 60_000,
                 },
             },
         ],
