@@ -2402,6 +2402,22 @@ function enumerateTargetGroupTuples(
             [];
         for (const prefix of acc) {
             for (const tuple of groupTuples) {
+                // CR 115.3 "another target" (issue #3236) — the group may not
+                // re-pick a permanent an earlier group chose; the engine lowers
+                // the same directive into `excludeInstanceIds` when the walk
+                // reaches this group (`excludingPriorTargets`, `game.ts`).
+                if (
+                    req?.excludePriorTargets &&
+                    tuple.some(
+                        (t) =>
+                            t.type === "permanent" &&
+                            prefix.targets.some(
+                                (p) => p.type === "permanent" && p.id === t.id
+                            )
+                    )
+                ) {
+                    continue;
+                }
                 next.push({
                     targets: [...prefix.targets, ...tuple],
                     lastGroupSize: tuple.length,
@@ -2410,6 +2426,9 @@ function enumerateTargetGroupTuples(
             }
             if (next.length >= MAX_COMBINATIONS) break;
         }
+        // Every tuple collided with an earlier group's pick — no legal way to
+        // fill this group distinctly, so no legal announcement.
+        if (next.length === 0) return [];
         acc = next;
     }
     return acc;

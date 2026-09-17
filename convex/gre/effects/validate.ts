@@ -1765,6 +1765,9 @@ function isCopyExceptClause(value: unknown): boolean {
         "additionalStaticAbilities",
         "noManaCost",
         "imagePrintId",
+        // CR 707.9b "except it's an artifact in addition to its other types"
+        // (issue #3236).
+        "additionalTypes",
     ]);
     const keys = Object.keys(e);
     if (keys.length === 0) return false;
@@ -1791,6 +1794,14 @@ function isCopyExceptClause(value: unknown): boolean {
             !e.additionalStaticAbilities.every(
                 (s) => typeof s === "string" && s.length > 0
             ))
+    ) {
+        return false;
+    }
+    if (
+        "additionalTypes" in e &&
+        (!Array.isArray(e.additionalTypes) ||
+            e.additionalTypes.length === 0 ||
+            !isStringArray(e.additionalTypes, TOKEN_CARD_TYPES))
     ) {
         return false;
     }
@@ -4220,6 +4231,27 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             // overrides (Eternalize / Embalm).
             except: isCopyExceptClause,
         },
+    },
+    // CR 707.2 / 611.2a (issue #3236) — an existing permanent becomes a copy
+    // of another. `target` (the recipient) and `source` (the copied object)
+    // are object selectors; `except` is the shared CR 707.9 clause; `duration`
+    // omitted is indefinite. Both selectors naming the SAME announced slot is
+    // rejected: a permanent copying itself is a no-op the author cannot mean.
+    becomeCopy: {
+        required: {
+            target: isObjectSelector,
+            source: isObjectSelector,
+        },
+        optional: {
+            except: isCopyExceptClause,
+            duration: isDurationSpec,
+        },
+        check: (entry) =>
+            JSON.stringify(entry.target) === JSON.stringify(entry.source)
+                ? [
+                      'fields "target" and "source" name the same object — a permanent cannot become a copy of itself (CR 707.2)',
+                  ]
+                : [],
     },
     // CR 114 (issue #1221) — create a command-zone emblem. `emblem` is a
     // non-empty registry key (the closure-bearing definition lives in

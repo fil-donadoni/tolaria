@@ -2561,11 +2561,25 @@ export function activateAbilityOnState(
                 [],
                 abilitySourcePower
             );
-            if (
-                extraLegal.length <
-                minTargetCount(resolveTargetCount(extra.count, targetChosenX))
-            ) {
+            const extraRequired = minTargetCount(
+                resolveTargetCount(extra.count, targetChosenX)
+            );
+            if (extraLegal.length < extraRequired) {
                 throw new Error("Not enough legal targets");
+            }
+            // CR 115.3 "another target" (issue #3236) — a group that may not
+            // re-pick an earlier group's permanent needs enough DISTINCT
+            // candidates across both: Saheeli's −2 with a lone artifact and no
+            // other artifact or creature has two non-empty groups and still no
+            // legal announcement. (Exact for the shipped count-1 pairs; the
+            // walk's own `excludeInstanceIds` merge is the authority either way.)
+            if (extra.excludePriorTargets) {
+                const distinct = new Set(
+                    [...legal, ...extraLegal].map((t) => t.id)
+                );
+                if (distinct.size < abilityRequired + extraRequired) {
+                    throw new Error("Not enough legal targets");
+                }
             }
         }
         // CR 601.2d / 120.4 — divide-as-you-choose budget for an activated

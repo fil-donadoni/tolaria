@@ -199,6 +199,7 @@ import type {
     PermanentFilter,
     SpellMode,
     TargetRequirement,
+    TargetSelection,
 } from "./cards/types";
 import {
     permanentFilterValuesFromCarrier,
@@ -5295,6 +5296,25 @@ function applyRequirementToPendingTarget(
     Object.assign(pt, pendingTargetFiltersFromRequirement(req, chosenX));
 }
 
+/** CR 115.3 "another target" (issue #3236) — lowers a group's
+ *  `excludePriorTargets` directive into the registered `excludeInstanceIds`
+ *  filter, naming every permanent an EARLIER group already chose. Returns the
+ *  requirement untouched when the directive is absent. */
+export function excludingPriorTargets(
+    req: TargetRequirement,
+    prior: readonly TargetSelection[]
+): TargetRequirement {
+    if (!req.excludePriorTargets) return req;
+    const priorIds = prior
+        .filter((t) => t.type === "permanent")
+        .map((t) => t.id);
+    if (priorIds.length === 0) return req;
+    return {
+        ...req,
+        excludeInstanceIds: [...(req.excludeInstanceIds ?? []), ...priorIds],
+    };
+}
+
 /** After a target group's selection completes (CR 601.2c): if the spell has
  *  further INDEPENDENT groups queued (Fumarole), lock the current group's picks
  *  into `priorSelected` and load the next requirement; otherwise finalize the
@@ -5310,7 +5330,11 @@ export function advanceTargetGroupOrFinalize(
         const [next, ...rest] = remaining;
         pt.priorSelected = [...(pt.priorSelected ?? []), ...pt.selected];
         pt.remainingRequirements = rest.length > 0 ? rest : undefined;
-        applyRequirementToPendingTarget(pt, next, pt.chosenX);
+        applyRequirementToPendingTarget(
+            pt,
+            excludingPriorTargets(next, pt.priorSelected),
+            pt.chosenX
+        );
         return;
     }
     finalizeTargetSelection(state, pt, playerId);

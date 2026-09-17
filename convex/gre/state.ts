@@ -6,6 +6,7 @@ import {
     type CardSupertype,
     type CardType,
     type Color,
+    type CopyEffectOptions,
     type ManaSubstitutionBreadth,
     type ManaSubstitutionScope,
     type ControlChangeCondition,
@@ -295,6 +296,7 @@ import { getColorsFromCost } from "../cards/colors";
 import { combatDeclarationCap } from "../cards/attackRestrictions";
 import {
     applyCopy,
+    applyTimedCopy,
     findTriggeredAbility,
     presentedDefId,
     revertCopy,
@@ -1410,6 +1412,45 @@ export type CardInstanceState = {
      *  added subtypes, granted keywords, "no mana cost", none of which survive
      *  a copy-of-the-copy today either — widen it purely additively. */
     copyExcept?: { basePower?: number; baseToughness?: number };
+    /** The "except" options (`CopyEffectOptions`) of the copy effect this
+     *  permanent currently presents (CR 707.9 — "copy effects may include
+     *  modifications or exceptions to the copying process"). Written by
+     *  `applyCopy`, cleared by `revertCopy`; absent for an unexceptional copy
+     *  and for every non-copy.
+     *
+     *  Read in exactly one place: when a TIMED copy effect lands on a
+     *  permanent that is already an indefinite copy (issue #3236), the
+     *  indefinite one is recorded as `timedCopyEffects.underlying` so it can be
+     *  re-applied — "except" clause and all — when the last timed effect ends.
+     *  The materialised fields (`types`, `colorOverride`, …) cannot answer
+     *  that: they already carry every overlay a later effect added. */
+    copyOptions?: CopyEffectOptions;
+    /** CR 611.2a / 613.7 (issue #3236) — copy effects with a stated duration
+     *  ("becomes a copy of … until end of turn", Saheeli, Sublime Artificer).
+     *
+     *  `effects` is a LIST, one entry per timed copy effect, each carrying its
+     *  own expiry — never a single slot, which is the shape that let a second
+     *  timed colour set clobber the first's expiry (issues #2254 / #2936). In
+     *  layer 1 the LATEST timestamp wins (CR 613.7), so the permanent presents
+     *  the last entry; when an entry expires (`expireTimedCopyEffects`,
+     *  ticked from `tickAllDurations`) the survivors are re-applied over
+     *  `underlying`, the copy effect (if any) that applied BEFORE the first
+     *  timed one — `null` when the permanent was presenting its own printed
+     *  copiable values.
+     *
+     *  Every source is snapshotted at resolution: a copy effect's copiable
+     *  values are locked in when the effect begins (CR 611.2c), so the copied
+     *  permanent later leaving or changing does not touch this copy.
+     *
+     *  Cleared with the copy itself on every battlefield departure
+     *  (`revertCopy`): a permanent that leaves and returns is a new object
+     *  (CR 400.7) and no pending revert may fire on it. An INDEFINITE copy
+     *  effect applied on top also clears it — its later timestamp outranks
+     *  every earlier timed entry for as long as they could last. */
+    timedCopyEffects?: {
+        underlying: TimedCopyLayer | null;
+        effects: Array<TimedCopyLayer & { duration: Duration }>;
+    };
     /** Token provenance link (CR 111, 707.1). Instance id of the permanent
      *  that created this token via `createToken(..., createdBy)`. Lets a
      *  source later identify the tokens it made — Tetravus exiles "tokens
@@ -4777,6 +4818,20 @@ export function queueExtraCombat(state: GameState): void {
  *  issue #2963, which will make the remaining "except" clauses (colours,
  *  additional subtypes, no mana cost) inherit off the SOURCE INSTANCE rather
  *  than be rebuilt from the copied definition, is exactly that day. */
+/** One copy effect's layer-1 contribution, as recorded on
+ *  `CardInstanceState.timedCopyEffects` (issue #3236): WHAT was copied, locked
+ *  in when the effect began (CR 611.2c), and the effect's own "except" clause
+ *  (CR 707.9). Enough to re-apply the effect through `applyCopy` and nothing
+ *  more — `sourceCopyExcept` is the CR 707.3 "except it's N/N" stamp the
+ *  copied object carried, already cleared for a face-down source exactly as
+ *  `applyCopy` decides for a live one. */
+export type TimedCopyLayer = {
+    /** The definition id the copied object presented (CR 707.2). */
+    sourceDefId: string;
+    sourceCopyExcept?: { basePower?: number; baseToughness?: number };
+    opts: CopyEffectOptions;
+};
+
 export type LastKnownCopiable = {
     /** The definition id the permanent presented at the moment it left
      *  (CR 707.2). Already the COPIED object's id for a Clone (`card.id` is
@@ -15875,14 +15930,46 @@ export function buildSpellContext(
             ).removedKeywords.some((r) => r.keyword === keyword);
         },
 
-        becomeCopyOf(sourceCreatureId: string, opts?: CopyOptions): void {
+        becomeCopyOf(
+            sourceCreatureId: string,
+            opts?: CopyOptions,
+            placement?: { permanentId: string; duration?: DurationSpec }
+        ): void {
+            const source = findOnBattlefield(state, sourceCreatureId)?.card;
+            if (!source) return;
+            if (placement) {
+                // CR 707.2 / 611.2a (issue #3236) — an explicitly named
+                // recipient on the battlefield ("target artifact you control
+                // becomes a copy of …"), optionally for a duration resolved
+                // against the controller of the resolving ability (CR 611.2c).
+                // CR 608.2b — a recipient that has left does nothing.
+                const named = findOnBattlefield(
+                    state,
+                    placement.permanentId
+                )?.card;
+                if (!named) return;
+                if (placement.duration) {
+                    applyTimedCopy(
+                        state,
+                        named,
+                        source,
+                        opts ?? {},
+                        resolveDuration(
+                            placement.duration,
+                            item.controllerId,
+                            state
+                        )
+                    );
+                } else {
+                    applyCopy(state, named, source, opts);
+                }
+                return;
+            }
             // CR 707.2 — apply a copy effect to the resolving permanent. The
             // recipient is the source of this resolution: for an ETB copy
             // choice (Clone, resolveSteps) it is the spell still on the stack
             // about to enter; for a triggered re-copy (Vesuvan upkeep) it is
             // the source permanent on the battlefield.
-            const source = findOnBattlefield(state, sourceCreatureId)?.card;
-            if (!source) return;
             const recipient =
                 findOnBattlefield(state, item.triggerSourceId ?? item.id)
                     ?.card ?? item;

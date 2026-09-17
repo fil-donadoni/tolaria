@@ -85,6 +85,8 @@ import type {
     EffectListSelector,
     EffectObjectSelector,
     EffectOp,
+    EffectCopyExcept,
+    CopyEffectOptions,
     EffectPileObjectSelector,
     EffectPlayerRef,
     EffectPredicate,
@@ -2356,6 +2358,41 @@ function isSourceSelfRef(selector: EffectObjectSelector): boolean {
         "ref" in selector &&
         selector.ref === "$source"
     );
+}
+
+/** CR 707.9 — an Effect Script "except" clause (`EffectCopyExcept`) as the
+ *  `CopyEffectOptions` `applyCopy` interprets. 1:1 and JSON-pure; shared by
+ *  both copy Ops (`createTokenCopy`, `becomeCopy`) so the two can never read
+ *  the same clause differently. Arrays are copied so instance state never
+ *  aliases a module-level card definition. */
+function copyOptionsFromExcept(
+    except: EffectCopyExcept | undefined
+): CopyEffectOptions {
+    if (!except) return {};
+    return {
+        ...(except.basePower !== undefined
+            ? { basePower: except.basePower }
+            : {}),
+        ...(except.baseToughness !== undefined
+            ? { baseToughness: except.baseToughness }
+            : {}),
+        ...(except.colors ? { colorOverride: [...except.colors] } : {}),
+        ...(except.additionalTypes
+            ? { additionalTypes: [...except.additionalTypes] }
+            : {}),
+        ...(except.additionalSubtypes
+            ? { additionalSubtypes: [...except.additionalSubtypes] }
+            : {}),
+        ...(except.additionalStaticAbilities
+            ? {
+                  additionalStaticAbilities: [
+                      ...except.additionalStaticAbilities,
+                  ],
+              }
+            : {}),
+        ...(except.noManaCost ? { noManaCost: true } : {}),
+        ...(except.imagePrintId ? { imagePrintId: except.imagePrintId } : {}),
+    };
 }
 
 /** One executor per Op, keyed by Op name. Each executor is a thin adapter
@@ -4833,6 +4870,24 @@ export const OP_EXECUTORS: {
     // when the controller can't be resolved, the count is non-positive /
     // unresolved (CR 707.1 — creates nothing), or the source has left the
     // battlefield (CR 608.2b — the copy fizzles).
+    // CR 707.2 / 611.2a (issue #3236) — an existing permanent becomes a copy
+    // of another, indefinitely or until `duration`. A thin declarative skin
+    // over `SpellContext.becomeCopyOf`'s `recipient` form, the ONE copy path
+    // Clone and Vesuvan already use (ADR 0045). CR 608.2b — skipped when
+    // either object is gone; skipped too when both name the same permanent (a
+    // copy of itself changes no copiable value, and must not be recorded as a
+    // timed effect whose expiry would then fire for nothing).
+    becomeCopy(ctx, op) {
+        const recipient = resolveObjectRef(ctx, op.target);
+        const source = resolveObjectRef(ctx, op.source);
+        if (!recipient || recipient.type !== "permanent") return;
+        if (!source || source.type !== "permanent") return;
+        if (recipient.id === source.id) return;
+        ctx.becomeCopyOf(source.id, copyOptionsFromExcept(op.except), {
+            permanentId: recipient.id,
+            ...(op.duration ? { duration: op.duration } : {}),
+        });
+    },
     createTokenCopy(ctx, op) {
         const controllerId = resolvePlayerRef(ctx, op.controller);
         if (controllerId === undefined) return;
@@ -4983,33 +5038,7 @@ export const OP_EXECUTORS: {
                           ? { lastKnownFromGraveyardOrExile: true }
                           : {}),
                       ...(lastKnownCopiable ? { lastKnownCopiable: true } : {}),
-                      ...(except?.basePower !== undefined
-                          ? { basePower: except.basePower }
-                          : {}),
-                      ...(except?.baseToughness !== undefined
-                          ? { baseToughness: except.baseToughness }
-                          : {}),
-                      ...(except?.colors
-                          ? { colorOverride: [...except.colors] }
-                          : {}),
-                      ...(except?.additionalSubtypes
-                          ? {
-                                additionalSubtypes: [
-                                    ...except.additionalSubtypes,
-                                ],
-                            }
-                          : {}),
-                      ...(except?.additionalStaticAbilities
-                          ? {
-                                additionalStaticAbilities: [
-                                    ...except.additionalStaticAbilities,
-                                ],
-                            }
-                          : {}),
-                      ...(except?.noManaCost ? { noManaCost: true } : {}),
-                      ...(except?.imagePrintId
-                          ? { imagePrintId: except.imagePrintId }
-                          : {}),
+                      ...copyOptionsFromExcept(except),
                   }
                 : undefined;
         const createdIds: string[] = [];
