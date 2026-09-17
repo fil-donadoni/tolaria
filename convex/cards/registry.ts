@@ -412,6 +412,29 @@ export function withTemporaryDefinition<T>(
     }
 }
 
+/** The async twin of {@link withTemporaryDefinition}, for a test that drives a
+ *  `game.ts` mutation handler (which awaits its store) while the variant is
+ *  registered. Same restore, run once `fn` settles. Safe under `isolate:
+ *  false` for the same reason the sync form is: a worker runs its files, and a
+ *  file its tests, one at a time, so nothing else reads the registry inside
+ *  the window. Never call from production code. */
+export async function withTemporaryDefinitionAsync<T>(
+    def: CardDefinition,
+    fn: () => Promise<T>
+): Promise<T> {
+    const previous = registry.get(def.id);
+    setRegistryEntry(def.id, def);
+    try {
+        return await fn();
+    } finally {
+        if (previous) {
+            setRegistryEntry(def.id, previous);
+        } else {
+            registry.delete(def.id);
+        }
+    }
+}
+
 // ADR 0054 — implicit keyword expansion. `fading N` / `vanishing N` cards
 // declare only the keyword string; the seam injects the enter-with-counters
 // entry and the synthesized upkeep/sacrifice triggers. Memoized by definition

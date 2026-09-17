@@ -17,10 +17,16 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { activateAbilityOnState, finalizeTargetSelection } from "../game";
+import {
+    activateAbilityOnState,
+    advanceTargetGroupOrFinalize,
+    finalizeTargetSelection,
+} from "../game";
 import { buildStateFromScenario } from "../gre/scenarioBuilder";
 import { createInitialGameState, type PlayerInput } from "../gre/setup";
-import { getCardByName } from "../cards";
+import { getCardByName, withTemporaryDefinition } from "../cards";
+import type { CardDefinition } from "../cards/types";
+import { umezawasJitte } from "../cards/sets/bok/colorless";
 import {
     resolveTopOfStack,
     type CardInstanceState,
@@ -247,5 +253,70 @@ describe("modal activated ability — a TARGETING mode (CR 601.2c / 700.2d)", ()
         expect(getEffectiveToughness(state, shrunk)).toBe(2);
         // The equipped creature was NOT the subject of this mode.
         expect(getEffectivePower(state, find(state, "Grizzly Bears"))).toBe(2);
+    });
+});
+
+describe("modal activated ability — several mode instances (ADR 0094, CR 700.2d)", () => {
+    /** Jitte whose modal ability chooses two or three modes, repeats allowed. */
+    const multiModeJitte: CardDefinition = {
+        ...umezawasJitte,
+        activatedAbilities: umezawasJitte.activatedAbilities!.map((a) =>
+            a.id === JITTE_MODES
+                ? { ...a, modeSelection: { min: 2, max: 3, repeats: true } }
+                : a
+        ),
+    };
+
+    it("flattens each instance's target group, tallies the spans, and resolves in printed order", () => {
+        withTemporaryDefinition(multiModeJitte, () => {
+            const { state, jitte } = equippedJitte(2);
+            const me = state.players[0];
+            const lifeBefore = me.life;
+            activateAbilityOnState(state, {
+                playerId: me.id,
+                cardInstanceId: jitte.id,
+                abilityId: JITTE_MODES,
+                // Click order; printed order is shrink-target before gain-life.
+                chosenModeIds: ["gain-life", "shrink-target", "shrink-target"],
+            });
+            const pt = state.pendingTarget!;
+            expect(pt.chosenModeIds).toEqual([
+                "shrink-target",
+                "shrink-target",
+                "gain-life",
+            ]);
+            expect(pt.groupModeInstances).toEqual([0, 1]);
+
+            // CR 700.2d — both instances may name the same creature.
+            const giant = state.players[1].battlefield[0];
+            pt.selected = [{ type: "permanent", id: giant.id }];
+            advanceTargetGroupOrFinalize(state, pt, me.id);
+            expect(state.pendingTarget).toBe(pt);
+            pt.selected = [{ type: "permanent", id: giant.id }];
+            advanceTargetGroupOrFinalize(state, pt, me.id);
+
+            expect(state.stack).toHaveLength(1);
+            expect(state.stack[0].modeTargetCounts).toEqual([1, 1, 0]);
+            resolveTopOfStack(state);
+            const shrunk = state.players[1].battlefield.find(
+                (c) => c.id === giant.id
+            )!;
+            expect(getEffectivePower(state, shrunk)).toBe(1); // 3 - 1 - 1
+            expect(me.life).toBe(lifeBefore + 2);
+        });
+    });
+
+    it("rejects a single mode when the ability asks for at least two", () => {
+        withTemporaryDefinition(multiModeJitte, () => {
+            const { state, jitte } = equippedJitte(2);
+            expect(() =>
+                activateAbilityOnState(state, {
+                    playerId: state.players[0].id,
+                    cardInstanceId: jitte.id,
+                    abilityId: JITTE_MODES,
+                    chosenModeIds: ["gain-life"],
+                })
+            ).toThrow(/at least 2 mode/);
+        });
     });
 });
