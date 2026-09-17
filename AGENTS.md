@@ -219,17 +219,18 @@ prose is the fallback for judgment, not the home of invariants.
 4. **Implement** — Effect Script by default (ADR 0045); consult the Mechanics
    Registry before writing; `resolve()` only for protocol-like cards with
    recorded justification
-5. **Test** — `resolve()` cards and new Ops: tests at ALL layers (GRE unit,
-   game.ts integration, frontend utils, wire format — two pieces passing
-   individually but failing together is a shipped bug; every feature crossing
-   GRE → game.ts → UI needs one full-path integration test). DSL cards on
-   exercised Ops: the per-Op regime covers them (static sweep + generated
-   smoke test), no hand-written test. **Frontend wiring is not optional**:
-   walk the view reducers per `.claude/rules/gre-development.md` § Frontend
-   wiring analysis; SURFACE tests must run through the reducer. While
-   iterating run only targeted tests (`bunx vitest run <path>`). **Every
-   guarding test must be proven to fail** (break the subject, watch red,
-   revert, say what you broke — § Proof-of-failure).
+5. **Test** — **the LANE decides what is owed** (ADR 0136 §8,
+   `check:lane --plan`): a `cards` diff owes no test, proof-of-failure or
+   seam walk — a test there = an unexercised Op (`/new-op`). Else: `resolve()`
+   cards and new Ops owe tests at ALL layers (GRE unit, game.ts integration,
+   frontend utils, wire format; every feature crossing GRE → game.ts → UI
+   needs one full-path integration test); DSL cards on exercised Ops owe none
+   (per-Op regime: sweep + smoke test). **Frontend wiring is not optional**
+   (`.claude/rules/gre-development.md` § Frontend wiring analysis — walk the
+   reducers; SURFACE tests run through one). **Every guarding test must be
+   proven to fail** (break the subject, watch red, revert, say what you broke
+   — § Proof-of-failure).
+
 6. **Validate** — full gate once before done: `bun run check:all` +
    `bun run test`, both zero-error
 7. **Preset scenario** — for any new card/gameplay feature (ADR 0044, DB is
