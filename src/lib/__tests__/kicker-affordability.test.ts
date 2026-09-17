@@ -24,11 +24,17 @@ import {
 import { projectPublicState } from "@convex/gameProjections";
 import type { CardDefinition } from "@convex/cards/types";
 import { affordableKickersForCard } from "../card-utils";
+import { additionalCostPrintedLabel } from "@convex/gre/kicker";
 import type { CardInstance, Player } from "~/types/game";
 
 // Bloodchief's Thirst — {B}, "Kicker {2}{B}": the mana-only shape all 25
 // shipped Kicker cards have.
 const thirst = getCardByName("Bloodchief's Thirst");
+// Intrepid Rabbit — {2}{W}, "Offspring {1}" (CR 702.175a, issue #2079): the
+// SAME cost half under a different keyword. The dialog must offer it exactly
+// like a Kicker — the gate reads `kickers[]`, never the keyword — and must
+// render a label that says "Offspring", not "Kicker".
+const rabbit = getCardByName("Intrepid Rabbit");
 const swamp = getCardByName("Swamp");
 
 // No printed card carries a NON-MANA Kicker leg yet, so the unaffordable case
@@ -138,5 +144,26 @@ describe("affordableKickersForCard — cast-cost dialog gate (CR 702.33a, ADR 00
 
     it("offers nothing for a card with no kickers", () => {
         expect(offeredIds(swamp.id, { swamps: 0, life: 20 })).toEqual([]);
+    });
+
+    // CR 702.175a (issue #2079) — the OTHER keyword that rides this cost half.
+    // The affordance is what the acceptance criterion "the cast dialog offers
+    // it with legible cost text before commit" means, and it is proved through
+    // the reducer: a hand-built view would mask a projection that dropped the
+    // hand card's definition id, which is the only thing the client resolves
+    // `kickers[]` from.
+    it("OFFERS an Offspring cost, labelled as Offspring and not as a Kicker", () => {
+        const { view, card } = projected(rabbit.id, { swamps: 0, life: 20 });
+        const offered = affordableKickersForCard(
+            card,
+            "p1",
+            view.players,
+            view.activePlayerId
+        );
+        expect(offered.map((k) => k.id)).toEqual(["offspring"]);
+        // The toggle renders `description` verbatim, and the printed WORD comes
+        // from ADDITIONAL_COST_KEYWORDS — the single label authority.
+        expect(offered[0].description).toBe("Offspring {1}");
+        expect(additionalCostPrintedLabel(offered[0])).toBe("Offspring");
     });
 });

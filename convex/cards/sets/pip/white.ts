@@ -5,7 +5,10 @@
 
 import type { CardDefinition } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
-import { additionalCostPaidCondition } from "../../abilities/triggers/shared";
+import {
+    additionalCostPaidCondition,
+    withAdditionalCostTwin,
+} from "../../abilities/triggers/shared";
 
 // Securitron Squadron — {1}{W} Artifact Creature — Robot, 2/2. "Squad {3} (As
 // an additional cost to cast this spell, you may pay {3} any number of times.
@@ -113,23 +116,33 @@ export const securitronSquadron: CardDefinition = {
         },
     ],
     triggeredAbilities: [
-        // CR 702.157a's trigger half — see the card-level comment.
-        enteredTrigger({
-            id: "securitron-squadron-squad",
-            oracleText:
-                "When this creature enters, if its squad cost was paid, create a token that's a copy of it for each time its squad cost was paid.",
-            scope: "self",
-            // CR 603.4 check-time gate: zero payments, no ability on the stack.
-            conditionOnSelf: additionalCostPaidCondition("squad"),
-            effects: [
-                {
-                    op: "createTokenCopy",
-                    source: { ref: "$source" },
-                    controller: "controller",
-                    count: { additionalCostPaid: "squad" },
-                },
-            ],
-        }),
+        // CR 702.157a's trigger half — see the card-level comment. Stamped as
+        // the TWIN of the cost entry above (issue #2079): the catalogue guard
+        // `cards/__tests__/additionalCostKeywords.test.ts` reads
+        // `ADDITIONAL_COST_KEYWORDS.squad.requiresTrigger` and fails, in BOTH
+        // directions, on a cost entry with no twin or a twin with no entry.
+        // Before the marker existed the guard could only ask whether the card
+        // had ANY triggered ability at all.
+        withAdditionalCostTwin(
+            enteredTrigger({
+                id: "securitron-squadron-squad",
+                oracleText:
+                    "When this creature enters, if its squad cost was paid, create a token that's a copy of it for each time its squad cost was paid.",
+                scope: "self",
+                // CR 603.4 check-time gate: zero payments, no ability on the
+                // stack.
+                conditionOnSelf: additionalCostPaidCondition("squad"),
+                effects: [
+                    {
+                        op: "createTokenCopy",
+                        source: { ref: "$source" },
+                        controller: "controller",
+                        count: { additionalCostPaid: "squad" },
+                    },
+                ],
+            }),
+            { keyword: "squad", costId: "squad" }
+        ),
         enteredTrigger({
             id: "securitron-squadron-token-counter",
             oracleText:
