@@ -555,7 +555,7 @@ function env(c: Case, broken: boolean) {
         source = makeSource(def, {
             counters: { loyalty: 20 },
             ...(broken && shape === "loyalty"
-                ? { loyaltyActivatedThisTurn: true }
+                ? { loyaltyActivationsThisTurn: 1 }
                 : {}),
         });
     }

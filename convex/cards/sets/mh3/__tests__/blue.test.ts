@@ -485,7 +485,7 @@ describe("Tamiyo, Seasoned Scholar — the three loyalty abilities (CR 606)", ()
             assertLoyaltyActivationLegal(state, tamiyo, plus2)
         ).not.toThrow();
         payLoyaltyCost(tamiyo, plus2);
-        expect(tamiyo.loyaltyActivatedThisTurn).toBe(true);
+        expect(tamiyo.loyaltyActivationsThisTurn).toBe(1);
         expect(() =>
             assertLoyaltyActivationLegal(state, tamiyo, plus2)
         ).toThrow(/already been activated/);

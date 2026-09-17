@@ -31,7 +31,9 @@
  */
 
 import type { CardInstanceState, GameState } from "./state";
+import { getEffectiveStaticEffects } from "./state";
 import { isSorceryTimingFor } from "./phases";
+import { tryGetDefinition } from "../cards/registry";
 
 /** The engine's canonical loyalty-counter key (CR 306.5b). Loyalty lives in the
  *  generic `counters` map under this exact lowercase key. Re-exported from
@@ -50,8 +52,9 @@ export type LoyaltyCostBearing = { cost: { loyalty?: number } };
  *  {@link loyaltyActivationViolation} means "no clause broken", which for a
  *  NON-loyalty ability is vacuously true. */
 export type LoyaltyViolation =
-    /** CR 606.3 — a loyalty ability of this permanent was already activated
-     *  this turn. */
+    /** CR 606.3 — this permanent's loyalty-activation allowance for the turn
+     *  is spent (one activation, unless a `loyalty-activation-allowance`
+     *  static effect on the permanent raises it). */
     | "already-activated"
     /** CR 606.3 — outside the controller's own main phase with an empty stack
      *  while they hold priority. */
@@ -87,15 +90,85 @@ export function currentLoyalty(card: {
     return card.counters?.[LOYALTY_COUNTER_KEY] ?? 0;
 }
 
-/** CR 606.3 — "only if no player has previously activated a loyalty ability of
- *  that permanent that turn". The lock is per PERMANENT, not per ability, and
- *  is a different flag from the generic `oncePerTurn` / `activationsThisTurn`
- *  tally CR 602.5 abilities use. Cleared in the cleanup step
- *  (`gre/phases.ts`). */
-export function loyaltyLockedThisTurn(card: {
-    loyaltyActivatedThisTurn?: boolean;
-}): boolean {
-    return card.loyaltyActivatedThisTurn === true;
+/** CR 606.3's printed allowance: ONE loyalty activation per permanent per
+ *  turn. "only if no player has previously activated a loyalty ability of that
+ *  permanent that turn" is not a lock — it is a count of one, and a permanent
+ *  whose own text raises it (Urza, Planeswalker: "You may activate the loyalty
+ *  abilities of Urza twice each turn rather than only once") widens the SAME
+ *  number rather than escaping a flag (issue #3339). */
+export const DEFAULT_LOYALTY_ACTIVATION_ALLOWANCE = 1;
+
+/** The minimum a permanent has to look like for the CR 606.3 allowance to be
+ *  computable: the id of the card whose definition carries the text, plus the
+ *  chosen mode a modal permanent's effects hang off (CR 700.2c).
+ *
+ *  Structural rather than `CardInstanceState` so the CLIENT's own card view
+ *  (`CardInstance`, `src/types/game.ts` — `card: { id: string }`) satisfies it
+ *  unchanged. That is the whole reason the UI hint can read this authority
+ *  instead of re-deriving the rule. */
+export type LoyaltyAllowanceSource = {
+    card: { id?: string };
+    chosenModeId?: string;
+};
+
+/** How many loyalty abilities of this permanent may be activated this turn
+ *  (CR 606.3) — the ALLOWANCE half of the pair whose USED half is
+ *  {@link loyaltyActivationsUsedThisTurn}.
+ *
+ *  {@link DEFAULT_LOYALTY_ACTIVATION_ALLOWANCE} plus every
+ *  `loyalty-activation-allowance` static effect on the permanent's own
+ *  EFFECTIVE static effects (card-level plus the chosen mode's, CR 700.2c —
+ *  the same `getEffectiveStaticEffects` the layer system reads). Never a
+ *  per-card branch: a future planeswalker printing the same clause declares
+ *  the effect and needs no engine change at all.
+ *
+ *  SELF-SCOPED by construction, because the shipped clause is
+ *  ("the loyalty abilities of <this permanent>"); nothing here scans the
+ *  board, so the fast path below keeps the allowance off the enumerator's hot
+ *  path entirely.
+ *
+ *  Clamped at the default from below: a negative `extra` is authoring
+ *  nonsense, and CR 606.3 never grants FEWER than one activation. */
+export function loyaltyActivationAllowance(
+    card: LoyaltyAllowanceSource
+): number {
+    const cardId = card.card?.id;
+    if (!cardId) return DEFAULT_LOYALTY_ACTIVATION_ALLOWANCE;
+    const def = tryGetDefinition(cardId);
+    if (!def) return DEFAULT_LOYALTY_ACTIVATION_ALLOWANCE;
+    let allowance = DEFAULT_LOYALTY_ACTIVATION_ALLOWANCE;
+    for (const effect of getEffectiveStaticEffects(def, card.chosenModeId)) {
+        if (effect.kind !== "loyalty-activation-allowance") continue;
+        allowance += effect.extra;
+    }
+    return Math.max(DEFAULT_LOYALTY_ACTIVATION_ALLOWANCE, allowance);
+}
+
+/** CR 606.3 — how many loyalty abilities of this permanent have been activated
+ *  this turn. Per PERMANENT, not per ability, and a different tally from the
+ *  generic `oncePerTurn` / `activationsThisTurn` one CR 602.5 abilities use.
+ *  Cleared at the start of each turn (`gre/phases.ts`). */
+export function loyaltyActivationsUsedThisTurn(card: {
+    loyaltyActivationsThisTurn?: number;
+}): number {
+    return card.loyaltyActivationsThisTurn ?? 0;
+}
+
+/** CR 606.3 — has this permanent spent its whole loyalty-activation allowance
+ *  this turn? THE predicate every surface asks, so that widening the allowance
+ *  reaches the enumerator, the search's cost payer, the mutation and the
+ *  client's UI hint at once.
+ *
+ *  The used tally is read FIRST and the allowance computed only when the
+ *  default has been reached, so every shipped planeswalker — none of which
+ *  declares an allowance effect — costs exactly the field read it cost when
+ *  this was a boolean, with no registry lookup on the enumerator's hot path. */
+export function loyaltyActivationsExhausted(
+    card: LoyaltyAllowanceSource & { loyaltyActivationsThisTurn?: number }
+): boolean {
+    const used = loyaltyActivationsUsedThisTurn(card);
+    if (used < DEFAULT_LOYALTY_ACTIVATION_ALLOWANCE) return false;
+    return used >= loyaltyActivationAllowance(card);
 }
 
 /** CR 606.6 — "A loyalty ability with a negative loyalty cost … can't be
@@ -122,7 +195,8 @@ export function loyaltyCostPayable(
  * unconditionally.
  *
  * The three clauses, in the order the mutation path has always applied them:
- *   - CR 606.3, the per-permanent once-per-turn lock;
+ *   - CR 606.3, the per-permanent activation allowance (one per turn, unless
+ *     the permanent's own static text raises it);
  *   - CR 606.3, the timing window — `isSorceryTimingFor(state, controllerId)`
  *     is exactly "any time they have priority and the stack is empty during a
  *     main phase of their turn" (`gre/phases.ts`, the engine's one authority on
@@ -139,7 +213,7 @@ export function loyaltyActivationViolation(
     ability: LoyaltyCostBearing
 ): LoyaltyViolation | null {
     if (!isLoyaltyAbility(ability)) return null;
-    if (loyaltyLockedThisTurn(card)) return "already-activated";
+    if (loyaltyActivationsExhausted(card)) return "already-activated";
     if (!isSorceryTimingFor(state, card.controllerId)) return "timing";
     if (!loyaltyCostPayable(card, ability)) return "insufficient-loyalty";
     return null;
@@ -148,7 +222,8 @@ export function loyaltyActivationViolation(
 /**
  * CR 606.4 — pay a loyalty ability's cost: put on / remove from the permanent
  * the number of loyalty counters the loyalty symbol names (`+N` adds, `-N`
- * removes), and set the CR 606.3 per-permanent once-per-turn lock.
+ * removes), and spend one of the permanent's CR 606.3 activations for the
+ * turn.
  *
  * No-op for a non-loyalty ability, so it may be called unconditionally at an
  * activation commit site.
@@ -167,5 +242,5 @@ export function payLoyaltyCost(
         ...(card.counters ?? {}),
         [LOYALTY_COUNTER_KEY]: Math.max(0, currentLoyalty(card) + loyalty),
     };
-    card.loyaltyActivatedThisTurn = true;
+    card.loyaltyActivationsThisTurn = loyaltyActivationsUsedThisTurn(card) + 1;
 }

@@ -153,21 +153,21 @@ describe("loyalty-ability cost payment (CR 606.2/606.5)", () => {
         const pw = makeInstance(LILIANA, { counters: { loyalty: 3 } });
         payLoyaltyCost(pw, { cost: { loyalty: 1 } });
         expect(pw.counters?.loyalty).toBe(4);
-        expect(pw.loyaltyActivatedThisTurn).toBe(true);
+        expect(pw.loyaltyActivationsThisTurn).toBe(1);
     });
 
     it("−N removes loyalty counters (floored at 0)", () => {
         const pw = makeInstance(LILIANA, { counters: { loyalty: 3 } });
         payLoyaltyCost(pw, { cost: { loyalty: -2 } });
         expect(pw.counters?.loyalty).toBe(1);
-        expect(pw.loyaltyActivatedThisTurn).toBe(true);
+        expect(pw.loyaltyActivationsThisTurn).toBe(1);
     });
 
     it("is a no-op for a non-loyalty ability", () => {
         const pw = makeInstance(LILIANA, { counters: { loyalty: 3 } });
         payLoyaltyCost(pw, { cost: {} });
         expect(pw.counters?.loyalty).toBe(3);
-        expect(pw.loyaltyActivatedThisTurn).toBeUndefined();
+        expect(pw.loyaltyActivationsThisTurn).toBeUndefined();
     });
 });
 
@@ -203,7 +203,7 @@ describe("loyalty-ability activation gates (CR 606.3/606.5)", () => {
     });
 
     it("blocks a second loyalty ability of the same permanent this turn (CR 606.3)", () => {
-        const { state, pw } = stateWithPw({ loyaltyActivatedThisTurn: true });
+        const { state, pw } = stateWithPw({ loyaltyActivationsThisTurn: 1 });
         expect(() =>
             assertLoyaltyActivationLegal(state, pw, { cost: { loyalty: 1 } })
         ).toThrow(/already been activated/);
@@ -236,7 +236,7 @@ describe("loyalty-ability activation gates (CR 606.3/606.5)", () => {
     });
 
     it("is a no-op for a non-loyalty ability (undefined cost.loyalty)", () => {
-        const { state, pw } = stateWithPw({ loyaltyActivatedThisTurn: true });
+        const { state, pw } = stateWithPw({ loyaltyActivationsThisTurn: 1 });
         expect(() =>
             assertLoyaltyActivationLegal(state, pw, { cost: {} })
         ).not.toThrow();

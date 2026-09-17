@@ -733,13 +733,23 @@ export type CardInstanceState = {
      *  damage events; checked against effective toughness for lethal damage
      *  (CR 704.5g). Removed at CLEANUP (CR 514.2). */
     damageMarked?: number;
-    /** CR 606.3 — set true when a loyalty ability of this planeswalker has been
-     *  activated this turn. Blocks any further loyalty ability of the SAME
-     *  permanent for the rest of the turn (one loyalty ability per permanent per
-     *  turn, across all of its loyalty abilities). Set at activation commit
-     *  (`payLoyaltyCost`, `game.ts`); reset for every permanent at the start of
-     *  each turn (`phases.ts` untap-step turn reset). */
-    loyaltyActivatedThisTurn?: boolean;
+    /** CR 606.3 — how many loyalty abilities of this permanent have been
+     *  activated this turn, counted across ALL of its loyalty abilities and
+     *  across all players ("no player has previously activated a loyalty
+     *  ability of that permanent that turn").
+     *
+     *  The USED half of the CR 606.3 pair; the ALLOWANCE half is
+     *  `loyaltyActivationAllowance` (`gre/loyalty.ts`), which defaults to 1 and
+     *  is raised by a `loyalty-activation-allowance` static effect. A tally
+     *  rather than the boolean lock it replaced (issue #3339), because a
+     *  permanent whose own text grants it a second activation ("You may
+     *  activate the loyalty abilities of Urza twice each turn rather than only
+     *  once") cannot be expressed by a flag.
+     *
+     *  Incremented at activation commit (`payLoyaltyCost`); reset for every
+     *  permanent at the start of each turn (`phases.ts` untap-step turn
+     *  reset). Absent means zero. */
+    loyaltyActivationsThisTurn?: number;
     /** CR 702.2b / 704.5h — set true when this creature has been dealt nonzero
      *  damage by a source with deathtouch this turn. `checkDeathtouchDestroySBA`
      *  destroys any creature so marked as a state-based action (respecting

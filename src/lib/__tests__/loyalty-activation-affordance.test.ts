@@ -152,7 +152,7 @@ describe("loyalty abilities reach the client menu (CR 606, issue #3229)", () => 
         "%s offers NOTHING once one of its loyalty abilities has been activated this turn (CR 606.3)",
         (_name, def) => {
             const source = walker("pw", def, {
-                loyaltyActivatedThisTurn: true,
+                loyaltyActivationsThisTurn: 1,
             });
             const loyaltyIds = def
                 .activatedAbilities!.filter((a) => a.cost.loyalty !== undefined)

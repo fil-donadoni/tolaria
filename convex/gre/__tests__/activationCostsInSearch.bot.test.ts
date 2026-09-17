@@ -287,7 +287,7 @@ describe("applyMoveInSearch pays activation costs (issue #2155)", () => {
             (c) => c.id === "liliana"
         );
         expect(untouched?.counters?.loyalty).toBe(3);
-        expect(untouched?.loyaltyActivatedThisTurn).toBeUndefined();
+        expect(untouched?.loyaltyActivationsThisTurn).toBeUndefined();
 
         // AND IS NEVER PUSHED: the ability does not buy its effect in the tree.
         const leaf = cloneGameState(state);
@@ -295,7 +295,7 @@ describe("applyMoveInSearch pays activation costs (issue #2155)", () => {
         expect(leaf.stack.filter((i) => i.abilityId !== undefined)).toEqual([]);
         const inLeaf = botOf(leaf).battlefield.find((c) => c.id === "liliana");
         expect(inLeaf?.counters?.loyalty).toBe(3);
-        expect(inLeaf?.loyaltyActivatedThisTurn).toBeUndefined();
+        expect(inLeaf?.loyaltyActivationsThisTurn).toBeUndefined();
 
         // The gate mirrors the SERVER's own rule — same predicate, one throw
         // away (`assertLoyaltyActivationLegal`, `convex/game.ts`).
@@ -316,7 +316,7 @@ describe("applyMoveInSearch pays activation costs (issue #2155)", () => {
         // loyalty is on her.
         const liliana = bf(LILIANA_VEIL, "liliana", BOT, {
             counters: { loyalty: 3 },
-            loyaltyActivatedThisTurn: true,
+            loyaltyActivationsThisTurn: 1,
         });
         const state = makeState({
             players: [

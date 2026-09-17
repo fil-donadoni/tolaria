@@ -55,8 +55,8 @@ import { ninjutsuReturnCandidateIds } from "@convex/gre/ninjutsu";
 // (this view has no stack length / priority holder), with the server the gate.
 import {
     isLoyaltyAbility,
+    loyaltyActivationsExhausted,
     loyaltyCostPayable,
-    loyaltyLockedThisTurn,
 } from "@convex/gre/loyalty";
 import {
     DAMAGEABLE_PERMANENT_TYPES,
@@ -2364,8 +2364,13 @@ export function getStackAbilities(
         // `loyaltyActivationViolation`'s `isSorceryTimingFor` is unavailable
         // here and the narrowing below is the closest safe approximation.
         if (isLoyaltyAbility(a)) {
-            // CR 606.3 — at most one loyalty ability of this permanent per turn.
-            if (loyaltyLockedThisTurn(card)) return false;
+            // CR 606.3 — the permanent's loyalty-activation ALLOWANCE for the
+            // turn (one, unless its own `loyalty-activation-allowance` static
+            // raises it — Urza, Planeswalker's "twice each turn rather than
+            // only once"). Read through the shared authority, which resolves
+            // the allowance off the card definition this view already names by
+            // id, so a second activation the rule permits stays offered here.
+            if (loyaltyActivationsExhausted(card)) return false;
             // CR 606.3 — sorcery-speed: the controller's own MAIN PHASE. Both
             // halves matter, and only checking the turn left the abilities
             // offered all through combat and the end step on your own turn,

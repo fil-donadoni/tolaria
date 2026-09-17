@@ -134,7 +134,7 @@ describe("a loyalty ability granted to a creature (CR 606.2, issue #3299)", () =
         // timing window, so the lock is what must speak here.
         state.priorityPlayerId = "p1";
         refreshExpectedInput(state);
-        expect(recipient(state).loyaltyActivatedThisTurn).toBe(true);
+        expect(recipient(state).loyaltyActivationsThisTurn).toBe(1);
         expect(() =>
             activateAbilityOnState(state, {
                 playerId: "p1",

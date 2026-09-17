@@ -246,7 +246,7 @@ describe("the CR 606 restrictions the enumerator now applies", () => {
     it("CR 606.3 — nothing is offered once a loyalty ability of that permanent was used this turn", () => {
         const state = build(boardWith(LILIANA, 6));
         expect(loyaltyAbilityIdsOffered(state).size).toBeGreaterThan(0);
-        find(state, LILIANA).loyaltyActivatedThisTurn = true;
+        find(state, LILIANA).loyaltyActivationsThisTurn = 1;
         expect(loyaltyAbilityIdsOffered(state).size).toBe(0);
     });
 
@@ -301,7 +301,7 @@ describe("the search PAYS the loyalty leg it now enumerates (CR 606.4)", () => {
         const state = build(boardWith(LILIANA, 3));
         const before = find(state, LILIANA);
         expect(before.counters?.loyalty).toBe(3);
-        expect(before.loyaltyActivatedThisTurn).toBeUndefined();
+        expect(before.loyaltyActivationsThisTurn).toBeUndefined();
 
         applyMoveInSearch(
             state,
@@ -314,7 +314,7 @@ describe("the search PAYS the loyalty leg it now enumerates (CR 606.4)", () => {
         expect(after.counters?.loyalty).toBe(1);
         // ...and CR 606.3's per-permanent lock is set, exactly as the
         // mutation's commit sites set it.
-        expect(after.loyaltyActivatedThisTurn).toBe(true);
+        expect(after.loyaltyActivationsThisTurn).toBe(1);
         // CR 602.2a — and the ability is on the stack, so the payoff is
         // visible one ply deep (issue #1920).
         expect(state.stack[state.stack.length - 1]?.abilityId).toBe(

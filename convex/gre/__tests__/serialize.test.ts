@@ -285,7 +285,7 @@ describe("gameStates serialize round-trip", () => {
         lion.counters = { "+1/+1": 2 };
         // CR 606.3 — the per-permanent "a loyalty ability was activated this
         // turn" lock must survive a save/load (issue #700).
-        lion.loyaltyActivatedThisTurn = true;
+        lion.loyaltyActivationsThisTurn = 1;
         // CR 111 — token provenance link survives the DB round-trip.
         lion.createdBy = "source-instance-7";
         // CR 704.5m — the world-rule timestamp is a battlefield-only property
@@ -298,7 +298,7 @@ describe("gameStates serialize round-trip", () => {
         expect(got.isSummoningSick).toBe(true);
         expect(got.damageMarked).toBe(1);
         expect(got.counters).toEqual({ "+1/+1": 2 });
-        expect(got.loyaltyActivatedThisTurn).toBe(true);
+        expect(got.loyaltyActivationsThisTurn).toBe(1);
         expect(got.createdBy).toBe("source-instance-7");
         expect(got.worldSeq).toBe(3);
     });

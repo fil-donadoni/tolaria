@@ -108,7 +108,7 @@ describe("Liliana of the Veil's -2, end to end (CR 606)", () => {
         expect(walker(state).counters?.loyalty).toBe(1);
         // …and CR 606.3's per-permanent lock is set, so the SAME walker cannot
         // fire again this turn — asserted through the server's own gate.
-        expect(walker(state).loyaltyActivatedThisTurn).toBe(true);
+        expect(walker(state).loyaltyActivationsThisTurn).toBe(1);
         expect(() =>
             assertLoyaltyActivationLegal(
                 state,
