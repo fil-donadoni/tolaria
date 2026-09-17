@@ -241,8 +241,8 @@ describe("debugSetupScenario — combat, the stack and continuous effects also r
             ],
             phase: "PRECOMBAT_MAIN",
             activePlayer: "me",
-            // `seedDeclaredCombat`'s CR 506.4 per-seat tally, applied
-            // independently of a declared attack: "opp"'s Shivan Dragon
+            // `seedDeclaredCombat`'s CR 508.4 "attacked" per-seat tally,
+            // applied independently of a declared attack: "opp"'s Shivan Dragon
             // attacked THIS turn, searched on "opp"'s own battlefield.
             combat: { attackedThisTurn: { opp: [shivanDragon.name] } },
             // `seedDeclaredStack`: the controller/owner of a declared item.
