@@ -143,8 +143,7 @@ decisions or genuine CR ambiguity affecting behavior.
 
 ### Subagent model routing (cost)
 
-**Enforced by `.claude/hooks/spawn-guard.sh`** (prose alone measured 12% of
-spawns leaking to the inherited tier over 30 days):
+**Enforced by `.claude/hooks/spawn-guard.sh`**:
 
 - Every `Agent` spawn MUST pass an explicit `model` (except `fork`).
   **`model: sonnet` for all read-only/mechanical delegation** (locate, map,
@@ -155,8 +154,15 @@ spawns leaking to the inherited tier over 30 days):
   it is what attributes tokens to a role in the scorecard.
 - Cavecrew agents are the caveman **plugin's**: spawn as
   `caveman:cavecrew-investigator` / `-builder` / `-reviewer`, always with
-  `model: sonnet` (they pin no model of their own; the duplicate user-level
-  copies were removed in #2189).
+  `model: sonnet` (they pin no model of their own).
+
+### Shell commands
+
+**A multi-token command is a shell ARRAY, never a quoted string.** Quoting
+suppresses the word-splitting the expansion needs, so `CMD="tool --a 1"` +
+`"$CMD" x` runs a file named `tool --a 1` — `No such file or directory`, bash
+and zsh alike. Write `CMD=(tool --a 1)` + `"${CMD[@]}"`, or spell the command
+out; a wrapper (`/usr/bin/time`, `env`, `xargs`) is no exception.
 
 ## Browser verification
 
@@ -244,8 +250,7 @@ silently loads as `"me"`). Sweep: `bun run seed:backlog`.
 8. **Bot reachability** — a new card/mechanic must be one the Bot can PLAY: no
    freeze, no silent ignore. Three seams per
    `.claude/rules/gre-development.md` § Bot reachability; declare the outcome
-   in the PR like a preset scenario. The guards cover valuation only, and the
-   `blade` receipt field fires on `BOT_GLOBS`, which a new card never touches.
+   in the PR like a preset scenario.
 9. **UI verify** — mandatory whenever the diff can change what a user sees
    (`bun run check:ui`, five viewports + probe receipt,
    `.claude/rules/chrome-debug.md`); nothing owed when the diff cannot reach
@@ -273,8 +278,7 @@ Rationale, lane contents and measurements: `docs/agents/quality-gates.md`.
   **No lane ever scopes a project's tests to the diff**: the diff decides
   whether a project runs at all, never a diff-derived slice of it (ADR 0104,
   derivation in `docs/agents/quality-gates.md`).
-- **Never hand-pick a subset of `check:pr`** — omitting `check:index` once
-  broke every card-shipping PR at the merge-train.
+- **Never hand-pick a subset of `check:pr`.**
 - **`check:all` VERIFIES formatting**, it does not repair it — on drift run
   `bun run format` and re-run (#1807).
 - **`bun run test` is three suites** — `test:app` → `test:bot` → `test:blade`.
@@ -283,8 +287,8 @@ Rationale, lane contents and measurements: `docs/agents/quality-gates.md`.
   a fourth suite, never gated (issue #3123).
 - **Cover `src/` changes with targeted runs** — the dom project is outside the
   light gate.
-- **There is no CI: the local gates are the only gates.** Nothing may be left
-  to CI. The full offline gate runs at release (`bun run release`, ADR 0116;
+- **There is no CI: the local gates are the only gates.** The full offline
+  gate runs at release (`bun run release`, ADR 0116;
   by hand: `bun run health`) — running it before a merge is never wrong,
   just not owed.
 
