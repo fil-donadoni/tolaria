@@ -485,19 +485,31 @@ function killChildTree(signal: NodeJS.Signals) {
     }
 }
 
-async function main() {
-    const nested = process.env.TOLARIA_GATE_HELD === "1";
-    const holdsLock = tier === "heavy" && !nested;
-
-    // Registered BEFORE `acquire()` can block or throw, and deliberately in
-    // this order: the tree dies first, the lock is freed second. The reverse
-    // hands the mutex to a waiter while the outgoing holder's workers are
-    // still saturating the CPU the mutex exists to ration.
-    //
-    // These handlers cover BOTH tiers, and that is load-bearing rather than
-    // tidy: detaching the child removed it from the terminal's foreground
-    // process group, so a Ctrl-C no longer reaches it on its own and the gate
-    // is now the only route a signal has to the command it wraps.
+/**
+ * Teardown for every path out of this process: the wrapped tree dies, then —
+ * for the tier that took it — the mutex is freed. That ORDER is load-bearing.
+ * The reverse hands the lock to a waiter while the outgoing holder's workers
+ * are still saturating the CPU the mutex exists to ration.
+ *
+ * WHEN this is installed is load-bearing too, and the two tiers differ:
+ *
+ *   heavy — only once `acquire()` has RETURNED, exactly where the release-only
+ *           handlers used to go. A gate still queuing for the mutex must keep
+ *           dying by the signal itself: `land.test.ts` reads `r.signal ===
+ *           "SIGTERM"` as the proof that the call was genuinely blocked in the
+ *           poll loop rather than merely slow, and an early handler turns that
+ *           into a clean `exit(130)` that proves nothing. Nothing is lost by
+ *           waiting — before `acquire()` returns there is no child to reap and
+ *           no lock of ours to free.
+ *   light / nested — after the spawn, because there is no lock to guard and
+ *           nothing to install before the child exists.
+ *
+ * For the non-holding tiers these handlers are new, and they are not optional:
+ * detaching the child removed it from the terminal's foreground process group,
+ * so a Ctrl-C no longer reaches it on its own and the gate is now the only
+ * route a signal has to the command it wraps.
+ */
+function installTeardown(holdsLock: boolean) {
     process.on("exit", () => {
         killChildTree("SIGKILL");
         if (holdsLock) release();
@@ -509,10 +521,15 @@ async function main() {
             process.exit(130);
         });
     }
+}
 
+async function main() {
+    const nested = process.env.TOLARIA_GATE_HELD === "1";
+    const holdsLock = tier === "heavy" && !nested;
     if (holdsLock) {
         await acquire();
         startHeartbeat();
+        installTeardown(true);
     }
 
     const env = {
@@ -529,6 +546,7 @@ async function main() {
         env,
         detached: true,
     });
+    if (!holdsLock) installTeardown(false);
     child.on("exit", (code, signal) => {
         if (holdsLock) release();
         process.exit(signal ? 128 : (code ?? 1));
