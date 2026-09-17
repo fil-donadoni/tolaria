@@ -58,6 +58,7 @@ import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 import { primaryCheckout } from "./lib/primary-checkout";
+import { DOC_GATE_TESTS } from "./lib/doc-gate-tests";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Path classification
@@ -83,7 +84,6 @@ const FULL_PATTERNS: RegExp[] = [
     /^vitest\.setup\.ts$/,
     /(^|\/)eslint\.config\.[cm]?[jt]s$/,
     /(^|\/)\.prettier(rc|rc\..*|ignore)$/,
-    /^data\//,
     /^\.claude\//,
 ];
 
@@ -109,8 +109,21 @@ const FULL_PATTERNS: RegExp[] = [
  */
 const SKIN_PATTERNS: RegExp[] = [/^src\//, /^public\//, /^index\.html$/];
 
-/** Paths that are server/tooling code but do not force the full gate. */
-const ENGINE_PATTERNS: RegExp[] = [/^convex\//, /^scripts\//];
+/**
+ * Paths that are server/tooling code but do not force the full gate.
+ *
+ * `data/**` IS ENGINE, NOT FULL (ADR 0136 §3). It used to sit in
+ * `FULL_PATTERNS`, and that one line sent 40 of 300 PRs (2026-09-03 →
+ * 09-17) to `check:pr` whole for no other reason than the two artefacts every
+ * card PR regenerates, `data/card-index.json` and
+ * `data/cr/citations-ledger.json`. What lives there is generated or vendored
+ * input to the engine — the card index, the oracle lockfiles, the CR text and
+ * its ledger, set JSON, pick ratings — and the guards that READ it
+ * (`check:index`, `check:oracle`, `cr:lint`) run in the engine lane, so an
+ * edit there is proven exactly where a `convex/**` edit is. A `data/**` path
+ * next to `src/**` is still a mixed diff and still `full`.
+ */
+const ENGINE_PATTERNS: RegExp[] = [/^convex\//, /^scripts\//, /^data\//];
 
 /**
  * Prose-only paths: markdown under `docs/**` and the root-level markdown that
@@ -181,14 +194,17 @@ export function laneFor(classes: PathClass[]): Lane {
     if (classes.length === 0) return "full";
     if (classes.includes("full")) return "full";
     if (classes.every((c) => c === "docs")) return "docs";
-    // Prose MIXES WITH NOTHING. Without this line the `!includes("skin")`
-    // clause below would hand a docs+convex diff the `engine` lane — a
-    // widening nobody asked for, arrived at by omission rather than by
-    // argument. A mixed diff keeps paying the full gate exactly as it did
-    // before the docs lane existed; only the pure case is narrowed.
-    if (classes.includes("docs")) return "full";
-    if (classes.every((c) => c === "skin")) return "skin";
-    if (!classes.includes("skin")) return "engine";
+    // PROSE RIDES WITH THE CODE (ADR 0136 §3). This used to read "prose mixes
+    // with nothing": a docs path in any non-pure diff forced `full`, and 75
+    // of 300 PRs (2026-09-03 → 09-17) paid `check:pr` whole for an ADR or a
+    // guide that travelled with the code it described. The code decides the
+    // lane; `classifyLane` appends the docs lane's own node test list to it,
+    // so the prose is still proven by exactly the guards `check:docs` runs.
+    // `code` is never empty here — the all-docs case returned above — so the
+    // two predicates below remain affirmative over every code path.
+    const code = classes.filter((c) => c !== "docs");
+    if (code.every((c) => c === "skin")) return "skin";
+    if (!code.includes("skin")) return "engine";
     return "full";
 }
 
@@ -289,7 +305,7 @@ export function classifyLane(
                 },
                 {
                     id: "dom",
-                    reason: "no changed path under src/** — no component, style or asset changed",
+                    reason: "no changed code under src/** — no component, style or asset changed",
                 },
                 {
                     id: "node[all]",
@@ -352,21 +368,26 @@ export function classifyLane(
             },
             {
                 id: "check:index",
-                reason: "no changed path under convex/cards/** — the card index lockfile cannot drift",
+                reason: "no changed code under convex/cards/** or data/** — the card index lockfile cannot drift",
             },
             {
                 id: "check:stubs",
-                reason: "no changed path under convex/cards/** — stub coverage cannot change",
+                reason: "no changed code under convex/cards/** — stub coverage cannot change",
+            },
+            {
+                id: "check:oracle",
+                reason: "no changed code under convex/** or data/** — the oracle lockfile cannot drift",
             },
             {
                 id: "bot fast lane",
-                reason: "no changed path under convex/** or scripts/** — the bot suites cannot go red",
+                reason: "no changed code under convex/** or scripts/** — the bot suites cannot go red",
             },
             {
                 id: "node[convex]",
-                reason: "no changed path under convex/** — the engine tests cannot go red",
+                reason: "no changed code under convex/** — the engine tests cannot go red",
             }
         );
+        appendDocsGuards(files, run);
         return { lane, rationale: skinRationale(files), files, run, skip };
     }
 
@@ -378,6 +399,11 @@ export function classifyLane(
         { id: "tsc[all]", command: "bun run check:ts" },
         { id: "check:index", command: "bun run check:index" },
         { id: "check:stubs", command: "bun run check:stubs" },
+        // `data/**` classifies as engine (ADR 0136 §3) on the premise that
+        // every guard reading it runs here. `check:oracle` reads
+        // `data/oracle-*.json` and the projection of `data/card-index.json`;
+        // its offline tier is header hashes and costs nothing worth skipping.
+        { id: "check:oracle", command: "bun run check:oracle" },
         { id: "bundle", command: "bun run check:bundle" },
         { id: "cr:lint", command: "bun run cr:lint" },
         {
@@ -389,17 +415,56 @@ export function classifyLane(
     );
     skip.push({
         id: "dom",
-        reason: "no changed path under src/** — the whole type-check and convex-cards-barrel-mock.test.ts are the backstops (#2738)",
+        reason: "no changed code under src/** — the whole type-check and convex-cards-barrel-mock.test.ts are the backstops (#2738)",
     });
+    appendDocsGuards(files, run);
     return { lane, rationale: engineRationale(files), files, run, skip };
 }
 
+/**
+ * Prose in a code lane (ADR 0136 §3): the run list ENDS with the docs lane's
+ * own node test list — the guards that READ prose, exactly the set
+ * `check:docs` runs (`DOC_GATE_TESTS`, one list, two consumers). The other two
+ * things `check:docs` owes are already in every code lane: `format(diff)`
+ * carries the `.md` paths (prettier has a markdown parser) and `cr:lint` is
+ * a fixed entry of both `skin` and `engine`.
+ *
+ * Today `engine`'s `node[all]` and `skin`'s `node[src,scripts]` both select
+ * these files already, so the entry is redundant in wall-clock (seconds) but
+ * not in meaning: ADR 0136 §5 splits `node` into content-classified
+ * partitions, and the lane that stops running `scripts/__tests__` whole is
+ * the lane this entry keeps honest. A FIXED list, never a diff-derived one —
+ * ADR 0104's admission rule is untouched.
+ */
+function appendDocsGuards(files: string[], run: PlannedCheck[]): void {
+    if (!files.some((p) => classifyPath(p) === "docs")) return;
+    run.push({
+        id: "node[docs]",
+        command: `bunx vitest run --project node ${DOC_GATE_TESTS.join(" ")}`,
+    });
+}
+
 function skinRationale(files: string[]): string {
-    return `${files.length} file${files.length === 1 ? "" : "s"}, all under src/**, public/** or index.html`;
+    return codeLaneRationale(files, "src/**, public/** or index.html");
 }
 
 function engineRationale(files: string[]): string {
-    return `${files.length} file${files.length === 1 ? "" : "s"}, all under convex/** or scripts/**`;
+    return codeLaneRationale(files, "convex/**, scripts/** or data/**");
+}
+
+/**
+ * "all under X" when the diff is pure code; when prose rides along, say how
+ * many of each and that the docs guards are appended — a positive claim about
+ * the diff must stay true of every path in it (the truth test in
+ * `check-lane.test.ts` reads it back).
+ */
+function codeLaneRationale(files: string[], where: string): string {
+    const prose = files.filter((p) => classifyPath(p) === "docs").length;
+    const n = files.length;
+    if (prose === 0)
+        return `${n} file${n === 1 ? "" : "s"}, all under ${where}`;
+    const code = n - prose;
+    return `${n} files — ${code} under ${where}, ${prose} prose (the code decides the lane; the check:docs node files are appended)`;
 }
 
 function docsRationale(files: string[]): string {
@@ -414,13 +479,10 @@ function fullRationale(files: string[]): string {
     if (unrecognised.length > 0) {
         return `${files.length} file${files.length === 1 ? "" : "s"}, ${unrecognised.length} outside every lane rule (first: ${unrecognised[0]})`;
     }
-    // A docs path in a diff that is not ALL docs is a mix by definition
-    // (`laneFor` returns `docs` only for the pure case), so say so rather
-    // than mis-describing it as the src-vs-engine mix below.
-    if (files.some((p) => classifyPath(p) === "docs")) {
-        return `${files.length} files mixing prose with code — prose is only narrowed when the diff is nothing but prose`;
-    }
-    return `${files.length} files spanning src/** and convex|scripts/** — the mixed case never gets a narrowed gate`;
+    // Nothing unrecognised and not a pure or prose-plus-code lane: the only
+    // way left here is code on both sides. Prose in such a diff changes
+    // nothing — it is the src-vs-engine mix that costs the full gate.
+    return `${files.length} files spanning src/** and convex|scripts|data/** — the mixed case never gets a narrowed gate`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────

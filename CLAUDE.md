@@ -262,13 +262,14 @@ Rationale, lane contents and measurements: `docs/agents/quality-gates.md`.
 | Release   | **`bun run release`** — full gate (`check:all` + 3 suites) on the base tip, then fast-forward the release branch (ADR 0116)  |
 
 - **`bun run check:lane` is the default pre-PR path** (#2738/#2741/#2743). It
-  classifies the diff into `skin` (`src/**` only) / `engine` (no `src/**`) /
-  `docs` (markdown under `docs/**`, a root `.md`, or a nested
-  `CLAUDE.md`/`AGENTS.md`, delegating to `check:docs` verbatim) / `full`, runs
-  exactly the checks that lane's plan names, and prints a per-check receipt. On
-  anything it cannot affirmatively place — a mixed diff (**prose mixes with
-  nothing**), `package.json`, a lockfile, `.claude/**`, an unrecognised path —
-  it degrades to `check:pr` **verbatim**, so the fallback can never rot.
+  classifies the diff into `skin` (`src/**` only) / `engine` (`convex/**`,
+  `scripts/**`, `data/**`) / `docs` (markdown under `docs/**`, a root `.md`
+  or a nested `CLAUDE.md`/`AGENTS.md`, delegating to `check:docs` verbatim) /
+  `full`, and runs exactly that lane's checks. Prose beside code keeps the
+  code's lane plus `node[docs]` (ADR 0136 §3). On anything it cannot
+  affirmatively place — `src/**` mixed with `convex/**`, `package.json`, a
+  lockfile, `.claude/**`, an unrecognised path — it degrades to `check:pr`
+  **verbatim**, so the fallback can never rot.
   **No lane ever scopes a project's tests to the diff**: the diff decides
   whether a project runs at all, never a diff-derived slice of it (ADR 0104,
   derivation in `docs/agents/quality-gates.md`).
