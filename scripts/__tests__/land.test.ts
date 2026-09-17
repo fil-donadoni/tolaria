@@ -433,7 +433,10 @@ describe("land.ts — the locked command", () => {
         const cmd = buildLockedCommand(base);
         const step = recordLandingStep("/repo");
         expect(cmd).toContain(step);
-        expect(step).toContain("health-cadence.ts' record --sha=");
+        // Relative, so it resolves in the PRIMARY checkout the `cd` entered —
+        // never into the worktree this command is about to tear down.
+        expect(step).toContain("bun 'scripts/health-cadence.ts' record --sha=");
+        expect(step).not.toContain("/repo-issue-2517");
         // The tip recorded is the one the squash produced: read AFTER the
         // post-merge re-fetch and past the verification, never the tip the
         // remote held when `land` started.
@@ -464,9 +467,16 @@ describe("land.ts — the locked command", () => {
         // The topology itself is proven in `health-cadence-spawn.test.ts`.
         expect(step).not.toContain("nohup");
         expect(step).not.toContain("&)");
-        // Last, so the health worktree is not created while the teardown above
-        // is removing this one.
-        expect(cmd.endsWith(step)).toBe(true);
+        // BEFORE the teardown, which removes the worktree this command runs
+        // from. `land` invoked the driver by an ABSOLUTE path into that
+        // worktree and ran the step AFTER `worktree remove`, so the first real
+        // landing printed `Module not found …/tolaria-issue-3780/scripts/health-cadence.ts`
+        // and started nothing. Both halves are asserted: the path is relative
+        // to the primary checkout (the `cd` above puts us there), and the step
+        // runs while the worktree still exists.
+        expect(step).toContain("bun 'scripts/health-cadence.ts' spawn");
+        expect(step).not.toContain("/repo-issue-2517");
+        expect(cmd.indexOf(step)).toBeLessThan(cmd.indexOf("worktree remove"));
         // Non-gating: the PR is already merged.
         expect(step.endsWith("; true)")).toBe(true);
         expect(step.startsWith("(cd '/repo' && ")).toBe(true);
