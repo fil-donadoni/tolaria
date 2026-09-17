@@ -33,8 +33,7 @@ import {
     makeState,
     resolveTriggerOrder,
 } from "../../__tests__/setup";
-import { withTemporaryDefinition } from "../../registry";
-import { intrepidRabbit } from "../../sets/blb/white";
+import { getDefinition, withTemporaryDefinition } from "../../registry";
 import {
     additionalCostPaidCount,
     additionalCostPrintedLabel,
@@ -46,6 +45,11 @@ import { offspringTrigger, OFFSPRING_COST_ID } from "../offspring";
 import type { CardDefinition } from "../../types";
 
 const SUBJECT_ID = "off1";
+
+// ADR 0046 — the shipped card is reached through the REGISTRY seam, not by
+// importing `blb/white.ts`'s export, so these claims see the definition the
+// ENGINE serves (post-expansion) rather than the literal.
+const intrepidRabbit = getDefinition("4d70b99d-c8bf-4a56-8957-cf587fe60b81");
 
 // The mechanic's own subject: a vanilla {2}{W} 3/2 with Offspring {1} and
 // NOTHING else. Deliberately not the shipped card — Intrepid Rabbit's second

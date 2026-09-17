@@ -24,7 +24,13 @@ import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
-import { intrepidRabbit } from "../white";
+import { getDefinition } from "../../../registry";
+
+// ADR 0046 — the subject is resolved through the REGISTRY seam, never by
+// importing the module's export: a test that reads the definition object
+// directly is blind to every transformation the registry applies on the way
+// out (`scripts/__tests__/card-test-seam-boundary.test.ts`).
+const intrepidRabbit = getDefinition("4d70b99d-c8bf-4a56-8957-cf587fe60b81");
 
 const RABBIT_ID = "rab1";
 
