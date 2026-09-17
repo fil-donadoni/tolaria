@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
@@ -9,11 +9,14 @@ import {
     runPlan,
     renderReceipt,
     executePlan,
+    renderClassification,
+    parseArgs,
     shellStdio,
     type LanePlan,
     type RunResult,
 } from "../check-lane";
 import { DOC_GATE_TESTS } from "../lib/doc-gate-tests";
+import { ORIGIN_BASE } from "../lib/branches";
 
 /**
  * `bun run check:lane` (issue #2741, wiring execution onto the classifier
@@ -1160,6 +1163,105 @@ describe("check-lane — execution (issue #2741)", () => {
         );
         expect(src).not.toContain("TOLARIA_ALLOW_FULL_SUITE");
         expect(src).not.toMatch(/gate\.ts["'`]\s*,\s*"heavy"/);
+    });
+});
+
+describe("check-lane — `--plan`: the classification without the gate (ADR 0136 §8, issue #3781)", () => {
+    /**
+     * `/next-issue` §3 keys its `cards` short path on the lane the diff
+     * really classifies as. Before `--plan` the only way to read that lane
+     * was to RUN the gate, which is the pre-PR gate ADR 0136 §1 retired —
+     * so the short path would have been keyed on a session's judgment
+     * ("this looks like a simple card") instead.
+     *
+     * Proof-of-failure, one break per test: dropping `planOnly` from
+     * `parseArgs`'s return reddened the first; letting `parseArgs` `continue`
+     * over every argument instead of calling `fail` reddened the second;
+     * having `renderClassification` pass a fabricated
+     * `{ outcomes: [], ok: true, totalMs: 0 }` reddened the third; moving
+     * `main()`'s `if (planOnly)` block below the `executePlan` call reddened
+     * the fourth. Each reverted.
+     */
+    it("accepts --plan and reports it, alongside --json and --base=", () => {
+        expect(parseArgs(["--plan"])).toEqual({
+            base: ORIGIN_BASE,
+            json: false,
+            planOnly: true,
+        });
+        expect(parseArgs(["--plan", "--json", "--base=origin/x"])).toEqual({
+            base: "origin/x",
+            json: true,
+            planOnly: true,
+        });
+        expect(parseArgs([]).planOnly).toBe(false);
+    });
+
+    it("still refuses an unknown argument — `--plan` is not a door for a lane flag (#2738)", () => {
+        // `fail()` prints and exits, so the refusal is read off stderr plus
+        // a non-zero exit, not off a thrown message.
+        const errors: string[] = [];
+        const err = vi
+            .spyOn(console, "error")
+            .mockImplementation((m: unknown) => {
+                errors.push(String(m));
+            });
+        const exit = vi.spyOn(process, "exit").mockImplementation(((
+            code?: number
+        ) => {
+            throw new Error(`exit ${code}`);
+        }) as never);
+        try {
+            expect(() => parseArgs(["--skin"])).toThrow("exit 1");
+            expect(() => parseArgs(["--cards"])).toThrow("exit 1");
+            expect(errors.join("\n")).toMatch(/unknown argument `--skin`/);
+            expect(errors.join("\n")).toMatch(/unknown argument `--cards`/);
+        } finally {
+            err.mockRestore();
+            exit.mockRestore();
+        }
+    });
+
+    it("renders the plan with no RunResult — nothing ran, so nothing is claimed to have passed", () => {
+        const plan = classifyLane([
+            "convex/cards/sets/arn/white.ts",
+            "data/card-index.json",
+        ]);
+        expect(plan.lane).toBe("cards");
+
+        expect(renderClassification(plan, "c0ffee1", false)).toBe(
+            renderPlan(plan, "c0ffee1")
+        );
+
+        const parsed = JSON.parse(
+            renderClassification(plan, "c0ffee1", true)
+        ) as LanePlan & { head: string; ok?: boolean; outcomes?: unknown };
+        expect(parsed.head).toBe("c0ffee1");
+        expect(parsed.lane).toBe("cards");
+        expect(parsed.ok).toBeUndefined();
+        expect(parsed.outcomes).toBeUndefined();
+    });
+
+    /**
+     * The narrow structural half: `main()` must exit on `--plan` BEFORE it
+     * reaches `executePlan`, which is the only path to a shell. A `--plan`
+     * that printed the lane and then ran the gate anyway would satisfy every
+     * pure test above while re-introducing the retired pre-PR gate.
+     *
+     * Proof-of-failure: moved the `if (planOnly)` block below the
+     * `executePlan(...)` call in `main()` — this test went red (the exit
+     * index was greater than the execution index). Reverted.
+     */
+    it("exits before execution: the planOnly branch precedes the only executePlan call site", () => {
+        const src = readFileSync(
+            resolve(ROOT, "scripts/check-lane.ts"),
+            "utf8"
+        );
+        const short = src.indexOf("if (planOnly) {");
+        const exec = src.indexOf("const result = executePlan(");
+        expect(short).toBeGreaterThan(-1);
+        expect(exec).toBeGreaterThan(-1);
+        expect(short).toBeLessThan(exec);
+        expect(src.slice(short, exec)).toContain("process.exit(0)");
     });
 });
 

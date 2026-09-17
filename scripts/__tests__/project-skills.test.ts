@@ -109,6 +109,60 @@ describe("next-issue consumes the planner (issue #2184, re-homed by ADR 0110)", 
         expect(body()).not.toMatch(/health:main/);
     });
 
+    it("§3's cards short path is keyed on the LANE, not on how simple the card reads (ADR 0136 §8, issue #3781)", () => {
+        // The failure this guards: a session deciding by eye that a card is
+        // "simple enough" to skip its test. The lane is the only thing that
+        // knows what really rode along in the diff — a `data/**` artefact, a
+        // file under `convex/gre/`. So §3 must name the classifier, and the
+        // command it names must accept the flag it is invoked with.
+        const text = body();
+        const impl = text.indexOf("## 3. Implement");
+        const review = text.indexOf("## 4. Review");
+        expect(impl).toBeGreaterThan(-1);
+        expect(review).toBeGreaterThan(impl);
+        const section = text.slice(impl, review);
+
+        expect(section).toMatch(/bun run check:lane --plan/);
+        expect(section).toMatch(/`cards`/);
+        expect(section).toMatch(/keyed on the LANE/);
+        // …and the short path's three exemptions are stated, not implied.
+        expect(section).toMatch(
+            /No hand-written test, no proof-of-failure, no bot or frontend seam walk/
+        );
+        // The tripwire: a test on a cards diff means an unexercised Op.
+        expect(section).toMatch(/unexercised Op/);
+        expect(section).toMatch(/\/new-op/);
+
+        const pkg = JSON.parse(
+            fs.readFileSync(path.join(REPO_ROOT, "package.json"), "utf8")
+        ) as { scripts: Record<string, string> };
+        expect(pkg.scripts["check:lane"]).toBeTruthy();
+        const laneSrc = fs.readFileSync(
+            path.join(REPO_ROOT, "scripts", "check-lane.ts"),
+            "utf8"
+        );
+        expect(laneSrc).toContain('"--plan"');
+    });
+
+    it("§6 reports `land`'s lane receipt line (ADR 0136 §2, issue #3781)", () => {
+        // Which lane paid for the landed tree — and whether it was paid at
+        // all — is the one line of the flow a reader cannot reconstruct
+        // afterwards. `land` prints it; §6 has to carry it out of the log.
+        const text = body();
+        const report = text.indexOf("## 6. Report");
+        expect(report).toBeGreaterThan(-1);
+        const section = text.slice(report);
+        expect(section).toMatch(/lane: ran/);
+        expect(section).toMatch(/lane: skipped/);
+
+        const landSrc = fs.readFileSync(
+            path.join(REPO_ROOT, "scripts", "land.ts"),
+            "utf8"
+        );
+        expect(landSrc).toContain("lane: ran");
+        expect(landSrc).toContain("lane: skipped");
+    });
+
     it("§5 runs no lane gate before the PR — `land` pays it once (ADR 0136 §1, issue #3779)", () => {
         // The pre-PR `check:lane` certified a tree that never landed: at
         // 2.5 PR/h the base moved during it, and `land` paid the lane again

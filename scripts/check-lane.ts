@@ -48,9 +48,20 @@
  *   bun run check:lane                # classify HEAD against origin/main
  *   bun run check:lane --base=<ref>   # classify against another base
  *   bun run check:lane --json         # emit the plan + receipt as JSON
+ *   bun run check:lane --plan         # print the classification, run NOTHING
  *
  * Exits 1 on a dirty working tree, so the HEAD SHA it prints describes
  * exactly what was classified.
+ *
+ * `--plan` IS NOT A LANE FLAG (ADR 0136 §8). It suppresses EXECUTION, never
+ * classification: the lane still comes from the diff, through the same
+ * `classifyLane` call every other mode uses. It exists because
+ * `/next-issue` §3 keys its `cards` short path — no hand-written test, no
+ * proof-of-failure, no bot or frontend walk — on the lane the diff really
+ * classifies as, and a session that had to PAY a lane gate to learn that
+ * would be running the pre-PR gate §1 retired. Ask after committing: the
+ * dirty-tree refusal applies here too, and an uncommitted card is a path the
+ * classifier cannot see.
  *
  * NO PREFLIGHT (ADR 0136 §1). Issue #3286 made this refuse a tree behind the
  * base tip or a RED base before paying the gate, to stop a hand-run PRE-PR
@@ -640,6 +651,21 @@ export function renderJson(
     return JSON.stringify({ head, ...plan, ...result }, null, 2);
 }
 
+/**
+ * `--plan`: the classification alone, in whichever of the two forms above
+ * the caller asked for, with NO `RunResult` because nothing ran (ADR 0136
+ * §8). One expression over the two renderers that already exist — never a
+ * third rendering of a plan, for the same reason `renderJson` takes an
+ * optional `result` instead of a sibling renderer for the dry case.
+ */
+export function renderClassification(
+    plan: LanePlan,
+    head: string,
+    json: boolean
+): string {
+    return json ? renderJson(plan, head) : renderPlan(plan, head);
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // Execution (issue #2741) — the SAME `plan.run` list every render above
 // reads drives this. `runPlan` takes an injectable `exec` so the only thing
@@ -845,25 +871,39 @@ export function executePlan(
     return result;
 }
 
-function parseArgs(argv: string[]): { base: string; json: boolean } {
+/**
+ * Argument parsing is a DECISION (which base, which rendering, run or only
+ * classify), so it is a pure function tested directly — repo convention in
+ * this file, same as `shellStdio` and `runPlan`'s injected `exec`.
+ */
+export function parseArgs(argv: string[]): {
+    base: string;
+    json: boolean;
+    planOnly: boolean;
+} {
     const baseArg = argv.find((a) => a.startsWith("--base="));
     for (const a of argv) {
-        if (a === "--json" || a.startsWith("--base=")) continue;
-        fail(`unknown argument \`${a}\` — usage: bun run check:lane [--base=<ref>] [--json]
+        if (a === "--json" || a === "--plan" || a.startsWith("--base=")) {
+            continue;
+        }
+        fail(`unknown argument \`${a}\` — usage: bun run check:lane [--base=<ref>] [--json] [--plan]
 
 The lane is derived from the diff and can never be declared by a flag (#2738):
 a flag is a hand-maintained list in disguise, and the first agent that passes
-\`--skin\` out of habit on a diff touching convex/ gets a lying green.`);
+\`--skin\` out of habit on a diff touching convex/ gets a lying green.
+\`--plan\` is not that flag: it prints the lane this diff classifies as and
+runs nothing, so it cannot make a wrong lane true.`);
     }
     return {
         base: baseArg ? baseArg.slice("--base=".length) : ORIGIN_BASE,
         json: argv.includes("--json"),
+        planOnly: argv.includes("--plan"),
     };
 }
 
 function main(): void {
     const cwd = process.cwd();
-    const { base, json } = parseArgs(process.argv.slice(2));
+    const { base, json, planOnly } = parseArgs(process.argv.slice(2));
 
     if (git(["status", "--porcelain"], cwd).trim() !== "") {
         fail(
@@ -880,6 +920,14 @@ function main(): void {
         changedPaths(base, cwd, true),
         changedPaths(base, cwd, false)
     );
+
+    // `--plan` stops HERE, after the one `classifyLane` call above and
+    // before any shell: the session asking which path §3 owes it must not
+    // pay a gate to find out (ADR 0136 §1/§8).
+    if (planOnly) {
+        console.log(renderClassification(plan, head, json));
+        process.exit(0);
+    }
 
     const result = executePlan(plan, head, json, (command) =>
         shellRun(command, cwd, json)

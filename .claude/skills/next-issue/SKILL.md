@@ -148,6 +148,32 @@ slip), add `model:opus` to the issue so the NEXT routing is right.
 
 ## 3. Implement — in THIS context
 
+**The DIFF's LANE decides what this section owes, not the session** (ADR 0136
+§8). Commit, then ask the classifier — `bun run check:lane --plan` prints the
+lane and runs nothing, so asking costs no gate:
+
+- **`cards`** (the diff is entirely under `convex/cards/sets/**` plus the
+  regenerated `data/**`, with prose free to ride along — ADR 0136 §3): the
+  SHORT PATH — write the definition, the
+  `## Preset scenario` JSON and the regenerated artefacts, confirm the CR
+  lines (`bun run cr <id>`, then `bun run cr:ledger confirm <file>:<line>`).
+  **No hand-written test, no proof-of-failure, no bot or frontend seam walk**:
+  ADR 0045's per-Op regime already covers a card built from exercised Ops
+  (static sweep + generated smoke test), and the lane runs the catalogue
+  guards and the three bot censuses on the rebased tip anyway. Best observed:
+  24 min wall, ~4 implementing.
+  **The tripwire: a session that finds itself writing a test for a `cards`
+  diff has found an unexercised Op** — stop, file it per `/new-op`, and let
+  the Op earn its permanent test. A card that introduces an Op touches
+  `convex/gre/**` and is not this lane.
+- **any other lane** (`engine`, `skin`, `full`) — everything below applies in
+  full.
+
+The short path is keyed on the LANE, never on how simple the card reads: a
+judgment ("vanilla creature, no test needed") is what shipped untested Ops,
+and the classifier is the only thing that knows `data/**` rode along or that
+a file slipped in under `convex/gre/`.
+
 The path-specific rules apply unchanged (`.claude/rules/gre-development.md`,
 `frontend-components.md`, `bot-development.md`): CR printed not recalled,
 DSL-first, frontend wiring walk, proof-of-failure for every guarding test.
@@ -249,6 +275,9 @@ nothing costs one line of output. Not a gate:`presetDecks` is
 ## 6. Report
 
 Five lines, no more: issue, PR, what landed, what the review caught (or
-"clean"), anything flagged for the user. Then STOP — one issue per
+"clean"), anything flagged for the user. Quote `land`'s own lane receipt in
+the "what landed" line — `lane: ran` or
+`lane: skipped (gated <sha> against <base>)` (ADR 0136 §2) — so the reader
+sees which lane paid for this tree and whether it was paid at all. Then STOP — one issue per
 invocation. The user (or the budgeted AFK driver, ADR 0109) decides whether
 there is a next one.
