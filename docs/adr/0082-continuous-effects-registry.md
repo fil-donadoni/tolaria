@@ -150,6 +150,33 @@ Five decisions bound the scope:
   implementation. The registry is what made it expressible: 613.8a asks whether
   applying one effect would change another, which needs every effect in a layer
   visible at once.
+- A static ability's effect can OUTLIVE its source without a new expiry kind and
+  without relaxing the predicate pin (issue #3726). Titania's Song — "If this
+  enchantment leaves the battlefield, this effect continues until end of turn" —
+  needed a lifetime `ContinuousEffectExpiry` appeared not to have. It did not:
+  `ContinuousEffectScope` pins the `predicate` arm to `source` expiry, but its
+  other arm takes a fixed `instances` list with ANY expiry, and its own doc
+  already sanctioned "a static ability's effect can also be snapshotted this way
+  when a slice needs to". So the departure CONVERTS rather than extends: at the
+  moment the source leaves, `gre/lingeringStatics.ts` freezes each still-applying
+  effect into an `instances` + `duration` entry with an INLINE payload. The pin
+  stands, untouched, and `ContinuousEffectExpiry` grew no sixth member.
+
+    The conversion is also what settles the affected set, which is a rules
+    question and not an implementation one. CR 611.3d is the CR's own precedent
+    for a static ability's effect lasting past its generator, and it calls itself
+    "an exception to rules 611.3a-b" — BOTH: the "isn't locked in" half lapses
+    with the battlefield-presence half. What is left is an effect with a stated
+    duration and no generator to re-evaluate, which is CR 611.2c's shape ("the set
+    of objects it affects is determined when that continuous effect begins. After
+    that point, the set won't change"). The snapshot's frozen `instanceIds` is
+    that sentence, and the alternative — keep evaluating the predicate against a
+    source that no longer exists — has no rule behind it.
+
+    Declarable only on the characteristic-changing kinds, by decision 2 above: a
+    rules-modifying effect is not in the registry, so it has nothing to linger AS,
+    and `tsc` rejects the declaration rather than letting it ship inert.
+
 - Rules-modifying effects (CR 611.3) keep their current, separate handling.
   A future ADR may unify their duration/expiry handling with the registry's
   without absorbing them into the layer system.

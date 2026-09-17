@@ -122,8 +122,12 @@ describe("a static effect that lingers after its source leaves (CR 611.3b/611.3d
             expect(entry.timestamp).toBe(stamp);
         }
         expect(stored.map((e) => e.layer).sort()).toEqual([4, 6, 7]);
-        // CR 604.3 / 613.4a — the mana-value P/T stays a CDA in sublayer 7a,
-        // with its value computed once (Sol Ring's mana value is 1).
+        // The snapshot preserves the effect's SLOT and its CR 604.3 flag: a
+        // `pt-cda` derives at sublayer 7a (CR 613.4a) with
+        // `characteristicDefining` set, and it still does after the conversion,
+        // with its value computed once (Sol Ring's mana value is 1). Whether
+        // Titania's Song's P/T clause should be a `pt-cda` at all is a separate,
+        // pre-existing question — see `docs/findings/`.
         const pt = stored.find((e) => e.layer === 7)!;
         expect(pt.sublayer).toBe("7a");
         expect(pt.characteristicDefining).toBe(true);
@@ -156,6 +160,11 @@ describe("a static effect that lingers after its source leaves (CR 611.3b/611.3d
         expect(projRing.types).toContain("Artifact");
         expect(getEffectivePower(projected, projRing)).toBe(1);
         expect(getEffectiveToughness(projected, projRing)).toBe(1);
+        // The layer-6 half is the one the wire is likeliest to drop: the
+        // projection MATERIALISES abilities, so a lingering `ability-loss` that
+        // did not survive it would leave the client offering Sol Ring's mana
+        // ability while the server refuses to let it be activated.
+        expect(hasManaAbility(projRing)).toBe(false);
     });
 
     it("survives the DB round trip (the entries are stored state, not derived)", () => {
