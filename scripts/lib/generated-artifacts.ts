@@ -1,3 +1,5 @@
+import { LEDGER_PATH } from "./cr-ledger";
+
 /**
  * The class of generated, committed `data/` artifacts that must be
  * REGENERATED, never merged (issue #3069).
@@ -68,12 +70,18 @@
  *     it is not re-derivable from the tree at all (its generator needs the
  *     network, and the gate is offline by contract), and it moves only in a
  *     deliberate re-pin PR, never as a side effect of unrelated work.
- *   - `data/cr/citations-ledger.json` — IMMUNE BY SHAPE (ADR 0133). The CR
- *     citation ledger: per-row, sorted by rule id then line, no header hash,
- *     no tally. Two branches confirming two different citations touch
- *     disjoint lines. Written only by `cr:ledger`, which never regenerates
- *     the whole file — it upserts one line's entries and prunes stale ones —
- *     so there is nothing for a merge driver to re-derive.
+ *   - `data/cr/citations-ledger.json` — NOT RE-DERIVABLE, so out of this class,
+ *     but UNION-MERGEABLE BY KEY and served by its OWN driver (issue #3768,
+ *     ADR 0133). It was read as immune by shape — per-row, sorted, no header
+ *     hash — and it is not: rows sort by rule id, a hot id carries hundreds of
+ *     them (the hottest, 525), so two branches confirming two DIFFERENT
+ *     citations under the SAME id insert into the same sorted hunk and git
+ *     reports a textual conflict with no semantic content. The remedy is not
+ *     this class: `cr:ledger` upserts confirmations and prunes stale ones, it
+ *     never regenerates the whole file, so there is nothing to re-derive at
+ *     the rebased tip and taking ours would silently drop the other branch's
+ *     confirmations. It gets {@link OTHER_MERGE_DRIVERS}'s `cr-ledger` driver
+ *     instead, which resolves the file as a keyed set of independent facts.
  *   - `data/oracle-retirements.json` — hand-authored INPUT, not a generated
  *     artifact. A conflict there is a real judgement call and must reach a
  *     human.
@@ -127,14 +135,52 @@ export const REGENERATED_ARTIFACTS: readonly RegeneratedArtifact[] = [
 export const CORPUS_CACHE_REL = "data/oracle-corpus.json.gz";
 
 /**
- * The `.gitattributes` merge-driver name, and the name
- * `scripts/bootstrap-worktree.ts` registers in local git config.
+ * The merge-driver name `.gitattributes` gives every {@link
+ * REGENERATED_ARTIFACTS} path, and the name `scripts/bootstrap-worktree.ts`
+ * registers in local git config.
  *
  * The bootstrap cannot import this — it is node-builtins-only on purpose, so it
  * can run in a worktree with no `node_modules` — so the constant is hand-typed
  * there and a test pins it to this one.
  */
 export const MERGE_DRIVER_NAME = "regenerated";
+
+/**
+ * A committed path carrying a merge driver that is NOT {@link
+ * MERGE_DRIVER_NAME} — it is not re-derivable from the tree, so the
+ * regenerated class's contract ("take a side, re-run the generator at the
+ * rebased tip") does not fit it, but its conflicts are still never a real
+ * disagreement.
+ *
+ * This exists so `.gitattributes` has ONE authority covering every row of it:
+ * the guard pins the file to `REGENERATED_ARTIFACTS` followed by this list, so
+ * a path can carry a different driver without being smuggled into the
+ * regenerated class to get one.
+ */
+export interface DrivenArtifact {
+    /** Repo-relative POSIX path, exactly as `.gitattributes` names it. */
+    readonly path: string;
+    /** The `merge=<name>` driver, registered by the worktree bootstrap. */
+    readonly driver: string;
+    /** The driver's implementation, repo-relative. */
+    readonly script: string;
+    /** Why it is out of the regenerated class and what its driver does. */
+    readonly why: string;
+}
+
+/** The merge-driver name of the CR citation ledger (issue #3768). */
+export const LEDGER_MERGE_DRIVER_NAME = "cr-ledger";
+
+export const OTHER_MERGE_DRIVERS: readonly DrivenArtifact[] = [
+    {
+        path: LEDGER_PATH,
+        driver: LEDGER_MERGE_DRIVER_NAME,
+        script: "scripts/merge-driver-cr-ledger.ts",
+        why:
+            "not re-derivable (`cr:ledger` upserts and prunes, it never regenerates), " +
+            "but a keyed set of independent facts — merged by (id, line) against the base",
+    },
+] as const;
 
 /**
  * Marker the merge driver appends resolved paths to, resolved through

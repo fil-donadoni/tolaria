@@ -17,10 +17,10 @@
  *                              never runs → prettier drift reaches the merge-train.
  *
  * It also registers the ONE piece of repo behaviour git refuses to take from a
- * committed file: the `merge=regenerated` merge driver (issue #3069). Merge
- * drivers live in local config by design, so `.gitattributes` can name one but
- * nothing in the repo can define it — this is the only repo-controlled place
- * that can.
+ * committed file: the merge drivers `.gitattributes` names — `merge=regenerated`
+ * (issue #3069) and `merge=cr-ledger` (issue #3768). Merge drivers live in local
+ * config by design, so `.gitattributes` can name one but nothing in the repo can
+ * define it — this is the only repo-controlled place that can.
  *
  * The rule "copy these from the main checkout" lived in prose in the
  * process-gh-issues skill and was measurably ignored (twice: a phantom red
@@ -199,6 +199,37 @@ try {
 } catch (err) {
     failed.push(
         `git config merge.${MERGE_DRIVER_NAME}.driver — ${String(err)}`
+    );
+}
+
+// ── merge driver for the CR citation ledger (issue #3768) ───────────────────
+// A SECOND, independent driver, for the same reason: `.gitattributes` names
+// `merge=cr-ledger` for `data/cr/citations-ledger.json` and git resolves that
+// name against local config only. Without this step the ledger falls back to
+// the default text merge, where two branches confirming two citations under
+// the same rule id collide in the same sorted hunk.
+//
+// It is NOT the regenerated driver and must never be aliased to it: that one
+// takes ours and defers to a regeneration, and this file has no generator —
+// taking a side would silently drop the other branch's confirmations.
+const LEDGER_MERGE_DRIVER_NAME = "cr-ledger";
+const LEDGER_MERGE_DRIVER_COMMAND =
+    "bun scripts/merge-driver-cr-ledger.ts %O %A %B %P";
+try {
+    git(
+        "config",
+        `merge.${LEDGER_MERGE_DRIVER_NAME}.name`,
+        "merge the CR citation ledger as a keyed set of facts (issue #3768)"
+    );
+    git(
+        "config",
+        `merge.${LEDGER_MERGE_DRIVER_NAME}.driver`,
+        LEDGER_MERGE_DRIVER_COMMAND
+    );
+    done.push(`merge.${LEDGER_MERGE_DRIVER_NAME} driver (git config)`);
+} catch (err) {
+    failed.push(
+        `git config merge.${LEDGER_MERGE_DRIVER_NAME}.driver — ${String(err)}`
     );
 }
 

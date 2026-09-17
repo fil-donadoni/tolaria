@@ -18,3 +18,10 @@
 data/oracle-compiled.json merge=regenerated
 data/oracle-legality.json merge=regenerated
 data/catalogue/source-hash.json merge=regenerated
+
+# Committed artifacts that are NOT re-derivable — so out of the class above —
+# but whose conflicts are still never a real disagreement (issue #3768). Each
+# carries its OWN driver, which resolves the file semantically and leaves
+# nothing to regenerate at the rebased tip. Pinned to OTHER_MERGE_DRIVERS by
+# the same test, and registered by the same `bun run worktree:init`.
+data/cr/citations-ledger.json merge=cr-ledger
