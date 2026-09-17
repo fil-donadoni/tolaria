@@ -222,7 +222,11 @@ exactly when it is needed and costs nothing when it is not.
 4. **Implement** — Effect Script by default (ADR 0045); consult the Mechanics
    Registry before writing; `resolve()` only for protocol-like cards with
    recorded justification
-5. **Test** — `resolve()` cards and new Ops: tests at ALL layers (GRE unit,
+5. **Test** — **the diff's LANE decides what is owed** (ADR 0136 §8,
+   `bun run check:lane --plan`): a `cards`-lane diff owes no hand-written
+   test, no proof-of-failure and no seam walk — writing one means an
+   unexercised Op, so stop and file it (`/new-op`). Every other lane:
+   `resolve()` cards and new Ops: tests at ALL layers (GRE unit,
    game.ts integration, frontend utils, wire format — two pieces passing
    individually but failing together is a shipped bug; every feature crossing
    GRE → game.ts → UI needs one full-path integration test). DSL cards on

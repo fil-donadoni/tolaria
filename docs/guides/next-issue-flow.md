@@ -12,7 +12,7 @@ with `bun run telemetry:latency`.
 flowchart TD
     P["1 · Pick<br/><code>queue:plan --cap 1</code> — refuses while live claims ≥ cap (3) or the health marker is RED<br/><code>gh issue view N --json …</code>"]
     C["2 · Claim + ephemeral worktree<br/><code>gh issue edit --add-label in-progress</code> · <code>cd $(wt:new N)</code><br/>bootstrap seeds <code>node_modules/.tmp/*.tsbuildinfo</code> from the primary"]
-    I["3 · Implement in this context<br/>read/edit · <code>bunx vitest run &lt;path&gt;</code> · commit<br/><b>engine/skin</b>: proof-of-failure, cr:ledger, scenario JSON, bot + frontend walks<br/><b>cards lane</b> (decided by the diff): definition + scenario JSON + regenerated artefacts + cr:ledger — no hand-written test, no proof-of-failure, no walks"]
+    I["3 · Implement in this context<br/>read/edit · <code>bunx vitest run &lt;path&gt;</code> · commit<br/><b>engine/skin</b>: proof-of-failure, cr:ledger, scenario JSON, bot + frontend walks<br/><b>cards lane</b> (decided by the diff, read with <code>check:lane --plan</code>): definition + scenario JSON + regenerated artefacts + cr:ledger — no hand-written test, no proof-of-failure, no walks"]
     R["4 · Review — one round, the session waits<br/>opus if <code>convex/gre/**</code> or <code>**/ai/**</code>, sonnet otherwise, none for docs<br/>blocking findings → fix here → targeted tests"]
     PR["5 · Push + PR<br/>body: scenario JSON, <code>check:ui</code> receipt (skin only)"]
     subgraph LAND["6 · land — ONE command under the heavy mutex (skipped lane if the rebased sha is already gated green)"]
@@ -39,6 +39,13 @@ What is gone, compared with the flow measured in ADR 0136: the pre-PR
 `check:lane` (paid twice per session because the base moved during it), the
 #3286 stale-preflight loop, and the `full` lane on every card PR. The lane is
 paid once, on the tree that lands.
+
+Step 3's two paths are chosen by the classifier, never by the session:
+`bun run check:lane --plan` prints the lane and runs nothing, so a session can
+ask which path it owes without paying the gate §1 retired. A session that
+finds itself writing a test on a `cards` diff has found an unexercised Op and
+stops (`/new-op`). Step 7's report quotes `land`'s own `lane: ran` /
+`lane: skipped (gated <sha> against <base>)` line.
 
 ## 2. Three sessions, the mutex, and the batch health
 
