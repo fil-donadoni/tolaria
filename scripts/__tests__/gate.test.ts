@@ -62,10 +62,17 @@ function env(extra: Record<string, string> = {}) {
 
 function run(
     args: string[],
-    opts: { cwd?: string; env?: NodeJS.ProcessEnv } = {}
+    opts: { cwd?: string; env?: NodeJS.ProcessEnv; timeout?: number } = {}
 ) {
     return spawnSync("bun", [GATE, ...args], {
         encoding: "utf8",
+        // A BOUND, not a measurement. `spawnSync` blocks the worker outright,
+        // so vitest's own testTimeout cannot interrupt it: a gate that never
+        // acquires turns a red into a hang, and a hang is not evidence (the
+        // `yield` tier's starvation bound was proven exactly this way — with
+        // the bound removed the call sat for 42 minutes instead of failing).
+        // Sized so only a gate that never returns can reach it.
+        timeout: opts.timeout ?? 60_000,
         // Default to the neutral temp dir, NOT the checkout this suite runs
         // in: the suite itself may be running inside a `feat/issue-N`
         // worktree (the light `check:guards` gate runs there routinely), and
@@ -824,19 +831,23 @@ describe("gate.ts — the waiter registry and the yield tier (ADR 0136 §6, issu
     });
 
     it("the starvation bound gets the yield tier through a permanently queued land", async () => {
+        // The seeded waiter is THIS process: it never goes away, so without a
+        // bound the gate yields for ever. `run`'s timeout turns that into a
+        // failed assertion rather than a wedged worker.
         seedWaiter("land");
         const r = run(["yield", "echo RAN"], {
             env: env({ TOLARIA_GATE_YIELD_BOUND_MS: "0" }),
+            timeout: 20_000,
         });
-        expect(r.status).toBe(0);
+        expect(r.status, `signal=${r.signal} stderr=${r.stderr}`).toBe(0);
         expect(r.stdout).toContain("RAN");
         expect(r.stderr).toContain("starvation bound");
     });
 
     it("yields to a land and to nothing else", () => {
         seedWaiter("");
-        const r = run(["yield", "echo RAN"]);
-        expect(r.status).toBe(0);
+        const r = run(["yield", "echo RAN"], { timeout: 20_000 });
+        expect(r.status, `signal=${r.signal} stderr=${r.stderr}`).toBe(0);
         expect(r.stdout).toContain("RAN");
     });
 
@@ -846,18 +857,21 @@ describe("gate.ts — the waiter registry and the yield tier (ADR 0136 §6, issu
         // longer exists, for the whole bound, every time.
         const dead = spawnSync("sh", ["-c", "exit 0"]);
         const file = seedWaiter("land", dead.pid!);
-        const r = run(["yield", "echo RAN"]);
-        expect(r.status).toBe(0);
+        const r = run(["yield", "echo RAN"], { timeout: 20_000 });
+        expect(r.status, `signal=${r.signal} stderr=${r.stderr}`).toBe(0);
         expect(r.stdout).toContain("RAN");
         expect(existsSync(file)).toBe(false);
     });
 
     it("the yield tier is the heavy tier in every other respect", () => {
-        const r = run([
-            "yield",
-            "echo held=[$TOLARIA_GATE_HELD] w=[$TOLARIA_VITEST_WORKERS]",
-        ]);
-        expect(r.status).toBe(0);
+        const r = run(
+            [
+                "yield",
+                "echo held=[$TOLARIA_GATE_HELD] w=[$TOLARIA_VITEST_WORKERS]",
+            ],
+            { timeout: 20_000 }
+        );
+        expect(r.status, `signal=${r.signal} stderr=${r.stderr}`).toBe(0);
         expect(r.stdout).toContain("held=[1]");
         expect(r.stdout).toMatch(/w=\[[2-9]\d*\]/);
         // …the mutex included: it is released when the command finishes.
