@@ -38604,7 +38604,7 @@
         {"id":"702.47c","line":"// CR 702.47c (issue #2394) — resolve the splice reveals of this cast to the","sites":1,"status":"confirmed","ruleHash":"51ea091b3429d847"},
         {"id":"702.47c","line":"// CR 702.47c (issue #2394) — the text a splice reveal added to this spell","sites":1,"status":"confirmed","ruleHash":"51ea091b3429d847"},
         {"id":"702.47c","line":"// CR 702.47c (issue #2394) — through the SAME splice seam the","sites":2,"status":"confirmed","ruleHash":"51ea091b3429d847"},
-        {"id":"702.47c","line":"// CR 702.47c gives the spell \"the rules text of EACH of the spliced","sites":1,"status":"confirmed","ruleHash":"51ea091b3429d847"},
+        {"id":"702.47c","line":"// CR 702.47c gives the spell \"the rules text of EACH of the spliced","sites":2,"status":"confirmed","ruleHash":"51ea091b3429d847"},
         {"id":"702.47c","line":"// CR 702.47c makes the spell gain the spliced card's text, which this","sites":1,"status":"confirmed","ruleHash":"51ea091b3429d847"},
         {"id":"702.47c","line":"// CR 702.47c — the client sees the reveal as a card that never moved.","sites":1,"status":"confirmed","ruleHash":"51ea091b3429d847"},
         {"id":"702.47c","line":"// CR 702.47c — the entry names the PRINTED card whose text the spell","sites":1,"status":"confirmed","ruleHash":"51ea091b3429d847"},
