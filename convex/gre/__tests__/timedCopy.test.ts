@@ -20,6 +20,7 @@
 
 import { describe, expect, it } from "vitest";
 import { applyCopy, applyTimedCopy, presentedDefId } from "../copy";
+import { transformPermanent } from "../transform";
 import { finalizeCleanup } from "../phases";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
 import { removePermanentTo } from "../state";
@@ -34,6 +35,7 @@ import { compactState, expandState } from "../serialize";
 import type { CardInstanceState, Duration, GameState } from "../state";
 
 const BEARS = getCardByName("Grizzly Bears").id; // 2/2 vanilla creature
+const JACE = getCardByName("Jace, Vryn's Prodigy").id; // transforms (CR 712)
 const SERRA = getCardByName("Serra Angel").id; // 4/4 flying, vigilance
 const LOTUS = getCardByName("Black Lotus").id; // noncreature artifact
 
@@ -235,6 +237,88 @@ describe("timed copy effects (CR 707.2 / 611.2a, issue #3236)", () => {
                 restored.players[0].battlefield.find((c) => c.id === "lotus")!
             )
         ).toBe(LOTUS);
+    });
+
+    it("leaves a TRANSFORMED copy alone at the boundary — layer 1 belongs to the later effect (CR 613.7 / 712)", () => {
+        // Review finding: `revertCopy` was written for the departure funnel,
+        // where the transform revert runs beside it. Fired mid-battlefield it
+        // would rewrite `card.card` and leave `transformed`/`transformedFrom`
+        // pointing at the copied card — and the permanent would then LEAVE the
+        // battlefield as the object it had copied.
+        const state = board();
+        const p1 = state.players[0];
+        p1.battlefield.push(
+            makeInstance(JACE, { id: "jace", controllerId: "p1" })
+        );
+        applyTimedCopy(
+            state,
+            find(state, "lotus"),
+            find(state, "jace"),
+            {},
+            UNTIL_END_OF_TURN
+        );
+        transformPermanent(state, find(state, "lotus"));
+        const backFaceId = presentedDefId(find(state, "lotus"));
+        expect(backFaceId).not.toBe(JACE);
+
+        cleanup(state);
+
+        const after = find(state, "lotus");
+        // The transform outranks the expiring copy: the identity it installed
+        // stands, and its own restore anchor still matches what it presents.
+        expect(presentedDefId(after)).toBe(backFaceId);
+        expect(after.transformed).toBe(true);
+        expect(after.transformedFrom).toBe(JACE);
+        expect(after.timedCopyEffects).toBeUndefined();
+    });
+
+    it("re-applies a copy-BORN token's own except clause on expiry (CR 707.9)", () => {
+        // A token created by `createTokenCopy … except {…}` carries the clause
+        // on `copyOptions` and NO `copiedFrom` (the placeholder anchor is
+        // cleared at creation). Gating the capture on `copiedFrom` alone lost
+        // the clause: the token reverted to the bare copied definition.
+        const state = board();
+        const token = find(state, "bears");
+        applyCopy(state, token, find(state, "angel"), {
+            basePower: 4,
+            baseToughness: 4,
+            additionalTypes: ["Artifact"],
+        });
+        delete token.copiedFrom; // as `createTokenPermanents` leaves it
+        applyTimedCopy(
+            state,
+            token,
+            find(state, "lotus"),
+            {},
+            UNTIL_END_OF_TURN
+        );
+        expect(presentedDefId(find(state, "bears"))).toBe(LOTUS);
+
+        cleanup(state);
+        const back = find(state, "bears");
+        expect(presentedDefId(back)).toBe(SERRA);
+        expect(getEffectivePower(state, back)).toBe(4);
+        expect(back.types).toEqual(
+            expect.arrayContaining(["Creature", "Artifact"])
+        );
+    });
+
+    it("drops the colour a PREVIOUS copy effect stamped when a new one does not name colours (CR 613.7)", () => {
+        const state = board();
+        applyCopy(state, find(state, "lotus"), find(state, "bears"), {
+            colorOverride: ["B"],
+        });
+        expect(find(state, "lotus").colorOverride).toEqual(["B"]);
+        applyTimedCopy(
+            state,
+            find(state, "lotus"),
+            find(state, "angel"),
+            {},
+            UNTIL_END_OF_TURN
+        );
+        // The Serra copy names no colour exception, so the earlier copy
+        // effect's "except it's black" is gone with the effect that stamped it.
+        expect(find(state, "lotus").colorOverride).toBeUndefined();
     });
 
     it("reports the copied characteristics across the wire (projectPublicState)", () => {

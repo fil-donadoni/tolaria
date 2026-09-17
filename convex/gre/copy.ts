@@ -101,9 +101,15 @@ export function applyTimedCopy(
     // a `??` fallback: recomputing it here would record the FIRST timed copy
     // as the thing the second one covers, and layer 1 would never come back.
     const ledger = recipient.timedCopyEffects;
+    // A token BORN as a copy carries no `copiedFrom` (`createTokenPermanents`
+    // clears the disposable placeholder anchor) but does carry the copy
+    // effect's own `copyOptions` — CR 707.9's "except it's a 4/4 black Zombie"
+    // is its copiable body, and reverting to the bare copied definition would
+    // hand back a body the token never had. So the test is "does it present a
+    // copy effect at all", either anchor.
     const underlying = ledger
         ? ledger.underlying
-        : recipient.copiedFrom
+        : recipient.copiedFrom || recipient.copyOptions
           ? copyLayerOf(
                 {
                     card: { id: presentedDefId(recipient) },
@@ -143,6 +149,21 @@ export function rematerialiseTimedCopies(
     expired: ReadonlyArray<TimedCopyLayer>
 ): void {
     const ledger = card.timedCopyEffects;
+    // CR 613.7 / 708.2 / 712 — a face-down status or a transform applied AFTER
+    // the copy effect is a LATER layer-1 effect and outranks it, so the
+    // expiring copy has nothing left to show: the ledger simply goes. Reverting
+    // here would rewrite `card.card` out from under the `faceDown` /
+    // `transformed` anchors, leaving a permanent whose identity and its own
+    // restore anchors disagree — a transformed copy would then leave the
+    // battlefield AS THE OBJECT IT COPIED.
+    if (card.faceDown || card.transformed) {
+        const kept = survivors.map((e) => ({ ...e }));
+        card.timedCopyEffects =
+            kept.length > 0 && ledger
+                ? { underlying: ledger.underlying, effects: kept }
+                : undefined;
+        return;
+    }
     const underlying = ledger?.underlying ?? null;
     const writesColour = (l: TimedCopyLayer) =>
         l.opts.colorOverride !== undefined || l.opts.copyColor === false;
@@ -198,6 +219,16 @@ function applyCopyEffect(
     opts: CopyOptions
 ): void {
     const copyColor = opts.copyColor ?? true;
+    // CR 613.7 — the colours of THIS copy effect replace the ones a PREVIOUS
+    // copy effect stamped (issue #3236). Read BEFORE `copyOptions` is
+    // overwritten below: `copyOptions` is what says the override on the
+    // instance belongs to a copy effect rather than to a layer-5 `setColor`
+    // (Kavu Chameleon), a noncopy effect with its own later timestamp that
+    // survives untouched.
+    const priorCopyOwnsColour =
+        recipient.copyOptions !== undefined &&
+        (recipient.copyOptions.colorOverride !== undefined ||
+            recipient.copyOptions.copyColor === false);
     const sourceDefId = presentedDefId(source);
     const def = getDefinition(sourceDefId);
 
@@ -280,6 +311,8 @@ function applyCopyEffect(
         // CR 707.9d "except it doesn't copy that creature's color": keep the
         // recipient's own colors via a layer-5 override.
         recipient.colorOverride = [...(opts.ownColors ?? [])];
+    } else if (priorCopyOwnsColour) {
+        delete recipient.colorOverride;
     }
 
     // CR 707.2 "except it has no mana cost" (Eternalize / Embalm). The copy

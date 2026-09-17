@@ -7673,11 +7673,24 @@ export const announceCast = mutation({
                     args.playerId,
                     chosenX
                 );
-                if (
-                    extraLegal.length <
-                    minTargetCount(resolveTargetCount(extra.count, chosenX))
-                ) {
+                const extraRequired = minTargetCount(
+                    resolveTargetCount(extra.count, chosenX)
+                );
+                if (extraLegal.length < extraRequired) {
                     throw new Error("Not enough legal targets");
+                }
+                // CR 115.3 "another target" (issue #3236) — the ability path's
+                // twin check (`activateAbilityOnState`, gre/activation.ts): a
+                // group that may not re-pick an earlier group's permanent needs
+                // enough DISTINCT candidates across both, or the announcement
+                // dead-ends on a group the first pick just emptied.
+                if (extra.excludePriorTargets) {
+                    const distinct = new Set(
+                        [...legalTargets, ...extraLegal].map((t) => t.id)
+                    );
+                    if (distinct.size < required + extraRequired) {
+                        throw new Error("Not enough legal targets");
+                    }
                 }
             }
             // Enter target selection phase before mana payment. The

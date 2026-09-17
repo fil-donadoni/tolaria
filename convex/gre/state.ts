@@ -23126,6 +23126,10 @@ export function createTokenPermanents(
             // preview's split view, revert path) — clear it so the token
             // presents as what it IS, with nothing to revert to.
             delete token.copiedFrom;
+            // NOT cleared: `copyOptions` (issue #3236). It is the copy
+            // effect's own CR 707.9 "except" clause, and unlike `copiedFrom`
+            // it names nothing about the placeholder — it is what a later
+            // TIMED copy effect on this token reverts to (`applyTimedCopy`).
         }
         // CR 111.9 / 122.1 (issue #1210) — a token can enter WITH counters
         // already on it (Incubate N: "create an Incubator token ... with N
