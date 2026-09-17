@@ -287,7 +287,20 @@ export function safeRetirementRefusal(
 
 // Computed from this FILE's directory for the same reason `GATE` is, below.
 const PR_MERGE = resolve(__dirname, "pr-merge.ts");
-const HEALTH_CADENCE = resolve(__dirname, "health-cadence.ts");
+/**
+ * The batch-health driver, named RELATIVE to the primary checkout — both steps
+ * that use it `cd` there first.
+ *
+ * NOT `resolve(__dirname, …)` like the constants around it, and that is the
+ * whole point. `__dirname` is the WORKTREE `land` runs from, and the worktree
+ * is torn down by this very command; the detach step ran after that teardown
+ * and died with `Module not found ".../tolaria-issue-3780/scripts/health-cadence.ts"`
+ * on the first real landing. Its sibling constants are safe only because their
+ * steps happen to run before the teardown — a property of step ORDER, not of
+ * the path. The primary checkout is where the merged code lives and where the
+ * detached decision must keep reading from long after this worktree is gone.
+ */
+const HEALTH_CADENCE_REL = "scripts/health-cadence.ts";
 const SEED_SCENARIO = resolve(__dirname, "seed-scenario.ts");
 const RESOLVE_ARTIFACTS = resolve(__dirname, "resolve-generated-artifacts.ts");
 
@@ -751,7 +764,7 @@ export function releaseClaimStep(branch: string): string | null {
 export function recordLandingStep(primaryCheckout: string): string {
     return (
         `(cd ${shQuote(primaryCheckout)} && ` +
-        `bun ${shQuote(HEALTH_CADENCE)} record --sha="$(git rev-parse ${ORIGIN_BASE})" || ` +
+        `bun ${shQuote(HEALTH_CADENCE_REL)} record --sha="$(git rev-parse ${ORIGIN_BASE})" || ` +
         `echo "land: could not record the landing in the health ledger" >&2; true)`
     );
 }
@@ -783,7 +796,7 @@ export function recordLandingStep(primaryCheckout: string): string {
  */
 export function healthDetachStep(primaryCheckout: string): string {
     return (
-        `(cd ${shQuote(primaryCheckout)} && bun ${shQuote(HEALTH_CADENCE)} spawn || ` +
+        `(cd ${shQuote(primaryCheckout)} && bun ${shQuote(HEALTH_CADENCE_REL)} spawn || ` +
         `echo "land: could not start the batch health decision" >&2; true)`
     );
 }
@@ -855,6 +868,13 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
         // The claim outlives nothing: the PR is merged, the issue is closing.
         const release = releaseClaimStep(opts.branch);
         if (release !== null) steps.push(release);
+        // BEFORE the teardown below, which removes the worktree this command
+        // runs from. `spawn` is synchronous and creates nothing but a process
+        // — the health worktree is created minutes later, by the detached
+        // decision, once it has the mutex — so there is nothing here to
+        // contend with the `worktree remove`, and everything to lose by
+        // running after it.
+        steps.push(healthDetachStep(opts.primaryCheckout));
         // Ref cleanup — cosmetic, not gating. `(… || true)` so a failure here
         // (stale remote state, an already-deleted branch, …) can never turn
         // a MERGED PR's landing into a reported failure.
@@ -872,11 +892,6 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
                 `(git -C ${shQuote(opts.primaryCheckout)} branch -D ${shQuote(opts.branch)} || true)`
             );
         }
-        // LAST, and detached: the health worktree is created from the primary
-        // checkout, and doing that while the teardown above is removing THIS
-        // worktree would have two `git worktree` operations contending for the
-        // same repo lock for no reason. Nothing after it depends on it.
-        steps.push(healthDetachStep(opts.primaryCheckout));
     }
     return steps.join(" && ");
 }
