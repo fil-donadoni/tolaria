@@ -155,6 +155,25 @@ describe("mergeLedgers — a keyed set of independent facts (issue #3768)", () =
         );
     });
 
+    it("takes OURS when two ADDED confirmations disagree — cr:lint arbitrates", () => {
+        // add/add: git hands the driver an empty base, so no side MOVED off a
+        // base hash and nothing in the inputs can arbitrate. Ours is kept, and
+        // that is safe because the arbiter is the CR text at the merged tip:
+        // `cr:lint` recomputes the hash and reds the survivor as `drifted` if
+        // it is the stale one (review of PR #3844, issue #3857).
+        const base = ledger([]);
+        const ours = ledger([
+            entry("100.6", "line", { status: "confirmed", ruleHash: HASH_A }),
+        ]);
+        const theirs = ledger([
+            entry("100.6", "line", { status: "confirmed", ruleHash: HASH_B }),
+        ]);
+        const merged = mergeLedgers({ base, ours, theirs });
+        expect(merged.entries).toHaveLength(1);
+        expect(merged.entries[0]?.status).toBe("confirmed");
+        expect(merged.entries[0]?.ruleHash).toBe(HASH_A);
+    });
+
     it("never carries a rule hash on a baseline outcome (parseLedger reds on one)", () => {
         const base = ledger([]);
         const ours = ledger([entry("100.6", "line")]);

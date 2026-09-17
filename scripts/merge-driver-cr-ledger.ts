@@ -25,6 +25,7 @@
  * ledger.
  */
 import { readFileSync, writeFileSync } from "node:fs";
+import { writeStderrSync } from "./lib/merge-driver-io";
 import {
     emptyLedger,
     mergeLedgers,
@@ -38,7 +39,7 @@ import {
 // %P (the path being merged, for messages).
 const [base, ours, theirs, path] = process.argv.slice(2);
 if (!base || !ours || !theirs) {
-    process.stderr.write(
+    writeStderrSync(
         "merge-driver-cr-ledger: expected %O %A %B %P as arguments\n"
     );
     process.exit(2);
@@ -56,7 +57,7 @@ function read(file: string, side: string): Ledger {
     try {
         return parseLedger(text);
     } catch (err) {
-        process.stderr.write(
+        writeStderrSync(
             `merge-driver-cr-ledger: the ${side} side of ${label} does not parse as a citation ledger — ` +
                 `resolving it by hand is the only honest option (${String(err)})\n`
         );
