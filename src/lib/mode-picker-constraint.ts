@@ -169,10 +169,16 @@ export function modePickerHeading(constraint: ModePickerConstraint): string {
     return `Choose ${constraint.min}–${constraint.max}`;
 }
 
-/** The CR 609.3 note shown when fewer modes are legal than the count asks. */
+/** The CR 609.3 note shown when fewer modes are legal than the count asks —
+ *  or, when the legality hint rules out EVERY mode (it fails open, so that
+ *  answer is reliable), why nothing can be picked: the server rejects an
+ *  announcement naming no mode, so the only way out is Cancel. */
 export function modePickerShortfallNote(
     constraint: ModePickerConstraint
 ): string | undefined {
+    if (constraint.legalModeIds.length === 0) {
+        return "No mode can be chosen right now — none has a legal target.";
+    }
     if (!constraint.shortfall) return undefined;
     const n = constraint.requiredCount;
     return `Only ${n} mode${n === 1 ? " can" : "s can"} be chosen right now — confirm with ${n}.`;

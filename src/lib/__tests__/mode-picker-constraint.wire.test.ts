@@ -173,6 +173,18 @@ describe("mode picker constraint — CR 609.3 shortfall", () => {
         expect(modePickerShortfallNote(c)).toMatch(/Only 2 modes/);
     });
 
+    it("with every mode needing an absent target, says so instead of dead-ending", () => {
+        const c = modePickerConstraint({
+            modes: [PING],
+            selection: { min: 1, max: 1 },
+            facts: viewerModeSelectionFacts(undefined, false),
+            isModeLegal: () => false,
+        });
+        expect(c.legalModeIds).toEqual([]);
+        expect(canConfirmModePicks(c, {})).toBe(false);
+        expect(modePickerShortfallNote(c)).toMatch(/No mode can be chosen/);
+    });
+
     it("no shortfall once the creature is on the board", () => {
         const c = constraintOnWire(board({ creature: true }), {
             min: 3,
