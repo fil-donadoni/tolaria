@@ -3214,6 +3214,10 @@ describe("CR 514.2 — turn-scoped global flags clear at CLEANUP, not END_OF_COM
         ["landManaReplacedToBlueThisTurn", ["p1"]],
         ["highTideThisTurn", ["p1"]],
         [
+            "spellCostReductionsThisTurn",
+            [{ playerId: "p1", costReduction: { X: 2 } }],
+        ],
+        [
             "landManaRidersThisTurn",
             [{ subtype: "Mountain", color: "R", mode: "additional" }],
         ],
