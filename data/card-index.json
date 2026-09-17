@@ -20674,6 +20674,14 @@
         "source": "compiled"
     },
     {
+        "name": "Magda, Brazen Outlaw",
+        "scryfallId": "079e6263-e54c-4899-a336-5315909b9322",
+        "oracleId": "3d268e48-3004-4384-bf52-e63243fb5e02",
+        "firstSet": "khm",
+        "firstPrintId": "079e6263-e54c-4899-a336-5315909b9322",
+        "firstPrintSet": "khm"
+    },
+    {
         "name": "Mage il-Vec",
         "scryfallId": "04e3e38b-2191-4b92-ae5d-bb9397d24a27",
         "oracleId": "adea7db6-634c-4c5d-be40-264b4acffc53",
