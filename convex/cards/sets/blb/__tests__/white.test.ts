@@ -97,7 +97,8 @@ describe("Intrepid Rabbit (CR 702.175 / 603.2)", () => {
 
     it("its own ETB pump is a SEPARATE Oracle line and resolves alongside (CR 603.2)", () => {
         // Two Oracle lines, two `TriggeredAbility` entries, both firing off one
-        // PERMANENT_ENTERED event (CR 603.3b batches them under one controller).
+        // PERMANENT_ENTERED event; CR 603.3b's two-part process has their one
+        // controller put them on the stack in an order of their own choosing.
         // The pump announces its target when it is put on the stack (CR 603.3d),
         // at which moment the Rabbit is the only creature its controller
         // controls — the token does not exist yet — so it targets the Rabbit.

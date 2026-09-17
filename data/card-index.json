@@ -17576,6 +17576,14 @@
         "source": "compiled"
     },
     {
+        "name": "Intrepid Rabbit",
+        "scryfallId": "4d70b99d-c8bf-4a56-8957-cf587fe60b81",
+        "oracleId": "7ed4afc9-959a-4868-8f4a-2221bea1ba32",
+        "firstSet": "blb",
+        "firstPrintId": "4d70b99d-c8bf-4a56-8957-cf587fe60b81",
+        "firstPrintSet": "blb"
+    },
+    {
         "name": "Intuition",
         "scryfallId": "c99f6785-e5a1-4fdc-9fb5-e1a372e7e848",
         "oracleId": "3c9faba7-f2d3-4978-be94-020dc8003dc0",

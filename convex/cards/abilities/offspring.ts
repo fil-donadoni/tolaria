@@ -27,8 +27,10 @@
 // printed mana cost is still paid in full, plus the offspring cost.
 //
 // TRIGGER HALF — {@link offspringTrigger}, a reusable template rather than a
-// per-card literal, following the shape `dashTrigger` established for the
-// other keyword that means two abilities (CR 702.109a). The two halves are
+// per-card literal, following the shape `dashTrigger` established: another
+// keyword whose abilities CR 702.109a spells out separately, whose cast-time
+// half is cost-system infra and whose battlefield half is a template a card
+// adds to its own `triggeredAbilities[]`. The two halves are
 // declared SEPARATELY on the card and are never fused into one object: they
 // ride different engine seams, and CR 702.175b needs them separable — a card
 // with two instances of offspring declares two cost entries with distinct ids
@@ -65,9 +67,10 @@
 // issue #2042 found. The stack item's own copy is unaffected by anything that
 // happens to the permanent after the trigger was built, which is also why
 // killing the creature in response still produces the token. It also covers
-// strictly more: an ability COPY put on the stack never re-runs `matches`
-// (CR 707.10), so without the branch a copied offspring trigger would make a
-// token off a cost nobody paid.
+// strictly more: CR 707.10 puts a copy of an ability on the stack without it
+// being activated, and nothing re-checks a trigger condition for it — so the
+// check-time gate does not run for a copy at all, and the resolution-time
+// branch is the only gate a copied offspring trigger ever passes through.
 //
 // Squad (CR 702.157a) needs no such branch only because its token COUNT is the
 // payment tally itself and the Op skips a non-positive count. Offspring makes
