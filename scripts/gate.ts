@@ -64,6 +64,13 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { homedir, cpus } from "node:os";
+import {
+    INITIAL_HEARTBEAT,
+    SubtreeProgress,
+    heartbeatStep,
+    reclaimVerdict,
+    subtreeFromPs,
+} from "./lib/gate-liveness";
 
 // Overridable so the test suite can exercise the mutex against a temp dir
 // instead of contending with (or blocking) a real gate run on this machine.
@@ -144,30 +151,11 @@ function alive(pid: number): boolean {
     }
 }
 
-/** `ps` CPU time — `[[DD-]HH:]MM:SS[.ss]` on macOS, `[DD-]HH:MM:SS` on Linux. */
-function parseCpuMs(field: string): number | null {
-    let rest = field;
-    let days = 0;
-    const dash = rest.indexOf("-");
-    if (dash >= 0) {
-        days = Number(rest.slice(0, dash));
-        rest = rest.slice(dash + 1);
-    }
-    const parts = rest.split(":").map(Number);
-    if (!Number.isFinite(days) || parts.some((n) => !Number.isFinite(n)))
-        return null;
-    const seconds = parts.reduce((acc, n) => acc * 60 + n, 0);
-    return Math.round((days * 86_400 + seconds) * 1000);
-}
-
 /**
  * CPU time of each LIVE descendant of `pid`, in ms, keyed by pid — the cheapest
  * signal that a held subtree is doing work, and one that needs no cooperation
- * from the wrapped command.
- *
- * The gate process itself is excluded on purpose: it burns essentially nothing
- * but a timer, so including it would let the heartbeat attest to its own
- * existence again — exactly the tautology issue #2999 is about.
+ * from the wrapped command. The parsing (and why the gate process and `ps`
+ * itself are excluded) is `subtreeFromPs` in `scripts/lib/gate-liveness.ts`.
  *
  * Returns null when the measurement is unavailable (no `ps`, unparseable
  * output). Callers must treat null as "unknown" and keep the holder, never as
@@ -178,63 +166,7 @@ function subtreeCpu(pid: number): Map<number, number> | null {
         encoding: "utf8",
     });
     if (r.status !== 0 || !r.stdout) return null;
-    const children = new Map<number, number[]>();
-    const cpu = new Map<number, number>();
-    for (const line of r.stdout.split("\n")) {
-        const m = /^\s*(\d+)\s+(\d+)\s+(\S+)\s*$/.exec(line);
-        if (!m) continue;
-        const [, kid, parent, time] = m;
-        const ms = parseCpuMs(time);
-        if (ms === null) continue;
-        cpu.set(Number(kid), ms);
-        const bucket = children.get(Number(parent));
-        if (bucket) bucket.push(Number(kid));
-        else children.set(Number(parent), [Number(kid)]);
-    }
-    if (cpu.size === 0) return null;
-    const subtree = new Map<number, number>();
-    const queue = [...(children.get(pid) ?? [])];
-    while (queue.length) {
-        const next = queue.pop()!;
-        if (subtree.has(next)) continue;
-        subtree.set(next, cpu.get(next) ?? 0);
-        queue.push(...(children.get(next) ?? []));
-    }
-    return subtree;
-}
-
-/**
- * A MONOTONIC running total of the CPU a subtree has burned, across
- * descendants that come and go.
- *
- * The live snapshot alone is not a progress signal. Every command this mutex
- * guards reshapes its process tree as it runs: the full suite is three
- * sequential vitest invocations, each spawning and then tearing down a whole
- * worker pool, and `check:all:inner` walks a chain of separate tools. When a
- * heavy phase exits, its CPU leaves the snapshot, and a later lighter-but-still
- * working phase can spend a long time below the earlier peak. Comparing raw
- * snapshots reads that as "frozen" and falsely reclaims a healthy holder — the
- * exact failure the issue #1924 ladder case forbids.
- *
- * So a descendant's last known CPU is RETIRED into the total when it exits.
- * The result only ever rises while any descendant does work, and stops rising
- * only when the whole subtree is genuinely idle.
- */
-class SubtreeProgress {
-    private retiredMs = 0;
-    private live = new Map<number, number>();
-
-    /** Total CPU burned so far, or null while unmeasurable. */
-    sample(pid: number): number | null {
-        const now = subtreeCpu(pid);
-        if (!now) return null;
-        for (const [gone, ms] of this.live)
-            if (!now.has(gone)) this.retiredMs += ms;
-        this.live = now;
-        let total = this.retiredMs;
-        for (const ms of now.values()) total += ms;
-        return total;
-    }
+    return subtreeFromPs(r.stdout, pid, r.pid);
 }
 
 function fmtDuration(ms: number): string {
@@ -343,9 +275,15 @@ async function acquire() {
         // progress. The two are different failures and read differently:
         // an absent pid is an orphan, a live pid that went silent is a HUNG
         // holder (issue #2999) and the command it wrapped is still running.
-        const dead = !owner || !alive(owner.pid);
-        const silent = !!owner && now - owner.ts > STALE_MS;
-        if (dead || silent) {
+        const verdict = reclaimVerdict(
+            owner,
+            !!owner && alive(owner.pid),
+            now,
+            STALE_MS
+        );
+        // `!owner` is already "dead" — restated so the narrowing below holds.
+        if (verdict || !owner) {
+            const dead = verdict !== "stalled" || !owner;
             const why = dead
                 ? `holder is gone (${owner ? holderLine(owner, now) : "no readable owner"})`
                 : `STALLED holder — pid ${owner.pid} is alive but has not attested to progress in ${fmtDuration(now - owner.ts)} (${holderLine(owner, now)})`;
@@ -391,7 +329,7 @@ function who(): number {
     const now = Date.now();
     console.log(`[gate] heavy mutex — ${holderLine(owner, now)}`);
     const live = alive(owner.pid);
-    const cpu = new SubtreeProgress().sample(owner.pid);
+    const cpu = new SubtreeProgress().observe(subtreeCpu(owner.pid));
     console.log(
         `[gate]   holder pid ${live ? "alive" : "GONE"} · subtree CPU ${
             cpu === null ? "unmeasurable" : `${(cpu / 1000).toFixed(2)}s`
@@ -473,32 +411,28 @@ if (
  */
 function startHeartbeat() {
     const progress = new SubtreeProgress();
-    let lastCpuMs = -1;
-    let silentBeats = 0;
-    let stalled = false;
+    let state = INITIAL_HEARTBEAT;
     const hb = setInterval(() => {
-        if (stalled) return;
+        if (state.stalled) return;
         const owner = readOwner();
         if (!owner || owner.pid !== process.pid) return; // not ours
-        const cpu = progress.sample(process.pid);
-        if (cpu === null || cpu > lastCpuMs) {
-            // Unmeasurable counts as progress: never reclaim a holder we
-            // cannot judge.
-            if (cpu !== null) lastCpuMs = cpu;
-            silentBeats = 0;
-        } else if (++silentBeats >= STALL_BEATS) {
-            stalled = true;
+        const cpu = progress.observe(subtreeCpu(process.pid));
+        // The decision — including "unmeasurable counts as progress" — is
+        // `heartbeatStep` (scripts/lib/gate-liveness.ts), tested pure.
+        const step = heartbeatStep(state, cpu, STALL_BEATS);
+        state = step.state;
+        if (step.verdict === "stalled") {
             console.error(
                 [
-                    `[gate] STALLED — the held subtree has burned no CPU for ${silentBeats} beats`,
-                    `(${(cpu / 1000).toFixed(2)}s total, held ${fmtDuration(Date.now() - (owner.acquiredAt ?? owner.ts))}).`,
+                    `[gate] STALLED — the held subtree has burned no CPU for ${state.silentBeats} beats`,
+                    `(${((cpu ?? 0) / 1000).toFixed(2)}s total, held ${fmtDuration(Date.now() - (owner.acquiredAt ?? owner.ts))}).`,
                     `No longer heartbeating: the heavy mutex becomes reclaimable in ${fmtDuration(STALE_MS)}.`,
                     "See issue #2999.",
                 ].join(" ")
             );
             logEvent({
                 event: "stalled",
-                silent_beats: silentBeats,
+                silent_beats: state.silentBeats,
                 subtree_cpu_ms: cpu,
             });
             return;
