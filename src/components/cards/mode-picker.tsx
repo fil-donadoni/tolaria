@@ -5,6 +5,8 @@ import AnchoredPicker, {
 } from "@/components/ui/anchored-picker";
 import ManaSymbol from "~/components/cards/mana-symbol";
 import { formatOracleText } from "~/lib/oracle-text";
+import MultiModePicker from "~/components/cards/multi-mode-picker";
+import type { ModePickerConstraint } from "~/lib/mode-picker-constraint";
 
 /** What the picker renders: the shared {@link ModeOption} display surface, plus
  *  the OPTIONAL colour pip. `color` lives on `SpellMode`, not on the shared
@@ -21,6 +23,14 @@ type ModePickerProps = {
     position?: { x: number; y: number };
     onSelect: (modeId: string) => void;
     onCancel: () => void;
+    /** ADR 0094 (issue #2264) — present when the mode list declares a
+     *  `ModeSelection`: the picker becomes multi-select, sized by
+     *  `constraint`, and commits through `onConfirm` instead of `onSelect`.
+     *  Absent = pick exactly one, committed on the first click. */
+    multiSelect?: {
+        constraint: ModePickerConstraint;
+        onConfirm: (modeIds: string[]) => void;
+    };
 };
 
 function ModeRow({
@@ -105,7 +115,19 @@ export default function ModePicker({
     position,
     onSelect,
     onCancel,
+    multiSelect,
 }: ModePickerProps) {
+    if (multiSelect) {
+        return (
+            <MultiModePicker
+                modes={modes}
+                cardName={cardName}
+                constraint={multiSelect.constraint}
+                onConfirm={multiSelect.onConfirm}
+                onCancel={onCancel}
+            />
+        );
+    }
     if (variant === "portal" && position) {
         return (
             <ModePickerPortal

@@ -291,7 +291,7 @@ export default function StackRow({
 
                     {modeLines?.map((line) => (
                         <span
-                            key={line.modeId}
+                            key={line.key}
                             data-mode-id={line.modeId}
                             data-mode-chosen={line.chosen}
                             className={

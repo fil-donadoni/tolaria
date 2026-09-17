@@ -7,7 +7,8 @@ type StackModeLinesProps = {
 
 /** CR 700.2c (issue #1274) — the chosen-mode caption shown beneath a modal
  *  spell on the stack. Renders every declared mode's oracle line, highlighting
- *  the one the caster locked in at cast and de-emphasizing the rest, so BOTH
+ *  each one the caster locked in at cast — once per chosen instance, repeats
+ *  included (ADR 0094) — and de-emphasizing the rest, so BOTH
  *  players can see which mode is resolving before deciding whether to respond.
  *
  *  Presentational only — the caller supplies `lines` from `getStackModeLines`,
@@ -20,7 +21,7 @@ export default function StackModeLines({ lines }: StackModeLinesProps) {
         >
             {lines.map((line) => (
                 <div
-                    key={line.modeId}
+                    key={line.key}
                     data-mode-id={line.modeId}
                     data-mode-chosen={line.chosen}
                     className={

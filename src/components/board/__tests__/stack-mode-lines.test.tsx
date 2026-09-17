@@ -9,18 +9,21 @@ import type { StackModeLine } from "~/lib/card-utils";
 const lines: StackModeLine[] = [
     {
         modeId: "mill",
+        key: "mill",
         label: "Target player mills four cards",
         oracleText: "Target player mills four cards.",
         chosen: false,
     },
     {
         modeId: "land-type",
+        key: "land-type",
         label: "Change a land type until end of turn",
         oracleText: "Choose a land type and a basic land type.",
         chosen: true,
     },
     {
         modeId: "phase",
+        key: "phase",
         label: "Target artifact phases out",
         oracleText: "Target artifact phases out.",
         chosen: false,

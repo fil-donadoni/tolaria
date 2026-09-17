@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { CardInstance, Player } from "~/types/game";
 import type { ManaCost } from "~/types/cards";
-import type { AbilityMode } from "@convex/cards/types";
+import type { AbilityMode, ModeSelection } from "@convex/cards/types";
 import { useGameContext } from "~/hooks/useGameContext";
 import { viewerOwesInput } from "~/lib/expected-input";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
@@ -57,6 +57,11 @@ import ManaChoicePicker from "~/components/board/mana-choice-picker";
 import ManaTapOtherBanner from "~/components/board/mana-tap-other-banner";
 import CastCostDialog from "~/components/cards/cast-cost-dialog";
 import ModePicker from "~/components/cards/mode-picker";
+import {
+    modeLegalityHint,
+    modePickerConstraint,
+    viewerModeSelectionFacts,
+} from "~/lib/mode-picker-constraint";
 import ErrorToast from "~/components/board/error-toast";
 
 /** Battlefield interaction controller for one player's battlefield (PRD #249,
@@ -250,6 +255,8 @@ export function useBattlefieldInteraction(player: Player) {
         abilityId: string;
         cardName: string;
         modes: AbilityMode[];
+        /** ADR 0094 — the ability's mode cardinality; absent = pick one. */
+        modeSelection: ModeSelection | undefined;
         keepPriority: boolean;
     } | null>(null);
 
@@ -262,6 +269,47 @@ export function useBattlefieldInteraction(player: Player) {
         trackGameIntent(promise).catch((err) => {
             setValidationError(extractMutationError(err));
         });
+    }
+
+    function commitAbilityModes(chosenModeIds: string[]) {
+        const s = abilityModeChoiceState;
+        if (!s) return;
+        setAbilityModeChoiceState(null);
+        guardMutation(
+            activateAbility({
+                gameId,
+                playerId,
+                cardInstanceId: s.cardInstanceId,
+                abilityId: s.abilityId,
+                keepPriority: s.keepPriority || undefined,
+                chosenX: undefined,
+                chosenModeIds,
+            })
+        );
+    }
+
+    // ADR 0094 (issue #2264) — the multi-select half of the ability mode
+    // picker, sized from the ability's `ModeSelection` against the viewer's
+    // board (an activation has no kicker, CR 601.4 is a casting rule) and each
+    // mode's CR 700.2a legality hint. Undefined = the single-mode picker.
+    function abilityModePickerMultiSelect(
+        s: NonNullable<typeof abilityModeChoiceState>
+    ) {
+        if (!s.modeSelection) return undefined;
+        const source = allPlayers
+            .flatMap((p) => p.battlefield)
+            .find((c) => c.id === s.cardInstanceId);
+        return {
+            constraint: modePickerConstraint({
+                modes: s.modes,
+                selection: s.modeSelection,
+                facts: viewerModeSelectionFacts(viewer, false),
+                isModeLegal: source
+                    ? modeLegalityHint(source, abilityStateView)
+                    : () => true,
+            }),
+            onConfirm: commitAbilityModes,
+        };
     }
 
     // --- Interaction modes ---
@@ -1100,6 +1148,7 @@ export function useBattlefieldInteraction(player: Player) {
                 abilityId,
                 cardName: def.name,
                 modes: ability.modes,
+                modeSelection: ability.modeSelection,
                 keepPriority,
             });
             return;
@@ -1225,21 +1274,10 @@ export function useBattlefieldInteraction(player: Player) {
                 <ModePicker
                     modes={abilityModeChoiceState.modes}
                     cardName={abilityModeChoiceState.cardName}
-                    onSelect={(modeId) => {
-                        const s = abilityModeChoiceState;
-                        setAbilityModeChoiceState(null);
-                        guardMutation(
-                            activateAbility({
-                                gameId,
-                                playerId,
-                                cardInstanceId: s.cardInstanceId,
-                                abilityId: s.abilityId,
-                                keepPriority: s.keepPriority || undefined,
-                                chosenX: undefined,
-                                chosenModeIds: [modeId],
-                            })
-                        );
-                    }}
+                    onSelect={(modeId) => commitAbilityModes([modeId])}
+                    multiSelect={abilityModePickerMultiSelect(
+                        abilityModeChoiceState
+                    )}
                     onCancel={() => setAbilityModeChoiceState(null)}
                 />
             )}
