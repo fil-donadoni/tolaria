@@ -204,7 +204,10 @@ describe("Magda, Brazen Outlaw — Sacrifice five Treasures: tutor (CR 118.3 / 7
         expect(resolveTopOfStack(state)).toBeNull();
         const head = state.pendingChoices![0];
         // `any: [Artifact, Dragon]` — the Bears is not offered.
-        expect([...head.candidateIds].sort()).toEqual(["lib-1", "lib-2"]);
+        expect([...(head.candidateIds ?? [])].sort()).toEqual([
+            "lib-1",
+            "lib-2",
+        ]);
         applyPendingChoiceSubmit(state, {
             playerId: "p1",
             stackItemId: head.stackItemId,
