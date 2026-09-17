@@ -529,6 +529,10 @@ describe("Effect Script Op: reduceSpellCostThisTurn (CR 601.2f / 514.2)", () => 
         // still skipped.
         const ability: ActivatedAbility = {
             id: "test-reduce-ability",
+            oracleText: "{3}: Draw a card.",
+            // CR 605.1a — NOT a mana ability, so this is the arm a cost
+            // reduction could plausibly reach if it were ability-scoped.
+            useStack: true,
             cost: { mana: { X: 3 } },
             effects: [{ op: "draw", player: "controller", count: 1 }],
         };
