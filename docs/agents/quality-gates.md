@@ -1070,6 +1070,97 @@ Re-run the command over a later window to say whether that held. Note what the
 long tail, not the median issue — which is exactly why this is reported as a
 distribution and not as the mean the issue was first argued from.
 
+### ADR 0136's four KPI rows (issue #3777)
+
+ADR 0136 quoted four numbers that nothing re-derives on demand: PR throughput
+by concurrency (the cap's own justification), a per-reviewer-model finding
+rate, whether a red targeted test was the session's fault or an already-broken
+baseline, and how the gate-run lane split actually looks. `bun run
+telemetry:latency` now prints all four after the existing cohorts, from the
+same mirror, over the same `[from, to]` window (a PR's merge and a health
+verdict are facts about the base branch rather than about one session, so rows
+1 and 3 are not filtered through `SESSIONS_IN_WINDOW` the way `turns`/`spans`
+are — see the comments on the CLI's queries).
+
+Three new SQLite tables feed them, each populated at ingest: `pr_meta` (merged-
+at, fetched from GitHub the way `issue_meta` fetches issue state — 60 PRs per
+ingest, capped the same way), `gate_runs` (a durable mirror of `gate-run.sh`'s
+cache dir, read before its own `TOLARIA_GATE_RUN_KEEP_DAYS` pruning drops it),
+and `health_runs` (every `health-main.ts` per-sha log parsed for a non-zero
+step exit — the live `RED` marker only ever names the LATEST red sha, so this
+is the only way to recover history). `spans.is_error` is a new column, fed by
+`.claude/hooks/timing-log.sh` capturing `tool_response.is_error`; it did not
+exist before this issue, so no span ingested before it ships carries a value.
+
+### The committed baseline — 2026-09-03 → 2026-09-17
+
+```
+  PRs landed per hour, by active sessions that hour (ADR 0136)
+  active sessions     hours     PR/h
+  1                      22     0.68
+  2                      17     0.76
+  3                      24     1.33
+  4                      36     1.47
+  5                      29     1.52
+  6                      27     1.63
+  7                      20     1.85
+  8                      12     2.00
+  9                       8     1.88
+  10                      5     3.20
+  11                      2     2.50
+  12                      2     1.50
+  13                      1     3.00
+  15                      2     4.00
+  16                      1     4.00
+  17                      1     4.00
+
+  blocking-finding rate per reviewer model
+  model                   reviews  blocking   rate  median after
+  opus                        196       135    69%         14.3m
+  sonnet                       99        53    54%          9.2m
+
+  targeted-vitest reds on a base tip later marked RED by health
+  0 / 0 red runs (0%) ran against a base health later reddened
+
+  gate-run lane histogram
+  lane         runs   green
+  full            3       3
+  engine          2       2
+```
+
+**These are not ADR 0136's own numbers** ("0.59 at one active session, 1.44 at
+three, 1.19 at four, 2.48 at seven-plus"), and the gap is definitional, the
+same way the latency baseline above diverges from issue #3079's: ADR 0136's
+table came from a one-off SQL query in a single grill session, folded into a
+"seven-plus" tail bucket; this table is the reproducible version, one row per
+concurrency level actually observed, over a slightly different window edge.
+Both agree on the shape — throughput per session falls off well before
+concurrency does, which is the point ADR 0136 used it for.
+
+**Blocking-finding rate is exactly the issue's own proxy**, not a refinement of
+it: a commit in the session after its review span ends and before that
+session's own PR merges counts as "the review found something." It cannot
+distinguish a genuine fixup from an unrelated commit that happens to land in
+the same window (a docs tweak, a second logical commit for the same change);
+read it as an upper bound on the true finding rate, not a measured one.
+
+**Red-on-red-baseline reads 0/0 — instrumentation, not absence of the
+phenomenon.** `spans.is_error` is new in this change: no span ingested before
+it shipped carries a value, so there is no historical red targeted-vitest run
+to classify yet. Re-run the command after this has been live for a window —
+the `health_runs` side is already populated (134 logs parsed, 24 red), so the
+row will report real numbers as soon as red spans exist to join against.
+
+**The lane histogram is thin for the same reason as row 3, one layer
+up.** `gate_runs` is fed by parsing `gate-run.sh`'s own cache dir, but only
+runs whose `command` file exists carry a lane — and that file is itself new
+enough (ADR 0136 §2) that most of the ~100 gate-run directories on this
+machine at the time this was written predate it. The two lanes shown are
+real, from the handful of `land`/`check:lane` runs that ran under the updated
+script; the histogram fills in as ordinary landings replace the older
+directories (they are gitignored and machine-local, so this is a one-machine,
+one-time bootstrap gap, not a recurring one).
+
 ## Budget share per issue — the measurement, and what it does to ADR 0110's target
 
 ADR 0110 carries a second target nobody could check: **"an issue costs under
