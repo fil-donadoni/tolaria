@@ -1728,7 +1728,13 @@ const reduceSpellCostThisTurn: Valuer<"reduceSpellCostThisTurn"> = (
     // reduces anything (coloured pips are immovable at 601.2f), so that is the
     // whole magnitude; a `{}`-shaped amount is rejected by the validator and
     // cannot reach here.
-    const generic = op.amount.X ?? 0;
+    // `ManaCost.X` doubles as the generic slot (a number) and as the variable
+    // `{X}` marker (the string "X"); `generic` carries fixed generic that
+    // coexists with a marker. The validator rejects the marker for this Op, so
+    // the typeof guard is belt-and-braces and never the live branch.
+    const generic =
+        (typeof op.amount.X === "number" ? op.amount.X : 0) +
+        (op.amount.generic ?? 0);
     // Priced at HALF a ramped mana rather than the full `addMana` rate: a
     // ritual's mana is in the pool and spendable on anything, while this
     // reduction only pays out if a MATCHING spell is actually cast before

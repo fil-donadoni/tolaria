@@ -2360,6 +2360,33 @@ const MANA_PIP_KEYS = new Set([
  *  rejected: `{}` means "no constraint", which the Op already expresses by
  *  omitting `filter` entirely, and accepting both would give one meaning two
  *  spellings. */
+/** True if `value` is a CR 601.2f reduction AMOUNT this Op can actually apply
+ *  (issue #3340): a `ManaCost` contributing at least one unit of GENERIC mana,
+ *  with the VARIABLE `{X}` marker rejected.
+ *
+ *  Two things are fail-closed here, and both would otherwise validate cleanly
+ *  and then silently reduce nothing at runtime:
+ *
+ *   - `ManaCost.X` doubles as the generic slot when it is a NUMBER and as the
+ *     variable `{X}` marker when it is the string `"X"`. A floating reduction
+ *     is installed at RESOLUTION, with no cast in progress and therefore no
+ *     chosen X to read, so the marker has no value to resolve and
+ *     `normalizeManaCost` would fold it in as 0.
+ *   - An amount with only COLOURED pips (`{ U: 1 }`) reduces nothing either:
+ *     CR 601.2f reductions only ever touch the generic portion, so
+ *     `resolveCostReductionGeneric` reads the generic total and ignores the
+ *     rest. Requiring a positive generic contribution is what turns "this Op
+ *     does nothing" into a filing error.
+ *
+ *  Generic can arrive as a numeric `X` or as the `generic` field (which
+ *  `normalizeManaCost` folds into the same total), so both count. */
+function isFixedGenericReduction(value: unknown): boolean {
+    if (!isManaCost(value)) return false;
+    const cost = value as { X?: number | string; generic?: number };
+    if (typeof cost.X === "string") return false;
+    return (cost.X ?? 0) + (cost.generic ?? 0) > 0;
+}
+
 function isSpellFilter(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
@@ -3442,7 +3469,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     reduceSpellCostThisTurn: {
         required: {
             player: isPlayerRef,
-            amount: (v: unknown) => isManaCost(v) && hasManaCostPip(v),
+            amount: isFixedGenericReduction,
         },
         optional: { filter: isSpellFilter },
     },

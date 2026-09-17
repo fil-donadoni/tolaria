@@ -37,6 +37,7 @@ import {
     type GameState,
 } from "../state";
 import { finalizeCleanup } from "../phases";
+import { validateEffectScript } from "../effects/validate";
 import { compactState, expandState } from "../serialize";
 import {
     makeInstance,
@@ -296,6 +297,61 @@ describe("Effect Script Op: reduceSpellCostThisTurn (CR 601.2f / 514.2)", () => 
         ]);
         const card = restored.players[0].hand.find((c) => c.id === "art1")!;
         expect(chargedCost(restored, card, ARTIFACT_ID)).toEqual({ X: 1 });
+    });
+
+    // ── Validator: the two amounts that would reduce NOTHING at runtime ──
+    //
+    // Both of these pass `isManaCost` and would validate cleanly under a naive
+    // shape check, then silently do nothing once resolved — which is the
+    // failure mode a DSL card author would never see. The validator is what
+    // turns each into a filing error.
+
+    it("rejects a VARIABLE {X} amount — a floating reduction has no chosen X to read", () => {
+        const errors = validateEffectScript({
+            id: "test-host-reduce-x-marker",
+            name: "Test Host",
+            effects: [
+                {
+                    op: "reduceSpellCostThisTurn",
+                    player: "controller",
+                    amount: { X: "X" },
+                },
+            ],
+        });
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toMatch(/reduceSpellCostThisTurn/);
+        expect(errors[0]).toMatch(/amount/);
+    });
+
+    it("rejects a COLOURED-only amount — CR 601.2f reductions never touch coloured pips", () => {
+        const errors = validateEffectScript({
+            id: "test-host-reduce-coloured",
+            name: "Test Host",
+            effects: [
+                {
+                    op: "reduceSpellCostThisTurn",
+                    player: "controller",
+                    amount: { U: 1 },
+                },
+            ],
+        });
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toMatch(/amount/);
+    });
+
+    it("accepts generic carried by the `generic` field, which normalizeManaCost folds into the same total", () => {
+        const errors = validateEffectScript({
+            id: "test-host-reduce-generic-field",
+            name: "Test Host",
+            effects: [
+                {
+                    op: "reduceSpellCostThisTurn",
+                    player: "controller",
+                    amount: { generic: 2 },
+                },
+            ],
+        });
+        expect(errors).toEqual([]);
     });
 
     it("is SPELL-scoped — an activated ability's cost never sees it (CR 602.2b)", () => {

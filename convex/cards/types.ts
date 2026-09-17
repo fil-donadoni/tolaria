@@ -14107,6 +14107,15 @@ export type EffectOp =
      *  site and the static site share `resolveCostReductionGeneric` and can
      *  never disagree about what a reduction may touch (generic mana only —
      *  coloured pips are never reduced, CR 601.2f). The count-driven and
+     *  `amount` must contribute at least one unit of GENERIC mana and must not
+     *  carry the VARIABLE `{X}` marker — both are validator-rejected, because
+     *  either one would validate cleanly and then reduce NOTHING: 601.2f
+     *  reductions never touch coloured pips, and a reduction installed at
+     *  resolution has no cast in progress and so no chosen X to read. Generic
+     *  may arrive as a numeric `X` or via the `generic` field; both fold into
+     *  the same total.
+     *
+     *  The count-driven and
      *  Domain-driven members are deliberately NOT reachable from the DSL yet:
      *  their `countFilter` is a `PermanentFilter`, which the Effect Script
      *  validator has no fail-closed path for, and no shipped card wants a
