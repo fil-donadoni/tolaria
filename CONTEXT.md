@@ -639,7 +639,7 @@ The vocabulary a position is written in: cards by NAME and seat, never by instan
 _Avoid_: Serialized state, save file, board dump, snapshot
 
 **Scenario Seat**:
-A **Scenario Spec**'s `"me"` / `"opp"`: a point of view, never a position at the table. `"me"` is the seat the position is written FROM — in a **Blade Scenario** the seat under test, whose decision the entry asserts. Loading one into a live game therefore ORIENTS it: the seat under test is built as whichever live seat the **Brain** drives, and the other seat follows. Reading the two as an order — first seat, second seat — is what put a **Blade Scenario**'s question on the human's side of the board.
+A **Scenario Spec**'s `"me"` / `"opp"`: a point of view, never a position at the table. Two loading contracts read it differently (issue #3786), and they must not share a positional convention. A **Blade Scenario** ORIENTS: `"me"` is the seat under test, whose decision the entry asserts, built as whichever live seat the **Brain** drives — the other seat follows. A Debug scenario (the `debugScenarios` table / preset scenario / `/admin/scenarios` "Test") renders AS WRITTEN: `"me"` is always the human viewer's seat, resolved from the immutable `games` row, whatever order a prior Blade load left the live snapshot's seats in. Reading the two as an order — first seat, second seat — is what put a **Blade Scenario**'s question on the human's side of the board, and what later mirrored a Debug scenario onto the Bot's.
 _Avoid_: Player 1, first seat, home/away, seat index
 
 **Lowering**:

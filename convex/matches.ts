@@ -521,6 +521,31 @@ export function bladeLoadBotSeatId(game: {
     return botPlayerId;
 }
 
+/**
+ * Which seat a DB-backed Debug scenario's `"me"` renders as (issue #3786).
+ *
+ * A Debug scenario is loaded from the human VIEWER's point of view, always —
+ * unlike a Blade Scenario (`bladeLoadBotSeatId` above), which orients onto
+ * whichever seat the entry's question is about. The identity comes from the
+ * `games` row's own `players[]`, immutable in seat order and seat ids, never
+ * from a live snapshot's `players[]`: a `bot: "me"` Blade load reorders that
+ * array to put the Bot first, and a Debug scenario loaded into the same game
+ * afterwards must not inherit that reordering.
+ *
+ * vs-AI: the non-bot seat, whichever position it landed in. Otherwise (solo,
+ * two-player): the `games` row's own first seat — its order never changes.
+ */
+export function debugLoadMySeatId(game: {
+    vsAi?: boolean;
+    players: { id: string }[];
+}): string {
+    if (game.vsAi === true) {
+        const human = game.players.find((p) => !isBotSeat(p.id));
+        if (human) return human.id;
+    }
+    return game.players[0].id;
+}
+
 /** True when the recorded play/draw chooser is the AI bot, so the choice must
  *  be made automatically (auto-play) with no human prompt (#394). Only vs-AI
  *  Matches have a bot seat. */
