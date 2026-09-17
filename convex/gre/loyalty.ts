@@ -100,7 +100,7 @@ export const DEFAULT_LOYALTY_ACTIVATION_ALLOWANCE = 1;
 
 /** The minimum a permanent has to look like for the CR 606.3 allowance to be
  *  computable: the id of the card whose definition carries the text, plus the
- *  chosen mode a modal permanent's effects hang off (CR 700.2c).
+ *  chosen mode a modal permanent's effects hang off (CR 700.2).
  *
  *  Structural rather than `CardInstanceState` so the CLIENT's own card view
  *  (`CardInstance`, `src/types/game.ts` — `card: { id: string }`) satisfies it
@@ -117,7 +117,7 @@ export type LoyaltyAllowanceSource = {
  *
  *  {@link DEFAULT_LOYALTY_ACTIVATION_ALLOWANCE} plus every
  *  `loyalty-activation-allowance` static effect on the permanent's own
- *  EFFECTIVE static effects (card-level plus the chosen mode's, CR 700.2c —
+ *  EFFECTIVE static effects (card-level plus the chosen mode's, CR 700.2 —
  *  the same `getEffectiveStaticEffects` the layer system reads). Never a
  *  per-card branch: a future planeswalker printing the same clause declares
  *  the effect and needs no engine change at all.

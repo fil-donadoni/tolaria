@@ -8715,13 +8715,12 @@ export interface StaticHandSizeOverride {
  *  SELF-SCOPED, hence no `applies` predicate: the clause raises the allowance
  *  of the permanent that carries it. `extra` is the number of activations
  *  ADDED to the default, so Urza's "twice … rather than only once" is
- *  `{ extra: 1 }` — additive rather than absolute so two sources stack
- *  (CR 613.1 has no ordering to impose between them) and so the shape never
- *  has to know what the default is.
+ *  `{ extra: 1 }` — additive rather than absolute so two sources stack, and so
+ *  the shape never has to know what the default is.
  *
  *  Read-time only, exactly like `hand-size-override` and `cast-permission`:
  *  nothing is materialized onto the permanent, so the allowance auto-reverts
- *  the instant the text stops applying (CR 603.10 has nothing to undo). */
+ *  the instant the text stops applying — there is nothing to undo. */
 export interface StaticLoyaltyActivationAllowance {
     kind: "loyalty-activation-allowance";
     /** Loyalty activations this effect adds to CR 606.3's default of one.
