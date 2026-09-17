@@ -18,6 +18,10 @@ import {
     issueOfBranch,
     releaseClaimStep,
     lockedEnv,
+    laneStep,
+    greenLaneRunOf,
+    readGreenLaneRuns,
+    gateRunRoot,
     computeSkinReceiptInvalid,
     safeSkinReceiptInvalid,
     skinReceiptInvalidForDiff,
@@ -267,6 +271,8 @@ describe("land.ts — refusal matrix", () => {
 describe("land.ts — the locked command", () => {
     const base: LockedCommandOptions = {
         branch: "fix/issue-2517",
+        gatedGreen: [],
+        laneRecordDir: null,
         pr: 2517,
         primaryCheckout: "/repo",
         worktree: "/repo-issue-2517",
@@ -653,28 +659,168 @@ describe("land.ts — lockedEnv (review round 2, B1)", () => {
         expect(env.PATH).toBe("/usr/bin");
         expect(env.TOLARIA_ALLOW_FULL_SUITE).toBe("1");
     });
+});
 
+describe("land.ts — the lane is skipped on a (tip, base) already gated green (ADR 0136 §2, issue #3779)", () => {
     /**
-     * Issue #3286. `check:lane` gained a preflight that refuses a stale or
-     * RED tree, so a HAND-RUN pre-PR gate is not paid twice. Inside `land`
-     * that preflight must not run at all, and the exemption is load-bearing
-     * in BOTH directions:
-     *
-     *   - the preflight fetches, and a fetch inside the lock can observe a
-     *     base tip NEWER than the one `rebaseStep()` just rebased onto —
-     *     which fails the ancestry check and kills the land mid-lock, out of
-     *     a race nobody lost;
-     *   - RED is a WARNING in `land`, never a refusal, because the
-     *     fix-forward that repairs a red tip arrives THROUGH a `land`.
-     *     Refusing here would wall off the only exit from RED.
-     *
-     * Proof-of-failure: deleted the `TOLARIA_LAND_GATE` line from
-     * `lockedEnv` — this assertion went red (`undefined` !== `"1"`), and
-     * before this test existed the whole `land.test.ts` suite stayed green
-     * on that same deletion. Reverted.
+     * `buildLockedCommand` takes the green records as an input
+     * (`gatedGreen`); the comparison itself runs INSIDE the locked shell,
+     * because the tip it compares is the one the rebase just produced. So the
+     * lane step is executed here for real, in a scratch repo with an
+     * `origin/<base>` ref, with `bun run check:lane` stood in for by a marker.
      */
-    it("exempts the embedded check:lane from its own preflight (issue #3286)", () => {
-        expect(lockedEnv(base).TOLARIA_LAND_GATE).toBe("1");
+    let repo: string;
+    let runRoot: string;
+    const git = (...args: string[]) =>
+        spawnSync("git", args, { cwd: repo, encoding: "utf8" });
+    const sha = (ref: string) => git("rev-parse", ref).stdout.trim();
+    const OTHER = "0123456789abcdef0123456789abcdef01234567";
+
+    const runLane = (
+        gatedGreen: { head: string; base: string }[],
+        lane = "echo GATED",
+        recordDir: string | null = null
+    ) =>
+        spawnSync(
+            "sh",
+            [
+                "-c",
+                laneStep(gatedGreen, recordDir).replace(
+                    "bun run check:lane",
+                    lane
+                ),
+            ],
+            { cwd: repo, encoding: "utf8" }
+        );
+
+    beforeEach(() => {
+        repo = mkdtempSync(join(tmpdir(), "tolaria-land-lane-"));
+        runRoot = mkdtempSync(join(tmpdir(), "tolaria-land-runs-"));
+        const commit = (msg: string) =>
+            git(
+                "-c",
+                "user.email=t@t",
+                "-c",
+                "user.name=t",
+                "commit",
+                "-q",
+                "--allow-empty",
+                "-m",
+                msg
+            );
+        git("init", "-q");
+        commit("base");
+        git("update-ref", `refs/remotes/${ORIGIN_BASE}`, "HEAD");
+        commit("rebased tip");
+    });
+
+    afterEach(() => {
+        rmSync(repo, { recursive: true, force: true });
+        rmSync(runRoot, { recursive: true, force: true });
+    });
+
+    it("is the lane step of the locked command, built from the green records it was given", () => {
+        const gatedGreen = [{ head: "a".repeat(40), base: "b".repeat(40) }];
+        const cmd = buildLockedCommand({
+            branch: "fix/issue-3779",
+            gatedGreen,
+            laneRecordDir: "/runs/land-lane-3779",
+            pr: 3779,
+            primaryCheckout: "/repo",
+            worktree: "/repo-issue-3779",
+            merge: true,
+            teardown: true,
+        });
+        expect(cmd).toContain(laneStep(gatedGreen, "/runs/land-lane-3779"));
+    });
+
+    it("skips the lane when the rebased tip AND the base tip match a green run", () => {
+        const r = runLane([{ head: sha("HEAD"), base: sha(ORIGIN_BASE) }]);
+        expect(r.status, r.stderr).toBe(0);
+        expect(r.stdout).not.toContain("GATED");
+        expect(r.stdout).toContain(
+            `lane: skipped (gated ${sha("HEAD")} against ${sha(ORIGIN_BASE)})`
+        );
+    });
+
+    it("runs the lane when the tip matches but the base does not", () => {
+        const r = runLane([{ head: sha("HEAD"), base: OTHER }]);
+        expect(r.stdout).toContain("lane: ran");
+        expect(r.stdout).toContain("GATED");
+    });
+
+    it("runs the lane when the base matches but the tip does not", () => {
+        const r = runLane([{ head: OTHER, base: sha(ORIGIN_BASE) }]);
+        expect(r.stdout).toContain("lane: ran");
+        expect(r.stdout).toContain("GATED");
+    });
+
+    it("runs the lane when the tip and base each match a DIFFERENT run", () => {
+        const r = runLane([
+            { head: sha("HEAD"), base: OTHER },
+            { head: OTHER, base: sha(ORIGIN_BASE) },
+        ]);
+        expect(r.stdout).toContain("GATED");
+    });
+
+    it("runs the lane with no green records at all", () => {
+        const r = runLane([]);
+        expect(r.status, r.stderr).toBe(0);
+        expect(r.stdout).toContain("lane: ran");
+        expect(r.stdout).toContain("GATED");
+    });
+
+    it("runs the lane on a dirty tree even when the shas match — the sha no longer names the tree", () => {
+        writeFileSync(join(repo, "stray.txt"), "x");
+        const r = runLane([{ head: sha("HEAD"), base: sha(ORIGIN_BASE) }]);
+        expect(r.stdout).toContain("GATED");
+    });
+
+    it("a red lane fails the step and records nothing", () => {
+        const dir = join(runRoot, "land-lane-1");
+        const r = runLane([], "false", dir);
+        expect(r.status).not.toBe(0);
+        expect(readGreenLaneRuns(runRoot)).toEqual([]);
+    });
+
+    it("a green lane records its (tip, base), so a retried land of the same tree skips it", () => {
+        const dir = join(runRoot, "land-lane-1");
+        expect(runLane([], "true", dir).status).toBe(0);
+        const recorded = readGreenLaneRuns(runRoot);
+        expect(recorded).toEqual([
+            { head: sha("HEAD"), base: sha(ORIGIN_BASE) },
+        ]);
+        const retry = runLane(recorded, "echo GATED", dir);
+        expect(retry.stdout).toContain("lane: skipped");
+        expect(retry.stdout).not.toContain("GATED");
+    });
+
+    it("counts only an exact green `check:lane` record with full shas", () => {
+        const ok = {
+            command: "check:lane\n",
+            head: `${"a".repeat(40)}\n`,
+            base: `${"b".repeat(40)}\n`,
+            green: true,
+        };
+        expect(greenLaneRunOf(ok)).toEqual({
+            head: "a".repeat(40),
+            base: "b".repeat(40),
+        });
+        expect(greenLaneRunOf({ ...ok, green: false })).toBeNull();
+        expect(greenLaneRunOf({ ...ok, command: "land 3779" })).toBeNull();
+        expect(
+            greenLaneRunOf({ ...ok, command: "check:lane --base=origin/x" })
+        ).toBeNull();
+        expect(greenLaneRunOf({ ...ok, base: "" })).toBeNull();
+        expect(greenLaneRunOf({ ...ok, head: "a'; rm -rf / #" })).toBeNull();
+    });
+
+    it("reads gate-run.sh's root the way the script computes it", () => {
+        expect(gateRunRoot({ TOLARIA_GATE_RUN_DIR: "/x" })).toBe("/x");
+        expect(gateRunRoot({ XDG_CACHE_HOME: "/c", HOME: "/h" })).toBe(
+            "/c/tolaria/gate-runs"
+        );
+        expect(gateRunRoot({ HOME: "/h" })).toBe("/h/.cache/tolaria/gate-runs");
     });
 });
 

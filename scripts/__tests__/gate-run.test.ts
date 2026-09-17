@@ -475,3 +475,79 @@ describe("gate-run — a run can be named instead of keyed on its cwd (#3706)", 
         fs.rmSync(other, { recursive: true, force: true });
     });
 });
+
+describe("gate-run — a run records (head, base, command, green) for `land` (ADR 0136 §2)", () => {
+    /**
+     * `land` skips the lane on a rebased tip already gated green against the
+     * same base (issue #3779). The record it reads is written here: `head` (the
+     * HEAD the gate ran on), `base` (the `origin/<base>` sha at start, base
+     * named by `tolaria.config.json`), `command`, and `green` — present only
+     * after a zero exit, and gone the moment the next run of the same command
+     * starts, so a red or half-written run can never read as green.
+     */
+    const git = (...args: string[]) =>
+        spawnSync("git", args, { cwd: tmp, encoding: "utf8" });
+    const sha = (ref: string) => git("rev-parse", ref).stdout.trim();
+    const record = (name: string) => {
+        const [dir] = fs
+            .readdirSync(runDir)
+            .filter((d) => d.startsWith("fast-") || d.startsWith("fail-"));
+        const f = path.join(runDir, dir, name);
+        return fs.existsSync(f) ? fs.readFileSync(f, "utf8").trim() : null;
+    };
+
+    beforeEach(() => {
+        fs.writeFileSync(
+            path.join(tmp, "tolaria.config.json"),
+            JSON.stringify({ branches: { base: "trunk", release: "prod" } })
+        );
+        git("init", "-q");
+        const commit = (msg: string) =>
+            git(
+                "-c",
+                "user.email=t@t",
+                "-c",
+                "user.name=t",
+                "commit",
+                "-q",
+                "--allow-empty",
+                "-m",
+                msg
+            );
+        commit("base");
+        git("update-ref", "refs/remotes/origin/trunk", "HEAD");
+        commit("branch tip");
+    });
+
+    it("records HEAD, the origin/<base> sha named by the config, the command, and green on a zero exit", () => {
+        fixtureScript("fast", "exit 0");
+        const r = run({ args: ["fast"] });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        expect(record("head")).toBe(sha("HEAD"));
+        expect(record("base")).toBe(sha("origin/trunk"));
+        expect(record("base")).not.toBe(record("head"));
+        expect(record("command")).toBe("fast");
+        expect(record("green")).toBe("");
+    });
+
+    it("leaves no green record for a red gate", () => {
+        fixtureScript("fail", "exit 7");
+        const r = run({ args: ["fail"] });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(7);
+        expect(record("head")).toBe(sha("HEAD"));
+        expect(record("green")).toBeNull();
+    });
+
+    it("keeps green after the verdict is read, and drops it when the next run starts", () => {
+        const flag = path.join(tmp, "flag");
+        fixtureScript("fast", `[ ! -e "${flag}" ]`);
+        expect(run({ args: ["fast"] }).status).toBe(0);
+        // The `rc` file is cleared on read; `green` must survive it — it is
+        // what `land` reads, possibly hours after this call returned.
+        expect(record("green")).toBe("");
+
+        fs.writeFileSync(flag, "");
+        expect(run({ args: ["fast"] }).status).toBe(1);
+        expect(record("green")).toBeNull();
+    });
+});

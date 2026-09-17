@@ -103,6 +103,8 @@ describe("generated-artifact class — wiring", () => {
     it("land regenerates between the rebase and the lane gate", () => {
         const cmd = buildLockedCommand({
             branch: "fix/issue-3069",
+            gatedGreen: [],
+            laneRecordDir: null,
             pr: 1,
             primaryCheckout: "/repo",
             worktree: "/repo/wt",

@@ -76,13 +76,24 @@
  * is not.
  *
  * Usage:
+ * LANE SKIP (ADR 0136 §2, issue #3779). The lane is paid here and nowhere
+ * else — there is no pre-PR gate — but a tree already gated green need not
+ * pay it twice: a `land` retried after a transient merge refusal, or a
+ * hand-run `gate:run check:lane` on a tree that was already rebased. The
+ * locked command compares the REBASED tip and the base tip against the
+ * (head, base) pairs recorded green (`gate-run.sh`'s run dirs, and the record
+ * `land` itself writes after its own green lane) and prints `lane: ran` or
+ * `lane: skipped (gated <sha> against <base>)`. Any mismatch runs the lane.
+ *
+ * Usage:
  *   bun run land <PR#>              fetch → rebase → gate → push → merge
  *   bun run land <PR#> --no-merge   …but stop after the push (leave PR open)
  *   bun run land <PR#> --keep       …merge, but skip worktree teardown
  */
 import { spawnSync } from "node:child_process";
 import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "./lib/branches";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { gh, netEnv } from "./lib/gh";
 import { primaryCheckout } from "./lib/primary-checkout";
@@ -443,6 +454,18 @@ export function resolveGeneratedArtifactsStep(): string {
 
 export interface LockedCommandOptions {
     branch: string;
+    /**
+     * The (head, base) pairs a `check:lane` run was recorded green on — read
+     * BEFORE the lock by `readGreenLaneRuns`. The locked command skips the
+     * lane when the rebased tip and the base tip match one of them. `[]`
+     * always runs the lane.
+     */
+    gatedGreen: GreenLaneRun[];
+    /**
+     * Where `land` records its own green lane, in the `gate-run.sh` record
+     * format, so a retried `land` of the same tree skips it; null writes none.
+     */
+    laneRecordDir: string | null;
     pr: number;
     /** The main checkout — where green-sha lives and teardown runs from. */
     primaryCheckout: string;
@@ -456,6 +479,124 @@ export interface LockedCommandOptions {
 
 function shQuote(s: string): string {
     return `'${s.replace(/'/g, `'\\''`)}'`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Lane skip — the (tip, base) a lane was already gated green on (ADR 0136 §2)
+// ─────────────────────────────────────────────────────────────────────────
+
+/** One green `check:lane` run: the HEAD it gated and the base tip it ran against. */
+export interface GreenLaneRun {
+    head: string;
+    base: string;
+}
+
+const FULL_SHA = /^[0-9a-f]{40}$/;
+
+/**
+ * Where `gate-run.sh` keeps its run dirs — the same default and the same
+ * override (`TOLARIA_GATE_RUN_DIR`) as that script's `RUN_ROOT`.
+ */
+export function gateRunRoot(env: NodeJS.ProcessEnv): string {
+    if (env.TOLARIA_GATE_RUN_DIR) return env.TOLARIA_GATE_RUN_DIR;
+    const cache = env.XDG_CACHE_HOME || join(env.HOME || homedir(), ".cache");
+    return join(cache, "tolaria", "gate-runs");
+}
+
+/**
+ * A run dir's record, as a green lane run, or null. Only EXACTLY
+ * `check:lane` counts — a green `check:lane --base=<ref>` classified against
+ * another base, and a green `land` or `test:app`, say nothing about the lane
+ * this tree owes. Both shas must be full hex: they are spliced into the
+ * locked shell string, and anything else can never match a `git rev-parse`.
+ */
+export function greenLaneRunOf(files: {
+    command: string | null;
+    head: string | null;
+    base: string | null;
+    green: boolean;
+}): GreenLaneRun | null {
+    if (!files.green || files.command?.trim() !== "check:lane") return null;
+    const head = files.head?.trim() ?? "";
+    const base = files.base?.trim() ?? "";
+    if (!FULL_SHA.test(head) || !FULL_SHA.test(base)) return null;
+    return { head, base };
+}
+
+/** Every green lane run under `root`. Thin fs plumbing; never throws. */
+export function readGreenLaneRuns(root: string): GreenLaneRun[] {
+    const read = (f: string): string | null => {
+        try {
+            return readFileSync(f, "utf8");
+        } catch {
+            return null;
+        }
+    };
+    let dirs: string[];
+    try {
+        dirs = readdirSync(root);
+    } catch {
+        return [];
+    }
+    const runs: GreenLaneRun[] = [];
+    for (const d of dirs) {
+        const dir = join(root, d);
+        const run = greenLaneRunOf({
+            command: read(join(dir, "command")),
+            head: read(join(dir, "head")),
+            base: read(join(dir, "base")),
+            green: existsSync(join(dir, "green")),
+        });
+        if (run) runs.push(run);
+    }
+    return runs;
+}
+
+/**
+ * The lane step of the locked command. It runs AFTER the rebase and the
+ * artefact regeneration (which amends the tip when it changes anything, so a
+ * regenerated tree has a new sha and cannot match), so `HEAD` here is the tree
+ * that lands. Skips only on a clean tree whose (tip, base) equals a recorded
+ * green pair; otherwise runs `check:lane` and, on green, records the pair for
+ * a retried `land` of the same tree.
+ *
+ * The record write is non-gating (`|| true`, grouped so it can never swallow
+ * the lane's own red): a cache dir that cannot be written costs a re-gate
+ * next time, never a failed landing. `green` is removed before `head`/`base`
+ * are rewritten, the same ordering `gate-run.sh` keeps.
+ */
+export function laneStep(
+    gatedGreen: GreenLaneRun[],
+    laneRecordDir: string | null
+): string {
+    const pairs = gatedGreen
+        .filter((r) => FULL_SHA.test(r.head) && FULL_SHA.test(r.base))
+        .map((r) => `'${r.head} ${r.base}'`);
+    const record =
+        laneRecordDir === null
+            ? ""
+            : (() => {
+                  const d = shQuote(laneRecordDir);
+                  return (
+                      ` && { (mkdir -p ${d} && rm -f ${d}/green && ` +
+                      `printf '%s\n' "$LANE_TIP" >${d}/head && ` +
+                      `printf '%s\n' "$LANE_BASE" >${d}/base && ` +
+                      `printf 'check:lane\n' >${d}/command && : >${d}/green) 2>/dev/null || true; }`
+                  );
+              })();
+    const run = `echo "lane: ran" && bun run check:lane${record}`;
+    const matches =
+        pairs.length === 0
+            ? "false"
+            : `case "$LANE_TIP $LANE_BASE" in ${pairs.join("|")}) true;; *) false;; esac`;
+    return (
+        "{ " +
+        `LANE_TIP=$(git rev-parse HEAD) && LANE_BASE=$(git rev-parse ${ORIGIN_BASE}) && ` +
+        `if [ -z "$(git status --porcelain)" ] && ${matches}; then ` +
+        `echo "lane: skipped (gated $LANE_TIP against $LANE_BASE)"; ` +
+        `else ${run}; fi; ` +
+        "}"
+    );
 }
 
 /**
@@ -594,7 +735,7 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
         UNSET_GITHUB_TOKEN,
         rebaseStep(),
         resolveGeneratedArtifactsStep(),
-        "bun run check:lane",
+        laneStep(opts.gatedGreen, opts.laneRecordDir),
         `git push --force-with-lease origin ${shQuote(opts.branch)}`,
     ];
     if (opts.merge) {
@@ -684,24 +825,11 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
  * (`gate.ts:97-123`) does not refuse the heavy tier on the `fix/issue-N` /
  * `feat/issue-N` branch `land` runs from — `land` IS the merge-train, the
  * case that guard exempts.
- *
- * `TOLARIA_LAND_GATE=1` exempts the embedded `check:lane` from its own
- * preflight (issue #3286, `check-lane.ts` § Preflight). That preflight refuses
- * a stale or RED tree so a HAND-RUN pre-PR gate is not paid twice; inside
- * `land` both of its questions are already answered and asking them again is
- * actively harmful. `rebaseStep()` two lines up in the same locked command has
- * just rebased onto `ORIGIN_BASE`, so the ancestry question is settled — and
- * re-fetching here could observe a tip NEWER than the one we rebased onto and
- * kill the land mid-lock, manufacturing a failure out of a race nobody lost.
- * RED stays a WARNING here, not a refusal, for the reason the release-health
- * check below states: the fix-forward that repairs a red tip arrives through
- * a `land`, so refusing on RED would wall off the only exit from RED.
  */
 export function lockedEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
     return {
         ...netEnv(base),
         TOLARIA_ALLOW_FULL_SUITE: "1",
-        TOLARIA_LAND_GATE: "1",
     };
 }
 
@@ -799,8 +927,11 @@ function main(): void {
         );
     }
 
+    const runRoot = gateRunRoot(process.env);
     const command = buildLockedCommand({
         branch,
+        gatedGreen: readGreenLaneRuns(runRoot),
+        laneRecordDir: join(runRoot, `land-lane-${pr}`),
         pr,
         primaryCheckout: primary,
         worktree: cwd,
