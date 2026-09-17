@@ -104,8 +104,9 @@ node lane and catches it at light-gate speed.
 `bun run check:lane` (PRD #2738: #2739 tsconfig cache → #2740 classifier landed
 inert → #2741 wiring/execution → #2743 batch homogeneity + this section) picks
 a lane from the diff — `skin` (`src/**`/`public/**`/`index.html` only),
-`engine` (`convex/**`, `scripts/**`, `data/**`; no `src/**` at all), `docs`
-(prose only) or `full` (anything else, fail-closed) — and runs exactly that
+`engine` (`convex/**`, `scripts/**`, `data/**`; no `src/**` at all), `cards`
+(`convex/cards/sets/**` plus `data/**`, at least one card path; ADR 0136 §4),
+`docs` (prose only) or `full` (anything else, fail-closed) — and runs exactly that
 lane's checks. Prose beside code does not change the lane: the code decides
 it and the plan ends with `node[docs]`, the `check:docs` test list (ADR 0136
 §3, below). It is now the default pre-PR path
@@ -172,20 +173,20 @@ now confirm.
 
 ### What each lane skips, and why each skip is safe
 
-| check                 | skin                       | engine      |
-| --------------------- | -------------------------- | ----------- |
-| format + lint         | diff-scoped                | diff-scoped |
-| `check:ts`            | `app` + `scripts` projects | whole       |
-| `check:bundle`        | yes                        | yes         |
-| `check:index`/`stubs` | no                         | yes         |
-| `check:oracle`        | no                         | yes         |
-| `cr:lint`             | yes                        | yes         |
-| bot fast lane         | no                         | yes         |
-| `node` — `convex/**`  | no                         | yes         |
-| `node` — `scripts/**` | yes                        | yes         |
-| `node` — `src/**`     | yes                        | no          |
-| `node[docs]`          | if prose in the diff       | same        |
-| `dom`                 | whole                      | no          |
+| check                 | skin                       | engine      | cards                                |
+| --------------------- | -------------------------- | ----------- | ------------------------------------ |
+| format + lint         | diff-scoped                | diff-scoped | diff-scoped                          |
+| `check:ts`            | `app` + `scripts` projects | whole       | `convex` project                     |
+| `check:bundle`        | yes                        | yes         | yes                                  |
+| `check:index`/`stubs` | no                         | yes         | yes                                  |
+| `check:oracle`        | no                         | yes         | yes                                  |
+| `cr:lint`             | yes                        | yes         | yes                                  |
+| bot fast lane         | no                         | yes         | no — `bot-node` over `convex/cards/` |
+| `node` — `convex/**`  | no                         | yes         | `convex/cards/` only                 |
+| `node` — `scripts/**` | yes                        | yes         | no                                   |
+| `node` — `src/**`     | yes                        | no          | no                                   |
+| `node[docs]`          | if prose in the diff       | same        | same                                 |
+| `dom`                 | whole                      | no          | no                                   |
 
 Three rows are decisions, not oversights (PRD #2738 § Implementation
 Decisions has the full reasoning; summarised here):
@@ -201,6 +202,32 @@ Decisions has the full reasoning; summarised here):
   that make dropping `dom` safe for this lane.
 - **`skin` keeps `check:bundle`** — 12s, and the only check that catches the
   duplicate-import class that crashes the app on cold load.
+
+**The `cards` lane (ADR 0136 §4, issue #3778)** is for the single most
+common diff in the repo: a card definition plus the artefacts it regenerates.
+A card on already-exercised Ops is data in a `.ts` file (ADR 0045's per-Op
+regime), so it cannot reach an engine test, a tooling test, the app
+type-check or the DOM; a card that needs a new Op touches `convex/gre/**`,
+and that one path makes the diff `engine`. `data/**` alone stays `engine` —
+a `cr:sync` or a pick-ratings refresh is read by `scripts/__tests__` and
+`convex/limited` guards this lane does not run — so `data` is a path class
+that rides with its code, never a lane of its own. Two choices depart from
+the ADR's wording, both on the safe side:
+
+- **The test selection is `convex/cards/` whole, not "the touched set's own
+  `__tests__`".** The latter is a subset computed from the changed files,
+  which ADR 0104 forbids and ADR 0136 §5 itself keeps forbidden; a card used
+  by another set's test file would go unproven. The whole directory is a
+  fixed partition (pinned by `check-guards-scope.test.ts`) and costs little:
+  425 `node` files in 18s and the 16 `bot-node` files — the three censuses
+  plus the sets' own bot tests — in 8s, at load 25.
+- **`check:bundle` stays.** The card registry is imported by the client, and
+  the duplicate-import class that crashes the app on cold load is caught by
+  the bundle alone.
+
+What it knowingly skips: the `scripts/__tests__` and `convex/limited` files
+that read a regenerated artefact (`catalogue-artifact*`, `oracle-compile`,
+`pickRatings.bot`, …). Those run in the per-batch health gate (ADR 0136 §6).
 
 Two rules were loosened by ADR 0136 §3, on the 300 PRs of 2026-09-03 → 09-17
 (224 fell to `full`; 40 only for `data/**`, 75 only for prose in a mix, 31

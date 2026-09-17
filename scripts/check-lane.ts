@@ -64,10 +64,16 @@ import { DOC_GATE_TESTS } from "./lib/doc-gate-tests";
 // Path classification
 // ─────────────────────────────────────────────────────────────────────────
 
-export type Lane = "skin" | "engine" | "docs" | "full";
+export type Lane = "skin" | "engine" | "cards" | "docs" | "full";
 
-/** What a single changed path admits. `full` is the fail-closed default. */
-export type PathClass = Lane;
+/**
+ * What a single changed path admits. `full` is the fail-closed default.
+ *
+ * `data` is a PATH class and never a lane: a generated or vendored artefact
+ * rides with whatever code regenerated it — `cards` beside a card definition,
+ * `engine` on its own or beside any other engine path (ADR 0136 §3/§4).
+ */
+export type PathClass = Lane | "data";
 
 /**
  * Paths that force the full gate no matter what else is in the diff. Every
@@ -123,7 +129,20 @@ const SKIN_PATTERNS: RegExp[] = [/^src\//, /^public\//, /^index\.html$/];
  * edit there is proven exactly where a `convex/**` edit is. A `data/**` path
  * next to `src/**` is still a mixed diff and still `full`.
  */
-const ENGINE_PATTERNS: RegExp[] = [/^convex\//, /^scripts\//, /^data\//];
+const ENGINE_PATTERNS: RegExp[] = [/^convex\//, /^scripts\//];
+const DATA_PATTERNS: RegExp[] = [/^data\//];
+
+/**
+ * Card definitions (ADR 0136 §4). A card on already-exercised Ops is DATA in
+ * a `.ts` file (ADR 0045's per-Op regime): it cannot reach an engine test, a
+ * tooling test, the app type-check or the DOM. A card that needs a new Op
+ * touches `convex/gre/**` too, and that one path makes the diff `engine`.
+ *
+ * Anchored to `convex/cards/sets/`, NOT `convex/cards/`: the registry, the
+ * types, the compiler seams and the catalogue guards live one level up, and
+ * an edit there is engine work whatever it looks like.
+ */
+const CARDS_PATTERNS: RegExp[] = [/^convex\/cards\/sets\//];
 
 /**
  * Prose-only paths: markdown under `docs/**` and the root-level markdown that
@@ -176,6 +195,8 @@ export function classifyPath(path: string): PathClass {
     if (FULL_PATTERNS.some((re) => re.test(path))) return "full";
     if (DOCS_PATTERNS.some((re) => re.test(path))) return "docs";
     if (SKIN_PATTERNS.some((re) => re.test(path))) return "skin";
+    if (CARDS_PATTERNS.some((re) => re.test(path))) return "cards";
+    if (DATA_PATTERNS.some((re) => re.test(path))) return "data";
     if (ENGINE_PATTERNS.some((re) => re.test(path))) return "engine";
     return "full";
 }
@@ -204,6 +225,14 @@ export function laneFor(classes: PathClass[]): Lane {
     // two predicates below remain affirmative over every code path.
     const code = classes.filter((c) => c !== "docs");
     if (code.every((c) => c === "skin")) return "skin";
+    // CARDS NEEDS A CARD (ADR 0136 §4). `data/**` alone stays `engine`: a
+    // `cr:sync`, a pick-ratings refresh or a hand-edited lockfile is read by
+    // `scripts/__tests__` and `convex/limited` guards this lane never runs.
+    if (
+        code.includes("cards") &&
+        code.every((c) => c === "cards" || c === "data")
+    )
+        return "cards";
     if (!code.includes("skin")) return "engine";
     return "full";
 }
@@ -391,6 +420,58 @@ export function classifyLane(
         return { lane, rationale: skinRationale(files), files, run, skip };
     }
 
+    if (lane === "cards") {
+        run.push(
+            // The card files are in the convex project; nothing in a cards
+            // diff is in any other (ADR 0136 §4).
+            { id: "tsc[convex]", command: "bunx tsc -b convex --noEmit" },
+            { id: "check:index", command: "bun run check:index" },
+            { id: "check:stubs", command: "bun run check:stubs" },
+            { id: "check:oracle", command: "bun run check:oracle" },
+            // Not in ADR 0136 §4's list, kept on purpose: the card registry
+            // is imported by the client, and the duplicate-import class that
+            // crashes the app on cold load is caught by the bundle alone —
+            // tsc and eslint both pass it (#2738). 12s against a blank board.
+            { id: "bundle", command: "bun run check:bundle" },
+            { id: "cr:lint", command: "bun run cr:lint" },
+            // A FIXED partition classified by content (ADR 0136 §5), never
+            // the touched set's own directory: `convex/cards/` whole is the
+            // catalogue guards plus EVERY set's tests — 425 files, 18s at
+            // load 25 — so ADR 0104's no-diff-derived-subset rule holds and a
+            // card borrowed by another set's test is still proven.
+            {
+                id: "node[cards]",
+                command: "bunx vitest run --project node convex/cards/",
+            },
+            // The three bot censuses (aiEffectsGuard, opValuerCoverage,
+            // opBeneficenceCensus) plus the sets' own bot files: 16 files, 8s.
+            {
+                id: "bot[cards]",
+                command: "bunx vitest run --project bot-node convex/cards/",
+            }
+        );
+        skip.push(
+            {
+                id: "tsc[app,scripts]",
+                reason: "no changed code under src/** or scripts/** — the card files are type-checked by tsc[convex]",
+            },
+            {
+                id: "bot fast lane",
+                reason: "every code path is a card definition or a data/** artefact — a card on exercised Ops cannot move a search or eval test; its censuses run as bot[cards], and a card that adds an Op touches convex/gre/** and is engine (ADR 0136 §4)",
+            },
+            {
+                id: "node[all]",
+                reason: "every code path is a card definition or a data/** artefact — the catalogue guards and every set's tests run as node[cards]; a card on exercised Ops cannot reach an engine or tooling test (ADR 0136 §4)",
+            },
+            {
+                id: "dom",
+                reason: "no changed code under src/** — no component, style or asset changed",
+            }
+        );
+        appendDocsGuards(files, run);
+        return { lane, rationale: cardsRationale(files), files, run, skip };
+    }
+
     run.push(
         // The engine lane keeps the WHOLE type-check: src/** imports
         // convex/gre (ADR 0074), so an engine diff CAN break the app
@@ -450,6 +531,10 @@ function skinRationale(files: string[]): string {
 
 function engineRationale(files: string[]): string {
     return codeLaneRationale(files, "convex/**, scripts/** or data/**");
+}
+
+function cardsRationale(files: string[]): string {
+    return codeLaneRationale(files, "convex/cards/sets/** or data/**");
 }
 
 /**
