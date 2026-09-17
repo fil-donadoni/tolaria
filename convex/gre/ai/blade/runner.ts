@@ -197,15 +197,18 @@ export function buildBladeLoadState(
     // human holding the cards and the decision the entry exists to ask the
     // Bot about.
     //
-    // Consequence worth stating: the LIVE state that gets persisted therefore
-    // has the Bot as `players[0]` after a `bot: "me"` load, and
-    // `buildStateFromScenario`'s `"me"` is `players[0]` for every later build
-    // on that state — so a DB-backed Debug scenario loaded into the same game
-    // afterwards lands on the Bot's seat too. That is the sibling loader's
-    // own positional convention, not a new mechanism; giving
-    // `buildStateFromScenario` an explicit `mySeatId` (the way `specFromState`
-    // already takes one) is what would decouple the two, and it is out of
-    // this issue's scope.
+    // Consequence worth stating, now RESOLVED (issue #3786): the LIVE state
+    // that gets persisted has the Bot as `players[0]` after a `bot: "me"`
+    // load, which used to leak into every LATER build on that state —
+    // `buildStateFromScenario`'s `"me"` defaulted to `players[0]`, so a
+    // DB-backed Debug scenario loaded into the same game afterwards landed on
+    // the Bot's seat too. `buildStateFromScenario` now takes an explicit
+    // `mySeatId` (the way `specFromState` already does), and the two loaders
+    // no longer share a positional convention: this call passes
+    // `normalized.players[0].id` explicitly below — this Blade load's own
+    // orientation, unaffected by the default's removal — while the Debug
+    // loader (`debugSetupScenario`, `convex/game.ts`) resolves its seat off
+    // the immutable `games` row instead of the live snapshot's order.
     //
     // The choice is made HERE, at construction, and not by mirroring the spec
     // afterwards, because `ScenarioSpec` has no field for the turn holder:
@@ -220,7 +223,11 @@ export function buildBladeLoadState(
     // (issue #1487). A setup step that finds no purchase throws here too; the
     // mutation lets it propagate rather than loading a different board.
     const loaded = applyBladeSetup(
-        buildStateFromScenario(normalized, scenario.spec),
+        buildStateFromScenario(
+            normalized,
+            scenario.spec,
+            normalized.players[0].id
+        ),
         scenario
     );
     // Issue #3590 — an entry that declares a `revisit` loop measures the

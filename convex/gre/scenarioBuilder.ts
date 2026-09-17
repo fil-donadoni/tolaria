@@ -447,7 +447,16 @@ export function assertLiveGameCanContinue(state: GameState): void {
 
 export function buildStateFromScenario(
     baseState: GameState,
-    spec: ScenarioSpec
+    spec: ScenarioSpec,
+    // issue #3786 — which live seat renders as the spec's `"me"`. Defaults to
+    // `players[0]`, the standing convention every caller before this issue
+    // relied on (the blade builder's own orientation already puts the seat
+    // under test there, and the vitest suite's synthetic states are built
+    // with "me" first) — so only a caller with a REASON to reorder, the
+    // DB-backed Debug loader (`debugSetupScenario`, `convex/game.ts`) whose
+    // live `players[]` order a prior Blade load may have rewritten, passes
+    // one explicitly.
+    mySeatId: string = baseState.players[0].id
 ): GameState {
     const state = structuredClone(baseState);
     // If the game is still in the pre-game mulligan phase (CR 103.5),
@@ -458,8 +467,13 @@ export function buildStateFromScenario(
         finalizeMulligan(state);
     }
 
-    const p1 = state.players[0];
-    const p2 = state.players[1];
+    const p1 = state.players.find((p) => p.id === mySeatId);
+    const p2 = state.players.find((p) => p.id !== mySeatId);
+    if (!p1 || !p2) {
+        throw new Error(
+            `buildStateFromScenario: mySeatId "${mySeatId}" matches neither player.`
+        );
+    }
 
     // Clear battlefields, hands, graveyards, exile, and any companion slot
     // the underlying deck's sideboard auto-declared at game init (CR
@@ -1528,14 +1542,14 @@ export function buildStateFromScenario(
     // reads a permanent's CHARACTERISTICS (`validateDeclaredBlockers`), and it
     // must read the ones the captured position had rather than the printed
     // ones. Nothing here needs the combat.
-    seedContinuousEffects(state, spec);
+    seedContinuousEffects(state, spec, mySeatId);
 
-    seedDeclaredCombat(state, spec);
+    seedDeclaredCombat(state, spec, mySeatId);
 
     // CR 405.1 / 601.2 (issue #3513) — the objects in flight, seeded LAST: an
     // `ability` entry clones a permanent the combat seeding may have marked
     // attacking, and every target names an object placed above.
-    seedDeclaredStack(state, spec);
+    seedDeclaredStack(state, spec, mySeatId);
 
     refreshOffBattlefieldCharacteristics(state);
 
@@ -1617,7 +1631,11 @@ function resolveCombatants(
  * position was meant to mean. `specFromState` only ever lowers a combat a live
  * game reached.
  */
-function seedDeclaredCombat(state: GameState, spec: ScenarioSpec): void {
+function seedDeclaredCombat(
+    state: GameState,
+    spec: ScenarioSpec,
+    mySeatId: string
+): void {
     const combat = spec.combat;
     if (!combat) return;
     const active = state.players.find((p) => p.id === state.activePlayerId);
@@ -1711,12 +1729,18 @@ function seedDeclaredCombat(state: GameState, spec: ScenarioSpec): void {
     // combat.
     // PER SEAT (CR 506.4): both players can control a creature of the same name
     // that attacked this turn, so each seat's list is resolved against that
-    // seat's own battlefield — `"me"` is `players[0]`, the spec's standing
-    // convention. A flat list across both would bind the first copy it found
-    // and hand the record to the wrong side.
+    // seat's own battlefield — `"me"` is `mySeatId` (issue #3786), never a
+    // positional `players[0]`. A flat list across both would bind the first
+    // copy it found and hand the record to the wrong side.
     const seats = [
-        { player: state.players[0], seat: "me" as const },
-        { player: state.players[1], seat: "opp" as const },
+        {
+            player: state.players.find((p) => p.id === mySeatId)!,
+            seat: "me" as const,
+        },
+        {
+            player: state.players.find((p) => p.id !== mySeatId)!,
+            seat: "opp" as const,
+        },
     ];
     for (const { player, seat } of seats) {
         for (const card of resolveCombatants(
@@ -1772,10 +1796,15 @@ function seedDeclaredCombat(state: GameState, spec: ScenarioSpec): void {
  * label, and the verdict quiz would report it as an unexplained
  * `different-decision` far from the cause.
  */
-function seedContinuousEffects(state: GameState, spec: ScenarioSpec): void {
+function seedContinuousEffects(
+    state: GameState,
+    spec: ScenarioSpec,
+    mySeatId: string
+): void {
     const entries = spec.continuousEffects;
     if (!entries?.length) return;
-    const [p1, p2] = state.players;
+    const p1 = state.players.find((p) => p.id === mySeatId)!;
+    const p2 = state.players.find((p) => p.id !== mySeatId)!;
     let seededLayer6 = false;
     for (const entry of entries) {
         const affected: CardInstanceState[] = [
@@ -1810,7 +1839,7 @@ function seedContinuousEffects(state: GameState, spec: ScenarioSpec): void {
                 kind: "instances",
                 instanceIds: affected.map((card) => card.id),
             },
-            expiry: scenarioExpiry(state, entry, controllerId),
+            expiry: scenarioExpiry(state, entry, controllerId, mySeatId),
             payload: entry.payload,
             characteristicDefining: entry.characteristicDefining ?? false,
         });
@@ -1849,11 +1878,15 @@ function seedContinuousEffects(state: GameState, spec: ScenarioSpec): void {
  * spell or that the ability's cost was payable. `specFromState` only ever
  * lowers a stack a live game reached.
  */
-function seedDeclaredStack(state: GameState, spec: ScenarioSpec): void {
+function seedDeclaredStack(
+    state: GameState,
+    spec: ScenarioSpec,
+    mySeatId: string
+): void {
     const items = spec.stack;
     if (!items || items.length === 0) return;
-    const p1 = state.players[0];
-    const p2 = state.players[1];
+    const p1 = state.players.find((p) => p.id === mySeatId)!;
+    const p2 = state.players.find((p) => p.id !== mySeatId)!;
     const seatPlayer = (seat: "me" | "opp"): PlayerState =>
         seat === "me" ? p1 : p2;
 
@@ -2140,7 +2173,8 @@ function seedDeclaredStack(state: GameState, spec: ScenarioSpec): void {
 function scenarioExpiry(
     state: GameState,
     entry: ScenarioContinuousEffect,
-    controllerId: string
+    controllerId: string,
+    mySeatId: string
 ): ContinuousEffectExpiry {
     if (!entry.duration) return { kind: "indefinite", controllerId };
     const duration: Duration = { phase: entry.duration.phase };
@@ -2149,8 +2183,8 @@ function scenarioExpiry(
         // Seats, never stored player ids: every rebuild reassigns them.
         duration.playerId =
             entry.duration.player === "me"
-                ? state.players[0].id
-                : state.players[1].id;
+                ? mySeatId
+                : state.players.find((p) => p.id !== mySeatId)!.id;
     }
     return { kind: "duration", duration, controllerId };
 }
@@ -2174,10 +2208,12 @@ function scenarioExpiry(
 /** Options for {@link specFromState}. */
 export type SpecFromStateOptions = {
     /** Which live `state.players[].id` becomes `"me"` in the lowered spec.
-     *  `ScenarioSpec`'s `"me"` is ALWAYS `players[0]` by convention
-     *  (`gre/ai/blade/types.ts`), which has no general relationship to a live
-     *  game's seat order — get this wrong and every card in the capture comes
-     *  out mirrored to the wrong side. */
+     *  Within a `ScenarioSpec`, `"me"` ALWAYS names that chosen seat — the
+     *  vocabulary `seatPlayerId` (`gre/ai/blade/matcher.ts`) and every blade
+     *  helper built on it read positionally — but the CHOICE of which live
+     *  id fills that role has no general relationship to `state.players[]`'s
+     *  own order (issue #3786): get this wrong and every card in the
+     *  capture comes out mirrored to the wrong side. */
     mySeatId: string;
 };
 
@@ -3201,9 +3237,11 @@ function lowerCombat(
     const onBattlefield = (id: string): CardInstanceState | undefined =>
         state.players[0].battlefield.find((c) => c.id === id) ??
         state.players[1].battlefield.find((c) => c.id === id);
-    // The SPEC's frame, not the live one: "me" is `players[0]` on the rebuild
-    // whichever live seat it was, so every list below must be emitted in that
-    // order for the builder's own resolution to land on the same permanents.
+    // The SPEC's frame, not the live one: the rebuild's `"me"` is whichever
+    // seat ITS OWN `mySeatId` names (issue #3786, not always `players[0]`),
+    // so every list below must be emitted in `seatOrder`'s order — [that
+    // seat, the other one] — for the builder's own resolution to land on the
+    // same permanents.
     const seatOrder = [
         state.players.find((p) => p.id === mySeatId)!,
         state.players.find((p) => p.id !== mySeatId)!,
@@ -4757,9 +4795,11 @@ function reportPlayerStateResidue(
  * everything that spec could NOT capture. Pure — no `ctx`, no mutation of
  * `state`.
  *
- * `opts.mySeatId` decides which live seat becomes `"me"` (`ScenarioSpec`'s
- * `"me"` is always `players[0]`, which has no relationship to a live game's
- * seat order — get this wrong and the capture comes out mirrored, #2148).
+ * `opts.mySeatId` decides which live seat becomes `"me"` — the choice has no
+ * general relationship to a live game's `players[]` order (issue #3786's
+ * `buildStateFromScenario` takes the matching `mySeatId`, not always
+ * `players[0]` either) — get this wrong and the capture comes out mirrored,
+ * #2148.
  *
  * Lossy by construction: `dropped` names every fact the spec couldn't carry
  * (the stack, a mid-flight payment, an instance-keyed restricted-mana

@@ -505,6 +505,7 @@ import {
     botIsChooser,
     botSeatId,
     buildNextGameSeats,
+    debugLoadMySeatId,
     findActiveMatchForUser,
     forfeitMatch as computeForfeitMatch,
     matchBelongsToUser,
@@ -15981,22 +15982,34 @@ export const debugSetupScenario = mutation({
         // logged-in caller could otherwise overwrite any game's board.
         await assertIsAdmin(ctx);
 
+        // CR 400.2 (issue #3452) — a spec seeding cards of unknown identity is
+        // refused HERE, before either DB read below, rather than at the spec
+        // boundary: it is a valid spec, and the verdict quiz rebuilds it every
+        // time. What it is not is a board a live game can hold.
+        assertLoadableIntoLiveGame(args);
+
         const gameState = await getLatestGameState(ctx, args.gameId);
         if (!gameState) throw new Error("Game not found");
+
+        // WHICH SEAT renders as `"me"` (issue #3786). The immutable `games`
+        // row, never the live snapshot's `players[]`: a `bot: "me"` Blade load
+        // (`debugLoadBladeScenario` below) reorders that array to orient its
+        // position onto the Bot, and a Debug scenario loaded into the SAME
+        // game afterwards must still render from the human viewer's point of
+        // view, whichever seat that landed on.
+        const game = await ctx.db.get(args.gameId);
+        if (!game) throw new Error("Game not found");
+        const mySeatId = debugLoadMySeatId(game);
 
         // The actual state-construction logic lives in the pure
         // `buildStateFromScenario` (issue #1424, PRD #1423) so it's callable
         // from a vitest test with no Convex runtime AND from this mutation —
         // `args` (minus `gameId`) already matches the `ScenarioSpec` shape
         // it takes.
-        // CR 400.2 (issue #3452) — a spec seeding cards of unknown identity is
-        // refused HERE rather than at the spec boundary: it is a valid spec,
-        // and the verdict quiz rebuilds it every time. What it is not is a
-        // board a live game can hold.
-        assertLoadableIntoLiveGame(args);
         const state = buildStateFromScenario(
             gameState.state as GameState,
-            args
+            args,
+            mySeatId
         );
         // CR 117.3 / 508.1 (issue #3515) — and a second refusal over the BUILT
         // position: a spec carrying a stack is loadable, but a board whose

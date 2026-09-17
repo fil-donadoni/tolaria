@@ -521,6 +521,42 @@ export function bladeLoadBotSeatId(game: {
     return botPlayerId;
 }
 
+/**
+ * Which seat a DB-backed Debug scenario's `"me"` renders as (issue #3786).
+ *
+ * A Debug scenario is loaded from the human VIEWER's point of view, always —
+ * unlike a Blade Scenario (`bladeLoadBotSeatId` above), which orients onto
+ * whichever seat the entry's question is about. The identity comes from the
+ * `games` row's own `players[]`, immutable in seat order and seat ids, never
+ * from a live snapshot's `players[]`: a `bot: "me"` Blade load reorders that
+ * array to put the Bot first, and a Debug scenario loaded into the same game
+ * afterwards must not inherit that reordering.
+ *
+ * vs-AI: the non-bot seat, whichever position it landed in. Otherwise (solo,
+ * two-player): the `games` row's own first seat — its order never changes.
+ *
+ * `ConvexError`, not `Error`, on a malformed row (ADR 0001 promises a `-p2`
+ * seat on every vs-AI game, so this is a genuine invariant violation, never a
+ * shape a real caller hits) — matching `bladeLoadBotSeatId`'s own refusal
+ * shape rather than a bare `undefined.id` `TypeError`.
+ */
+export function debugLoadMySeatId(game: {
+    vsAi?: boolean;
+    players: { id: string }[];
+}): string {
+    if (game.vsAi === true) {
+        const human = game.players.find((p) => !isBotSeat(p.id));
+        if (human) return human.id;
+    }
+    const first = game.players[0];
+    if (!first) {
+        throw new ConvexError(
+            "This game has no seats to load a Debug scenario onto."
+        );
+    }
+    return first.id;
+}
+
 /** True when the recorded play/draw chooser is the AI bot, so the choice must
  *  be made automatically (auto-play) with no human prompt (#394). Only vs-AI
  *  Matches have a bot seat. */
