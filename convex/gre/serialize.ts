@@ -270,7 +270,7 @@ export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "knownTo",
     "lifePaidThisTap",
     "linkedTokenId",
-    "loyaltyActivatedThisTurn",
+    "loyaltyActivationsThisTurn",
     "madnessExiled",
     "madnessTriggerPending",
     "manaCommitted",
@@ -398,10 +398,12 @@ function compactCard(
     // nothing else on the wire stands in for it, and losing it would silently
     // return every Class to level 1 (CR 716.2d) with its bars re-armed.
     if (card.classLevel) out.classLevel = card.classLevel;
-    // CR 606.3 — the per-permanent "a loyalty ability was activated this turn"
-    // lock must survive a save/load mid-turn, or a planeswalker could activate
-    // a second loyalty ability after a reload.
-    if (card.loyaltyActivatedThisTurn) out.loyaltyActivatedThisTurn = true;
+    // CR 606.3 — the per-permanent "loyalty abilities activated this turn"
+    // tally must survive a save/load mid-turn, or a planeswalker could activate
+    // a whole second allowance after a reload.
+    if (card.loyaltyActivationsThisTurn) {
+        out.loyaltyActivationsThisTurn = card.loyaltyActivationsThisTurn;
+    }
     if (card.dealtDeathtouchDamage) out.dealtDeathtouchDamage = true;
     if (card.regenerationShields) {
         out.regenerationShields = card.regenerationShields;
@@ -896,8 +898,17 @@ function expandCard(
     if (compact.classLevel) {
         result.classLevel = compact.classLevel as number;
     }
-    if (compact.loyaltyActivatedThisTurn) {
-        result.loyaltyActivatedThisTurn = true;
+    if (compact.loyaltyActivationsThisTurn) {
+        result.loyaltyActivationsThisTurn =
+            compact.loyaltyActivationsThisTurn as number;
+    } else if (compact.loyaltyActivatedThisTurn) {
+        // LEGACY (issue #3339) — the boolean lock this tally replaced. A game
+        // saved mid-turn before the rename carries the old key; read it as the
+        // one activation it stood for, or a reload would hand every
+        // planeswalker on the board a fresh allowance in the middle of a turn.
+        // Write-only-forward: `compactCard` never emits it again, so the key
+        // dies out on the first save after the upgrade.
+        result.loyaltyActivationsThisTurn = 1;
     }
     if (compact.dealtDeathtouchDamage) {
         result.dealtDeathtouchDamage = true;

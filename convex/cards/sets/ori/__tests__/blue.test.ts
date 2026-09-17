@@ -332,7 +332,7 @@ describe("Jace, Telepath Unbound — the three loyalty abilities (CR 606)", () =
             assertLoyaltyActivationLegal(state, jace, plus1)
         ).not.toThrow();
         payLoyaltyCost(jace, plus1);
-        expect(jace.loyaltyActivatedThisTurn).toBe(true);
+        expect(jace.loyaltyActivationsThisTurn).toBe(1);
         expect(() => assertLoyaltyActivationLegal(state, jace, plus1)).toThrow(
             /already been activated/
         );

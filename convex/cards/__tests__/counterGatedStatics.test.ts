@@ -83,6 +83,7 @@ const KIND_MATERIALIZATION: Record<
     "attack-requirement": "recomputed",
     "block-requirement": "recomputed",
     "hand-size-override": "recomputed",
+    "loyalty-activation-allowance": "recomputed",
     "cost-modifier": "recomputed",
     "additional-cost": "recomputed",
     "mana-substitution": "recomputed",

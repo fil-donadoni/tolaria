@@ -1359,8 +1359,11 @@ export interface ActivatedAbility {
          *   - sorcery-speed only, and only the source's controller during their
          *     own main phase with an empty stack (CR 606.3, reuses
          *     `isSorceryTiming`);
-         *   - at most one loyalty ability of a given permanent per turn
-         *     (CR 606.3, per-instance `loyaltyActivatedThisTurn`);
+         *   - the permanent's loyalty-activation allowance for the turn — one,
+         *     unless a `loyalty-activation-allowance` static effect on the
+         *     permanent raises it (CR 606.3, per-instance
+         *     `loyaltyActivationsThisTurn` against
+         *     `loyaltyActivationAllowance`);
          *   - a `-N` cost is illegal if it would take the permanent below 0
          *     loyalty (CR 606.5).
          *  Paid at activation commit by adjusting `counters["loyalty"]`
@@ -8697,6 +8700,34 @@ export interface StaticHandSizeOverride {
     appliesTo?: "controller" | "chosen-player";
 }
 
+/** Continuous static effect that widens CR 606.3's per-permanent loyalty
+ *  ACTIVATION ALLOWANCE — "You may activate the loyalty abilities of <this
+ *  permanent> twice each turn rather than only once" (Urza, Planeswalker).
+ *
+ *  CR 606.3's limit is not a lock but an allowance of ONE: "only if no player
+ *  has previously activated a loyalty ability of that permanent that turn". A
+ *  permanent whose own text raises that number declares this effect; the
+ *  allowance authority (`loyaltyActivationAllowance`, `convex/gre/loyalty.ts`)
+ *  sums every such effect on the permanent's own effective static effects on
+ *  top of the default 1. A permanent declaring none keeps the printed rule,
+ *  which is why every shipped planeswalker needs no declaration at all.
+ *
+ *  SELF-SCOPED, hence no `applies` predicate: the clause raises the allowance
+ *  of the permanent that carries it. `extra` is the number of activations
+ *  ADDED to the default, so Urza's "twice … rather than only once" is
+ *  `{ extra: 1 }` — additive rather than absolute so two sources stack, and so
+ *  the shape never has to know what the default is.
+ *
+ *  Read-time only, exactly like `hand-size-override` and `cast-permission`:
+ *  nothing is materialized onto the permanent, so the allowance auto-reverts
+ *  the instant the text stops applying — there is nothing to undo. */
+export interface StaticLoyaltyActivationAllowance {
+    kind: "loyalty-activation-allowance";
+    /** Loyalty activations this effect adds to CR 606.3's default of one.
+     *  Urza, Planeswalker's "twice each turn rather than only once" is 1. */
+    extra: number;
+}
+
 /** Layer 4 subtype replacement (CR 305.7 — "enchanted land is a [type]").
  *  Replaces the target's subtypes entirely with the specified array. The
  *  engine stores the printed subtypes before the first replacement so removal
@@ -9654,6 +9685,7 @@ export type StaticEffect =
         | StaticAttackRequirement
         | StaticBlockRequirement
         | StaticHandSizeOverride
+        | StaticLoyaltyActivationAllowance
         | StaticCostModifier
         | StaticAdditionalCost
         | StaticManaSubstitution

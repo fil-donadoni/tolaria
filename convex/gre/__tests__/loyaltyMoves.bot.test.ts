@@ -25,6 +25,7 @@ import {
     registeredDefinitions,
     tryGetDefinition,
 } from "../../cards";
+import { withTemporaryDefinition } from "../../cards/registry";
 import type { CardDefinition } from "../../cards/types";
 import type { CardInstanceState, GameState } from "../state";
 import type { ScenarioSpec } from "../../debugScenarioSpec";
@@ -246,7 +247,7 @@ describe("the CR 606 restrictions the enumerator now applies", () => {
     it("CR 606.3 — nothing is offered once a loyalty ability of that permanent was used this turn", () => {
         const state = build(boardWith(LILIANA, 6));
         expect(loyaltyAbilityIdsOffered(state).size).toBeGreaterThan(0);
-        find(state, LILIANA).loyaltyActivatedThisTurn = true;
+        find(state, LILIANA).loyaltyActivationsThisTurn = 1;
         expect(loyaltyAbilityIdsOffered(state).size).toBe(0);
     });
 
@@ -301,7 +302,7 @@ describe("the search PAYS the loyalty leg it now enumerates (CR 606.4)", () => {
         const state = build(boardWith(LILIANA, 3));
         const before = find(state, LILIANA);
         expect(before.counters?.loyalty).toBe(3);
-        expect(before.loyaltyActivatedThisTurn).toBeUndefined();
+        expect(before.loyaltyActivationsThisTurn).toBeUndefined();
 
         applyMoveInSearch(
             state,
@@ -314,7 +315,7 @@ describe("the search PAYS the loyalty leg it now enumerates (CR 606.4)", () => {
         expect(after.counters?.loyalty).toBe(1);
         // ...and CR 606.3's per-permanent lock is set, exactly as the
         // mutation's commit sites set it.
-        expect(after.loyaltyActivatedThisTurn).toBe(true);
+        expect(after.loyaltyActivationsThisTurn).toBe(1);
         // CR 602.2a — and the ability is on the stack, so the payoff is
         // visible one ply deep (issue #1920).
         expect(state.stack[state.stack.length - 1]?.abilityId).toBe(
@@ -340,5 +341,60 @@ describe("the search PAYS the loyalty leg it now enumerates (CR 606.4)", () => {
         // offer nothing further off this walker (CR 606.3). Without the paid
         // lock the tree would ultimate every ply, for free.
         expect(loyaltyAbilityIdsOffered(state).size).toBe(0);
+    });
+});
+
+// BOT REACHABILITY for the CR 606.3 ALLOWANCE (issue #3339). A permanent whose
+// own static text raises its allowance ("You may activate the loyalty abilities
+// of Urza twice each turn rather than only once") is worth nothing if the
+// enumerator never offers the second activation — the seam that made 13 shipped
+// planeswalkers unreachable in the first place (issue #2491).
+//
+// A DISCRIMINATING PAIR, and neither half means anything alone: an enumerator
+// that dropped the CR 606.3 clause entirely passes half 1 and fails half 2, and
+// one that kept the old boolean lock passes half 2 and fails half 1.
+//
+// `withTemporaryDefinition` because no shipped card declares the allowance yet
+// (Urza, Planeswalker is meld — PRD #3227 slice 3) and the catalogue is frozen.
+// This is also why the pair is not a blade entry: a blade `ScenarioSpec` places
+// cards BY NAME out of that catalogue and cannot describe a variant.
+describe("the allowance reaches the bot's enumerator (CR 606.3, issue #3339)", () => {
+    const LILIANA = "Liliana of the Veil";
+
+    function lilianaWithExtraActivations(extra: number): CardDefinition {
+        const printed = getCardByName(LILIANA);
+        return {
+            ...printed,
+            staticEffects: [
+                ...(printed.staticEffects ?? []),
+                { kind: "loyalty-activation-allowance" as const, extra },
+            ],
+        };
+    }
+
+    it("HALF 1 — offers a SECOND activation the turn the allowance is two", () => {
+        withTemporaryDefinition(lilianaWithExtraActivations(1), () => {
+            const state = build(boardWith(LILIANA, 9));
+            // One activation spent. The tally is set directly rather than by
+            // applying a move, because the applied ability goes ON THE STACK
+            // (CR 602.2a) and CR 606.3's own empty-stack clause would then be
+            // what refuses the second activation — the wrong rule under test.
+            find(state, LILIANA).loyaltyActivationsThisTurn = 1;
+            // The printed walker is done for the turn here (the sibling test
+            // above asserts exactly that). With the allowance at two it is not.
+            expect(loyaltyAbilityIdsOffered(state).size).toBeGreaterThan(0);
+        });
+    });
+
+    it("HALF 2 — refuses the THIRD, and the printed default still stops at one", () => {
+        withTemporaryDefinition(lilianaWithExtraActivations(1), () => {
+            const state = build(boardWith(LILIANA, 9));
+            find(state, LILIANA).loyaltyActivationsThisTurn = 2;
+            expect(loyaltyAbilityIdsOffered(state).size).toBe(0);
+        });
+        // REGRESSION, off the PRINTED definition: one activation, as before.
+        const printed = build(boardWith(LILIANA, 9));
+        find(printed, LILIANA).loyaltyActivationsThisTurn = 1;
+        expect(loyaltyAbilityIdsOffered(printed).size).toBe(0);
     });
 });

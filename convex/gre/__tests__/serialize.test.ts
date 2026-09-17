@@ -283,9 +283,9 @@ describe("gameStates serialize round-trip", () => {
         lion.isSummoningSick = true;
         lion.damageMarked = 1;
         lion.counters = { "+1/+1": 2 };
-        // CR 606.3 — the per-permanent "a loyalty ability was activated this
-        // turn" lock must survive a save/load (issue #700).
-        lion.loyaltyActivatedThisTurn = true;
+        // CR 606.3 — the per-permanent loyalty-activation tally must survive a
+        // save/load (issue #700, generalised from a boolean in issue #3339).
+        lion.loyaltyActivationsThisTurn = 1;
         // CR 111 — token provenance link survives the DB round-trip.
         lion.createdBy = "source-instance-7";
         // CR 704.5m — the world-rule timestamp is a battlefield-only property
@@ -298,9 +298,29 @@ describe("gameStates serialize round-trip", () => {
         expect(got.isSummoningSick).toBe(true);
         expect(got.damageMarked).toBe(1);
         expect(got.counters).toEqual({ "+1/+1": 2 });
-        expect(got.loyaltyActivatedThisTurn).toBe(true);
+        expect(got.loyaltyActivationsThisTurn).toBe(1);
         expect(got.createdBy).toBe("source-instance-7");
         expect(got.worldSeq).toBe(3);
+    });
+
+    it("reads a LEGACY `loyaltyActivatedThisTurn` boolean as one spent activation (CR 606.3, issue #3339)", () => {
+        // A game saved mid-turn before the allowance rename carries the old
+        // key. Dropping it would hand every planeswalker on that board a fresh
+        // allowance the moment the game reloaded — the exact mid-turn
+        // second-activation bug the persisted field exists to prevent.
+        const state = freshState();
+        const compact = compactState(state);
+        const lion = (
+            compact as unknown as {
+                players: { battlefield: Record<string, unknown>[] }[];
+            }
+        ).players[1].battlefield[0];
+        delete lion.loyaltyActivationsThisTurn;
+        lion.loyaltyActivatedThisTurn = true;
+        const expanded = expandState(compact);
+        expect(
+            expanded.players[1].battlefield[0].loyaltyActivationsThisTurn
+        ).toBe(1);
     });
 
     it("preserves a depletion counter on a tapped land (ICE depletion duals, CR 122.1)", () => {

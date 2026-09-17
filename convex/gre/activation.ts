@@ -2009,8 +2009,10 @@ export function assertActivationTimingLegal(
  *  bot's `activateAbility → selectTarget` sequence.
  *
  *  The three clauses (unchanged, and the messages are byte-identical):
- *   - CR 606.3 — at most one loyalty ability of a given permanent per turn
- *     (the per-instance `loyaltyActivatedThisTurn` lock);
+ *   - CR 606.3 — the permanent's loyalty-activation ALLOWANCE for the turn
+ *     (the per-instance `loyaltyActivationsThisTurn` tally against
+ *     `loyaltyActivationAllowance`, one unless the permanent's own static
+ *     text raises it);
  *   - CR 606.3 — the controller's own main phase, empty stack, holding
  *     priority (`isSorceryTimingFor`, the engine's one authority on that
  *     window — the old inline form paired the player-agnostic

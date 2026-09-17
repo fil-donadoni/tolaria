@@ -3528,10 +3528,10 @@ function advanceTurn(state: GameState): void {
             // as the activation tally or every capped ability goes inert
             // after its first turn.
             if (c.triggersThisTurn) c.triggersThisTurn = undefined;
-            // CR 606.3 — the "one loyalty ability per turn" lock is per turn;
-            // clear it so each planeswalker may act again on the next turn.
-            if (c.loyaltyActivatedThisTurn) {
-                c.loyaltyActivatedThisTurn = undefined;
+            // CR 606.3 — the loyalty-activation tally is per turn; clear it so
+            // each planeswalker gets its whole allowance again next turn.
+            if (c.loyaltyActivationsThisTurn) {
+                c.loyaltyActivationsThisTurn = undefined;
             }
         }
     }

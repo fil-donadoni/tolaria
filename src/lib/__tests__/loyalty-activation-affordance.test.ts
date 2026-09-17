@@ -22,6 +22,7 @@ import { uginEyeOfTheStorms } from "@convex/cards/sets/tdm";
 import { nissaWhoShakesTheWorld } from "@convex/cards/sets/war";
 import { forest, grizzlyBears } from "@convex/cards/sets/lea";
 import { ornithopter } from "@convex/cards/sets/atq";
+import { withTemporaryDefinition } from "@convex/cards/registry";
 import type { CardInstance } from "../../types/game";
 import { buildTriggerStateView, getStackAbilities } from "../card-utils";
 
@@ -152,7 +153,7 @@ describe("loyalty abilities reach the client menu (CR 606, issue #3229)", () => 
         "%s offers NOTHING once one of its loyalty abilities has been activated this turn (CR 606.3)",
         (_name, def) => {
             const source = walker("pw", def, {
-                loyaltyActivatedThisTurn: true,
+                loyaltyActivationsThisTurn: 1,
             });
             const loyaltyIds = def
                 .activatedAbilities!.filter((a) => a.cost.loyalty !== undefined)
@@ -187,5 +188,54 @@ describe("loyalty abilities reach the client menu (CR 606, issue #3229)", () => 
             "ugin-eye-of-the-storms-zero",
             "ugin-eye-of-the-storms-minus11",
         ]);
+    });
+});
+
+// CR 606.3 is an ALLOWANCE, not a lock (issue #3339). The client's hint is one
+// of the four surfaces the allowance has to reach — the other three being the
+// bot's enumerator, the search's cost payer and the mutation — and it is the
+// one that can silently disagree with the server while every engine test stays
+// green: `getStackAbilities` sees only what the reducer hands it.
+//
+// A DISCRIMINATING PAIR against the sibling "offers NOTHING once one of its
+// loyalty abilities has been activated this turn" case above, which is the
+// PRINTED default. A hint that dropped the CR 606.3 clause entirely passes
+// half 1 and fails that one; one that kept the boolean lock fails half 1.
+describe("the client hint reads the allowance, not a lock (CR 606.3, issue #3339)", () => {
+    /** Ugin with one additional loyalty activation per turn — the shape a card
+     *  printing "…twice each turn rather than only once" declares. Built with
+     *  `withTemporaryDefinition` because no shipped card carries the clause yet
+     *  (Urza, Planeswalker is meld — PRD #3227 slice 3) and the catalogue is
+     *  frozen. A shallow spread of the frozen original, per its contract. */
+    const uginWithTwoActivations: CardDefinition = {
+        ...uginEyeOfTheStorms,
+        staticEffects: [
+            ...(uginEyeOfTheStorms.staticEffects ?? []),
+            { kind: "loyalty-activation-allowance", extra: 1 },
+        ],
+    };
+
+    it("HALF 1 — still offers the walker's abilities after ONE activation when its allowance is two", () => {
+        withTemporaryDefinition(uginWithTwoActivations, () => {
+            const source = walker("ugin", uginEyeOfTheStorms, {
+                counters: { loyalty: 11 },
+                loyaltyActivationsThisTurn: 1,
+            });
+            expect(offeredAbilityIds(source)).toEqual([
+                "ugin-eye-of-the-storms-plus2",
+                "ugin-eye-of-the-storms-zero",
+                "ugin-eye-of-the-storms-minus11",
+            ]);
+        });
+    });
+
+    it("HALF 2 — offers nothing once the whole allowance is spent", () => {
+        withTemporaryDefinition(uginWithTwoActivations, () => {
+            const source = walker("ugin", uginEyeOfTheStorms, {
+                counters: { loyalty: 11 },
+                loyaltyActivationsThisTurn: 2,
+            });
+            expect(offeredAbilityIds(source)).toEqual([]);
+        });
     });
 });
