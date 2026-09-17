@@ -193,9 +193,11 @@ import {
 } from "../cards/effectRegistry";
 import {
     INLINE_DELAYED_TRIGGER_ID,
+    compileEffectScript,
     runDelayedTriggerBody,
     runModeInstanceScripts,
 } from "./effects/interpreter";
+import { spliceMergedEffects } from "./splice";
 import { matchesPermanentFilter, matchesSpellFilter } from "../cards/filters";
 import { getEffectiveColors } from "../cards/effectiveColors";
 import type { SpellFilter } from "../cards/filters";
@@ -2466,6 +2468,23 @@ export type StackItem = Omit<CardInstanceState, "chosenModeId"> & {
      *  span both records (`additionalCostPaidCount`). See
      *  {@link CardInstanceState.unkickedCostPayments} for the full doc. */
     unkickedCostPayments?: KickerPayments;
+    /** CR 702.47c (issue #2394) — the PRINTED card ids of every card REVEALED
+     *  from hand to splice its rules text onto this spell, in the order that
+     *  text runs (CR 702.47b: the main spell's own effects happen first, then
+     *  these in list order). Written by the same cast-commit partition as the
+     *  two records above ({@link additionalCostPaymentSnapshot}, `gre/kicker.ts`),
+     *  which resolves each payment id's revealed INSTANCE to its printed card
+     *  while that instance is still in the caster's hand.
+     *
+     *  The printed id, not the instance, because CR 702.47c's text change is
+     *  applied AS THE SPELL IS CAST and does not depend on the revealed card
+     *  afterwards — CR 702.47a's own example has it discarded to the spell's own
+     *  cost before resolution. Consumed at resolution by `spliceMergedEffects`
+     *  (`gre/splice.ts`), which appends each named card's `effects` to the
+     *  spell's own script; CR 702.47e ("the spell loses any splice changes once
+     *  it leaves the stack") is free, since the field leaves the stack with the
+     *  item. Undefined for every cast with no splice reveal. */
+    splicedCardIds?: string[];
     /** CR 702.27a — whether this spell's Buyback cost was paid as it was cast
      *  (absent/false = not paid). Snapshotted at cast commit from
      *  `PendingCast.buybackPaid`; read at resolution by
@@ -7888,7 +7907,22 @@ function resolveTopOfStackInner(state: GameState): StackItem | null {
         ) {
             if (resolveChosenModes(state, top, cardDef.modes)) return null;
         } else {
-            const resolveFn = getResolveFn(cardDef);
+            // CR 702.47b/c (issue #2394) — a spliced spell resolves as ONE
+            // merged Effect Script: its own ops first, then the rules text of
+            // each card revealed from hand as it was cast. Recomputed from the
+            // persisted `splicedCardIds` on every resolution attempt, so a
+            // suspend/resume pair sees the identical op list and the
+            // interpreter's resume cursor (ADR 0100) points at the right op in
+            // it. `spliceAcceptsSpell` is what restricts the reveal to
+            // script-bodied spells at announcement, so this branch never has to
+            // splice onto an imperative body.
+            const splicedEffects = spliceMergedEffects(
+                cardDef,
+                top.splicedCardIds
+            );
+            const resolveFn = splicedEffects
+                ? compileEffectScript(splicedEffects)
+                : getResolveFn(cardDef);
             if (resolveFn) {
                 const ctx = buildSpellContext(state, top);
                 resolveFn(ctx);

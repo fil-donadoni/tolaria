@@ -95,6 +95,7 @@ import { payableAdditionalCostLegs } from "@convex/gre/additionalCost";
 // CR 702.33a (ADR 0079) — the server's own kicker-leg affordability check,
 // reused verbatim so the cast-cost dialog and `announceCast` can never disagree.
 import { canPayKickerLegs } from "@convex/gre/kicker";
+import { spliceAugmentedDefinition } from "@convex/gre/splice";
 import {
     checkPermanentTargetFilters,
     checkPlayerTargetFilters,
@@ -1921,11 +1922,25 @@ export function affordableKickersForCard(
     players: ReadonlyArray<Player>,
     activePlayerId: string
 ): KickerCost[] {
-    const def = tryGetDefinition(card.card.id);
-    const kickers = def?.kickers;
-    if (!kickers || kickers.length === 0) return [];
+    const printed = tryGetDefinition(card.card.id);
     const caster = players.find((p) => p.id === casterId);
-    if (!caster) return [];
+    if (!printed || !caster) return [];
+    // CR 702.47a (issue #2394) — the same splice seam the mutation uses: the
+    // cost entries this dialog offers are the printed Kickers PLUS one
+    // synthesized entry per splice-eligible card in the caster's hand. Sharing
+    // `spliceAugmentedDefinition` rather than re-deriving the option list here
+    // is what keeps the toggle the dialog renders identical to the one
+    // `announceCast` would accept (ADR 0074 — shared module, server authority).
+    // The viewer's own hand survives the wire projection with real card ids, so
+    // the client can enumerate its own reveals; an opponent's cannot, which is
+    // exactly right — the dialog only ever prices the viewer's own cast.
+    const def = spliceAugmentedDefinition(
+        printed,
+        caster as unknown as PlayerState,
+        card.id
+    );
+    const kickers = def.kickers;
+    if (!kickers || kickers.length === 0) return [];
     const state = {
         activePlayerId,
         players,

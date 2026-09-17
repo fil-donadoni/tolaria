@@ -68,6 +68,7 @@ import {
     kickerLifeCost,
     type KickerPayments,
 } from "./kicker";
+import { spliceAugmentedDefinition } from "./splice";
 import {
     getLegalActions,
     canCastSpellsFromTopOfLibrary,
@@ -2659,7 +2660,18 @@ function enumerateCastMovesFromZone(
     }
 ): Move[] {
     const cardId = (card.card as { id?: string }).id;
-    const def = cardId ? tryGetDefinition(cardId) : undefined;
+    // CR 702.47a (issue #2394) — the splice seam, the same one `announceCast`
+    // and `finalizeTargetSelection` call at their own definition lookups: the
+    // definition this enumerator prices carries one synthesized cost entry per
+    // splice-eligible card in the caster's hand, so `enumerateKickerVariants`
+    // makes each reveal a Move axis and `foldKickerCosts` charges its mana.
+    // Without it the Bot would never enumerate a splice at all — the kind of
+    // gap no suite reds, it just leaves the mechanic invisible to the AI.
+    const def = spliceAugmentedDefinition(
+        cardId ? tryGetDefinition(cardId) : undefined,
+        player,
+        card.id
+    );
     const lifeInsteadOfMana = opts?.lifeInsteadOfMana;
     // CR 119.4 — a player may pay life only while their life total covers it.
     //

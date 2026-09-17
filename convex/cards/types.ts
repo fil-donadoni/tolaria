@@ -254,12 +254,25 @@ export interface EscapeCost {
  *  Replicate (CR 702.56a, issue #2100) is a member on the same terms as squad
  *  — repeatable, never kicked, a twin trigger — except that its twin is the
  *  engine's synthesized Cast-Copy trigger rather than one the card authors,
- *  which its row states as `castCopyTrigger`. */
+ *  which its row states as `castCopyTrigger`.
+ *
+ *  Splice (CR 702.47a, issue #2394) is the family's first member whose cost
+ *  entry is NOT declared on the card being cast: "you pay [cost] as an
+ *  additional cost to cast that spell" prices a card revealed from HAND, so its
+ *  entries are SYNTHESIZED per cast by `gre/splice.ts` from the caster's hand
+ *  and never appear in a `CardDefinition.kickers` array. It is a member anyway
+ *  because everything downstream of the reveal — validation, the mana fold, the
+ *  non-mana legs, the payment record, the dialog control, the Bot axis — is
+ *  this family's machinery verbatim. Never kicked (CR 702.33d), no twin trigger
+ *  (its consequence is a text change on the spell, CR 702.47c), and not
+ *  repeatable (CR 702.47b: "You can't splice any one card onto the same spell
+ *  more than once"). */
 export type AdditionalCostKeyword =
     | "kicker"
     | "offspring"
     | "squad"
-    | "replicate";
+    | "replicate"
+    | "splice";
 
 /** CR 702.175a / 702.157a — the LINK between the two halves of an additional-cost
  *  keyword that "represents two abilities": the `kickers[]` cost entry and the
@@ -345,6 +358,41 @@ export type KickerCost = CostLegs & {
      *  partitions the payment record by keyword — so no reader of "was this
      *  kicked" ever needs the card definition (ADR 0085 § Decision 2). */
     keyword?: AdditionalCostKeyword;
+    /** CR 702.47c (issue #2394) — SYNTHESIZED ENTRIES ONLY: the printed card id
+     *  whose rules text the spell gains when this entry is paid. Set solely by
+     *  `enumerateSpliceOptions` (`gre/splice.ts`) on a `keyword: "splice"`
+     *  entry; a hand-authored `kickers[]` entry never carries it, and the
+     *  catalogue guard rejects one that does.
+     *
+     *  It rides the ENTRY rather than being looked up from the caster's hand at
+     *  cast commit because CR 702.47a's own example puts the revealed card
+     *  anywhere by then ("It can even be discarded to pay a 'discard a card'
+     *  cost of the spell it's spliced onto"), and the text change is applied as
+     *  the spell is CAST. The entry is the one thing that exists at both the
+     *  announcement that resolved the reveal and the commit that snapshots it. */
+    splicedCardId?: string;
+};
+
+/** CR 702.47 — "Splice onto [subtype] [cost]" as a card declares it
+ *  (issue #2394). See {@link CardDefinition.splice}.
+ *
+ *  The cost is the shared {@link CostLegs} vocabulary, not a bare
+ *  {@link ManaCost}: CR 702.47a defers to "the rules for paying additional
+ *  costs in rules 601.2b and 601.2f–h", the same sentence {@link KickerCost}
+ *  leans on, so a printed non-mana splice cost needs no new field. Every
+ *  printed splice card is mana-only today. */
+export type SpliceAbility = {
+    /** The spell subtype the reveal is gated on — "Arcane" for every printed
+     *  splice card (CR 702.47a's "[quality]"). Matched against the spell's
+     *  `subtypes`, so a spell that has the subtype for ANY reason offers the
+     *  reveal. */
+    subtype: string;
+    /** CR 702.47a — what the caster pays to reveal this card. */
+    cost: CostLegs;
+    /** Human-readable cost text for the cast-cost dialog's per-option toggle
+     *  ("Splice onto Arcane {2}{R}{R}"), rendered verbatim beside the revealed
+     *  card's name exactly as a Kicker's `description` is. */
+    description: string;
 };
 
 export type CardType =
@@ -18967,6 +19015,25 @@ export interface CardDefinition {
      *  (Multikicker). Ids must be unique within the card (guarded catalogue-wide
      *  by `convex/cards/__tests__/kickerDeclarations.test.ts`). */
     kickers?: KickerCost[];
+    /** CR 702.47 — Splice onto [subtype]. A STATIC ability that functions while
+     *  this card is in its owner's HAND (CR 702.47a): as its owner casts a
+     *  spell with the named subtype, they may reveal this card and pay
+     *  `cost` as an additional cost of that spell, which then gains this card's
+     *  rules text (CR 702.47c).
+     *
+     *  This is the only cost declaration in the catalogue that prices a cast of
+     *  a DIFFERENT card, so it is not a `kickers[]` entry: the entries are
+     *  synthesized per cast from the caster's hand by `gre/splice.ts`
+     *  (`spliceAugmentedDefinition`), which is what lets splice ride the whole
+     *  additional-cost path (ADR 0079/0085) without any card declaring it.
+     *
+     *  The text the spell gains is THIS card's `effects` — a splice card needs
+     *  no second effect list, because CR 702.47a adds its rules text verbatim.
+     *  A declaring card must therefore be a pure, untargeted Effect Script;
+     *  `convex/cards/__tests__/splice.test.ts` rejects any other shape rather
+     *  than letting it ship as a keyword that does nothing (the reasons are in
+     *  `gre/splice.ts`'s header). */
+    splice?: SpliceAbility;
     /** CR 702.33 — the target requirement that REPLACES `targetRequirement` when
      *  this spell was kicked ("If this spell was kicked, [do something to] target
      *  <different thing> instead"). Chosen at announcement (the kick decision
