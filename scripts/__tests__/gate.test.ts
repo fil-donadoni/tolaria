@@ -87,9 +87,24 @@ async function waitForLock(timeoutMs = 20_000) {
     throw new Error("holder never took the lock");
 }
 
-function readOwnerTs(): number {
-    const f = join(lockRoot, "gate.lock", "owner.json");
-    return (JSON.parse(readFileSync(f, "utf8")) as { ts: number }).ts;
+/** The owner stamp, or null while owner.json is absent or mid-write — the
+ *  gate rewrites it in place (truncate, then write), so a poll can land on an
+ *  empty file. Callers wait for a number; a torn read is never a verdict. */
+function readOwnerTs(): number | null {
+    try {
+        const f = join(lockRoot, "gate.lock", "owner.json");
+        return (JSON.parse(readFileSync(f, "utf8")) as { ts: number }).ts;
+    } catch {
+        return null;
+    }
+}
+
+/** A stamp that is actually readable, waited for. */
+async function stableOwnerTs(): Promise<number> {
+    let ts: number | null = null;
+    await waitFor(() => (ts = readOwnerTs()) !== null);
+    expect(ts).not.toBeNull();
+    return ts!;
 }
 
 /** Poll `done` until it holds or a generous deadline passes. Every subprocess
@@ -229,14 +244,29 @@ describe("gate.ts — machine-wide mutex", () => {
         } as never);
         let err = "";
         child.stderr!.on("data", (d) => (err += d));
-        await waitForLock();
-        const t1 = readOwnerTs();
-        const refreshed = await waitFor(() => readOwnerTs() > t1);
-        child.kill("SIGKILL");
+        let refreshes = 0;
+        try {
+            await waitForLock();
+            // The first measurable beat is always "progress", so one refresh
+            // proves nothing about SILENT beats: `sleep` burns no CPU, so
+            // every beat after it is silent, and each must still rewrite the
+            // stamp. Count several distinct advances.
+            let last = await stableOwnerTs();
+            await waitFor(() => {
+                const ts = readOwnerTs();
+                if (ts !== null && ts > last) {
+                    last = ts;
+                    refreshes++;
+                }
+                return refreshes >= 4;
+            });
+        } finally {
+            child.kill("SIGKILL");
+        }
         await new Promise<void>((r) => child.on("exit", () => r()));
         // Waiters measure staleness from this stamp, so a refreshed stamp is
         // what protects a multi-hour ladder hold from the 45-min prune.
-        expect(refreshed).toBe(true);
+        expect(refreshes).toBeGreaterThanOrEqual(4);
         expect(err).not.toContain("STALLED");
     }, 30_000);
 
@@ -420,13 +450,17 @@ describe("gate.ts — liveness wiring (issue #2999)", () => {
 
     it("stops heartbeating once the held subtree makes no progress", async () => {
         const { child, out } = spawnSilentHolder();
-        expect(await waitFor(() => out.err.includes("STALLED"))).toBe(true);
-        const t1 = readOwnerTs();
-        // Latched: after the verdict no beat writes again, so any wait shows
-        // the same stamp — the length only has to cover a few beats.
-        await new Promise((r) => setTimeout(r, 600));
-        const t2 = readOwnerTs();
-        child.kill("SIGKILL");
+        let t1: number, t2: number;
+        try {
+            expect(await waitFor(() => out.err.includes("STALLED"))).toBe(true);
+            t1 = await stableOwnerTs();
+            // Latched: after the verdict no beat writes again, so any wait
+            // shows the same stamp — the length only has to cover a few beats.
+            await new Promise((r) => setTimeout(r, 600));
+            t2 = await stableOwnerTs();
+        } finally {
+            child.kill("SIGKILL");
+        }
         await new Promise<void>((r) => child.on("exit", () => r()));
         // Frozen subtree ⇒ frozen stamp ⇒ the existing STALE_MS path can fire.
         expect(t2).toBe(t1);
@@ -434,7 +468,9 @@ describe("gate.ts — liveness wiring (issue #2999)", () => {
 
     it("a waiter reclaims a stalled holder's lock through the STALE_MS path", async () => {
         const { child, out } = spawnSilentHolder();
-        expect(await waitFor(() => out.err.includes("STALLED"))).toBe(true);
+        const stalled = await waitFor(() => out.err.includes("STALLED"));
+        if (!stalled) child.kill("SIGKILL");
+        expect(stalled).toBe(true);
 
         // Bounded on purpose: if the holder never goes silent, this call
         // blocks forever in acquire()'s poll loop, and a spawnSync that hangs
