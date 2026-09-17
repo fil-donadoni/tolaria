@@ -12,7 +12,9 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
     CORPUS_CACHE_REL,
+    LEDGER_MERGE_DRIVER_NAME,
     MERGE_DRIVER_NAME,
+    OTHER_MERGE_DRIVERS,
     planResolution,
     REGENERATE_MARKER,
     REGENERATED_ARTIFACTS,
@@ -51,17 +53,41 @@ const DRIVER = join(REPO_ROOT, "scripts", "merge-driver-regenerated.ts");
 const RESOLVER = join(REPO_ROOT, "scripts", "resolve-generated-artifacts.ts");
 
 describe("generated-artifact class — wiring", () => {
-    it(".gitattributes names exactly the regenerated artifacts", () => {
+    // A path may carry a DIFFERENT driver without joining the regenerated
+    // class (issue #3768): the ledger is not re-derivable, so "take a side and
+    // re-run the generator" does not fit it, but its conflicts are still never
+    // a real disagreement. Both lists together are the whole file, so neither
+    // can gain a row unannounced and nothing has to be smuggled into
+    // REGENERATED_ARTIFACTS just to get a driver.
+    it(".gitattributes names exactly the driven artifacts, each with its own driver", () => {
         const text = readFileSync(join(REPO_ROOT, ".gitattributes"), "utf8");
         const rows = text
             .split("\n")
             .filter((l) => l.trim() !== "" && !l.trim().startsWith("#"))
             .map((l) => l.trim());
-        expect(rows).toEqual(
-            REGENERATED_ARTIFACTS.map(
+        expect(rows).toEqual([
+            ...REGENERATED_ARTIFACTS.map(
                 (a) => `${a.path} merge=${MERGE_DRIVER_NAME}`
-            )
-        );
+            ),
+            ...OTHER_MERGE_DRIVERS.map((a) => `${a.path} merge=${a.driver}`),
+        ]);
+    });
+
+    it("an artifact with its own driver is NOT in the regenerated class", () => {
+        for (const driven of OTHER_MERGE_DRIVERS) {
+            expect(
+                REGENERATED_ARTIFACTS.some((a) => a.path === driven.path),
+                `${driven.path} carries merge=${driven.driver} and must not also be regenerated`
+            ).toBe(false);
+            expect(driven.driver).not.toBe(MERGE_DRIVER_NAME);
+            expect(existsSync(join(REPO_ROOT, driven.script))).toBe(true);
+            const tracked = spawnSync(
+                "git",
+                ["ls-files", "--error-unmatch", driven.path],
+                { cwd: REPO_ROOT }
+            );
+            expect(tracked.status, `${driven.path} is not tracked`).toBe(0);
+        }
     });
 
     it("every regenerated artifact is committed and its generator script exists", () => {
@@ -94,6 +120,27 @@ describe("generated-artifact class — wiring", () => {
             '"bun scripts/merge-driver-regenerated.ts %O %A %B %P"'
         );
         expect(src).toContain(".driver`, MERGE_DRIVER_COMMAND)");
+    });
+
+    it("the worktree bootstrap registers the ledger driver too", () => {
+        // Same hand-typed-constant problem, same remedy: a driver that
+        // `.gitattributes` names but the bootstrap never installs degrades
+        // silently to the default text merge in every fresh worktree.
+        const src = readFileSync(
+            join(REPO_ROOT, "scripts", "bootstrap-worktree.ts"),
+            "utf8"
+        );
+        expect(src).toContain(
+            `const LEDGER_MERGE_DRIVER_NAME = "${LEDGER_MERGE_DRIVER_NAME}"`
+        );
+        for (const driven of OTHER_MERGE_DRIVERS) {
+            expect(src).toContain(`"bun ${driven.script} %O %A %B %P"`);
+        }
+        // Whitespace-normalized: the assertion is about WHICH command is
+        // registered under which key, not about how prettier wrapped it.
+        expect(src.replace(/\s+/g, " ")).toContain(
+            "`merge.${LEDGER_MERGE_DRIVER_NAME}.driver`, LEDGER_MERGE_DRIVER_COMMAND"
+        );
     });
 
     it("the corpus path has one authority", () => {

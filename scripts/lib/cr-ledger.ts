@@ -79,9 +79,12 @@
  * this was decided.
  *
  * Shape of the committed file: one entry per line, sorted by id then line,
- * fixed key order, no header hash or tally — so two branches confirming two
- * different citations touch disjoint lines and git merges them (the
- * `generated-artifacts.ts` discriminator: no whole-file state).
+ * fixed key order, no header hash or tally — so a confirmation is ONE changed
+ * line in review (the `generated-artifacts.ts` discriminator: no whole-file
+ * state, hence nothing to regenerate). That shape was also read as immunity to
+ * conflicts, and it is not: rows sort by id, so two branches confirming two
+ * different citations under the SAME id land in the same hunk. That is what
+ * {@link mergeLedgers} and the `merge=cr-ledger` driver resolve (issue #3768).
  */
 import { printedRule, ruleHash, type Rule } from "./cr-rules.ts";
 
@@ -271,8 +274,9 @@ export function parseLedger(text: string): Ledger {
 
 /**
  * Deterministic serializer: one entry per line, sorted by id then line, fixed
- * key order — so a confirmation is one changed line in review and two
- * branches confirming different citations merge without a conflict.
+ * key order — so a confirmation is one changed line in review, and so the
+ * `merge=cr-ledger` driver can write a merged entry set here and get bytes
+ * indistinguishable from the ones `cr:ledger` itself would commit.
  */
 export function serializeLedger(ledger: Ledger): string {
     const rows = [...ledger.entries]
@@ -755,4 +759,116 @@ export function formatReport(report: LedgerReport, showFiles: boolean): string {
     if (report.unrecorded.length || report.drifted.length)
         out.push(`\n${CONFIRM_ADVICE}`);
     return out.join("\n");
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Three-way merge (issue #3768)
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Merge two ledgers against their base — the whole semantics of the
+ * `merge=cr-ledger` driver, pure so it is testable without a git repo.
+ *
+ * WHY A DRIVER AT ALL. The sorted, per-row shape was read as immunity: "two
+ * branches confirming two different citations touch disjoint lines". They do
+ * not. Rows are sorted by rule id and a hot id carries hundreds of them, so
+ * two confirmations UNDER THE SAME ID land in the same sorted hunk and git
+ * reports a textual conflict with no semantic content at all.
+ *
+ * WHY NOT THE `regenerated` DRIVER. That one's contract is "take a side, then
+ * re-run the generator at the rebased tip", and this file has no generator:
+ * `cr:ledger` upserts confirmations and prunes stale ones, it never re-derives
+ * the whole file. Taking a side here would silently discard the other branch's
+ * confirmations, and nothing downstream would put them back.
+ *
+ * THE MERGE IS TOTAL BECAUSE THE FILE IS A SET OF FACTS. An entry keyed by
+ * (id, line) is an independent statement — "this cited line was read against
+ * the printed rule" — not a share of a whole-file tally. So every key can be
+ * decided on its own:
+ *
+ *   - present on ONE side only → it was ADDED there, unless BASE has it, in
+ *     which case the other side DELETED it and it stays deleted. That is the
+ *     trap a plain union falls into: `cr:ledger prune` deletes, and a union
+ *     resurrects every pruned entry, which `cr:lint` then reds as `stale` at
+ *     the tip with nobody having put it back by hand;
+ *   - on BOTH sides with differing `status` → `confirmed` wins. A reader
+ *     printed the rule; `baseline` is grandfathering, and the ledger's
+ *     baseline only ever shrinks;
+ *   - on BOTH sides with differing `sites` → the max. Self-correcting rather
+ *     than load-bearing: `cr:lint` recomputes site counts against the tree, so
+ *     a wrong value reds loudly instead of passing silently.
+ *
+ * A delete on one side against a MODIFY on the other resolves to the delete,
+ * per the rule above. It is the honest degradation of the two: if the merged
+ * tree still makes the citation, `cr:lint` reds it as `unrecorded` and names
+ * the one command that fixes it, whereas a resurrected entry reds as `stale`
+ * and asks the reader to prove a negative about a line they never wrote.
+ */
+export function mergeLedgers(input: {
+    base: Ledger;
+    ours: Ledger;
+    theirs: Ledger;
+}): Ledger {
+    const base = index(input.base);
+    const ours = index(input.ours);
+    const theirs = index(input.theirs);
+
+    const entries: LedgerEntry[] = [];
+    for (const key of new Set([...ours.keys(), ...theirs.keys()])) {
+        const o = ours.get(key);
+        const t = theirs.get(key);
+        if (o && t) {
+            entries.push(mergeEntry(o, t, base.get(key)));
+            continue;
+        }
+        // One side only: kept when it is an addition, dropped when the other
+        // side deleted what BASE had.
+        if (!base.has(key)) entries.push((o ?? t) as LedgerEntry);
+    }
+    return {
+        generator: merge3(
+            input.base.generator,
+            input.ours.generator,
+            input.theirs.generator
+        ),
+        entries,
+    };
+}
+
+function index(ledger: Ledger): Map<string, LedgerEntry> {
+    return new Map(ledger.entries.map((e) => [entryKey(e.id, e.line), e]));
+}
+
+function mergeEntry(
+    ours: LedgerEntry,
+    theirs: LedgerEntry,
+    base: LedgerEntry | undefined
+): LedgerEntry {
+    const sites = Math.max(ours.sites, theirs.sites);
+    const confirmed = [ours, theirs].filter((e) => e.status === "confirmed");
+    if (confirmed.length === 0) {
+        return { id: ours.id, line: ours.line, sites, status: "baseline" };
+    }
+    // Two confirmations of the same line can carry different rule hashes when
+    // a `cr:sync` moved the rule text and each side re-read it. Prefer the
+    // side that MOVED off the base hash — that is the re-read; if both moved,
+    // ours, and the next `cr:lint` reds a stale hash as `drifted` anyway.
+    const ruleHash =
+        confirmed.length === 1
+            ? confirmed[0].ruleHash
+            : merge3(base?.ruleHash, ours.ruleHash, theirs.ruleHash);
+    return {
+        id: ours.id,
+        line: ours.line,
+        sites,
+        status: "confirmed",
+        ruleHash,
+    };
+}
+
+/** Ordinary 3-way resolution of one scalar; ours on a real disagreement. */
+function merge3<T>(base: T, ours: T, theirs: T): T {
+    if (ours === theirs) return ours;
+    if (ours === base) return theirs;
+    return ours;
 }
