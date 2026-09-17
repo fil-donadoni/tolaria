@@ -333,11 +333,17 @@ describe("loyalty-activation allowance (CR 606.3, issue #3339)", () => {
         });
     });
 
-    it("REGRESSION — every shipped planeswalker still gets exactly one activation", () => {
+    it("REGRESSION — a walker declaring no allowance effect still gets exactly one activation", () => {
         // The default half of the pair above: the same position, the same
-        // predicate, the PRINTED definition. A grant that leaked into the
-        // default (e.g. an allowance computed as `1 + effects.length`) passes
-        // the two tests above and fails this one.
+        // predicate, the PRINTED definition. Catches a raised
+        // `DEFAULT_LOYALTY_ACTIVATION_ALLOWANCE` and an allowance read off the
+        // wrong source, both of which pass the two tests above.
+        //
+        // The CATALOGUE-WIDE form of this claim is not here and does not need
+        // to be: `activation-affordability.catalogue.test.ts` sweeps every
+        // shipped ability carrying a `cost.loyalty` and uses
+        // `loyaltyActivationsThisTurn: 1` as its break, through the real
+        // reducer.
         const { state, pw } = stateWithPw(1);
         expect(() =>
             assertLoyaltyActivationLegal(state, pw, { cost: { loyalty: 1 } })

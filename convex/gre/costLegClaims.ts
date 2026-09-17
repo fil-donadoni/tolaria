@@ -110,7 +110,7 @@ export const COST_LEG_CLAIMS = {
             file: "convex/gre/loyalty.ts",
             symbol: "loyaltyActivationViolation",
         },
-        why: "CR 606.3/606.4 — the once-per-turn, sorcery-speed and enough-counters restrictions are one pure-engine predicate the enumerator calls, so the Bot never emits a loyalty move the server would reject.",
+        why: "CR 606.3/606.4 — the activation-allowance, sorcery-speed and enough-counters restrictions are one pure-engine predicate the enumerator calls, so the Bot never emits a loyalty move the server would reject. The allowance is one per permanent per turn unless the permanent's own `loyalty-activation-allowance` static effect raises it (issue #3339), and the predicate is where that is read — never at a call site.",
         autoPayable: false,
     },
     removeCounter: {
