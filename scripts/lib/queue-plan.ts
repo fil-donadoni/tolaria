@@ -305,6 +305,19 @@ export interface BatchPlan {
     deferred: DeferredIssue[];
     skipped: SkippedIssue[];
     staleClaims: number[];
+    /**
+     * Issues held by a claim the planner judged LIVE — `in-progress`, not
+     * stale, and not a PRD umbrella (which is skipped before the claim branch
+     * is ever reached).
+     *
+     * The complement of `staleClaims` within the claimed set, and the input to
+     * the session cap (`liveClaims`). It is reported rather than re-derived
+     * because the wrapper's first cut recomputed it from the raw labels, which
+     * is the same decision spelled a second way — and spelled slightly wrong:
+     * it had no way to know the planner had already classified a claimed
+     * umbrella as `skipped`.
+     */
+    activeClaims: number[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -625,6 +638,7 @@ export function planBatch(
     const deferred: DeferredIssue[] = [];
     const skipped: SkippedIssue[] = [];
     const staleClaims: number[] = [];
+    const activeClaims: number[] = [];
 
     // ── Stage 1: eligibility ────────────────────────────────────────────────
     const eligible: QueueIssue[] = [];
@@ -656,6 +670,7 @@ export function planBatch(
                     conflictsWith: null,
                 });
             } else {
+                activeClaims.push(issue.number);
                 deferred.push({
                     number: issue.number,
                     reason: "claimed by another session",
@@ -913,6 +928,7 @@ export function planBatch(
         deferred,
         skipped,
         staleClaims,
+        activeClaims,
     };
 }
 
@@ -1031,44 +1047,63 @@ export type Admission =
     | { admitted: false; refusal: "cap" | "red"; message: string };
 
 /**
- * Should this session pick an issue?
+ * The RED refusal, on its own: it needs no queue and no network, so the
+ * wrapper asks it BEFORE the first `gh` round-trip. A session on a broken base
+ * should not spend the queue read and a detail fetch per candidate to be told
+ * it may not pick.
+ */
+export function redRefusal(red: HealthMarker | null): Admission {
+    if (!red) return { admitted: true };
+    const sha = red.sha ? red.sha.slice(0, 8) : "unknown sha";
+    const step = red.failedStep ?? "unknown step";
+    return {
+        admitted: false,
+        refusal: "red",
+        message:
+            `release health is RED @ ${sha} (failed at ${step}) — refusing to pick onto a broken base.\n` +
+            `  Fix forward FIRST: \`bun run health:fix\`. \`bun run health:status\` prints the verdict${
+                red.log ? ` and the log (${red.log})` : ""
+            }.\n` +
+            `  \`land\` still warns and proceeds, so a session already mid-issue finishes.`,
+    };
+}
+
+/**
+ * The cap refusal, on its own: it needs the planner's own classification of
+ * which claims are live, so the wrapper asks it after `planBatch`.
+ */
+export function capRefusal(
+    claims: number[],
+    cap: number,
+    noCap: boolean
+): Admission {
+    if (noCap || claims.length < cap) return { admitted: true };
+    return {
+        admitted: false,
+        refusal: "cap",
+        message:
+            `session cap reached — ${claims.length}/${cap} live claims: ${claims
+                .map((n) => `#${n}`)
+                .join(", ")}.\n` +
+            `  Per-session yield halves past the knee (PR/h by active sessions: 0.59 at 1, 1.44 at 3, 1.19 at 4).\n` +
+            `  Wait for one to land, or re-run with --no-cap to plan past it deliberately.`,
+    };
+}
+
+/**
+ * Should this session pick an issue? The ORDER of the two refusals, as one
+ * decision — the wrapper asks them separately (RED before the queue read, the
+ * cap after the plan), and this is what pins which one wins when both apply.
  *
- * RED is tested FIRST, and `--no-cap` does not touch it. The two refusals
- * answer different questions — "is there room for one more pass?" versus "is
- * the tree every pass would branch from broken?" — and only the first is a
- * tuning knob. A `--no-cap` that also waved through a red base would let the
- * one flag anybody reaches for when they are in a hurry silently opt out of
- * the thing ADR 0136 §6 added to stop new worktrees branching from a tip
- * known red.
+ * RED is tested FIRST, and `--no-cap` does not touch it. The two answer
+ * different questions — "is there room for one more pass?" versus "is the tree
+ * every pass would branch from broken?" — and only the first is a tuning knob.
+ * A `--no-cap` that also waved through a red base would let the one flag
+ * anybody reaches for when they are in a hurry silently opt out of the thing
+ * ADR 0136 §6 added to stop new worktrees branching from a tip known red.
  */
 export function admitPick(input: AdmissionInput): Admission {
-    if (input.red) {
-        const sha = input.red.sha ? input.red.sha.slice(0, 8) : "unknown sha";
-        const step = input.red.failedStep ?? "unknown step";
-        return {
-            admitted: false,
-            refusal: "red",
-            message:
-                `release health is RED @ ${sha} (failed at ${step}) — refusing to pick onto a broken base.\n` +
-                `  Fix forward FIRST: \`bun run health:fix\`. \`bun run health:status\` prints the verdict${
-                    input.red.log ? ` and the log (${input.red.log})` : ""
-                }.\n` +
-                `  \`land\` still warns and proceeds, so a session already mid-issue finishes.`,
-        };
-    }
-
-    if (!input.noCap && input.claims.length >= input.cap) {
-        return {
-            admitted: false,
-            refusal: "cap",
-            message:
-                `session cap reached — ${input.claims.length}/${input.cap} live claims: ${input.claims
-                    .map((n) => `#${n}`)
-                    .join(", ")}.\n` +
-                `  Per-session yield halves past the knee (PR/h by active sessions: 0.59 at 1, 1.44 at 3, 1.19 at 4).\n` +
-                `  Wait for one to land, or re-run with --no-cap to plan past it deliberately.`,
-        };
-    }
-
-    return { admitted: true };
+    const red = redRefusal(input.red);
+    if (!red.admitted) return red;
+    return capRefusal(input.claims, input.cap, input.noCap);
 }

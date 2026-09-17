@@ -541,6 +541,47 @@ describe("queue planner — eligibility (issue #2181)", () => {
         expect(plan.staleClaims).toEqual([]);
     });
 
+    it("reports the LIVE claims separately from the stale ones — the session cap's input (issue #3775)", () => {
+        // The complement of `staleClaims` within the claimed set, computed
+        // once, here. The wrapper's first cut re-derived it from the raw
+        // labels and had no way to know an umbrella claim was already skipped.
+        const issues = [
+            issue(100, {
+                labels: ["ready-for-agent", "in-progress"],
+                updatedAt: NOW,
+            }),
+            issue(150, {
+                labels: ["ready-for-agent", "in-progress"],
+                updatedAt: "2026-08-01T12:00:00Z", // stale: nobody is on it
+            }),
+            issue(175, {
+                labels: ["ready-for-agent", "in-progress", "prd"],
+                updatedAt: NOW,
+            }),
+            issue(200, {}),
+        ];
+        const details = { 200: { body: body({ targetFiles: ["src/a.ts"] }) } };
+        const plan = planBatch(issues, CONFIG, makePort(details));
+
+        expect(plan.activeClaims).toEqual([100]);
+        expect(plan.staleClaims).toEqual([150]);
+        // An umbrella is skipped BEFORE the claim branch is reached, so it is
+        // neither live nor stale — and must not hold a session slot.
+        expect(plan.skipped.map((sk) => sk.number)).toContain(175);
+    });
+
+    it("counts a stale-looking claim with an open PR as LIVE — the PR is the liveness signal", () => {
+        const issues = [
+            issue(100, {
+                labels: ["ready-for-agent", "in-progress"],
+                updatedAt: "2026-08-01T12:00:00Z",
+            }),
+        ];
+        const plan = planBatch(issues, CONFIG, makePort({}, [100]));
+        expect(plan.activeClaims).toEqual([100]);
+        expect(plan.staleClaims).toEqual([]);
+    });
+
     it("leaves an assigned issue out of the batch", () => {
         const issues = [issue(100, { assignees: ["someone"] }), issue(200, {})];
         const details = { 200: { body: body({ targetFiles: ["src/a.ts"] }) } };

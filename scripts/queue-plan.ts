@@ -49,9 +49,10 @@ import {
     VALID_PRIORITIES,
 } from "./lib/board-priority";
 import {
-    admitPick,
+    capRefusal,
     buildPlanRecord,
     liveClaims,
+    redRefusal,
     releasedClaims,
     planBatch,
     planFilename,
@@ -62,7 +63,7 @@ import {
     type QueueIssue,
     type QueuePort,
 } from "./lib/queue-plan";
-import { SESSION_CAP } from "./lib/branches";
+import { sessionCap } from "./lib/branches";
 import { primaryCheckout } from "./lib/primary-checkout";
 import { claimLedgerPath } from "./loop-doctor";
 
@@ -611,6 +612,12 @@ function releasedClaimsOnThisMachine(): number[] {
 }
 
 function main(): void {
+    // RED first, and before the first `gh` round-trip: it needs neither the
+    // queue nor the network, and a session on a broken base should not pay a
+    // queue read plus a detail fetch per candidate to be told it may not pick.
+    const health = redRefusal(readHealthMarker(primaryCheckout()));
+    if (!health.admitted) die(health.message);
+
     const limit = arg("limit", DEFAULTS.limit);
 
     const issues = JSON.parse(
@@ -669,21 +676,17 @@ function main(): void {
 
     const plan = planBatch(issues, config, port);
 
-    // Admission is decided on the PLANNED snapshot, not on the raw labels: a
-    // claim the planner already classified as STALE is work nobody is doing,
-    // and counting those toward the cap would let three abandoned labels wedge
-    // the queue shut with no session running at all.
-    const claimedNow = issues
-        .filter((issue) => issue.labels.some((l) => l.name === "in-progress"))
-        .map((issue) => issue.number)
-        .filter((n) => !plan.staleClaims.includes(n));
-
-    const admission = admitPick({
-        claims: liveClaims(claimedNow, releasedClaimsOnThisMachine()),
-        cap: SESSION_CAP,
-        noCap: process.argv.includes("--no-cap"),
-        red: readHealthMarker(primaryCheckout()),
-    });
+    // Admission is decided on the PLANNER's own classification
+    // (`activeClaims`), never on the raw labels: a claim it already called
+    // STALE is work nobody is doing, and counting those toward the cap would
+    // let three abandoned labels wedge the queue shut with no session running
+    // at all. Re-deriving that set here would be the same decision spelled a
+    // second way, which is exactly what this wrapper is not for.
+    const admission = capRefusal(
+        liveClaims(plan.activeClaims, releasedClaimsOnThisMachine()),
+        sessionCap(),
+        process.argv.includes("--no-cap")
+    );
     // Refuse BEFORE the artefact is written and before anything reaches
     // stdout: no plan was handed out, so no plan record should claim one was,
     // and `loop-drain` reads a non-zero exit as "stop", which is the point.

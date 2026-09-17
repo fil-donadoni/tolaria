@@ -6,11 +6,11 @@ import {
     CONFIG_PATH,
     ORIGIN_BASE,
     RELEASE_BRANCH,
-    SESSION_CAP,
     parseBranchConfig,
     parseSessionConfig,
     readBranchConfig,
     readSessionConfig,
+    sessionCap,
 } from "../lib/branches";
 
 /**
@@ -78,9 +78,21 @@ describe("tolaria.config.json — the branch configuration", () => {
 describe("tolaria.config.json — the session cap (ADR 0136 §7, issue #3775)", () => {
     it("names a positive integer cap, and the planner reads that one", () => {
         const cfg = readSessionConfig(CONFIG_PATH);
-        expect(cfg.cap).toBe(SESSION_CAP);
+        expect(cfg.cap).toBe(sessionCap());
         expect(Number.isInteger(cfg.cap)).toBe(true);
         expect(cfg.cap).toBeGreaterThanOrEqual(1);
+    });
+
+    it("is read lazily — importing a branch name must not require a cap", () => {
+        // `health-main.ts` and `bootstrap-worktree.ts` import this module
+        // before `node_modules` may exist and never read the cap; validating
+        // it at import time would make a config missing `sessions` break the
+        // bootstrap instead of the one reader that asked for the number.
+        const src = readFileSync(
+            join(REPO_ROOT, "scripts/lib/branches.ts"),
+            "utf8"
+        );
+        expect(src).not.toMatch(/^export const SESSIONS/m);
     });
 
     it("rejects a config that does not name a usable cap", () => {
@@ -122,15 +134,15 @@ describe("tolaria.config.json — the session cap (ADR 0136 §7, issue #3775)", 
             "utf8"
         );
         expect(wrapper).toMatch(
-            /import\s*\{\s*SESSION_CAP\s*\}\s*from\s*"\.\/lib\/branches"/
+            /import\s*\{\s*sessionCap\s*\}\s*from\s*"\.\/lib\/branches"/
         );
-        expect(wrapper).toMatch(/cap:\s*SESSION_CAP/);
+        expect(wrapper).toMatch(/sessionCap\(\)/);
         for (const file of [
             "scripts/queue-plan.ts",
             "scripts/lib/queue-plan.ts",
         ]) {
             const src = readFileSync(join(REPO_ROOT, file), "utf8");
-            expect(src).not.toMatch(/SESSION_CAP\s*=\s*\d/);
+            expect(src).not.toMatch(/sessionCap\s*=\s*\(?\s*\)?\s*=?>?\s*\d/);
         }
     });
 });

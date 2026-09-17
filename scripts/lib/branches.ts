@@ -129,5 +129,11 @@ export function readSessionConfig(path = CONFIG_PATH): SessionConfig {
     return parseSessionConfig(readFileSync(path, "utf8"), path);
 }
 
-export const SESSIONS: SessionConfig = readSessionConfig();
-export const SESSION_CAP = SESSIONS.cap;
+// Deliberately NOT eager, unlike `BRANCHES` above. Every script that touches a
+// branch imports this module — `health-main.ts` and `bootstrap-worktree.ts`
+// among them, before `node_modules` may exist — and none of those reads the
+// cap. Validating it at import time would make a config missing `sessions`
+// break the bootstrap rather than the one reader that asked for the number.
+export function sessionCap(path = CONFIG_PATH): number {
+    return readSessionConfig(path).cap;
+}
