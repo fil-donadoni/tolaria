@@ -943,6 +943,30 @@ const createTokenCopy: Valuer<"createTokenCopy"> = (op, ctx) => {
     return { points: per * count, tags };
 };
 
+// CR 707.2 / 611.2a (issue #3236) — an EXISTING permanent becomes a copy of
+// another. The recipient is already on the board, so what is gained is the
+// DIFFERENCE between two bodies this flat static model cannot see (both are
+// runtime permanents): scored as the representative copied body, discounted
+// like an animation because the recipient is not a new card, and discounted
+// again when the copy lasts only until a boundary (a timed copy is `tempo`,
+// exactly the tag `animate` uses for its timed form). The `additionalTypes`
+// rider adds no body of its own.
+const becomeCopy: Valuer<"becomeCopy"> = (op) => {
+    const body = creatureValueRaw(
+        op.except?.basePower ?? COPY_TOKEN_REPRESENTATIVE_STAT,
+        op.except?.baseToughness ?? COPY_TOKEN_REPRESENTATIVE_STAT,
+        0,
+        op.except?.additionalStaticAbilities ?? []
+    );
+    const points =
+        ANIMATE_DISCOUNT * body * (op.duration ? ANIMATE_DISCOUNT : 1);
+    const tags: ValueTag[] = op.duration ? ["pump", "tempo"] : ["pump"];
+    if (isAnnouncedTarget(op.target) || isAnnouncedTarget(op.source)) {
+        tags.push("targeted");
+    }
+    return { points, tags };
+};
+
 const pump: Valuer<"pump"> = (op, ctx) => {
     const p = ctx.signedValue(op.power);
     const t = ctx.signedValue(op.toughness);
@@ -1931,6 +1955,7 @@ export const OP_VALUERS: {
     cascade,
     choice: choiceOp,
     createTokenCopy,
+    becomeCopy,
     delayedTrigger,
     reflexiveTrigger,
     digMatchingToHand,
@@ -2445,6 +2470,11 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // creature. The composed effect's sign comes from the Ops it is paired
     // with — same treatment as `transform` below.
     setCardTypes: "neutral",
+    // CR 707.2 — whether becoming a copy helps or hurts the recipient is a
+    // function of the TWO bodies (your artifact copying your best creature is
+    // a gift; an opponent's dragon copying a 1/1 is an attack), and neither
+    // is a field of the Op — both are runtime permanents.
+    becomeCopy: "neutral",
     // CR 701.27 — a transform can go either way: the werewolf faces are a buff in
     // one direction and a downgrade in the other, and the Op names neither.
     // (The exile-and-return flip-walker template `exileAndReturnTransformed`

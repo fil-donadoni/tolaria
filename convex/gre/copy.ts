@@ -19,7 +19,12 @@ import {
 } from "./activatedAbilities";
 import { rebuildCopiableValuesAndReplayOverlays } from "./identitySwap";
 import { backFaceDefinitionIdOf } from "./transform";
-import type { CardInstanceState, LastKnownCopiable } from "./state";
+import type {
+    CardInstanceState,
+    Duration,
+    LastKnownCopiable,
+    TimedCopyLayer,
+} from "./state";
 import type { LayerStateView } from "./layers";
 
 /** Everything a copy SOURCE contributes to a copy effect (CR 707.2). Narrower
@@ -56,14 +61,174 @@ export function presentedDefId(card: Pick<CardInstanceState, "card">): string {
 /** Applies a copy effect to `recipient`, making it a copy of `source`
  *  (CR 707.2). Overwrites the copiable characteristics; preserves the
  *  recipient's printed identity in `copiedFrom` (idempotent across Vesuvan
- *  re-copy so the anchor always points at the true printed card). */
+ *  re-copy so the anchor always points at the true printed card).
+ *
+ *  This is the INDEFINITE copy effect. Its timestamp is later than any timed
+ *  copy effect already on the recipient, and it lasts at least as long as
+ *  every one of them (until the permanent leaves, CR 707.2), so in layer 1
+ *  (CR 613.7) none of those can ever show again: their ledger is dropped. A
+ *  copy effect WITH a duration goes through {@link applyTimedCopy}. */
 export function applyCopy(
     state: LayerStateView,
     recipient: CardInstanceState,
     source: CopySource,
     opts: CopyOptions = {}
 ): void {
+    applyCopyEffect(state, recipient, source, opts);
+    delete recipient.timedCopyEffects;
+}
+
+/** CR 611.2a / 707.2 (issue #3236) — a copy effect with a stated duration
+ *  ("target artifact you control becomes a copy of another target artifact
+ *  or creature you control until end of turn", Saheeli, Sublime Artificer).
+ *
+ *  Applies exactly like {@link applyCopy} and records the effect as its own
+ *  entry on `timedCopyEffects`, with its own `duration`, so two overlapping
+ *  timed copies each expire on their own boundary (never one scalar slot —
+ *  issues #2254 / #2936). The first timed entry also records what it covers:
+ *  the indefinite copy effect the permanent was already presenting, or
+ *  `null` for its printed self. `duration` is already resolved against the
+ *  effect's controller (CR 611.2c). */
+export function applyTimedCopy(
+    state: LayerStateView,
+    recipient: CardInstanceState,
+    source: CopySource,
+    opts: CopyOptions,
+    duration: Duration
+): void {
+    // A ledger ALREADY answers what these timed effects cover — including the
+    // answer "nothing" (`null`), which is why this is a presence test and not
+    // a `??` fallback: recomputing it here would record the FIRST timed copy
+    // as the thing the second one covers, and layer 1 would never come back.
+    const ledger = recipient.timedCopyEffects;
+    // A token BORN as a copy carries no `copiedFrom` (`createTokenPermanents`
+    // clears the disposable placeholder anchor) but does carry the copy
+    // effect's own `copyOptions` — CR 707.9's "except it's a 4/4 black Zombie"
+    // is its copiable body, and reverting to the bare copied definition would
+    // hand back a body the token never had. So the test is "does it present a
+    // copy effect at all", either anchor.
+    const underlying = ledger
+        ? ledger.underlying
+        : recipient.copiedFrom || recipient.copyOptions
+          ? copyLayerOf(
+                {
+                    card: { id: presentedDefId(recipient) },
+                    copyExcept: recipient.copyExcept,
+                } as CopySource,
+                recipient.copyOptions ?? {}
+            )
+          : null;
+    const effects = ledger?.effects ?? [];
+    const layer = copyLayerOf(source, opts);
+    applyCopyEffect(state, recipient, source, opts);
+    recipient.timedCopyEffects = {
+        underlying,
+        effects: [...effects, { ...layer, duration: { ...duration } }],
+    };
+}
+
+/** CR 514.2 / 613.7 (issue #3236) — re-materialises layer 1 after one or more
+ *  timed copy effects on `card` ended. `survivors` are the entries still
+ *  running, in timestamp order; `expired` the ones that just ended.
+ *
+ *  The permanent stays on the battlefield (CR 400.7 needs a zone change), so
+ *  this is a copy-to-copy change of the same object — CR 707.4: it triggers
+ *  nothing, and "doesn't change any noncopy effects presently affecting the
+ *  permanent". Every layer-2-to-7 overlay is replayed by the rebuild
+ *  `revertCopy` / `applyCopy` already share. The one NON-copy field the revert
+ *  touches is `colorOverride`, which a `setColor` effect may own: it is kept
+ *  unless one of the copy effects involved wrote it itself.
+ *
+ *  Revert to the printed values, re-apply the copy effect the timed ones
+ *  covered, then the latest survivor on top — the latest timestamp is the
+ *  one layer 1 shows. */
+export function rematerialiseTimedCopies(
+    state: LayerStateView,
+    card: CardInstanceState,
+    survivors: ReadonlyArray<TimedCopyLayer & { duration: Duration }>,
+    expired: ReadonlyArray<TimedCopyLayer>
+): void {
+    const ledger = card.timedCopyEffects;
+    // CR 613.7 / 708.2 / 712 — a face-down status or a transform applied AFTER
+    // the copy effect is a LATER layer-1 effect and outranks it, so the
+    // expiring copy has nothing left to show: the ledger simply goes. Reverting
+    // here would rewrite `card.card` out from under the `faceDown` /
+    // `transformed` anchors, leaving a permanent whose identity and its own
+    // restore anchors disagree — a transformed copy would then leave the
+    // battlefield AS THE OBJECT IT COPIED.
+    if (card.faceDown || card.transformed) {
+        const kept = survivors.map((e) => ({ ...e }));
+        card.timedCopyEffects =
+            kept.length > 0 && ledger
+                ? { underlying: ledger.underlying, effects: kept }
+                : undefined;
+        return;
+    }
+    const underlying = ledger?.underlying ?? null;
+    const writesColour = (l: TimedCopyLayer) =>
+        l.opts.colorOverride !== undefined || l.opts.copyColor === false;
+    const colourIsTheCopys =
+        [...expired, ...survivors].some(writesColour) ||
+        (underlying !== null && writesColour(underlying));
+    const keptColour = card.colorOverride;
+
+    revertCopy(state, card);
+    if (!colourIsTheCopys && keptColour) card.colorOverride = keptColour;
+    if (underlying) applyCopyLayer(state, card, underlying);
+    const latest = survivors[survivors.length - 1];
+    if (latest) {
+        applyCopyLayer(state, card, latest);
+        card.timedCopyEffects = {
+            underlying,
+            effects: survivors.map((e) => ({ ...e })),
+        };
+    }
+}
+
+function copyLayerOf(source: CopySource, opts: CopyOptions): TimedCopyLayer {
+    const except = source.faceDown ? undefined : source.copyExcept;
+    return {
+        sourceDefId: presentedDefId(source),
+        ...(except ? { sourceCopyExcept: { ...except } } : {}),
+        // JSON-pure (a card's `except` clause, ADR 0046); cloned so instance
+        // state never aliases a module-level `CardDefinition` array.
+        opts: JSON.parse(JSON.stringify(opts)) as CopyOptions,
+    };
+}
+
+function applyCopyLayer(
+    state: LayerStateView,
+    card: CardInstanceState,
+    layer: TimedCopyLayer
+): void {
+    applyCopyEffect(
+        state,
+        card,
+        {
+            card: { id: layer.sourceDefId },
+            copyExcept: layer.sourceCopyExcept,
+        } as CopySource,
+        layer.opts
+    );
+}
+
+function applyCopyEffect(
+    state: LayerStateView,
+    recipient: CardInstanceState,
+    source: CopySource,
+    opts: CopyOptions
+): void {
     const copyColor = opts.copyColor ?? true;
+    // CR 613.7 — the colours of THIS copy effect replace the ones a PREVIOUS
+    // copy effect stamped (issue #3236). Read BEFORE `copyOptions` is
+    // overwritten below: `copyOptions` is what says the override on the
+    // instance belongs to a copy effect rather than to a layer-5 `setColor`
+    // (Kavu Chameleon), a noncopy effect with its own later timestamp that
+    // survives untouched.
+    const priorCopyOwnsColour =
+        recipient.copyOptions !== undefined &&
+        (recipient.copyOptions.colorOverride !== undefined ||
+            recipient.copyOptions.copyColor === false);
     const sourceDefId = presentedDefId(source);
     const def = getDefinition(sourceDefId);
 
@@ -100,6 +265,14 @@ export function applyCopy(
     // a copy; keep it stable across subsequent re-copies (Vesuvan).
     const printedId = recipient.copiedFrom ?? presentedDefId(recipient);
     recipient.copiedFrom = printedId;
+    // CR 707.9 — the exceptions of the copy effect now presented, kept so a
+    // timed copy effect applied over this one can re-apply it on expiry
+    // (`applyTimedCopy`). Recomputed on every application, like the rest.
+    if (Object.keys(opts).length > 0) {
+        recipient.copyOptions = JSON.parse(JSON.stringify(opts)) as CopyOptions;
+    } else {
+        delete recipient.copyOptions;
+    }
     recipient.card = { ...(recipient.card as object), id: sourceDefId };
 
     // CR 707.2 / 613.1a — the copy effect replaces the recipient's COPIABLE
@@ -138,6 +311,8 @@ export function applyCopy(
         // CR 707.9d "except it doesn't copy that creature's color": keep the
         // recipient's own colors via a layer-5 override.
         recipient.colorOverride = [...(opts.ownColors ?? [])];
+    } else if (priorCopyOwnsColour) {
+        delete recipient.colorOverride;
     }
 
     // CR 707.2 "except it has no mana cost" (Eternalize / Embalm). The copy
@@ -224,6 +399,11 @@ export function revertCopy(
         card.grantedTriggeredAbilities = kept.length > 0 ? kept : undefined;
     }
     delete card.copiedFrom;
+    delete card.copyOptions;
+    // CR 400.7 (issue #3236) — a timed copy effect ends with the object it
+    // applied to; the permanent that re-enters is a new object, and no
+    // scheduled revert may fire on it.
+    delete card.timedCopyEffects;
     delete card.colorOverride;
     // CR 707.2 — the copy effect (and every "except" clause riding on it) lasts
     // only while the object is on the battlefield, so the mana-cost and art

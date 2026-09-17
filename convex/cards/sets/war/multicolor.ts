@@ -1,6 +1,7 @@
 // war — multicolor cards (ADR 0043 colour split).
 
-import type { CardDefinition } from "../../types";
+import type { CardDefinition, GameEvent, PermanentView } from "../../types";
+import { tokenPrintIdFor } from "../../tokenPrintLookup";
 
 // TODO(issue #679 stub — still blocked, but on a NARROWER gap than before.
 // The categorized shared-window half of #1364 HAS since shipped as the
@@ -110,6 +111,115 @@ export const teferiTimeRaveler: CardDefinition = {
                 { op: "moveZone", target: { target: 0 }, to: "hand" },
                 // CR 121.1 — then draw a card (unconditional).
                 { op: "draw", player: "controller", count: 1 },
+            ],
+        },
+    ],
+};
+
+const SAHEELI_SUBLIME_ARTIFICER_ID = "5a10b543-d5d4-42a8-9ee8-dada59a2ad7e";
+
+// ─────────────────────────────────────────────────────────────────────────
+// Saheeli, Sublime Artificer — {1}{U/R}{U/R} Legendary Planeswalker — Saheeli,
+// starting loyalty 5 (CR 306.5b). Vintage Cube (issue #3236).
+//   • TRIGGER — "Whenever you cast a noncreature spell, create a 1/1 colorless
+//     Servo artifact creature token." A SPELL_CAST triggered ability (CR 603.2
+//     + 601.2i) gated on the caster and a noncreature spell — the Third Path
+//     Iconoclast shape (`bro/multicolor.ts`); a planeswalker's non-loyalty
+//     triggered ability works like any other permanent's.
+//   • −2 — "Target artifact you control becomes a copy of another target
+//     artifact or creature you control until end of turn, except it's an
+//     artifact in addition to its other types." The `becomeCopy` Op: group 0
+//     is the recipient, group 1 the copied object, and "ANOTHER target" is
+//     `excludePriorTargets` (CR 115.3 — without it the same permanent could be
+//     chosen for both). The copy lasts until the cleanup step (CR 514.2) and
+//     then reverts while the artifact stays on the battlefield; the "except"
+//     clause is CR 707.9b's `additionalTypes`, so copying a creature yields an
+//     artifact creature.
+// compiler-gap: "Whenever you cast a noncreature spell, create a 1/1 colorless Servo artifact creature token." (#2693)
+// compiler-gap: "−2: Target artifact you control becomes a copy of another target artifact or creature you control until end of turn, except it's an artifact in addition to its other types." (#2693)
+export const saheeliSublimeArtificer: CardDefinition = {
+    id: SAHEELI_SUBLIME_ARTIFICER_ID, // WAR 234
+    name: "Saheeli, Sublime Artificer",
+    rarity: "uncommon",
+    manaCost: {
+        generic: 1,
+        hybrid: [
+            ["U", "R"],
+            ["U", "R"],
+        ],
+    },
+    types: ["Planeswalker"],
+    subtypes: ["Saheeli"],
+    supertypes: ["Legendary"],
+    loyalty: 5,
+    oracleText:
+        "Whenever you cast a noncreature spell, create a 1/1 colorless Servo artifact creature token.\n−2: Target artifact you control becomes a copy of another target artifact or creature you control until end of turn, except it's an artifact in addition to its other types.",
+    triggeredAbilities: [
+        {
+            id: "saheeli-sublime-artificer-servo",
+            oracleText:
+                "Whenever you cast a noncreature spell, create a 1/1 colorless Servo artifact creature token.",
+            event: "SPELL_CAST",
+            // CR 603.2 — fires only when this permanent's controller casts a
+            // spell that is NOT a creature spell (CR 601.2i).
+            matches: (event: GameEvent, self: PermanentView): boolean =>
+                event.type === "SPELL_CAST" &&
+                event.casterId === self.controllerId &&
+                !event.spellTypes.includes("Creature"),
+            effects: [
+                {
+                    op: "createToken",
+                    token: {
+                        name: "Servo",
+                        types: ["Artifact", "Creature"],
+                        subtypes: ["Servo"],
+                        power: 1,
+                        toughness: 1,
+                        imagePrintId: tokenPrintIdFor(
+                            SAHEELI_SUBLIME_ARTIFICER_ID,
+                            "Servo"
+                        ),
+                    },
+                    controller: "controller",
+                },
+            ],
+        },
+    ],
+    activatedAbilities: [
+        {
+            id: "saheeli-sublime-artificer-minus2",
+            // CR 606.2 / 606.4 — loyalty ability; `-2` removes two counters.
+            cost: { loyalty: -2 },
+            useStack: true,
+            oracleText:
+                "−2: Target artifact you control becomes a copy of another target artifact or creature you control until end of turn, except it's an artifact in addition to its other types.",
+            // Group 0 — "target artifact you control" (the recipient).
+            targetRequirement: {
+                type: "Artifact",
+                count: 1,
+                controller: "you",
+            },
+            // Group 1 — "ANOTHER target artifact or creature you control" (the
+            // copied object). CR 115.3 — distinct from group 0's pick.
+            additionalTargetRequirements: [
+                {
+                    type: ["Artifact", "Creature"],
+                    count: 1,
+                    controller: "you",
+                    excludePriorTargets: true,
+                },
+            ],
+            effects: [
+                {
+                    op: "becomeCopy",
+                    target: { target: 0 },
+                    source: { target: 1 },
+                    // CR 707.9b — "except it's an artifact in addition to its
+                    // other types".
+                    except: { additionalTypes: ["Artifact"] },
+                    // CR 611.2a / 514.2 — "until end of turn".
+                    duration: { phase: "end-of-turn" },
+                },
             ],
         },
     ],

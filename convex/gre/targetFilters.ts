@@ -324,6 +324,12 @@ type StructuralKey =
     // (the real, registered filter) — never itself checked against a
     // candidate.
     | "excludeSource"
+    // CR 115.3 "another target" (issue #3236) — a directive read when the
+    // target walk ADVANCES to this group (`advanceTargetGroupOrFinalize`,
+    // `game.ts`), merging the earlier groups' picks into `excludeInstanceIds`
+    // (the real, registered filter) — never itself checked against a
+    // candidate.
+    | "excludePriorTargets"
     // A directive read by `raiseTriggerTargetSelection` that tells it to
     // dynamically POPULATE `spellTargetsInstanceIds` (the real, registered
     // filter) from the trigger source — never itself checked against a

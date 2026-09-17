@@ -54,6 +54,8 @@ const EXPECTED_CEILING: Record<string, number> = {
     "Minsc & Boo, Timeless Heroes": 4,
     // start 5, spend 2 — starting count again
     "Narset, Parter of Veils": 6,
+    // start 5, spend 2 — starting count again (issue #3236)
+    "Saheeli, Sublime Artificer": 6,
     // start 5, spends 1/8
     "Nissa, Who Shakes the World": 9,
     // start 4, spend 5

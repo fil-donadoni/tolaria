@@ -1330,6 +1330,16 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // `.claude/rules/gre-development.md`).
             req.skip ??= `Op "createTokenCopy" copies a runtime source permanent (announced target / ref) the canned generator does not model — covered by the Op's interpreter tests`;
             return;
+        case "becomeCopy":
+            // CR 707.2 / 611.2a (issue #3236) — an existing permanent becomes a
+            // copy of ANOTHER runtime permanent. The generator seeds the same
+            // filler creature into every permanent slot, so a copy of one onto
+            // the other changes no observable characteristic, and a timed copy
+            // reverts only at a phase boundary the canned run never reaches.
+            // Explicit skip — covered by the Op's own interpreter + wire-format
+            // tests (per-Op regime, `.claude/rules/gre-development.md`).
+            req.skip ??= `Op "becomeCopy" copies one runtime permanent onto another (identical canned fillers, phase-boundary revert) — covered by the Op's interpreter tests`;
+            return;
         case "emblem":
             // CR 114 (issue #1221) — creating an emblem appends one command-zone
             // object owned by the resolved controller, a deterministic
@@ -2846,6 +2856,14 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // interpreter + wire-format tests (both source shapes + count) are the
     // behavioural guarantor.
     createTokenCopy() {
+        return null;
+    },
+    // `becomeCopy` (CR 707.2 / 611.2a, issue #3236) — never reached:
+    // `analyseOp` skips every script with this Op (the canned fillers are
+    // identical, so a copy between them is unobservable, and the timed revert
+    // needs a phase boundary). Kept for the 1:1 coverage guard; the Op's own
+    // interpreter + wire-format tests are the behavioural guarantor.
+    becomeCopy() {
         return null;
     },
     // `emblem` (CR 114, issue #1221) — a deterministic same-resolution outcome:

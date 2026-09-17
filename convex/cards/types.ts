@@ -884,6 +884,24 @@ export interface TargetRequirement {
      *  BACK FACE's JSON-encoded definition id, and `enumerateAbilityMoves`
      *  skips any ability that carries one, hiding it from the bot entirely. */
     excludeSource?: boolean;
+    /** "ANOTHER target" across target GROUPS (CR 115.3, issue #3236). The
+     *  same object may be chosen once for each instance of the word "target"
+     *  (CR 115.3) — so two groups describing overlapping objects would accept
+     *  one permanent twice — unless the text says "another target": Saheeli,
+     *  Sublime Artificer's "target artifact you control becomes a copy of
+     *  ANOTHER target artifact or creature you control". Set on a LATER group
+     *  (an `additionalTargetRequirements` entry), it excludes every permanent
+     *  already chosen for an EARLIER group of the same announcement.
+     *
+     *  A directive, not a filter (the `excludeSource` shape): when the target
+     *  walk advances to this group (`advanceTargetGroupOrFinalize`,
+     *  `game.ts`), the earlier picks are merged into `excludeInstanceIds` — the
+     *  registered filter `getLegalTargets`, `selectTarget` and the client's
+     *  pending-target highlight already read, so one merge reaches every
+     *  consumer. The Bot's group enumerator drops the overlapping tuples
+     *  itself (`enumerateTargetGroupTuples`, `gre/moves.ts`). Meaningless on a
+     *  primary requirement (no earlier group). */
+    excludePriorTargets?: boolean;
     /** CROSS-SLOT same-controller constraint spanning the announced target
      *  slots of THIS requirement (CR 601.2c, issue #1104 — Barrin's Spite:
      *  "Choose two target creatures controlled by the same player"). Every
@@ -3307,6 +3325,48 @@ export type AsEntersChoice =
 
 // --- Copy effects (CR 706, 707) ---
 
+/** CR 707.2 / 707.9 — a copy effect's "except" clause as an Effect Script
+ *  writes it: the copiable values the copy effect modifies on top of the
+ *  copied object (issue #2339, Eternalize CR 702.129a: "a copy of it, except
+ *  it's a 4/4 black Zombie in addition to its other types and it has no mana
+ *  cost").
+ *
+ *  JSON-pure (ADR 0046) and purely declarative: every field maps 1:1 onto
+ *  `CopyEffectOptions`, which `applyCopy` already interprets — no new
+ *  execution path. Shared by the two copy Ops, `createTokenCopy` (a new token
+ *  that is a copy) and `becomeCopy` (an existing permanent becomes one,
+ *  issue #3236).
+ *
+ *  Parametrised rather than keyword-shaped on purpose: Embalm (CR 702.128a —
+ *  white Zombie, printed body kept) is the SAME clause with different values,
+ *  so the seam hosts it with no redesign. */
+export interface EffectCopyExcept {
+    /** "…it's a N/N" — base power/toughness (layer 7a). */
+    basePower?: number;
+    baseToughness?: number;
+    /** "…it's black" — an explicit colour set (layer 5). */
+    colors?: Color[];
+    /** "…a Zombie in addition to its other types" — appended
+     *  creature subtypes (CR 205.1b; Oracle-worded as a type). */
+    additionalSubtypes?: string[];
+    /** "…except it has haste" — keywords the copy has on top of the
+     *  copied object's (issue #2399). A COPIABLE value per CR 707.2,
+     *  not a layer-6 grant; see
+     *  `CopyEffectOptions.additionalStaticAbilities`. */
+    additionalStaticAbilities?: string[];
+    /** "…it has no mana cost" — mana value 0 (CR 202.3). */
+    noManaCost?: boolean;
+    /** Scryfall print id for the token's own printed art (CR 111).
+     *  Cosmetic; see `CopyEffectOptions.imagePrintId`. */
+    imagePrintId?: string;
+    /** "…it's an artifact in addition to its other types" — card types
+     *  appended to the copied object's (CR 707.9b: "the final set of values
+     *  for that characteristic becomes part of the copiable values of the
+     *  copy"; Saheeli, Sublime Artificer, issue #3236). See
+     *  `CopyEffectOptions.additionalTypes`. */
+    additionalTypes?: CardType[];
+}
+
 /** Options for a copy effect applied via `SpellContext.becomeCopyOf`. */
 export interface CopyEffectOptions {
     /** When false, the copy keeps its own color rather than the copied
@@ -3562,8 +3622,21 @@ export interface SpellContext {
      *  — the spell entering the battlefield (Clone ETB choice) or the trigger
      *  source (Vesuvan upkeep re-copy). The recipient becomes a copy of the
      *  permanent identified by `sourceCreatureId`. No-op if the copy target
-     *  has left the battlefield. */
-    becomeCopyOf: (sourceCreatureId: string, opts?: CopyEffectOptions) => void;
+     *  has left the battlefield.
+     *
+     *  `recipient` (issue #3236) names a DIFFERENT battlefield permanent to
+     *  receive the copy effect — "target artifact you control becomes a copy
+     *  of another target …" (Saheeli, Sublime Artificer, the `becomeCopy` Op)
+     *  — and optionally its `duration` (CR 611.2a): the copy then reverts at
+     *  that boundary while the permanent stays on the battlefield
+     *  (`applyTimedCopy`, `gre/copy.ts`). No-op when that permanent is gone
+     *  (CR 608.2b). Omitted, the recipient is the resolving permanent and the
+     *  effect is indefinite, exactly as before. */
+    becomeCopyOf: (
+        sourceCreatureId: string,
+        opts?: CopyEffectOptions,
+        recipient?: { permanentId: string; duration?: DurationSpec }
+    ) => void;
     /** Token-recipient form of `becomeCopyOf` (CR 707.2 + CR 111.1): creates a
      *  fresh token under `controllerId` and immediately applies a copy effect
      *  so the token enters as a copy of the permanent identified by
@@ -16262,26 +16335,42 @@ export type EffectOp =
            *  (CR 702.128a — white Zombie, printed body kept) is the SAME Op
            *  with a different `except`, so the seam hosts it with no
            *  redesign. */
-          except?: {
-              /** "…it's a N/N" — base power/toughness (layer 7a). */
-              basePower?: number;
-              baseToughness?: number;
-              /** "…it's black" — an explicit colour set (layer 5). */
-              colors?: Color[];
-              /** "…a Zombie in addition to its other types" — appended
-               *  creature subtypes (CR 205.1b; Oracle-worded as a type). */
-              additionalSubtypes?: string[];
-              /** "…except it has haste" — keywords the copy has on top of the
-               *  copied object's (issue #2399). A COPIABLE value per CR 707.2,
-               *  not a layer-6 grant; see
-               *  `CopyEffectOptions.additionalStaticAbilities`. */
-              additionalStaticAbilities?: string[];
-              /** "…it has no mana cost" — mana value 0 (CR 202.3). */
-              noManaCost?: boolean;
-              /** Scryfall print id for the token's own printed art (CR 111).
-               *  Cosmetic; see `CopyEffectOptions.imagePrintId`. */
-              imagePrintId?: string;
-          };
+          except?: EffectCopyExcept;
+      }
+    /** CR 707.2 / 611.2a (issue #3236) — an EXISTING permanent becomes a copy
+     *  of another permanent, indefinitely or for a stated duration: "target
+     *  artifact you control becomes a copy of another target artifact or
+     *  creature you control until end of turn, except it's an artifact in
+     *  addition to its other types" (Saheeli, Sublime Artificer). The
+     *  existing-permanent sibling of `createTokenCopy`, and a thin declarative
+     *  skin over the SAME SpellContext primitive Clone and Vesuvan Doppelganger
+     *  use, `becomeCopyOf` (its `recipient` form), so there is ONE copy
+     *  execution path (ADR 0045).
+     *
+     *  `target` is the permanent that BECOMES the copy and `source` the one it
+     *  copies — each an announced target slot, `$source`, or a bound `ref`.
+     *  The copy takes the source's copiable values as they are at resolution
+     *  (CR 707.2 — never its counters, auras or other noncopy effects) and the
+     *  recipient keeps every noncopy effect already applying to it (CR 707.4).
+     *  `except` is the shared CR 707.9 clause (`EffectCopyExcept`).
+     *
+     *  `duration` omitted is indefinite (CR 611.2a — until the permanent
+     *  leaves, when `revertCopy` restores its printed self). Given, the copy
+     *  reverts at that boundary while the permanent stays on the battlefield;
+     *  every timed copy effect keeps its own expiry, so two overlapping ones
+     *  never clobber each other (`CardInstanceState.timedCopyEffects`).
+     *
+     *  Skipped when either object has left the battlefield (CR 608.2b), and
+     *  when both selectors name the same permanent (copying itself changes no
+     *  copiable value). What it deliberately does NOT do: pick "another"
+     *  target — distinctness of two announced targets is a targeting rule
+     *  (CR 115.3), declared on the requirement (`excludePriorTargets`). */
+    | {
+          op: "becomeCopy";
+          target: EffectObjectSelector;
+          source: EffectObjectSelector;
+          except?: EffectCopyExcept;
+          duration?: DurationSpec;
       }
     /** CR 114 (issue #1221) — create an emblem in the command zone. A thin
      *  declarative skin over the single SpellContext primitive `createEmblem`,

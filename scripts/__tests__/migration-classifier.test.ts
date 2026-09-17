@@ -1858,11 +1858,18 @@ describe("migration classifier — census buckets (PRD #826)", () => {
         // scripts/migration-classifier.mjs`), not hand-picked: total
         // 472->466, FREE 318->312, AFK-ready 309->303; X-only unchanged at
         // 15, Op-blocked unchanged at 139. Partition: 312+15+139=466.
+        // Issue #3236 adds no closure and retires none: the `becomeCopy` Op
+        // puts `SpellContext.becomeCopyOf` on the COVERED list, so one
+        // Op-blocked closure (its only uncovered primitive was that one)
+        // reclassifies as FREE — and, carrying a per-card test already, as
+        // AFK-ready. Re-measured directly (`bun scripts/migration-classifier.mjs`):
+        // total unchanged at 466, Op-blocked 139->138, FREE 312->313,
+        // AFK-ready 303->304. Partition: 313+15+138=466.
         expect(num(summary, /—\s+(\d+)\s+closures/)).toBe(466);
-        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(312);
-        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(303);
+        expect(num(summary, /FREE \(migratable now\):\s+(\d+)/)).toBe(313);
+        expect(num(summary, /of which AFK-ready:\s+(\d+)/)).toBe(304);
         expect(num(summary, /X-only blocked:\s+(\d+)/)).toBe(15);
-        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(139);
+        expect(num(summary, /Op-blocked:\s+(\d+)/)).toBe(138);
     });
 
     it("surfaces the demonstrated new-Op backlog (a covered primitive leaves it)", () => {

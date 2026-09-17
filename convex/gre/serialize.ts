@@ -227,6 +227,7 @@ export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "controlChanges",
     "copiedFrom",
     "copyExcept",
+    "copyOptions",
     "counters",
     "countersAtLeave",
     "capturedBindings",
@@ -299,6 +300,7 @@ export const CARD_PERSISTED_OPTIONAL_KEYS = [
     "tapBonusMana",
     "tapTriggerCommitted",
     "temporaryColorOverride",
+    "timedCopyEffects",
     "temporarySubtypeChange",
     "textChangeHolds",
     "typeLineHolds",
@@ -554,6 +556,12 @@ function compactCard(
     // CR 707.2 copy anchor — `card.id` already carries the copied def id; this
     // preserves the printed identity to restore on leave (`revertCopy`).
     if (card.copiedFrom) out.copiedFrom = card.copiedFrom;
+    // CR 707.9 — the presented copy effect's "except" options, and the timed
+    // copy effects (CR 611.2a, issue #3236) still to expire. Both persist: a
+    // save between the Saheeli activation and the cleanup step must still
+    // revert the copy, and re-apply the indefinite copy it covered.
+    if (card.copyOptions) out.copyOptions = card.copyOptions;
+    if (card.timedCopyEffects) out.timedCopyEffects = card.timedCopyEffects;
     // CR 707.2 / 202.3 — the "except it has no mana cost" override (Eternalize
     // / Embalm token). Persisted even when EMPTY: `{}` IS the override, and a
     // truthiness/length test would drop exactly the case that matters.
@@ -1062,6 +1070,14 @@ function expandCard(
             compact.copyExcept as CardInstanceState["copyExcept"];
     }
     if (compact.copiedFrom) result.copiedFrom = compact.copiedFrom as string;
+    if (compact.copyOptions) {
+        result.copyOptions =
+            compact.copyOptions as CardInstanceState["copyOptions"];
+    }
+    if (compact.timedCopyEffects) {
+        result.timedCopyEffects =
+            compact.timedCopyEffects as CardInstanceState["timedCopyEffects"];
+    }
     // CR 707.2 / 202.3 — `{}` is a meaningful override, so test for PRESENCE
     // (`!== undefined`), never truthiness of its contents.
     if (compact.manaCostOverride !== undefined) {

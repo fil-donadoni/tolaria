@@ -70,6 +70,7 @@ import {
     getEffectiveToughness,
     STATIC_EFFECT_CTX,
 } from "./layers";
+import { rematerialiseTimedCopies } from "./copy";
 import { attackTargetExcessSink, lethalForBlocker } from "./damageAssignment";
 import { isProtectedFromSource } from "./protection";
 import {
@@ -3070,6 +3071,33 @@ function tickAllDurations(state: GameState): void {
             state.phase === "CLEANUP" &&
             state.cleanupBookkeepingTurn === state.turn,
     };
+
+    // CR 611.2a / 613.1a (layer 1, issue #3236) — copy effects with a
+    // duration ("becomes a copy of … until end of turn", Saheeli, Sublime
+    // Artificer). Each timed copy effect is its own ledger entry with its own
+    // expiry, so two overlapping ones end independently; the permanent stays
+    // on the battlefield and is re-materialised from whatever survives
+    // (CR 707.4 — a copy-to-copy change triggers nothing and leaves every
+    // noncopy effect in place). First, because every later purge in this
+    // function replays over layer 1.
+    for (const p of state.players) {
+        for (const card of p.battlefield) {
+            const ledger = card.timedCopyEffects;
+            if (!ledger) continue;
+            const survivors: typeof ledger.effects = [];
+            const expired: typeof ledger.effects = [];
+            for (const entry of ledger.effects) {
+                const next = tickDuration(entry.duration, view);
+                if (next === null) expired.push(entry);
+                else survivors.push({ ...entry, duration: next });
+            }
+            if (expired.length === 0) {
+                ledger.effects = survivors;
+                continue;
+            }
+            rematerialiseTimedCopies(state, card, survivors, expired);
+        }
+    }
 
     // CR 611.2b / 613.1b (layer 2) — "gain control until end of turn" control
     // changes (Ray of Command, Magus of the Unseen, issue #730). A duration-

@@ -112,6 +112,7 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     setLevel: false,
     createToken: false,
     createTokenCopy: false,
+    becomeCopy: false,
     dealDamage: false,
     dealDamageDividedAsChosen: false,
     delayedTrigger: false,
