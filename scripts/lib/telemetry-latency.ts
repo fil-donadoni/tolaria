@@ -376,7 +376,7 @@ export function quantile(values: number[], p: number): number {
     return sorted[Math.min(sorted.length - 1, Math.max(0, rank - 1))];
 }
 
-function stat(values: number[]): ComponentStat {
+export function stat(values: number[]): ComponentStat {
     if (values.length === 0) return { median: 0, p90: 0, mean: 0 };
     const sum = values.reduce((a, b) => a + b, 0);
     return {
@@ -416,6 +416,340 @@ export function isIssueClosing(row: SessionLatency): boolean {
 /** A session opened with `/next-issue` — the ADR 0110 pipeline the 10-15 minute target is about. */
 export function isNextIssue(row: SessionLatency): boolean {
     return /^\/next-issue\b/.test(row.cmd ?? "");
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// The four ADR 0136 KPI rows (issue #3777) — same store, four different
+// joins. Each is a pure reducer over rows the CLI reads out of the mirror;
+// what feeds them (`pr_meta`, `gate_runs`, `health_runs`, `spans.is_error`)
+// is described where each type is declared.
+// ─────────────────────────────────────────────────────────────────────────
+
+const HOUR_S = 3600;
+
+function hourStart(tsSeconds: number): number {
+    return Math.floor(tsSeconds / HOUR_S) * HOUR_S;
+}
+
+/** One PR's merge instant — `pr_meta.merged_at`, fetched the way
+ *  `issue_meta` fetches issue state (`telemetry-ingest.ts`'s
+ *  `refreshPrMeta`). */
+export interface MergedPr {
+    number: number;
+    mergedAtS: number;
+}
+
+/** One local hour's activity: sessions that had a main-thread turn in it,
+ *  against PRs that merged in it. */
+export interface HourBucket {
+    hourStartS: number;
+    activeSessions: number;
+    prsLanded: number;
+}
+
+/**
+ * One row per local hour touched by a turn or a merge — ADR 0136's
+ * concurrency derivation ("0.59 [PRs/h] at one active session, 1.44 at
+ * three, 1.19 at four, 2.48 at seven-plus") generalised from the one-off SQL
+ * that produced it. `turns`/`merges` are not pre-filtered to a window here —
+ * the CLI passes only the sessions/PRs already selected by the shared
+ * window query, the same way the existing cohorts do.
+ */
+export function hourlyThroughput(
+    turns: LatencyTurn[],
+    merges: MergedPr[]
+): HourBucket[] {
+    const sessionsByHour = new Map<number, Set<string>>();
+    for (const t of turns) {
+        const h = hourStart(t.ts);
+        const set = sessionsByHour.get(h);
+        if (set) set.add(t.session);
+        else sessionsByHour.set(h, new Set([t.session]));
+    }
+    const mergesByHour = new Map<number, number>();
+    for (const m of merges) {
+        const h = hourStart(m.mergedAtS);
+        mergesByHour.set(h, (mergesByHour.get(h) ?? 0) + 1);
+    }
+    const hours = new Set<number>([
+        ...sessionsByHour.keys(),
+        ...mergesByHour.keys(),
+    ]);
+    return [...hours]
+        .sort((a, b) => a - b)
+        .map((hourStartS) => ({
+            hourStartS,
+            activeSessions: sessionsByHour.get(hourStartS)?.size ?? 0,
+            prsLanded: mergesByHour.get(hourStartS) ?? 0,
+        }));
+}
+
+/** PRs/hour at one concurrency level, and how many hours were observed at
+ *  it — the sample size behind the mean, since a level seen for one hour is
+ *  not the same claim as one seen for forty. */
+export interface ConcurrencyRow {
+    activeSessions: number;
+    hours: number;
+    prsPerHour: number;
+}
+
+/**
+ * PRs landed per hour, grouped by how many sessions were active that hour.
+ * An hour with zero active sessions is dropped — it is not a concurrency
+ * LEVEL, and folding its (necessarily zero) PRs into "level 0" answers a
+ * question nobody asked.
+ */
+export function throughputByConcurrency(
+    buckets: HourBucket[]
+): ConcurrencyRow[] {
+    const byLevel = new Map<number, { hours: number; prs: number }>();
+    for (const b of buckets) {
+        if (b.activeSessions <= 0) continue;
+        const cur = byLevel.get(b.activeSessions) ?? { hours: 0, prs: 0 };
+        cur.hours += 1;
+        cur.prs += b.prsLanded;
+        byLevel.set(b.activeSessions, cur);
+    }
+    return [...byLevel.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([activeSessions, { hours, prs }]) => ({
+            activeSessions,
+            hours,
+            prsPerHour: prs / hours,
+        }));
+}
+
+/** One review subagent's span — the model it actually ran (`spans.model_req`,
+ *  the spawn's explicit `model:`, never the session's default tier), and the
+ *  window `/next-issue` §4 waits on it. */
+export interface ReviewSpan {
+    session: string;
+    model: string | null;
+    startS: number;
+    endS: number;
+}
+
+/** One `git commit` Bash span in the same session. */
+export interface CommitEvent {
+    session: string;
+    ts: number;
+}
+
+/** When a session's own PR merged — the upper bound past which a later
+ *  commit in a reused session id would belong to whatever landed next, not
+ *  to this review. Absent (session never merged) reads as no upper bound. */
+export interface SessionMergeFact {
+    session: string;
+    mergedAtS: number;
+}
+
+export interface ReviewerModelRow {
+    model: string;
+    reviews: number;
+    blocking: number;
+    rate: number;
+    minutesAfter: ComponentStat;
+}
+
+/**
+ * A review "blocks" when at least one commit in ITS OWN session lands after
+ * the review span ends (and, if the session merged, before that merge):
+ * `/next-issue` §4 fixes every blocking finding in-session before opening
+ * the PR, so a post-review commit is direct evidence the review found
+ * something worth fixing. Grouped by the model the review actually ran under
+ * — routing is exactly what a per-model finding rate is meant to judge.
+ */
+export function blockingFindingRate(
+    reviews: ReviewSpan[],
+    commits: CommitEvent[],
+    merges: SessionMergeFact[]
+): ReviewerModelRow[] {
+    const mergeBySession = new Map(merges.map((m) => [m.session, m.mergedAtS]));
+    const commitsBySession = new Map<string, number[]>();
+    for (const c of commits) {
+        const list = commitsBySession.get(c.session);
+        if (list) list.push(c.ts);
+        else commitsBySession.set(c.session, [c.ts]);
+    }
+
+    const byModel = new Map<
+        string,
+        { reviews: number; blocking: number; minutesAfter: number[] }
+    >();
+    for (const r of reviews) {
+        const model = r.model ?? "(unspecified)";
+        const cur = byModel.get(model) ?? {
+            reviews: 0,
+            blocking: 0,
+            minutesAfter: [] as number[],
+        };
+        cur.reviews += 1;
+        const cap = mergeBySession.get(r.session) ?? Infinity;
+        const after = (commitsBySession.get(r.session) ?? [])
+            .filter((ts) => ts > r.endS && ts <= cap)
+            .sort((a, b) => a - b);
+        if (after.length > 0) {
+            cur.blocking += 1;
+            cur.minutesAfter.push((after[0] - r.endS) / 60);
+        }
+        byModel.set(model, cur);
+    }
+
+    return [...byModel.entries()]
+        .sort((a, b) => b[1].reviews - a[1].reviews)
+        .map(([model, v]) => ({
+            model,
+            reviews: v.reviews,
+            blocking: v.blocking,
+            rate: v.reviews > 0 ? v.blocking / v.reviews : 0,
+            minutesAfter: stat(v.minutesAfter),
+        }));
+}
+
+/** One targeted `vitest run <path>` Bash span with a known outcome. A span
+ *  ingested before `spans.is_error` was captured carries no row of this
+ *  shape at all — there is no "unknown, assume green" branch here, only
+ *  "never observed". */
+export interface VitestRunSpan {
+    session: string;
+    ts: number;
+    red: boolean;
+}
+
+/** The base tip a session's own gate run recorded (`gate_runs.base`, joined
+ *  onto the session by PR number: `land <PR#>`'s command names the PR,
+ *  `sessions.prs` names the session). */
+export interface SessionBaseSha {
+    session: string;
+    base: string;
+}
+
+/** One health run's verdict, keyed by the 12-hex-char sha prefix
+ *  `health-main.ts` names its per-sha log with. */
+export interface HealthVerdict {
+    sha12: string;
+    red: boolean;
+}
+
+export interface RedOnRedBaseline {
+    redRuns: number;
+    onRedBaseline: number;
+    rate: number;
+}
+
+/**
+ * Of the targeted vitest runs that went red, how many ran against a base tip
+ * health later proved broken — evidence the run's OWN diff was not
+ * necessarily at fault. `base` (40 hex chars, from `git rev-parse
+ * origin/<base>`) is matched by prefix against each red `sha12`.
+ */
+export function redOnRedBaseline(
+    runs: VitestRunSpan[],
+    bases: SessionBaseSha[],
+    health: HealthVerdict[]
+): RedOnRedBaseline {
+    const baseBySession = new Map(bases.map((b) => [b.session, b.base]));
+    const redShas = health.filter((h) => h.red).map((h) => h.sha12);
+
+    const redRuns = runs.filter((r) => r.red);
+    let onRedBaseline = 0;
+    for (const r of redRuns) {
+        const base = baseBySession.get(r.session);
+        if (base && redShas.some((sha12) => base.startsWith(sha12)))
+            onRedBaseline++;
+    }
+    return {
+        redRuns: redRuns.length,
+        onRedBaseline,
+        rate: redRuns.length > 0 ? onRedBaseline / redRuns.length : 0,
+    };
+}
+
+/** One `gate_runs` record's classified lane — `null` when the command was
+ *  not `check:lane`/`land` or its log carried no `lane:` line (e.g. a
+ *  `check:ui` gate-run, which goes through the same script). */
+export interface GateRunLane {
+    lane: string | null;
+    green: boolean;
+}
+
+export interface LaneCount {
+    lane: string;
+    runs: number;
+    green: number;
+}
+
+/**
+ * Histogram of gate-run records by classified lane
+ * (`full`/`engine`/`skin`/`docs`/`cards`), largest first. Records with no
+ * lane are excluded rather than folded into a `(none)` bucket — they answer
+ * a different question (what else runs through `gate-run.sh`), not this one.
+ */
+export function laneHistogram(rows: GateRunLane[]): LaneCount[] {
+    const byLane = new Map<string, { runs: number; green: number }>();
+    for (const r of rows) {
+        if (!r.lane) continue;
+        const cur = byLane.get(r.lane) ?? { runs: 0, green: 0 };
+        cur.runs += 1;
+        if (r.green) cur.green += 1;
+        byLane.set(r.lane, cur);
+    }
+    return [...byLane.entries()]
+        .sort((a, b) => b[1].runs - a[1].runs)
+        .map(([lane, v]) => ({ lane, runs: v.runs, green: v.green }));
+}
+
+/**
+ * Does `cmd` actually INVOKE `git commit`, rather than merely mention the
+ * words? `spans.cmd` is the verbatim (160-char-truncated) shell command, so a
+ * `grep -rn "git commit" ...` run in the SAME session as a review span would
+ * otherwise read as a post-review fixup commit and inflate
+ * {@link blockingFindingRate}'s numerator. Requires "git commit" at the start
+ * of the command or right after a real shell separator (`&&`, `;`, `|`) —
+ * never inside a quoted argument, which is exactly where a grep pattern
+ * lives.
+ */
+export function isGitCommitCommand(cmd: string): boolean {
+    return /(^|&&|[;|])\s*git\s+commit\b/.test(cmd);
+}
+
+/** Same shape check as {@link isGitCommitCommand}, for a targeted
+ *  `vitest run <path>` invocation feeding {@link redOnRedBaseline}. */
+export function isTargetedVitestCommand(cmd: string): boolean {
+    return /(^|&&|[;|])\s*(bunx |npx )?vitest run\b/.test(cmd);
+}
+
+/**
+ * Extract the lane from a `check:lane` run's captured stdout — the exact
+ * line `check-lane.ts` prints: `` `lane:  ${lane}   (HEAD ${head}, …)` ``.
+ * `land.ts` ALSO writes a "lane:" line to the same log when it runs
+ * `check:lane` internally (`"lane: ran"` / `"lane: skipped (gated …)"`), so
+ * the pattern requires the double space and the trailing `(HEAD` that only
+ * `check-lane.ts`'s own line has, to tell the two apart.
+ */
+export function parseLaneLine(log: string): string | null {
+    const m = log.match(/^lane:\s{2,}(\S+)\s+\(HEAD\b/m);
+    return m ? m[1] : null;
+}
+
+/**
+ * Did a `health-main.ts` per-sha log record any failing step? Each step is
+ * appended as `===== <cmd> (exit <status>) =====` (`lib/health-step.ts`);
+ * ANY status other than `0` is red — the steps run in series and stop at the
+ * first one. `status` is Node's `child.on("close", (code, signal) => …)`
+ * code, which is `null` (not a number) when the step was killed by a signal
+ * or failed to spawn — the log then literally reads `(exit null)`, and a
+ * regex that only captured `\d+` would silently drop that line and read a
+ * killed run as green if an earlier step happened to exit 0. Matching the
+ * exit TOKEN, not just a digit run, closes that. `null` — "unknown", not
+ * "green" — only when the log has no `(exit …)` line at all (truncated, or
+ * predates this log shape): a parse gap must never manufacture a false
+ * green in the one row that exists to catch a red.
+ */
+export function parseHealthLogRed(log: string): boolean | null {
+    const exits = [...log.matchAll(/\(exit (\S+)\)/g)].map((m) => m[1]);
+    if (exits.length === 0) return null;
+    return exits.some((token) => token !== "0");
 }
 
 function pad(s: string, w: number, right = true): string {
@@ -466,5 +800,80 @@ export function formatReport(
         );
         out.push(...cohortRows(c));
     }
+    return out.join("\n");
+}
+
+/**
+ * Render the four ADR 0136 KPI rows as a plain-text receipt appended after
+ * {@link formatReport} — same window (the caller passes rows already
+ * restricted to the sessions the shared window query selected), one section
+ * per row.
+ */
+export function formatAdr0136Rows(
+    concurrency: ConcurrencyRow[],
+    reviewers: ReviewerModelRow[],
+    redOnRed: RedOnRedBaseline,
+    lanes: LaneCount[]
+): string {
+    const out: string[] = [];
+
+    out.push("");
+    out.push("  PRs landed per hour, by active sessions that hour (ADR 0136)");
+    out.push(
+        `  ${pad("active sessions", 16, false)} ${pad("hours", 8)} ${pad(
+            "PR/h",
+            8
+        )}`
+    );
+    for (const r of concurrency) {
+        out.push(
+            `  ${pad(String(r.activeSessions), 16, false)} ${pad(
+                String(r.hours),
+                8
+            )} ${pad(r.prsPerHour.toFixed(2), 8)}`
+        );
+    }
+
+    out.push("");
+    out.push("  blocking-finding rate per reviewer model");
+    out.push(
+        `  ${pad("model", 22, false)} ${pad("reviews", 8)} ${pad(
+            "blocking",
+            9
+        )} ${pad("rate", 6)} ${pad("median after", 13)}`
+    );
+    for (const r of reviewers) {
+        out.push(
+            `  ${pad(r.model, 22, false)} ${pad(String(r.reviews), 8)} ${pad(
+                String(r.blocking),
+                9
+            )} ${pad(`${(r.rate * 100).toFixed(0)}%`, 6)} ${pad(
+                mins(r.minutesAfter.median * 60),
+                13
+            )}`
+        );
+    }
+
+    out.push("");
+    out.push("  targeted-vitest reds on a base tip later marked RED by health");
+    out.push(
+        `  ${redOnRed.onRedBaseline} / ${redOnRed.redRuns} red runs ` +
+            `(${(redOnRed.rate * 100).toFixed(0)}%) ran against a base health later reddened`
+    );
+
+    out.push("");
+    out.push("  gate-run lane histogram");
+    out.push(
+        `  ${pad("lane", 10, false)} ${pad("runs", 6)} ${pad("green", 7)}`
+    );
+    for (const l of lanes) {
+        out.push(
+            `  ${pad(l.lane, 10, false)} ${pad(String(l.runs), 6)} ${pad(
+                String(l.green),
+                7
+            )}`
+        );
+    }
+
     return out.join("\n");
 }

@@ -50,7 +50,10 @@ CREATE TABLE IF NOT EXISTS spans (
     skill       TEXT,
     cmd         TEXT,
     cmd_bucket  TEXT,                  -- gate | test | git | gh | bun | convex | fs | other
-    bg          INTEGER
+    bg          INTEGER,
+    is_error    INTEGER                -- 1/0 from the hook's tool_response.is_error;
+                                       -- NULL for every span ingested before issue #3777
+                                       -- added the capture, and for tools that never set it
 );
 CREATE INDEX IF NOT EXISTS spans_day ON spans(day);
 CREATE INDEX IF NOT EXISTS spans_session ON spans(session);
@@ -156,6 +159,43 @@ CREATE TABLE IF NOT EXISTS ingest_state (
 );
 
 CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT);
+
+-- PR metadata fetched from GitHub, the merged-PR counterpart of issue_meta
+-- (issue #3777, ADR 0136 row 1 -- "PRs landed per hour"). A merged/closed PR
+-- is final and never refetched; an open one is a stub (state NULL) so the
+-- fetch loop keeps claiming it until it lands.
+CREATE TABLE IF NOT EXISTS pr_meta (
+    pr        INTEGER PRIMARY KEY,
+    state     TEXT,                    -- open | merged | closed | unknown
+    merged_at TEXT,                    -- ISO 8601, NULL until merged
+    fetched   INTEGER
+);
+
+-- One row per gate-run record ever seen under gate-run.sh's cache dir
+-- (issue #3777, ADR 0136 rows 3 and 4). The cache dir itself prunes after
+-- TOLARIA_GATE_RUN_KEEP_DAYS (default 7); this table is the durable copy,
+-- keyed by the run dir's own name so a re-ingest of the same dir is a no-op.
+CREATE TABLE IF NOT EXISTS gate_runs (
+    run      TEXT PRIMARY KEY,
+    cmd      TEXT NOT NULL,             -- the run dir's command file, e.g. "land 3777"
+    head     TEXT,                      -- HEAD at gate start
+    base     TEXT,                      -- origin/<base> tip at gate start
+    lane     TEXT,                      -- parsed lane: line, NULL when the log had none
+    green    INTEGER NOT NULL,          -- 1 iff the run dir's green marker was present
+    started  INTEGER,                   -- epoch seconds, the run dir's started file
+    ingested INTEGER NOT NULL
+);
+
+-- One row per health-main.ts per-sha log ever seen under
+-- .claude/telemetry/health/ (issue #3777, ADR 0136 row 3). The live RED
+-- marker only ever names the LATEST red sha; this table is the durable
+-- history, rebuilt by parsing each immutable per-sha log rather than
+-- sampling the marker.
+CREATE TABLE IF NOT EXISTS health_runs (
+    sha12 TEXT PRIMARY KEY,
+    red   INTEGER NOT NULL,
+    ts    INTEGER NOT NULL             -- the log file's mtime, epoch seconds
+);
 `;
 
 /**
@@ -434,6 +474,7 @@ export function openDb(path: string): Database {
         "ALTER TABLE llm ADD COLUMN harness TEXT NOT NULL DEFAULT 'claude-code'",
         "ALTER TABLE agent_runs ADD COLUMN harness TEXT NOT NULL DEFAULT 'claude-code'",
         "ALTER TABLE sessions ADD COLUMN harness TEXT NOT NULL DEFAULT 'claude-code'",
+        "ALTER TABLE spans ADD COLUMN is_error INTEGER",
     ]) {
         try {
             db.exec(ddl);

@@ -28,6 +28,7 @@ jq -c \
         cache_write: (.tool_response.usage.cache_creation_input_tokens // null),
         resolved_model: (.tool_response.resolvedModel // null),
         dur_ms: (.tool_response.totalDurationMs // null),
-        tool_uses: (.tool_response.totalToolUseCount // null)
+        tool_uses: (.tool_response.totalToolUseCount // null),
+        is_error: (.tool_response.is_error // .tool_response.isError // null)
     }' >>"$dir/tool-events.jsonl" 2>/dev/null
 exit 0

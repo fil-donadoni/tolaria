@@ -40,6 +40,7 @@ import {
     listSessions,
     listMessages,
 } from "./lib/opencode-telemetry.ts";
+import { parseLaneLine, parseHealthLogRed } from "./lib/telemetry-latency.ts";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
 const DB_PATH = join(PROJECT_DIR, ".claude/telemetry/telemetry.db");
@@ -139,8 +140,8 @@ export async function ingestSpans(
 
     const insert = db.prepare(
         `INSERT OR REPLACE INTO spans
-         (id, session, harness, ts, day, hour, dur_s, tool, kind, role, agent_type, model_req, skill, cmd, cmd_bucket, bg)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         (id, session, harness, ts, day, hour, dur_s, tool, kind, role, agent_type, model_req, skill, cmd, cmd_bucket, bg, is_error)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
 
     let n = 0;
@@ -176,6 +177,12 @@ export async function ingestSpans(
             pending.delete(id);
 
             const { day, hour } = dayHour(pre.ts);
+            // `is_error` lives on the POST event only (it is part of the tool's
+            // result), so it is read here rather than carried through `pending`.
+            // Anything other than a literal boolean stays NULL — "unknown", not
+            // "green" (see spans.is_error's own comment on SCHEMA).
+            const isError =
+                e.is_error === true ? 1 : e.is_error === false ? 0 : null;
             insert.run(
                 id,
                 pre.session,
@@ -192,7 +199,8 @@ export async function ingestSpans(
                 pre.skill,
                 pre.cmd,
                 bucketCmd(pre.cmd),
-                pre.bg
+                pre.bg,
+                isError
             );
             n++;
         }
@@ -840,6 +848,254 @@ function refreshIssueMeta(db: Sqlite): number {
     return n;
 }
 
+/**
+ * Fetch merged-at for PRs a session has linked (`sessions.prs`, from
+ * `pr-link` events) — issue #3777's "PR facts", the merged-PR counterpart of
+ * `refreshIssueMeta` above. `merged` and `unknown` (404) are final; anything
+ * else is refetched after 6h, same cadence as an open issue.
+ */
+function refreshPrMeta(db: Sqlite): number {
+    const now = Math.floor(Date.now() / 1000);
+    const stub = db.prepare(
+        `INSERT INTO pr_meta (pr, state, merged_at, fetched)
+         VALUES (?, NULL, NULL, 0)
+         ON CONFLICT(pr) DO NOTHING`
+    );
+    db.transaction(() => {
+        for (const { prs } of db
+            .query<
+                { prs: string | null },
+                []
+            >("SELECT prs FROM sessions WHERE prs IS NOT NULL AND prs != '[]'")
+            .all()) {
+            let nums: unknown;
+            try {
+                nums = JSON.parse(prs ?? "[]");
+            } catch {
+                continue;
+            }
+            if (!Array.isArray(nums)) continue;
+            for (const n of nums) if (Number.isInteger(n)) stub.run(n);
+        }
+    })();
+
+    // Only 'open' is refetched — the same finality test refreshIssueMeta uses.
+    // A PR closed WITHOUT merging is as final as a merged one in this
+    // workflow (`land` merges through the API the moment it decides to);
+    // treating it as non-final would refetch it every 6h forever for no PR
+    // that can ever change state again.
+    const wanted = db
+        .query<{ pr: number }, [number]>(
+            `SELECT pr FROM pr_meta
+             WHERE state IS NULL
+                OR (state = 'open' AND fetched < ?)
+             ORDER BY pr DESC
+             LIMIT 60`
+        )
+        .all(now - 6 * 3600);
+    if (!wanted.length) return 0;
+
+    let repo = db
+        .query<{ v: string }, []>("SELECT v FROM meta WHERE k = 'gh_repo'")
+        .get()?.v;
+    if (!repo) {
+        const cleanEnv = { ...process.env };
+        delete cleanEnv.GITHUB_TOKEN;
+        const p = Bun.spawnSync(
+            [
+                "gh",
+                "repo",
+                "view",
+                "--json",
+                "nameWithOwner",
+                "-q",
+                ".nameWithOwner",
+            ],
+            { env: cleanEnv }
+        );
+        repo = p.success ? p.stdout.toString().trim() : "";
+        if (!repo) return 0;
+        db.run("INSERT OR REPLACE INTO meta (k, v) VALUES ('gh_repo', ?)", [
+            repo,
+        ]);
+    }
+
+    const put = db.prepare(
+        `INSERT OR REPLACE INTO pr_meta (pr, state, merged_at, fetched)
+         VALUES (?, ?, ?, ?)`
+    );
+    const env = { ...process.env };
+    delete env.GITHUB_TOKEN;
+    let n = 0;
+    for (const { pr } of wanted) {
+        const p = Bun.spawnSync(["gh", "api", `repos/${repo}/pulls/${pr}`], {
+            env,
+        });
+        if (!p.success) {
+            const err = p.stderr.toString();
+            if (/HTTP 404|Not Found|gone/i.test(err)) {
+                put.run(pr, "unknown", null, now);
+            }
+            continue;
+        }
+        try {
+            const j = JSON.parse(p.stdout.toString());
+            const state = j.merged_at ? "merged" : (j.state ?? null);
+            put.run(pr, state, j.merged_at ?? null, now);
+            n++;
+        } catch {
+            /* malformed response */
+        }
+    }
+    return n;
+}
+
+/**
+ * Is `pid` still running the SAME process `gate-run.sh` recorded — never
+ * just "is *a* process running with this number"? The run dir outlives the
+ * process, and a pid is recycled by the OS in hours; a bare `kill(pid, 0)`
+ * from a different process (this one) reads a recycled pid as "still
+ * running" forever, silently dropping that gate run from `gate_runs` once
+ * `TOLARIA_GATE_RUN_KEEP_DAYS` prunes its directory. `gate-run.sh` closes
+ * exactly this gap for itself by pairing the pid with `pid_ident` (`ps`'s own
+ * `lstart` + full command line, captured once at spawn into `pidstart`); this
+ * mirrors that check from a second process. No `pidstart` recorded (an older
+ * run predating that file, or one gate-run.sh itself could not identify) is
+ * treated as NOT alive — the safe direction, since a duplicate ingest of a
+ * finished run is idempotent and a run wrongly believed live is invisible
+ * forever.
+ */
+function isRunGateAlive(pid: number, pidstart: string | null): boolean {
+    if (!pidstart) return false;
+    try {
+        process.kill(pid, 0);
+    } catch {
+        return false;
+    }
+    const p = Bun.spawnSync([
+        "ps",
+        "-o",
+        "lstart=,command=",
+        "-p",
+        String(pid),
+    ]);
+    if (!p.success) return false;
+    const ident = p.stdout.toString().split("\n")[0].replace(/ +/g, " ").trim();
+    return ident === pidstart.trim();
+}
+
+/**
+ * Mirror `gate-run.sh`'s cache dir into `gate_runs` before its own
+ * `TOLARIA_GATE_RUN_KEEP_DAYS` pruning drops it (issue #3777, ADR 0136 rows
+ * 3 and 4). A run still in flight is skipped and revisited on the next
+ * ingest — reading it now would freeze an incomplete log's lane parse and a
+ * not-yet-written `green` marker into the row forever, since a run dir's
+ * `started` stamp (this function's dedup key) does not change again once the
+ * run begins.
+ */
+function ingestGateRuns(db: Sqlite): number {
+    const root = join(
+        process.env.XDG_CACHE_HOME ?? join(homedir(), ".cache"),
+        "tolaria/gate-runs"
+    );
+    if (!existsSync(root)) return 0;
+
+    const seenStarted = new Map(
+        db
+            .query<{ run: string; started: number | null }, []>(
+                "SELECT run, started FROM gate_runs"
+            )
+            .all()
+            .map((r) => [r.run, r.started])
+    );
+    const put = db.prepare(
+        `INSERT OR REPLACE INTO gate_runs
+         (run, cmd, head, base, lane, green, started, ingested)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    );
+    const now = Math.floor(Date.now() / 1000);
+    let n = 0;
+    for (const run of readdirSync(root)) {
+        const dir = join(root, run);
+        if (!statSync(dir).isDirectory()) continue;
+        const readOpt = (name: string): string | null => {
+            try {
+                return readFileSync(join(dir, name), "utf8").trim();
+            } catch {
+                return null;
+            }
+        };
+        const cmd = readOpt("command");
+        const startedStr = readOpt("started");
+        if (!cmd || startedStr === null) continue;
+        const started = Number(startedStr);
+        if (seenStarted.has(run) && seenStarted.get(run) === started) continue;
+
+        const pidStr = readOpt("pid");
+        const pid = pidStr ? Number(pidStr) : null;
+        const pidstart = readOpt("pidstart");
+        if (pid !== null && !Number.isNaN(pid) && isRunGateAlive(pid, pidstart))
+            continue;
+
+        const log = readOpt("log") ?? "";
+        put.run(
+            run,
+            cmd,
+            readOpt("head"),
+            readOpt("base"),
+            parseLaneLine(log),
+            existsSync(join(dir, "green")) ? 1 : 0,
+            started,
+            now
+        );
+        n++;
+    }
+    return n;
+}
+
+/**
+ * Parse every `health-main.ts` per-sha log under `.claude/telemetry/health/`
+ * into the durable `health_runs` table (issue #3777, ADR 0136 row 3). Each
+ * log is immutable once written — "deduplicated by sha" makes a sha
+ * re-gated (and so re-logged) rare — so one already in the table is never
+ * re-read.
+ */
+function ingestHealthRuns(db: Sqlite): number {
+    const dir = join(PROJECT_DIR, ".claude/telemetry/health");
+    if (!existsSync(dir)) return 0;
+
+    const seen = new Set(
+        db
+            .query<{ sha12: string }, []>("SELECT sha12 FROM health_runs")
+            .all()
+            .map((r) => r.sha12)
+    );
+    const put = db.prepare(
+        "INSERT OR REPLACE INTO health_runs (sha12, red, ts) VALUES (?, ?, ?)"
+    );
+    let n = 0;
+    for (const file of readdirSync(dir)) {
+        const m = file.match(/^([0-9a-f]{12})\.log$/);
+        if (!m) continue;
+        const sha12 = m[1];
+        if (seen.has(sha12)) continue;
+        const path = join(dir, file);
+        let content: string;
+        let mtimeS: number;
+        try {
+            content = readFileSync(path, "utf8");
+            mtimeS = Math.floor(statSync(path).mtimeMs / 1000);
+        } catch {
+            continue;
+        }
+        const red = parseHealthLogRed(content);
+        if (red === null) continue; // incomplete/unparseable — revisit later
+        put.run(sha12, red ? 1 : 0, mtimeS);
+        n++;
+    }
+    return n;
+}
+
 const reset = process.argv.includes("--reset");
 if (reset && existsSync(DB_PATH)) {
     rmSync(DB_PATH, { force: true });
@@ -1112,6 +1368,9 @@ async function main(): Promise<void> {
     const runs = rebuildAgentRuns(db);
     const attributed = attributeIssues(db);
     const fetched = refreshIssueMeta(db);
+    const fetchedPrs = refreshPrMeta(db);
+    const gateRuns = ingestGateRuns(db);
+    const healthRuns = ingestHealthRuns(db);
     db.run("INSERT OR REPLACE INTO meta (k, v) VALUES ('last_ingest', ?)", [
         String(Date.now()),
     ]);
@@ -1130,7 +1389,9 @@ async function main(): Promise<void> {
             `(total ${totals.spans} spans, ${totals.llm} messages, ${runs} agent runs, ` +
             (deduped ? `${deduped} duplicate response rows collapsed, ` : "") +
             (reclassified ? `${reclassified} spans reclassified, ` : "") +
-            `${attributed} issue-attributed, +${fetched} issue metas) → ${DB_PATH}`
+            `${attributed} issue-attributed, +${fetched} issue metas, ` +
+            `+${fetchedPrs} PR metas, +${gateRuns} gate runs, ` +
+            `+${healthRuns} health runs) → ${DB_PATH}`
     );
     db.close();
 }
