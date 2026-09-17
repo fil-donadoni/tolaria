@@ -32,13 +32,14 @@ import { appendFileSync, copyFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { REGENERATE_MARKER } from "./lib/generated-artifacts";
+import { writeStderrSync } from "./lib/merge-driver-io";
 
 // git invokes a merge driver with cwd at the top of the working tree and
 // substitutes %O (base), %A (ours — and the file to write), %B (theirs),
 // %P (the path being merged, for messages).
 const [base, ours, theirs, path] = process.argv.slice(2);
 if (!base || !ours || !theirs) {
-    process.stderr.write(
+    writeStderrSync(
         "merge-driver-regenerated: expected %O %A %B %P as arguments\n"
     );
     process.exit(2);
@@ -92,14 +93,14 @@ if (markerPath.status !== 0) {
     // No marker means no safety net, and a silently side-taken artifact is the
     // exact failure this driver exists to prevent — so fail loudly and let git
     // report a conflict the operator can see.
-    process.stderr.write(
+    writeStderrSync(
         `merge-driver-regenerated: cannot locate the git dir to mark ${label} for regeneration\n`
     );
     done(1);
 }
 appendFileSync(markerPath.stdout.trim(), `${label}\n`);
 
-process.stderr.write(
+writeStderrSync(
     `merge-driver-regenerated: ${label} carries whole-file state — took ours and marked it for regeneration ` +
         `(a generated artifact is regenerated, not merged — issue #3069)\n`
 );

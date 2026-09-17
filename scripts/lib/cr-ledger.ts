@@ -853,6 +853,15 @@ function mergeEntry(
     // a `cr:sync` moved the rule text and each side re-read it. Prefer the
     // side that MOVED off the base hash — that is the re-read; if both moved,
     // ours, and the next `cr:lint` reds a stale hash as `drifted` anyway.
+    //
+    // With NO base — both sides ADDED the entry — nothing in the inputs can
+    // arbitrate, and `merge3` falls through to ours. That is safe in both
+    // directions rather than lucky: the only arbiter is the CR text at the
+    // merged tip, which `cr:lint` consults by recomputing the hash. Either
+    // ours matches the tip, and it is the confirmation that was valid there,
+    // or it reds as `drifted` and a reader re-confirms. A stale confirmation
+    // is never silently accepted, so the cost of choosing wrong is one
+    // re-confirmation, never a false green (review of PR #3844, issue #3857).
     const ruleHash =
         confirmed.length === 1
             ? confirmed[0].ruleHash
