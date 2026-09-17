@@ -59,18 +59,20 @@
 //      (`buildTriggerItem`'s `...self` spread, `gre/triggers.ts`), a snapshot
 //      taken when the trigger was built.
 //
-// Step 2 is deliberately NOT a declared `interveningIf`, and the difference is
-// load-bearing here in a way it is not for squad. `resolveTopOfStackInner`
-// evaluates a declared `interveningIf` against the LIVE permanent, and
-// CR 400.7 makes a blink that reuses the instance id read a
-// `resetBattlefieldTransientState`-cleared payment record — the divergence
-// issue #2042 found. The stack item's own copy is unaffected by anything that
-// happens to the permanent after the trigger was built, which is also why
-// killing the creature in response still produces the token. It also covers
-// strictly more: CR 707.10 puts a copy of an ability on the stack without it
-// being activated, and nothing re-checks a trigger condition for it — so the
-// check-time gate does not run for a copy at all, and the resolution-time
-// branch is the only gate a copied offspring trigger ever passes through.
+// Step 2 is deliberately NOT a declared `interveningIf`. Blink is NOT the
+// reason — that story is retired (issue #2042): `removePermanentTo` stamps a
+// departure-time LKI snapshot (`StackItem.sourceLki`) onto every stack item
+// sourced from the departing instance and `resolveTopOfStackInner`
+// (`gre/state.ts`) prefers it over the live permanent, so a declared
+// `interveningIf` here would re-read the same record this branch reads even
+// after a CR 400.7 return cleared the new object's. The reason that survives
+// is CR 707.10: a copy of an ability is put on the stack without being
+// activated and nothing re-checks a trigger condition for it, so the
+// check-time gate never runs for a copy and the resolution-time branch is the
+// only gate a copied offspring trigger passes through. Authority for the whole
+// rule is `additionalCostPaidCondition`'s doc block
+// (`cards/abilities/triggers/shared.ts`); Benalish Emissary (`inv/white.ts`)
+// is the shipped card that settled it.
 //
 // Squad (CR 702.157a) needs no such branch only because its token COUNT is the
 // payment tally itself and the Op skips a non-positive count. Offspring makes

@@ -197,9 +197,20 @@ describe("shipped kickers[] entries obey their keyword's table row (ADR 0085)", 
         ).toEqual([]);
     });
 
-    // ADR 0085 § Decision 4, delivered by issue #2079: the twin must be THE
-    // twin, and the "and vice versa" direction — a card carrying the twin
-    // trigger but no cost entry declaring the keyword — is checked too.
+    // ADR 0085 § Decision 4, delivered by issue #2079: both directions of the
+    // LINK between a cost entry and its trigger half — a cost entry with no
+    // twin, and a card carrying the twin trigger but no cost entry declaring
+    // the keyword.
+    //
+    // What these rows check is the LINK, not the twinned ability's CONTENT: a
+    // marker stamped onto an ability that does something else entirely would
+    // pass. That is deliberate. The content of the twin is per-KEYWORD
+    // (CR 702.175a's 1/1 token copy is not CR 702.174b's "[effect]"), and this
+    // file's whole value is being keyword-generic — a content check here would
+    // be the hardcoded-on-offspring shape issue #2079 explicitly ruled out.
+    // The content is proved per keyword instead, by the factory's own test
+    // (`cards/abilities/__tests__/offspring.test.ts`), and the marker is
+    // stamped ONLY by that factory, never by hand on a card.
     //
     // Both directions need the trigger to be RECOGNISABLE, which is what
     // `TriggeredAbility.additionalCostTwin` is for. It has to be an explicit
