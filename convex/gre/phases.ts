@@ -2973,6 +2973,11 @@ const TURN_SCOPED_GLOBAL_FLAGS = [
     // CR 614 / 514.2 — High Tide's "until end of turn" extra-{U} rider, same
     // postcombat-main-phase exposure as Deep Water above.
     "highTideThisTurn",
+    // CR 601.2f / 514.2 (issue #3340) — the floating "spells you cast this turn
+    // cost {N} less" reductions (Urza, Planeswalker's +2). A "this turn"
+    // effect, so it must survive END_OF_COMBAT and still discount a cast made
+    // in the POSTCOMBAT main phase; CLEANUP is the boundary that ends it.
+    "spellCostReductionsThisTurn",
     // CR 614 / 514.2 — Chaos Moon's parametrized "until end of turn" land-mana
     // riders (re-armed by the next upkeep trigger).
     "landManaRidersThisTurn",

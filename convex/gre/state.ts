@@ -193,7 +193,9 @@ import {
     INLINE_DELAYED_TRIGGER_ID,
     runDelayedTriggerBody,
 } from "./effects/interpreter";
-import { matchesPermanentFilter } from "../cards/filters";
+import { matchesPermanentFilter, matchesSpellFilter } from "../cards/filters";
+import { getEffectiveColors } from "../cards/effectiveColors";
+import type { SpellFilter } from "../cards/filters";
 import { castProhibitionReason } from "../cards/castRestrictions";
 // CR 307.1 / 117.1a / 601.3a (issue #2473) — the shared "cast off sorcery
 // timing" snapshot predicate, called only inside function bodies below
@@ -5604,6 +5606,38 @@ export type GameState = {
      *  player's next turn (via `advanceTurn`) — the "until your next turn"
      *  boundary, mirroring `islandSanctuaryProtection`, NOT CLEANUP. */
     castTimingFlashGrants?: { playerId: string; cardTypes?: CardType[] }[];
+    /** CR 601.2f / 514.2 (issue #3340, Urza, Planeswalker's +2: "Artifact,
+     *  instant, and sorcery spells you cast this turn cost {2} less to cast")
+     *  — FLOATING, turn-scoped, per-player cost reductions over the spells
+     *  their `playerId` casts. The floating twin of the `cost-modifier`
+     *  StaticEffect: that one lives on a permanent and dies with it, this one
+     *  outlives its source entirely (Urza's +2 keeps reducing after Urza has
+     *  left) and ends at CLEANUP, the "this turn" boundary of CR 514.2 —
+     *  NOT `advanceTurn`'s "until your next turn" boundary that
+     *  `castTimingFlashGrants` above uses.
+     *
+     *  Read by the single 601.2f collector `getCostModifiers`, in the same
+     *  accumulation as the battlefield scan and the two self-host arms, so
+     *  every cast path, `canAffordCard`'s affordability probe and the Bot's
+     *  `enumerateCastMoves` see it without a second code path. `filter` is an
+     *  ordinary `SpellFilter` — the same selector `spellCastTrigger` matches a
+     *  cast against — so the reduction is filter-shaped, never type-hard-coded
+     *  (Urza: `{ types: ["Artifact", "Instant", "Sorcery"] }`); omitted matches
+     *  every spell that player casts. `costReduction` is the shared
+     *  `CostReductionAmount`, resolved by `resolveCostReductionGeneric` exactly
+     *  as the static site resolves its own, so both can only ever reduce
+     *  GENERIC mana and both floor at {0}.
+     *
+     *  A LIST, and additive rather than idempotent: CR 601.2f is "minus all
+     *  cost reductions", so two +2 activations in a turn genuinely stack to
+     *  {4}, and two different filters must not clobber each other. SPELL-only,
+     *  per the Oracle's "spells you cast" — the `kind: "ability"` arm of
+     *  `getCostModifiers` never folds these in. */
+    spellCostReductionsThisTurn?: {
+        playerId: string;
+        costReduction: CostReductionAmount;
+        filter?: SpellFilter;
+    }[];
     /** CR 609.4b / 118.14 (issue #2890) — per-player ONE-SHOT "for one spell
      *  this turn, you may spend mana as though it were mana of any type/color"
      *  grants (North Star). Keyed by player id; a LIST because each activation
@@ -20069,6 +20103,28 @@ export function buildSpellContext(
             state.castTimingFlashGrants = list;
         },
 
+        reduceSpellCostThisTurn(
+            playerId: string,
+            costReduction: CostReductionAmount,
+            filter?: SpellFilter
+        ): void {
+            // CR 601.2f — "spells you cast this turn cost {N} less to cast"
+            // (Urza, Planeswalker's +2). Additive, NOT idempotent: 601.2f is
+            // "minus ALL cost reductions", so two activations in one turn
+            // genuinely stack. The entry is floating — it is deliberately not
+            // keyed to a source permanent, because the reduction outlives its
+            // source (Urza's +2 keeps applying after Urza dies), which is the
+            // whole reason it cannot be a `cost-modifier` static. Cleared at
+            // CLEANUP (CR 514.2).
+            const list = state.spellCostReductionsThisTurn ?? [];
+            list.push(
+                filter
+                    ? { playerId, costReduction, filter }
+                    : { playerId, costReduction }
+            );
+            state.spellCostReductionsThisTurn = list;
+        },
+
         grantSpellManaSubstitution(
             playerId: string,
             breadth: ManaSubstitutionBreadth
@@ -25782,21 +25838,40 @@ function resolveCostReductionGeneric(
  *  `ability` is therefore REQUIRED of every `kind: "ability"` caller that has
  *  one to hand; omitting it yields the battlefield-scan modifiers alone.
  *
- *  `activatorId` is who "you" is in that reduction's own text. CR 602.2b makes
- *  rules 601.2b–i (601.2f included) apply to activating an ability exactly as
- *  they apply to casting a spell, and the player performing them is the one
- *  ACTIVATING — which is not the source's controller for an
- *  `activatableByAnyPlayer` / `activatableByOpponentsOnly` /
- *  `activatableByEnchantedController` ability. Defaults to the source's
- *  controller, which is the same player in every ordinary case. */
+ *  `announcerId` is who "you" is in a reduction's own text: the player
+ *  PERFORMING the announcement, for BOTH arms.
+ *
+ *  For an ABILITY that is the activator — CR 602.2b makes rules 601.2b–i
+ *  (601.2f included) apply to activating an ability exactly as they apply to
+ *  casting a spell, and the player performing them is the one ACTIVATING,
+ *  which is not the source's controller for an `activatableByAnyPlayer` /
+ *  `activatableByOpponentsOnly` / `activatableByEnchantedController` ability.
+ *
+ *  For a SPELL it is the CASTER (CR 601.2a — the player who moves the card to
+ *  the stack "becomes its controller"), and that is NOT the same as
+ *  `card.controllerId` for a cross-player exile cast: a card stolen by Robber
+ *  of the Rich or exiled by Dauthi Voidwalker stays in the DEFENDER's exile
+ *  carrying the DEFENDER's `controllerId` (CR 400.7), and neither `moveCard`
+ *  nor `castSubjectView` rewrites it. `castZoneOwner` (`gre/activation.ts`)
+ *  exists for exactly this divergence. Reading `card.controllerId` as the
+ *  caster is wrong in BOTH directions — it hides the caster's own reduction
+ *  from their cast, and it lets the zone owner's reduction pay for someone
+ *  else's spell.
+ *
+ *  Defaults to the card/source's own `controllerId`, which is the same player
+ *  in every ordinary case (a hand cast, a graveyard cast — no cross-player
+ *  graveyard-cast primitive exists — and an ordinary activation). */
 export function getCostModifiers(
     state: GameState,
     card: PermanentView &
         Pick<Partial<CardInstanceState>, "castFromExileCostIncrease">,
     kind: "spell" | "ability",
     ability?: ActivatedAbility,
-    activatorId?: string
+    announcerId?: string
 ): CostModifiers {
+    // CR 601.2a / 602.2b — "you" in every reduction below is the announcing
+    // player, defaulted once here rather than at each of the four reads.
+    const announcer = announcerId ?? card.controllerId;
     const increase: Record<string, number> = {};
     // CR 601.2f (issue #2383) — an OBJECT-SCOPED cost increase stamped on the
     // announced card itself by an exile-cast grant ("A spell cast this way
@@ -25828,7 +25903,7 @@ export function getCostModifiers(
             for (const effect of effects) {
                 if (effect.kind !== "cost-modifier") continue;
                 // Two separate calls (not one shared `pred` reference) because
-                // `appliesToAbility` takes fourth/fifth `ability`/`activatorId`
+                // `appliesToAbility` takes fourth/fifth `ability`/`announcerId`
                 // arguments `appliesToSpell` doesn't have (Zirda, the
                 // Dawnwaker's "aren't mana abilities" clause needs the ability;
                 // its "abilities YOU ACTIVATE" needs the activator, CR 602.1a,
@@ -25847,7 +25922,7 @@ export function getCostModifiers(
                               STATIC_EFFECT_CTX,
                               source,
                               ability,
-                              activatorId ?? card.controllerId
+                              announcer
                           );
                 if (!applies) continue;
                 if (effect.costIncrease) {
@@ -25872,19 +25947,80 @@ export function getCostModifiers(
             }
         }
     }
+    // CR 601.2f / 514.2 (issue #3340) — the FLOATING turn-scoped reductions
+    // (`reduceSpellCostThisTurn`, Urza, Planeswalker's +2). Folded here, in the
+    // same accumulation as the battlefield scan above, precisely because it is
+    // NOT a battlefield effect: the reduction outlives the permanent that
+    // installed it, so no `cost-modifier` static can express it. Accumulating
+    // it in this ONE collector is what makes every cast path, `canAffordCard`'s
+    // affordability probe and the Bot's `enumerateCastMoves` honour it without
+    // a second code path — and what floors it at {0} via `applyCostModifiers`.
+    //
+    // SPELL-only, per the Oracle's "spells you cast": an activated ability's
+    // cost never sees these (CR 601.2f applies to a SPELL's total cost; an
+    // ability's is 602.2b's separate determination, and no shipped wording
+    // scopes a floating reduction to both).
+    //
+    // "You cast" is the ANNOUNCING player (CR 601.2a), which is `announcer` and
+    // NOT `card.controllerId` — see this function's `announcerId` doc for the
+    // cross-player exile cast where the two diverge. So an entry only applies
+    // to its own player's casts; an opponent's spell is never reduced.
+    if (kind === "spell" && state.spellCostReductionsThisTurn?.length) {
+        // The announced object as a `MatchableSpell`. Colours come from
+        // `getEffectiveColors` (`cards/effectiveColors.ts`), which is the ONE
+        // declared derivation of a card's CURRENT colours: it routes through
+        // `getInstanceManaCost` (so an instance `manaCostOverride` or an
+        // embedded fixture cost wins over the registry definition, which is
+        // what the PAYMENT path already charges) and folds in layer 5 —
+        // `colorOverride` and `grantedColors`, CR 105.2 / 202.2 / 613.1e. That
+        // module exists because this derivation had been hand-copied four
+        // times and every copy read the wrong colours; a fifth copy here would
+        // be the same bug (CLAUDE.md § Code Organization — no local copies).
+        //
+        // NOTE this is deliberately NOT byte-identical to the projection
+        // `emitSpellCastEvent` builds for a SPELL_CAST event: that one reads
+        // the registry definition's printed cost and snapshots `item.types`
+        // AFTER the stack item was recomposed, so a BESTOW cast reaches a
+        // trigger as `Enchantment — Aura` (CR 702.103b) while it reaches THIS
+        // fold as the printed creature — the same `CAST_MODE_CENSUS` gap that
+        // already stops Thalia taxing a bestow cast. One filter VOCABULARY,
+        // two announcement snapshots; do not claim they select identically.
+        const announced = {
+            types: card.types,
+            subtypes: card.subtypes,
+            colors: getEffectiveColors(card),
+        };
+        for (const entry of state.spellCostReductionsThisTurn) {
+            if (entry.playerId !== announcer) continue;
+            if (
+                entry.filter !== undefined &&
+                !matchesSpellFilter(announced, entry.filter)
+            ) {
+                continue;
+            }
+            const owner = state.players.find((p) => p.id === entry.playerId);
+            if (!owner) continue;
+            reductionGeneric += resolveCostReductionGeneric(
+                entry.costReduction,
+                owner,
+                state
+            );
+        }
+    }
     if (kind === "spell") {
         const selfCardId = (card as unknown as { card?: { id?: string } }).card
             ?.id;
         const selfDef = selfCardId ? tryGetDefinition(selfCardId) : null;
         const selfReduction = selfDef?.selfCostReduction;
         if (selfReduction) {
-            const announcer = state.players.find(
-                (p) => p.id === card.controllerId
-            );
-            if (announcer) {
+            // CR 601.2a — the CASTER's board, not the zone owner's: a stolen
+            // Emry counts the artifacts of whoever is casting her. Same
+            // divergence, same class as the floating fold above.
+            const caster = state.players.find((p) => p.id === announcer);
+            if (caster) {
                 reductionGeneric += resolveCostReductionGeneric(
                     selfReduction.costReduction,
-                    announcer,
+                    caster,
                     state
                 );
                 if (
@@ -25908,13 +26044,11 @@ export function getCostModifiers(
     // that declares a floor still contributes it through the scan above.
     if (kind === "ability" && ability?.cost.selfReduction) {
         // CR 602.2b — "for each … you control" counts the ACTIVATOR's board.
-        const announcer = state.players.find(
-            (p) => p.id === (activatorId ?? card.controllerId)
-        );
-        if (announcer) {
+        const activator = state.players.find((p) => p.id === announcer);
+        if (activator) {
             reductionGeneric += resolveCostReductionGeneric(
                 ability.cost.selfReduction,
-                announcer,
+                activator,
                 state
             );
         }
@@ -26199,7 +26333,12 @@ export function isPrintedManaCostOnly(
     const card = findOwnedCastSource(player, cardInstanceId)?.card;
     if (!card) return false;
     const printed = normalizeManaCost(cardDef.manaCost, { chosenX });
-    applyCostModifiers(printed, getCostModifiers(state, card, "spell"));
+    // CR 601.2a — the CASTER, explicitly (see `announcerId`): the default
+    // `card.controllerId` is the zone owner for a cross-player exile cast.
+    applyCostModifiers(
+        printed,
+        getCostModifiers(state, card, "spell", undefined, player.id)
+    );
     const keys = new Set([...Object.keys(printed), ...Object.keys(paidCost)]);
     for (const key of keys) {
         if ((printed[key] ?? 0) !== (paidCost[key] ?? 0)) return false;

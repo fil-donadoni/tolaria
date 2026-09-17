@@ -2502,7 +2502,13 @@ function canPotentiallyPayCost(
     // button that leads nowhere). Structural, not per-branch, so a new cast
     // mechanism cannot re-open the hole by omission.
     if (state) {
-        applyCostModifiers(cost, getCostModifiers(state, card, "spell"));
+        // CR 601.2a — the CASTER, explicitly: `getCostModifiers` defaults to
+        // `card.controllerId`, which is the ZONE OWNER for a cross-player
+        // exile cast (Robber of the Rich) and not the announcing player.
+        applyCostModifiers(
+            cost,
+            getCostModifiers(state, card, "spell", undefined, player.id)
+        );
     }
     const totalRequired =
         (cost.X ?? 0) + MANA_COLORS.reduce((sum, c) => sum + (cost[c] ?? 0), 0);

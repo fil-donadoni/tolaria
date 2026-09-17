@@ -2165,9 +2165,9 @@ export interface AnimateSpec {
 // Defined in `./filters.ts` (single source of truth, ADR 0002). Re-exported
 // here for back-compat with existing imports from `convex/cards/types`.
 
-import type { PermanentFilter } from "./filters";
+import type { PermanentFilter, SpellFilter } from "./filters";
 import type { ContinuousEffect } from "../gre/continuousEffects";
-export type { PermanentFilter } from "./filters";
+export type { PermanentFilter, SpellFilter } from "./filters";
 
 // --- Compiled triggered-ability descriptors (issue #2698) ---
 //
@@ -5609,6 +5609,29 @@ export interface SpellContext {
      *  `islandSanctuaryProtection`'s "until your next turn" boundary. `cardTypes`
      *  omitted grants flash for every spell. */
     grantCastTiming: (playerId: string, cardTypes?: CardType[]) => void;
+    /** CR 601.2f (issue #3340, Urza, Planeswalker's +2) — installs a FLOATING
+     *  turn-scoped cost reduction on the spells `playerId` casts for the rest
+     *  of the turn ("Artifact, instant, and sorcery spells you cast this turn
+     *  cost {2} less to cast"). Appends an entry to
+     *  `state.spellCostReductionsThisTurn`, folded into the announced cost by
+     *  the single 601.2f collector `getCostModifiers` beside the battlefield
+     *  `cost-modifier` scan — so it reduces only the GENERIC portion, is
+     *  floored at {0} by `applyCostModifiers`, and reaches every cast path and
+     *  affordability probe with no per-site wiring.
+     *
+     *  Unlike the `cost-modifier` STATIC it skins, this reduction is NOT tied
+     *  to a permanent: it keeps applying after its source has left the
+     *  battlefield, and ends at CLEANUP (CR 514.2). `filter` narrows it to the
+     *  matching spells (omitted = every spell); `costReduction` takes the same
+     *  {@link CostReductionAmount} every other 601.2f site carries, resolved by
+     *  the shared `resolveCostReductionGeneric`. Additive, NOT idempotent —
+     *  two resolutions give two reductions (CR 601.2f "minus all cost
+     *  reductions"). Spell-only: an activated ability's cost never sees it. */
+    reduceSpellCostThisTurn: (
+        playerId: string,
+        costReduction: CostReductionAmount,
+        filter?: SpellFilter
+    ) => void;
     /** CR 609.4b / 118.14 (issue #2890) — grants `playerId` a ONE-SHOT "for one
      *  spell this turn, you may spend mana as though it were mana of any
      *  type/color to pay that spell's mana cost" permission (North Star). Adds
@@ -8949,6 +8972,31 @@ export type CostReductionAmount =
     | ManaCost
     | CountDrivenCostReduction
     | DomainDrivenCostReduction;
+
+/** The fixed-literal {@link CostReductionAmount} narrowed to what a CR 601.2f
+ *  reduction can actually apply (issue #3340): GENERIC mana only, and no
+ *  variable `{X}` marker.
+ *
+ *  A structural subset of {@link ManaCost} rather than a brand, so it is
+ *  assignable to `ManaCost` wherever the engine wants one (it feeds
+ *  `resolveCostReductionGeneric` unchanged) while making the two shapes that
+ *  would reduce less than they read a COMPILE error at the card, not a runtime
+ *  validator error at the gate:
+ *
+ *   - a coloured pip (`{ U: 1 }`, or a mixed `{ generic: 1, U: 1 }`) — 601.2f
+ *     reductions never touch coloured pips, so the pip is silently dropped;
+ *   - `X: "X"` — a reduction installed at resolution has no cast in progress
+ *     and so no chosen X to read.
+ *
+ *  Excess-property checking only fires on object LITERALS, which is where card
+ *  definitions live; `isFixedGenericReduction`
+ *  (`gre/effects/validate.ts`) is still the authority for a value that reaches
+ *  the DSL any other way, and the two must agree. */
+export type FixedGenericReduction = {
+    X?: number;
+    generic?: number;
+    xFactor?: number;
+};
 
 /** CR 601.2f SELF-HOST cost reduction (ADR 0063): a spell's OWN intrinsic
  *  reduction to its own cast cost, declared directly on its `CardDefinition`
@@ -14050,6 +14098,66 @@ export type EffectOp =
           op: "grantCastTiming";
           player: EffectPlayerRef;
           cardTypes?: CardType[];
+      }
+    /** CR 601.2f (issue #3340 — Urza, Planeswalker's +2: "Artifact, instant,
+     *  and sorcery spells you cast this turn cost {2} less to cast") — install
+     *  a FLOATING, turn-scoped, controller-scoped cost reduction over the
+     *  spells `player` casts for the rest of the turn. A thin declarative skin
+     *  over `SpellContext.reduceSpellCostThisTurn`, one execution path
+     *  (ADR 0045): the entry is appended to
+     *  `state.spellCostReductionsThisTurn` and folded into the announced cost
+     *  by the SINGLE 601.2f collector `getCostModifiers` (`gre/state.ts`),
+     *  beside the battlefield `cost-modifier` scan and the self-host arms —
+     *  so every cast path, the affordability probe (`canAffordCard`) and the
+     *  Bot's `enumerateCastMoves` inherit it with no per-site wiring, and
+     *  `applyCostModifiers` floors the result at {0} ("It can't be reduced to
+     *  less than {0}").
+     *
+     *  DISTINCT from the `cost-modifier` STATIC (`StaticCostModifier`), which
+     *  is a PERMANENT's continuous ability: it applies while its carrier is on
+     *  the battlefield and stops the moment the carrier leaves. This Op is the
+     *  floating twin — it outlives its source entirely (Urza's +2 keeps
+     *  reducing after Urza dies) and expires at CLEANUP (CR 514.2, "all 'until
+     *  end of turn' and 'this turn' effects end").
+     *
+     *  `filter` is an ordinary {@link SpellFilter} — the SAME selector
+     *  `spellCastTrigger` matches a cast against (types / subtypes / colors
+     *  and their negatives), never a hard-coded type list: Urza's clause is
+     *  `{ types: ["Artifact", "Instant", "Sorcery"] }`, and a later "creature
+     *  spells you cast this turn cost {1} less" needs no new Op. Omitted =
+     *  every spell the player casts.
+     *
+     *  `amount` is the FIXED-literal member of {@link CostReductionAmount},
+     *  which is what the state entry and the primitive carry, so the floating
+     *  site and the static site share `resolveCostReductionGeneric` and can
+     *  never disagree about what a reduction may touch (generic mana only —
+     *  coloured pips are never reduced, CR 601.2f).
+     *
+     *  It must contribute at least one unit of GENERIC mana and must carry
+     *  NEITHER a coloured pip NOR the variable `{X}` marker — all three are
+     *  validator-rejected, because each would validate cleanly and then reduce
+     *  less than it reads: 601.2f reductions never touch coloured pips (so a
+     *  mixed `{ generic: 1, U: 1 }` silently drops its `{U}`), and a reduction
+     *  installed at resolution has no cast in progress and so no chosen X to
+     *  read. Generic may arrive as a numeric `X` or via the `generic` field;
+     *  both fold into the same total.
+     *
+     *  The count-driven and
+     *  Domain-driven members are deliberately NOT reachable from the DSL yet:
+     *  their `countFilter` is a `PermanentFilter`, which the Effect Script
+     *  validator has no fail-closed path for, and no shipped card wants a
+     *  floating count-driven reduction. Widening it later is a validator, not
+     *  a re-plumb.
+     *
+     *  SCOPED TO SPELLS, per the Oracle's "spells you cast": an activated
+     *  ability's cost never sees it (`getCostModifiers`' `kind === "ability"`
+     *  arm skips the fold). Additive — two resolutions give two reductions.
+     *  Skipped when the player cannot be resolved (CR 608.2b). */
+    | {
+          op: "reduceSpellCostThisTurn";
+          player: EffectPlayerRef;
+          amount: FixedGenericReduction;
+          filter?: SpellFilter;
       }
     /** CR 609.4b / 118.14 (issue #2890 — North Star: "For one spell this turn,
      *  you may spend mana as though it were mana of any type to pay that
