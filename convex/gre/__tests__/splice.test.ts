@@ -392,6 +392,42 @@ describe("splice — the added text's targets are the one shape that fails CLOSE
                 targetRequirement: { type: ["Creature"], count: 1 },
             })
         ).toBe(false);
+        // CR 702.47c gives the spell "the rules text of EACH of the spliced
+        // cards" — all of it. `spliceMergedEffects` contributes `effects` and
+        // nothing else, so a splice card that also prints a triggered, static
+        // or activated ability would be paid for and deliver half its text.
+        expect(
+            spliceCardIsSupported({
+                ...throughTheBreach,
+                triggeredAbilities: [
+                    {
+                        id: "probe",
+                        oracleText: "When this happens, nothing does.",
+                        event: "SPELL_CAST",
+                        effects: [],
+                    },
+                ],
+            } as unknown as typeof throughTheBreach)
+        ).toBe(false);
+        expect(
+            spliceCardIsSupported({
+                ...throughTheBreach,
+                staticAbilities: ["flying"],
+            })
+        ).toBe(false);
+        expect(
+            spliceCardIsSupported({
+                ...throughTheBreach,
+                activatedAbilities: [
+                    {
+                        id: "probe",
+                        oracleText: "{T}: Nothing.",
+                        cost: {},
+                        effects: [],
+                    },
+                ],
+            } as unknown as typeof throughTheBreach)
+        ).toBe(false);
         // An imperative body has no interpreter resume cursor for the merge to
         // extend, so it is not a splice target either.
         expect(
