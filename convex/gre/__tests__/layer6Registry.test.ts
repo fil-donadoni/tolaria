@@ -621,6 +621,14 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
 
             removePermanentTo(state, "song", "graveyard");
             recomputeContinuousEffects(state);
+            // CR 611.3d (issue #3726) — the Song's own text continues the
+            // effect until end of turn, so the departure alone does not give
+            // the keyword back: the strip is now a stored duration-scoped
+            // entry. The BASE is what this test is about, and it is the base
+            // that has to be right on both sides of the boundary.
+            expect(count(loaded, "may-choose-not-to-untap")).toBe(0);
+            state.phase = "CLEANUP";
+            finalizeCleanup(state);
             expect(count(loaded, "may-choose-not-to-untap")).toBe(1);
         });
 
