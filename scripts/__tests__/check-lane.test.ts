@@ -1174,10 +1174,13 @@ describe("check-lane — `--plan`: the classification without the gate (ADR 0136
      * so the short path would have been keyed on a session's judgment
      * ("this looks like a simple card") instead.
      *
-     * Proof-of-failure: dropped `planOnly` from `parseArgs`'s return (and
-     * the `--plan` case from its accept list) — the first two tests went
-     * red (`planOnly` undefined; `--plan` rejected as an unknown argument).
-     * Reverted.
+     * Proof-of-failure, one break per test: dropping `planOnly` from
+     * `parseArgs`'s return reddened the first; letting `parseArgs` `continue`
+     * over every argument instead of calling `fail` reddened the second;
+     * having `renderClassification` pass a fabricated
+     * `{ outcomes: [], ok: true, totalMs: 0 }` reddened the third; moving
+     * `main()`'s `if (planOnly)` block below the `executePlan` call reddened
+     * the fourth. Each reverted.
      */
     it("accepts --plan and reports it, alongside --json and --base=", () => {
         expect(parseArgs(["--plan"])).toEqual({
