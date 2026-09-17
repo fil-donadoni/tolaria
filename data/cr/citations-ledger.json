@@ -22977,6 +22977,7 @@
         {"id":"605.1a","line":"// CR 605.1a note above) so the sacrifice choice can be made.","sites":1,"status":"baseline"},
         {"id":"605.1a","line":"// CR 605.1a — NO tap-cost requirement, so no-{T} animate creaturelands like","sites":1,"status":"baseline"},
         {"id":"605.1a","line":"// CR 605.1a — NONE of the three abilities are mana abilities, despite the","sites":1,"status":"baseline"},
+        {"id":"605.1a","line":"// CR 605.1a — NOT a mana ability, so this is the arm a cost","sites":1,"status":"confirmed","ruleHash":"ab1518e4c1e43bc2"},
         {"id":"605.1a","line":"// CR 605.1a — NOT a mana ability: it is a loyalty ability, which is","sites":1,"status":"baseline"},
         {"id":"605.1a","line":"// CR 605.1a — a card whose every activated ability is a mana ability is","sites":1,"status":"baseline"},
         {"id":"605.1a","line":"// CR 605.1a — a mana ability does NOT use the stack, so it is paid","sites":1,"status":"baseline"},
