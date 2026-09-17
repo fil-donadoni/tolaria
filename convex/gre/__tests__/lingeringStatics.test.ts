@@ -13,11 +13,15 @@ import { describe, it, expect } from "vitest";
 import {
     applyExistingGrantsTo,
     beginApplyingStaticEffects,
+    recomputeContinuousEffects,
     removePermanentTo,
     stopApplyingStaticEffects,
     type CardInstanceState,
     type GameState,
 } from "../state";
+import { withTemporaryDefinition } from "../../cards";
+import type { CardDefinition } from "../../cards/types";
+import { grizzlyBears } from "../../cards/sets/lea/green";
 import { getEffectivePower, getEffectiveToughness } from "../layers";
 import { finalizeCleanup } from "../phases";
 import { hasManaAbility } from "../constants";
@@ -95,6 +99,76 @@ describe("a static effect that lingers after its source leaves (CR 611.3b/611.3d
         expect(hasManaAbility(late)).toBe(true);
     });
 
+    it("freezes the RELEASING direction too: a permanent that stops matching the predicate keeps the effect (CR 611.2c)", () => {
+        // The other half of "the set won't change", and the half Titania's Song
+        // cannot exercise: its predicate reads PRINTED types, which nothing can
+        // flip. So the mechanism gets a fixture whose predicate CAN flip — a
+        // lingering keyword grant gated on the target being tapped — and the
+        // target is untapped after the source has left. Under CR 611.3a the
+        // grant would be released; under CR 611.2c, which is what a lingering
+        // effect is, it is not.
+        const gater: CardDefinition = {
+            id: "tapped-gater-3726",
+            rarity: "rare",
+            name: "Tapped Gater",
+            oracleText:
+                "Each tapped creature has flying. If this enchantment leaves the battlefield, this effect continues until end of turn.",
+            manaCost: { X: 2 },
+            types: ["Enchantment"],
+            staticEffects: [
+                {
+                    kind: "keyword-grant",
+                    keyword: "flying",
+                    applies: (target) =>
+                        Boolean((target as { isTapped?: boolean }).isTapped),
+                    lingersAfterSourceLeaves: { phase: "end-of-turn" },
+                },
+            ],
+        };
+        withTemporaryDefinition(gater, () => {
+            const state = makeState();
+            const source = makeInstance(gater.id, {
+                id: "gater-1",
+                controllerId: "p1",
+                zone: "battlefield",
+            });
+            const bear = makeInstance(grizzlyBears.id, {
+                id: "bear-1",
+                controllerId: "p1",
+                zone: "battlefield",
+            });
+            bear.isTapped = true;
+            state.players[0].battlefield.push(source, bear);
+            beginApplyingStaticEffects(state, source);
+            expect(bear.staticAbilities).toContain("flying");
+
+            // Untapping while the source is LIVE releases the grant: CR 611.3a,
+            // the predicate is re-evaluated at every read.
+            bear.isTapped = false;
+            recomputeContinuousEffects(state);
+            expect(bear.staticAbilities ?? []).not.toContain("flying");
+
+            // Re-tap, then let the source leave. The effect is frozen on the
+            // bear as of that moment.
+            bear.isTapped = true;
+            recomputeContinuousEffects(state);
+            expect(bear.staticAbilities).toContain("flying");
+            removePermanentTo(state, "gater-1", "graveyard");
+            expect(bear.staticAbilities).toContain("flying");
+
+            // Now untap. The predicate no longer matches — and the effect is
+            // NOT released, because there is no predicate left to match: the
+            // affected set was determined when the lingering effect began.
+            bear.isTapped = false;
+            recomputeContinuousEffects(state);
+            expect(bear.staticAbilities).toContain("flying");
+
+            state.phase = "CLEANUP";
+            finalizeCleanup(state);
+            expect(bear.staticAbilities ?? []).not.toContain("flying");
+        });
+    });
+
     it("converts to instances + duration entries and NOT to a predicate entry with a longer life (ADR 0082)", () => {
         const { state, song, ring } = withSong();
         const stamp = song.staticSeq;
@@ -132,6 +206,34 @@ describe("a static effect that lingers after its source leaves (CR 611.3b/611.3d
         expect(pt.sublayer).toBe("7a");
         expect(pt.characteristicDefining).toBe(true);
         expect(pt.payload).toEqual({ kind: "pt-set", power: 1, toughness: 1 });
+    });
+
+    it("does not snapshot an UNSTAMPED source, which was not applying at layer 6 (CR 613.7a)", () => {
+        // `deriveLayer6` skips a source with no `staticSeq`: an effect with no
+        // timestamp has no position in the layer and contributes nothing. If
+        // the snapshot read that absence as 0 — the way layers 2-5 and 7 do —
+        // a layer-6 effect that was NOT applying would START applying the
+        // moment its source left, which is the inversion CR 611.2b forbids.
+        const state = makeState();
+        const song = makeInstance(titaniasSong.id, {
+            id: "song-1",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const ring = makeInstance(solRing.id, {
+            id: "ring-1",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        // Pushed WITHOUT `beginApplyingStaticEffects`, so the Song is unstamped.
+        state.players[0].battlefield.push(song, ring);
+        recomputeContinuousEffects(state);
+        expect(song.staticSeq).toBeUndefined();
+        expect(hasManaAbility(ring)).toBe(true);
+
+        removePermanentTo(state, "song-1", "graveyard");
+        expect(state.continuousEffects ?? []).toHaveLength(0);
+        expect(hasManaAbility(ring)).toBe(true);
     });
 
     it("does not snapshot when the source stays on the battlefield (re-attach, detach)", () => {

@@ -61,6 +61,7 @@ import {
     tryGetDefinition,
     isPrintedInSet as isCardPrintedInSet,
 } from "../cards";
+import { declaresLingeringStaticEffect } from "../cards/registry";
 import { resolveTokenStaticEffects } from "../cards/tokenStaticEffects";
 import { getEmblemDefinition, tryGetEmblemDefinition } from "../cards/emblems";
 import { tokenPrintIdFor } from "../cards/tokenPrintLookup";
@@ -9503,7 +9504,13 @@ export function snapshotLingeringStaticEffects(
     source: CardInstanceState
 ): void {
     const cardId = (source.card as { id?: string }).id;
-    const def = cardId ? tryGetDefinition(cardId) : null;
+    // PRD #2064 S7's precheck, one funnel over: a `Set.has` on the id answers
+    // "declares no linger" without a registry lookup or an
+    // `expandDefinition`. This runs on EVERY battlefield departure, which the
+    // ISMCTS search pays on every rollout that kills, sacrifices or bounces
+    // anything, and a handful of cards in the catalogue declare a linger at all.
+    if (!cardId || !declaresLingeringStaticEffect(cardId)) return;
+    const def = tryGetDefinition(cardId);
     const effects = getEffectiveStaticEffects(def, source.chosenModeId);
     if (effects.length === 0) return;
     const snapshots = collectLingeringSnapshots(
@@ -11197,14 +11204,25 @@ export function removePermanentTo(
     // `attachedTo` and are swept by `checkAuraAttachmentSBA`, CR 704.5n).
     // CR 611.3b/611.3d (issue #3726) — before the effects stop applying, freeze
     // the ones the card says CONTINUE past their source (Titania's Song). This
-    // is the only departure funnel, and it must run while the source is still
-    // on the battlefield: the snapshot evaluates the effect's own predicates
+    // is the only departure funnel, and the snapshot must run while the source
+    // is still on the battlefield: it evaluates the effect's own predicates
     // against it. A card declaring no linger returns immediately.
-    snapshotLingeringStaticEffects(state, initial.card);
+    //
+    // It is paired with `stopApplyingStaticEffects` in BOTH branches rather
+    // than hoisted above the `isAura` test, and that is load-bearing. The two
+    // calls bracket the one window in which the frozen entry and the still-live
+    // derived one could both apply, and the aura branch runs a board pass
+    // between them: `unapplyAuraControlChange` calls `syncLayers2to5` with NO
+    // `stoppedSourceIds`, so a snapshot pushed before it would be read
+    // alongside a source the derivation still sees. Keeping the push adjacent
+    // to the stop makes the exclusion structural instead of a property the two
+    // sites have to agree on.
     if (isAura(initial.card)) {
         unapplyAuraControlChange(state, initial.card);
+        snapshotLingeringStaticEffects(state, initial.card);
         stopApplyingStaticEffects(state, initial.card);
     } else {
+        snapshotLingeringStaticEffects(state, initial.card);
         stopApplyingStaticEffects(state, initial.card);
         unapplyAurasAttachedTo(state, cardId);
     }

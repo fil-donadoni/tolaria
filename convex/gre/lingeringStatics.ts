@@ -56,6 +56,7 @@ import type { LayerStateView } from "./layers";
 import { STATIC_EFFECT_CTX, LAYER_7_STATIC_EFFECT_KINDS } from "./layers";
 import { LAYER_2_5_STATIC_EFFECT_KINDS } from "./layers2to5";
 import { LAYER_6_STATIC_EFFECT_KINDS } from "./layer6";
+import { CDA_STATIC_EFFECT_KINDS } from "./dependency";
 
 /** One snapshotted entry, ready for `pushContinuousEffect` to mint an id for.
  *  `timestamp` is NOT left to the mint: CR 613.7a gave the effect the source's
@@ -106,8 +107,19 @@ export function collectLingeringSnapshots(
         // not applying has nothing to continue (CR 611.2b: "It doesn't start
         // and immediately stop again").
         if (!sourceConditionHolds(effect, source, state)) continue;
-        // CR 613.7a — the stamp the effect has been ordering by all along.
-        const timestamp = (source as { staticSeq?: number }).staticSeq ?? 0;
+        // CR 613.7a — the stamp the effect has been ordering by all along. An
+        // UNSTAMPED source is skipped outright rather than read as 0, because
+        // `deriveLayer6` (`gre/layer6.ts`) skips one too: an effect with no
+        // timestamp has no position in layer 6 and contributes nothing there.
+        // Freezing it at 0 would make a layer-6 effect that was NOT applying
+        // START applying the moment its source left — the exact inversion the
+        // CR 611.2b guard above exists to prevent. Layers 2-5 and 7 do read an
+        // unstamped source as 0, so this is stricter than two of the three
+        // derivations; stricter is the safe direction, and a source that has
+        // begun applying through `beginApplyingStaticEffects` always has one.
+        const stamp = (source as { staticSeq?: number }).staticSeq;
+        if (stamp === undefined) continue;
+        const timestamp = stamp;
         const duration = resolveSpec(spec);
         for (const player of state.players) {
             for (const target of player.battlefield) {
@@ -134,8 +146,17 @@ export function collectLingeringSnapshots(
                         // after the snapshot: CR 613.8a clause (c) reads this to
                         // decide whether a dependency can exist at all, and the
                         // answer is a fact about the ability, not about its
-                        // source's whereabouts.
-                        characteristicDefining: slot.sublayer === "7a",
+                        // source's whereabouts. Read from the ONE naming
+                        // authority both sibling collectors read
+                        // (`CDA_STATIC_EFFECT_KINDS`, `gre/dependency.ts`),
+                        // never from the sublayer: the two agree only while
+                        // `pt-cda` is the set's sole member, and CR 702.73
+                        // Changeling is a layer-4 CDA sitting `planned` in the
+                        // Mechanics Registry. Deriving it from `"7a"` would make
+                        // clause (c) fail open the day that lands.
+                        characteristicDefining: CDA_STATIC_EFFECT_KINDS.has(
+                            effect.kind
+                        ),
                     },
                 });
             }
