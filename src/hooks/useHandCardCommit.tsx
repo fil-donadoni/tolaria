@@ -13,6 +13,7 @@ import {
 import {
     affordableAltCostsForCard,
     affordableKickersForCard,
+    buildTriggerStateView,
     manaCostToString,
     matchesHandCardFilter,
     payableAdditionalCostLegsForCard,
@@ -21,6 +22,12 @@ import {
 } from "~/lib/card-utils";
 import type { CardInstance, Player } from "~/types/game";
 import ModePicker from "~/components/cards/mode-picker";
+import {
+    modeLegalityHint,
+    modePickerConstraint,
+    viewerModeSelectionFacts,
+} from "~/lib/mode-picker-constraint";
+import { kickedCountOfPayments } from "@convex/gre/kicker";
 import AltCostPicker from "~/components/cards/alt-cost-picker";
 import { isCastPermissionAltCostId } from "@convex/gre/castPermissions";
 import { splitCastOptionsFor } from "@convex/gre/splitCast";
@@ -247,7 +254,8 @@ export function useHandCardCommit(
     function commitAnnounceCast(args: {
         chosenX: number | undefined;
         keepPriority: boolean | undefined;
-        chosenModeId: string | undefined;
+        /** CR 700.2a (ADR 0094) — the announced mode ids, printed order. */
+        chosenModeIds: string[] | undefined;
         alternativeCostId?: string | undefined;
         kickerPayments?: Record<string, number> | undefined;
         buyback?: boolean | undefined;
@@ -287,11 +295,7 @@ export function useHandCardCommit(
                     cardInstanceId: cardInstance.id,
                     keepPriority: args.keepPriority,
                     chosenX: args.chosenX,
-                    // ADR 0094 — the picker is still single-select (issue
-                    // #2264), so one mode instance.
-                    chosenModeIds: args.chosenModeId
-                        ? [args.chosenModeId]
-                        : undefined,
+                    chosenModeIds: args.chosenModeIds,
                     alternativeCostId: args.alternativeCostId,
                     kickerPayments: args.kickerPayments,
                     buyback: args.buyback,
@@ -510,7 +514,7 @@ export function useHandCardCommit(
                 commitAnnounceCast({
                     chosenX,
                     keepPriority,
-                    chosenModeId: undefined,
+                    chosenModeIds: undefined,
                     alternativeCostId: options[0].id,
                     kickerPayments,
                     buyback,
@@ -595,7 +599,7 @@ export function useHandCardCommit(
         commitAnnounceCast({
             chosenX,
             keepPriority,
-            chosenModeId: undefined,
+            chosenModeIds: undefined,
             kickerPayments,
             buyback,
             payFlashSurcharge,
@@ -723,6 +727,26 @@ export function useHandCardCommit(
     };
 
     const def = getDefinition(cardInstance.card.id);
+    function commitModesFromPicker(
+        state: ModePickerState,
+        chosenModeIds: string[]
+    ) {
+        setModePickerState(null);
+        commitAnnounceCast({
+            chosenX: state.chosenX,
+            keepPriority: state.keepPriority,
+            chosenModeIds,
+            kickerPayments: state.kickerPayments,
+            buyback: state.buyback,
+            payFlashSurcharge: state.payFlashSurcharge,
+        });
+    }
+
+    // ADR 0094 (issue #2264) — a mode list declaring a `ModeSelection` opens
+    // the multi-select picker, sized BEFORE any mutation: the conditional
+    // count reads the viewer's board and the kicker decision already made in
+    // the cost dialog (CR 601.4), and each mode's legality hint (CR 700.2a)
+    // sizes a CR 609.3 shortfall. Absent = the single-mode path, unchanged.
     const modePickerOverlay =
         modePickerState && def.modes ? (
             <ModePicker
@@ -730,24 +754,38 @@ export function useHandCardCommit(
                 cardName={def.name}
                 variant="portal"
                 position={modePickerState.position}
-                onSelect={(modeId) => {
-                    const {
-                        chosenX,
-                        kickerPayments,
-                        buyback,
-                        payFlashSurcharge,
-                        keepPriority,
-                    } = modePickerState;
-                    setModePickerState(null);
-                    commitAnnounceCast({
-                        chosenX,
-                        keepPriority,
-                        chosenModeId: modeId,
-                        kickerPayments,
-                        buyback,
-                        payFlashSurcharge,
-                    });
-                }}
+                onSelect={(modeId) =>
+                    commitModesFromPicker(modePickerState, [modeId])
+                }
+                multiSelect={
+                    def.modeSelection
+                        ? {
+                              constraint: modePickerConstraint({
+                                  modes: def.modes,
+                                  selection: def.modeSelection,
+                                  facts: viewerModeSelectionFacts(
+                                      allPlayers.find((p) => p.id === playerId),
+                                      kickedCountOfPayments(
+                                          def,
+                                          modePickerState.kickerPayments
+                                      ) > 0
+                                  ),
+                                  isModeLegal: modeLegalityHint(
+                                      cardInstance,
+                                      buildTriggerStateView(
+                                          allPlayers,
+                                          activePlayerId
+                                      )
+                                  ),
+                              }),
+                              onConfirm: (modeIds) =>
+                                  commitModesFromPicker(
+                                      modePickerState,
+                                      modeIds
+                                  ),
+                          }
+                        : undefined
+                }
                 onCancel={() => setModePickerState(null)}
             />
         ) : null;
@@ -771,7 +809,7 @@ export function useHandCardCommit(
                     commitAnnounceCast({
                         chosenX,
                         keepPriority,
-                        chosenModeId: undefined,
+                        chosenModeIds: undefined,
                         alternativeCostId: altCostId,
                         kickerPayments,
                         buyback,
@@ -801,7 +839,7 @@ export function useHandCardCommit(
                     commitAnnounceCast({
                         chosenX,
                         keepPriority,
-                        chosenModeId: undefined,
+                        chosenModeIds: undefined,
                         kickerPayments,
                         buyback,
                         payFlashSurcharge,

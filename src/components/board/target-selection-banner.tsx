@@ -16,6 +16,10 @@ import {
 } from "~/lib/target-progress";
 import { V4_CHIP } from "~/lib/board-chrome-v4";
 import DivideTargetList from "./divide-target-list";
+import {
+    formatModeTargetProvenance,
+    modeTargetProvenance,
+} from "~/lib/mode-target-provenance";
 
 /** How the target COUNT reads on the prompt's chip.
  *
@@ -81,6 +85,15 @@ export default function TargetSelectionBanner({
     const cardInHand = me?.hand.find(
         (c) => c !== null && c.id === pendingTarget.cardInstanceId
     );
+    // A spell cast from a graveyard or exile permission (Flashback, a Cast
+    // button) is still in that zone while its targets are chosen.
+    const castSource =
+        pendingTarget.kind === "ability" || pendingTarget.kind === "trigger"
+            ? undefined
+            : (cardInHand ??
+              [...(me?.graveyard ?? []), ...(me?.exile ?? [])].find(
+                  (c) => c.id === pendingTarget.cardInstanceId
+              ));
     // For an activated ability the source is a permanent on the battlefield,
     // not a card in hand (CR 602.1) — `cardInstanceId` is the permanent's id.
     // Resolve its name from the battlefield so the banner shows the ability's
@@ -109,6 +122,21 @@ export default function TargetSelectionBanner({
         : sourcePermanent
           ? getDefinition(displayCardId(sourcePermanent)).name
           : (triggerSourceName ?? (isCopyRetarget ? "Copy" : "spell"));
+    // ADR 0094 (issue #2264) — with several mode instances announced, name
+    // the instance this target group belongs to, so a repeated mode's groups
+    // are not picked blind.
+    const provenance = modeTargetProvenance(
+        pendingTarget,
+        sourcePermanent
+            ? getDefinition(
+                  displayCardId(sourcePermanent)
+              ).activatedAbilities?.find(
+                  (a) => a.id === pendingTarget.abilityId
+              )?.modes
+            : castSource
+              ? getDefinition(castSource.card.id).modes
+              : undefined
+    );
     const targetLabel = formatTargetLabel(
         pendingTarget.targetType,
         pendingTarget.zone,
@@ -142,6 +170,14 @@ export default function TargetSelectionBanner({
                         <div className="flex min-w-0 flex-col gap-1">
                             <span className="truncate text-display text-base text-text">
                                 {cardName}
+                                {provenance && (
+                                    <span
+                                        data-mode-provenance={provenance.modeId}
+                                    >
+                                        {" — "}
+                                        {formatModeTargetProvenance(provenance)}
+                                    </span>
+                                )}
                             </span>
                             <span className="text-xs text-text-muted">
                                 {divide.active

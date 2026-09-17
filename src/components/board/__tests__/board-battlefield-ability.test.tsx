@@ -182,7 +182,37 @@ const AURA_DEF = {
         },
     ],
 };
+// MULTI_MODE_DEF (issue #2264, ADR 0094): a modal activated ability whose mode
+// list declares "choose two, repeats allowed" — the activation must wait for
+// the multi-select picker's Confirm and announce both instances.
+const MULTI_MODE_DEF = {
+    id: "multi-mode-def",
+    name: "Modal Relic",
+    activatedAbilities: [
+        {
+            id: "relic-modes",
+            useStack: true,
+            oracleText:
+                "{T}: Choose two. You may choose the same mode more than once.",
+            cost: { tap: true },
+            modes: [
+                {
+                    id: "draw",
+                    label: "Draw a card",
+                    oracleText: "Draw a card.",
+                },
+                {
+                    id: "gain",
+                    label: "Gain 2 life",
+                    oracleText: "Gain 2 life.",
+                },
+            ],
+            modeSelection: { min: 2, max: 2, repeats: true },
+        },
+    ],
+};
 const DEFS: Record<string, unknown> = {
+    "multi-mode-def": MULTI_MODE_DEF,
     "aura-def": AURA_DEF,
     "stack-def": STACK_DEF,
     "x-def": X_DEF,
@@ -684,5 +714,26 @@ describe("board battlefield activated-ability parity with the classic board (#27
                 (el.textContent ?? "").includes("Remove a net counter")
             );
         expect(item).toBeUndefined();
+    });
+});
+
+describe("multi-mode activated ability (ADR 0094, issue #2264)", () => {
+    it("opens the multi-select picker and announces both instances only on Confirm", () => {
+        const me = makePlayer("me", [permanent("relic1", "multi-mode-def")]);
+
+        const { container } = renderSpatial(me, [me]);
+        openMenuAndClick(container, "relic1", "Choose two");
+        const body = within(document.body);
+        fireEvent.click(body.getByRole("button", { name: "Add Gain 2 life" }));
+        fireEvent.click(body.getByRole("button", { name: "Add Draw a card" }));
+        expect(activateAbility).not.toHaveBeenCalled();
+        fireEvent.click(body.getByRole("button", { name: "Confirm" }));
+
+        expect(activateAbility).toHaveBeenCalledTimes(1);
+        expect(activateAbility.mock.calls[0][0]).toMatchObject({
+            cardInstanceId: "relic1",
+            abilityId: "relic-modes",
+            chosenModeIds: ["draw", "gain"],
+        });
     });
 });

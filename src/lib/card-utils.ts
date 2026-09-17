@@ -2962,6 +2962,9 @@ export type StackModeLine = {
     label: string;
     /** True for the mode announced when the object went on the stack. */
     chosen: boolean;
+    /** Unique within one item's lines: a mode chosen N times (CR 700.2d)
+     *  renders N lines, so `modeId` alone does not key them. */
+    key: string;
 };
 
 /** CR 601.2b / CR 603.3c — for a modal object on the stack that has announced a
@@ -3020,15 +3023,27 @@ export function getStackModeLines(item: {
           : undefined;
     if (!modes || modes.length === 0) return null;
     if (!chosen.every((id) => modes.some((m) => m.id === id))) return null;
-    // One line per DECLARED mode, flagged when chosen at least once (ADR
-    // 0094). Rendering one line per mode INSTANCE, repeats included, is the
-    // stack view's half of issue #2264.
-    return modes.map((m) => ({
-        modeId: m.id,
-        oracleText: m.oracleText,
-        label: m.label,
-        chosen: chosen.includes(m.id),
-    }));
+    // ADR 0094 (issue #2264) — one line per mode INSTANCE, in printed order
+    // with repeats included (CR 700.2d: a mode chosen N times is "treated as
+    // if that mode appeared that many times in sequence"), and one
+    // de-emphasized line per mode not chosen. With one chosen mode this is
+    // exactly the one-line-per-declared-mode caption.
+    return modes.flatMap((m): StackModeLine[] => {
+        const times = chosen.filter((id) => id === m.id).length;
+        const line = {
+            modeId: m.id,
+            oracleText: m.oracleText,
+            label: m.label,
+        };
+        if (times === 0) {
+            return [{ ...line, chosen: false, key: m.id }];
+        }
+        return Array.from({ length: times }, (_, i) => ({
+            ...line,
+            chosen: true,
+            key: `${m.id}#${i}`,
+        }));
+    });
 }
 
 /** Display state for a card ability in the zoom panel.

@@ -39,6 +39,11 @@ vi.mock("@convex/cards", () => ({
     getDefinition: (id: string) => ({
         id,
         name: CARD_NAMES[id] ?? `Card ${id}`,
+        // Issue #2264 — a mode list for the provenance label.
+        modes: [
+            { id: "ping", label: "Ping target creature", oracleText: "" },
+            { id: "draw", label: "Draw a card", oracleText: "" },
+        ],
     }),
     // Non-throwing lookup: undefined for a non-card id (e.g. an emblem key), so
     // the banner falls through to the emblem registry.
@@ -257,5 +262,52 @@ describe("TargetSelectionBanner — graveyard-zone artifact prompt (Emry, issue 
         expect(
             screen.getByText("select an artifact from your graveyard")
         ).toBeTruthy();
+    });
+});
+
+describe("TargetSelectionBanner — mode instance provenance (issue #2264)", () => {
+    function renderWith(over: Partial<PendingTarget>, me: Player) {
+        render(
+            <TargetSelectionBanner
+                pendingTarget={pending({ cardInstanceId: "spell1", ...over })}
+                me={me}
+                stack={[]}
+                gameId={"g1" as never}
+                playerId="me"
+            />
+        );
+        return document.querySelector("[data-mode-provenance]");
+    }
+    const spell = {
+        id: "spell1",
+        card: { id: "some-spell" },
+        controllerId: "me",
+        ownerId: "me",
+        zone: "hand",
+    } as never;
+
+    it("names the instance that owns the group being chosen", () => {
+        const label = renderWith(
+            {
+                chosenModeIds: ["ping", "ping", "draw"],
+                groupModeInstances: [1],
+            },
+            player({ hand: [spell] })
+        );
+        expect(label?.textContent).toContain("Ping target creature (2 of 2)");
+    });
+
+    it("reads the mode list of a spell cast from the graveyard", () => {
+        const label = renderWith(
+            { chosenModeIds: ["ping", "draw"], groupModeInstances: [0] },
+            player({ graveyard: [spell] })
+        );
+        expect(label?.textContent).toContain("Ping target creature");
+    });
+
+    it("a single-instance selection shows no provenance", () => {
+        expect(
+            renderWith({ chosenModeIds: ["ping"] }, player({ hand: [spell] }))
+        ).toBeNull();
     });
 });
