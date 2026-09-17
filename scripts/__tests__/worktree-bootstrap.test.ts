@@ -46,11 +46,14 @@ describe("worktree bootstrap wiring", () => {
         // The `from` clause is optional in the pattern: a bare side-effect
         // `import "x";` loads x all the same, and the previous pattern let
         // one through (seen red-less under proof-of-failure, issue #3776).
+        // The clause may span lines (a wrapped `{ a, b }`) but never a `;`:
+        // a `[\s\S]*?` there backtracked across a bare import's terminator
+        // and reported only the NEXT statement's specifier (PR #3790 review).
         const importsOf = (file: string): string[] =>
             [
                 ...fs
                     .readFileSync(file, "utf8")
-                    .matchAll(/^import (?:[\s\S]*? from )?"(.+)";$/gm),
+                    .matchAll(/^import (?:[^;]*? from )?"([^"]+)";$/gm),
             ].map((m) => m[1]);
         const seen = new Set<string>();
         const walk = (file: string) => {
