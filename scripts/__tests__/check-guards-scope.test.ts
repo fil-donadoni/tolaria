@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
+import { classifyLane } from "../check-lane";
 
 /**
  * `check:guards` scope guard — the light gate must run the WHOLE node project.
@@ -195,5 +196,67 @@ describe("the dom project is the whole DOM-dependent half of the app suite (#265
         // `check:guards`'s dom segment buys its coverage from this glob — if
         // the project narrows, dropping the path filter above buys nothing.
         expect(domBlock!).toContain("src/**");
+    });
+});
+
+describe("the cards lane runs a FIXED partition of node and bot-node (ADR 0136 §4/§5, issue #3778)", () => {
+    // ADR 0104 forbids a test selection computed from the changed files; ADR
+    // 0136 §5 admits a fixed partition classified by content. The cards lane
+    // sits exactly on that line: `convex/cards/` whole — every catalogue
+    // guard and EVERY set's tests — never "the touched set's own __tests__".
+    // A card borrowed by another set's test file is proven either way, and
+    // the price is measured (425 node files in 18s, 16 bot files in 8s).
+    const PARTITION = ["convex/cards/"];
+    const plan = (files: string[]) => classifyLane(files);
+    const command = (files: string[], id: string) => {
+        const check = plan(files).run.find((c) => c.id === id);
+        expect(check, `${id} missing from the cards lane`).toBeTruthy();
+        return check!.command;
+    };
+    const LEA = ["convex/cards/sets/lea/red.ts", "data/card-index.json"];
+    const WAR = ["convex/cards/sets/war/black.ts"];
+
+    it("both diffs are the cards lane (else the rest proves nothing)", () => {
+        expect(plan(LEA).lane).toBe("cards");
+        expect(plan(WAR).lane).toBe("cards");
+    });
+
+    it("node[cards] selects the node project over convex/cards/ and nothing else", () => {
+        const cmd = command(LEA, "node[cards]");
+        expect(cmd).toMatch(/--project\s+node\b/);
+        expect(positionalFilters(cmd)).toEqual(PARTITION);
+    });
+
+    it("bot[cards] selects the bot-node project over convex/cards/ and nothing else", () => {
+        const cmd = command(LEA, "bot[cards]");
+        expect(cmd).toMatch(/--project\s+bot-node\b/);
+        // The censuses run whole: TOLARIA_BOT_FAST would skip slow files.
+        expect(cmd).not.toContain("TOLARIA_BOT_FAST");
+        expect(positionalFilters(cmd)).toEqual(PARTITION);
+    });
+
+    it("the partition does not move with the diff — two different sets, identical selections", () => {
+        for (const id of ["node[cards]", "bot[cards]"]) {
+            expect(command(WAR, id), id).toBe(command(LEA, id));
+        }
+    });
+
+    it("the three bot censuses live inside the partition and inside bot-node's include", () => {
+        const config = fs.readFileSync(
+            path.join(ROOT, "vitest.config.ts"),
+            "utf8"
+        );
+        expect(config).toMatch(
+            /BOT_GLOB_NODE\s*=\s*\[[^\]]*"convex\/\*\*\/\*\.bot\.test\.ts"/
+        );
+        for (const census of [
+            "aiEffectsGuard.bot.test.ts",
+            "opValuerCoverage.bot.test.ts",
+            "opBeneficenceCensus.bot.test.ts",
+        ]) {
+            const file = path.join("convex/cards/__tests__", census);
+            expect(fs.existsSync(path.join(ROOT, file)), file).toBe(true);
+            expect(file.startsWith(PARTITION[0]), file).toBe(true);
+        }
     });
 });

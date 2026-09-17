@@ -59,8 +59,12 @@ describe("check-lane — path classification (issue #2740)", () => {
      * `check:pr` whole for the two artefacts every card PR regenerates. It is
      * engine input — generated or vendored — and the guards that read it
      * (`check:index`, `check:oracle`, `cr:lint`) run in the engine lane.
+     *
+     * Since ADR 0136 §4 the PATH class is `data`, never a lane of its own: it
+     * rides with the code beside it, and alone it is `engine` (asserted in
+     * the lane-selection block below).
      */
-    it("classifies data/** as engine (ADR 0136 §3)", () => {
+    it("classifies data/** as data — a path class that rides with its code (ADR 0136 §3/§4)", () => {
         for (const p of [
             "data/card-index.json",
             "data/cr/citations-ledger.json",
@@ -69,8 +73,23 @@ describe("check-lane — path classification (issue #2740)", () => {
             "data/json/LEA.json",
             "data/pick-ratings/vintage-cube.json",
         ]) {
-            expect(classifyPath(p), p).toBe("engine");
+            expect(classifyPath(p), p).toBe("data");
         }
+    });
+
+    it("classifies convex/cards/sets/** as cards, and the rest of convex/cards/** as engine (ADR 0136 §4)", () => {
+        expect(classifyPath("convex/cards/sets/lea/red.ts")).toBe("cards");
+        expect(
+            classifyPath("convex/cards/sets/lea/__tests__/red.test.ts")
+        ).toBe("cards");
+        // The registry, the types and the catalogue guards are engine work.
+        expect(classifyPath("convex/cards/mechanicsRegistry.ts")).toBe(
+            "engine"
+        );
+        expect(classifyPath("convex/cards/types.ts")).toBe("engine");
+        expect(
+            classifyPath("convex/cards/__tests__/effectScripts.test.ts")
+        ).toBe("engine");
     });
 
     it("classifies shared tooling inputs as full", () => {
@@ -364,18 +383,59 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
      * it regenerates — is the single most common diff in the repo and it was
      * `full` for the artefacts alone.
      */
-    it("a card PR — definition + regenerated data/** artefacts — ⇒ engine", () => {
+    it("a card PR — definition + regenerated data/** artefacts — ⇒ cards (ADR 0136 §4)", () => {
         const plan = classifyLane([
             "convex/cards/sets/lea/red.ts",
             "data/card-index.json",
             "data/cr/citations-ledger.json",
         ]);
-        expect(plan.lane).toBe("engine");
+        expect(plan.lane).toBe("cards");
         expect(plan.rationale).toContain("all under");
         // …and the guards that READ data/** are in the plan.
         expect(ids(plan.run)).toEqual(
             expect.arrayContaining(["check:index", "check:oracle", "cr:lint"])
         );
+    });
+
+    it("cards needs a card: data/** alone is engine, and any other convex/scripts path makes it engine", () => {
+        expect(classifyLane(["convex/cards/sets/lea/red.ts"]).lane).toBe(
+            "cards"
+        );
+        expect(
+            classifyLane([
+                "convex/cards/sets/lea/red.ts",
+                "convex/cards/sets/arn/blue.ts",
+                "convex/cards/sets/lea/__tests__/red.test.ts",
+                "data/oracle-compiled.json",
+            ]).lane
+        ).toBe("cards");
+        // A card that needs a new Op touches convex/gre/** — engine.
+        for (const other of [
+            "convex/gre/effects/interpreter.ts",
+            "convex/cards/mechanicsRegistry.ts",
+            "convex/game.ts",
+            "scripts/check-lane.ts",
+        ]) {
+            expect(
+                classifyLane([
+                    "convex/cards/sets/lea/red.ts",
+                    "data/card-index.json",
+                    other,
+                ]).lane,
+                other
+            ).toBe("engine");
+        }
+        // Beside src/** it is the mixed case, like any other code.
+        expect(
+            classifyLane(["convex/cards/sets/lea/red.ts", "src/app.tsx"]).lane
+        ).toBe("full");
+        // Prose rides along without changing the lane (ADR 0136 §3).
+        const withProse = classifyLane([
+            "convex/cards/sets/lea/red.ts",
+            "docs/adr/0136.md",
+        ]);
+        expect(withProse.lane).toBe("cards");
+        expect(ids(withProse.run).at(-1)).toBe("node[docs]");
     });
 
     it("data/** alone ⇒ engine; data/** beside src/** ⇒ full", () => {
@@ -434,6 +494,10 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
 describe("check-lane — the plan object drives both lists (issue #2740)", () => {
     const skin = classifyLane(["src/components/board/Card.tsx"]);
     const engine = classifyLane(["convex/gre/engine.ts"]);
+    const cards = classifyLane([
+        "convex/cards/sets/lea/red.ts",
+        "data/card-index.json",
+    ]);
     const docs = classifyLane(["docs/adr/0111-extra-phases.md"]);
     const full = classifyLane(["package.json"]);
 
@@ -487,13 +551,40 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
         expect(ids(engine.run)).not.toContain("tsc[app,scripts]");
     });
 
+    it("cards runs tsc[convex], the catalogue guards and convex/cards/ whole, and names four skips (ADR 0136 §4)", () => {
+        expect(ids(cards.run)).toEqual([
+            "format(diff)",
+            "lint(diff)",
+            "tsc[convex]",
+            "check:index",
+            "check:stubs",
+            "check:oracle",
+            "bundle",
+            "cr:lint",
+            "node[cards]",
+            "bot[cards]",
+        ]);
+        expect(ids(cards.skip)).toEqual([
+            "tsc[app,scripts]",
+            "bot fast lane",
+            "node[all]",
+            "dom",
+        ]);
+        const out = renderPlan(cards, "4f2a91c");
+        expect(out).toMatch(/^lane:\s+cards\b/);
+        for (const s of cards.skip) {
+            expect(out).toContain(s.id);
+            expect(out).toContain(s.reason);
+        }
+    });
+
     it("full delegates to check:pr verbatim and skips nothing", () => {
         expect(ids(full.run)).toEqual(["check:pr"]);
         expect(full.skip).toEqual([]);
     });
 
     it("every skip carries a non-empty reason", () => {
-        for (const plan of [skin, engine, full]) {
+        for (const plan of [skin, engine, cards, full]) {
             for (const s of plan.skip) {
                 expect(s.reason.length, s.id).toBeGreaterThan(10);
             }
@@ -520,6 +611,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             ["convex/gre/engine.ts", "scripts/gate.ts"],
             ["scripts/gate.ts"],
             ["convex/cards/sets/lea/red.ts", "data/card-index.json"],
+            ["convex/cards/sets/lea/red.ts", "docs/adr/0136.md"],
             // Prose rides with the code (ADR 0136 §3): a nested CLAUDE.md
             // sits UNDER the directory the reasons name, so they say "no
             // changed CODE under X" and the claim is checked against the
@@ -560,6 +652,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
         const allowed: Record<string, RegExp> = {
             skin: /^(src\/|public\/|index\.html$)/,
             engine: /^(convex\/|scripts\/|data\/)/,
+            cards: /^(convex\/cards\/sets\/|data\/)/,
         };
         for (const files of [
             ["src/components/board/Card.tsx", "src/index.css"],
@@ -584,6 +677,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
         // paths must match the lane and the prose paths must be prose.
         for (const files of [
             ["docs/adr/0136.md", "convex/gre/engine.ts"],
+            ["docs/adr/0136.md", "convex/cards/sets/lea/red.ts"],
             ["CONTEXT.md", "src/components/board/Card.tsx", "src/CLAUDE.md"],
         ]) {
             const plan = classifyLane(files);
@@ -603,7 +697,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
     });
 
     it("run and skip lists are disjoint", () => {
-        for (const plan of [skin, engine, full]) {
+        for (const plan of [skin, engine, cards, full]) {
             const run = new Set(ids(plan.run));
             for (const s of plan.skip) expect(run.has(s.id), s.id).toBe(false);
         }
@@ -671,6 +765,7 @@ describe("check-lane — every planned check is invokable today (issue #2740)", 
     const plans: LanePlan[] = [
         classifyLane(["src/app.tsx"]),
         classifyLane(["convex/gre/engine.ts"]),
+        classifyLane(["convex/cards/sets/lea/red.ts", "data/card-index.json"]),
         classifyLane(["docs/adr/0111-extra-phases.md"]),
         classifyLane(["docs/adr/0111-extra-phases.md", "convex/gre/engine.ts"]),
         classifyLane(["package.json"]),
@@ -736,6 +831,13 @@ describe("check-lane — every planned check is invokable today (issue #2740)", 
                 readFileSync(resolve(ROOT, file), "utf8")
             ).not.toThrow();
         }
+        // `tsc -b <dir>` builds <dir>/tsconfig.json.
+        const cards = classifyLane(["convex/cards/sets/lea/red.ts"]);
+        const convex = cards.run.find((c) => c.id === "tsc[convex]")!;
+        const dir = convex.command.match(/tsc -b (\S+)/)![1];
+        expect(() =>
+            readFileSync(resolve(ROOT, dir, "tsconfig.json"), "utf8")
+        ).not.toThrow();
     });
 });
 

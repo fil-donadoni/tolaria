@@ -26,6 +26,12 @@ import {
     type LockedCommandOptions,
 } from "../land";
 import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "../lib/branches";
+import { classifyLane } from "../check-lane";
+import {
+    classifyScenarioSection,
+    owesScenario,
+    scenarioRefusal,
+} from "../lib/scenario-block";
 import { UNWALKED_SURFACES, type Readings } from "../ui-gate/floors.ts";
 import {
     DIAGNOSTIC_SEPARATOR,
@@ -1191,5 +1197,47 @@ describe("land.ts — isTestOnlySrcDiff (ADR 0110 §4)", () => {
         // check — the regex anchors on `.test.` and `__tests__/`.
         expect(isTestOnlySrcDiff(["src/lib/contest.ts"])).toBe(false);
         expect(isTestOnlySrcDiff(["src/lib/latest.tsx"])).toBe(false);
+    });
+});
+
+describe("land.ts — a cards-lane landing is treated like engine (ADR 0136 §4, issue #3778)", () => {
+    // The two lane-aware decisions `land` makes are the `check:ui` receipt
+    // (skin only) and the preset-scenario refusal (path-based, ADR 0044). A
+    // card PR used to classify `engine`; it now classifies `cards`, and
+    // neither decision may change with it: no receipt owed, scenario owed.
+    const CARD_DIFF = [
+        "convex/cards/sets/lea/red.ts",
+        "data/card-index.json",
+        "data/cr/citations-ledger.json",
+    ];
+
+    it("the card diff really is the cards lane (else the rest proves nothing)", () => {
+        expect(classifyLane(CARD_DIFF).lane).toBe("cards");
+    });
+
+    it("owes no check:ui receipt — garbage in the body never refuses, and no scope is derived", () => {
+        expect(
+            computeSkinReceiptInvalid("cards", "garbage, not a receipt")
+        ).toBe(false);
+        expect(
+            skinReceiptInvalidForDiff(
+                CARD_DIFF,
+                "/nonexistent",
+                "garbage, not a receipt",
+                () => {
+                    throw new Error("scope derived for a non-skin landing");
+                }
+            )
+        ).toBe(false);
+    });
+
+    it("owes a preset scenario — a body without one is refused", () => {
+        expect(owesScenario(CARD_DIFF)).toBe(true);
+        expect(
+            scenarioRefusal(
+                classifyScenarioSection("## Summary\n\nno scenario here\n"),
+                owesScenario(CARD_DIFF)
+            )
+        ).not.toBeNull();
     });
 });
