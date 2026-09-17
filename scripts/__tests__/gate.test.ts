@@ -6,6 +6,7 @@ import {
     rmSync,
     existsSync,
     readFileSync,
+    writeFileSync,
 } from "node:fs";
 import { cpus, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -16,7 +17,9 @@ import {
     parseCpuMs,
     reclaimVerdict,
     subtreeFromPs,
+    yieldVerdict,
     type BeatVerdict,
+    type GateWaiter,
 } from "../lib/gate-liveness";
 
 /**
@@ -680,5 +683,199 @@ describe("gate.ts — the wrapped tree dies with the gate (issue #3821)", () => 
         expect(await waitFor(() => tree.every((pid) => !alive(pid)))).toBe(
             true
         );
+    });
+});
+
+describe("gate-liveness — the yield decision, pure (ADR 0136 §6, issue #3780)", () => {
+    const NOW = 1_000_000;
+
+    function waiter(over: Partial<GateWaiter> = {}): GateWaiter {
+        return {
+            pid: 4242,
+            role: "land",
+            label: "unset GITHUB_TOKEN && git fetch …",
+            cwd: "/repo-issue-1",
+            since: NOW - 1000,
+            ...over,
+        };
+    }
+
+    const decide = (waiters: GateWaiter[], yieldedMs = 0, boundMs = 60_000) =>
+        yieldVerdict({
+            waiters,
+            yieldingSince: NOW - yieldedMs,
+            now: NOW,
+            boundMs,
+        });
+
+    it("acquires when nothing is queued", () => {
+        expect(decide([])).toMatchObject({
+            verdict: "acquire",
+            bounded: false,
+        });
+    });
+
+    it("yields while ANY land is queued", () => {
+        const d = decide([waiter()]);
+        expect(d.verdict).toBe("yield");
+        expect(d.reason).toContain("pid 4242");
+    });
+
+    it("yields to a land, never to another heavy gate or to itself", () => {
+        // The rule buys the LANDINGS their four minutes; an ordinary
+        // `bun run test` queued behind health gets no such favour, or two
+        // gates would each wait for the other to stop waiting.
+        expect(decide([waiter({ role: "" })]).verdict).toBe("acquire");
+        expect(decide([waiter({ role: "health" })]).verdict).toBe("acquire");
+        expect(
+            decide([waiter({ role: "health" }), waiter({ role: "land" })])
+                .verdict
+        ).toBe("yield");
+    });
+
+    it("STARVATION BOUND: past it, health takes the mutex with lands still queued", () => {
+        // Unbounded yielding is not politeness, it is starvation: at the
+        // measured 2.5 PR/h with three sessions there is frequently SOME land
+        // in the queue, and the base tip would then never be gated at all —
+        // the exposure ADR 0136 §6 exists to bound.
+        expect(decide([waiter()], 59_999)).toMatchObject({
+            verdict: "yield",
+            bounded: false,
+        });
+        const d = decide([waiter()], 60_000);
+        expect(d).toMatchObject({ verdict: "acquire", bounded: true });
+        expect(d.reason).toContain("starvation bound");
+    });
+
+    it("`bounded` is a field, not a phrase — the ordinary acquire is quiet", () => {
+        expect(decide([]).bounded).toBe(false);
+        expect(decide([waiter()], 120_000).bounded).toBe(true);
+    });
+
+    it("counts down the bound it has left, so a yielding run says when it will stop", () => {
+        expect(decide([waiter()], 20_000, 60_000).reason).toContain("40s");
+    });
+});
+
+describe("gate.ts — the waiter registry and the yield tier (ADR 0136 §6, issue #3780)", () => {
+    const waitersDir = () => join(lockRoot, "gate.waiters");
+
+    /** A hand-written waiter entry, with a pid that is genuinely alive (this
+     *  test process): the gate's own liveness pruning must not remove it. */
+    function seedWaiter(role: string, pid = process.pid) {
+        mkdirSync(waitersDir(), { recursive: true });
+        const entry: GateWaiter = {
+            pid,
+            role,
+            label: "seeded by the suite",
+            cwd: "/repo",
+            since: Date.now(),
+        };
+        writeFileSync(join(waitersDir(), `${pid}.json`), JSON.stringify(entry));
+        return join(waitersDir(), `${pid}.json`);
+    }
+
+    it("a queued heavy gate registers itself under its role, and leaves nothing behind", async () => {
+        const holder = spawn("bun", [GATE, "heavy", "sleep 30"], {
+            cwd: lockRoot,
+            env: env(),
+            stdio: "ignore",
+        });
+        await waitForLock();
+
+        const queued = spawn("bun", [GATE, "heavy", "true"], {
+            cwd: lockRoot,
+            env: env({ TOLARIA_GATE_ROLE: "land" }),
+            stdio: "ignore",
+        });
+        const file = join(waitersDir(), `${queued.pid}.json`);
+        expect(await waitFor(() => existsSync(file))).toBe(true);
+        expect(
+            (JSON.parse(readFileSync(file, "utf8")) as GateWaiter).role
+        ).toBe("land");
+
+        holder.kill("SIGTERM");
+        await new Promise((r) => queued.on("exit", r));
+        expect(existsSync(file)).toBe(false);
+    });
+
+    it("the yield tier steps aside while a land is queued, and runs once it is gone", async () => {
+        const seeded = seedWaiter("land");
+        const yielded = spawn("bun", [GATE, "yield", "echo RAN"], {
+            cwd: lockRoot,
+            env: env(),
+            stdio: ["ignore", "pipe", "pipe"],
+        });
+        let out = "";
+        let err = "";
+        yielded.stdout.on("data", (c: Buffer) => (out += c.toString()));
+        yielded.stderr.on("data", (c: Buffer) => (err += c.toString()));
+
+        // The yielding LINE is the event — not a wall-clock window in which
+        // nothing happened.
+        expect(await waitFor(() => err.includes("[gate] yielding"))).toBe(true);
+        expect(out).not.toContain("RAN");
+        // The mutex is free the whole time: yielding is not holding.
+        expect(existsSync(join(lockRoot, "gate.lock"))).toBe(false);
+
+        rmSync(seeded, { force: true });
+        await new Promise((r) => yielded.on("exit", r));
+        expect(out).toContain("RAN");
+    });
+
+    it("the starvation bound gets the yield tier through a permanently queued land", async () => {
+        seedWaiter("land");
+        const r = run(["yield", "echo RAN"], {
+            env: env({ TOLARIA_GATE_YIELD_BOUND_MS: "0" }),
+        });
+        expect(r.status).toBe(0);
+        expect(r.stdout).toContain("RAN");
+        expect(r.stderr).toContain("starvation bound");
+    });
+
+    it("yields to a land and to nothing else", () => {
+        seedWaiter("");
+        const r = run(["yield", "echo RAN"]);
+        expect(r.status).toBe(0);
+        expect(r.stdout).toContain("RAN");
+    });
+
+    it("prunes a waiter whose pid is gone — a killed session must not starve health", () => {
+        // A session killed mid-queue leaves its entry behind. Without the
+        // liveness prune the yield tier would step aside for a land that no
+        // longer exists, for the whole bound, every time.
+        const dead = spawnSync("sh", ["-c", "exit 0"]);
+        const file = seedWaiter("land", dead.pid!);
+        const r = run(["yield", "echo RAN"]);
+        expect(r.status).toBe(0);
+        expect(r.stdout).toContain("RAN");
+        expect(existsSync(file)).toBe(false);
+    });
+
+    it("the yield tier is the heavy tier in every other respect", () => {
+        const r = run([
+            "yield",
+            "echo held=[$TOLARIA_GATE_HELD] w=[$TOLARIA_VITEST_WORKERS]",
+        ]);
+        expect(r.status).toBe(0);
+        expect(r.stdout).toContain("held=[1]");
+        expect(r.stdout).toMatch(/w=\[[2-9]\d*\]/);
+        // …the mutex included: it is released when the command finishes.
+        expect(existsSync(join(lockRoot, "gate.lock"))).toBe(false);
+    });
+
+    it("`who` names the queue, not just the holder", async () => {
+        const holder = spawn("bun", [GATE, "heavy", "sleep 30"], {
+            cwd: lockRoot,
+            env: env(),
+            stdio: "ignore",
+        });
+        await waitForLock();
+        seedWaiter("land", process.pid);
+        const r = run(["who"]);
+        expect(r.stdout).toContain("queued — pid");
+        expect(r.stdout).toContain("[land]");
+        holder.kill("SIGTERM");
+        await new Promise((resolve) => holder.on("exit", resolve));
     });
 });

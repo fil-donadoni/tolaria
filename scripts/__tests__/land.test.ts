@@ -17,6 +17,8 @@ import {
     primaryBranchFastForwardStep,
     issueOfBranch,
     releaseClaimStep,
+    recordLandingStep,
+    healthDetachStep,
     lockedEnv,
     laneStep,
     greenLaneRunOf,
@@ -408,16 +410,68 @@ describe("land.ts — the locked command", () => {
         expect(at("merge --ff-only")).toBeGreaterThan(at("pr-merge.ts"));
     });
 
-    it("never detaches the health gate and never writes green-sha — the full gate is `release`'s (ADR 0116)", () => {
-        // ADR 0110 detached `health-main.ts` after every merge: ~13 min of
-        // the heavy mutex per landing, 1.4 contention false-REDs a day. The
-        // full gate now runs once per release, on the base tip, and the
-        // health directory is written there. A landing that re-grew either
-        // step would put the per-PR cost straight back.
+    it("never runs the FULL gate inside the lock and never writes green-sha (ADR 0110 §3 → ADR 0136)", () => {
+        // ADR 0110 ran `check:all` + `test` inside this lock: ~13 min of the
+        // heavy mutex per landing, 1.4 contention false-REDs a day. The full
+        // gate is not a landing's business at all — it runs per BATCH, and
+        // the batch's own steps below are a ledger write and one detached
+        // decision, nothing that holds the lock.
         const cmd = buildLockedCommand(base);
-        expect(cmd).not.toContain("health-main.ts");
+        expect(cmd).not.toContain("bun run check:all");
+        expect(cmd).not.toContain("bun run test");
         expect(cmd).not.toContain("green-sha");
-        expect(cmd).not.toContain("nohup");
+        // …and the health gate itself is never named here: what `land`
+        // detaches is the DECISION, which fires `health-main.ts` only when a
+        // threshold trips (ADR 0136 §6).
+        expect(cmd).not.toContain("health-main.ts");
+    });
+
+    it("counts the landing in the batch-health ledger, past the merged-tip verification (ADR 0136 §6, issue #3780)", () => {
+        // The full gate runs after the 5th landing since the last GREEN, or
+        // 2 h after the first — so something must COUNT them, and the only
+        // process that knows a landing happened is the one that merged it.
+        const cmd = buildLockedCommand(base);
+        const step = recordLandingStep("/repo");
+        expect(cmd).toContain(step);
+        expect(step).toContain("health-cadence.ts' record --sha=");
+        // The tip recorded is the one the squash produced: read AFTER the
+        // post-merge re-fetch and past the verification, never the tip the
+        // remote held when `land` started.
+        expect(step).toContain(`$(git rev-parse ${ORIGIN_BASE})`);
+        expect(cmd.indexOf(step)).toBeGreaterThan(
+            cmd.indexOf(`$OLD_TIP..${ORIGIN_BASE}" | wc -l`)
+        );
+        // In the PRIMARY checkout, where `.claude/telemetry/health/` lives.
+        expect(step.startsWith("(cd '/repo' && ")).toBe(true);
+        // Non-gating, like the rest of the post-merge housekeeping.
+        expect(step.endsWith("; true)")).toBe(true);
+    });
+
+    it("detaches the batch-health decision LAST, with the lock hold scrubbed, non-gating", () => {
+        const cmd = buildLockedCommand(base);
+        const step = healthDetachStep("/repo");
+        expect(cmd).toContain(step);
+        expect(step).toContain("health-cadence.ts' detach");
+        // Detached: the run takes ~10 min under the mutex this shell is
+        // holding right now, so the shell must be free to release it.
+        expect(step).toContain("nohup");
+        // The hold this locked shell exports is released the moment it exits;
+        // a health run that inherited it would think it already had the mutex.
+        expect(step).toContain("-u TOLARIA_GATE_HELD");
+        expect(step).toContain("-u TOLARIA_ALLOW_FULL_SUITE");
+        // Last, so the health worktree is not created while the teardown above
+        // is removing this one.
+        expect(cmd.endsWith(step)).toBe(true);
+        // `|| true` INSIDE the outer parens — a bare `… && (X &) || true`
+        // launders every earlier failure in the chain into a success.
+        expect(step.endsWith("|| true)")).toBe(true);
+        expect(step.startsWith("((cd '/repo' && ")).toBe(true);
+    });
+
+    it("--keep still counts and still detaches — the batch is about the BASE branch, not the worktree", () => {
+        const cmd = buildLockedCommand({ ...base, teardown: false });
+        expect(cmd).toContain(recordLandingStep("/repo"));
+        expect(cmd).toContain(healthDetachStep("/repo"));
     });
 
     it("--no-merge gates and pushes but omits the merge and the health detach", () => {
@@ -427,6 +481,8 @@ describe("land.ts — the locked command", () => {
         expect(cmd).not.toContain("pr-merge.ts");
         expect(cmd).not.toContain("worktree remove");
         expect(cmd).not.toContain("merge --ff-only");
+        // Nothing landed, so nothing to count and nothing to gate.
+        expect(cmd).not.toContain("health-cadence.ts");
     });
 
     it("--keep merges but skips worktree teardown", () => {
@@ -627,6 +683,14 @@ describe("land.ts — the locked command", () => {
 });
 
 describe("land.ts — lockedEnv (review round 2, B1)", () => {
+    it("declares the caller's ROLE, which is what makes a queued land visible to the mutex's yield rule (ADR 0136 §6)", () => {
+        // The batch health gate steps aside while any `land` is queued. A
+        // waiter is only recognisable as a landing because of this variable —
+        // without it health overtakes every queue and each landing pays the
+        // ten minutes the yield rule exists to save it.
+        expect(lockedEnv({}).TOLARIA_GATE_ROLE).toBe("land");
+    });
+
     // bun auto-loads `.env.local`, which in this repo carries a server-side
     // bug-report `GITHUB_TOKEN` that `gh` prefers over the keyring login.
     // Inherited by the locked child that runs the embedded `gh pr merge`,

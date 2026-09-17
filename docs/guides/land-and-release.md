@@ -134,15 +134,55 @@ command so the tree that lands is the tree that was gated:
    issue N; deletes the remote and local branch and removes the worktree
    (`--keep` keeps all three; `--no-merge` stops after step 5).
 
-**No health gate per landing.** The full offline gate runs once, at release.
-A landing costs the mutex 3–5 minutes; a landing whose lane is skipped costs
-only the rebase and the merge.
+9. Records the landing in `.claude/telemetry/health/cadence.json` and detaches
+   `scripts/health-cadence.ts detach`, which decides whether the
+   [batch health gate](#g-batch-health) fires. Both non-gating, both outside
+   the lock's critical path.
+
+**No health gate per landing**, and none held by the landing's own lock. A
+landing costs the mutex 3–5 minutes; a landing whose lane is skipped costs only
+the rebase and the merge. The full gate runs once per BATCH — see below.
 
 If only the MERGE failed (step 6), retry `bun scripts/pr-merge.ts <PR#>`. A
 second `land` of the same tree re-pays only the rebase — step 4 skips the lane
 it already passed — but it is still the long way round. `deny-guard.sh` § 1 denies a
 hand-typed `gh pr merge` everywhere; `TOLARIA_ALLOW_MANUAL_MERGE=1` is the
 per-command hatch for a real recovery.
+
+### The batch health gate — every 5 landings, or every 2 h
+
+The full offline gate is not a landing's business, but it is not a release's
+either: between releases the base tip could stand red for the 1–2 days
+observed, and every worktree born in that window starts from it. So it runs per
+BATCH (ADR 0136 §6).
+
+- **Trigger.** `land` appends the merged tip to
+  `.claude/telemetry/health/cadence.json` and detaches the decision. It fires
+  after the **5th landing since the last GREEN**, or **2 h after the first
+  un-healthed landing**, whichever comes first — and holds otherwise, so the
+  step costs one process per landing and nothing else.
+- **Dedup.** By sha, twice over: a tip already GREEN, and a tip health has
+  already been started for. Five quick landings are ONE health run.
+- **Coverage.** It gates the tip current when it starts, not the tip that
+  triggered it, so one run covers everything that landed meanwhile.
+- **Precedence.** It takes the mutex through `gate.ts yield`: it steps aside
+  while any `land` is queued, and once it holds the lock nothing interrupts it.
+  The stepping aside is **bounded** (`TOLARIA_GATE_YIELD_BOUND_MS`, 30 min), or
+  a queue that never empties would mean the tip is never gated at all. Worst
+  case for a landing: 10 min of health plus the lands ahead of it, ≤ 18 min at
+  the admission cap of 3, at most once per 5 landings.
+- **GREEN** resets the counter and rewrites `green-sha`, exactly as a release's
+  health run does. **RED** writes the same durable marker, which makes
+  `queue:plan` refuse the next PICK — never the next LAND, because the
+  fix-forward arrives through a `land` and a session already mid-issue must be
+  able to finish — and hands the tip to `bun run health:fix`. Detached there is
+  no TTY, so that spawn refuses with its own line and the marker stands; run
+  `bun run health:fix` from a terminal to start the repair.
+- The counter is deliberately NOT reset on RED: the landing that carries the
+  fix moves the tip past the dedup and is gated at once.
+
+`bun run health:cadence status` prints the ledger; the detached run's output is
+`.claude/telemetry/health/detach.log`.
 
 ## Releasing the base branch to production
 
@@ -264,9 +304,17 @@ when that (tip, base) was already gated green (ADR 0136 §1–2).
 
 `scripts/health-main.ts`: the full offline gate (`check:all` plus all three
 test suites) on one branch tip, leaving a durable verdict under
-`.claude/telemetry/health/`. Runs at release, or by hand — never per landing
-(ADR 0116; the per-landing version cost ~213 minutes of mutex a day and
-produced 1.4 contention false-REDs a day).
+`.claude/telemetry/health/`. Runs at release, per batch of landings, or by hand
+— never per landing (ADR 0116; the per-landing version cost ~213 minutes of
+mutex a day and produced 1.4 contention false-REDs a day).
+
+### <a id="g-batch-health"></a>Batch health gate
+
+`scripts/health-cadence.ts`: the cadence around the [health
+gate](#g-health-gate) — 5 landings since the last GREEN, or 2 h since the
+first, deduplicated by sha, detached by `land`, run under `gate.ts yield` so
+queued landings go first (ADR 0136 §6). The decision itself is pure
+(`scripts/lib/health-cadence.ts`).
 
 ### <a id="g-fix-loop"></a>Fix loop
 
@@ -280,5 +328,8 @@ on RED.
 
 `scripts/gate.ts`'s machine-wide lock (`~/.cache/tolaria/gate.lock`) around
 anything that runs the full suites or `land`'s locked command. `bun run
-gate:who` names the holder; a holder that stops burning CPU is reclaimed. The
-light tier (`check:lane` by itself, targeted vitest) takes no lock.
+gate:who` names the holder AND the queue behind it; a holder that stops burning
+CPU is reclaimed. The light tier (`check:lane` by itself, targeted vitest)
+takes no lock. The `yield` tier is the heavy tier plus one rule: it steps aside
+(boundedly) while any waiter declares `TOLARIA_GATE_ROLE=land`, which is how
+the [batch health gate](#g-batch-health) lets landings through.

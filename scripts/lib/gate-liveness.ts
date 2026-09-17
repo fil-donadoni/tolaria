@@ -173,3 +173,86 @@ export function reclaimVerdict(
     if (now - owner.ts > staleMs) return "stalled";
     return null;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The YIELD acquisition (ADR 0136 §6, issue #3780)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * One process queued on the heavy mutex, as `gate.ts` records it while it
+ * waits. `role` is `TOLARIA_GATE_ROLE`: `land` for a landing, `health` for the
+ * batch gate, `""` for every ordinary heavy gate.
+ */
+export interface GateWaiter {
+    pid: number;
+    role: string;
+    label: string;
+    cwd: string;
+    /** Epoch ms — when this waiter entered the queue. */
+    since: number;
+}
+
+/** The role a `yield` acquisition steps aside for. */
+export const YIELD_TO_ROLE = "land";
+/** The role the per-batch health gate queues under. */
+export const HEALTH_ROLE = "health";
+
+export type YieldDecision = {
+    verdict: "acquire" | "yield";
+    reason: string;
+    /** True only on the acquire that the STARVATION BOUND forced. A structured
+     *  discriminator, not a phrase in `reason`: the caller announces this one
+     *  loudly (a health run overtaking queued lands is worth a line) and stays
+     *  quiet about the ordinary "nothing queued" acquire. */
+    bounded: boolean;
+};
+
+/**
+ * Whether a `yield` acquisition may take the mutex now.
+ *
+ * The batch health gate holds the mutex for ~10 min and a `land` holds it for
+ * ~4, so a health run that grabbed the lock the moment it came free would put
+ * every queued landing behind ten minutes of full gate for no reason: the tip
+ * health is about does not get staler while a land runs — the land only ever
+ * ADDS a commit health's next run will cover anyway. So health steps aside
+ * while any `land` is queued (scenario B, `docs/guides/next-issue-flow.md`).
+ *
+ * BOUNDED, because "steps aside" with no bound is starvation: at the observed
+ * 2.5 PR/h with three sessions there is frequently SOME land in the queue, and
+ * an unbounded yield would mean the base tip is never gated at all — the
+ * failure ADR 0136 §6 exists to close. Past `boundMs` of yielding, health
+ * takes the mutex like any other heavy gate and the queued lands wait it out.
+ *
+ * Nothing here can interrupt a RUNNING gate, health's own included: the
+ * decision is only ever consulted BEFORE an acquisition, so "once running it
+ * is never interrupted" holds by construction, not by a rule.
+ */
+export function yieldVerdict(input: {
+    /** Every OTHER live waiter — `gate.ts` filters out itself and dead pids. */
+    waiters: GateWaiter[];
+    /** When this process started trying to acquire. */
+    yieldingSince: number;
+    now: number;
+    boundMs: number;
+}): YieldDecision {
+    const { waiters, yieldingSince, now, boundMs } = input;
+    const blocking = waiters.filter((w) => w.role === YIELD_TO_ROLE);
+    const yieldedMs = Math.max(0, now - yieldingSince);
+    if (blocking.length === 0)
+        return {
+            verdict: "acquire",
+            reason: "no land is queued",
+            bounded: false,
+        };
+    if (yieldedMs >= boundMs)
+        return {
+            verdict: "acquire",
+            reason: `starvation bound reached — yielded ${Math.round(yieldedMs / 1000)}s to ${blocking.length} queued land(s), taking the mutex anyway`,
+            bounded: true,
+        };
+    return {
+        verdict: "yield",
+        reason: `${blocking.length} land(s) queued (${blocking.map((w) => `pid ${w.pid}`).join(", ")}) — stepping aside, ${Math.round((boundMs - yieldedMs) / 1000)}s of bound left`,
+        bounded: false,
+    };
+}

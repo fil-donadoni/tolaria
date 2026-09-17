@@ -84,6 +84,15 @@
  * `land` itself writes after its own green lane) and prints `lane: ran` or
  * `lane: skipped (gated <sha> against <base>)`. Any mismatch runs the lane.
  *
+ * BATCH HEALTH (ADR 0136 §6, issue #3780). A landing pays the LANE gate and
+ * nothing else, but it is also what COUNTS toward the full gate: the locked
+ * command records the merged tip in `.claude/telemetry/health/cadence.json`
+ * and then detaches `health-cadence.ts detach`, which fires `health-main.ts`
+ * after the 5th landing since the last GREEN or 2 h after the first
+ * un-healthed one. Both steps are non-gating, and the detached run takes the
+ * mutex through `gate.ts yield`, so it steps aside for any `land` queued
+ * behind this one.
+ *
  * Usage:
  *   bun run land <PR#>              fetch → rebase → gate → push → merge
  *   bun run land <PR#> --no-merge   …but stop after the push (leave PR open)
@@ -278,6 +287,7 @@ export function safeRetirementRefusal(
 
 // Computed from this FILE's directory for the same reason `GATE` is, below.
 const PR_MERGE = resolve(__dirname, "pr-merge.ts");
+const HEALTH_CADENCE = resolve(__dirname, "health-cadence.ts");
 const SEED_SCENARIO = resolve(__dirname, "seed-scenario.ts");
 const RESOLVE_ARTIFACTS = resolve(__dirname, "resolve-generated-artifacts.ts");
 
@@ -723,6 +733,57 @@ export function releaseClaimStep(branch: string): string | null {
     return `(gh issue edit ${issue} --remove-label in-progress --remove-assignee @me >/dev/null 2>&1 || echo "land: could not release the in-progress claim on issue #${issue}" >&2; true)`;
 }
 
+/**
+ * Record the landing in the batch-health ledger (ADR 0136 §6, issue #3780).
+ *
+ * The FULL gate runs per BATCH — after the 5th landing since the last GREEN,
+ * or 2 h after the first un-healthed one — so something has to COUNT the
+ * landings, and the only process that knows one happened is the one that
+ * merged it. Synchronous, tiny (one JSON file), and in the PRIMARY checkout
+ * where the rest of `.claude/telemetry/health/` lives; non-gating like every
+ * other post-merge step, because a ledger write that fails must never turn a
+ * merged PR into a reported failure.
+ *
+ * The sha recorded is the base tip the squash produced, read after the
+ * post-merge re-fetch and past `VERIFY_MERGED_TIP` — so it is the tip this
+ * landing actually created, not whatever the remote held at `land`'s start.
+ */
+export function recordLandingStep(primaryCheckout: string): string {
+    return (
+        `(cd ${shQuote(primaryCheckout)} && ` +
+        `bun ${shQuote(HEALTH_CADENCE)} record --sha="$(git rev-parse ${ORIGIN_BASE})" || ` +
+        `echo "land: could not record the landing in the health ledger" >&2; true)`
+    );
+}
+
+/**
+ * Detach the batch-health DECISION (ADR 0136 §6). Conditional inside the
+ * script, not in the shell: `health-cadence detach` re-reads the ledger and
+ * the CURRENT tip and holds unless a threshold tripped, so this step is one
+ * cheap spawn per landing and the trigger logic stays where it is tested
+ * (`lib/health-cadence.ts`) instead of half-living in a shell string.
+ *
+ * `nohup … &` because the session that triggers health is never the session
+ * that waits for it: the run takes ~10 min under the mutex `land` is holding
+ * right now, and `land` must be free to release it. `env -u` scrubs the hold
+ * this locked shell exports — it is released the moment the shell exits, and
+ * a health run that inherited it would think it already had the mutex.
+ *
+ * `|| true` stays INSIDE the outer parens: a bare `… && (X &) || true` step
+ * launders every earlier failure in the `&&` chain into a success — the exact
+ * precedence bug `VERIFY_MERGED_TIP` documents, and the one the locked
+ * command's own laundering test caught the last time this step existed.
+ */
+export function healthDetachStep(primaryCheckout: string): string {
+    const healthDir = join(primaryCheckout, ".claude/telemetry/health");
+    return (
+        `((cd ${shQuote(primaryCheckout)} && mkdir -p ${shQuote(healthDir)} && ` +
+        `nohup env -u TOLARIA_GATE_HELD -u TOLARIA_ALLOW_FULL_SUITE -u TOLARIA_GATE_ROLE ` +
+        `bun ${shQuote(HEALTH_CADENCE)} detach ` +
+        `>> ${shQuote(join(healthDir, "detach.log"))} 2>&1 &) || true)`
+    );
+}
+
 export function buildLockedCommand(opts: LockedCommandOptions): string {
     // The LANE gate, not the full gate (ADR 0110): `check:lane` runs exactly
     // the checks the classified diff owes (degrading to `check:pr` verbatim
@@ -755,11 +816,11 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
         // local `origin/main`, so re-fetch before reading the new tip.
         steps.push(`git fetch origin ${BASE_BRANCH} -q`);
         steps.push(VERIFY_MERGED_TIP);
-        // No post-merge health detach (ADR 0116): a landing on the base
-        // branch pays the LANE gate only. The FULL gate runs once, at
-        // `bun run release`, on the base tip that is about to become the
-        // release branch — that is where `.claude/telemetry/health/` and the
-        // `green-sha` record are written now.
+        // The landing counter the batch health gate reads (ADR 0136 §6). A
+        // landing still pays the LANE gate only; the FULL gate runs once per
+        // BATCH — five landings, or two hours — detached below, never inside
+        // this lock.
+        steps.push(recordLandingStep(opts.primaryCheckout));
         // Local `main` catches up with the tip the API merge just created —
         // unconditional of `--keep`, which is about the WORKTREE, not about
         // leaving the checkout every session branches from one commit stale.
@@ -807,6 +868,11 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
                 `(git -C ${shQuote(opts.primaryCheckout)} branch -D ${shQuote(opts.branch)} || true)`
             );
         }
+        // LAST, and detached: the health worktree is created from the primary
+        // checkout, and doing that while the teardown above is removing THIS
+        // worktree would have two `git worktree` operations contending for the
+        // same repo lock for no reason. Nothing after it depends on it.
+        steps.push(healthDetachStep(opts.primaryCheckout));
     }
     return steps.join(" && ");
 }
@@ -829,6 +895,10 @@ export function lockedEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
     return {
         ...netEnv(base),
         TOLARIA_ALLOW_FULL_SUITE: "1",
+        // What this caller IS, for the mutex's yield rule (ADR 0136 §6): the
+        // batch health gate steps aside while any `land` is queued, and a
+        // queued land is only recognisable as one because of this.
+        TOLARIA_GATE_ROLE: "land",
     };
 }
 
@@ -916,13 +986,16 @@ function main(): void {
 
     const primary = primaryCheckout(cwd);
 
-    // Release health verdict (ADR 0116): a RED marker means the full gate
-    // found the base tip broken at the last `bun run release`. Landing is
-    // still allowed — the fix-forward that repairs it arrives through a
-    // `land` — but nobody should stack new work on a red tip without knowing.
+    // Health verdict (ADR 0136 §6): a RED marker means the full gate found the
+    // base tip broken — at the last `bun run release`, or at the batch gate
+    // that now runs every five landings. RED refuses the next PICK
+    // (`queue:plan`), never the LAND: the fix-forward that repairs the tip
+    // arrives through a `land`, and a session already mid-issue must be able
+    // to finish. It still says so, because nobody should stack new work on a
+    // red tip without knowing.
     if (existsSync(join(primary, ".claude/telemetry/health/RED"))) {
         console.warn(
-            `land: WARNING — the release health gate is RED on \`${BASE_BRANCH}\` (\`bun run health:status\`). Fixing it comes before landing unrelated work.`
+            `land: WARNING — the health gate is RED on \`${BASE_BRANCH}\` (\`bun run health:status\`). Fixing it comes before landing unrelated work.`
         );
     }
 

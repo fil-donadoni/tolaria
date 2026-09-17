@@ -61,11 +61,24 @@ export const DEFAULT_LIVENESS_MS = 60_000;
  * (issue #3646): that is what makes `release` the full gate. The literal is
  * `GUARD_CACHE_BYPASS_ENV` in `guard-cache.ts`, restated because this module
  * imports builtins only; `guard-cache.test.ts` pins the two together.
+ *
+ * `keepHold` is the one exception, and it exists for the per-batch gate (ADR
+ * 0136 §6, issue #3780): there the WHOLE run is wrapped in one `gate.ts yield`
+ * acquisition, so the three steps must pass THROUGH that hold instead of
+ * queuing behind it three times. Scrubbing the hold there would break the
+ * property the yield rule is built on — health takes the mutex once, for one
+ * uninterrupted block, and every queued land waits exactly that block rather
+ * than racing into two gaps. `release` does not pass it and is unchanged.
  */
-export function healthGateEnv(parent: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+export function healthGateEnv(
+    parent: NodeJS.ProcessEnv,
+    opts: { keepHold?: boolean } = {}
+): NodeJS.ProcessEnv {
     const env: NodeJS.ProcessEnv = { ...parent, TOLARIA_GUARD_CACHE: "off" };
-    delete env.TOLARIA_GATE_HELD;
-    delete env.TOLARIA_ALLOW_FULL_SUITE;
+    if (!opts.keepHold) {
+        delete env.TOLARIA_GATE_HELD;
+        delete env.TOLARIA_ALLOW_FULL_SUITE;
+    }
     return env;
 }
 

@@ -3,8 +3,9 @@
  * The full health gate for a branch tip (ADR 0110, re-homed by ADR 0116).
  *
  * `land` runs the LANE gate only; `bun run release` runs this script on the
- * base branch tip before fast-forwarding the release branch, and
- * `bun run health` runs it by hand. It runs the FULL offline gate (`check:all` + all three
+ * base branch tip before fast-forwarding the release branch,
+ * `scripts/health-cadence.ts` detaches it once per BATCH of landings (ADR
+ * 0136 §6), and `bun run health` runs it by hand. It runs the FULL offline gate (`check:all` + all three
  * test suites) against the merged tip, in a throwaway worktree, and leaves a
  * durable verdict in `.claude/telemetry/health/`:
  *
@@ -26,7 +27,10 @@
  * `--branch=<name>` picks the tip to gate (default: the base branch from
  * tolaria.config.json). `--status` prints the last verdict plus a
  * stale-worktree report (worktrees whose branch is merged into the base —
- * the corpses policy of ADR 0110).
+ * the corpses policy of ADR 0110). `--under-lock` says the CALLER already
+ * holds the heavy mutex for the whole run and the steps must pass through it
+ * rather than each queue for it — what `health-cadence.ts` passes under its
+ * single `gate.ts yield` acquisition (ADR 0136 §6); `release` never does.
  *
  * Each step reports to the terminal while it runs (issue #3487) — start and
  * end lines, the gate's `[gate]` mutex-wait lines live, a liveness line while
@@ -165,6 +169,7 @@ async function main(): Promise<void> {
     const dir = join(root, HEALTH_DIR);
     mkdirSync(dir, { recursive: true });
 
+    const underLock = process.argv.includes("--under-lock");
     const branchArg = process.argv.find((a) => a.startsWith("--branch="));
     const branch = branchArg
         ? branchArg.slice("--branch=".length)
@@ -194,8 +199,12 @@ async function main(): Promise<void> {
 
     const wt = join(root, "..", `tolaria-health-${process.pid}`);
     const logPath = join(dir, `${tip.slice(0, 12)}.log`);
-    // Queues on the machine mutex, and bypasses the guard cache (issue #3646).
-    const env = healthGateEnv(process.env);
+    // Queues on the machine mutex, and bypasses the guard cache (issue #3646)
+    // — unless the caller already took the mutex FOR the whole run, which is
+    // what the per-batch gate does (`--under-lock`, ADR 0136 §6): there the
+    // three steps pass through that one hold instead of queuing three times,
+    // so the block a queued `land` waits for is one block, not three.
+    const env = healthGateEnv(process.env, { keepHold: underLock });
 
     // In series, stopping at the first red: `name` is what the RED verdict
     // records as `failedStep`.

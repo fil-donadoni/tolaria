@@ -2,7 +2,12 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fmtElapsed, runHealthStep, type HealthStep } from "../lib/health-step";
+import {
+    fmtElapsed,
+    healthGateEnv,
+    runHealthStep,
+    type HealthStep,
+} from "../lib/health-step";
 
 /**
  * The health gate's step runner (issue #3487). `bun run release` used to sit
@@ -199,5 +204,34 @@ describe("health-step — fmtElapsed", () => {
         expect(fmtElapsed(37_400)).toBe("37s");
         expect(fmtElapsed(252_000)).toBe("4m12s");
         expect(fmtElapsed(3_720_000)).toBe("1h02m");
+    });
+});
+
+describe("healthGateEnv — who holds the mutex for a health run", () => {
+    const held = {
+        TOLARIA_GATE_HELD: "1",
+        TOLARIA_ALLOW_FULL_SUITE: "1",
+        PATH: "/usr/bin",
+    };
+
+    it("scrubs the caller's hold by default — `release` queues on the mutex like any heavy gate", () => {
+        const env = healthGateEnv(held);
+        expect(env.TOLARIA_GATE_HELD).toBeUndefined();
+        expect(env.TOLARIA_ALLOW_FULL_SUITE).toBeUndefined();
+        expect(env.TOLARIA_GUARD_CACHE).toBe("off");
+        expect(env.PATH).toBe("/usr/bin");
+    });
+
+    it("keeps it under `keepHold` — the per-batch gate takes the mutex ONCE, for the whole run (ADR 0136 §6)", () => {
+        // `health-cadence.ts` wraps the whole run in one `gate.ts yield`
+        // acquisition. Scrubbing the hold there would make each of the three
+        // steps queue separately, which is three blocks a land can race into
+        // instead of the one uninterrupted block the yield rule is built on.
+        const env = healthGateEnv(held, { keepHold: true });
+        expect(env.TOLARIA_GATE_HELD).toBe("1");
+        expect(env.TOLARIA_ALLOW_FULL_SUITE).toBe("1");
+        // The guard-cache bypass is NOT part of the exception: a full gate
+        // that trusts a cached PASS is not a full gate (issue #3646).
+        expect(env.TOLARIA_GUARD_CACHE).toBe("off");
     });
 });
