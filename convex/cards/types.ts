@@ -9458,6 +9458,50 @@ export interface DependencyReads {
     reads?: readonly ContinuousRead[];
 }
 
+/** CR 611.3b + a stated duration — the continuous effect OUTLIVES the object
+ *  generating it.
+ *
+ *  CR 611.3b is the default: a static ability's continuous effect "applies at
+ *  all times that the permanent generating it is on the battlefield", so the
+ *  moment the source leaves there is nothing left to apply. A handful of cards
+ *  override that in their own text — Titania's Song's "If this enchantment
+ *  leaves the battlefield, this effect continues until end of turn" — and the
+ *  CR already has the shape for it: CR 611.3d lets a static ability's effect
+ *  last "as long as stated by the effect granting that permission or ability",
+ *  and says so as "an exception to rules 611.3a-b", BOTH of them together.
+ *
+ *  That pairing is the whole semantics, and it settles the affected set with
+ *  it. While the source is on the battlefield the effect is a live predicate
+ *  over the board (CR 611.3a). The instant it leaves, the 611.3a half lapses
+ *  with the 611.3b half: what survives is an effect with a stated duration and
+ *  no generator to re-evaluate, which is CR 611.2c's shape — "the set of
+ *  objects it affects is determined when that continuous effect begins. After
+ *  that point, the set won't change". So the lingering effect is FROZEN at
+ *  departure: it keeps exactly the permanents it was applying to, an artifact
+ *  that enters afterwards is not animated, and one that stops matching the
+ *  predicate is not released.
+ *
+ *  Mechanically this needs no new expiry kind. `gre/lingeringStatics.ts`
+ *  snapshots each still-applying effect into a stored registry entry on the
+ *  `instances` + `duration` arm of `ContinuousEffectScope` — the arm whose own
+ *  doc already sanctions it ("a static ability's effect can also be snapshotted
+ *  this way when a slice needs to"). The predicate-to-`source` pin ADR 0082
+ *  calls "made unrepresentable" is untouched: a snapshot is not a predicate
+ *  entry with a new expiry, it is an `instances` entry, which any expiry may
+ *  carry.
+ *
+ *  Declarable only on the CHARACTERISTIC-CHANGING kinds, because only those
+ *  are in the Continuous Effects Registry at all (ADR 0082 decision 2 keeps CR
+ *  611.3's rules-modifying effects out of the layer system and out of the
+ *  registry). `tsc` rejects it on a rules-modifying kind rather than letting it
+ *  ship inert. */
+export interface SourceDepartureLinger {
+    /** How long the effect keeps applying after its source leaves the
+     *  battlefield. Absent — the default and the CR 611.3b rule — means it
+     *  stops the moment the source does. */
+    lingersAfterSourceLeaves?: DurationSpec;
+}
+
 /** Battlefield-scanned, PLAYER-scoped casting PERMISSION (CR 601.3 / 118.9 /
  *  702.8a) — the grant-polarity sibling of {@link StaticCastRestriction}, which
  *  only ever FORBIDS. A permanent on the battlefield lets a class of cards be
@@ -9562,50 +9606,66 @@ export interface StaticCastPermission {
     label?: string;
 }
 
-export type StaticEffect = (
-    | StaticPTBuff
-    | StaticPTCDA
-    | StaticPTSet
-    | StaticKeywordGrant
-    | StaticControlChange
-    | StaticActivatedGrant
-    | StaticTriggeredGrant
-    | StaticTypeAdd
-    | StaticTypeRemove
-    | StaticSubtypeSet
-    | StaticSubtypeAdd
-    | StaticSupertypeSet
-    | StaticColorGrant
-    | StaticUntapRestriction
-    | StaticBlockRestriction
-    | StaticAttackRestriction
-    | StaticDeclaredAttackRestriction
-    | StaticDeclaredBlockRestriction
-    | StaticCombatDeclarationCap
-    | StaticGlobalAttackRestriction
-    | StaticAttackSacrificeTax
-    | StaticAttackManaTax
-    | StaticMayExertAsAttacks
-    | StaticLandwalkNegation
-    | StaticEntersTappedRestriction
-    | StaticAttackRequirement
-    | StaticBlockRequirement
-    | StaticHandSizeOverride
-    | StaticCostModifier
-    | StaticAdditionalCost
-    | StaticManaSubstitution
-    | StaticPermanentGuard
-    | StaticPlayerGuard
-    | StaticCombatDamagePrevention
-    | StaticCombatDamageUnpreventable
-    | StaticKeywordRemove
-    | StaticAbilityLoss
-    | StaticCastRestriction
-    | StaticCastTimingLock
-    | StaticCastPermission
-) &
-    CounterGatedStatic &
-    DependencyReads;
+export type StaticEffect =
+    /** CR 613 — the characteristic-changing kinds, the ones the Continuous
+     *  Effects Registry covers (ADR 0082 decision 2). Only these may declare
+     *  {@link SourceDepartureLinger}: a lingering effect is a stored registry
+     *  entry, and a kind the registry does not carry has nothing to linger AS. */
+    (| ((
+              | StaticPTBuff
+              | StaticPTCDA
+              | StaticPTSet
+              | StaticKeywordGrant
+              | StaticKeywordRemove
+              | StaticAbilityLoss
+              | StaticControlChange
+              | StaticTriggeredGrant
+              | StaticTypeAdd
+              | StaticTypeRemove
+              | StaticSubtypeSet
+              | StaticSubtypeAdd
+              | StaticSupertypeSet
+              | StaticColorGrant
+          ) &
+              SourceDepartureLinger)
+        /** `activated-grant` is deliberately NOT in the group above, though it is a
+         *  layer-6 kind. Its `abilitiesOf` arm reads every activated ability of
+         *  every card in the pile LINKED TO THE SOURCE (Agatha's Soul Cauldron's
+         *  "exiled with this"), and that link dies with the source: a snapshot of
+         *  it would be a grant of whatever happened to be in the pile, frozen, with
+         *  no way to say so. A lossy snapshot is worse than a compile error, so the
+         *  kind cannot declare a linger at all. */
+        | StaticActivatedGrant
+        /** CR 611.3's rules-modifying effects — deliberately outside the registry,
+         *  and so outside the linger mechanism. */
+        | StaticUntapRestriction
+        | StaticBlockRestriction
+        | StaticAttackRestriction
+        | StaticDeclaredAttackRestriction
+        | StaticDeclaredBlockRestriction
+        | StaticCombatDeclarationCap
+        | StaticGlobalAttackRestriction
+        | StaticAttackSacrificeTax
+        | StaticAttackManaTax
+        | StaticMayExertAsAttacks
+        | StaticLandwalkNegation
+        | StaticEntersTappedRestriction
+        | StaticAttackRequirement
+        | StaticBlockRequirement
+        | StaticHandSizeOverride
+        | StaticCostModifier
+        | StaticAdditionalCost
+        | StaticManaSubstitution
+        | StaticPermanentGuard
+        | StaticPlayerGuard
+        | StaticCombatDamagePrevention
+        | StaticCombatDamageUnpreventable
+        | StaticCastRestriction
+        | StaticCastTimingLock
+        | StaticCastPermission
+    ) &
+        CounterGatedStatic &
+        DependencyReads;
 
 /** Canonical aura predicate: "this static effect applies to my host". Shared
  *  by every aura's `applies` callback (CR 303.4 — auras affect their enchanted

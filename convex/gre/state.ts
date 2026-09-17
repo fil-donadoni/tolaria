@@ -244,6 +244,7 @@ import {
 import type { DeckColorsBySeat } from "./deckKnowledge";
 import { PLAYER_COUNTER_FIELD, readPlayerCounters } from "./playerCounters";
 import { revertBestow } from "./bestow";
+import { collectLingeringSnapshots } from "./lingeringStatics";
 import {
     STATIC_EFFECT_CTX,
     getEffectivePower,
@@ -9476,6 +9477,50 @@ export function beginApplyingStaticEffects(
  *  detach and a leaves-the-battlefield are all final for the targets being
  *  unapplied here, and a future caller that forgets the flag gets the
  *  conservative behaviour rather than a silent resurrection. */
+/** CR 611.3b/611.3d — freezes every continuous effect of `source` that its
+ *  card declares as LINGERING (`lingersAfterSourceLeaves`), so the effect keeps
+ *  applying for its stated duration after `source` has left the battlefield.
+ *  Titania's Song's "If this enchantment leaves the battlefield, this effect
+ *  continues until end of turn" is the shape; the mechanism and the CR
+ *  derivation are in `gre/lingeringStatics.ts`.
+ *
+ *  Called from `removePermanentTo` — the single funnel for every battlefield
+ *  departure — and from NOWHERE else, which is the load-bearing half of this
+ *  function. `stopApplyingStaticEffects` looks like the natural home and is
+ *  not: `reattachAura`, `attachTo` and `detachFrom` all call it for a source
+ *  that stays on the battlefield, so a linger hooked there would snapshot a
+ *  second, permanent copy of the effect every time an Equipment moved.
+ *
+ *  Runs BEFORE the permanent is spliced out and before
+ *  `stopApplyingStaticEffects`, because both halves of the snapshot read the
+ *  LIVE source: the `applies` predicates take it as their `source` argument,
+ *  and a `control-change` takes its controller off it.
+ *
+ *  A source no effect of which declares a linger — every card but a handful —
+ *  costs one scan of its `staticEffects[]` and allocates nothing. */
+export function snapshotLingeringStaticEffects(
+    state: GameState,
+    source: CardInstanceState
+): void {
+    const cardId = (source.card as { id?: string }).id;
+    const def = cardId ? tryGetDefinition(cardId) : null;
+    const effects = getEffectiveStaticEffects(def, source.chosenModeId);
+    if (effects.length === 0) return;
+    const snapshots = collectLingeringSnapshots(
+        state as unknown as LayerStateView,
+        source as unknown as PermanentView,
+        effects,
+        (spec) => resolveDuration(spec, source.controllerId, state)
+    );
+    for (const snapshot of snapshots) {
+        // CR 613.7a — the effect keeps the stamp it has been ordering by, so a
+        // Song that dies cannot promote itself past an effect it used to lose
+        // to. `pushContinuousEffect`'s caller-minted-stamp arm exists for
+        // exactly this: one continuous effect, one timestamp, several entries.
+        pushContinuousEffect(state, snapshot.entry, snapshot.timestamp);
+    }
+}
+
 export function stopApplyingStaticEffects(
     state: GameState,
     source: CardInstanceState
@@ -11150,6 +11195,12 @@ export function removePermanentTo(
     // control-change unapplied; non-aura hosts need any auras attached to
     // them reverted (orphan auras stay on the battlefield with stale
     // `attachedTo` and are swept by `checkAuraAttachmentSBA`, CR 704.5n).
+    // CR 611.3b/611.3d (issue #3726) — before the effects stop applying, freeze
+    // the ones the card says CONTINUE past their source (Titania's Song). This
+    // is the only departure funnel, and it must run while the source is still
+    // on the battlefield: the snapshot evaluates the effect's own predicates
+    // against it. A card declaring no linger returns immediately.
+    snapshotLingeringStaticEffects(state, initial.card);
     if (isAura(initial.card)) {
         unapplyAuraControlChange(state, initial.card);
         stopApplyingStaticEffects(state, initial.card);
