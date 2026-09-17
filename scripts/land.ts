@@ -75,7 +75,6 @@
  * failure on a PR that in fact merged: ref cleanup is cosmetic, the merge
  * is not.
  *
- * Usage:
  * LANE SKIP (ADR 0136 §2, issue #3779). The lane is paid here and nowhere
  * else — there is no pre-PR gate — but a tree already gated green need not
  * pay it twice: a `land` retried after a transient merge refusal, or a

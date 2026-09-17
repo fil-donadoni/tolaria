@@ -135,8 +135,8 @@ command so the tree that lands is the tree that was gated:
    (`--keep` keeps all three; `--no-merge` stops after step 5).
 
 **No health gate per landing.** The full offline gate runs once, at release.
-A landing costs the mutex 3–5 minutes; a landing whose lane is skipped, the
-rebase and the merge.
+A landing costs the mutex 3–5 minutes; a landing whose lane is skipped costs
+only the rebase and the merge.
 
 If only the MERGE failed (step 6), retry `bun scripts/pr-merge.ts <PR#>`. A
 second `land` of the same tree re-pays only the rebase — step 4 skips the lane
