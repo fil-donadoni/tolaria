@@ -56,3 +56,21 @@ describe("StackModeLines (CR 700.2c chosen-mode highlight)", () => {
         ).toBeTruthy();
     });
 });
+
+describe("StackModeLines — repeated mode instances (issue #2264)", () => {
+    it("renders one highlighted line per instance of a repeated mode", () => {
+        render(
+            <StackModeLines
+                lines={[
+                    { ...lines[0], chosen: true, key: "mill#0" },
+                    { ...lines[0], chosen: true, key: "mill#1" },
+                    lines[1],
+                ]}
+            />
+        );
+        const chosen = document.querySelectorAll('[data-mode-chosen="true"]');
+        expect(
+            Array.from(chosen).map((el) => el.getAttribute("data-mode-id"))
+        ).toEqual(["mill", "mill", "land-type"]);
+    });
+});

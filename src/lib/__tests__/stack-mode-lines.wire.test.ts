@@ -172,3 +172,29 @@ describe("stack chosen-mode highlight for a modal TRIGGER (CR 603.3c, issue #246
         }
     });
 });
+
+describe("stack mode lines — one line per mode INSTANCE (ADR 0094, issue #2264)", () => {
+    it("N chosen instances render N chosen lines in printed order, repeats included — through projectPublicState", () => {
+        const state = stateWithModalOnStack("mill");
+        // As `announceCast` leaves a multi-mode item: printed order, repeats
+        // consecutive, one target span per instance.
+        state.stack[0].chosenModeIds = ["mill", "mill", "phase"];
+        state.stack[0].modeTargetCounts = [1, 0, 0];
+        for (const viewerId of ["p1", "p2"]) {
+            const slimItem = projectPublicState(state, 1, viewerId).stack[0];
+            const lines = getStackModeLines(slimItem)!;
+            expect(
+                lines.filter((l) => l.chosen).map((l) => l.modeId),
+                `viewer ${viewerId}`
+            ).toEqual(["mill", "mill", "phase"]);
+            // The unchosen mode keeps its de-emphasized line, in printed place.
+            expect(lines.map((l) => l.modeId)).toEqual([
+                "mill",
+                "mill",
+                "land-type",
+                "phase",
+            ]);
+            expect(new Set(lines.map((l) => l.key)).size).toBe(lines.length);
+        }
+    });
+});
