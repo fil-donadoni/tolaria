@@ -224,6 +224,47 @@ WORK ticket, use `--add-blocked-by` / `--add-blocking` and leave `parent`
 unset: a parent edge asserts "my children fully discharge me", which is false
 for a work ticket that keeps its own scope.
 
+### Step 8b′ — Wire blocking edges natively AND in the body (whenever there is a dependency)
+
+**A dependency is not declared until it exists twice — as a native GitHub
+edge and as a `## Blocked by` section in the body.** Applies whenever the draft
+names one (`blocked by #N`, `after #N`, `requires #N`, `depends on #N`), when
+the new issue must land before an existing one, and when a dependency is only
+**implied** (an acceptance criterion names a command or artefact another open
+issue delivers). The two forms feed different consumers and neither substitutes
+for the other:
+
+- the **native edge** (`gh issue edit <n> --add-blocked-by <m>` /
+  `--add-blocking <m>`) is what the board, the dependency graph and the
+  "blocked" icon show — a body-only dependency looks like ready work to a human
+  scanning the board;
+- the **body section** (a `## Blocked by` heading, one `- #NNNN — why` per
+  line) is what the queue planner reads to defer a pick — a native-only edge is
+  picked by the loop and bounced.
+
+When the new issue BLOCKS an existing one, the existing issue's body gains the
+`## Blocked by` line too — edit it in the same pass.
+
+`--add-blocked-by` can exit non-zero with `failed to update 1 issue` when some
+of the listed edges already exist; never trust the exit code in either
+direction. **Parity read-back is the done-condition**, over the new issue and
+every issue whose edges this step touched:
+
+```sh
+for n in <issues…>; do
+  nat=$(gh api repos/{owner}/{repo}/issues/$n/dependencies/blocked_by --jq '[.[].number]|sort|join(",")')
+  body=$(gh issue view $n --json body --jq .body | python3 -c 'import sys,re
+t=sys.stdin.read(); m=re.search(r"^#+\s*blocked by\s*$(.*?)(?=^#+\s|\Z)",t,re.I|re.M|re.S)
+print(",".join(sorted(set(re.findall(r"#(\d+)",m.group(1))))) if m else "")')
+  [ "$nat" = "$body" ] && echo "ok  #$n [$nat]" || echo "DRIFT #$n native=[$nat] body=[$body]"
+done
+```
+
+Fix every `DRIFT` line before reporting the issue created. When the new issue
+joins a `prd` umbrella, run the same loop over the umbrella's other open
+children: a sibling carrying prose-only edges is part of the graph this issue
+was just published into.
+
 ### Step 8c — Apply the Step 6b Priority to the board
 
 Add the new issue to the board and set its `Priority` to the value decided (or
@@ -260,4 +301,5 @@ degrade-with-an-escape-hatch shape as the board READ in
 - [ ] User confirmed before creation
 - [ ] Labels applied: category + exactly one queue label (+ `model:*` only if escalated)
 - [ ] If cut from a `prd` umbrella: `--parent` wired and `subIssuesSummary.total` verified
+- [ ] Every dependency (explicit or implied) wired natively AND as a `## Blocked by` body line, parity read-back shows no `DRIFT`
 - [ ] Board Priority applied (`item-add` + `item-edit`), or the fallback commands printed if it failed
