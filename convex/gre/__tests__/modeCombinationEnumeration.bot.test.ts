@@ -28,6 +28,9 @@ import { announceableModeCombinations } from "../modeSelection";
 import { dslSpellScriptOpValue } from "../ai/cardScriptValue";
 import { misdirectedTargetCount } from "../ai/beneficence";
 import type { GameState } from "../state";
+import { buildStateFromScenario } from "../scenarioBuilder";
+import { createInitialGameState, type PlayerInput } from "../setup";
+import { umezawasJitte } from "../../cards/sets/bok/colorless";
 
 type CastMove = Extract<Move, { kind: "cast-spell" }>;
 
@@ -339,6 +342,103 @@ describe("target-slot beneficence reads each instance's own mode (issue #2265)",
             expect(misdirectedTargetCount(state, bad, BOT)).toBe(1);
             const selfBurn = at("opp-bear-0", BOT);
             expect(misdirectedTargetCount(state, selfBurn, BOT)).toBe(2);
+        });
+    });
+});
+
+describe("two-level ACTIVATION enumeration (CR 602.2b / 700.2, issue #2265)", () => {
+    const JITTE_MODES = "umezawas-jitte-modes";
+    /** A modal ability that chooses one or two DISTINCT modes. */
+    const jitteChoosingUpToTwo: CardDefinition = {
+        ...umezawasJitte,
+        activatedAbilities: umezawasJitte.activatedAbilities!.map((a) =>
+            a.id === JITTE_MODES
+                ? { ...a, modeSelection: { min: 1, max: 2 } }
+                : a
+        ),
+    };
+    const seat = (id: string): PlayerInput => {
+        const filler = getCardByName("Plains");
+        return {
+            id,
+            name: id,
+            bgColor: "#000000",
+            deck: {
+                id: `deck-${id}`,
+                name: "test",
+                format: "freeform",
+                cards: Array.from({ length: 40 }, () => ({
+                    cardId: filler.id,
+                    cardName: filler.name,
+                })),
+            },
+        };
+    };
+
+    it("offers every single and every distinct pair, each pair with its instance spans", () => {
+        withTemporaryDefinition(jitteChoosingUpToTwo, () => {
+            const state = buildStateFromScenario(
+                createInitialGameState([seat(BOT), seat(OPP)], 0x2265),
+                {
+                    cards: [
+                        {
+                            name: "Grizzly Bears",
+                            owner: "me",
+                            zone: "battlefield",
+                            summoningSick: false,
+                        },
+                        {
+                            name: "Umezawa's Jitte",
+                            owner: "me",
+                            zone: "battlefield",
+                            attachedTo: "Grizzly Bears",
+                        },
+                        {
+                            name: "Hill Giant",
+                            owner: "opp",
+                            zone: "battlefield",
+                            summoningSick: false,
+                        },
+                    ],
+                    phase: "PRECOMBAT_MAIN",
+                    turn: 3,
+                }
+            );
+            const jitte = state.players[0].battlefield.find(
+                (c) => (c.card as { id?: string }).id === umezawasJitte.id
+            )!;
+            jitte.counters = { ...(jitte.counters ?? {}), charge: 2 };
+            const activations = enumerateMoves(
+                state,
+                state.players[0].id
+            ).filter(
+                (m): m is Extract<Move, { kind: "activate-ability" }> =>
+                    m.kind === "activate-ability" && m.abilityId === JITTE_MODES
+            );
+            const combos = [
+                ...new Set(
+                    activations.map((m) => (m.chosenModeIds ?? []).join("+"))
+                ),
+            ].sort();
+            expect(combos).toEqual(
+                [
+                    "gain-life",
+                    "pump-equipped",
+                    "pump-equipped+gain-life",
+                    "pump-equipped+shrink-target",
+                    "shrink-target",
+                    "shrink-target+gain-life",
+                ].sort()
+            );
+            for (const m of activations) {
+                if ((m.chosenModeIds?.length ?? 0) < 2) {
+                    expect(m.modeTargetCounts).toBeUndefined();
+                    continue;
+                }
+                expect(m.modeTargetCounts!.reduce((a, b) => a + b, 0)).toBe(
+                    m.targets.length
+                );
+            }
         });
     });
 });
