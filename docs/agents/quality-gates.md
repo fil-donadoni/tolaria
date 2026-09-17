@@ -1102,8 +1102,8 @@ exist before this issue, so no span ingested before it ships carries a value.
   3                      24     1.33
   4                      36     1.47
   5                      29     1.52
-  6                      27     1.63
-  7                      20     1.85
+  6                      26     1.65
+  7                      21     1.81
   8                      12     2.00
   9                       8     1.88
   10                      5     3.20
@@ -1117,7 +1117,7 @@ exist before this issue, so no span ingested before it ships carries a value.
   blocking-finding rate per reviewer model
   model                   reviews  blocking   rate  median after
   opus                        196       135    69%         14.3m
-  sonnet                       99        53    54%          9.2m
+  sonnet                       99        52    53%          9.1m
 
   targeted-vitest reds on a base tip later marked RED by health
   0 / 0 red runs (0%) ran against a base health later reddened
@@ -1126,6 +1126,7 @@ exist before this issue, so no span ingested before it ships carries a value.
   lane         runs   green
   full            3       3
   engine          2       2
+  docs            1       1
 ```
 
 **These are not ADR 0136's own numbers** ("0.59 at one active session, 1.44 at
@@ -1155,7 +1156,7 @@ row will report real numbers as soon as red spans exist to join against.
 up.** `gate_runs` is fed by parsing `gate-run.sh`'s own cache dir, but only
 runs whose `command` file exists carry a lane — and that file is itself new
 enough (ADR 0136 §2) that most of the ~100 gate-run directories on this
-machine at the time this was written predate it. The two lanes shown are
+machine at the time this was written predate it. The three lanes shown are
 real, from the handful of `land`/`check:lane` runs that ran under the updated
 script; the histogram fills in as ordinary landings replace the older
 directories (they are gitignored and machine-local, so this is a one-machine,
