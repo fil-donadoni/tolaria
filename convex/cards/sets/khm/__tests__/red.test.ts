@@ -123,6 +123,9 @@ describe("Magda, Brazen Outlaw — Dwarf tap makes a Treasure (CR 701.26a / 111.
             types: ["Artifact"],
             isToken: true,
         });
+        // The token carries its own mana ability (issue #1191) — the primitive
+        // the stub was waiting on, encoded in the synthetic definition id.
+        expect(treasures(state)[0].card?.id).toContain("treasure-token-mana");
     });
 
     it("an opponent's Dwarf or your non-Dwarf does not trigger", () => {
@@ -174,7 +177,14 @@ describe("Magda, Brazen Outlaw — Sacrifice five Treasures: tutor (CR 118.3 / 7
             magda.name
         )!;
         expect(selection.requirements[0].count).toBe(5);
-        // The activator's own pick — the LAST five, not the first.
+        // Every Treasure is the same object, so the layer auto-resolves the
+        // pick rather than prompting (ADR 0003 / issue #2244) — and it reaches
+        // only for Treasures, never Magda or the Bear.
+        expect(selection.picked).toHaveLength(5);
+        const treasureIds = new Set(treasures(state).map((c) => c.id));
+        expect(selection.picked.every((id) => treasureIds.has(id))).toBe(true);
+        // Overriding it proves the layer sacrifices exactly what it is handed:
+        // the LAST five, not the first.
         const picked = treasures(state)
             .slice(-5)
             .map((c) => c.id);
@@ -218,6 +228,11 @@ describe("Magda, Brazen Outlaw — Sacrifice five Treasures: tutor (CR 118.3 / 7
         const p1 = getPlayer(state, "p1");
         expect(p1.battlefield.some((c) => c.id === "lib-2")).toBe(true);
         expect(p1.library.map((c) => c.id).sort()).toEqual(["lib-0", "lib-1"]);
+        // Wire format — the tutored permanent is on the board the client reads.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            projected.players[0].battlefield.some((c) => c.id === "lib-2")
+        ).toBe(true);
     });
 
     it("finding nothing is legal and still shuffles (CR 701.23b)", () => {
