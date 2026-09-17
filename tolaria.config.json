@@ -1,7 +1,10 @@
 {
-    "$comment": "Repository-level workflow configuration. `branches.base` is the integration branch every issue PR targets and `bun run land` merges into; `branches.release` is the production branch `bun run release` fast-forwards after the full health gate passes on the base tip (ADR 0116). Read by scripts/lib/branches.ts and, via jq, by .claude/hooks/deny-guard.sh and scripts/gate-run.sh — no script or hook names a branch by literal.",
+    "$comment": "Repository-level workflow configuration. `branches.base` is the integration branch every issue PR targets and `bun run land` merges into; `branches.release` is the production branch `bun run release` fast-forwards after the full health gate passes on the base tip (ADR 0116). `sessions.cap` is how many live claims the queue admits at once (ADR 0136 §7) — a MEASURED number, derived in `docs/agents/quality-gates.md` § Session admission, never a feeling. Read by scripts/lib/branches.ts and, via jq, by .claude/hooks/deny-guard.sh and scripts/gate-run.sh — no script or hook names a branch by literal.",
     "branches": {
         "base": "staging",
         "release": "main"
+    },
+    "sessions": {
+        "cap": 3
     }
 }

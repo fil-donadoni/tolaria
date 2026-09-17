@@ -100,6 +100,15 @@ the rendering of either for the rest of the session.
   slices all clear before the P1 band opens, because an umbrella closes only
   when its last child does (issue #3212). A plan echoing `priorityBand` on an
   issue is saying "this outran its own priority, and here is what lifted it".
+- **`queue:plan` refuses the pick in two cases, and each names its exit**
+  (ADR 0136 §6-7). **Cap**: live claims are at `sessions.cap` in
+  `tolaria.config.json` (3 — the measured knee, derivation in
+  `docs/agents/quality-gates.md` § Session admission); the refusal names the
+  claimed issues, and `--no-cap` plans past it deliberately. **RED**: the
+  durable release-health marker is up; the refusal names the sha and the
+  failing step, and the exit is `bun run health:fix` — fixing the base tip
+  comes before taking new work, so do that instead of picking another issue.
+  (`land` still only WARNS on RED, so a session already mid-issue finishes.)
 - Read the issue and its comments IN FULL before touching anything. The
   body's `Target files:` section (one path per line) is the declared blast
   radius — use it to scope your reading and to route the review in §4; a

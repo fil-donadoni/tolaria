@@ -1,4 +1,5 @@
-// The ONE place a branch name is resolved from (ADR 0116).
+// `tolaria.config.json`, as code: the ONE place a branch name is resolved from
+// (ADR 0116), and the one place the session cap is read from (ADR 0136 §7).
 //
 // Every script that fetches, rebases, diffs against, fast-forwards or refuses
 // on a branch reads it from here; `.claude/hooks/deny-guard.sh` reads the same
@@ -74,3 +75,65 @@ export const BASE_BRANCH = BRANCHES.base;
 export const RELEASE_BRANCH = BRANCHES.release;
 export const ORIGIN_BASE = `origin/${BASE_BRANCH}`;
 export const ORIGIN_RELEASE = `origin/${RELEASE_BRANCH}`;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Session admission (ADR 0136 §7)
+//
+// The same document already answers "which branch?"; it now also answers "how
+// many passes at once?". The two live together because they are the same KIND
+// of fact — a repository-level workflow setting a human changes deliberately,
+// read by scripts rather than written into them — and because this module is
+// already the one reader every script trusts for that file.
+//
+// The cap is MEASURED, not chosen: PRs per hour by active sessions ran
+// 0.59 (1) → 1.44 (3) → 1.19 (4), so three is the knee and a fourth session
+// buys negative throughput. Moving it is a config edit plus the telemetry row
+// that justifies it (`bun run telemetry:latency`); the derivation table lives
+// in `docs/agents/quality-gates.md` § Session admission.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface SessionConfig {
+    /** Live claims the queue admits at once. */
+    cap: number;
+}
+
+/** Parse and validate the `sessions` block. Exported for the tests. */
+export function parseSessionConfig(
+    raw: string,
+    source = CONFIG_PATH
+): SessionConfig {
+    let doc: unknown;
+    try {
+        doc = JSON.parse(raw);
+    } catch (e) {
+        throw new Error(`${source}: not valid JSON — ${(e as Error).message}`);
+    }
+    const sessions = (doc as { sessions?: unknown })?.sessions;
+    if (!sessions || typeof sessions !== "object") {
+        throw new Error(`${source}: missing "sessions" object`);
+    }
+    const { cap } = sessions as Record<string, unknown>;
+    // A cap of 0 admits nothing ever and a fractional one compares as garbage
+    // against a claim COUNT — both would refuse every pick with a message that
+    // reads like a live cap, which is the failure mode this validation exists
+    // to make loud instead of silent.
+    if (typeof cap !== "number" || !Number.isInteger(cap) || cap < 1) {
+        throw new Error(
+            `${source}: sessions.cap must be a positive integer, got ${JSON.stringify(cap)}`
+        );
+    }
+    return { cap };
+}
+
+export function readSessionConfig(path = CONFIG_PATH): SessionConfig {
+    return parseSessionConfig(readFileSync(path, "utf8"), path);
+}
+
+// Deliberately NOT eager, unlike `BRANCHES` above. Every script that touches a
+// branch imports this module — `health-main.ts` and `bootstrap-worktree.ts`
+// among them, before `node_modules` may exist — and none of those reads the
+// cap. Validating it at import time would make a config missing `sessions`
+// break the bootstrap rather than the one reader that asked for the number.
+export function sessionCap(path = CONFIG_PATH): number {
+    return readSessionConfig(path).cap;
+}

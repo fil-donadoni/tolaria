@@ -12,7 +12,14 @@
 //   bun run queue:plan --cap 2
 //   bun run queue:plan --limit 100     # how deep to read the queue
 //   bun run queue:plan --pretty
+//   bun run queue:plan --no-cap       # plan past the session cap deliberately
 //   bun run queue:plan --inferred '{"2104":["convex/cards/sets/ice/**"]}'
+//
+// It REFUSES to plan in two cases (ADR 0136 §6-7, issue #3775): while live
+// claims are at `sessions.cap`, and while the release-health `RED` marker is
+// up. Both print the way out — `--no-cap` for the first, `bun run health:fix`
+// for the second — and both exit non-zero, which is what stops `loop-drain`
+// rather than letting a pass pick for itself.
 //
 // The `--inferred` map is the fallback for issues predating the `Target files:`
 // convention: run once, read which candidates came back with an unknown blast
@@ -25,6 +32,7 @@
 // resolve). Selection cost scales with the batch, not the queue.
 
 import {
+    existsSync,
     mkdirSync,
     readdirSync,
     readFileSync,
@@ -41,15 +49,23 @@ import {
     VALID_PRIORITIES,
 } from "./lib/board-priority";
 import {
+    capRefusal,
     buildPlanRecord,
+    liveClaims,
+    redRefusal,
+    releasedClaims,
     planBatch,
     planFilename,
     type BoardPriority,
+    type HealthMarker,
     type IssueDetail,
     type PlanConfig,
     type QueueIssue,
     type QueuePort,
 } from "./lib/queue-plan";
+import { sessionCap } from "./lib/branches";
+import { primaryCheckout } from "./lib/primary-checkout";
+import { claimLedgerPath } from "./loop-doctor";
 
 // Computed the same way scripts/__tests__/land.test.ts computes it (from a
 // FILE's own directory, not from `import.meta.dir`, which is bun-only and
@@ -527,7 +543,81 @@ function writePlanArtefact(
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Admission (ADR 0136 §6-7, issue #3775) — the two reads behind `admitPick`.
+//
+// Both records are written by OTHER processes (a shell hook, a health run in
+// its own worktree), so both reads are total: an unreadable, missing or torn
+// record reads as "nothing to refuse on" rather than throwing. The decisions
+// themselves are pure and live in `lib/queue-plan.ts`; what is here is the
+// I/O and the two root resolutions, which differ on purpose.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const HEALTH_DIR_REL = join(".claude", "telemetry", "health");
+
+/**
+ * The release-health verdict, read where `health-main.ts` writes it and
+ * `land.ts` reads it — under the PRIMARY checkout, never the worktree this
+ * may be invoked from. `null` means "no RED marker", which is the only thing
+ * the decision needs; `last.json` only supplies the sha and the failed step
+ * the MESSAGE names, so a missing or torn record still refuses, just with
+ * less to say.
+ *
+ * Exported for direct testing.
+ */
+export function readHealthMarker(root: string): HealthMarker | null {
+    const dir = join(root, HEALTH_DIR_REL);
+    if (!existsSync(join(dir, "RED"))) return null;
+    try {
+        const last = JSON.parse(
+            readFileSync(join(dir, "last.json"), "utf8")
+        ) as Partial<HealthMarker> | undefined;
+        return {
+            sha: typeof last?.sha === "string" ? last.sha : undefined,
+            failedStep:
+                typeof last?.failedStep === "string"
+                    ? last.failedStep
+                    : undefined,
+            log: typeof last?.log === "string" ? last.log : undefined,
+        };
+    } catch {
+        // The marker is the verdict; the record is only its explanation.
+        return {};
+    }
+}
+
+/**
+ * The claim journal's RELEASED issues — what `liveClaims` subtracts from the
+ * `in-progress` labels.
+ *
+ * `claimLedgerPath()`'s own default root is `CLAUDE_PROJECT_DIR ?? "."`, and
+ * that bare `.` is the trap: `queue:plan` runs from wherever the session
+ * happens to be, and from an issue worktree it resolved to a directory with
+ * no journal in it at all. `.claude/hooks/claim-ledger.sh` writes under the
+ * session's project directory — the primary checkout — so that is what this
+ * resolves to when the environment does not name one. (The health marker
+ * above resolves to the primary checkout for the same reason: read a record
+ * where its writer puts it, never where the caller happens to stand.)
+ *
+ * Total: an unreadable or absent journal subtracts nothing, which leaves the
+ * labels counting on their own. That is the safe direction — see `liveClaims`.
+ */
+function releasedClaimsOnThisMachine(): number[] {
+    const root = process.env.CLAUDE_PROJECT_DIR ?? primaryCheckout();
+    try {
+        return releasedClaims(readFileSync(claimLedgerPath(root), "utf8"));
+    } catch {
+        return [];
+    }
+}
+
 function main(): void {
+    // RED first, and before the first `gh` round-trip: it needs neither the
+    // queue nor the network, and a session on a broken base should not pay a
+    // queue read plus a detail fetch per candidate to be told it may not pick.
+    const health = redRefusal(readHealthMarker(primaryCheckout()));
+    if (!health.admitted) die(health.message);
+
     const limit = arg("limit", DEFAULTS.limit);
 
     const issues = JSON.parse(
@@ -585,6 +675,22 @@ function main(): void {
     };
 
     const plan = planBatch(issues, config, port);
+
+    // Admission is decided on the PLANNER's own classification
+    // (`activeClaims`), never on the raw labels: a claim it already called
+    // STALE is work nobody is doing, and counting those toward the cap would
+    // let three abandoned labels wedge the queue shut with no session running
+    // at all. Re-deriving that set here would be the same decision spelled a
+    // second way, which is exactly what this wrapper is not for.
+    const admission = capRefusal(
+        liveClaims(plan.activeClaims, releasedClaimsOnThisMachine()),
+        sessionCap(),
+        process.argv.includes("--no-cap")
+    );
+    // Refuse BEFORE the artefact is written and before anything reaches
+    // stdout: no plan was handed out, so no plan record should claim one was,
+    // and `loop-drain` reads a non-zero exit as "stop", which is the point.
+    if (!admission.admitted) die(admission.message);
 
     writePlanArtefact(plan, config.now);
 

@@ -680,6 +680,64 @@ a **dead** holder is an orphan, a **stalled** one is a live pid whose command is
 still running and hung. A normal release logs nothing at all, so either reclaim
 line in a log is a signal by itself.
 
+## Session admission — the cap, the RED refusal, and the number behind them
+
+CPU admission control above serialises the GATES several sessions run. This is
+the level above it: how many sessions may be draining the queue **at all**.
+`bun run queue:plan` refuses a pick in two cases (ADR 0136 §6-7, issue #3775),
+each naming its exit, because a stop with no way out is how an unattended
+driver turns a two-minute fix into an idle night.
+
+**The cap.** Live claims at `sessions.cap` in `tolaria.config.json` — read
+through `scripts/lib/branches.ts`, the same reader the branch names go through,
+so the number is configuration and never a literal in the planner. The refusal
+names the claimed issues; `--no-cap` is the announced escape.
+
+"Live claims" is the set of open `in-progress` issues the planner did not
+already classify as STALE, reconciled against the claim journal
+(`.claude/telemetry/claims.jsonl`, written by `.claude/hooks/claim-ledger.sh`).
+The reconciliation only ever SUBTRACTS: an issue whose last journal row is
+`released` does not count — the label outliving the release is exactly the
+orphan window `claim-sweep.sh` and `loop:doctor` close — while a label the
+journal never mentions counts on its own.
+
+That direction is load-bearing, and the first cut of #3775 had it backwards.
+Counting the INTERSECTION made the cap fail open to zero the moment the journal
+could not be read, which is every invocation from an issue worktree
+(`claimLedgerPath()` defaults to `CLAUDE_PROJECT_DIR ?? "."`, and that bare `.`
+is wherever the session happens to stand). Measured against the live queue at
+the time: four `in-progress` claims, cap lowered to 1, and the planner admitted
+a pick without a word. A throughput knob that silently never fires is
+indistinguishable from one that was never built — so the labels are the count,
+the journal is a correction to it, and both records are read where their
+WRITERS put them (the journal under the session's project directory, the health
+marker under the primary checkout) rather than relative to the caller's cwd.
+
+**The derivation.** The cap is measured, from the PRs-per-hour-by-concurrency
+row of `bun run telemetry:latency`:
+
+| Active sessions | PR/h measured | Per-session yield | Reading                                         |
+| --------------: | ------------: | ----------------: | ----------------------------------------------- |
+|               1 |          0.59 |              0.59 | Under-subscribed — the machine idles            |
+|               3 |          1.44 |              0.48 | **The knee** — the configured cap               |
+|               4 |          1.19 |              0.30 | Past it: total throughput FALLS, not just yield |
+
+Three is where the curve turns over, and the fourth session buys negative
+throughput — it contends for the same heavy-gate mutex, the same RAM-bound
+worker pool and the same base branch, so it converts wall-clock into queueing.
+**It moves to 4 only when that row shows the knee moved**, on a later window,
+not because the queue looks long. Re-run the command, read the same three
+columns, then edit the config.
+
+**The RED refusal.** The durable release-health marker
+(`.claude/telemetry/health/RED`, left by `health-main.ts`) means the full gate
+found the base tip broken. `queue:plan` refuses the next pick and prints the
+sha, the failing step and `bun run health:fix`, so no new worktree branches
+from a tip known red and the idle time has an exit. `--no-cap` does not wave
+it through — the one flag reached for in a hurry must not silently opt out of
+that. `land` is unchanged: it WARNS and proceeds, so a session already
+mid-issue finishes and the fix-forward has a way in.
+
 ## Worktree isolation, and the documentation lane
 
 Measured over the 30 days to 2026-08-17: **~40 documentation-only commits

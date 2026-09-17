@@ -305,6 +305,19 @@ export interface BatchPlan {
     deferred: DeferredIssue[];
     skipped: SkippedIssue[];
     staleClaims: number[];
+    /**
+     * Issues held by a claim the planner judged LIVE — `in-progress`, not
+     * stale, and not a PRD umbrella (which is skipped before the claim branch
+     * is ever reached).
+     *
+     * The complement of `staleClaims` within the claimed set, and the input to
+     * the session cap (`liveClaims`). It is reported rather than re-derived
+     * because the wrapper's first cut recomputed it from the raw labels, which
+     * is the same decision spelled a second way — and spelled slightly wrong:
+     * it had no way to know the planner had already classified a claimed
+     * umbrella as `skipped`.
+     */
+    activeClaims: number[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -625,6 +638,7 @@ export function planBatch(
     const deferred: DeferredIssue[] = [];
     const skipped: SkippedIssue[] = [];
     const staleClaims: number[] = [];
+    const activeClaims: number[] = [];
 
     // ── Stage 1: eligibility ────────────────────────────────────────────────
     const eligible: QueueIssue[] = [];
@@ -656,6 +670,7 @@ export function planBatch(
                     conflictsWith: null,
                 });
             } else {
+                activeClaims.push(issue.number);
                 deferred.push({
                     number: issue.number,
                     reason: "claimed by another session",
@@ -913,5 +928,182 @@ export function planBatch(
         deferred,
         skipped,
         staleClaims,
+        activeClaims,
     };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Admission — the two things that refuse a PICK before the plan is worth
+// having (ADR 0136 §6–7, issue #3775).
+//
+// The planner above answers "which issue is next". These answer the question
+// in front of it: should this session take one AT ALL. Both are pure
+// decisions over data the wrapper reads — a claims map and a marker record —
+// for the same reason `planBatch` is: a refusal that cannot be tested is a
+// refusal nobody can change with confidence, and both of these refuse work a
+// human is waiting for.
+//
+// Each refusal NAMES ITS EXIT. A stop with no way out is how an unattended
+// driver turns a two-minute fix into an idle night: the cap refusal prints
+// the claimed issues and `--no-cap`, the RED refusal prints the broken sha,
+// the step that failed and `bun run health:fix`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The durable release-health verdict, as `health-main.ts` leaves it in
+ * `.claude/telemetry/health/` — the `RED` marker file plus the fields of
+ * `last.json` a reader needs to say WHAT is broken.
+ *
+ * `sha` and `failedStep` are optional because the record is written by
+ * another process and may be mid-write, truncated, or (for `failedStep`) from
+ * a run that died before it named a step. A missing field degrades the
+ * MESSAGE, never the decision: the marker's presence is the verdict.
+ */
+export interface HealthMarker {
+    sha?: string;
+    failedStep?: string;
+    log?: string;
+}
+
+/**
+ * Live claims: the open `in-progress` issues the planner did not already
+ * classify as stale, reconciled against the claims record.
+ *
+ * The LABEL is the count and the ledger only subtracts from it. That
+ * direction is the whole design, and it is the one a first cut got backwards:
+ * counting the INTERSECTION made the cap fail open to zero the moment the
+ * journal could not be found, and a live queue with four claims on it planned
+ * a fifth pick without a word. A throughput knob that silently never fires is
+ * indistinguishable from one that was never built.
+ *
+ * So:
+ *
+ *   * an `in-progress` label with no ledger row at all COUNTS — the ledger is
+ *     per-machine and best-effort (a shell hook under `2>/dev/null`), while
+ *     the cap is a property of the repository's throughput, measured in PR/h
+ *     by ACTIVE SESSIONS wherever they run;
+ *   * an issue whose last ledger row is `released` does NOT count — the label
+ *     outliving the release is exactly the orphan window `claim-sweep.sh` and
+ *     `loop:doctor` close, and holding a slot for it would wedge the queue on
+ *     work nobody is doing;
+ *   * a claim the planner reports as STALE is excluded by the caller before it
+ *     gets here (`BatchPlan.staleClaims` — no open PR and untouched past
+ *     `staleClaimHours`), for the same reason.
+ *
+ * Sorted ascending so a refusal message is reproducible.
+ */
+export function liveClaims(inProgress: number[], released: number[]): number[] {
+    const gone = new Set(released);
+    return [...new Set(inProgress)]
+        .filter((n) => !gone.has(n))
+        .sort((a, b) => a - b);
+}
+
+/**
+ * Fold the claim journal (`.claude/telemetry/claims.jsonl`) into the issues
+ * whose LAST row gave the claim back. Last row per issue wins: a `claim` row
+ * takes it, any other event (`released`) returns it.
+ *
+ * Pure over the file's text, and deliberately NOT `loop-doctor.ts`'s
+ * `parseClaimOwners`: that fold answers "WHO owns this claim" and therefore
+ * drops every row written before owners were recorded (#2627). Here a row with
+ * no owner is a perfectly good claim, and an issue the journal never mentions
+ * is not released — it is simply unknown, which `liveClaims` counts.
+ *
+ * Malformed lines are skipped rather than thrown on — a shell hook appends to
+ * this journal under `2>/dev/null`, so a torn last line is a normal thing to
+ * find and refusing to read the rest because of one is worse than ignoring it.
+ */
+export function releasedClaims(ledgerText: string): number[] {
+    const released = new Set<number>();
+    for (const line of ledgerText.split("\n")) {
+        if (line.trim() === "") continue;
+        let row: { issue?: unknown; event?: unknown };
+        try {
+            row = JSON.parse(line) as { issue?: unknown; event?: unknown };
+        } catch {
+            continue;
+        }
+        if (typeof row.issue !== "number") continue;
+        if (row.event === "claim") released.delete(row.issue);
+        else released.add(row.issue);
+    }
+    return [...released].sort((a, b) => a - b);
+}
+
+export interface AdmissionInput {
+    /** Live claims, already reconciled — see `liveClaims`. */
+    claims: number[];
+    /** `sessions.cap` from `tolaria.config.json`, never a literal. */
+    cap: number;
+    /** `--no-cap`: the announced escape from the cap refusal ONLY. */
+    noCap: boolean;
+    /** The release-health verdict, or `null` when no `RED` marker exists. */
+    red: HealthMarker | null;
+}
+
+export type Admission =
+    | { admitted: true }
+    | { admitted: false; refusal: "cap" | "red"; message: string };
+
+/**
+ * The RED refusal, on its own: it needs no queue and no network, so the
+ * wrapper asks it BEFORE the first `gh` round-trip. A session on a broken base
+ * should not spend the queue read and a detail fetch per candidate to be told
+ * it may not pick.
+ */
+export function redRefusal(red: HealthMarker | null): Admission {
+    if (!red) return { admitted: true };
+    const sha = red.sha ? red.sha.slice(0, 8) : "unknown sha";
+    const step = red.failedStep ?? "unknown step";
+    return {
+        admitted: false,
+        refusal: "red",
+        message:
+            `release health is RED @ ${sha} (failed at ${step}) — refusing to pick onto a broken base.\n` +
+            `  Fix forward FIRST: \`bun run health:fix\`. \`bun run health:status\` prints the verdict${
+                red.log ? ` and the log (${red.log})` : ""
+            }.\n` +
+            `  \`land\` still warns and proceeds, so a session already mid-issue finishes.`,
+    };
+}
+
+/**
+ * The cap refusal, on its own: it needs the planner's own classification of
+ * which claims are live, so the wrapper asks it after `planBatch`.
+ */
+export function capRefusal(
+    claims: number[],
+    cap: number,
+    noCap: boolean
+): Admission {
+    if (noCap || claims.length < cap) return { admitted: true };
+    return {
+        admitted: false,
+        refusal: "cap",
+        message:
+            `session cap reached — ${claims.length}/${cap} live claims: ${claims
+                .map((n) => `#${n}`)
+                .join(", ")}.\n` +
+            `  Per-session yield halves past the knee (PR/h by active sessions: 0.59 at 1, 1.44 at 3, 1.19 at 4).\n` +
+            `  Wait for one to land, or re-run with --no-cap to plan past it deliberately.`,
+    };
+}
+
+/**
+ * Should this session pick an issue? The ORDER of the two refusals, as one
+ * decision — the wrapper asks them separately (RED before the queue read, the
+ * cap after the plan), and this is what pins which one wins when both apply.
+ *
+ * RED is tested FIRST, and `--no-cap` does not touch it. The two answer
+ * different questions — "is there room for one more pass?" versus "is the tree
+ * every pass would branch from broken?" — and only the first is a tuning knob.
+ * A `--no-cap` that also waved through a red base would let the one flag
+ * anybody reaches for when they are in a hurry silently opt out of the thing
+ * ADR 0136 §6 added to stop new worktrees branching from a tip known red.
+ */
+export function admitPick(input: AdmissionInput): Admission {
+    const red = redRefusal(input.red);
+    if (!red.admitted) return red;
+    return capRefusal(input.claims, input.cap, input.noCap);
 }
