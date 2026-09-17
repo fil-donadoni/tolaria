@@ -23,6 +23,7 @@ import {
     beginApplyingStaticEffects,
     stopApplyingStaticEffects,
     applyExistingGrantsTo,
+    removePermanentTo,
     runDamageReplacement,
     type GameState,
 } from "../../../../gre/state";
@@ -32,7 +33,7 @@ import {
 } from "../../../../gre/layers";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { validateBlockerEligibility } from "../../../../gre/combat";
-import { applyAllCombatDamage } from "../../../../gre/phases";
+import { applyAllCombatDamage, finalizeCleanup } from "../../../../gre/phases";
 import type { CardType } from "../../../types";
 import {
     abilityActivatedEvent,
@@ -742,7 +743,12 @@ describe("Titania's Song ({3}{G} Enchantment — CR 613.1f ability-loss + CR 205
         expect(hasManaAbility(ring)).toBe(false);
     });
 
-    it("reverts cleanly when the Song leaves play (stopApplyingStaticEffects)", () => {
+    it("reverts cleanly when the Song STOPS APPLYING without leaving (stopApplyingStaticEffects)", () => {
+        // The non-departure path: `reattachAura` / `attachTo` / `detachFrom`
+        // call this for a source that stays on the battlefield, and CR 611.3b
+        // is unqualified there — the effect just stops. The card's "if this
+        // enchantment LEAVES the battlefield" clause needs a departure, and is
+        // asserted below and in `gre/__tests__/lingeringStatics.test.ts`.
         const { state, song, ring } = withTitaniasSong();
         stopApplyingStaticEffects(state, song);
         expect(ring.types).not.toContain("Creature");
@@ -750,6 +756,23 @@ describe("Titania's Song ({3}{G} Enchantment — CR 613.1f ability-loss + CR 205
         expect(hasManaAbility(ring)).toBe(true);
         // P/T pipeline: no longer a creature → base undefined.
         expect(getActivatedManaAbility(ring)).not.toBeNull();
+    });
+
+    it("keeps animating until end of turn after it LEAVES the battlefield (CR 611.3d)", () => {
+        // "If this enchantment leaves the battlefield, this effect continues
+        // until end of turn." (issue #3726)
+        const { state, ring } = withTitaniasSong();
+        removePermanentTo(state, "song-1", "graveyard");
+        expect(ring.types).toContain("Creature");
+        expect(hasManaAbility(ring)).toBe(false);
+        expect(getEffectivePower(state, ring)).toBe(1);
+        expect(getEffectiveToughness(state, ring)).toBe(1);
+
+        // CR 514.2 — the cleanup step the duration names.
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
+        expect(ring.types).not.toContain("Creature");
+        expect(hasManaAbility(ring)).toBe(true);
     });
 
     it("wire format: animated P/T and types survive projectPublicState", () => {

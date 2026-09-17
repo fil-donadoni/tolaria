@@ -339,18 +339,17 @@ const IS_NONCREATURE_ARTIFACT: (
 // noncreature artifact on the battlefield — including ones that enter after
 // the Song resolves, via `applyExistingGrantsTo`.)
 //
-// DIVERGENCE (tracked-by: #3726) (flagged, no engine change): "becomes an
-// artifact creature" only needs to ADD Creature — the affected permanents are
-// already artifacts, so no Artifact type-add is required. The leave-the-battlefield "continues until end
-// of turn" linger clause is NOT modeled: when the Song leaves play the engine
-// reverts the type/ability changes immediately (the standard
-// `stopApplyingStaticEffects` path). This is observable only in the window
-// between the Song leaving and the cleanup step; the common play pattern keeps
-// the Song in play, so the simplification is acceptable for ATQ scope. The
-// missing piece is a "this continuous effect survives its own source until end
-// of turn" DURATION — a lifetime that can only exist once continuous effects
-// are materialised with their own timestamp and duration rather than recomputed
-// from the live battlefield sources (tracked-by: #3726, ADR 0082).
+// "becomes an artifact creature" only needs to ADD Creature — the affected
+// permanents are already artifacts, so no Artifact type-add is required.
+//
+// CR 611.3b/611.3d — the linger clause is `lingersAfterSourceLeaves` on all
+// three effects (issue #3726). When the Song leaves the battlefield each of
+// them is frozen as of that moment into a stored registry entry that ends at
+// the CLEANUP step (`gre/lingeringStatics.ts`), so the artifacts it had
+// animated stay animated for the rest of the turn and revert together. One
+// declaration per effect and not one per card because the oracle's "this
+// effect" is the whole animation: three `StaticEffect`s make it up, and each
+// carries its own lifetime the way each carries its own layer.
 export const titaniasSong: CardDefinition = {
     id: "583a53af-2e2a-4f3f-8eab-bd874c6ed80a",
     rarity: "uncommon",
@@ -364,12 +363,14 @@ export const titaniasSong: CardDefinition = {
         {
             kind: "ability-loss",
             applies: IS_NONCREATURE_ARTIFACT,
+            lingersAfterSourceLeaves: { phase: "end-of-turn" },
         },
         // CR 205 — add the Creature type (already an Artifact).
         {
             kind: "type-add",
             applies: IS_NONCREATURE_ARTIFACT,
             types: ["Creature"],
+            lingersAfterSourceLeaves: { phase: "end-of-turn" },
         },
         // CR 604.3 / 613.4a — power and toughness each equal to mana value.
         {
@@ -379,6 +380,7 @@ export const titaniasSong: CardDefinition = {
                 const mv = ctx.getManaValue(target);
                 return { power: mv, toughness: mv };
             },
+            lingersAfterSourceLeaves: { phase: "end-of-turn" },
         },
     ],
 };

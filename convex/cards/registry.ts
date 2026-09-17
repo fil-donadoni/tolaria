@@ -97,6 +97,11 @@ const layer7StaticIds = new Set<string>();
  *  #2706). Derived by `setRegistryEntry`; see `declaresCastPermission`. */
 const castPermissionIds = new Set<string>();
 
+/** Ids whose definition declares a static effect that LINGERS past its source
+ *  (CR 611.3d, issue #3726). Derived by `setRegistryEntry`; see
+ *  `declaresLingeringStaticEffect`. */
+const lingeringStaticIds = new Set<string>();
+
 /** The ONLY writer of `registry`. Keeps `zoneConditionalIds` in step. */
 const setRegistryEntry = (key: string, def: CardDefinition): void => {
     registry.set(key, def);
@@ -109,6 +114,7 @@ const setRegistryEntry = (key: string, def: CardDefinition): void => {
     if (declaresStaticKind(def, CAST_PERMISSION_STATIC_KINDS)) {
         castPermissionIds.add(key);
     }
+    if (declaresLingeringStatic(def)) lingeringStaticIds.add(key);
 };
 
 /** CR 613.1b-e — the `StaticEffect` kinds the layers-2-to-5 derivation owns.
@@ -160,6 +166,25 @@ const declaresStaticKind = (
     // `bestow` field is what says they will.
     (def.bestow !== undefined &&
         BESTOW_STATIC_EFFECT_KINDS.some((kind) => kinds.has(kind)));
+
+/** CR 611.3d (issue #3726) — does any of `def`'s static effects declare
+ *  `lingersAfterSourceLeaves`? The FIELD twin of `declaresStaticKind` above:
+ *  the linger is orthogonal to the kind, so no set of kinds can answer it.
+ *  Reads the same four places that function does, for the same reasons. */
+const declaresLingeringStatic = (def: CardDefinition): boolean => {
+    // `unknown` rather than the union: `lingersAfterSourceLeaves` is admitted
+    // only on the characteristic-changing arm, so `tsc` rejects a predicate
+    // typed to read it off every member — which is the type-level claim
+    // holding, not a hole to widen.
+    const lingers = (e: unknown): boolean =>
+        (e as { lingersAfterSourceLeaves?: unknown })
+            .lingersAfterSourceLeaves !== undefined;
+    return (
+        (def.staticEffects ?? []).some(lingers) ||
+        (def.compiledStaticEffects ?? []).some(lingers) ||
+        (def.modes ?? []).some((m) => (m.staticEffects ?? []).some(lingers))
+    );
+};
 
 /** CR 613.1f — the `StaticEffect` kinds the layer-6 derivation owns.
  *  Duplicated from `gre/layer6.ts`'s own table for the reason
@@ -213,6 +238,24 @@ const declaresIndexedStatic = (
     tryGetDefinition(cardId);
     return indexed.has(cardId);
 };
+
+/** CR 611.3d (issue #3726) — does `cardId`'s definition declare a static effect
+ *  that keeps applying after its source leaves the battlefield? The fifth of
+ *  these prechecks, and it stands on the hottest path of the five:
+ *  `removePermanentTo` is the single funnel for EVERY battlefield departure, so
+ *  the ISMCTS search pays it on every rollout that kills, sacrifices or bounces
+ *  anything — and a handful of cards in the whole catalogue declare a linger.
+ *  Without it the funnel pays a `tryGetDefinition` (registry lookup +
+ *  `maybeSynthesizeToken` + `expandDefinition`) and a `getEffectiveStaticEffects`
+ *  call before it can learn there is nothing to snapshot.
+ *
+ *  Same derived-membership discipline and the same fail-slow trade as its four
+ *  twins above: a stale TRUE costs one wasted lookup and never a wrong answer,
+ *  because `snapshotLingeringStaticEffects` still reads the live definition
+ *  before freezing anything; a stale FALSE is impossible, because every write
+ *  goes through `setRegistryEntry`. */
+export const declaresLingeringStaticEffect = (cardId: string): boolean =>
+    declaresIndexedStatic(cardId, lingeringStaticIds);
 
 /** CR 113.6c (issue #2391) — does `cardId`'s definition declare
  *  zone-conditional characteristics? A cheap precheck for the readers in
