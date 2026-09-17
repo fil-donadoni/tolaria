@@ -151,7 +151,9 @@ describe("multi-select mode picker on the cast pipeline (issue #2264)", () => {
         fireEvent.click(screen.getByRole("button", { name: "Flashback" }));
         fireEvent.click(screen.getByRole("button", { name: /Mode one/ }));
         expect(
-            screen.getByRole("button", { name: /Mode three/ })
-        ).toBeDisabled();
+            screen.getByRole("button", {
+                name: /Mode three/,
+            }) as HTMLButtonElement
+        ).toHaveProperty("disabled", true);
     });
 });

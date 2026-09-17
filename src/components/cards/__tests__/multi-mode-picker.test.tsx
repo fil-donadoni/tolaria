@@ -51,16 +51,19 @@ describe("ModePicker multi-select (issue #2264)", () => {
 
         fireEvent.click(screen.getByRole("button", { name: "Add Mode C" }));
         fireEvent.click(screen.getByRole("button", { name: "Add Mode A" }));
-        expect(confirm()).toBeDisabled();
+        expect(confirm() as HTMLButtonElement).toHaveProperty("disabled", true);
         fireEvent.click(screen.getByRole("button", { name: "Add Mode C" }));
-        expect(document.querySelector('[data-mode-id="c"]')).toHaveAttribute(
-            "data-mode-count",
-            "2"
-        );
+        expect(
+            document
+                .querySelector('[data-mode-id="c"]')
+                ?.getAttribute("data-mode-count")
+        ).toBe("2");
         // The count is full — no mode takes a fourth pick.
         expect(
-            screen.getByRole("button", { name: "Add Mode B" })
-        ).toBeDisabled();
+            screen.getByRole("button", {
+                name: "Add Mode B",
+            }) as HTMLButtonElement
+        ).toHaveProperty("disabled", true);
         expect(onSelect).not.toHaveBeenCalled();
 
         fireEvent.click(confirm());
@@ -78,9 +81,9 @@ describe("ModePicker multi-select (issue #2264)", () => {
         const rowC = screen.getByRole("button", { name: /Mode C/ });
         fireEvent.click(rowB);
         fireEvent.click(rowA);
-        expect(rowC).toBeDisabled();
+        expect(rowC as HTMLButtonElement).toHaveProperty("disabled", true);
         fireEvent.click(rowA);
-        expect(rowA).toHaveAttribute("aria-pressed", "false");
+        expect(rowA?.getAttribute("aria-pressed")).toBe("false");
         fireEvent.click(confirm());
         expect(onConfirm).toHaveBeenCalledWith(["b"]);
     });
@@ -95,12 +98,17 @@ describe("ModePicker multi-select (issue #2264)", () => {
             })
         );
         expect(
-            document.querySelector("[data-mode-shortfall]")
-        ).toHaveTextContent(/Only 2 modes/);
-        expect(screen.getByRole("button", { name: /Mode A/ })).toBeDisabled();
+            document.querySelector("[data-mode-shortfall]")?.textContent
+        ).toMatch(/Only 2 modes/);
+        expect(
+            screen.getByRole("button", { name: /Mode A/ }) as HTMLButtonElement
+        ).toHaveProperty("disabled", true);
         fireEvent.click(screen.getByRole("button", { name: /Mode B/ }));
         fireEvent.click(screen.getByRole("button", { name: /Mode C/ }));
-        expect(confirm()).toBeEnabled();
+        expect(confirm() as HTMLButtonElement).toHaveProperty(
+            "disabled",
+            false
+        );
         fireEvent.click(confirm());
         expect(onConfirm).toHaveBeenCalledWith(["b", "c"]);
     });

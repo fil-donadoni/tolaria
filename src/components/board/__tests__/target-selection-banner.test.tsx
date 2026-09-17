@@ -294,7 +294,7 @@ describe("TargetSelectionBanner — mode instance provenance (issue #2264)", () 
             },
             player({ hand: [spell] })
         );
-        expect(label).toHaveTextContent("Ping target creature (2 of 2)");
+        expect(label?.textContent).toContain("Ping target creature (2 of 2)");
     });
 
     it("reads the mode list of a spell cast from the graveyard", () => {
@@ -302,7 +302,7 @@ describe("TargetSelectionBanner — mode instance provenance (issue #2264)", () 
             { chosenModeIds: ["ping", "draw"], groupModeInstances: [0] },
             player({ graveyard: [spell] })
         );
-        expect(label).toHaveTextContent("Ping target creature");
+        expect(label?.textContent).toContain("Ping target creature");
     });
 
     it("a single-instance selection shows no provenance", () => {
