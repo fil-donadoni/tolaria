@@ -95,7 +95,6 @@ function board(opts: {
                             controllerId: OPP,
                             ownerId: OPP,
                             zone: "battlefield",
-                            summoningSick: false,
                         })
                 ),
             }),
