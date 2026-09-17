@@ -21,12 +21,16 @@
 //      records that its ability is CONDITIONAL (CR 603.4), plus the per-Kicker
 //      check-time predicate (`additionalCostPaidCondition`) that the Battlemage
 //      cycle's "if it was kicked with its {A} kicker" triggers are gated on
-//      (CR 702.33, ADR 0079, issue #2015).
+//      (CR 702.33, ADR 0079, issue #2015), plus the twin-half link
+//      (`withAdditionalCostTwin`) an additional-cost keyword that "represents
+//      two abilities" stamps so the catalogue guard can SEE its trigger half
+//      (CR 702.175a, issue #2079).
 //
 // The scope vocabularies are fixed at ADR 0002 — keep this file as the single
 // source of truth so the factories stay in lockstep.
 
 import type {
+    AdditionalCostTwin,
     CardType,
     Color,
     DamageDealtEvent,
@@ -403,6 +407,26 @@ export function withTriggerGate<T extends TriggeredAbility>(
     } else if (args.condition !== undefined) {
         ability.gate = UNDECIDABLE_TRIGGER_GATE;
     }
+    return ability;
+}
+
+/** CR 702.175a — stamps the built ability as the TRIGGER half of an
+ *  additional-cost keyword, linked to the `kickers[]` entry named by
+ *  `twin.costId`. The ONE place the link is written, mirroring
+ *  {@link withTriggerGate}: a keyword's trigger factory routes its return
+ *  through this, and nothing else ever assigns the field.
+ *
+ *  Keyword-GENERIC on purpose. The behaviour the marker unlocks lives entirely
+ *  in `ADDITIONAL_COST_KEYWORDS` (`gre/kicker.ts`) — `requiresTrigger` is what
+ *  makes the twin mandatory — so Gift (CR 702.174) and Casualty become guarded
+ *  by adding a table row and calling this helper, with no new guard code.
+ *
+ *  See {@link AdditionalCostTwin} for why the link has to be explicit at all. */
+export function withAdditionalCostTwin<T extends TriggeredAbility>(
+    ability: T,
+    twin: AdditionalCostTwin
+): T {
+    ability.additionalCostTwin = { ...twin };
     return ability;
 }
 

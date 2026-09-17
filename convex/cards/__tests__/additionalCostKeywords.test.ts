@@ -16,7 +16,11 @@
 //     the mechanic (the identity is what issue #2079 needs in order to BUILD
 //     offspring) without a card ever silently shipping half of it;
 //  3. every shipped `kickers[]` entry's keyword is implemented, and obeys its
-//     own table row (`allowsMulti`, `requiresTrigger`).
+//     own table row — `allowsMulti` (repetition rejected where CR 702.175 has
+//     no "any number of times" clause) and `requiresTrigger`, which since issue
+//     #2079 is checked BIDIRECTIONALLY against the twin marker: a cost entry
+//     with no twin trigger naming it, and a twin trigger naming no cost entry,
+//     are both half a mechanic.
 import { describe, expect, it } from "vitest";
 import { MECHANICS_REGISTRY } from "../mechanicsRegistry";
 import {
@@ -37,9 +41,10 @@ import { getAllCards } from "../index";
 const PENDING_ADDITIONAL_COST_KEYWORDS: Partial<
     Record<AdditionalCostKeyword, number>
 > = {
-    // CR 702.175a — the cost half is expressible as of ADR 0085; the twin
-    // "create a 1/1 token copy" trigger is issue #2079.
-    offspring: 2079,
+    // Empty, and meant to stay that way: issue #2079 shipped offspring's twin
+    // trigger, which was the last member declared ahead of its mechanic. A new
+    // member may sit here while its trigger half is built — that is what the
+    // map is for — but it may never be reached by a shipped card while it does.
 };
 
 const registryRow = (id: AdditionalCostKeyword) =>
@@ -104,7 +109,13 @@ describe("AdditionalCostKeyword ↔ Mechanics Registry (CR 702.33a, ADR 0085)", 
     // change in a table nobody reads.
     it("pins each member's kicked-ness (CR 702.33d)", () => {
         expect(ADDITIONAL_COST_KEYWORDS.kicker.countsAsKicked).toBe(true);
+        // CR 702.175 (issue #2079) — offspring is never a kick, has no "any
+        // number of times" clause (702.175b's multiple instances are multiple
+        // ENTRIES), and its twin is authored by the card, not synthesized.
         expect(ADDITIONAL_COST_KEYWORDS.offspring.countsAsKicked).toBe(false);
+        expect(ADDITIONAL_COST_KEYWORDS.offspring.allowsMulti).toBe(false);
+        expect(ADDITIONAL_COST_KEYWORDS.offspring.requiresTrigger).toBe(true);
+        expect(ADDITIONAL_COST_KEYWORDS.offspring.castCopyTrigger).toBe(false);
         // CR 702.56a (issue #2100) — replicate buys COPIES, never a kick, and
         // its twin trigger is the synthesized cast-copy one.
         expect(ADDITIONAL_COST_KEYWORDS.replicate.countsAsKicked).toBe(false);
@@ -186,28 +197,97 @@ describe("shipped kickers[] entries obey their keyword's table row (ADR 0085)", 
         ).toEqual([]);
     });
 
-    // ADR 0085 § Decision 4 asks for more than this: the twin must be THE twin
-    // (CR 702.175a's "create a token that's a copy of it, except it's 1/1"),
-    // and the "and vice versa" direction — a card carrying the twin trigger but
-    // no cost entry declaring the keyword — is not checked here at all. Both
-    // need the trigger to be RECOGNISABLE, which it only becomes once issue
-    // #2079 ships the shape it takes; recognising it is that ticket's work.
-    // Until then the row above ("no shipped card reaches a PENDING keyword")
-    // is what actually keeps a half-mechanic out of the catalogue, and this row
-    // is the coarse floor beneath it.
+    // ADR 0085 § Decision 4, delivered by issue #2079: both directions of the
+    // LINK between a cost entry and its trigger half — a cost entry with no
+    // twin, and a card carrying the twin trigger but no cost entry declaring
+    // the keyword.
+    //
+    // What these rows check is the LINK, not the twinned ability's CONTENT: a
+    // marker stamped onto an ability that does something else entirely would
+    // pass. That is deliberate. The content of the twin is per-KEYWORD
+    // (CR 702.175a's 1/1 token copy is not CR 702.174b's "[effect]"), and this
+    // file's whole value is being keyword-generic — a content check here would
+    // be the hardcoded-on-offspring shape issue #2079 explicitly ruled out.
+    // The content is proved per keyword instead, by the factory's own test
+    // (`cards/abilities/__tests__/offspring.test.ts`), and the marker is
+    // stamped ONLY by that factory, never by hand on a card.
+    //
+    // Both directions need the trigger to be RECOGNISABLE, which is what
+    // `TriggeredAbility.additionalCostTwin` is for. It has to be an explicit
+    // marker because Guard A (issue #957/#958) reads keyword strings out of
+    // `staticAbilities[]` and an offspring card has NONE: it is a cost entry
+    // plus a separate triggered ability. So this exact form would otherwise
+    // pass every gate in the repo — an offspring cost entry with no offspring
+    // trigger. The cost gets paid, the token never comes, nothing goes red.
+    //
+    // Keyword-GENERIC by construction: the only input is
+    // `ADDITIONAL_COST_KEYWORDS[...].requiresTrigger`, never a hardcoded list,
+    // so Gift (CR 702.174) and Casualty inherit both directions by adding a
+    // table row and calling `withAdditionalCostTwin`.
+    //
     // A `castCopyTrigger` keyword's twin is synthesized by the ENGINE from the
-    // cost entry itself (`collectCastTriggers`, CR 702.56a), so no card
-    // authors it; `replicate.test.ts` is what proves the engine puts it on
-    // the stack.
-    it("a keyword that demands a twin trigger ships at least one (CR 702.175a)", () => {
-        const offenders = shippedEntries.filter(
-            (e) =>
-                ADDITIONAL_COST_KEYWORDS[e.keyword].requiresTrigger &&
-                !ADDITIONAL_COST_KEYWORDS[e.keyword].castCopyTrigger &&
-                (e.card.triggeredAbilities?.length ?? 0) === 0
+    // cost entry itself (`collectCastTriggers`, CR 702.56a), so no card authors
+    // it and no card can carry its marker; `replicate.test.ts` is what proves
+    // the engine puts it on the stack.
+    const twinsOf = (card: (typeof shippedEntries)[number]["card"]) =>
+        (card.triggeredAbilities ?? []).flatMap((ability) =>
+            ability.additionalCostTwin ? [ability.additionalCostTwin] : []
         );
+
+    it("every cost entry whose keyword demands a twin has one naming IT (CR 702.175a/b)", () => {
+        const offenders = shippedEntries.filter((e) => {
+            const row = ADDITIONAL_COST_KEYWORDS[e.keyword];
+            if (!row.requiresTrigger || row.castCopyTrigger) return false;
+            // CR 702.175b — the link is per ENTRY id, not per keyword, so a
+            // card with two instances needs two triggers and one matching the
+            // OTHER entry does not satisfy this one.
+            return !twinsOf(e.card).some(
+                (twin) =>
+                    twin.keyword === e.keyword && twin.costId === e.entry.id
+            );
+        });
         expect(
-            offenders.map((o) => `${o.card.id}:${o.entry.id} (${o.keyword})`)
+            offenders.map(
+                (o) =>
+                    `${o.card.name} (${o.card.id}): ${o.keyword} cost entry "${o.entry.id}" has no twin trigger`
+            )
         ).toEqual([]);
+    });
+
+    it("the rows above are not vacuous — some shipped keyword actually demands a twin", () => {
+        // Without this, the bidirectional guard would pass trivially the day
+        // the last twin-demanding card left the catalogue.
+        expect(
+            shippedEntries
+                .filter((e) => {
+                    const row = ADDITIONAL_COST_KEYWORDS[e.keyword];
+                    return row.requiresTrigger && !row.castCopyTrigger;
+                })
+                .map((e) => e.keyword)
+        ).not.toEqual([]);
+    });
+
+    it("no twin trigger is an orphan — every one names a real cost entry (ADR 0085)", () => {
+        // The other direction. A card that keeps the trigger half but loses or
+        // renames the cost entry is just as broken as the reverse: the ability
+        // is check-time-gated on a payment record that can never be written, so
+        // it silently never fires.
+        const offenders = getAllCards().flatMap((card) =>
+            (card.triggeredAbilities ?? []).flatMap((ability) => {
+                const twin = ability.additionalCostTwin;
+                if (!twin) return [];
+                const matched = (card.kickers ?? []).some(
+                    (entry) =>
+                        entry.id === twin.costId &&
+                        additionalCostKeywordOf(entry) === twin.keyword
+                );
+                return matched
+                    ? []
+                    : [
+                          `${card.name} (${card.id}): trigger "${ability.id}" claims to be the twin of ${twin.keyword} cost entry "${twin.costId}", which the card does not declare`,
+                      ];
+            })
+        );
+        expect(offenders).toEqual([]);
     });
 });

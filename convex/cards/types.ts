@@ -261,6 +261,35 @@ export type AdditionalCostKeyword =
     | "squad"
     | "replicate";
 
+/** CR 702.175a / 702.157a — the LINK between the two halves of an additional-cost
+ *  keyword that "represents two abilities": the `kickers[]` cost entry and the
+ *  triggered ability that reads its payment. Stamped by the keyword's own
+ *  trigger factory ({@link offspringTrigger}) through
+ *  `withAdditionalCostTwin`, never written by hand on a card.
+ *
+ *  It exists because the catalogue-wide keyword guard cannot otherwise SEE the
+ *  trigger half. Guard A (issue #957/#958) reads keyword strings out of
+ *  `staticAbilities[]`, and an Offspring card has none: it is a cost entry plus
+ *  a separate triggered ability. Without this marker the half-shipped form —
+ *  an offspring cost entry with no offspring trigger — passes every gate in the
+ *  repo: the cost is paid, the token never comes, nothing goes red.
+ *
+ *  Read BIDIRECTIONALLY by `cards/__tests__/additionalCostKeywords.test.ts`
+ *  against `ADDITIONAL_COST_KEYWORDS` (`gre/kicker.ts`), never against a
+ *  hardcoded list of keywords: a cost entry whose row says `requiresTrigger`
+ *  must have a twin naming it, and a twin naming a cost entry that does not
+ *  exist is equally broken. Gift (CR 702.174) and Casualty inherit both
+ *  directions by adding a table row and calling the same helper. */
+export interface AdditionalCostTwin {
+    /** Which keyword's two halves this ability is the second of. */
+    keyword: AdditionalCostKeyword;
+    /** The `KickerCost.id` of the cost half on the SAME card. CR 702.175b —
+     *  multiple instances of the keyword are multiple entries with distinct
+     *  ids, each with its own twin, so the link is per-ENTRY and never per
+     *  keyword. */
+    costId: string;
+}
+
 /** CR 702.33 — ONE Kicker: an OPTIONAL additional cost the caster may choose to
  *  pay as they cast the spell ("You may pay an additional [cost] as you cast
  *  this spell"). Paid ON TOP of the mana cost at cast time (CR 601.2f — unlike
@@ -11237,6 +11266,13 @@ export interface TriggeredAbility {
      *  fires whenever its event matches", which is what a reader assumes by
      *  default. Never consulted by the engine (`matches` is the authority). */
     gate?: TriggerGate;
+    /** CR 702.175a — this ability is the TRIGGER half of an additional-cost
+     *  keyword, and names the cost entry it is linked to. See
+     *  {@link AdditionalCostTwin}: it is what makes "both halves shipped
+     *  together" a checkable claim rather than a convention. Stamped by the
+     *  keyword's trigger factory; absent on every ability that is not one
+     *  half of such a pair, which is almost all of them. */
+    additionalCostTwin?: AdditionalCostTwin;
     /** Which event kind(s) can fire this ability — used to index-filter before
      *  `matches()`. A scalar for the common single-event case; an ARRAY when a
      *  single Oracle sentence spans several engine events (CR 603.2), e.g.
