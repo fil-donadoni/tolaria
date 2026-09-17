@@ -1,7 +1,8 @@
 ---
 title: Nine shipped cards declare a non-CDA P/T effect as pt-cda, so it applies in sublayer 7a instead of 7b or 7c
 discoveredBy: 3726
-status: draft
+status: triaged
+issue: 1992
 confidence: high
 ---
 
@@ -54,9 +55,16 @@ each basic land type" or "equal to its mana value" at all. The fix is a
 (ADR 0050's two forms), then re-pointing the nine declarations. It is one
 `cards/types.ts` + `gre/layers.ts` slice.
 
-**Why this is a draft and not an issue.** It is defensible without the card
-that surfaced it, which clears the bar — but the loop drains the queue and does
-not fill it, so the call is a human's.
+**Where it is tracked.** Issue #1992 — filed long before this pass, from the
+other end: it describes the same nine-card class as a sum-vs-overwrite
+COLLISION between two `pt-cda` sources on one target, which is a symptom of the
+misclassification above. Re-audited and corrected in a comment there rather
+than re-filed: its body still cites `getCDAContribution`, which PRD #2064
+S6b-part-2 deleted, and counts 39 declarations / 3 cards against the 123 / 9
+measured here. The repro it gives (Nightmare + Heroic Defiance + 4 Swamps →
+`0/0`, dead to the CR 704.5f SBA) still reproduces: the registry migration
+replaced the machinery and preserved the bug, because `pt-cda` still maps to
+sublayer 7a and 7a is still last-wins.
 
 Untouched by issue #3726: `gre/lingeringStatics.ts` snapshots whatever slot and
 flag the live derivation produced, so a lingering effect is exactly as right or
