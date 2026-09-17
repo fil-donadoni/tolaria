@@ -44,8 +44,9 @@ This is prose, not a gate — deliberately (issue #3078). It is three habits:
     bunx vitest run <path> >"$L" 2>&1; echo "exit=$?"; grep -E 'Tests|FAIL|✗' "$L"
     ```
 
-    The pre-PR gate is the one thing that does NOT go in this shape — it can
-    outlive the tool's own cap, so it goes through `gate:run` below.
+    `land` is the one thing that does NOT go in this shape — it runs the lane
+    gate behind the machine-wide mutex and can outlive the tool's own cap, so
+    it goes through `gate:run` below.
 
     `deny-guard.sh` § 3 already refuses a `bun run` piped into a pager, and this
     is the idiom it is asking for. The same applies to reading: `grep -c` or
@@ -65,20 +66,20 @@ This is prose, not a gate — deliberately (issue #3078). It is three habits:
 <!-- <<<GATE-RULE>>> -->
 
 RUNNING A GATE. A gate never runs detached from the call that must read its
-verdict: not `run_in_background` (the notification never arrives — under
-`claude -p` the end of a turn is the end of the process), and not piped into
-a pager (the exit code becomes the pager's). A gate that can outlive the Bash
-tool's cap — every pre-PR gate, which queues behind the machine-wide gate
-mutex — runs through `bun run gate:run <script>` instead, issued with the
-tool's `timeout` set to its 600000ms MAXIMUM, because the 120000ms DEFAULT is
-shorter than the wait this script does: each call blocks in the FOREGROUND for
-at most 480s and then either returns the gate's real exit code or exits 75,
-"still running"; re-running the IDENTICAL command re-attaches to the same run
-and never starts a second gate. Re-run it until an exit code comes back. This
-rule is the same attended and unattended — the only difference is the cost of
-breaking it: an attended session that lets a gate be promoted to the background
-sees the promotion and can re-attach by hand, a driven pass dies with the turn
-and takes the gate's verdict with it.
+verdict: not `run_in_background` (the notification never arrives — under `claude
+-p` the end of a turn is the end of the process), and not piped into a pager
+(the exit code becomes the pager's). A gate that can outlive the Bash tool's cap
+— `land`, and any lane gate run by hand, both of which queue behind the
+machine-wide gate mutex — runs through `bun run gate:run <script>` instead,
+issued with the tool's `timeout` set to its 600000ms MAXIMUM, because the
+120000ms DEFAULT is shorter than the wait this script does: each call blocks in
+the FOREGROUND for at most 480s and then either returns the gate's real exit
+code or exits 75, "still running"; re-running the IDENTICAL command re-attaches
+to the same run and never starts a second gate. Re-run it until an exit code
+comes back. This rule is the same attended and unattended — the only difference
+is the cost of breaking it: an attended session that lets a gate be promoted to
+the background sees the promotion and can re-attach by hand, a driven pass dies
+with the turn and takes the gate's verdict with it.
 
 <!-- <<<END GATE-RULE>>> -->
 
@@ -192,10 +193,11 @@ wrong-mental-model defect, see §1's escalation note.
 
 ## 5. Land
 
-- Pre-PR: `bun run gate:run check:lane` (`check:lane` degrades to `check:pr`
-  verbatim on mixed diffs — that's fine). Exit 75 means "still running": issue
-  the identical command again, as many times as it takes, until an exit code
-  comes back. Never end the turn on a 75.
+- **No pre-PR gate** (ADR 0136 §1). Before the PR, the session's signal is
+  its targeted `bunx vitest run` and the §4 review — nothing else. The lane is
+  paid ONCE, by `land`, on the rebased tip inside the mutex. A lane gate run
+  here certified a tree that never landed: at 2.5 PR/h the base moved during
+  it, and `land` paid the lane again anyway. Commit, push, open the PR.
 - PR body: what changed, tests + proof-of-failure line, `{ label, spec }`
   scenario for any new card/gameplay feature (ADR 0044), UI receipt only if
   the diff can reach the DOM (`bun run check:ui`).
@@ -214,9 +216,14 @@ wrong-mental-model defect, see §1's escalation note.
   this one does not) would compute a different key and start a SECOND `land`,
   re-paying the whole gate. With the key, re-issue the identical command from
   anywhere — including the primary checkout — and it re-attaches.
+- Exit 75 means "still running": issue the identical command again, as many
+  times as it takes, until an exit code comes back. Never end the turn on a 75.
 - `bun run gate:run land <PR#>` rebases onto the base branch, runs the lane
   gate under the machine mutex, merges into the base branch, tears down the
-  worktree and both branch refs. No health gate per landing (ADR 0116): the
+  worktree and both branch refs. Its log says `lane: ran`, or
+  `lane: skipped (gated <sha> against <base>)` when that exact rebased tip was
+  already gated green against that exact base — a `land` retried after a
+  merge refusal does not pay the lane twice. No health gate per landing (ADR 0116): the
   full gate runs once at `bun run release`, on the base tip, before the
   release branch moves. If `land` warns that a health RED marker exists,
   read `bun run health:status` first: fixing the base tip comes before

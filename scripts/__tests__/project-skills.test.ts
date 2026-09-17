@@ -108,6 +108,23 @@ describe("next-issue consumes the planner (issue #2184, re-homed by ADR 0110)", 
         expect(body()).not.toMatch(/git worktree add/);
         expect(body()).not.toMatch(/health:main/);
     });
+
+    it("§5 runs no lane gate before the PR — `land` pays it once (ADR 0136 §1, issue #3779)", () => {
+        // The pre-PR `check:lane` certified a tree that never landed: at
+        // 2.5 PR/h the base moved during it, and `land` paid the lane again
+        // on the rebased tip anyway. A §5 that names `check:lane` ahead of
+        // the PR step is that gate coming back.
+        const text = body();
+        const land = text.indexOf("## 5. Land");
+        const report = text.indexOf("## 6. Report");
+        expect(land).toBeGreaterThan(-1);
+        expect(report).toBeGreaterThan(land);
+        const section = text.slice(land, report);
+        const prStep = section.indexOf("- PR body:");
+        expect(prStep, "§5 no longer has its PR body step").toBeGreaterThan(-1);
+        expect(section.slice(0, prStep)).not.toMatch(/check:lane/);
+        expect(section).toMatch(/No pre-PR gate/);
+    });
 });
 
 describe("every skill is discoverable on a case-sensitive filesystem", () => {
