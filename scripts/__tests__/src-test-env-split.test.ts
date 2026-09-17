@@ -177,12 +177,15 @@ describe("node partitions — every test file runs in exactly one project", () =
     });
 
     it("routes the engine guards a convex/** diff can red to node-engine", () => {
-        // A transitive importer of convex/ and two censuses that read the
-        // engine tree through fs without importing it.
+        // A transitive importer of convex/, two censuses that read the
+        // engine tree through fs without importing it, and a test whose
+        // imported helper reads data/cr/ (a CR renumbering reds it).
         for (const f of [
             "scripts/__tests__/catalogue-artifact.test.ts",
             "scripts/__tests__/bot-suite-boundary.test.ts",
             "scripts/__tests__/trigger-gate-marking.test.ts",
+            "scripts/__tests__/cr-keyword-citations.test.ts",
+            "scripts/__tests__/cr-citations.test.ts",
         ]) {
             expect(selectedBy(f), f).toEqual(["node-engine"]);
         }

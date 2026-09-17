@@ -134,11 +134,17 @@ export function splitSrcTests(root: string): SrcTestSplit {
 //     module under `convex/` or `data/`, or
 //   - the test itself names `convex` or `data` as a path literal (`"convex/…"`,
 //     `join(ROOT, "convex")`) — the census shape, which reads the engine tree
-//     through `fs` and imports none of it.
+//     through `fs` and imports none of it — or any local module it reaches
+//     names `convex/…` / `data/…` (the CR sweeps read `data/cr/` and every
+//     tracked `convex/**` source through a `scripts/lib` helper). The module
+//     arm requires the slash and ignores comments: a bare `"data"` there is an
+//     event name as often as a directory, and a doc comment citing
+//     `convex/bugReports.ts` reads nothing.
 //
 // What the predicate cannot see is a subprocess: a tooling test that spawns a
-// script which imports `convex/`. None exists as of ADR 0136; one that appears
-// is caught at the health run, the backstop ADR 0104 already names.
+// script which imports `convex/` or reads it. None exists as of ADR 0136; one
+// that appears is caught at the health run, the backstop ADR 0104 already
+// names.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Import specifiers: `from "x"`, `import("x")`, bare `import "x"`. */
@@ -147,6 +153,14 @@ const IMPORT_SPECIFIER =
 
 /** A string literal naming the engine tree or its data as a path. */
 const ENGINE_PATH_LITERAL = /["'`](convex|data)(["'`]|\/)/;
+
+/** The same, in a reached module: the directory form only, and only in code —
+ *  `scripts/lib` doc comments cite `convex/…` paths as prose all the time. */
+const ENGINE_DIR_LITERAL = /["'`](convex|data)\//;
+
+function stripComments(source: string): string {
+    return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+}
 
 const ENGINE_ROOTS = ["convex/", "data/"];
 
@@ -169,6 +183,8 @@ function resolveLocal(
         base,
         `${base}.ts`,
         `${base}.tsx`,
+        `${base}.mjs`,
+        `${base}.js`,
         path.join(base, "index.ts"),
     ]) {
         if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
@@ -193,8 +209,14 @@ export function reachesEngine(root: string, testFile: string): boolean {
         seen.add(file);
         const rel = path.relative(root, file).split(path.sep).join("/");
         if (ENGINE_ROOTS.some((r) => rel.startsWith(r))) return true;
-        if (!/\.tsx?$/.test(file) || !fs.existsSync(file)) continue;
+        if (!/\.(tsx?|mjs|js)$/.test(file) || !fs.existsSync(file)) continue;
         const source = fs.readFileSync(file, "utf8");
+        if (
+            file !== testFile &&
+            ENGINE_DIR_LITERAL.test(stripComments(source))
+        ) {
+            return true;
+        }
         for (const m of source.matchAll(IMPORT_SPECIFIER)) {
             const resolved = resolveLocal(root, file, m[1] ?? m[2] ?? m[3]);
             if (resolved) stack.push(resolved);

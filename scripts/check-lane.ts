@@ -521,7 +521,7 @@ export function classifyLane(
     } else {
         skip.push({
             id: "node-tooling",
-            reason: "no changed code under scripts/** — no tooling test imports convex/ or data/ or names either as a path (scripts/test-env-split.ts)",
+            reason: "no changed code under scripts/** — no tooling test imports convex/ or data/, and neither it nor a module it imports names either as a path (scripts/test-env-split.ts)",
         });
     }
     appendDocsGuards(files, run);

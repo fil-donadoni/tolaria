@@ -272,8 +272,10 @@ and the `skin` lane run both; the `engine` lane runs `node-engine` and admits
 Membership is a predicate, not a list (`splitScriptsTests` in
 `scripts/test-env-split.ts`, computed at config load beside the node/dom
 split). A scripts test is `engine` when its transitive local imports reach
-`convex/` or `data/`, OR when it names either tree as a path literal — the
-census shape that reads the engine through `fs` and imports none of it. It
+`convex/` or `data/`, OR when it — or any local module it reaches — names
+either tree as a path literal: the census shape that reads the engine through
+`fs` and imports none of it (the CR sweeps read `data/cr/` through a
+`scripts/lib` helper). It
 leans toward `engine` on purpose: a false `engine` costs seconds, a false
 `tooling` is a guard a `convex/**` diff stops running until the next health
 run. The one blind spot is a subprocess (a tooling test spawning a script that
