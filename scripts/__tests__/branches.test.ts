@@ -6,8 +6,11 @@ import {
     CONFIG_PATH,
     ORIGIN_BASE,
     RELEASE_BRANCH,
+    SESSION_CAP,
     parseBranchConfig,
+    parseSessionConfig,
     readBranchConfig,
+    readSessionConfig,
 } from "../lib/branches";
 
 /**
@@ -69,6 +72,66 @@ describe("tolaria.config.json — the branch configuration", () => {
                 "x.json"
             )
         ).toEqual({ base: "staging", release: "main" });
+    });
+});
+
+describe("tolaria.config.json — the session cap (ADR 0136 §7, issue #3775)", () => {
+    it("names a positive integer cap, and the planner reads that one", () => {
+        const cfg = readSessionConfig(CONFIG_PATH);
+        expect(cfg.cap).toBe(SESSION_CAP);
+        expect(Number.isInteger(cfg.cap)).toBe(true);
+        expect(cfg.cap).toBeGreaterThanOrEqual(1);
+    });
+
+    it("rejects a config that does not name a usable cap", () => {
+        expect(() => parseSessionConfig("{", "x.json")).toThrow(
+            /not valid JSON/
+        );
+        expect(() => parseSessionConfig("{}", "x.json")).toThrow(/sessions/);
+        expect(() => parseSessionConfig('{"sessions":{}}', "x.json")).toThrow(
+            /positive integer/
+        );
+        // A cap of 0 refuses every pick forever and a fractional one compares
+        // as garbage against a claim COUNT — both read like a live cap in the
+        // refusal message, which is why they throw here instead.
+        expect(() =>
+            parseSessionConfig('{"sessions":{"cap":0}}', "x.json")
+        ).toThrow(/positive integer/);
+        expect(() =>
+            parseSessionConfig('{"sessions":{"cap":2.5}}', "x.json")
+        ).toThrow(/positive integer/);
+        expect(() =>
+            parseSessionConfig('{"sessions":{"cap":"3"}}', "x.json")
+        ).toThrow(/positive integer/);
+        expect(parseSessionConfig('{"sessions":{"cap":4}}', "x.json")).toEqual({
+            cap: 4,
+        });
+    });
+
+    it("the planner reads the cap from here, never from a literal of its own", () => {
+        // The failure this pins is the one ADR 0116 pinned for branch names:
+        // a number copied into the code diverges from the document that is
+        // supposed to own it, and the copy is what actually runs.
+        //
+        // Scoped to the SESSION cap on purpose — `DEFAULTS.cap` in the same
+        // file is the fan-out BATCH size (`--cap 1`), a different number with
+        // a different owner, and a sweep that conflated the two would fail on
+        // a correct tree.
+        const wrapper = readFileSync(
+            join(REPO_ROOT, "scripts/queue-plan.ts"),
+            "utf8"
+        );
+        expect(wrapper).toMatch(
+            /import\s*\{\s*SESSION_CAP\s*\}\s*from\s*"\.\/lib\/branches"/
+        );
+        expect(wrapper).toMatch(/cap:\s*SESSION_CAP/);
+        for (const file of [
+            "scripts/queue-plan.ts",
+            "scripts/lib/queue-plan.ts",
+        ]) {
+            const src = readFileSync(join(REPO_ROOT, file), "utf8");
+            expect(src).not.toMatch(/SESSION_CAP\s*=\s*\d/);
+        }
     });
 });
 

@@ -23,6 +23,10 @@ import {
     EVERYTHING,
     buildPlanRecord,
     planFilename,
+    admitPick,
+    heldClaims,
+    liveClaims,
+    type AdmissionInput,
     type BatchPlan,
     type BoardPriority,
     type IssueDetail,
@@ -40,6 +44,7 @@ import {
     rateLimitFallbackMessage,
     readBoardPriorityCache,
     writeBoardPriorityCache,
+    readHealthMarker,
     NO_PRIORITY_MESSAGE,
     type BoardPriorityDeps,
     type BoardPrioritySnapshot,
@@ -2026,5 +2031,261 @@ describe("board priority — liveFetchBoardPriority (issue #2520)", () => {
         expect(priority).toEqual({ 10: "P0" });
         expect(seen[0]).not.toHaveProperty("itemLimit");
         expect(seen[0]).toMatchObject({ repo: expect.any(String) });
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Admission (ADR 0136 §6-7, issue #3775)
+//
+// Two refusals in front of the planner: "there is no room for another pass"
+// and "the base every pass would branch from is broken". Both are silent
+// failures if they are wrong in either direction — a refusal that never fires
+// is invisible (the queue just runs hot and yields less), and a refusal that
+// fires wrongly is an idle machine with a plausible-looking message. So each
+// asserts the DECISION and the WAY OUT the message names, never an
+// intermediate.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("admission — session cap (ADR 0136 §7, issue #3775)", () => {
+    const below: AdmissionInput = {
+        claims: [10, 20],
+        cap: 3,
+        noCap: false,
+        red: null,
+    };
+
+    it("refuses the pick at the cap and names the claimed issues", () => {
+        const verdict = admitPick({ ...below, claims: [10, 20, 30] });
+        expect(verdict.admitted).toBe(false);
+        if (verdict.admitted) throw new Error("unreachable");
+        expect(verdict.refusal).toBe("cap");
+        // The claimed issues are the whole point of the message: "cap
+        // reached" with no names leaves the operator with nothing to wait on.
+        expect(verdict.message).toContain("#10");
+        expect(verdict.message).toContain("#20");
+        expect(verdict.message).toContain("#30");
+        expect(verdict.message).toContain("3/3");
+        // …and the exit.
+        expect(verdict.message).toContain("--no-cap");
+    });
+
+    it("refuses ABOVE the cap too — a cap tightened under live claims still holds", () => {
+        const verdict = admitPick({ ...below, claims: [10, 20, 30, 40] });
+        expect(verdict.admitted).toBe(false);
+    });
+
+    it("admits below the cap", () => {
+        expect(admitPick(below)).toEqual({ admitted: true });
+    });
+
+    it("--no-cap plans past it", () => {
+        expect(
+            admitPick({ ...below, claims: [10, 20, 30], noCap: true })
+        ).toEqual({ admitted: true });
+    });
+
+    it("--no-cap does NOT wave through a red base", () => {
+        // The one flag anybody reaches for when they are in a hurry must not
+        // silently opt out of the thing ADR 0136 §6 added to stop new
+        // worktrees branching from a tip known red.
+        const verdict = admitPick({
+            claims: [],
+            cap: 3,
+            noCap: true,
+            red: { sha: "abc123456789", failedStep: "test:bot" },
+        });
+        expect(verdict.admitted).toBe(false);
+        if (verdict.admitted) throw new Error("unreachable");
+        expect(verdict.refusal).toBe("red");
+    });
+});
+
+describe("admission — release health RED (ADR 0136 §6, issue #3775)", () => {
+    it("refuses the pick, naming the sha, the failing step and the way out", () => {
+        const verdict = admitPick({
+            claims: [],
+            cap: 3,
+            noCap: false,
+            red: {
+                sha: "deadbeefcafe1234",
+                failedStep: "check:all",
+                log: ".claude/telemetry/health/deadbeef.log",
+            },
+        });
+        expect(verdict.admitted).toBe(false);
+        if (verdict.admitted) throw new Error("unreachable");
+        expect(verdict.refusal).toBe("red");
+        expect(verdict.message).toContain("deadbeef");
+        expect(verdict.message).toContain("check:all");
+        expect(verdict.message).toContain("bun run health:fix");
+        expect(verdict.message).toContain(
+            ".claude/telemetry/health/deadbeef.log"
+        );
+    });
+
+    it("still refuses when the record says nothing — the MARKER is the verdict", () => {
+        // `last.json` is written by another process and may be missing or
+        // torn. Degrading the message is correct; degrading the decision to
+        // "admitted" would hand a pass a broken base because a telemetry file
+        // was mid-write.
+        const verdict = admitPick({
+            claims: [],
+            cap: 3,
+            noCap: false,
+            red: {},
+        });
+        expect(verdict.admitted).toBe(false);
+        if (verdict.admitted) throw new Error("unreachable");
+        expect(verdict.message).toContain("bun run health:fix");
+    });
+
+    it("RED is decided before the cap — the broken base is the bigger fact", () => {
+        const verdict = admitPick({
+            claims: [10, 20, 30],
+            cap: 3,
+            noCap: false,
+            red: { sha: "0123456789ab", failedStep: "test:app" },
+        });
+        expect(verdict.admitted).toBe(false);
+        if (verdict.admitted) throw new Error("unreachable");
+        expect(verdict.refusal).toBe("red");
+    });
+});
+
+describe("admission — live claims are the RECONCILIATION (issue #3775)", () => {
+    it("counts only issues the ledger holds AND the tracker still labels", () => {
+        expect(liveClaims([10, 20, 30], [20, 30, 40])).toEqual([20, 30]);
+    });
+
+    it("drops a ledger row whose label is gone — a released claim holds no slot", () => {
+        expect(liveClaims([10], [])).toEqual([]);
+    });
+
+    it("drops an orphan label with no ledger row — three of those would wedge the queue", () => {
+        expect(liveClaims([], [10, 20, 30])).toEqual([]);
+    });
+
+    it("is sorted and deduplicated, so the refusal message is reproducible", () => {
+        expect(liveClaims([30, 10, 10, 20], [10, 20, 30])).toEqual([
+            10, 20, 30,
+        ]);
+    });
+});
+
+describe("admission — the claim journal fold (issue #3775)", () => {
+    const row = (issue: number, event: string, extra = "") =>
+        `{"ts":1,"session":"s","issue":${issue},"event":"${event}"${extra}}`;
+
+    it("holds a claimed issue and gives back a released one — last row wins", () => {
+        const ledger = [
+            row(10, "claim"),
+            row(20, "claim"),
+            row(10, "released"),
+            row(30, "claim"),
+        ].join("\n");
+        expect(heldClaims(ledger)).toEqual([20, 30]);
+    });
+
+    it("re-claiming after a release holds it again", () => {
+        expect(
+            heldClaims(
+                [row(10, "claim"), row(10, "released"), row(10, "claim")].join(
+                    "\n"
+                )
+            )
+        ).toEqual([10]);
+    });
+
+    it("counts a row with no owner — unlike parseClaimOwners, which asks a different question", () => {
+        // `loop-doctor.ts`'s fold drops ownerless rows because it answers
+        // "WHO owns this"; every row written before #2627 is ownerless, and
+        // dropping those here would under-count the cap by exactly the claims
+        // an older session took.
+        expect(heldClaims(row(10, "claim"))).toEqual([10]);
+    });
+
+    it("skips a torn line rather than refusing to count", () => {
+        // The journal is appended to by a shell hook under `2>/dev/null`, so
+        // a half-written last line is a normal thing to find.
+        const ledger = `${row(10, "claim")}\n{"issue":20,"event":"cl`;
+        expect(heldClaims(ledger)).toEqual([10]);
+    });
+
+    it("ignores a row with no issue number", () => {
+        expect(heldClaims('{"event":"claim"}\n' + row(10, "claim"))).toEqual([
+            10,
+        ]);
+    });
+
+    it("reads an empty journal as no claims", () => {
+        expect(heldClaims("")).toEqual([]);
+    });
+});
+
+describe("admission — reading the health marker off disk (issue #3775)", () => {
+    const withHealthDir = (
+        write: (dir: string) => void,
+        assert: (root: string) => void
+    ) => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "health-"));
+        try {
+            const dir = path.join(root, ".claude", "telemetry", "health");
+            fs.mkdirSync(dir, { recursive: true });
+            write(dir);
+            assert(root);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    };
+
+    it("is null with no marker, whatever last.json says", () => {
+        withHealthDir(
+            (dir) =>
+                fs.writeFileSync(
+                    path.join(dir, "last.json"),
+                    JSON.stringify({ sha: "abc", status: "green" })
+                ),
+            (root) => expect(readHealthMarker(root)).toBeNull()
+        );
+    });
+
+    it("reads the sha, the failed step and the log beside the marker", () => {
+        withHealthDir(
+            (dir) => {
+                fs.writeFileSync(path.join(dir, "RED"), "");
+                fs.writeFileSync(
+                    path.join(dir, "last.json"),
+                    JSON.stringify({
+                        sha: "deadbeefcafe",
+                        status: "red",
+                        failedStep: "test:app",
+                        log: "/tmp/h.log",
+                    })
+                );
+            },
+            (root) =>
+                expect(readHealthMarker(root)).toEqual({
+                    sha: "deadbeefcafe",
+                    failedStep: "test:app",
+                    log: "/tmp/h.log",
+                })
+        );
+    });
+
+    it("survives a torn last.json — the marker is still the verdict", () => {
+        withHealthDir(
+            (dir) => {
+                fs.writeFileSync(path.join(dir, "RED"), "");
+                fs.writeFileSync(path.join(dir, "last.json"), "{");
+            },
+            (root) => expect(readHealthMarker(root)).toEqual({})
+        );
+    });
+
+    it("survives last.json missing entirely", () => {
+        withHealthDir(
+            (dir) => fs.writeFileSync(path.join(dir, "RED"), ""),
+            (root) => expect(readHealthMarker(root)).toEqual({})
+        );
     });
 });

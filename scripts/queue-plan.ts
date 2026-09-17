@@ -12,7 +12,14 @@
 //   bun run queue:plan --cap 2
 //   bun run queue:plan --limit 100     # how deep to read the queue
 //   bun run queue:plan --pretty
+//   bun run queue:plan --no-cap       # plan past the session cap deliberately
 //   bun run queue:plan --inferred '{"2104":["convex/cards/sets/ice/**"]}'
+//
+// It REFUSES to plan in two cases (ADR 0136 §6-7, issue #3775): while live
+// claims are at `sessions.cap`, and while the release-health `RED` marker is
+// up. Both print the way out — `--no-cap` for the first, `bun run health:fix`
+// for the second — and both exit non-zero, which is what stops `loop-drain`
+// rather than letting a pass pick for itself.
 //
 // The `--inferred` map is the fallback for issues predating the `Target files:`
 // convention: run once, read which candidates came back with an unknown blast
@@ -25,6 +32,7 @@
 // resolve). Selection cost scales with the batch, not the queue.
 
 import {
+    existsSync,
     mkdirSync,
     readdirSync,
     readFileSync,
@@ -41,15 +49,22 @@ import {
     VALID_PRIORITIES,
 } from "./lib/board-priority";
 import {
+    admitPick,
     buildPlanRecord,
+    heldClaims,
+    liveClaims,
     planBatch,
     planFilename,
     type BoardPriority,
+    type HealthMarker,
     type IssueDetail,
     type PlanConfig,
     type QueueIssue,
     type QueuePort,
 } from "./lib/queue-plan";
+import { SESSION_CAP } from "./lib/branches";
+import { primaryCheckout } from "./lib/primary-checkout";
+import { claimLedgerPath } from "./loop-doctor";
 
 // Computed the same way scripts/__tests__/land.test.ts computes it (from a
 // FILE's own directory, not from `import.meta.dir`, which is bun-only and
@@ -527,6 +542,68 @@ function writePlanArtefact(
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Admission (ADR 0136 §6-7, issue #3775) — the two reads behind `admitPick`.
+//
+// Both records are written by OTHER processes (a shell hook, a health run in
+// its own worktree), so both reads are total: an unreadable, missing or torn
+// record reads as "nothing to refuse on" rather than throwing. The decisions
+// themselves are pure and live in `lib/queue-plan.ts`; what is here is the
+// I/O and the two root resolutions, which differ on purpose.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const HEALTH_DIR_REL = join(".claude", "telemetry", "health");
+
+/**
+ * The release-health verdict, read where `health-main.ts` writes it and
+ * `land.ts` reads it — under the PRIMARY checkout, never the worktree this
+ * may be invoked from. `null` means "no RED marker", which is the only thing
+ * the decision needs; `last.json` only supplies the sha and the failed step
+ * the MESSAGE names, so a missing or torn record still refuses, just with
+ * less to say.
+ *
+ * Exported for direct testing.
+ */
+export function readHealthMarker(root: string): HealthMarker | null {
+    const dir = join(root, HEALTH_DIR_REL);
+    if (!existsSync(join(dir, "RED"))) return null;
+    try {
+        const last = JSON.parse(
+            readFileSync(join(dir, "last.json"), "utf8")
+        ) as Partial<HealthMarker> | undefined;
+        return {
+            sha: typeof last?.sha === "string" ? last.sha : undefined,
+            failedStep:
+                typeof last?.failedStep === "string"
+                    ? last.failedStep
+                    : undefined,
+            log: typeof last?.log === "string" ? last.log : undefined,
+        };
+    } catch {
+        // The marker is the verdict; the record is only its explanation.
+        return {};
+    }
+}
+
+/**
+ * The claim journal's still-held issues.
+ *
+ * Read at `claimLedgerPath()`'s default root — `CLAUDE_PROJECT_DIR` — because
+ * that is exactly where `.claude/hooks/claim-ledger.sh` writes it, and a
+ * reader that resolved its root differently from the writer would count zero
+ * claims forever. (The health marker above resolves to the primary checkout
+ * instead, because THAT is where its writer puts it. Same rule, two answers.)
+ */
+function heldClaimsOnThisMachine(): number[] {
+    try {
+        return heldClaims(readFileSync(claimLedgerPath(), "utf8"));
+    } catch {
+        // No journal yet (fresh checkout, hooks never ran) — see `liveClaims`
+        // on why this direction fails OPEN.
+        return [];
+    }
+}
+
 function main(): void {
     const limit = arg("limit", DEFAULTS.limit);
 
@@ -585,6 +662,26 @@ function main(): void {
     };
 
     const plan = planBatch(issues, config, port);
+
+    // Admission is decided on the PLANNED snapshot, not on the raw labels: a
+    // claim the planner already classified as STALE is work nobody is doing,
+    // and counting those toward the cap would let three abandoned labels wedge
+    // the queue shut with no session running at all.
+    const claimedNow = issues
+        .filter((issue) => issue.labels.some((l) => l.name === "in-progress"))
+        .map((issue) => issue.number)
+        .filter((n) => !plan.staleClaims.includes(n));
+
+    const admission = admitPick({
+        claims: liveClaims(heldClaimsOnThisMachine(), claimedNow),
+        cap: SESSION_CAP,
+        noCap: process.argv.includes("--no-cap"),
+        red: readHealthMarker(primaryCheckout()),
+    });
+    // Refuse BEFORE the artefact is written and before anything reaches
+    // stdout: no plan was handed out, so no plan record should claim one was,
+    // and `loop-drain` reads a non-zero exit as "stop", which is the point.
+    if (!admission.admitted) die(admission.message);
 
     writePlanArtefact(plan, config.now);
 

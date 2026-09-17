@@ -915,3 +915,154 @@ export function planBatch(
         staleClaims,
     };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Admission — the two things that refuse a PICK before the plan is worth
+// having (ADR 0136 §6–7, issue #3775).
+//
+// The planner above answers "which issue is next". These answer the question
+// in front of it: should this session take one AT ALL. Both are pure
+// decisions over data the wrapper reads — a claims map and a marker record —
+// for the same reason `planBatch` is: a refusal that cannot be tested is a
+// refusal nobody can change with confidence, and both of these refuse work a
+// human is waiting for.
+//
+// Each refusal NAMES ITS EXIT. A stop with no way out is how an unattended
+// driver turns a two-minute fix into an idle night: the cap refusal prints
+// the claimed issues and `--no-cap`, the RED refusal prints the broken sha,
+// the step that failed and `bun run health:fix`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The durable release-health verdict, as `health-main.ts` leaves it in
+ * `.claude/telemetry/health/` — the `RED` marker file plus the fields of
+ * `last.json` a reader needs to say WHAT is broken.
+ *
+ * `sha` and `failedStep` are optional because the record is written by
+ * another process and may be mid-write, truncated, or (for `failedStep`) from
+ * a run that died before it named a step. A missing field degrades the
+ * MESSAGE, never the decision: the marker's presence is the verdict.
+ */
+export interface HealthMarker {
+    sha?: string;
+    failedStep?: string;
+    log?: string;
+}
+
+/**
+ * Live claims: the claims record reconciled against the open `in-progress`
+ * issues, i.e. the INTERSECTION of the two.
+ *
+ * Both directions of the reconciliation are load-bearing, and both are
+ * failures this repo has already paid for:
+ *
+ *   * a ledger row whose label is gone was released by some other path
+ *     (`claim-sweep.sh`, `loop:doctor`, a human) — counting it would let a
+ *     finished pass hold a slot forever;
+ *   * an `in-progress` label with no ledger row is an ORPHAN — the class
+ *     `loop:doctor` exists to reclaim (eight claims, four of them P0, sat
+ *     for days) — and counting those would let three stale labels wedge the
+ *     queue shut with no session running at all.
+ *
+ * Fail-open is deliberate in one direction: with no ledger at all (a fresh
+ * checkout, a machine whose hooks never ran) this returns nothing and the cap
+ * never refuses. A cap is a throughput tuning knob, not a safety — the thing
+ * it protects is PR/h, and the cost of it failing open is a slow hour, while
+ * the cost of it failing closed is a checkout that can never pick an issue.
+ *
+ * Sorted ascending so a refusal message is reproducible.
+ */
+export function liveClaims(held: number[], inProgress: number[]): number[] {
+    const open = new Set(inProgress);
+    return [...new Set(held)].filter((n) => open.has(n)).sort((a, b) => a - b);
+}
+
+/**
+ * Fold the claim journal (`.claude/telemetry/claims.jsonl`) into the issues it
+ * says are STILL HELD. Last row per issue wins: a `claim` row takes it, any
+ * other event (`released`) gives it back.
+ *
+ * Pure over the file's text, and deliberately NOT `loop-doctor.ts`'s
+ * `parseClaimOwners`: that fold answers "WHO owns this claim" and therefore
+ * drops every row written before owners were recorded (#2627). Here a row with
+ * no owner is still a claim, and dropping it would under-count the cap by
+ * exactly the rows an older session wrote.
+ *
+ * Malformed lines are skipped rather than thrown on — a shell hook appends to
+ * this journal under `2>/dev/null`, so a torn last line is a normal thing to
+ * find and refusing to count because of one is worse than ignoring it.
+ */
+export function heldClaims(ledgerText: string): number[] {
+    const held = new Set<number>();
+    for (const line of ledgerText.split("\n")) {
+        if (line.trim() === "") continue;
+        let row: { issue?: unknown; event?: unknown };
+        try {
+            row = JSON.parse(line) as { issue?: unknown; event?: unknown };
+        } catch {
+            continue;
+        }
+        if (typeof row.issue !== "number") continue;
+        if (row.event === "claim") held.add(row.issue);
+        else held.delete(row.issue);
+    }
+    return [...held].sort((a, b) => a - b);
+}
+
+export interface AdmissionInput {
+    /** Live claims, already reconciled — see `liveClaims`. */
+    claims: number[];
+    /** `sessions.cap` from `tolaria.config.json`, never a literal. */
+    cap: number;
+    /** `--no-cap`: the announced escape from the cap refusal ONLY. */
+    noCap: boolean;
+    /** The release-health verdict, or `null` when no `RED` marker exists. */
+    red: HealthMarker | null;
+}
+
+export type Admission =
+    | { admitted: true }
+    | { admitted: false; refusal: "cap" | "red"; message: string };
+
+/**
+ * Should this session pick an issue?
+ *
+ * RED is tested FIRST, and `--no-cap` does not touch it. The two refusals
+ * answer different questions — "is there room for one more pass?" versus "is
+ * the tree every pass would branch from broken?" — and only the first is a
+ * tuning knob. A `--no-cap` that also waved through a red base would let the
+ * one flag anybody reaches for when they are in a hurry silently opt out of
+ * the thing ADR 0136 §6 added to stop new worktrees branching from a tip
+ * known red.
+ */
+export function admitPick(input: AdmissionInput): Admission {
+    if (input.red) {
+        const sha = input.red.sha ? input.red.sha.slice(0, 8) : "unknown sha";
+        const step = input.red.failedStep ?? "unknown step";
+        return {
+            admitted: false,
+            refusal: "red",
+            message:
+                `release health is RED @ ${sha} (failed at ${step}) — refusing to pick onto a broken base.\n` +
+                `  Fix forward FIRST: \`bun run health:fix\`. \`bun run health:status\` prints the verdict${
+                    input.red.log ? ` and the log (${input.red.log})` : ""
+                }.\n` +
+                `  \`land\` still warns and proceeds, so a session already mid-issue finishes.`,
+        };
+    }
+
+    if (!input.noCap && input.claims.length >= input.cap) {
+        return {
+            admitted: false,
+            refusal: "cap",
+            message:
+                `session cap reached — ${input.claims.length}/${input.cap} live claims: ${input.claims
+                    .map((n) => `#${n}`)
+                    .join(", ")}.\n` +
+                `  Per-session yield halves past the knee (PR/h by active sessions: 0.59 at 1, 1.44 at 3, 1.19 at 4).\n` +
+                `  Wait for one to land, or re-run with --no-cap to plan past it deliberately.`,
+        };
+    }
+
+    return { admitted: true };
+}
