@@ -311,8 +311,10 @@ describe("gameStates serialize round-trip", () => {
         const state = freshState();
         const compact = compactState(state);
         const lion = (
-            compact.players[1] as { battlefield: Record<string, unknown>[] }
-        ).battlefield[0];
+            compact as unknown as {
+                players: { battlefield: Record<string, unknown>[] }[];
+            }
+        ).players[1].battlefield[0];
         delete lion.loyaltyActivationsThisTurn;
         lion.loyaltyActivatedThisTurn = true;
         const expanded = expandState(compact);
