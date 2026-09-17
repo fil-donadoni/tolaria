@@ -1,18 +1,17 @@
 # Land and release
 
 **The whole delivery path, in order: a worktree off the [base branch](#g-base-branch),
-the [lane gate](#g-lane-gate), a PR, `land`, and — when a human decides — `release`.**
-Six commands. Everything else in the repository's workflow tooling serves one of
+a PR, `land` — which pays the [lane gate](#g-lane-gate), once — and, when a human
+decides, `release`.** Six commands. Everything else in the repository's workflow tooling serves one of
 them or is history.
 
 ```bash
 cd "$(bun run --silent wt:new <N>)"   # 1. worktree off origin/<base>   (--fix for a bug)
 …                                      # 2. implement; bunx vitest run <path> while iterating
-git add -A && git commit               # 3. commit (the gate pins the HEAD sha)
-bun run check:lane                     # 4. pre-PR gate — paste its output in the PR
-git push -u origin feat/issue-<N>
+git add -A && git commit               # 3. commit
+git push -u origin feat/issue-<N>      # 4. no pre-PR gate (ADR 0136 §1)
 gh pr create                           # 5. base = the base branch (GitHub default), no --base
-bun run land <PR#>                     # 6. rebase, gate, merge into the base branch
+bun run land <PR#>                     # 6. rebase, lane gate, merge into the base branch
 ```
 
 ```bash
@@ -26,7 +25,8 @@ bun run health:fix                     # clear a standing RED marker without a r
 Branch names are not in this guide because they are not in the scripts either:
 `tolaria.config.json` names the [base branch](#g-base-branch) (`staging` today)
 and the [release branch](#g-release-branch) (`main`). Only
-`scripts/lib/branches.ts` and `deny-guard.sh` read that file (ADR 0116).
+`scripts/lib/branches.ts`, `deny-guard.sh` and `gate-run.sh` read that file
+(ADR 0116).
 
 ## Landing a change on the base branch
 
@@ -51,16 +51,25 @@ Targeted runs only: `bunx vitest run <path>`. The full suites are blocked
 inside an issue worktree by design. Every guarding test is proven to fail
 once (break the subject, watch red, revert, say what you broke).
 
-### 3. Commit before gating
+### 3. Commit
 
-`check:lane` refuses a dirty tree: the receipt it prints pins the HEAD sha,
-and a receipt about a tree that then changed is worthless. Amending after a
-green run invalidates it — write the message first, gate last.
+`land` refuses a dirty tree, and the lane it runs is keyed on the rebased
+tip's sha — a tree that is not committed is not a tree anything gated.
 
-### 4. `bun run check:lane` — the [lane gate](#g-lane-gate)
+### 4. No pre-PR gate — the [lane gate](#g-lane-gate) is `land`'s
 
-Classifies the diff against `origin/<base>` and runs exactly what that lane
-owes:
+There is no `check:lane` before the PR (ADR 0136 §1). At 2.5 PR/h the base tip
+moved while that gate ran, so it certified a tree that never landed and `land`
+paid the lane again on the rebased one: two lane runs plus 1.35 `land`s per
+issue, ≈ 17 min of gate. The session's signal before the PR is its targeted
+vitest runs and the review round. The lane is paid once, in `land`, step 4
+below.
+
+A hand-run `bun run gate:run check:lane` stays available and ungated — no
+preflight refuses a stale tree any more (issue #3286's was retired with the
+pre-PR gate). Run it on a tree already rebased onto `origin/<base>` and a green
+verdict is one `land` can reuse. It classifies the diff against
+`origin/<base>` and runs exactly what that lane owes:
 
 | Lane     | Diff                                                         | Runs                                                                 | Measured |
 | -------- | ------------------------------------------------------------ | -------------------------------------------------------------------- | -------- |
@@ -69,8 +78,7 @@ owes:
 | `docs`   | markdown only                                                | `check:docs` — seconds                                               |          |
 | `full`   | anything else (mixed, `package.json`, `.claude/**`, scripts) | `check:pr` verbatim                                                  | ~305 s   |
 
-Light tier: two vitest workers, no machine lock, so several sessions gate at
-once. **Never hand-pick a subset of `check:pr`.** On formatting drift run
+**Never hand-pick a subset of `check:pr`.** On formatting drift run
 `bun run format` and re-run; the gate verifies, it does not repair.
 
 A diff that can change what a user sees also owes **`bun run check:ui`** — five
@@ -81,8 +89,8 @@ receipt and refuses a `skin` PR whose receipt does not match.
 ### 5. The PR
 
 `gh pr create` targets the [base branch](#g-base-branch) because it is the
-repository's default branch — no `--base`. The body carries: the `check:lane`
-receipt, the `check:ui` receipt when owed, a `## Preset scenario` fence for
+repository's default branch — no `--base`. The body carries: the `check:ui` receipt
+when owed, a `## Preset scenario` fence for
 any `convex/{cards/sets,gre}` change (or "none owed"), the Bot reachability
 outcome, proof-of-failure receipts for new guarding tests.
 
@@ -106,7 +114,14 @@ command so the tree that lands is the tree that was gated:
 2. `git fetch origin <base> && git rebase origin/<base>` — on conflict: prints
    the paths, `--abort`, exits; the tree stays usable.
 3. Regenerates the generated artifacts the rebase marked.
-4. `bun run check:lane` — the lane gate again, on the rebased tree.
+4. The lane gate on the rebased tree — `bun run check:lane`, printed as
+   `lane: ran` — **unless** that exact rebased tip was already gated green
+   against that exact `origin/<base>` sha, printed as
+   `lane: skipped (gated <sha> against <base>)`. The green records are
+   `gate-run.sh`'s run dirs (`~/.cache/tolaria/gate-runs/*/{head,base,command,green}`,
+   exactly `check:lane`) and the one `land` writes after its own green lane,
+   so a `land` retried after a merge refusal does not pay the lane twice. Any
+   mismatch, or a dirty tree, runs the lane.
 5. `git push --force-with-lease` of the feature branch.
 6. Merge through the API (`scripts/pr-merge.ts`, squash, retried on the
    transient refusal a fresh force-push causes).
@@ -120,10 +135,12 @@ command so the tree that lands is the tree that was gated:
    (`--keep` keeps all three; `--no-merge` stops after step 5).
 
 **No health gate per landing.** The full offline gate runs once, at release.
-A landing costs the mutex 3–5 minutes.
+A landing costs the mutex 3–5 minutes; a landing whose lane is skipped, the
+rebase and the merge.
 
-If only the MERGE failed (step 6), retry `bun scripts/pr-merge.ts <PR#>` —
-never a second `land`, which re-pays the gate. `deny-guard.sh` § 1 denies a
+If only the MERGE failed (step 6), retry `bun scripts/pr-merge.ts <PR#>`. A
+second `land` of the same tree re-pays only the rebase — step 4 skips the lane
+it already passed — but it is still the long way round. `deny-guard.sh` § 1 denies a
 hand-typed `gh pr merge` everywhere; `TOLARIA_ALLOW_MANUAL_MERGE=1` is the
 per-command hatch for a real recovery.
 
@@ -240,8 +257,8 @@ primary checkout keeps it checked out.
 
 `bun run check:lane`: the checks a diff owes, chosen by which paths it
 touches, degrading to the whole `check:pr` on anything it cannot place. The
-gate every landing pays, twice — once pre-PR for the receipt, once under the
-lock on the rebased tree.
+gate every landing pays ONCE, under the lock on the rebased tree, and skips
+when that (tip, base) was already gated green (ADR 0136 §1–2).
 
 ### <a id="g-health-gate"></a>Health gate
 

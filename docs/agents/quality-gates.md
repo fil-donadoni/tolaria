@@ -109,8 +109,8 @@ a lane from the diff — `skin` (`src/**`/`public/**`/`index.html` only),
 `docs` (prose only) or `full` (anything else, fail-closed) — and runs exactly that
 lane's checks. Prose beside code does not change the lane: the code decides
 it and the plan ends with `node[docs]`, the `check:docs` test list (ADR 0136
-§3, below). It is now the default pre-PR path
-(CLAUDE.md § Quality gates); `check:pr` is the fallback the classifier itself
+§3, below). It is the lane gate `land` pays once on the
+rebased tip (CLAUDE.md § Quality gates, ADR 0136 §1); `check:pr` is the fallback the classifier itself
 runs verbatim on a `full` diff.
 
 **The axis it operates on is only partly the axis #2431/#2655 fixed — see
@@ -271,38 +271,24 @@ time, so a `skin` PR carries its own `check:ui` receipt and `land` re-derives
 it (ADR 0110 §4); the batch-level `check:ui` of the retired fan-out is gone
 with it.
 
-### The preflight — why `check:lane` refuses before it runs anything (issue #3286)
+### No preflight, no pre-PR gate — `land` pays the lane once (ADR 0136 §1–2)
 
-A lane gate costs 8–17 minutes under the heavy mutex, and two conditions make
-that run worthless _before it starts_:
+Issue #3286 gave `check:lane` a preflight that refused a tree behind the base
+tip or a RED base, so a hand-run PRE-PR lane gate was not paid twice (`land`
+was exempt through `TOLARIA_LAND_GATE=1`). Both are retired, with the pre-PR
+gate they protected: at 2.5 PR/h the base moved during that gate, so it
+certified a tree that never landed, and `land` paid the lane again on the
+rebased tip — 2 `check:lane` + 1.35 `land` per issue, ≈ 17 min of gate
+(ADR 0136 § Context).
 
-- **HEAD is not rebased onto the base tip.** The classifier uses `base...HEAD`,
-  so it still names the right lane — but the checks run against a tree that is
-  not what will land, and the rebase afterwards produces a tree nobody has
-  gated. The gate gets paid twice.
-- **The base tip is RED.** A commit pushed by hand outside `land` can red it.
-  The session then burns a full lane gate to be told about someone else's
-  failure, and owes a fix-forward PR before its own work can land at all.
-
-Both are answerable in about two seconds — `git rev-list --count HEAD..<base>`
-and the presence of the durable `RED` marker — so `check:lane` answers them
-first and refuses with the exact next command. The fetch that refreshes the
-base ref is **non-fatal**: the gate is offline by contract, so no network
-degrades to "answer from the remote-tracking ref as it stands", never to a
-refusal.
-
-The staleness refusal has **no hatch**. Rebasing is cheap and always correct;
-an env var that let a session gate a stale tree would only serve the habit the
-refusal exists to break. The RED refusal has one, `TOLARIA_ALLOW_RED_BASE=1`,
-for the one legitimate case: a human gating the fix-forward branch itself.
-
-**`land` is exempt** (`TOLARIA_LAND_GATE=1`, set in `lockedEnv`). It already
-orders this correctly — fetch → rebase → `check:lane` → push → merge inside one
-mutex — and re-asking both questions there is actively harmful: a fetch inside
-the lock could observe a base tip newer than the one `rebaseStep()` rebased
-onto, failing the ancestry check and killing the land mid-lock; and RED must
-stay a warning in `land`, because the fix-forward that repairs a red tip
-arrives through a `land`. Refusing there would wall off the only exit from RED.
+The lane is now paid once, in `land`'s locked command, after the rebase and
+the artefact regeneration. It is skipped when the rebased tip and the base
+tip both equal a pair recorded green: `gate-run.sh` writes `head`, `base`
+(`origin/<base>` at start), `command` and — on a zero exit — `green` into
+each run dir, and `land` writes the same record after its own green lane.
+Only a record whose command is exactly `check:lane` counts; the receipt says
+`lane: ran` or `lane: skipped (gated <sha> against <base>)`. A hand-run
+`check:lane` gates whatever HEAD is, stale or not.
 
 ## The base branch and `release` — where the full gate went (ADR 0116)
 
