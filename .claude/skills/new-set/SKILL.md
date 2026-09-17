@@ -206,7 +206,7 @@ CardDefinition` (and `CardPrint`) are implemented; **commented-out** stub
    by colour, by rarity, and — critically — by **card layout** (`normal` vs
    `transform`/`modal_dfc`/`split`/`adventure`/`flip`/`meld`/`saga`/`leveler`/
    `class`). Unmodelled layouts are out-of-scope (ADR 0010 / ADR 0041).
-   **`split` is modelled** — a generic CR 709 mechanism (`defineSplitCard`,
+   **`split` is modelled** — a generic split-card mechanism (`defineSplitCard`,
    `CardDefinition.splitHalves`), so split cards triage like any other card.
    Before calling any other layout unmodelled, grep for its engine support.
 4. **Triage every card into five buckets** — **main thread, never delegated**

@@ -41406,7 +41406,6 @@
         {"id":"709","line":"* card (two names and two costs in EVERY zone, CR 709), an MDFC (a back face","sites":1,"status":"baseline"},
         {"id":"709","line":"* split card, CR 709) it is one variant PER FACE, because the compiler reads","sites":1,"status":"baseline"},
         {"id":"709","line":"* there is no instance-scoped withdrawal to apply: CR 709 has no counterpart","sites":1,"status":"baseline"},
-        {"id":"709","line":"**`split` is modelled** — a generic CR 709 mechanism (`defineSplitCard`,","sites":1,"status":"confirmed","ruleHash":"d4a69bc01ff51ff7"},
         {"id":"709","line":"/** Printed left, printed right — the order CR 709 speaks in, and the order the","sites":1,"status":"baseline"},
         {"id":"709","line":"// CR 709 (ADR 0121 §5) — a SPLIT card's Oracle text likewise lives in","sites":1,"status":"baseline"},
         {"id":"709","line":"// CR 709 — the SPLIT CARD, as ONE definition whose combined characteristics are","sites":1,"status":"baseline"},
