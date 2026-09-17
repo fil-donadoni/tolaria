@@ -89,10 +89,7 @@ import {
     modeInstanceTargetGroups,
     validateChosenModeIds,
 } from "./modeSelection";
-import {
-    announcementModeFacts,
-    modeHasLegalTargets,
-} from "./modeAnnouncement";
+import { announcementModeFacts, modeHasLegalTargets } from "./modeAnnouncement";
 import {
     applySacrificeSelection,
     canAffordSacrifice,
@@ -2454,10 +2451,10 @@ export function activateAbilityOnState(
     const baseTargetReq = multiModeGroups
         ? multiModeGroups[0]?.requirement
         : chosenMode
-        ? chosenMode.targetRequirement
-        : ability.getTargetRequirement
-          ? ability.getTargetRequirement(card, state)
-          : ability.targetRequirement;
+          ? chosenMode.targetRequirement
+          : ability.getTargetRequirement
+            ? ability.getTargetRequirement(card, state)
+            : ability.targetRequirement;
     // CR 612.6 — a color-targeted ability follows its source's active
     // color-word changes (Sleight of Mind on a Circle of Protection
     // retargets its "<color> source of your choice"). The substituted

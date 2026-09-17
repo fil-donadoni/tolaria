@@ -119,11 +119,7 @@ export function validateChosenModeIds(args: {
         const legal = modes.filter((m) => isModeLegal(m.id)).length;
         // With repeats one legal mode fills every slot; without, each slot
         // needs a distinct legal mode.
-        const reachable = bounds.repeats
-            ? legal > 0
-                ? bounds.min
-                : 0
-            : legal;
+        const reachable = bounds.repeats ? (legal > 0 ? bounds.min : 0) : legal;
         if (ids.length < Math.min(bounds.min, reachable)) {
             throw new Error(
                 `${ownerName} — at least ${bounds.min} mode(s) must be chosen`
@@ -186,10 +182,7 @@ export function modeInstances(
     if (chosenModeIds.length === 1) {
         return [{ modeId: chosenModeIds[0], targets: [...targets] }];
     }
-    if (
-        !modeTargetCounts ||
-        modeTargetCounts.length !== chosenModeIds.length
-    ) {
+    if (!modeTargetCounts || modeTargetCounts.length !== chosenModeIds.length) {
         throw new Error(
             `Modal item with ${chosenModeIds.length} mode instances carries no per-instance target spans (modeTargetCounts)`
         );

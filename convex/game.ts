@@ -7637,19 +7637,19 @@ export const announceCast = mutation({
             : multiModeGroups
               ? multiModeGroups[0]?.requirement
               : (chosenMode?.targetRequirement ??
-              // CR 715.3a / 715.3b — the SUBJECT, not the printed card: an
-              // Adventure spell "has only its alternative characteristics",
-              // and its target requirement is one of them. Identity for every
-              // non-adventurer card, and the twin declares no kicker, bestow,
-              // morph or overload, so every branch inside falls through to its
-              // own `targetRequirement` (ADR 0120 §4).
-              castAdjustedTargetRequirement(
-                  castSubjectDef,
-                  kickerPayments,
-                  isBestowCost,
-                  isMorphCost,
-                  isOverloadCost
-              ));
+                // CR 715.3a / 715.3b — the SUBJECT, not the printed card: an
+                // Adventure spell "has only its alternative characteristics",
+                // and its target requirement is one of them. Identity for every
+                // non-adventurer card, and the twin declares no kicker, bestow,
+                // morph or overload, so every branch inside falls through to its
+                // own `targetRequirement` (ADR 0120 §4).
+                castAdjustedTargetRequirement(
+                    castSubjectDef,
+                    kickerPayments,
+                    isBestowCost,
+                    isMorphCost,
+                    isOverloadCost
+                ));
 
         // Check if the card requires targets (CR 601.2c). When `count: "X"`
         // resolves to 0 (X chosen as 0), the spell takes no targets — fall

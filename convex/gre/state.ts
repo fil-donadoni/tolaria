@@ -7322,23 +7322,21 @@ function resolveChosenModes(
     }
     if (ids.length === 0) return false;
     const ctx = buildSpellContext(state, top);
-    const instances = modeInstances(
-        ids,
-        top.modeTargetCounts,
-        ctx.targets
-    ).map((instance) => {
-        const mode = modes.find((m) => m.id === instance.modeId);
-        // A multi-instance resolution is ONE checkpointed script; an
-        // imperative body has no checkpoint and would replay earlier
-        // instances on resume (CR 608.3). The catalogue guard rejects the
-        // shape statically — this is the runtime backstop.
-        if (mode?.resolve) {
-            throw new Error(
-                `Mode "${mode.id}" resolves imperatively but was chosen alongside other modes — a multi-mode list must author every mode as an Effect Script (ADR 0094)`
-            );
+    const instances = modeInstances(ids, top.modeTargetCounts, ctx.targets).map(
+        (instance) => {
+            const mode = modes.find((m) => m.id === instance.modeId);
+            // A multi-instance resolution is ONE checkpointed script; an
+            // imperative body has no checkpoint and would replay earlier
+            // instances on resume (CR 608.3). The catalogue guard rejects the
+            // shape statically — this is the runtime backstop.
+            if (mode?.resolve) {
+                throw new Error(
+                    `Mode "${mode.id}" resolves imperatively but was chosen alongside other modes — a multi-mode list must author every mode as an Effect Script (ADR 0094)`
+                );
+            }
+            return { effects: mode?.effects ?? [], targets: instance.targets };
         }
-        return { effects: mode?.effects ?? [], targets: instance.targets };
-    });
+    );
     runModeInstanceScripts(ctx, instances);
     return resolutionSuspendedOnChoice(state, "checkpointed");
 }

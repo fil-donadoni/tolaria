@@ -83,9 +83,7 @@ describe("validateChosenModeIds", () => {
         ]);
     });
     it("CR 609.3 — the minimum shrinks to what is legally reachable", () => {
-        expect(() => run({ min: 3, max: 3 }, ["a", "b"])).toThrow(
-            /at least 3/
-        );
+        expect(() => run({ min: 3, max: 3 }, ["a", "b"])).toThrow(/at least 3/);
         expect(run({ min: 3, max: 3 }, ["b", "a"], ["a", "b"])).toEqual([
             "a",
             "b",

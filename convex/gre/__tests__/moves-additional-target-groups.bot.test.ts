@@ -150,7 +150,9 @@ describe("bot enumeration — mode-level additional target groups (Hull Breach, 
         );
         const moves = castMoves(state, "breach-1");
         expect(moves.some((m) => m.chosenModeIds?.[0] === "both")).toBe(false);
-        expect(moves.some((m) => m.chosenModeIds?.[0] === "artifact")).toBe(true);
+        expect(moves.some((m) => m.chosenModeIds?.[0] === "artifact")).toBe(
+            true
+        );
     });
 
     // The card-level twin of the same seam — Fumarole ("Destroy target creature

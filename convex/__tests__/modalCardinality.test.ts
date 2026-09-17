@@ -8,11 +8,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import {
-    makeInstance,
-    makePlayer,
-    makeState,
-} from "../cards/__tests__/setup";
+import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
 import { hullBreach } from "../cards/sets/pls/multicolor";
 import { grizzlyBears, plains } from "../cards/sets/lea";
 import { fork, hillGiant } from "../cards/sets/lea/red";
@@ -158,7 +154,10 @@ async function target(
         harness.ctx,
         {
             ...BASE,
-            targets: ids.map((id) => ({ targetType: "permanent", targetId: id })),
+            targets: ids.map((id) => ({
+                targetType: "permanent",
+                targetId: id,
+            })),
         }
     );
 }
@@ -173,9 +172,9 @@ describe("ModeSelection — announcement bounds (CR 700.2a / 700.2d)", () => {
     it("absent modeSelection still announces exactly one mode", async () => {
         await withTemporaryDefinitionAsync(probe(undefined), async () => {
             const harness = makeMutationCtx("p1", [gameStateSeed(board({}))]);
-            await expect(announce(harness, ["draw", "discard"])).rejects.toThrow(
-                /at most 1 mode/
-            );
+            await expect(
+                announce(harness, ["draw", "discard"])
+            ).rejects.toThrow(/at most 1 mode/);
             await announce(harness, ["draw"]);
             expect(top(harness.state()).chosenModeIds).toEqual(["draw"]);
             expect(top(harness.state()).modeTargetCounts).toBeUndefined();
@@ -319,12 +318,8 @@ describe("mode instances — targets, order, resolution (CR 608.2c / 700.2d)", (
                 // Each ping read ITS OWN `{ target: 0 }` — without the offset
                 // both would have hit the Bears.
                 const opp = state.players[1].battlefield;
-                expect(opp.find((c) => c.id === "bears")?.damageMarked).toBe(
-                    1
-                );
-                expect(opp.find((c) => c.id === "giant")?.damageMarked).toBe(
-                    1
-                );
+                expect(opp.find((c) => c.id === "bears")?.damageMarked).toBe(1);
+                expect(opp.find((c) => c.id === "giant")?.damageMarked).toBe(1);
                 expect(state.players[0].hand.length).toBe(handBefore + 1);
             }
         );
@@ -439,12 +434,8 @@ describe("copies (CR 700.2g)", () => {
                 expect(copy.modeTargetCounts).toEqual([1, 1]);
                 resolveTopOfStack(state);
                 const opp = state.players[1].battlefield;
-                expect(opp.find((c) => c.id === "bears")?.damageMarked).toBe(
-                    1
-                );
-                expect(opp.find((c) => c.id === "giant")?.damageMarked).toBe(
-                    1
-                );
+                expect(opp.find((c) => c.id === "bears")?.damageMarked).toBe(1);
+                expect(opp.find((c) => c.id === "giant")?.damageMarked).toBe(1);
             }
         );
     });

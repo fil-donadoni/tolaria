@@ -59,7 +59,11 @@ describe("ModeSelection catalogue guard (ADR 0094)", () => {
     it("guards the guard: both offences are reported on a synthetic card", () => {
         const offender: CardDefinition = {
             ...hullBreach,
-            modeSelection: { min: 1, max: 1, when: { condition: { kicked: true }, min: 1, max: 2 } },
+            modeSelection: {
+                min: 1,
+                max: 1,
+                when: { condition: { kicked: true }, min: 1, max: 2 },
+            },
             modes: [
                 { ...hullBreach.modes![0], staticEffects: [] },
                 {
@@ -79,8 +83,8 @@ describe("ModeSelection catalogue guard (ADR 0094)", () => {
             "Hull Breach mode imperative: imperative resolve on a multi-mode list",
         ]);
         // The same list at exactly one mode is the modal-permanent shape.
-        expect(
-            cardOffences({ ...offender, modeSelection: undefined })
-        ).toEqual([]);
+        expect(cardOffences({ ...offender, modeSelection: undefined })).toEqual(
+            []
+        );
     });
 });

@@ -949,7 +949,9 @@ describe("blade setup — the modal-choice charter entry (issue #1490)", () => {
             (m) => m.kind === "cast-spell"
         );
         const modes = new Set(
-            casts.map((m) => (m.kind === "cast-spell" ? m.chosenModeIds?.[0] : ""))
+            casts.map((m) =>
+                m.kind === "cast-spell" ? m.chosenModeIds?.[0] : ""
+            )
         );
         expect(modes.has("counter")).toBe(true);
         expect(modes.has("destroy")).toBe(true);
