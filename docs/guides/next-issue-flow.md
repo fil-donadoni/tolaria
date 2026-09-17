@@ -74,7 +74,7 @@ gantt
     land #8 (mutex)        :active, c4, 50, 4m
     section health
     health on tip #5 → GREEN :milestone, h0, 26, 0m
-    health:main (mutex)    :done, h1, 26, 10m
+    health-main (mutex)    :done, h1, 26, 10m
 ```
 
 Health runs after #5 merges, detached from the session that triggered it. The
@@ -138,7 +138,7 @@ gantt
     issue H                      :b4, 42, 18m
     section S3 → fix
     free (report done)           :c1, 00, 11m
-    /health-fix: reproduce + fix + test :c2, 11, 13m
+    /health-fix — reproduce + fix + test :c2, 11, 13m
     land fix (mutex)             :active, c3, 24, 4m
     issue F                      :c4, 28, 32m
     section health
