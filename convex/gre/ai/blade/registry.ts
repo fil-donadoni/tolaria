@@ -2165,7 +2165,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             predicate: (move) =>
                 !(
                     move?.kind === "cast-spell" &&
-                    move.chosenModeId === "land-type"
+                    move.chosenModeIds?.[0] === "land-type"
                 ),
             describe:
                 "not the land-type mode (which can only re-type the bot's own sole blue source)",
@@ -2203,7 +2203,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         expect: {
             predicate: (move) =>
                 move?.kind === "cast-spell" &&
-                move.chosenModeId === "land-type",
+                move.chosenModeIds?.[0] === "land-type",
             describe:
                 "the land-type mode, which strips the opponent of the colour it is visibly using",
         },

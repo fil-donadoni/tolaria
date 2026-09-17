@@ -41,6 +41,7 @@
 // that keeps the most material — so a free chump attack never ties "no attacks"
 // on rollout noise.
 
+import { announcedModeFields } from "./modeSelection";
 import {
     repeatedMoveKeys,
     repetitionMoveKey,
@@ -1334,9 +1335,7 @@ export function applyMoveInSearch(
                 ...(move.chosenX !== undefined
                     ? { chosenX: move.chosenX }
                     : {}),
-                ...(move.chosenModeId
-                    ? { chosenModeId: move.chosenModeId }
-                    : {}),
+                ...announcedModeFields(move),
                 // CR 702.33 / 702.27a (issue #2081) — snapshot the payment
                 // record onto the stack item, mirroring the greedy sandbox
                 // (`applyMove.ts`) and the real commit paths
@@ -1541,9 +1540,7 @@ export function applyMoveInSearch(
                         ...(move.targets.length > 0
                             ? { targets: move.targets }
                             : {}),
-                        ...(move.chosenModeId
-                            ? { chosenModeId: move.chosenModeId }
-                            : {}),
+                        ...announcedModeFields(move),
                         ...(move.chosenX !== undefined
                             ? { chosenX: move.chosenX }
                             : {}),

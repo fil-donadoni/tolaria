@@ -3769,8 +3769,11 @@ function triggerAnnouncedRequirement(
     if (!ability) return undefined;
     const modes = triggerAbilityModes(item);
     if (!modes) return ability.targetRequirement;
-    if (!item.chosenModeId) return undefined;
-    return modes.find((m) => m.id === item.chosenModeId)?.targetRequirement;
+    // A modal trigger announces exactly one mode (no `modeSelection` on a
+    // triggered ability yet, ADR 0094).
+    const modeId = item.chosenModeIds?.[0];
+    if (!modeId) return undefined;
+    return modes.find((m) => m.id === modeId)?.targetRequirement;
 }
 
 /** CR 603.3c — is `mode` a legal choice for this trigger right now? "If one of
@@ -3810,7 +3813,7 @@ function triggerModeIsChoosable(
  *     decision to make, the same way a sole legal target auto-selects;
  *   - otherwise raises a `kind: "trigger-mode"` PendingChoice carrying ONLY the
  *     choosable modes, parks priority on the controller and returns `true`
- *     (suspended). The submission lands on `StackItem.chosenModeId`
+ *     (suspended). The submission lands on `StackItem.chosenModeIds`
  *     (`pendingChoiceSubmit.ts`) and is never revisited — CR 700.2b makes the
  *     pick part of PUTTING the ability on the stack, a one-time announcement.
  *
@@ -3823,7 +3826,7 @@ function raiseTriggerModeAnnouncement(state: GameState): boolean {
         // CR 700.2b — the mode is chosen as part of putting the ability on the
         // stack, once; CR 700.2f — "Changing a spell or ability's target can't
         // change its mode". An already-announced trigger is never re-prompted.
-        if (item.chosenModeId !== undefined) continue;
+        if (item.chosenModeIds !== undefined) continue;
         const modes = triggerAbilityModes(item);
         if (!modes) continue;
 
@@ -3835,7 +3838,7 @@ function raiseTriggerModeAnnouncement(state: GameState): boolean {
             continue;
         }
         if (choosable.length === 1) {
-            item.chosenModeId = choosable[0].id;
+            item.chosenModeIds = [choosable[0].id];
             continue;
         }
 

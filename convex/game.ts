@@ -231,6 +231,17 @@ import {
     castPermissionRequiredFor,
     castTimingBaseLegal,
 } from "./gre/rules";
+import {
+    announcedModeFields,
+    modeInstanceTargetGroups,
+    priorTargetsOfSameModeInstance,
+    recordModeTargetGroup,
+    validateChosenModeIds,
+} from "./gre/modeSelection";
+import {
+    announcementModeFacts,
+    modeHasLegalTargets,
+} from "./gre/modeAnnouncement";
 import { castProhibitionReason } from "./cards/castRestrictions";
 // issue #2283 — the raised-origin (`trigger`/`retarget`/`copy-retarget`)
 // finalization and its divide split live in one module shared with the bot's
@@ -5328,11 +5339,16 @@ export function advanceTargetGroupOrFinalize(
     const remaining = pt.remainingRequirements;
     if (remaining && remaining.length > 0) {
         const [next, ...rest] = remaining;
+        // ADR 0094 — credit the finished group to its mode instance first.
+        recordModeTargetGroup(pt, pt.selected.length);
         pt.priorSelected = [...(pt.priorSelected ?? []), ...pt.selected];
         pt.remainingRequirements = rest.length > 0 ? rest : undefined;
         applyRequirementToPendingTarget(
             pt,
-            excludingPriorTargets(next, pt.priorSelected),
+            excludingPriorTargets(
+                next,
+                priorTargetsOfSameModeInstance(pt, pt.priorSelected)
+            ),
             pt.chosenX
         );
         return;
@@ -5576,7 +5592,9 @@ export function finalizeTargetSelection(
     // on is not the board the cast was announced on, and the caster having
     // BEGUN the cast under the permission finishes it at the announced price.
     const flashSurchargePaid = pt.flashSurchargePaid ?? false;
-    const chosenModeId = pt.chosenModeId;
+    // ADR 0094 — the last group's picks complete the per-instance spans.
+    recordModeTargetGroup(pt, pt.selected.length);
+    const modeFields = announcedModeFields(pt);
     // CR 601.2b / 118.8 — the ADDITIONAL-cost leg the caster named at
     // announcement ("discard a card or pay 3 life"), locked in on
     // `pendingTarget` for exactly the reason `flashSurchargePaid` above is:
@@ -5851,8 +5869,8 @@ export function finalizeTargetSelection(
                     manaCost,
                     chosenX: abilityChosenX,
                     // CR 700.2c (issue #1341) — carry the announcement-time
-                    // mode through the deferred payment onto the stack item.
-                    chosenModeId,
+                    // mode(s) through the deferred payment onto the stack item.
+                    ...modeFields,
                     keepPriority,
                     grantedSourceCardId,
                     grantedAbilityOrigin,
@@ -5979,7 +5997,7 @@ export function finalizeTargetSelection(
             castById: playerId,
             abilityId,
             targets,
-            ...(chosenModeId ? { chosenModeId } : {}),
+            ...modeFields,
             // CR 601.2d / 120.4 — the divide-as-you-choose split rides to
             // resolution so `dealDamageDividedAsChosen` uses the chosen amounts.
             ...(divideAmounts ? { targetAmounts: divideAmounts } : {}),
@@ -6424,7 +6442,7 @@ export function finalizeTargetSelection(
             ...(payLife > 0 ? { payLife } : {}),
             ...(kickerPayments ? { kickerPayments } : {}),
             ...(buybackPaid ? { buybackPaid: true } : {}),
-            ...(chosenModeId ? { chosenModeId } : {}),
+            ...modeFields,
             // CR 601.2b / 118.8 — the record of WHICH additional-cost leg this
             // parked cast is paying; the cost itself is already folded into
             // `payLife` / `alternativeCostHandChoice` / the sacrifice selection.
@@ -6581,7 +6599,7 @@ export function finalizeTargetSelection(
             ...additionalCostPaymentSnapshot(cardDef, kickerPayments),
             ...(buybackPaid ? { buybackPaid: true } : {}),
             ...(divideAmounts ? { targetAmounts: divideAmounts } : {}),
-            ...(chosenModeId ? { chosenModeId } : {}),
+            ...modeFields,
             ...(additionalSacrificeSnapshot
                 ? { additionalSacrificeSnapshot }
                 : {}),
@@ -6645,7 +6663,7 @@ export function finalizeTargetSelection(
             ...(buybackPaid ? { buybackPaid: true } : {}),
             ...(divideAmounts ? { targetAmounts: divideAmounts } : {}),
             ...(payLife > 0 ? { payLife } : {}),
-            ...(chosenModeId ? { chosenModeId } : {}),
+            ...modeFields,
             // CR 601.2b / 118.8 — the record of WHICH additional-cost leg this
             // parked cast is paying; the cost itself is already folded into
             // `payLife` / `alternativeCostHandChoice` / the sacrifice selection.
@@ -6934,9 +6952,11 @@ export const announceCast = mutation({
          *  DECLINE a cast whose only route is the surcharge. Omitted = "charge
          *  me whatever the rules say", which is what every non-UI caller sends. */
         payFlashSurcharge: v.optional(v.boolean()),
-        /** Mode chosen for modal spells (CR 700.2 / 700.2c). Required when
-         *  the card defines `modes`. */
-        chosenModeId: v.optional(v.string()),
+        /** Modes chosen for a modal spell (CR 700.2a, ADR 0094) — one entry
+         *  per mode instance, any order (normalised to printed order).
+         *  Required when the card defines `modes`; how many is its
+         *  `modeSelection`. */
+        chosenModeIds: v.optional(v.array(v.string())),
         /** CR 118.9 — id of a chosen ALTERNATIVE casting cost
          *  (`CardDefinition.alternativeCosts`). When set, the spell is cast by
          *  returning / sacrificing the named lands INSTEAD of paying its mana
@@ -7463,28 +7483,23 @@ export const announceCast = mutation({
         // path, and the CR 614 chokepoint raises it there. Taking it here too
         // would ask a cast copy twice. Fail-closed: a stale client that still
         // sends one is rejected rather than silently double-picking.
-        let chosenMode: SpellMode | undefined;
+        const announcesModes =
+            !declaresAsEntersMode(cardDef) &&
+            cardDef.modes !== undefined &&
+            cardDef.modes.length > 0;
         if (declaresAsEntersMode(cardDef)) {
-            if (args.chosenModeId) {
+            if (args.chosenModeIds && args.chosenModeIds.length > 0) {
                 throw new Error(
-                    `${cardDef.name} chooses its mode as it enters the battlefield (CR 614.12a) — chosenModeId must not be supplied at announcement`
+                    `${cardDef.name} chooses its mode as it enters the battlefield (CR 614.12a) — chosenModeIds must not be supplied at announcement`
                 );
             }
-        } else if (cardDef.modes && cardDef.modes.length > 0) {
-            if (!args.chosenModeId) {
-                throw new Error(
-                    "Modal spell — must choose a mode at announcement"
-                );
-            }
-            chosenMode = cardDef.modes.find((m) => m.id === args.chosenModeId);
-            if (!chosenMode) {
-                throw new Error(
-                    `Unknown mode id "${args.chosenModeId}" for ${cardDef.name}`
-                );
-            }
-        } else if (args.chosenModeId) {
+        } else if (
+            !announcesModes &&
+            args.chosenModeIds &&
+            args.chosenModeIds.length > 0
+        ) {
             throw new Error(
-                "Card is not modal — chosenModeId must not be supplied"
+                "Card is not modal — chosenModeIds must not be supplied"
             );
         }
 
@@ -7496,6 +7511,60 @@ export const announceCast = mutation({
             cardDef,
             args.kickerPayments
         );
+
+        // CR 700.2a / 601.2b (ADR 0094) — the announced mode list, validated
+        // against the list's cardinality AFTER the kicker choice is known:
+        // CR 601.4 lets a mode count consider it (Inscription of Abundance).
+        // Absent `modeSelection` = exactly one mode, every shipped modal card.
+        const chosenModeIds = announcesModes
+            ? validateChosenModeIds({
+                  modes: cardDef.modes!,
+                  selection: cardDef.modeSelection,
+                  ids: args.chosenModeIds,
+                  facts: announcementModeFacts(
+                      player,
+                      kickedCountOfPayments(cardDef, kickerPayments) >= 1
+                  ),
+                  isModeLegal: (modeId) =>
+                      modeHasLegalTargets(
+                          state,
+                          cardDef.modes!.find((m) => m.id === modeId)!,
+                          targetingSourceFromCard(cardInHand, true),
+                          args.playerId,
+                          chosenX
+                      ),
+                  ownerName: cardDef.name,
+              })
+            : undefined;
+        const chosenModes = (chosenModeIds ?? []).map(
+            (id) => cardDef.modes!.find((m) => m.id === id)!
+        );
+        // One instance keeps the single-mode target path every pre-ADR-0094
+        // modal card uses; several flatten into independent target groups.
+        const chosenMode: SpellMode | undefined =
+            chosenModes.length === 1 ? chosenModes[0] : undefined;
+        const multiModeGroups =
+            chosenModes.length > 1 && !isOverloadCost
+                ? modeInstanceTargetGroups(
+                      cardDef.modes!,
+                      chosenModeIds!
+                  ).filter(
+                      (g) =>
+                          announcedTargetCount(g.requirement, chosenX, {
+                              requireX: true,
+                          }) !== undefined
+                  )
+                : undefined;
+        // The announcement-domain mode fields every pending / stack write
+        // below carries. Several instances start with a zero span each; the
+        // target walk tallies them group by group (`advanceTargetGroupOrFinalize`).
+        const castModeFields = {
+            chosenModeIds,
+            modeTargetCounts:
+                chosenModeIds && chosenModeIds.length > 1
+                    ? chosenModeIds.map(() => 0)
+                    : undefined,
+        };
         // CR 702.33a / 601.2f — a Kicker cost is an additional cost of ANY kind,
         // so gate its NON-MANA legs (permanents to sacrifice/return, life, cards
         // from hand) at announcement, exactly as the alternative cost's legs are
@@ -7565,7 +7634,9 @@ export const announceCast = mutation({
         // throughout the spell's text (CR 702.96a), including inside a mode.
         const activeTargetRequirement = isOverloadCost
             ? undefined
-            : (chosenMode?.targetRequirement ??
+            : multiModeGroups
+              ? multiModeGroups[0]?.requirement
+              : (chosenMode?.targetRequirement ??
               // CR 715.3a / 715.3b — the SUBJECT, not the printed card: an
               // Adventure spell "has only its alternative characteristics",
               // and its target requirement is one of them. Identity for every
@@ -7661,10 +7732,11 @@ export const announceCast = mutation({
             // prefers `chosenMode.targetRequirement` — a modal card keeps its
             // card-level requirements undefined by convention, so the `??`
             // chain reduces to the card-level list for every non-modal spell.
-            const additionalRequirements =
-                chosenMode?.additionalTargetRequirements ??
-                cardDef.additionalTargetRequirements ??
-                [];
+            const additionalRequirements = multiModeGroups
+                ? multiModeGroups.slice(1).map((g) => g.requirement)
+                : (chosenMode?.additionalTargetRequirements ??
+                  cardDef.additionalTargetRequirements ??
+                  []);
             for (const extra of additionalRequirements) {
                 const extraLegal = getLegalTargets(
                     state,
@@ -7730,9 +7802,7 @@ export const announceCast = mutation({
                               activeTargetRequirement.divideAsChosen.kind,
                       }
                     : {}),
-                ...(args.chosenModeId
-                    ? { chosenModeId: args.chosenModeId }
-                    : {}),
+                ...announcedModeFields(castModeFields),
                 // CR 118.9 — carry the chosen alternative cost through target
                 // selection so it is paid at cast commit (finalizeTargetSelection).
                 ...(args.alternativeCostId
@@ -7759,6 +7829,15 @@ export const announceCast = mutation({
                 // group completes instead of finalizing.
                 ...(additionalRequirements.length > 0
                     ? { remainingRequirements: additionalRequirements }
+                    : {}),
+                // ADR 0094 — which mode instance owns each group, in queue
+                // order, so the walk can tally `modeTargetCounts`.
+                ...(multiModeGroups
+                    ? {
+                          groupModeInstances: multiModeGroups.map(
+                              (g) => g.instance
+                          ),
+                      }
                     : {}),
             };
 
@@ -7989,9 +8068,7 @@ export const announceCast = mutation({
                     keepPriority: args.keepPriority,
                     chosenX,
                     ...(altPayLife > 0 ? { payLife: altPayLife } : {}),
-                    ...(args.chosenModeId
-                        ? { chosenModeId: args.chosenModeId }
-                        : {}),
+                    ...announcedModeFields(castModeFields),
                     ...(kickerPayments ? { kickerPayments } : {}),
                     ...(castSac ? { sacrificeSelection: castSac } : {}),
                     ...(altExilePicker
@@ -8107,9 +8184,7 @@ export const announceCast = mutation({
                 // twin: the payment record is partitioned by keyword HERE, at
                 // the write, so no kicked-ness reader needs the definition.
                 ...additionalCostPaymentSnapshot(cardDef, kickerPayments),
-                ...(args.chosenModeId
-                    ? { chosenModeId: args.chosenModeId }
-                    : {}),
+                ...announcedModeFields(castModeFields),
                 // CR 106.6 riders (issues #1559 / #3354) — see the matching
                 // comment on the `tryAutoCommitPendingCast` stack item.
                 ...manaRiderStackStamps(altManaRiders, {
@@ -8418,9 +8493,7 @@ export const announceCast = mutation({
                 ...(buybackPaid ? { buybackPaid: true } : {}),
                 // CR 107.4f — Phyrexian life rides to the deferred commit.
                 ...(phyrexianPayLife > 0 ? { payLife: phyrexianPayLife } : {}),
-                ...(args.chosenModeId
-                    ? { chosenModeId: args.chosenModeId }
-                    : {}),
+                ...announcedModeFields(castModeFields),
                 // CR 601.2b / 118.8 — the record of WHICH additional-cost leg
                 // this parked cast is paying (the cost itself is already folded
                 // into `payLife` / `alternativeCostHandChoice` / the sacrifice
@@ -8569,9 +8642,7 @@ export const announceCast = mutation({
                 // the write, so no kicked-ness reader needs the definition.
                 ...additionalCostPaymentSnapshot(cardDef, kickerPayments),
                 ...(buybackPaid ? { buybackPaid: true } : {}),
-                ...(args.chosenModeId
-                    ? { chosenModeId: args.chosenModeId }
-                    : {}),
+                ...announcedModeFields(castModeFields),
                 ...(additionalSacrificeSnapshot
                     ? { additionalSacrificeSnapshot }
                     : {}),
@@ -8615,9 +8686,7 @@ export const announceCast = mutation({
                 // CR 107.4f — the Phyrexian life is paid at the deferred commit
                 // (finalizePendingCast reads `pendingCast.payLife`).
                 ...(phyrexianPayLife > 0 ? { payLife: phyrexianPayLife } : {}),
-                ...(args.chosenModeId
-                    ? { chosenModeId: args.chosenModeId }
-                    : {}),
+                ...announcedModeFields(castModeFields),
                 // CR 601.2b / 118.8 — see the matching field on the
                 // sacrifice-park write above.
                 ...(args.additionalCostLegId
@@ -13894,10 +13963,11 @@ export const activateAbility = mutation({
          *  their mana cost (CR 107.3 / 601.2b). Ignored for abilities without
          *  X in their cost. */
         chosenX: v.optional(v.number()),
-        /** CR 700.2 / 602.2b (issue #1341) — the mode chosen at announcement
-         *  for a MODAL activated ability (Umezawa's Jitte). Required when the
-         *  ability declares `modes`, rejected otherwise. */
-        chosenModeId: v.optional(v.string()),
+        /** CR 700.2a / 602.2b (issue #1341, ADR 0094) — the modes chosen at
+         *  announcement for a MODAL activated ability (Umezawa's Jitte), one
+         *  entry per mode instance. Required when the ability declares
+         *  `modes`, rejected otherwise. */
+        chosenModeIds: v.optional(v.array(v.string())),
     },
     handler: async (ctx, args) => {
         // SECURITY (issue #1645 review): seat-addressed mutation — the

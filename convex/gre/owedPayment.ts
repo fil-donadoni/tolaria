@@ -88,7 +88,8 @@ export const CAST_KEY_CENSUS: Record<keyof PendingCast, ParkClass> = {
     // ── choices LOCKED IN at announcement (CR 601.2b/601.2d/700.2) ─────────
     /** Chosen before the payment window opens; nothing is waiting on it. */
     chosenX: "non-park",
-    chosenModeId: "non-park",
+    chosenModeIds: "non-park",
+    modeTargetCounts: "non-park",
     /** CR 601.2b / 118.8 — WHICH additional-cost leg the caster chose
      *  ("discard a card or pay 3 life"). Named at announcement; by the time
      *  this cast parks the leg has already become a `payLife` scalar, an
@@ -180,7 +181,8 @@ export const ACTIVATION_KEY_CENSUS: Record<keyof PendingActivation, ParkClass> =
 
         // ── choices LOCKED IN at announcement (CR 601.2b/602.2b/700.2c) ────────
         chosenX: "non-park",
-        chosenModeId: "non-park",
+        chosenModeIds: "non-park",
+        modeTargetCounts: "non-park",
         targets: "non-park",
         targetAmounts: "non-park",
 

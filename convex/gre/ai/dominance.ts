@@ -158,6 +158,7 @@ import {
 // Type-only: erased at compile time, so `moves.ts` importing this module back
 // is NOT a runtime import cycle.
 import type { Move } from "../moves";
+import { announcedModeFields } from "../modeSelection";
 
 /** Bound on stack resolutions per probe branch. A spell plus its triggers
  *  settles well inside this; anything deeper is unprovable, not pruned. */
@@ -822,7 +823,7 @@ export function applyProbeCast(
         castById: pid,
         ...(move.targets.length > 0 ? { targets: move.targets } : {}),
         ...(move.chosenX !== undefined ? { chosenX: move.chosenX } : {}),
-        ...(move.chosenModeId ? { chosenModeId: move.chosenModeId } : {}),
+        ...announcedModeFields(move),
         // CR 307.1 / 117.1a / 601.3a (issue #2473) — the third
         // build-a-spell-StackItem-and-push site. This probe produces no
         // persisted state, but its whole contract (see the doc comment above)

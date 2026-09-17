@@ -196,8 +196,11 @@ export function buildTriggerItem(
         // `raiseTriggerModeAnnouncement` reads as "already announced" and skips,
         // so a modal trigger would go to resolution with a mode nobody chose
         // and resolve as nothing. The mode is announced as the ability is put
-        // on the stack, never inherited.
-        chosenModeId: undefined,
+        // on the stack, never inherited. (ADR 0094: the announcement now
+        // lives on `chosenModeIds`, which a permanent never carries, but the
+        // permanent-domain id is still stripped so it cannot ride the item.)
+        ...({ chosenModeId: undefined } as object),
+        chosenModeIds: undefined,
         // CR 701.27f (issue #3537) — the moment this ability is put onto the
         // stack, as its source and that source's transform count.
         stackTransformStamp: stackTransformStamp(self),

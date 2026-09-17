@@ -28,7 +28,6 @@ import { getDefinition, tryGetDefinition } from "../cards";
 import { classLevelActivationViolation } from "../cards/abilities/classLevels";
 import { activationPreconditionViolation } from "./activationPrecondition";
 import type {
-    AbilityMode,
     ActivatedAbility,
     CardDefinition,
     CardType,
@@ -85,6 +84,15 @@ import {
     selectGraveyardPlayPermission,
     targetingSourceFromCard,
 } from "./rules";
+import {
+    announcedModeFields,
+    modeInstanceTargetGroups,
+    validateChosenModeIds,
+} from "./modeSelection";
+import {
+    announcementModeFacts,
+    modeHasLegalTargets,
+} from "./modeAnnouncement";
 import {
     applySacrificeSelection,
     canAffordSacrifice,
@@ -668,9 +676,11 @@ export function buildPendingActivation(opts: {
     ability: ActivatedAbility;
     manaCost: Record<string, number> | undefined;
     chosenX?: number;
-    /** CR 700.2c (issue #1341) — mode locked in at announcement for a modal
-     *  activated ability; rides to the stack item at commit. */
-    chosenModeId?: string;
+    /** CR 700.2a (issue #1341, ADR 0094) — modes locked in at announcement
+     *  for a modal activated ability, with their per-instance target spans;
+     *  ride to the stack item at commit. */
+    chosenModeIds?: string[];
+    modeTargetCounts?: number[];
     keepPriority?: boolean;
     grantedSourceCardId?: string;
     /** CR 113.1 — which list on the granting def holds the template (issue
@@ -689,7 +699,7 @@ export function buildPendingActivation(opts: {
         ...(opts.fromGraveyard ? { fromGraveyard: true } : {}),
         ...(opts.fromHand ? { fromHand: true } : {}),
         abilityId: opts.abilityId,
-        ...(opts.chosenModeId ? { chosenModeId: opts.chosenModeId } : {}),
+        ...announcedModeFields(opts),
         manaCost: opts.manaCost ?? {},
         tappedLandIds: [],
         tapSource: !!ability.cost.tap,
@@ -1174,7 +1184,7 @@ export function tryAutoCommitPendingActivation(
     const stackItem: StackItem = buildActivatedAbilityStackItem(card, {
         castById: playerId,
         abilityId: pa.abilityId,
-        ...(pa.chosenModeId ? { chosenModeId: pa.chosenModeId } : {}),
+        ...announcedModeFields(pa),
         ...(pa.targets && pa.targets.length > 0 ? { targets: pa.targets } : {}),
         // CR 601.2d — divide-as-you-choose split forwarded from the deferred
         // payment to the resolving stack item (Arc Mage).
@@ -1313,7 +1323,7 @@ export function commitNonStackActivation(
             buildActivatedAbilityStackItem(card, {
                 castById: player.id,
                 abilityId: pa.abilityId,
-                ...(pa.chosenModeId ? { chosenModeId: pa.chosenModeId } : {}),
+                ...announcedModeFields(pa),
                 ...(pa.chosenX !== undefined ? { chosenX: pa.chosenX } : {}),
                 ...(pa.grantedSourceCardId
                     ? { grantedSourceCardId: pa.grantedSourceCardId }
@@ -1777,7 +1787,7 @@ export function tryAutoCommitPendingCast(
     const pendingChosenX = state.pendingCast.chosenX;
     const pendingKickerPayments = state.pendingCast.kickerPayments;
     const pendingBuybackPaid = state.pendingCast.buybackPaid;
-    const pendingChosenModeId = state.pendingCast.chosenModeId;
+    const pendingModeFields = announcedModeFields(state.pendingCast);
     const pendingTargetAmounts = state.pendingCast.targetAmounts;
     // CR 601.2b / 118.4 — pay the "pay X life" additional cost the instant the
     // spell moves hand → stack (Fire Covenant). Affordability was validated at
@@ -1803,7 +1813,7 @@ export function tryAutoCommitPendingCast(
         ...(pendingTargetAmounts
             ? { targetAmounts: pendingTargetAmounts }
             : {}),
-        ...(pendingChosenModeId ? { chosenModeId: pendingChosenModeId } : {}),
+        ...pendingModeFields,
         ...(additionalSacrificeSnapshot ? { additionalSacrificeSnapshot } : {}),
         ...(castNotedManaSpent ? { notedManaSpent: castNotedManaSpent } : {}),
         // CR 106.6 riders (issues #1559 / #3354) — mana spent on this cast
@@ -2164,33 +2174,49 @@ export function exileCostSnapshot(
 // enumerator needs the IDENTICAL selection to know which victims it must
 // submit, and a second copy here is exactly how the two would drift.
 
-/** CR 700.2 / 602.2b (issue #1341) — validates the mode an activation
- *  announced. A modal ability MUST name one of its declared modes; a
- *  non-modal ability must name none. Returns the chosen `AbilityMode`, or
- *  undefined when the ability is not modal. Mirrors `announceCast`'s modal
- *  prelude so the two announcement paths can't drift. */
-export function resolveActivationMode(
+/** CR 700.2a / 602.2b (issue #1341, ADR 0094) — validates the modes an
+ *  activation announced against the ability's `modeSelection` (absent =
+ *  exactly one). A modal ability MUST name at least one declared mode; a
+ *  non-modal ability must name none. Returns the ids in printed order (CR
+ *  608.2c / 700.2d), or undefined when the ability is not modal. Shares
+ *  `validateChosenModeIds` with `announceCast` so the two announcement paths
+ *  can't drift. */
+export function resolveActivationModes(
+    state: GameState,
+    card: CardInstanceState,
     ability: ActivatedAbility,
-    chosenModeId: string | undefined
-): AbilityMode | undefined {
+    playerId: string,
+    chosenModeIds: readonly string[] | undefined,
+    chosenX: number | undefined
+): string[] | undefined {
     if (!ability.modes || ability.modes.length === 0) {
-        if (chosenModeId) {
+        if (chosenModeIds && chosenModeIds.length > 0) {
             throw new Error(
-                "Ability is not modal — chosenModeId must not be supplied"
+                "Ability is not modal — chosenModeIds must not be supplied"
             );
         }
         return undefined;
     }
-    if (!chosenModeId) {
+    if (!chosenModeIds || chosenModeIds.length === 0) {
         throw new Error("Modal ability — must choose a mode at announcement");
     }
-    const mode = ability.modes.find((m) => m.id === chosenModeId);
-    if (!mode) {
-        throw new Error(
-            `Unknown mode id "${chosenModeId}" for ability "${ability.id}"`
-        );
-    }
-    return mode;
+    const modes = ability.modes;
+    return validateChosenModeIds({
+        modes,
+        selection: ability.modeSelection,
+        ids: chosenModeIds,
+        // An activation has no kicker (CR 601.4 is a casting rule).
+        facts: announcementModeFacts(getPlayer(state, playerId), false),
+        isModeLegal: (modeId) =>
+            modeHasLegalTargets(
+                state,
+                modes.find((m) => m.id === modeId)!,
+                targetingSourceFromCard(card, false),
+                playerId,
+                chosenX
+            ),
+        ownerName: `ability "${ability.id}"`,
+    });
 }
 
 /**
@@ -2214,10 +2240,11 @@ export function activateAbilityOnState(
         keepPriority?: boolean;
         /** Value chosen for X at activation time (CR 107.3 / 601.2b). */
         chosenX?: number;
-        /** CR 700.2 / 602.2b (issue #1341) — the mode chosen at announcement
-         *  for a MODAL activated ability (Umezawa's Jitte). Required when the
-         *  ability declares `modes`, rejected when it does not. */
-        chosenModeId?: string;
+        /** CR 700.2a / 602.2b (issue #1341, ADR 0094) — the modes chosen at
+         *  announcement for a MODAL activated ability (Umezawa's Jitte).
+         *  Required when the ability declares `modes`, rejected when it does
+         *  not. */
+        chosenModeIds?: string[];
     }
 ): void {
     assertGameNotOver(state);
@@ -2400,8 +2427,33 @@ export function activateAbilityOnState(
     // mode in FIRST (CR 601.2b, before targets), and only the chosen mode's
     // requirement is declared (CR 700.2d). Mirrors `announceCast`'s modal
     // prelude for spells.
-    const chosenMode = resolveActivationMode(ability, args.chosenModeId);
-    const baseTargetReq = chosenMode
+    const chosenModeIds = resolveActivationModes(
+        state,
+        card,
+        ability,
+        args.playerId,
+        args.chosenModeIds,
+        args.chosenX
+    );
+    // One instance keeps the single-mode path; several flatten their target
+    // groups in printed order (ADR 0094), each tagged with its instance.
+    const multiModeGroups =
+        chosenModeIds && chosenModeIds.length > 1
+            ? modeInstanceTargetGroups(ability.modes!, chosenModeIds)
+            : undefined;
+    const chosenMode =
+        chosenModeIds && chosenModeIds.length === 1
+            ? ability.modes!.find((m) => m.id === chosenModeIds[0])
+            : undefined;
+    const activationModeFields = announcedModeFields({
+        chosenModeIds,
+        modeTargetCounts: multiModeGroups
+            ? chosenModeIds!.map(() => 0)
+            : undefined,
+    });
+    const baseTargetReq = multiModeGroups
+        ? multiModeGroups[0]?.requirement
+        : chosenMode
         ? chosenMode.targetRequirement
         : ability.getTargetRequirement
           ? ability.getTargetRequirement(card, state)
@@ -2551,7 +2603,9 @@ export function activateAbilityOnState(
         // per-mode twin of this field, so unlike the cast path there is no
         // `chosenMode ??` leg to prefer.
         const abilityAdditionalRequirements = (
-            ability.additionalTargetRequirements ?? []
+            multiModeGroups
+                ? multiModeGroups.slice(1).map((g) => g.requirement)
+                : (ability.additionalTargetRequirements ?? [])
         ).map(effectiveRequirement);
         for (const extra of abilityAdditionalRequirements) {
             const extraLegal = getLegalTargets(
@@ -2617,7 +2671,14 @@ export function activateAbilityOnState(
             // CR 700.2c (issue #1341) — the mode is locked BEFORE targets, so
             // it rides the pendingTarget and is forwarded to the stack item /
             // pendingActivation at finalization.
-            ...(chosenMode ? { chosenModeId: chosenMode.id } : {}),
+            ...activationModeFields,
+            ...(multiModeGroups
+                ? {
+                      groupModeInstances: multiModeGroups.map(
+                          (g) => g.instance
+                      ),
+                  }
+                : {}),
             ...(abilityDivideTotal !== undefined
                 ? { divideTotal: abilityDivideTotal }
                 : {}),
@@ -2836,7 +2897,7 @@ export function activateAbilityOnState(
             ability,
             manaCost,
             chosenX,
-            ...(chosenMode ? { chosenModeId: chosenMode.id } : {}),
+            ...activationModeFields,
             keepPriority: args.keepPriority,
             grantedSourceCardId,
             grantedAbilityOrigin,
@@ -2961,7 +3022,7 @@ export function activateAbilityOnState(
     const stackItem: StackItem = buildActivatedAbilityStackItem(card, {
         castById: args.playerId,
         abilityId: args.abilityId,
-        ...(chosenMode ? { chosenModeId: chosenMode.id } : {}),
+        ...activationModeFields,
         ...(chosenX !== undefined ? { chosenX } : {}),
         ...(grantedSourceCardId ? { grantedSourceCardId } : {}),
         ...(grantedAbilityOrigin ? { grantedAbilityOrigin } : {}),

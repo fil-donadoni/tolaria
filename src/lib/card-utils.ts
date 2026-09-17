@@ -2954,7 +2954,7 @@ export type StackModeLine = {
  *  chosen one, so the stack UI can highlight the chosen mode and de-emphasize
  *  the rest — visible to BOTH players: the mode is ANNOUNCED as the object goes
  *  on the stack, and CR 400.2 makes the stack a public zone. Reads
- *  `chosenModeId`, which survives the wire projection
+ *  `chosenModeIds`, which survives the wire projection
  *  (`SlimStackItem` keeps every StackItem field but `card`).
  *
  *  Two mode lists feed it, one per announcing object:
@@ -2965,16 +2965,17 @@ export type StackModeLine = {
  *
  *  Returns null for a stack item showing no mode: an activated or delayed
  *  ability (their announced mode is not rendered here yet), a non-modal spell
- *  or trigger, an object with no announced mode, or a `chosenModeId` that
+ *  or trigger, an object with no announced mode, or a `chosenModeIds` entry that
  *  doesn't match any declared mode (defensive against a stale id). */
 export function getStackModeLines(item: {
     card: Record<string, unknown>;
-    chosenModeId?: string;
+    chosenModeIds?: readonly string[];
     abilityId?: string;
     triggeredAbilityId?: string;
     delayedTriggerId?: string;
 }): StackModeLine[] | null {
-    if (!item.chosenModeId) return null;
+    const chosen = item.chosenModeIds ?? [];
+    if (chosen.length === 0) return null;
     // `card.id` is `unknown` on the fat engine `StackItem` (Record-typed card)
     // and `string` on the wire `SlimStackItem` — accept both.
     const cardId = item.card.id;
@@ -3003,12 +3004,15 @@ export function getStackModeLines(item: {
             )?.modes
           : undefined;
     if (!modes || modes.length === 0) return null;
-    if (!modes.some((m) => m.id === item.chosenModeId)) return null;
+    if (!chosen.every((id) => modes.some((m) => m.id === id))) return null;
+    // One line per DECLARED mode, flagged when chosen at least once (ADR
+    // 0094). Rendering one line per mode INSTANCE, repeats included, is the
+    // stack view's half of issue #2264.
     return modes.map((m) => ({
         modeId: m.id,
         oracleText: m.oracleText,
         label: m.label,
-        chosen: m.id === item.chosenModeId,
+        chosen: chosen.includes(m.id),
     }));
 }
 

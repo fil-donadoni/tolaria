@@ -60,6 +60,7 @@ import {
 } from "./layers2to5";
 import { migrateLegacyAbilityLossHolds } from "./layer6";
 import { resolveZoneCharacteristics } from "./zoneCharacteristics";
+import { declaresAsEntersMode } from "./constants";
 import type { GrantedAbilityOrigin } from "./activatedAbilities";
 
 type CompactCard = Record<string, unknown>;
@@ -1668,7 +1669,11 @@ function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
         base.unkickedCostPayments = item.unkickedCostPayments;
     }
     if (item.targetAmounts) base.targetAmounts = item.targetAmounts;
-    if (item.chosenModeId) base.chosenModeId = item.chosenModeId;
+    // ADR 0094 — the announced mode instances and their target spans. (A
+    // parked as-enters mode is the PERMANENT-domain `chosenModeId`, which
+    // `compactCard` above already carries.)
+    if (item.chosenModeIds?.length) base.chosenModeIds = item.chosenModeIds;
+    if (item.modeTargetCounts) base.modeTargetCounts = item.modeTargetCounts;
     if (item.additionalSacrificeSnapshot) {
         base.additionalSacrificeSnapshot = item.additionalSacrificeSnapshot;
     }
@@ -1836,6 +1841,31 @@ function compactStackItem(item: StackItem, ctx: CompactCtx): CompactCard {
     return base;
 }
 
+/** ADR 0094 deserialize shim — a stack row written before the announcement
+ *  path moved to `chosenModeIds` carries its one announced mode under the
+ *  singular key, which the card half of the row ALSO uses for the permanent
+ *  domain (a parked as-enters pick, or a permanent's pick cloned onto its
+ *  ability). Read it back as `[id]` only when it names a mode of the list the
+ *  item ANNOUNCES from — a modal spell that does not choose as it enters, or a
+ *  modal activated / triggered ability — so an in-flight row resolves the mode
+ *  it was cast with and a permanent-domain value is never mistaken for one. */
+function legacyAnnouncedModeIds(
+    item: StackItem,
+    modeId: string
+): string[] | undefined {
+    const def = tryGetDefinition((item.card as { id: string }).id);
+    if (!def) return undefined;
+    const modes = item.triggeredAbilityId
+        ? def.triggeredAbilities?.find((t) => t.id === item.triggeredAbilityId)
+              ?.modes
+        : item.abilityId
+          ? def.activatedAbilities?.find((a) => a.id === item.abilityId)?.modes
+          : declaresAsEntersMode(def)
+            ? undefined
+            : def.modes;
+    return modes?.some((m) => m.id === modeId) ? [modeId] : undefined;
+}
+
 function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
     const ownerId = compact.ownerId as string;
     const base = expandCard(compact, { ownerId, zone: "stack" }, ctx);
@@ -1862,8 +1892,6 @@ function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
     if (compact.targetAmounts) {
         item.targetAmounts = compact.targetAmounts as Record<string, number>;
     }
-    if (compact.chosenModeId)
-        item.chosenModeId = compact.chosenModeId as string;
     if (compact.additionalSacrificeSnapshot) {
         item.additionalSacrificeSnapshot =
             compact.additionalSacrificeSnapshot as StackItem["additionalSacrificeSnapshot"];
@@ -2034,6 +2062,17 @@ function expandStackItem(compact: CompactCard, ctx?: ExpandCtx): StackItem {
     // haste rider.
     if (compact.dynamicHasteFromMana) {
         item.dynamicHasteFromMana = compact.dynamicHasteFromMana as boolean;
+    }
+    // ADR 0094 — last, because the legacy shim reads `abilityId` /
+    // `triggeredAbilityId` to find the mode list the item announced from.
+    if (compact.chosenModeIds) {
+        item.chosenModeIds = compact.chosenModeIds as string[];
+    } else if (typeof compact.chosenModeId === "string") {
+        const legacy = legacyAnnouncedModeIds(item, compact.chosenModeId);
+        if (legacy) item.chosenModeIds = legacy;
+    }
+    if (compact.modeTargetCounts) {
+        item.modeTargetCounts = compact.modeTargetCounts as number[];
     }
     return item;
 }

@@ -58,7 +58,7 @@ export type MoveMutations = {
         a: GP & {
             cardInstanceId: string;
             chosenX?: number;
-            chosenModeId?: string;
+            chosenModeIds?: string[];
             /** CR 118.9 / 702.103a — chosen alternative casting cost (Bestow
              *  today, issue #2388). */
             alternativeCostId?: string;
@@ -128,7 +128,7 @@ export type MoveMutations = {
             abilityId: string;
             chosenX?: number;
             /** CR 700.2c (issue #1341) — mode of a modal activated ability. */
-            chosenModeId?: string;
+            chosenModeIds?: string[];
         }
     ) => Promise<unknown>;
     /** CR 113.1b (issue #2903) — activates a PLAYER-level granted ability
@@ -522,7 +522,7 @@ export async function executeMove(
                 ...base,
                 cardInstanceId: move.cardInstanceId,
                 chosenX: move.chosenX,
-                chosenModeId: move.chosenModeId,
+                chosenModeIds: move.chosenModeIds,
                 // CR 118.9 / 702.103a (issue #2388) — the chosen alternative
                 // casting cost. The enumerator emits it for Bestow, whose
                 // choice must reach the mutation BEFORE targets: the bestow
@@ -645,7 +645,7 @@ export async function executeMove(
                 chosenX: move.chosenX,
                 // CR 700.2c (issue #1341) — a modal activated ability locks its
                 // mode as it is announced, before targets are selected below.
-                chosenModeId: move.chosenModeId,
+                chosenModeIds: move.chosenModeIds,
             });
             // See the matching comment in the "cast-spell" branch above.
             const targetInputs: {

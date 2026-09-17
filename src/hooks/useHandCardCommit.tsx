@@ -287,7 +287,11 @@ export function useHandCardCommit(
                     cardInstanceId: cardInstance.id,
                     keepPriority: args.keepPriority,
                     chosenX: args.chosenX,
-                    chosenModeId: args.chosenModeId,
+                    // ADR 0094 — the picker is still single-select (issue
+                    // #2264), so one mode instance.
+                    chosenModeIds: args.chosenModeId
+                        ? [args.chosenModeId]
+                        : undefined,
                     alternativeCostId: args.alternativeCostId,
                     kickerPayments: args.kickerPayments,
                     buyback: args.buyback,

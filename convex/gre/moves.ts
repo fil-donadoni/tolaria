@@ -406,7 +406,10 @@ export type Move =
            *  nothing extra to `announceCast` — this field is for the SANDBOXES,
            *  which have no `locateCastSource`. */
           castFromZone?: CastFromZone;
-          chosenModeId?: string;
+          /** CR 700.2a (ADR 0094) — the announced mode instances, printed
+           *  order. The enumerator emits one mode per move today; choose-N
+           *  enumeration is issue #2265. */
+          chosenModeIds?: string[];
           /** CR 118.9 — id of the ALTERNATIVE casting cost this variant pays
            *  instead of the printed mana cost, forwarded verbatim to
            *  `announceCast.alternativeCostId`. Absent = the ordinary cast.
@@ -484,8 +487,9 @@ export type Move =
           abilityId: string;
           /** CR 700.2 / 602.2b (issue #1341) — the mode of a MODAL activated
            *  ability (Umezawa's Jitte), locked in at announcement. One move
-           *  variant per mode, each carrying that mode's own targets. */
-          chosenModeId?: string;
+           *  variant per mode, each carrying that mode's own targets (ADR 0094:
+           *  one instance per move until issue #2265). */
+          chosenModeIds?: string[];
           chosenX?: number;
           targets: TargetSelection[];
           /** CR 601.2c via CR 602.2b — as on `cast-spell` above:
@@ -3244,7 +3248,7 @@ function enumerateCastMovesFromZone(
                     moves.push({
                         kind: "cast-spell",
                         cardInstanceId: card.id,
-                        chosenModeId: modeId,
+                        ...(modeId ? { chosenModeIds: [modeId] } : {}),
                         ...(additionalCostLegId ? { additionalCostLegId } : {}),
                         ...(kickerPayments ? { kickerPayments } : {}),
                         ...(buybackPaid ? { buybackPaid } : {}),
@@ -4148,7 +4152,7 @@ function enumerateAbilityMoves(
                         kind: "activate-ability",
                         cardInstanceId: perm.id,
                         abilityId: ability.id,
-                        ...(modeId ? { chosenModeId: modeId } : {}),
+                        ...(modeId ? { chosenModeIds: [modeId] } : {}),
                         targets,
                         confirmTargets: announcedTargetsNeedConfirm(
                             lastAbilityReq,

@@ -19,6 +19,7 @@
 // its inputs; `recordActivation` mutates only the card it is handed (plus the
 // state's pending-trigger queue, via the shared emitter).
 
+import { announcedModeFields } from "./modeSelection";
 import type { CardInstanceState, GameState, StackItem } from "./state";
 import type { TargetSelection } from "../cards/types";
 import type { GrantedAbilityOrigin } from "./activatedAbilities";
@@ -42,8 +43,10 @@ export type ActivatedAbilityCommit = {
     targets?: TargetSelection[];
     /** CR 601.2d / 120.4 — divide-as-you-choose split (Arc Mage). */
     targetAmounts?: Record<string, number>;
-    /** CR 700.2 / 602.2b — mode chosen for a modal ability (Umezawa's Jitte). */
-    chosenModeId?: string;
+    /** CR 700.2a / 602.2b (ADR 0094) — modes chosen for a modal ability
+     *  (Umezawa's Jitte), printed order, with their per-instance target spans. */
+    chosenModeIds?: string[];
+    modeTargetCounts?: number[];
     /** CR 107.3 / 601.2b — value chosen for X in the activation cost. */
     chosenX?: number;
     /** CR 113.1 — the granting card's def id when the ability was granted to
@@ -84,7 +87,7 @@ export function buildActivatedAbilityStackItem(
         ...(commit.targetAmounts
             ? { targetAmounts: commit.targetAmounts }
             : {}),
-        ...(commit.chosenModeId ? { chosenModeId: commit.chosenModeId } : {}),
+        ...announcedModeFields(commit),
         ...(commit.chosenX !== undefined ? { chosenX: commit.chosenX } : {}),
         ...(commit.grantedSourceCardId
             ? { grantedSourceCardId: commit.grantedSourceCardId }

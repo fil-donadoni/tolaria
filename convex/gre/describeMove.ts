@@ -204,7 +204,9 @@ export function describeMove(move: Move, state: GameState): string {
         case "activate-ability": {
             const name = instanceName(state, move.cardInstanceId);
             const x = move.chosenX !== undefined ? ` (X=${move.chosenX})` : "";
-            const mode = move.chosenModeId ? ` [${move.chosenModeId}]` : "";
+            const mode = move.chosenModeIds?.length
+                ? ` [${move.chosenModeIds.join(", ")}]`
+                : "";
             return `activate ${name}${x}${mode}${withTargets(state, move.targets)}`;
         }
         case "activate-granted-ability": {

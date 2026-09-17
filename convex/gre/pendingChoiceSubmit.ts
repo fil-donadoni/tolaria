@@ -951,7 +951,7 @@ export function applyPendingChoiceSubmit(
     // #2461): the submission is one mode id from the CHOOSABLE modes the
     // engine offered as the trigger went on the stack. Unlike `option-pick`
     // (a resolution-time answer written into `collectedChoices`) this is an
-    // ANNOUNCEMENT — it is written onto the stack item's `chosenModeId`, which
+    // ANNOUNCEMENT — it is written onto the stack item's `chosenModeIds`, which
     // is what resolution dispatch and the stack UI read, and it is locked from
     // here on (CR 700.2b — the mode is chosen as part of PUTTING the ability on
     // the stack): the choice is consumed, so there is no second submission that
@@ -965,7 +965,7 @@ export function applyPendingChoiceSubmit(
         }
         const stackItem = state.stack.find((s) => s.id === head.stackItemId);
         if (!stackItem) throw new Error("Stack item not found");
-        stackItem.chosenModeId = id;
+        stackItem.chosenModeIds = [id];
         queue.shift();
         state.pendingChoices = queue.length > 0 ? queue : undefined;
         if (queue.length > 0) {

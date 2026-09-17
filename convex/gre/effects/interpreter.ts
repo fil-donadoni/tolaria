@@ -6380,6 +6380,10 @@ export const HOST_BINDING = "$host";
  *  issue #807): the current member of the iterated set. */
 export const EACH_BINDING = "$each";
 
+/** The scope a mode instance's bindings live under (ADR 0094) — in place of a
+ *  `forEach` construct's numeric position, so the two can never collide. */
+const MODE_INSTANCE_SCOPE = "mode";
+
 // --- forEach construct machinery (ADR 0045, issue #807) ----------------------
 //
 // forEach composes onto main's pre-order cursor (issue #806) rather than
@@ -6407,7 +6411,7 @@ export const EACH_BINDING = "$each";
  *  scoped names can never collide with authored ones. */
 function scopeBindingName(
     name: string,
-    pos: number,
+    pos: number | typeof MODE_INSTANCE_SCOPE,
     iteration: number
 ): string {
     return `${name}@${pos}:${iteration}`;
@@ -6424,7 +6428,7 @@ function scopeBindingName(
  *  logic (ADR 0045 "one execution path"). */
 function scopedContext(
     ctx: SpellContext,
-    pos: number,
+    pos: number | typeof MODE_INSTANCE_SCOPE,
     iteration: number
 ): SpellContext {
     const scope = (name: string): string =>
@@ -6723,10 +6727,60 @@ export function runEffectScript(
     effects: readonly EffectOp[]
 ): void {
     const checkpoint = ctx.getScriptCheckpoint();
-    if (
-        checkpoint === undefined &&
-        ctx.getOwnerId(ctx.sourceInstanceId) !== undefined
-    ) {
+    if (checkpoint === undefined) seedSourceBindings(ctx);
+    // A fresh run resumes from position 0 (nothing skipped); a resume skips
+    // every Op before the checkpointed position across the whole nested tree.
+    const cursor: Cursor = { pos: 0, resume: checkpoint ?? 0 };
+    const outcome = runOpList(ctx, effects, cursor);
+    if (outcome === "suspend") return; // engine sees pendingChoices > 0
+    // Completed — clear the checkpoint so the item carries no stale
+    // `resolutionStep` into its next zone (the engine clears
+    // `collectedChoices` itself when the item leaves the stack).
+    ctx.clearScriptCheckpoint();
+}
+
+/** One announced MODE INSTANCE at resolution (ADR 0094): the chosen mode's
+ *  Effect Script and the slice of the item's flat target list it owns. */
+export interface ModeInstanceScript {
+    effects: readonly EffectOp[];
+    targets: (TargetSelection | undefined)[];
+}
+
+/** Resolves several announced mode instances as ONE script (ADR 0094). CR
+ *  608.2c / 700.2d — the instances run in the order written, a repeated mode
+ *  "as if that mode appeared that many times in sequence".
+ *
+ *  They share the pre-order cursor, exactly as a `forEach` body's iterations
+ *  do, so every Op of every instance has a distinct position: a suspension in
+ *  instance 2 resumes there, and instance 1's side effects never replay (CR
+ *  608.3). Two things are per instance:
+ *    - `targets` — the instance's own slice, so its script reads `{ target: 0 }`
+ *      as ITS first target;
+ *    - `$`-binding names — scoped per instance through the same wrapper
+ *      `forEach` uses, so a mode chosen twice binds and prompts afresh the
+ *      second time instead of reading the first instance's answer. */
+export function runModeInstanceScripts(
+    ctx: SpellContext,
+    instances: readonly ModeInstanceScript[]
+): void {
+    const checkpoint = ctx.getScriptCheckpoint();
+    if (checkpoint === undefined) seedSourceBindings(ctx);
+    const cursor: Cursor = { pos: 0, resume: checkpoint ?? 0 };
+    for (let k = 0; k < instances.length; k++) {
+        const instanceCtx: SpellContext = {
+            ...scopedContext(ctx, MODE_INSTANCE_SCOPE, k),
+            targets: instances[k].targets,
+        };
+        if (runOpList(instanceCtx, instances[k].effects, cursor) === "suspend")
+            return;
+    }
+    ctx.clearScriptCheckpoint();
+}
+
+/** Seeds the implicit `$source` / `$host` snapshot bindings on a FRESH entry
+ *  (see `runEffectScript`). */
+function seedSourceBindings(ctx: SpellContext): void {
+    if (ctx.getOwnerId(ctx.sourceInstanceId) !== undefined) {
         bindSnapshot(ctx, SOURCE_BINDING, {
             type: "permanent",
             id: ctx.sourceInstanceId,
@@ -6745,15 +6799,6 @@ export function runEffectScript(
             });
         }
     }
-    // A fresh run resumes from position 0 (nothing skipped); a resume skips
-    // every Op before the checkpointed position across the whole nested tree.
-    const cursor: Cursor = { pos: 0, resume: checkpoint ?? 0 };
-    const outcome = runOpList(ctx, effects, cursor);
-    if (outcome === "suspend") return; // engine sees pendingChoices > 0
-    // Completed — clear the checkpoint so the item carries no stale
-    // `resolutionStep` into its next zone (the engine clears
-    // `collectedChoices` itself when the item leaves the stack).
-    ctx.clearScriptCheckpoint();
 }
 
 /** Compiles an Effect Script into a plain resolve closure so it flows
@@ -7297,7 +7342,7 @@ function runCastDuringResolution(
     const cast = ctx.castChosenSpell(playerId, cardInstanceId, playerId, {
         targets: chosenTargets,
         chosenX,
-        chosenModeId,
+        chosenModeIds: chosenModeId ? [chosenModeId] : undefined,
         additionalSacrificeId,
         sourceZone,
         free: op.free,

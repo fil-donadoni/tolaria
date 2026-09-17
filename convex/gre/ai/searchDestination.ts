@@ -118,9 +118,8 @@ function resolvingEffectScript(
     if (item.triggeredAbilityId) {
         const ability = findTriggeredAbility(item, item.triggeredAbilityId);
         if (!ability) return undefined;
-        if (item.chosenModeId && ability.modes && ability.modes.length > 0) {
-            return ability.modes.find((m) => m.id === item.chosenModeId)
-                ?.effects;
+        if (item.chosenModeIds?.length && ability.modes?.length) {
+            return chosenModeEffects(ability.modes, item.chosenModeIds);
         }
         return ability.effects;
     }
@@ -139,18 +138,30 @@ function resolvingEffectScript(
               )
             : cardDef?.activatedAbilities?.find((a) => a.id === item.abilityId);
         if (!ability) return undefined;
-        if (item.chosenModeId && ability.modes && ability.modes.length > 0) {
-            return ability.modes.find((m) => m.id === item.chosenModeId)
-                ?.effects;
+        if (item.chosenModeIds?.length && ability.modes?.length) {
+            return chosenModeEffects(ability.modes, item.chosenModeIds);
         }
         return ability.effects;
     }
 
     if (!cardDef) return undefined;
-    if (item.chosenModeId && cardDef.modes && cardDef.modes.length > 0) {
-        return cardDef.modes.find((m) => m.id === item.chosenModeId)?.effects;
+    if (item.chosenModeIds?.length && cardDef.modes?.length) {
+        return chosenModeEffects(cardDef.modes, item.chosenModeIds);
     }
     return cardDef.effects;
+}
+
+/** ADR 0094 — every announced mode instance's script, in execution order, as
+ *  one list: the Op a choice belongs to may sit in any instance. `undefined`
+ *  when no chosen mode carries a script (the single-mode read's answer). */
+function chosenModeEffects(
+    modes: readonly { id: string; effects?: EffectOp[] }[],
+    chosenModeIds: readonly string[]
+): EffectOp[] | undefined {
+    const scripts = chosenModeIds
+        .map((id) => modes.find((m) => m.id === id)?.effects)
+        .filter((e): e is EffectOp[] => e !== undefined);
+    return scripts.length > 0 ? scripts.flat() : undefined;
 }
 
 /** Every Op in `effects`, at any nesting depth, flattened. */

@@ -636,12 +636,13 @@ export interface StackItem extends CardInstance {
      *  "The Monarch"). Undefined ⇒ the client uses the designation's global
      *  `imagePrintId`. Cosmetic. */
     designationImagePrintId?: string;
-    /** CR 700.2c (issue #1274) — the mode a modal spell locked in at cast
-     *  (`SpellMode.id`). Survives the wire projection via `slimCard`
-     *  (`SlimStackItem` keeps every StackItem field but `card`); declared here
-     *  so the stack view can highlight the chosen mode's oracle line for BOTH
-     *  players. Undefined for non-modal spells and abilities. */
-    chosenModeId?: string;
+    /** CR 700.2a (issue #1274, ADR 0094) — the mode instance(s) a modal spell
+     *  or trigger announced (`SpellMode.id`s, printed order). Survives the
+     *  wire projection via `slimCard` (`SlimStackItem` keeps every StackItem
+     *  field but `card`); declared here so the stack view can highlight the
+     *  chosen modes' oracle lines for BOTH players. Undefined for non-modal
+     *  spells and abilities. */
+    chosenModeIds?: string[];
 }
 
 export type {
