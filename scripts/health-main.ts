@@ -5,8 +5,10 @@
  * `land` runs the LANE gate only; `bun run release` runs this script on the
  * base branch tip before fast-forwarding the release branch,
  * `scripts/health-cadence.ts` detaches it once per BATCH of landings (ADR
- * 0136 §6), and `bun run health` runs it by hand. It runs the FULL offline gate (`check:all` + all three
- * test suites) against the merged tip, in a throwaway worktree, and leaves a
+ * 0136 §6), and `bun run health` runs it by hand. It runs the FULL offline gate
+ * (`HEALTH_SCRIPTS` in `lib/health-step.ts`: `check:all`, the derived Op census
+ * `check:gaps`, and all three test suites) against the merged tip, in a
+ * throwaway worktree, and leaves a
  * durable verdict in `.claude/telemetry/health/`:
  *
  *   - `last.json`  — { sha, status: running|green|red, startedAt, finishedAt, log }
@@ -46,6 +48,7 @@ import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "./lib/branches";
 import {
     healthGateEnv,
     runHealthStep,
+    HEALTH_SCRIPTS,
     type HealthStep,
 } from "./lib/health-step";
 import {
@@ -206,9 +209,7 @@ async function main(): Promise<void> {
     // so the block a queued `land` waits for is one block, not three.
     const env = healthGateEnv(process.env, { keepHold: underLock });
 
-    // In series, stopping at the first red: `name` is what the RED verdict
-    // records as `failedStep`.
-    const scripts = ["worktree:init", "check:all", "test"];
+    const scripts = HEALTH_SCRIPTS;
     const steps: HealthStep[] = scripts.map((name, i) => ({
         ordinal: i + 1,
         total: scripts.length,

@@ -1,0 +1,440 @@
+{
+    "note": "Grammar Gap allowlist — implemented Ops no Compiled Definition emits (ADR 0105 § 7.3, ADR 0137). SHRINK-ONLY: a row leaves when its emitting grammar rule lands; a new Op never enters. Verified offline by `bun run check:gaps`, which runs in `health` only. Seeded at issue #3824 with the 87 Ops never-emitted that day, each pointing at PRD issue #3820 until `gaps:sync` files its own.",
+    "ops": [
+        {
+            "key": "(op) › addMana",
+            "op": "addMana",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › addPlayerCounter",
+            "op": "addPlayerCounter",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › addSubtype",
+            "op": "addSubtype",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › animate",
+            "op": "animate",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › armGraveyardRedirect",
+            "op": "armGraveyardRedirect",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › attach",
+            "op": "attach",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › becomeCopy",
+            "op": "becomeCopy",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › becomeMonarch",
+            "op": "becomeMonarch",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › captureBinding",
+            "op": "captureBinding",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › cascade",
+            "op": "cascade",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › castDuringResolution",
+            "op": "castDuringResolution",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › choice",
+            "op": "choice",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › chooseCategorized",
+            "op": "chooseCategorized",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › chooseNumber",
+            "op": "chooseNumber",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › coinFlip",
+            "op": "coinFlip",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › coinFlipSync",
+            "op": "coinFlipSync",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › counter",
+            "op": "counter",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › createToken",
+            "op": "createToken",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › createTokenCopy",
+            "op": "createTokenCopy",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › dealDamageDividedAsChosen",
+            "op": "dealDamageDividedAsChosen",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › delayedTrigger",
+            "op": "delayedTrigger",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › digMatchingToHand",
+            "op": "digMatchingToHand",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › discard",
+            "op": "discard",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › divideIntoPiles",
+            "op": "divideIntoPiles",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › emblem",
+            "op": "emblem",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › exile",
+            "op": "exile",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › exileAndReturnTransformed",
+            "op": "exileAndReturnTransformed",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › exileOnDeath",
+            "op": "exileOnDeath",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › exileSelf",
+            "op": "exileSelf",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › exileTopOfLibrary",
+            "op": "exileTopOfLibrary",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › exileWithAttachments",
+            "op": "exileWithAttachments",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › explore",
+            "op": "explore",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › extraCombat",
+            "op": "extraCombat",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › extraTurn",
+            "op": "extraTurn",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › forEach",
+            "op": "forEach",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › gainControl",
+            "op": "gainControl",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › grantCastFromExile",
+            "op": "grantCastFromExile",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › grantCastFromGraveyard",
+            "op": "grantCastFromGraveyard",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › grantCastTiming",
+            "op": "grantCastTiming",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › grantGraveyardPlay",
+            "op": "grantGraveyardPlay",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › grantSpellManaSubstitution",
+            "op": "grantSpellManaSubstitution",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › hideaway",
+            "op": "hideaway",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › libraryLook",
+            "op": "libraryLook",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › lockDamage",
+            "op": "lockDamage",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › lookDistribute",
+            "op": "lookDistribute",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › lookHand",
+            "op": "lookHand",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › lookRandomHand",
+            "op": "lookRandomHand",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › loseAllAbilities",
+            "op": "loseAllAbilities",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › loseAllAbilitiesWhileSourceRemains",
+            "op": "loseAllAbilitiesWhileSourceRemains",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › markAssignsNoCombatDamage",
+            "op": "markAssignsNoCombatDamage",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › mill",
+            "op": "mill",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › moveSpellFromStack",
+            "op": "moveSpellFromStack",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › nameCard",
+            "op": "nameCard",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › optionChoice",
+            "op": "optionChoice",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › payVariableMana",
+            "op": "payVariableMana",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › preventDamage",
+            "op": "preventDamage",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › preventRegeneration",
+            "op": "preventRegeneration",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › putBack",
+            "op": "putBack",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › randomExileToHand",
+            "op": "randomExileToHand",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › rangedTopdeck",
+            "op": "rangedTopdeck",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › recallCapturedBinding",
+            "op": "recallCapturedBinding",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › reduceSpellCostThisTurn",
+            "op": "reduceSpellCostThisTurn",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › reflexiveTrigger",
+            "op": "reflexiveTrigger",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › restrictActivation",
+            "op": "restrictActivation",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › restrictCasting",
+            "op": "restrictCasting",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › restrictCombat",
+            "op": "restrictCombat",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › returnExiledForSource",
+            "op": "returnExiledForSource",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › reveal",
+            "op": "reveal",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › revealAndCategorize",
+            "op": "revealAndCategorize",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › revealTopAndRoute",
+            "op": "revealTopAndRoute",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › revealUntilMatch",
+            "op": "revealUntilMatch",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › sacrifice",
+            "op": "sacrifice",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › scryReorder",
+            "op": "scryReorder",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › setBasePT",
+            "op": "setBasePT",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › setCardTypes",
+            "op": "setCardTypes",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › setColor",
+            "op": "setColor",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › setIslandSanctuaryProtection",
+            "op": "setIslandSanctuaryProtection",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › setLevel",
+            "op": "setLevel",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › setProtectionFromEverything",
+            "op": "setProtectionFromEverything",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › setSubtype",
+            "op": "setSubtype",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › shuffleSelfIntoLibrary",
+            "op": "shuffleSelfIntoLibrary",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › skipDrawStepThisTurn",
+            "op": "skipDrawStepThisTurn",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › skipNextTurn",
+            "op": "skipNextTurn",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › skipNextUntap",
+            "op": "skipNextUntap",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › transform",
+            "op": "transform",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › unattach",
+            "op": "unattach",
+            "issue": 3820
+        },
+        {
+            "key": "(op) › winGame",
+            "op": "winGame",
+            "issue": 3820
+        }
+    ]
+}
