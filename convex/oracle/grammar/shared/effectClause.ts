@@ -28,7 +28,14 @@
 import type { TargetRequirement } from "../../../cards/types";
 import type { KeywordIR } from "../ir";
 import type { Phase } from "../../../gre/types";
-import { fail, ok, rule, type Rule } from "../../rule";
+import {
+    fail,
+    ok,
+    rule,
+    type FailureTrace,
+    type Rule,
+    subGrammar,
+} from "../../rule";
 import { keywordVocabulary } from "./keywordVocabulary";
 import { durationRule, type DurationIR } from "./duration";
 import { playerRefRule, type PlayerRefIR } from "./playerRef";
@@ -226,6 +233,19 @@ export type AssembledSentences =
           readonly restrictions: RestrictionIR[];
       }
     | { readonly ok: false; readonly reason: string };
+
+/**
+ * The attribution sub-grammar of a line whose every sentence PARSED and whose
+ * sentence list was then refused as a whole (issue #3822) — a restriction on a
+ * spell, an effect after a restriction. The slot got further than any sentence
+ * inside it could, so the trace outranks all of them: one step of progress per
+ * sentence read, plus the list itself.
+ */
+export const SENTENCE_ASSEMBLY = "sentence assembly";
+
+export function assemblyTrace(span: string, sentences: number): FailureTrace {
+    return { path: [SENTENCE_ASSEMBLY], span, progress: sentences + 1 };
+}
 
 export function assembleSentences(
     sentences: readonly SentenceIR[],
@@ -426,9 +446,9 @@ const RESTRICTIONS: ReadonlyMap<string, RestrictionIR> = new Map<
  * an ANCHORED pattern over the whole span, so an unrecognised trailing clause
  * fails the sentence instead of being ignored.
  */
-export const sentenceRule: Rule<SentenceIR> = rule<SentenceIR>(
+export const sentenceRule: Rule<SentenceIR> = subGrammar(
     EFFECT_CLAUSE,
-    (span, ctx) => {
+    rule<SentenceIR>(EFFECT_CLAUSE, (span, ctx) => {
         const restriction = RESTRICTIONS.get(span.toLowerCase());
         if (restriction !== undefined)
             return ok({ role: "restriction" as const, restriction });
@@ -441,7 +461,7 @@ export const sentenceRule: Rule<SentenceIR> = rule<SentenceIR>(
         const effect = effectSentence(span, ctx);
         if (!effect.ok) return effect;
         return ok({ role: "effect" as const, effect: effect.value });
-    }
+    })
 );
 
 function effectSentence(span: string, ctx: unknown) {

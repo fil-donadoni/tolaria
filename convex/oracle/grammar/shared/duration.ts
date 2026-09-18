@@ -15,7 +15,7 @@
  */
 
 import type { DurationSpec } from "../../../cards/types";
-import { fail, ok, rule, type Rule } from "../../rule";
+import { fail, ok, rule, type Rule, subGrammar } from "../../rule";
 
 export const DURATION = "duration";
 
@@ -34,12 +34,15 @@ const PHRASES: ReadonlyMap<string, DurationIR> = new Map<string, DurationIR>([
     ["until your next turn", { kind: "your-next-turn" }],
 ]);
 
-export const durationRule: Rule<DurationIR> = rule(DURATION, (span) => {
-    const hit = PHRASES.get(span.toLowerCase());
-    return hit === undefined
-        ? fail("not a duration this grammar knows", span)
-        : ok(hit);
-});
+export const durationRule: Rule<DurationIR> = subGrammar(
+    DURATION,
+    rule(DURATION, (span) => {
+        const hit = PHRASES.get(span.toLowerCase());
+        return hit === undefined
+            ? fail("not a duration this grammar knows", span)
+            : ok(hit);
+    })
+);
 
 /** Duration → the engine's `DurationSpec` (CR 611.2b). */
 export function durationSpec(duration: DurationIR): DurationSpec {

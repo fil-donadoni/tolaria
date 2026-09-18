@@ -8,13 +8,18 @@
  * same run (PRD #2693 user story 6).
  *
  * Usage:
- *   bun scripts/oracle-report.ts             # per-format table + top fragments
- *   bun scripts/oracle-report.ts --gaps 50   # more of the fragment backlog
- *   bun scripts/oracle-report.ts --decks     # per-deck, per-card state (M1)
+ *   bun scripts/oracle-report.ts               # per-format table + corpus Grammar Gaps
+ *   bun scripts/oracle-report.ts --gaps 50     # more of the ranked backlog
+ *   bun scripts/oracle-report.ts --set apc     # Grammar Gaps ranked for one set
+ *   bun scripts/oracle-report.ts --pool premodern  # … for one format pool
+ *   bun scripts/oracle-report.ts --decks       # per-deck, per-card state (M1)
  *   bun scripts/oracle-report.ts --delta [<ref>]
- *                                            # ready delta per set + corpus
- *                                            # against <ref>'s lockfile
- *                                            # (default: origin/<base>)
+ *                                  # ready delta per set + corpus against
+ *                                  # <ref>'s lockfile (default: origin/<base>)
+ *
+ * `--set` reads `data/json/<SET>.json` (MTGJSON, committed like the rest of
+ * that directory — the file `/new-set` already reads) for the set's oracle
+ * ids; `--pool` reads the lockfile's own `poolIn`. Both are offline.
  */
 
 import { execFileSync } from "node:child_process";
@@ -22,13 +27,20 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { REPORTED_FORMATS } from "./oracle-corpus";
 import { poolOracleIds } from "./oracle-compile";
-import { parseLockfile } from "./lib/oracle-lockfile";
+import { parseLockfile, type Lockfile } from "./lib/oracle-lockfile";
 import { ORIGIN_BASE } from "./lib/branches";
 import {
     formatReadyDelta,
     readyDelta,
     type SetMembership,
 } from "./lib/oracle-ready-delta";
+import {
+    CARD_LEVEL,
+    poolTarget,
+    rankGrammarGaps,
+    setTargetFromMtgjson,
+    type RankedGap,
+} from "./lib/grammar-gaps";
 import {
     readTier1Decks,
     summaryLine,
@@ -148,6 +160,130 @@ function reportDelta(
     process.stdout.write("\n");
 }
 
+/** `--flag value`, or `undefined` when the flag is absent. */
+function flag(name: string): string | undefined {
+    const at = process.argv.indexOf(name);
+    if (at === -1) return undefined;
+    const value = process.argv[at + 1];
+    // A flag with no value must not fall back to a corpus run: the reader
+    // would take the corpus ranking for the Target they named.
+    if (value === undefined || value.startsWith("--")) {
+        process.stderr.write(`oracle:report — ${name} needs a value\n`);
+        process.exit(1);
+    }
+    return value;
+}
+
+interface Target {
+    readonly label: string;
+    readonly ids: ReadonlySet<string>;
+}
+
+/** The Target named on the command line, or `null` for the corpus. */
+function readTarget(lock: Lockfile): Target | null {
+    const set = flag("--set");
+    const pool = flag("--pool");
+    if (set !== undefined && pool !== undefined) {
+        process.stderr.write(
+            "oracle:report — pass --set or --pool, not both\n"
+        );
+        process.exit(1);
+    }
+    if (set !== undefined) {
+        const code = set.toUpperCase();
+        const path = join(ROOT, "data", "json", `${code}.json`);
+        if (!existsSync(path)) {
+            process.stderr.write(
+                `data/json/${code}.json missing — fetch it: curl -s -A "Mozilla/5.0" ` +
+                    `-o data/json/${code}.json https://mtgjson.com/api/v5/${code}.json\n`
+            );
+            process.exit(1);
+        }
+        const ids = setTargetFromMtgjson(
+            JSON.parse(readFileSync(path, "utf8"))
+        );
+        return { label: `set ${code}`, ids };
+    }
+    if (pool !== undefined) {
+        if (!(REPORTED_FORMATS as readonly string[]).includes(pool)) {
+            process.stderr.write(
+                `oracle:report — unknown pool "${pool}" (one of: ${REPORTED_FORMATS.join(", ")})\n`
+            );
+            process.exit(1);
+        }
+        return { label: `${pool} pool`, ids: poolTarget(lock, pool) };
+    }
+    return null;
+}
+
+/** `set APC — 143 cards: 12 ready, 3 quarantine, 128 unparsed` */
+function reportTargetState(lock: Lockfile, target: Target): void {
+    const counts = { ready: 0, quarantine: 0, unparsed: 0 };
+    let found = 0;
+    for (const card of lock.cards) {
+        if (!target.ids.has(card.oracleId)) continue;
+        found += 1;
+        counts[card.state] += 1;
+    }
+    const missing = target.ids.size - found;
+    process.stdout.write(
+        `\n${target.label} — ${found} cards: ${counts.ready} ready (${pct(counts.ready, found).trim()}), ` +
+            `${counts.quarantine} quarantine, ${counts.unparsed} unparsed\n` +
+            (missing > 0
+                ? `(${missing} oracle id(s) of the Target are not in the pinned corpus)\n`
+                : "")
+    );
+}
+
+const SHAPE_WIDTH = 78;
+
+function clip(text: string, width: number): string {
+    return text.length > width ? `${text.slice(0, width - 3)}...` : text;
+}
+
+/**
+ * The ranked backlog. Each gap prints on three lines: counts and attribution,
+ * the unconsumed span's shape, and one real line that fails there.
+ */
+function reportGaps(
+    ranked: readonly RankedGap[],
+    count: number,
+    targetLabel: string | null
+): void {
+    const shown = ranked.slice(0, count);
+    process.stdout.write(
+        `\nTop ${shown.length} of ${ranked.length} Grammar Gaps` +
+            (targetLabel === null
+                ? " across the corpus"
+                : ` for the ${targetLabel}, corpus count beside each`) +
+            ` (the grammar backlog)\n` +
+            `unlocks = cards for which this is the only gap left; blocks = cards it refuses\n\n`
+    );
+    const head =
+        targetLabel === null
+            ? `${"rank".padStart(4)}  ${"unlocks".padStart(7)} ${"blocks".padStart(6)}  slot › sub-grammar\n`
+            : `${"rank".padStart(4)}  ${"unlocks".padStart(7)} ${"blocks".padStart(6)}  ` +
+              `${"corpus u/b".padStart(11)}  slot › sub-grammar\n`;
+    process.stdout.write(head);
+    shown.forEach((gap, i) => {
+        const where = [gap.slot, ...gap.path].join(" › ");
+        const counts =
+            `${String(i + 1).padStart(4)}  ${String(gap.target.unlocks).padStart(7)} ` +
+            `${String(gap.target.blocks).padStart(6)}  ` +
+            (targetLabel === null
+                ? ""
+                : `${`${gap.corpus.unlocks}/${gap.corpus.blocks}`.padStart(11)}  `);
+        // A card-level gap has no span: its "shape" is the refusal's reason.
+        const shapeLabel = gap.slot === CARD_LEVEL ? "why:" : "span:";
+        process.stdout.write(
+            `${counts}${where}\n` +
+                `${"".padStart(6)}${shapeLabel} ${clip(gap.shape, SHAPE_WIDTH)}\n` +
+                `${"".padStart(6)}e.g.: ${clip(`${gap.example.card} — ${gap.example.line}`, SHAPE_WIDTH)}\n`
+        );
+    });
+    process.stdout.write("\n");
+}
+
 function main(): void {
     if (!existsSync(LOCKFILE_PATH)) {
         process.stderr.write(
@@ -177,8 +313,16 @@ function main(): void {
     const { corpus, counts, grammarVersion } = lock.header;
     process.stdout.write(
         `\nOracle compiler — grammar ${grammarVersion}\n` +
-            `corpus ${corpus.downloadUri.split("/").pop()} (Scryfall updated_at ${corpus.updatedAt})\n\n`
+            `corpus ${corpus.downloadUri.split("/").pop()} (Scryfall updated_at ${corpus.updatedAt})\n`
     );
+
+    const target = readTarget(lock);
+    if (target !== null) {
+        reportTargetState(lock, target);
+        reportGaps(rankGrammarGaps(lock, target.ids), gapCount, target.label);
+        return;
+    }
+    process.stdout.write("\n");
 
     process.stdout.write(
         `${"format".padEnd(12)}${"total".padStart(8)}${"ready".padStart(9)}${"quar".padStart(9)}` +
@@ -206,19 +350,7 @@ function main(): void {
             `It is the baseline the compiler is measured against, not part of its output.\n`
     );
 
-    process.stdout.write(
-        `\nTop ${gapCount} unconsumed fragments (the grammar backlog):\n`
-    );
-    for (const fragment of lock.fragments.slice(0, gapCount)) {
-        const text =
-            fragment.text.length > 78
-                ? `${fragment.text.slice(0, 75)}...`
-                : fragment.text;
-        process.stdout.write(
-            `  ${String(fragment.cards).padStart(5)}  ${text}\n`
-        );
-    }
-    process.stdout.write("\n");
+    reportGaps(rankGrammarGaps(lock, null), gapCount, null);
 }
 
 if (import.meta.main) {

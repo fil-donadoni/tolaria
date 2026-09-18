@@ -9,7 +9,7 @@
  * of the same rule.
  */
 
-import { fail, ok, rule, type Rule } from "../../rule";
+import { fail, ok, rule, type Rule, subGrammar } from "../../rule";
 import type { TargetRequirement } from "../../../cards/types";
 
 export const PLAYER_REF = "player reference";
@@ -33,12 +33,15 @@ const PHRASES: ReadonlyMap<string, PlayerRefIR> = new Map<string, PlayerRefIR>([
     ["target opponent", { kind: "target", opponent: true }],
 ]);
 
-export const playerRefRule: Rule<PlayerRefIR> = rule(PLAYER_REF, (span) => {
-    const hit = PHRASES.get(span.toLowerCase());
-    return hit === undefined
-        ? fail("not a player reference this grammar knows", span)
-        : ok(hit);
-});
+export const playerRefRule: Rule<PlayerRefIR> = subGrammar(
+    PLAYER_REF,
+    rule(PLAYER_REF, (span) => {
+        const hit = PHRASES.get(span.toLowerCase());
+        return hit === undefined
+            ? fail("not a player reference this grammar knows", span)
+            : ok(hit);
+    })
+);
 
 /** The target requirement a `target` player reference announces (CR 115.1). */
 export function playerTargetRequirement(

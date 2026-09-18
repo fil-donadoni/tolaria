@@ -19,7 +19,7 @@
  * know the noun.
  */
 
-import { fail, ok, rule, type Rule } from "../../rule";
+import { fail, ok, rule, type Rule, subGrammar } from "../../rule";
 import { descriptorRule, type DescriptorIR } from "./targetFilter";
 
 export const QUANTITY = "quantity";
@@ -88,10 +88,14 @@ export const forEachRule: Rule<QuantityIR> = rule("for-each", (span, ctx) => {
  * ARITY of the effect (a player choice), not only its magnitude, and folding
  * them into a count would hide the choice.
  */
-export const quantityRule: Rule<QuantityIR> = rule(QUANTITY, (span, ctx) => {
-    if (span === "X") return ok({ kind: "x" as const });
-    const number = readNumberWord(span);
-    if (number !== null) return ok({ kind: "fixed" as const, value: number });
-    if (span.startsWith("for each ")) return forEachRule.run(span, ctx);
-    return fail("not a quantity this grammar knows", span);
-});
+export const quantityRule: Rule<QuantityIR> = subGrammar(
+    QUANTITY,
+    rule(QUANTITY, (span, ctx) => {
+        if (span === "X") return ok({ kind: "x" as const });
+        const number = readNumberWord(span);
+        if (number !== null)
+            return ok({ kind: "fixed" as const, value: number });
+        if (span.startsWith("for each ")) return forEachRule.run(span, ctx);
+        return fail("not a quantity this grammar knows", span);
+    })
+);

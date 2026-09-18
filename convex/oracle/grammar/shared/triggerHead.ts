@@ -29,10 +29,13 @@
  */
 
 import type { Phase } from "../../../gre/types";
-import { fail, ok, rule, type Rule } from "../../rule";
+import { fail, ok, rule, type Rule, subGrammar } from "../../rule";
 import { isSelfPhrase } from "./cost";
 
 export const TRIGGER_HEAD = "trigger head";
+
+/** CR 603.1 — the three words a trigger condition begins with. */
+const TRIGGER_OPENER = /^(when|whenever|at) /i;
 
 /**
  * Which permanents' events fire the ability, relative to the source
@@ -210,13 +213,15 @@ export function matchSelfHead(span: string): TriggerHeadIR | null {
  * introduced later reds the suite instead of silently making the reading order
  * load-bearing.
  */
-export const triggerHeadRule: Rule<TriggerHeadIR> = rule(
+export const triggerHeadRule: Rule<TriggerHeadIR> = subGrammar(
     TRIGGER_HEAD,
-    (span) => {
+    rule(TRIGGER_HEAD, (span) => {
         const self = matchSelfHead(span);
         if (self !== null) return ok(self);
         const other = OTHER_HEADS.get(span.toLowerCase());
         if (other !== undefined) return ok(other);
         return fail("not a trigger head this grammar knows", span);
-    }
+    }),
+    // CR 603.1 — a triggered ability opens with "when", "whenever" or "at".
+    (span) => TRIGGER_OPENER.test(span)
 );

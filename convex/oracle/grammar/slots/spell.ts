@@ -72,6 +72,7 @@ import type { ParseContext } from "../../types";
 import { activationCostRule, type CostAtomIR } from "../shared/cost";
 import {
     assembleSentences,
+    assemblyTrace,
     sentenceRule,
     type SentenceIR,
 } from "../shared/effectClause";
@@ -109,7 +110,12 @@ const plainSpell: Rule<SlotIR> = terminated(
         );
         if (!parsed.ok) return parsed;
         const read = readSentences(parsed.value);
-        if (!read.ok) return fail(read.reason, span);
+        if (!read.ok)
+            return fail(
+                read.reason,
+                span,
+                assemblyTrace(span, parsed.value.length)
+            );
         return ok({ kind: "spell" as const, effects: read.effects });
     })
 );
@@ -147,7 +153,12 @@ const modalSpell: Rule<SlotIR> = rule<SlotIR>("modal spell", (span, ctx) => {
         ).run(body, ctx);
         if (!parsed.ok) return parsed;
         const read = readSentences(parsed.value);
-        if (!read.ok) return fail(read.reason, span);
+        if (!read.ok)
+            return fail(
+                read.reason,
+                span,
+                assemblyTrace(body, parsed.value.length)
+            );
         modes.push({
             // Without its full stop: `SpellModeIR.text` is the phrase, and the
             // lowering puts the stop back for the mode's `oracleText` while the

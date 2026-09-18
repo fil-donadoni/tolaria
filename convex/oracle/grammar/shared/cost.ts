@@ -30,7 +30,15 @@ import type {
 } from "../../../cards/types";
 import { readManaCost } from "../../manaCost";
 import { SELF_MARKER } from "../../normalize";
-import { fail, listOf, ok, rule, type Rule, type RuleResult } from "../../rule";
+import {
+    fail,
+    listOf,
+    ok,
+    rule,
+    type Rule,
+    type RuleResult,
+    subGrammar,
+} from "../../rule";
 import { readNumberWord } from "./quantity";
 import { descriptorRule, permanentFilterFromDescriptor } from "./targetFilter";
 
@@ -284,9 +292,9 @@ function splitCount(span: string): { count: number; rest: string } | null {
  * comma-separated. Each KIND may appear at most once: two tap symbols or two
  * mana runs in one cost is a line we have misread, not a cost we should merge.
  */
-export const activationCostRule: Rule<ActivationCostIR> = rule(
+export const activationCostRule: Rule<ActivationCostIR> = subGrammar(
     ACTIVATION_COST,
-    (span, ctx) => {
+    rule(ACTIVATION_COST, (span, ctx) => {
         const atoms = listOf("cost atoms", ", ", costAtom).run(span, ctx);
         if (!atoms.ok) return atoms;
         const seen = new Set<string>();
@@ -296,7 +304,7 @@ export const activationCostRule: Rule<ActivationCostIR> = rule(
             seen.add(atom.kind);
         }
         return ok({ atoms: atoms.value });
-    }
+    })
 );
 
 /**

@@ -267,6 +267,9 @@ export function compileCard(card: OracleCard): CompileOutcome {
                 line,
                 fragment: routed.fragment,
                 reason: routed.reason,
+                ...(routed.attribution !== undefined
+                    ? { attribution: routed.attribution }
+                    : {}),
             });
     }
     if (gaps.length > 0) return unparsed(gaps);
