@@ -108,7 +108,8 @@ export const yawgmothDemon: CardDefinition = {
 // Priest of Yawgmoth — {1}{B} 1/2. "{T}, Sacrifice an artifact: Add an amount
 // of {B} equal to the sacrificed artifact's mana value." The mana-value-derived
 // effect reads the sacrificed permanent's mv via getAdditionalSacrificeMv
-// (snapshotted at commit). Modeled as a stack ability (see CR 605.1a note).
+// (snapshotted at commit). Modeled as a stack ability (see the CR 605.1a note
+// in `atq/red.ts`, tracked-by: #3989).
 export const priestOfYawgmoth: CardDefinition = {
     id: "c9fd4054-42fc-4f95-a6f7-369a5da43dd5",
     rarity: "common",

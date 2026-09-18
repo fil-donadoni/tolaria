@@ -6,7 +6,6 @@ import type {
     ActivatedAbilityContext,
     CardDefinition,
     GameEvent,
-    ManaCost,
     PermanentView,
     SpellContext,
     StaticEffectContext,
@@ -269,17 +268,12 @@ export const lotusGuardian: CardDefinition = {
 };
 
 // Phyrexian Altar — {3} Artifact. "Sacrifice a creature: Add one mana of any
-// color." (CR 602.1/118.5 filtered-sacrifice cost — same `sacrificeFilter`
-// shape as Devouring Strossus above / Ashnod's Altar / Atog / Priest of
-// Yawgmoth; per the CR 605.1a deviation (tracked-by: #2785) note in `atq/red.ts`, a
-// filtered-sacrifice cost needs a player choice the instant tap-mana path
-// can't model, so it's `useStack: true`.) The "any color" pick can't ride
-// `manaChoices` — that shape is reserved for `useStack: false` mana
-// abilities (`gre/rules.ts` / `gre/constants.ts` gate on `!useStack`) — so it
-// composes the same "choose a color" DSL skin Addle uses in this set (a
-// 5-mode `optionChoice`), each mode a bare `addMana` for that colour — both
-// Ops already exercised catalogue-wide (per-Op regime, no hand-written test
-// required).
+// color." CR 605.1a — no target, adds mana, no loyalty, no library movement: a
+// MANA ability, so it never uses the stack (CR 605.3b) and is activatable
+// mid-cast (CR 605.3a). The filtered sacrifice (CR 602.1a) parks on the
+// shared cost-pick window and commits inline (issue #3455); the colour is
+// picked at activation from the `manaChoices` descriptor, the Birds of
+// Paradise shape.
 export const phyrexianAltar: CardDefinition = {
     id: "25158cd5-749b-408c-9ab1-0f83e38730f7",
     rarity: "rare",
@@ -292,20 +286,8 @@ export const phyrexianAltar: CardDefinition = {
             id: "phyrexian-altar-mana",
             oracleText: "Sacrifice a creature: Add one mana of any color.",
             cost: { sacrificeFilter: { types: "Creature" } },
-            useStack: true,
-            effects: [
-                {
-                    op: "optionChoice",
-                    player: "controller",
-                    prompt: "Choose a color.",
-                    modes: colorChoiceModes((color) => [
-                        {
-                            op: "addMana",
-                            mana: { [color]: 1 } as ManaCost,
-                        },
-                    ]),
-                },
-            ],
+            useStack: false,
+            manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
         },
     ],
 };

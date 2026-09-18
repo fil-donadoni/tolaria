@@ -1753,11 +1753,12 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
  * The defect is on the HAND-WRITTEN side: the compiler's reading is the
  * CR-faithful one.
  *
- * Usually that means fixing the card graduates the row — but not always, and
- * Ashnod's Altar below is the counter-example: the reading is right and the
- * remedy is engine-side, because the engine cannot yet pay the cost the correct
- * encoding implies. "Card-defect" names the SIDE the defect is on, never the
- * shape of its fix.
+ * Usually that means fixing the card graduates the row — but not always:
+ * Ashnod's Altar, the last row here, was the counter-example. Its reading was
+ * right and the remedy was engine-side first (issue #3455 taught the non-stack
+ * mana path to pay a filtered sacrifice), and only then the card flip that
+ * graduated it (issue #3047). "Card-defect" names the SIDE the defect is on,
+ * never the shape of its fix.
  *
  * Every row is now an adjudicated mismatch carrying its ticket inline. The
  * `no-oracle-text` half — 23 definitions that omitted `oracleText` entirely, so
@@ -1768,15 +1769,7 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
  * `convex/oracle/__tests__/gold.test.ts` pins `withoutOracleText` at zero, and
  * that assertion is the durable guard, not the backfill.
  */
-export const CARD_DEFECT_ROWS: readonly string[] = [
-    // A DELIBERATE deviation, not a slip: the engine's non-stack mana path
-    // cannot pay a `sacrificeFilter`, so the card is modelled on the stack on
-    // purpose and flipping `useStack` today makes the ability payable without
-    // paying its cost (docs/findings/2697-gold-catalogue-divergences.md §3).
-    // Still `card-defect` — CR 605.1a says the compiler's reading is the right
-    // one — but the fix is the engine gap, not the flag.
-    "Ashnod's Altar", // #3047 — mana ability on the stack, CR 605.3b
-];
+export const CARD_DEFECT_ROWS: readonly string[] = [];
 
 /**
  * The compiler produced a definition, the two disagree, and which encoding is

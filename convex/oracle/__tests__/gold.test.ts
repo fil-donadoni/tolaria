@@ -40,11 +40,8 @@ const REPORT = runGoldHarness(CARDS);
  * be wrong" is exactly the reasoning this list exists to make expensive.
  */
 const KNOWN_DIVERGENCES: readonly string[] = [
-    // Oracle: "Sacrifice a creature: Add {C}{C}." No target, adds mana, not a
-    // loyalty ability, touches no library — a mana ability by every criterion
-    // of CR 605.1a, so `useStack: false`. The hand-written ability puts it on
-    // the stack. docs/findings/2697-gold-catalogue-divergences.md
-    "Ashnod's Altar (activated)",
+    // Ashnod's Altar left this list in issue #3047: it is now the CR 605.1a
+    // mana ability the compiler emits (`useStack: false` + `manaProduced`).
     // Northern Paladin, Active Volcano, Flash Flood and Desert Twister left
     // this list in issues #3046 / #3073: each encoded "target … permanent" as
     // `type: "Creature"` or CR 115.4's `"any"`, and each now carries the

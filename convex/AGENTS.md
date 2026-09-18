@@ -280,7 +280,7 @@ with a non-empty value, run the suite.
 - Card definitions are DATA; `resolve()` only when justified
 - Types from `convex/cards/types.ts` / `convex/gre/state.ts`; constants and
   helpers from `convex/gre/constants.ts` — never local
-- Mana abilities use `useStack: false` (CR 605.3a)
+- Mana abilities use `useStack: false` (CR 605.3b)
 
 ## Primitive reuse (mandatory)
 

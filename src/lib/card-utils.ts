@@ -70,6 +70,7 @@ import {
     getFixedMultiColorTapManaAbility,
     getManaTapOptions,
     getManaTapOptionsDetailed,
+    hasFilteredGiveUpCost,
     hybridCostKey,
     isSpellStackItem,
     normalizedHybridPips,
@@ -841,6 +842,34 @@ export function hasFixedSacrificeManaAbility(card: CardInstance): boolean {
     return (
         getFixedSacrificeManaAbility(card as unknown as CardInstanceState) !==
         null
+    );
+}
+
+/** True when this source has a `useStack: false` mana ability whose cost carries
+ *  a FILTERED give-up leg it can currently pay (CR 605.1a / 605.3a, issue
+ *  #3047) — Ashnod's Altar's "Sacrifice a creature: Add {C}{C}", Phyrexian
+ *  Tower's tap-legged half. Client mirror of the engine's
+ *  `hasFilteredGiveUpCost` gate in `filterCostManaAbilityForTap`: the shape has
+ *  no {T} leg to give `getActivatedManaColor` a colour, does not sacrifice
+ *  ITSELF (so `hasFixedSacrificeManaAbility` answers false), and may have a
+ *  single fixed output (so `getManaChoices` answers null) — without this probe
+ *  the payment-time board gate refuses a click the server's
+ *  `tapSourceIntoPayment` accepts, and CR 605.3a's "activatable mid-cast" is
+ *  unreachable for a human. Affordability through the SAME
+ *  {@link canPayFilteredGiveUpCost} gate the ability menu uses, so the two
+ *  surfaces cannot disagree; no `stateView` means "stay offered, let the server
+ *  decide" (the UI-hint convention, #436). */
+export function hasFilteredGiveUpManaAbility(
+    card: CardInstance,
+    stateView?: TriggerStateView
+): boolean {
+    return getEffectiveActivatedAbilities(
+        card as unknown as CardInstanceState
+    ).some(
+        ({ ability }) =>
+            !ability.useStack &&
+            hasFilteredGiveUpCost(ability.cost) &&
+            canPayFilteredGiveUpCost(ability, card, stateView)
     );
 }
 

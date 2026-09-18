@@ -170,16 +170,16 @@ export const goblinArtisans: CardDefinition = {
 // onto the stack item so `getAdditionalSacrificeMv()` reads it at resolve
 // (Priest of Yawgmoth). See PRD #269 cluster A, issue #282.
 //
-// NOTE (out of scope) (CR 605.1a deviation): Ashnod's Altar and Priest of
-// Yawgmoth are technically mana abilities (no target, can add mana). They are
-// modeled here as `useStack: true` activated abilities because their cost
-// requires a player CHOICE of which permanent to sacrifice. The reason
-// originally recorded here — "the engine's instant mana-ability path
-// (`tapUntap`) has no choice step" — is NO LONGER TRUE: issue #3455 taught all
-// three non-stack entry points to park on that choice and commit at CR 605.3b,
-// so the deviation is now a pending FLIP, not a capability gap. Its practical
-// cost stands until then: their mana isn't available to pay for a spell
-// mid-cast. tracked-by: #3047
+// NOTE (out of scope) (CR 605.1a deviation): Priest of Yawgmoth is
+// technically a mana ability (no target, can add mana) but is modeled here as a
+// `useStack: true` activated ability. Its output is the sacrificed artifact's
+// mana value, read at resolve from the stack item's sacrifice snapshot, and the
+// non-stack commit (`commitNonStackActivation`) resolves a descriptor-less mana
+// ability through a transient stack item that carries no such snapshot — so the
+// flip would add no mana. Ashnod's Altar and Phyrexian Altar, whose output IS a
+// descriptor (`manaProduced` / `manaChoices`), were flipped by issue #3047.
+// Practical cost for Priest: its mana isn't available mid-cast.
+// tracked-by: #3989
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Atog — {1}{R} 1/2. "Sacrifice an artifact: This creature gets +2/+2 until

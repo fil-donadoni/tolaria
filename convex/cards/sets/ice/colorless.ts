@@ -916,6 +916,11 @@ export const iceCauldron: CardDefinition = {
             oracleText:
                 "{T}, Remove a charge counter from this artifact: Add this artifact's last noted type and amount of mana. Spend this mana only to cast the last card exiled with this artifact.",
             cost: { tap: true, removeCounter: { type: "charge", count: 1 } },
+            // CR 605.1a deviation (tracked-by: #3989) — a mana ability (no
+            // target, adds mana) kept on the stack: its output is the noted
+            // mana, produced by an imperative `resolve()` with no
+            // `manaProduced` / `manaChoices` descriptor, and the non-stack
+            // commit has nothing to deposit for that shape.
             useStack: true,
             resolve: (ctx: SpellContext) => {
                 ctx.addNotedMana(ctx.sourceInstanceId, ctx.caster);
@@ -1191,6 +1196,11 @@ export const jeweledAmulet: CardDefinition = {
             oracleText:
                 "{T}, Remove a charge counter from this artifact: Add one mana of this artifact's last noted type.",
             cost: { tap: true, removeCounter: { type: "charge", count: 1 } },
+            // CR 605.1a deviation (tracked-by: #3989) — a mana ability (no
+            // target, adds mana) kept on the stack: its output is the noted
+            // mana, produced by an imperative `resolve()` with no
+            // `manaProduced` / `manaChoices` descriptor, and the non-stack
+            // commit has nothing to deposit for that shape.
             useStack: true,
             resolve: (ctx: SpellContext) => {
                 ctx.addNotedMana(ctx.sourceInstanceId, ctx.caster);

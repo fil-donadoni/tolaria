@@ -1,7 +1,8 @@
 ---
 title: The bot cannot activate a `useStack: false` mana ability as a move of its own
 discoveredBy: 3455
-status: draft
+status: triaged
+issue: 3990
 confidence: high
 ---
 

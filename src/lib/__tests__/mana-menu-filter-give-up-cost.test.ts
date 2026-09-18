@@ -16,28 +16,26 @@ import { describe, it, expect, beforeAll } from "vitest";
 import { preloadDefinitions } from "@convex/cards/registry";
 import type { CardDefinition } from "@convex/cards/types";
 import type { CardInstance } from "../../types/game";
-import { getManaCostMenuAbility, buildTriggerStateView } from "../card-utils";
+import { getCardByName } from "@convex/cards";
+import {
+    getManaCostMenuAbility,
+    buildTriggerStateView,
+    hasFilteredGiveUpManaAbility,
+} from "../card-utils";
 
 const ME = "p1";
 
-/** "Sacrifice a creature: Add {C}{C}." — no {T}, no self-sacrifice. */
-const ALTAR: CardDefinition = {
-    id: "test-3455-menu-altar",
-    name: "Test Menu Altar",
-    rarity: "uncommon",
-    oracleText: "Sacrifice a creature: Add {C}{C}.",
-    manaCost: { X: 3 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "test-3455-menu-altar-mana",
-            oracleText: "Sacrifice a creature: Add {C}{C}.",
-            cost: { sacrificeFilter: { types: ["Creature"] } },
-            useStack: false,
-            manaProduced: { C: 2 },
-        },
-    ],
-};
+/** The CATALOGUE Ashnod's Altar — "Sacrifice a creature: Add {C}{C}", no {T},
+ *  no self-sacrifice. A test double stood here while the card deviated to
+ *  `useStack: true`; issue #3047 flipped it, so the shipped definition is what
+ *  these gates are proven against. */
+const ALTAR = getCardByName("Ashnod's Altar");
+const ALTAR_MANA = "ashnods-altar-mana";
+
+/** The CATALOGUE Phyrexian Altar — the same cost with a CHOSEN colour
+ *  (`manaChoices`) instead of a fixed output (issue #3047). */
+const PHYREXIAN_ALTAR = getCardByName("Phyrexian Altar");
+const PHYREXIAN_ALTAR_MANA = "phyrexian-altar-mana";
 
 /** "Sacrifice a Goblin: Add {R}." on a source that IS a Goblin — CR 109.2: a
  *  filter without `excludeSource` admits the source itself, so a blanket
@@ -86,7 +84,7 @@ const FAMILIAR: CardDefinition = {
 };
 
 beforeAll(() => {
-    preloadDefinitions([ALTAR, PROSPECTOR, FAMILIAR]);
+    preloadDefinitions([PROSPECTOR, FAMILIAR]);
 });
 
 function instance(
@@ -127,9 +125,7 @@ describe("getManaCostMenuAbility — filtered give-up affordability (issue #3455
     it("offers the sacrifice ability when a matching permanent is on the board", () => {
         const source = instance(ALTAR, "source");
         const view = viewOf([source, instance(PROSPECTOR, "goblin")], 0);
-        expect(getManaCostMenuAbility(source, view)?.id).toBe(
-            "test-3455-menu-altar-mana"
-        );
+        expect(getManaCostMenuAbility(source, view)?.id).toBe(ALTAR_MANA);
     });
 
     it("withholds it with no matching permanent — never a doomed dispatch", () => {
@@ -157,7 +153,64 @@ describe("getManaCostMenuAbility — filtered give-up affordability (issue #3455
 
     it("stays offered with no state view at all (the #436 UI-hint convention)", () => {
         expect(getManaCostMenuAbility(instance(ALTAR, "source"))?.id).toBe(
-            "test-3455-menu-altar-mana"
+            ALTAR_MANA
+        );
+    });
+});
+
+// The PAYMENT-time half of the same contract (issue #3047). `getManaCostMenuAbility`
+// governs the ability menu at priority; the board's in-payment clickability gate
+// (`useBattlefieldVisualState`) asks a different question, and for this shape every
+// probe it had — `getActivatedManaColor` (no {T}), `hasFixedSacrificeManaAbility`
+// (the source does not sacrifice ITSELF), `getManaChoices` (one fixed output) —
+// answers null. The server accepts the source (`tapSourceIntoPayment`), so without
+// this probe CR 605.3a's mid-cast activation is unreachable by a click.
+describe("hasFilteredGiveUpManaAbility — the payment-time probe (CR 605.3a, issue #3047)", () => {
+    it("answers true for Ashnod's Altar with a legal victim on the board", () => {
+        const source = instance(ALTAR, "source");
+        const bear = instance(PROSPECTOR, "goblin");
+        expect(
+            hasFilteredGiveUpManaAbility(source, viewOf([source, bear], 0))
+        ).toBe(true);
+    });
+
+    it("answers false with no legal victim — the menu gate's answer, one surface", () => {
+        const source = instance(ALTAR, "source");
+        const view = viewOf([source], 0);
+        expect(hasFilteredGiveUpManaAbility(source, view)).toBe(false);
+        expect(getManaCostMenuAbility(source, view)).toBeNull();
+    });
+
+    it("covers the CHOSEN-colour member of the shape too (Phyrexian Altar)", () => {
+        const source = instance(PHYREXIAN_ALTAR, "source");
+        expect(
+            hasFilteredGiveUpManaAbility(
+                source,
+                viewOf([source, instance(PROSPECTOR, "goblin")], 0)
+            )
+        ).toBe(true);
+        expect(
+            getManaCostMenuAbility(
+                source,
+                viewOf([source, instance(PROSPECTOR, "goblin")], 0)
+            )?.id
+        ).toBe(PHYREXIAN_ALTAR_MANA);
+    });
+
+    it("stays offered with no state view at all (the #436 UI-hint convention)", () => {
+        expect(hasFilteredGiveUpManaAbility(instance(ALTAR, "source"))).toBe(
+            true
+        );
+    });
+
+    it("answers true for the DISCARD member and false for a plain permanent", () => {
+        const familiar = instance(FAMILIAR, "familiar");
+        expect(
+            hasFilteredGiveUpManaAbility(familiar, viewOf([familiar], 1))
+        ).toBe(true);
+        const bears = instance(getCardByName("Grizzly Bears"), "bears");
+        expect(hasFilteredGiveUpManaAbility(bears, viewOf([bears], 1))).toBe(
+            false
         );
     });
 });

@@ -1,9 +1,20 @@
 ---
 title: The gold harness found four hand-written cards that disagree with their own Oracle text — one of the four deliberately
 discoveredBy: 2697
-status: draft
+status: triaged
+issue: 3047
 confidence: high
 ---
+
+**§3 is SUPERSEDED (issue #3047).** Its remedy ("do NOT fix it by flipping
+`useStack`") was right only while the engine could not pay a `sacrificeFilter`
+off the stack; issue #3455 closed that gap, and issue #3047 then flipped
+Ashnod's Altar and Phyrexian Altar to `useStack: false` with a
+`manaProduced` / `manaChoices` descriptor. Priest of Yawgmoth stays deviated for
+a different reason — its output is the sacrificed artifact's mana value, read
+from a snapshot the non-stack commit's transient stack item does not carry
+(issue #3989). Note also that §3 cites CR 605.3a for the stack rule; the stack
+rule is CR 605.3b. The record below is kept as written.
 
 **What is wrong.** The Oracle compiler's activated-ability slot (#2697) now
 compiles 122 of the 376 activated-only gold cards. 118 round-trip exactly. Of
