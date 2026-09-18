@@ -661,7 +661,8 @@ gate:who` reads — because worktrees are separate directories and an in-repo
 lock would not be shared between them.
 
 The full gate is blocked inside an issue worktree (`feat/issue-N` /
-`fix/issue-N` → exit 1): the merge-train runs it once per landing tree.
+`fix/issue-N` → exit 1): it is owed on the base tip, by the batch health and by
+`release` (§ The batch cadence), not on a branch tree.
 `TOLARIA_ALLOW_FULL_SUITE=1` is the escape hatch `land` alone uses.
 
 ### The heartbeat attests to progress, not to being alive (issue #2999)
