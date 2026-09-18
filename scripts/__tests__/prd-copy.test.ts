@@ -44,6 +44,9 @@ class StubTracker implements PrdTracker {
     createCalls = 0;
     /** Set of children to FAIL to re-parent, simulating an unconfirmed edge. */
     failParentFor = new Set<number>();
+    /** Simulates the REST summary lagging a confirmed parent edit — the read
+     *  the mismatch guard exists to catch. */
+    subIssueCountOverride: number | null = null;
 
     seed(issue: PrdIssue): void {
         this.issues.set(issue.number, issue);
@@ -92,6 +95,8 @@ class StubTracker implements PrdTracker {
     }
 
     subIssueCount(parent: number): number {
+        if (this.subIssueCountOverride !== null)
+            return this.subIssueCountOverride;
         let n = 0;
         for (const p of this.parents.values()) if (p === parent) n += 1;
         return n;
@@ -261,6 +266,30 @@ describe("runCopy — against the stubbed tracker", () => {
         if (isRefusal(plan)) throw new Error("expected a plan");
         expect(() => runCopy(tracker, plan, original.body)).toThrow(
             /could not confirm/
+        );
+        expect(tracker.closed.has(100)).toBe(false);
+    });
+
+    it("throws and does not close the original when the copy's sub-issue count does not match the children moved", () => {
+        const tracker = new StubTracker();
+        const original = prd({
+            number: 100,
+            parent: 1,
+            children: [
+                child(70, "OPEN"),
+                child(71, "OPEN"),
+                child(72, "CLOSED"),
+            ],
+        });
+        tracker.seed(original);
+        // Both re-parents report confirmed, but the summary GitHub computes
+        // lags behind — this is the read the guard exists to catch.
+        tracker.subIssueCountOverride = 1;
+
+        const plan = planCopy(original);
+        if (isRefusal(plan)) throw new Error("expected a plan");
+        expect(() => runCopy(tracker, plan, original.body)).toThrow(
+            /holds 1 sub-issue\(s\), expected 2/
         );
         expect(tracker.closed.has(100)).toBe(false);
     });
