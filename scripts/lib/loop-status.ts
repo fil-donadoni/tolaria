@@ -196,6 +196,7 @@ export interface QueueDepth {
     P0: number;
     P1: number;
     P2: number;
+    P3: number;
     unprioritized: number;
     total: number;
 }
@@ -205,8 +206,9 @@ export interface ReadyQueueIssue extends BandedIssue {
 }
 
 /** Ready-for-agent, UNCLAIMED issues, split by board priority. Unprioritized
- *  sorts as its own bucket rather than folding into P2 — "nobody has looked
- *  at this yet" and "somebody looked and called it low" are different facts.
+ *  sorts as its own bucket rather than folding into the weakest named band —
+ *  "nobody has looked at this yet" and "somebody looked and called it low"
+ *  are different facts.
  *
  *  The bucket is the issue's BAND, not its own `Priority` — the same
  *  `effectivePriority` the planner sorts on (issue #3212). Counting own
@@ -222,14 +224,19 @@ export function queueDepthByPriority(
         P0: 0,
         P1: 0,
         P2: 0,
+        P3: 0,
         unprioritized: 0,
         total: issues.length,
     };
     for (const issue of issues) {
         const p = effectivePriority(issue, priority);
+        // `else` is the null branch and nothing else: a named band that has no
+        // bucket of its own falls into `unprioritized`, which is the one
+        // conflation this counter exists to avoid (issue #4051).
         if (p === "P0") depth.P0++;
         else if (p === "P1") depth.P1++;
         else if (p === "P2") depth.P2++;
+        else if (p === "P3") depth.P3++;
         else depth.unprioritized++;
     }
     return depth;
@@ -1077,11 +1084,12 @@ export function renderQueueDepthLines(
         P0: 0,
         P1: 0,
         P2: 0,
+        P3: 0,
         unprioritized: 0,
         total: 0,
     };
     lines.push(
-        `  P0: ${qd.P0}  P1: ${qd.P1}  P2: ${qd.P2}  ` +
+        `  P0: ${qd.P0}  P1: ${qd.P1}  P2: ${qd.P2}  P3: ${qd.P3}  ` +
             `unprioritized: ${qd.unprioritized}  total: ${qd.total}`
     );
     return lines;

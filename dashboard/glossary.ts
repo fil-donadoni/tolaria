@@ -583,6 +583,10 @@ export const GLOSSARY = {
         label: "P2",
         tip: "Unclaimed ready-for-agent issues in the P2 band — the stronger of their own Priority and their parent PRD's is P2.",
     },
+    "queue.P3": {
+        label: "P3",
+        tip: "Unclaimed ready-for-agent issues in the P3 band — the stronger of their own Priority and their parent PRD's is P3. Deliberately last, which is NOT the same as no priority set.",
+    },
     "queue.unprioritized": {
         label: "no priority",
         tip: "Unclaimed ready-for-agent issues with no Priority set on the board and no prioritized parent PRD — picked last, oldest first.",

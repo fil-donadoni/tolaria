@@ -135,6 +135,12 @@ describe("NowView — the golden payload renders the operator's own numbers", ()
         expect(within(queue).getByText("total waiting")).not.toBeNull();
         expect(within(queue).getByText("7")).not.toBeNull();
         expect(within(queue).getByText("no priority")).not.toBeNull();
+        // Every named band gets its own box. A band with no box does not
+        // disappear — it is silently added to a neighbour's figure, which is
+        // the conflation the axis exists to prevent (issue #4051).
+        for (const band of ["P0", "P1", "P2", "P3"]) {
+            expect(within(queue).getByText(band)).not.toBeNull();
+        }
     });
 
     it("names the batch by its receipt total and prints its role figures", async () => {
@@ -355,7 +361,8 @@ describe("NowView — a poll must not cost the focus ring (PR #2837 review, find
         moved.queueDepth = {
             P0: 1,
             P1: 2,
-            P2: 3,
+            P2: 2,
+            P3: 1,
             unprioritized: 2,
             total: 8,
         };

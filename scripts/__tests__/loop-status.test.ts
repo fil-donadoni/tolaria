@@ -161,17 +161,24 @@ describe("loop-status — computeStage", () => {
 });
 
 describe("loop-status — queueDepthByPriority", () => {
-    it("buckets P0/P1/P2 and unprioritized separately, with an accurate total", () => {
+    it("buckets every named band and unprioritized separately, with an accurate total", () => {
         const depth = queueDepthByPriority(
-            [{ number: 1 }, { number: 2 }, { number: 3 }, { number: 4 }],
-            { 1: "P0", 2: "P1", 3: "P1" }
+            [
+                { number: 1 },
+                { number: 2 },
+                { number: 3 },
+                { number: 4 },
+                { number: 5 },
+            ],
+            { 1: "P0", 2: "P1", 3: "P1", 5: "P3" }
         );
         expect(depth).toEqual({
             P0: 1,
             P1: 2,
             P2: 0,
+            P3: 1,
             unprioritized: 1,
-            total: 4,
+            total: 5,
         });
     });
 
@@ -193,6 +200,7 @@ describe("loop-status — queueDepthByPriority", () => {
             P0: 3,
             P1: 1,
             P2: 0,
+            P3: 0,
             unprioritized: 0,
             total: 4,
         });
@@ -490,6 +498,7 @@ describe("loop-status — buildLoopStatus", () => {
             P0: 1,
             P1: 0,
             P2: 0,
+            P3: 0,
             unprioritized: 1,
             total: 2,
         });
@@ -815,7 +824,7 @@ describe("loop-status — renderClaimsLines (unavailable vs. zero)", () => {
 describe("loop-status — renderQueueDepthLines (unavailable vs. zero)", () => {
     it("renders real counts when there is no error", () => {
         const lines = renderQueueDepthLines(
-            { P0: 1, P1: 2, P2: 0, unprioritized: 3, total: 6 },
+            { P0: 1, P1: 2, P2: 0, P3: 0, unprioritized: 3, total: 6 },
             null
         ).join("\n");
         expect(lines).toContain("total: 6");
@@ -841,7 +850,7 @@ describe("loop-status — renderQueueDepthLines (unavailable vs. zero)", () => {
             "claimed issues: boom"
         ).join("\n");
         const queueLines = renderQueueDepthLines(
-            { P0: 0, P1: 1, P2: 0, unprioritized: 0, total: 1 },
+            { P0: 0, P1: 1, P2: 0, P3: 0, unprioritized: 0, total: 1 },
             null
         ).join("\n");
         expect(claimsLines).toContain("UNAVAILABLE");
@@ -887,7 +896,7 @@ function verdictInput(
 }
 
 function queue(total: number): QueueDepth {
-    return { P0: 0, P1: 0, P2: 0, unprioritized: total, total };
+    return { P0: 0, P1: 0, P2: 0, P3: 0, unprioritized: total, total };
 }
 
 /**

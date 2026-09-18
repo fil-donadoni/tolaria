@@ -98,14 +98,30 @@ export interface QueuePort {
     priority: Record<number, BoardPriority>;
 }
 
-/** The board's `Priority` single-select, strongest first. */
-export type BoardPriority = "P0" | "P1" | "P2";
+/** The board's `Priority` single-select, strongest first.
+ *
+ *  `P3` is "deliberately later" — a maintainer looked at this and ruled it
+ *  below `P2`. It is NOT the same statement as no value at all, which is
+ *  "nobody has looked yet", and the two must never share a rank (issue
+ *  #4051): the sort below is the only thing that separates a ruled-on
+ *  backlog from the unexamined residue. */
+export type BoardPriority = "P0" | "P1" | "P2" | "P3";
 
-const PRIORITY_RANK: Record<BoardPriority, number> = { P0: 0, P1: 1, P2: 2 };
+const PRIORITY_RANK: Record<BoardPriority, number> = {
+    P0: 0,
+    P1: 1,
+    P2: 2,
+    P3: 3,
+};
 
 /** Where an issue sits on the board's priority axis. Unprioritized sorts LAST
- *  — below every explicit value, including `P2`. */
-export const UNPRIORITIZED = 3;
+ *  — below every explicit value, including `P3`.
+ *
+ *  ONE PAST THE LAST NAMED RANK, and it moves whenever a band is added. Left
+ *  at `3` when `P3: 3` joined the table, `priorityRank` would return the same
+ *  number for "deliberately last" and "never ruled on", the comparator would
+ *  stop distinguishing them, and nothing would go red (issue #4051). */
+export const UNPRIORITIZED = 4;
 
 /** Rank of a priority that may be absent — the one place `undefined`/`null`
  *  becomes `UNPRIORITIZED`, so no caller can spell that fallback differently. */

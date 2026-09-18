@@ -6,7 +6,8 @@ import { SECTION_IDS } from "../../lib/nowLights";
 import type { NowPayload } from "../../lib/nowPayload";
 
 /**
- * Queue (issue #3135, ported in PRD #3148 S2): five stat boxes.
+ * Queue (issue #3135, ported in PRD #3148 S2): one stat box per priority
+ * band, plus the unprioritized residue and the total.
  *
  * `queueDepth` is `null` with a sibling `queueDepthError` when the underlying
  * `gh` read failed — rendered as an explicit UNAVAILABLE note, never as a row
@@ -42,6 +43,7 @@ export function QueueSection({ data }: { data: NowPayload }) {
                         tone={qd.P1 > 0 ? "warn" : undefined}
                     />
                     <Stat term="queue.P2" label="P2" value={String(qd.P2)} />
+                    <Stat term="queue.P3" label="P3" value={String(qd.P3)} />
                     <Stat
                         term="queue.unprioritized"
                         label="no priority"

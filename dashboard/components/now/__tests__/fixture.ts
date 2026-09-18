@@ -87,7 +87,7 @@ export function goldenPayload(): NowPayload {
             },
         ],
         claimsError: null,
-        queueDepth: { P0: 1, P1: 2, P2: 3, unprioritized: 1, total: 7 },
+        queueDepth: { P0: 1, P1: 2, P2: 2, P3: 1, unprioritized: 1, total: 7 },
         queueDepthError: null,
         receiptsSummary: {
             total: 12,

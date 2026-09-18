@@ -357,6 +357,30 @@ describe("board-priority — fetchBoardPriority", () => {
             })
         ).toThrow(/die: issue #1/);
     });
+
+    it("reads P3 as a ranked value, never as the unknown-value hard stop (issue #4051)", () => {
+        // The order this ticket shipped in is the whole point: the code
+        // learns the band BEFORE the board offers it. Add the option to the
+        // board first and every `queue:plan` on the machine hard-stops on the
+        // first P3 item, because an unranked `Priority` is a NON-rate-limit
+        // failure the cache never papers over (issue #2520).
+        const priority = fetchBoardPriority({
+            owner: OWNER,
+            projectNumber: PROJECT_NUMBER,
+            repo: REPO,
+            onError: (m) => {
+                throw new Error(`die: ${m}`);
+            },
+            ghClient: () =>
+                slurped(
+                    page([
+                        { number: 1, priority: "P2" },
+                        { number: 2, priority: "P3" },
+                    ])
+                ),
+        });
+        expect(priority).toEqual({ 1: "P2", 2: "P3" });
+    });
 });
 
 describe("board priority — isTruncated", () => {

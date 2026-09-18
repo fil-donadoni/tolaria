@@ -95,7 +95,7 @@ the rendering of either for the rest of the session.
 
 - `/next-issue 1234` → that issue. Otherwise: `bun run queue:plan --cap 1
 --pretty` picks the top unclaimed `ready-for-agent` issue by priority BAND
-  (P0 → P1 → P2 → unprioritized), then own priority, then bugs, then oldest.
+  (P0 → P1 → P2 → P3 → unprioritized), then own priority, then bugs, then oldest.
   The band is INHERITED from the parent PRD and never demotes — a P0 umbrella's
   slices all clear before the P1 band opens, because an umbrella closes only
   when its last child does (issue #3212). A plan echoing `priorityBand` on an
