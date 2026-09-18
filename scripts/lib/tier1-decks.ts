@@ -120,40 +120,26 @@ export interface DeckReport {
     readonly total: number;
 }
 
-function fail(message: string): never {
-    throw new Error(`${TIER1_DECKS_PATH}: ${message}`);
-}
-
-function totalCopies(entries: readonly Tier1DeckEntry[]): number {
+export function totalCopies(entries: readonly Tier1DeckEntry[]): number {
     return entries.reduce((sum, e) => sum + e.count, 0);
 }
 
 /**
- * Parse and VALIDATE the canonical lists.
- *
- * The validation is the point: this file is hand-maintained (it is a record of
- * what the maintainer supplied, not something a script regenerates), so the
- * only thing standing between a fat-fingered edit and a silently wrong
- * denominator is this function. A list that is not 60 + 15 is not a Premodern
- * deck, and a report built from it would answer a question nobody asked.
+ * VALIDATE a `decks` array against the Premodern 60 + 15 shape — the reader
+ * shared by every canonical deck-list file, not just the Tier 1 one. A list
+ * that is not 60 + 15 is not a Premodern deck, and a report built from it
+ * would answer a question nobody asked; `path` names the file in the message,
+ * since the same validator now guards more than one.
  */
-export function parseTier1Decks(
-    text: string,
-    path = TIER1_DECKS_PATH
-): Tier1DeckFile {
-    let doc: Tier1DeckFile;
-    try {
-        doc = JSON.parse(text) as Tier1DeckFile;
-    } catch (err) {
-        throw new Error(`${path} does not parse: ${(err as Error).message}`);
-    }
-    if (!Array.isArray(doc.decks) || doc.decks.length === 0)
+export function validateDecks(decks: readonly Tier1Deck[], path: string): void {
+    const fail = (message: string): never => {
+        throw new Error(`${path}: ${message}`);
+    };
+    if (!Array.isArray(decks) || decks.length === 0)
         fail("no decks — the canonical lists are missing");
-    if (!Array.isArray(doc.shippedPresets))
-        fail("`shippedPresets` must be an array of { slug, name }");
 
     const slugs = new Set<string>();
-    for (const deck of doc.decks) {
+    for (const deck of decks) {
         if (typeof deck.slug !== "string" || deck.slug.length === 0)
             fail("a deck has no slug");
         if (slugs.has(deck.slug)) fail(`duplicate deck slug \`${deck.slug}\``);
@@ -179,6 +165,31 @@ export function parseTier1Decks(
                     `the lists are stored exactly as supplied, so this is an edit, not a format change`
             );
     }
+}
+
+/**
+ * Parse and VALIDATE the canonical Tier 1 lists.
+ *
+ * The validation is the point: this file is hand-maintained (it is a record of
+ * what the maintainer supplied, not something a script regenerates), so the
+ * only thing standing between a fat-fingered edit and a silently wrong
+ * denominator is this function.
+ */
+export function parseTier1Decks(
+    text: string,
+    path = TIER1_DECKS_PATH
+): Tier1DeckFile {
+    let doc: Tier1DeckFile;
+    try {
+        doc = JSON.parse(text) as Tier1DeckFile;
+    } catch (err) {
+        throw new Error(`${path} does not parse: ${(err as Error).message}`);
+    }
+    if (!Array.isArray(doc.shippedPresets))
+        throw new Error(
+            `${path}: \`shippedPresets\` must be an array of { slug, name }`
+        );
+    validateDecks(doc.decks, path);
     return doc;
 }
 
@@ -303,9 +314,13 @@ export function deckReport(
     };
 }
 
-/** Every canonical list's report, in file order. */
+/**
+ * Every canonical list's report, in file order — generic over any file shaped
+ * `{ decks }`, so the Tier 1 lists and the metagame import share one reader
+ * (`scripts/premodern-metagame-import.ts` calls this too).
+ */
 export function tier1Reports(
-    file: Tier1DeckFile,
+    file: { readonly decks: readonly Tier1Deck[] },
     lock: Lockfile,
     poolOracleIds: ReadonlySet<string>
 ): DeckReport[] {

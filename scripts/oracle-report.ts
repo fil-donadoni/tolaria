@@ -12,7 +12,8 @@
  *   bun scripts/oracle-report.ts --gaps 50     # more of the ranked backlog
  *   bun scripts/oracle-report.ts --set apc     # Grammar Gaps ranked for one set
  *   bun scripts/oracle-report.ts --pool premodern  # … for one format pool
- *   bun scripts/oracle-report.ts --decks       # per-deck, per-card state (M1)
+ *   bun scripts/oracle-report.ts --decks       # per-deck, per-card state (M1),
+ *                                  # Tier 1 lists + the pinned metagame import
  *   bun scripts/oracle-report.ts --delta [<ref>]
  *                                  # ready delta per set + corpus against
  *                                  # <ref>'s lockfile (default: origin/<base>)
@@ -47,7 +48,10 @@ import {
     tier1Reports,
     TIER1_DECKS_PATH,
     type DeckCardRow,
+    type DeckCardState,
+    PLAYABLE_STATES,
 } from "./lib/tier1-decks";
+import { readMetagameDecks } from "./premodern-metagame-import";
 
 const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
 const LOCKFILE_PATH = join(ROOT, "data", "oracle-compiled.json");
@@ -98,6 +102,59 @@ function reportDecks(lock: ReturnType<typeof parseLockfile>): void {
         `\nAlready shipped as Preset Decks, every card hand-written by construction: ${presets}\n` +
             `Their lists live in the \`presetDecks\` table (ADR 0033) and are referenced by slug only —\n` +
             `copying them here would be a second source of truth for a deck an Admin can edit.\n`
+    );
+
+    for (const report of reports) {
+        process.stdout.write(
+            `\n${`${report.slug} — ${report.name}`.padEnd(BLOCKER_COLUMN)}` +
+                `${report.playable}/${report.total} ready\n`
+        );
+        for (const card of report.cards) {
+            process.stdout.write(`${cardLine(card)}\n`);
+        }
+    }
+    process.stdout.write("\n");
+}
+
+/**
+ * The metagame section (issue #3855): the same per-card checklist as the
+ * Tier 1 section, over the 25 pinned mtgtop8 archetype lists, plus the
+ * UNIQUE-CARD UNION and its ready percentage — the v1 exit threshold's
+ * denominator (roadmap map #3846).
+ */
+function reportMetagame(lock: ReturnType<typeof parseLockfile>): void {
+    const file = readMetagameDecks(ROOT);
+    const reports = tier1Reports(file, lock, poolOracleIds());
+
+    process.stdout.write(
+        `\nPremodern metagame — per-deck card state\n` +
+            `25 archetypes pinned from ${file.source.supplier}, stored in data/premodern-metagame-decks.json ` +
+            `(provenance: data/premodern-metagame-decks.pin.json)\n\n`
+    );
+    for (const report of reports) {
+        process.stdout.write(`${summaryLine(report)}\n`);
+    }
+
+    const union = new Map<string, DeckCardState>();
+    for (const report of reports) {
+        for (const card of report.cards) union.set(card.oracleId, card.state);
+    }
+    const unionCounts: Record<DeckCardState, number> = {
+        ours: 0,
+        ready: 0,
+        quarantine: 0,
+        unparsed: 0,
+    };
+    for (const state of union.values()) unionCounts[state] += 1;
+    const unionPlayable = PLAYABLE_STATES.reduce(
+        (sum, s) => sum + unionCounts[s],
+        0
+    );
+    process.stdout.write(
+        `\nunique-card union: ${union.size} cards, ${unionPlayable} ready ` +
+            `(${pct(unionPlayable, union.size).trim()}) — ` +
+            `${unionCounts.ours} ours, ${unionCounts.ready} ready, ` +
+            `${unionCounts.quarantine} quarantine, ${unionCounts.unparsed} unparsed\n`
     );
 
     for (const report of reports) {
@@ -294,6 +351,7 @@ function main(): void {
     const lock = parseLockfile(readFileSync(LOCKFILE_PATH, "utf8"));
     if (process.argv.includes("--decks")) {
         reportDecks(lock);
+        reportMetagame(lock);
         return;
     }
     const deltaAt = process.argv.indexOf("--delta");
