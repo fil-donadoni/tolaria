@@ -11,6 +11,7 @@ import { decidingPlayer } from "../../search";
 import {
     buildBotReachState,
     castShape,
+    classifyNoMove,
     playBotReach,
     playBotReachSeats,
     type BotReachVerdict,
@@ -69,13 +70,46 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         });
     });
 
-    it("frozen — no legal move uses the card", () => {
+    it("position-unmodelled — the position cannot pose the card, so it ships", () => {
         withTemporaryDefinition(UNTARGETABLE_INSTANT, () => {
             expect(playTwice(UNTARGETABLE_INSTANT)).toEqual({
-                outcome: "frozen",
-                cause: "no-legal-move",
+                outcome: "ignored",
+                cause: "position-unmodelled",
                 form: "Instant target:Planeswalker",
             });
+        });
+    });
+
+    it("frozen — the engine offers the action and no Move uses the card", () => {
+        // The discriminator, on two REAL positions. No shipped card exhibits
+        // the frozen arm today (`legalActions` and the enumerator agree on
+        // every card of the first full pass), which is why it is asserted
+        // here rather than through a card that cannot be written.
+        const bears = getCardByName("Grizzly Bears");
+        const castable = buildBotReachState(bears, 0);
+        expect(
+            classifyNoMove(
+                castable.state,
+                castable.holderId,
+                castable.instanceId,
+                bears
+            )
+        ).toEqual({
+            outcome: "frozen",
+            cause: "no-legal-move",
+            form: "Creature",
+        });
+
+        withTemporaryDefinition(UNTARGETABLE_INSTANT, () => {
+            const blocked = buildBotReachState(UNTARGETABLE_INSTANT, 0);
+            expect(
+                classifyNoMove(
+                    blocked.state,
+                    blocked.holderId,
+                    blocked.instanceId,
+                    UNTARGETABLE_INSTANT
+                ).outcome
+            ).toBe("ignored");
         });
     });
 
