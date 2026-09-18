@@ -44,7 +44,7 @@ import type {
     EffectCardFilter,
 } from "../cards/types";
 import { matchesPermanentFilter } from "../cards/filters";
-import { cardHasColor } from "../cards/colors";
+import { cardHasColor, getCardColors } from "../cards/colors";
 import type { CardInstanceState, GameState, PlayerState } from "./state";
 import { getPlayer, manaCostForCardFilter } from "./state";
 import { manaCostsEqual } from "./constants";
@@ -184,6 +184,16 @@ export function handCardMatchesFilter(
         // not its deck-builder colour identity: Force of Will's "exile a blue
         // card" must reject a colourless Island even though it taps for blue.
         if (!colors.some((c) => cardHasColor(def, c))) return false;
+    }
+    // CR 105.2b (issue #3837) — the hand-leg sibling of `matchesCardFilter`'s
+    // own colour-COUNT branch (`gre/effects/interpreter.ts`). Reuses
+    // `getCardColors`, the derivation `cardHasColor` above already reads, so
+    // the two branches cannot disagree about what a card's colours are. Same
+    // fail-open shape as `manaCostEquals` before issue #1898 and `any` before
+    // issue #897 if omitted: every check here is skipped when its field is
+    // absent, so an unread field falls straight through to `return true`.
+    if (filter.colorCountAtLeast !== undefined) {
+        if (getCardColors(def).length < filter.colorCountAtLeast) return false;
     }
     // issue #898 — `manaValueAtMost` now also accepts a dynamic `{ X: true }`
     // (Green Sun's Zenith). There is no resolving-spell context (no `ctx`, no

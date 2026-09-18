@@ -320,9 +320,14 @@ function isCardFilter(
         // A positive integer literal only: zero is no constraint at all (every
         // object has at least zero colours) and would read as an author
         // mistake rather than a selector, and there is no dynamic form because
-        // no printed line scales the bound.
+        // no printed line scales the bound. Bounded ABOVE by five, unlike
+        // `powerAtLeast`: CR 105.2 gives an object at most the five colors, so
+        // a bound of six is unsatisfiable and would validate, then silently
+        // match nothing.
         if (k === "colorCountAtLeast") {
-            return typeof v === "number" && Number.isInteger(v) && v >= 1;
+            return (
+                typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 5
+            );
         }
         if (k === "manaValueAtMost") {
             return (

@@ -3333,7 +3333,7 @@ export type AsEntersChoice =
      *  source and no copy rides the prompt. What is enforced is exactly the
      *  subset of `EffectCardFilter` the shared `handCardMatchesFilter` reads
      *  (name / type / excludeType / subtype / supertype / color /
-     *  manaValueAtMost / manaCostEquals / any); the printed-characteristic
+     *  colorCountAtLeast / manaValueAtMost / manaCostEquals / any); the printed-characteristic
      *  fields it does not read — `excludeSupertype`, `excludeColor`,
      *  `manaValueEquals`, `hasAbility` — fall through to "matches", so a
      *  `filter` declaring only one of those is inert rather than restrictive.
@@ -3439,7 +3439,7 @@ export type AsEntersChoice =
      *  or it goes to Y" is the general shape and Y is the card's to say; today
      *  only the graveyard leg is printed. `filter` is matched with the shared
      *  `handCardMatchesFilter`, the same matcher the alt-cost hand leg and the
-     *  as-enters `name` filter use — so it reads 9 of `EffectCardFilter`'s
+     *  as-enters `name` filter use — so it reads 10 of `EffectCardFilter`'s
      *  fields and treats the rest as "matches". */
     | { kind: "discard"; filter?: EffectCardFilter; ifDeclined: "graveyard" }
     /** CR 614.12c — "some replacement effects cause a permanent to enter the
