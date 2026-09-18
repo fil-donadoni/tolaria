@@ -329,8 +329,8 @@ export const kickerRule: Rule<SlotIR> = rule("kicker", (span, ctx) => {
  * The keyword line: a run of registry keywords, one `Enchant <descriptor>`, or
  * one kicker line. The three are disjoint by construction — no registry
  * keyword name carries a trailing descriptor or cost, a bare "Enchant" names
- * no object, and "Kicker"/"Multikicker" are refused by the run rule as bare
- * words — and `oneOf` enforces it rather than trusting it.
+ * no object, and the kicker rule never reads a line without a cost — and
+ * `oneOf` enforces it rather than trusting it.
  */
 export const keywordLineRule: Rule<SlotIR> = oneOf("keyword line", [
     keywordRunRule,

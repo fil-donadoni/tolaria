@@ -11,7 +11,7 @@ import { getLegalTargets, NO_TARGETING_SOURCE } from "../../gre/rules";
 import { projectPublicState } from "../../gameProjections";
 import { excludeHandWritten } from "../compiledCatalogue";
 import type { CardDefinition } from "../types";
-import { makeInstance, makePlayer, makeState } from "./setup";
+import { makeInstance, makePlayer, makeState, pushSpell } from "./setup";
 
 /**
  * Compiled-card hydration through the single registry seam (issue #2702,
@@ -170,6 +170,59 @@ describe("compiled Aura — Enchant <descriptor> reaches the engine (CR 702.5a, 
                 aura
             )
         ).toBe(false);
+    });
+});
+
+describe("compiled kicker — Kicker line + kicker-counted entry rider reach the engine (CR 702.33, issue #3826)", () => {
+    const confessor = tryGetCardByName("Stronghold Confessor")!;
+    const gnarlidPack = tryGetCardByName("Gnarlid Pack")!;
+
+    it("both are compiled rows, not hand-written ones", () => {
+        const src = readFileSync(
+            resolve(__dirname, "../../../data/card-index.json"),
+            "utf8"
+        );
+        const index = JSON.parse(src) as Array<{
+            name: string;
+            source?: string;
+        }>;
+        for (const name of ["Stronghold Confessor", "Gnarlid Pack"])
+            expect(index.find((e) => e.name === name)?.source, name).toBe(
+                "compiled"
+            );
+    });
+
+    /** Resolve the compiled permanent spell with this kicker payment record. */
+    function enter(cardId: string, kicks: number) {
+        const state = makeState();
+        const item = pushSpell(state, cardId, "p1");
+        if (kicks > 0) item.kickerPayments = { kicker: kicks };
+        resolveTopOfStack(state);
+        const permanent = state.players[0].battlefield.find(
+            (c) => c.card.id === cardId
+        );
+        if (permanent === undefined) throw new Error("did not enter");
+        return permanent;
+    }
+
+    it("kicked: 'If this creature was kicked, it enters with two +1/+1 counters' places two", () => {
+        expect(enter(confessor.id, 1).counters?.["+1/+1"]).toBe(2);
+    });
+
+    it("not kicked: it enters with none", () => {
+        expect(enter(confessor.id, 0).counters?.["+1/+1"] ?? 0).toBe(0);
+    });
+
+    it("Multikicker: 'a +1/+1 counter for each time it was kicked' counts every kick (CR 702.33d)", () => {
+        expect(enter(gnarlidPack.id, 3).counters?.["+1/+1"]).toBe(3);
+        expect(enter(gnarlidPack.id, 0).counters?.["+1/+1"] ?? 0).toBe(0);
+    });
+
+    it("the compiled kicker is the cost the cast path offers", () => {
+        expect(getDefinition(confessor.id).kickers).toEqual([
+            { id: "kicker", description: "Kicker {3}", mana: { X: 3 } },
+        ]);
+        expect(getDefinition(gnarlidPack.id).kickers?.[0]?.multi).toBe(true);
     });
 });
 

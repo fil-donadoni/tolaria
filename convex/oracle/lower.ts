@@ -516,8 +516,16 @@ export function lowerCard(
     // reporting success, so it fails rather than compiling to a castable spell
     // that does nothing. (No corpus card reaches this today — it is the
     // invariant, not a fix.)
+    // A kicker (CR 702.33a) on an instant or sorcery is the same kind of
+    // rider; on a permanent it rides the permanent spell, which has no text
+    // of its own to lose.
+    const isSpellCard =
+        typeLine.types.includes("Instant") ||
+        typeLine.types.includes("Sorcery");
     if (
-        (acc.additionalCosts !== undefined || acc.flashback !== undefined) &&
+        (acc.additionalCosts !== undefined ||
+            acc.flashback !== undefined ||
+            (acc.kickers !== undefined && isSpellCard)) &&
         acc.spellEffects === undefined &&
         acc.spellModes === undefined
     )
