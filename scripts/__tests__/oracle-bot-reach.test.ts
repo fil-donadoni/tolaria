@@ -24,6 +24,7 @@ import {
     type BotReachSource,
 } from "../lib/oracle-bot-reach";
 import type { CardRow, Lockfile } from "../lib/oracle-lockfile";
+import { REGENERATED_ARTIFACTS } from "../lib/generated-artifacts";
 
 const ROOT = join(import.meta.dirname, "..", "..");
 
@@ -406,6 +407,25 @@ describe("the sweep never runs inside a gate (ADR 0105 § 7.2)", () => {
                 /^import (?!type)[^;]*from "[^"]*gre\/ai\/botReach"/m
             );
         }
+    });
+
+    it("land's artifact resolver re-derives the lockfile WITHOUT playing", () => {
+        // The hole the first `land` of this very PR fell into: the resolver
+        // spawns `bun run oracle:compile` itself, and no gate script NAMES it,
+        // so every text assertion around here stayed green while `land` swept
+        // 3,400 cards under the machine mutex.
+        const lockfile = REGENERATED_ARTIFACTS.find(
+            (a) => a.path === "data/oracle-compiled.json"
+        );
+        expect(lockfile?.script).toBe("oracle:compile");
+        expect(lockfile?.args ?? []).toContain("--carry-bot");
+        const driver = readFileSync(
+            join(ROOT, "scripts", "oracle-compile.ts"),
+            "utf8"
+        );
+        expect(driver).toMatch(
+            /check \|\| carry \? null : await sweepingBotReach/
+        );
     });
 
     it("the gate scripts never name the write path", () => {

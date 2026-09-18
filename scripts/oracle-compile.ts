@@ -15,6 +15,7 @@
  *   bun scripts/oracle-compile.ts            # regenerate the lockfile
  *   bun scripts/oracle-compile.ts --check    # regenerate into memory and diff
  *   bun scripts/oracle-compile.ts --replay-bot   # re-play every `ready` card
+ *   bun scripts/oracle-compile.ts --carry-bot    # write, never play (`land`)
  *
  * The write path also runs the Bot-play sweep (ADR 0105 § 7.2, issue #3830):
  * every card that compiles `ready` is played by the Bot at both seats
@@ -491,10 +492,15 @@ async function sweepingBotReach(
 async function main(): Promise<void> {
     const check = process.argv.includes("--check");
     const replay = process.argv.includes("--replay-bot");
+    // `--carry-bot` WRITES the lockfile without playing: the committed
+    // verdicts are carried forward on unchanged definitions, a changed one is
+    // left unswept. What `land`'s artifact resolver runs (ADR 0105 § 7.2).
+    const carry = process.argv.includes("--carry-bot");
     const previous = readCommittedLockfile();
     // `--check` never plays: it is the drift guard's question, asked from a
     // script (ADR 0105 § 7.2 — the sweep never runs inside a gate).
-    const sweep = check ? null : await sweepingBotReach(previous, replay);
+    const sweep =
+        check || carry ? null : await sweepingBotReach(previous, replay);
     const source = sweep ?? carriedBotReach(previous);
     const text = serializeLockfile(
         buildLockfile(readCorpus(), { botReach: source })
