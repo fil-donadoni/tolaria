@@ -182,6 +182,18 @@ describe("the Coverage Invariant — every enforced Target card claimed", () => 
         ]);
     });
 
+    it("reds a quarantine row that carries no reason — fail closed", () => {
+        const bare = row("z", "Held Bare", "quarantine");
+        const ctx = {
+            ...GREEN,
+            byOracleId: new Map([...byOracleId, ["z", bare] as const]),
+        };
+        expect(coverageVerdict(bare, ctx)).toEqual({
+            state: "unclaimed",
+            why: "quarantine row carries no reason to claim",
+        });
+    });
+
     it("reds a gap at or above the floor with no grammar claim — each card that carries it", () => {
         expect(
             reds({ ...GREEN, claims: without(claimId("grammar", WIDESPREAD)) })

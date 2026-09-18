@@ -91,8 +91,9 @@ function main(): void {
         process.stderr.write(
             `\ncheck:targets — ${reds.length} Coverage Invariant violation(s):\n` +
                 reds.map((r) => `  ${r}`).join("\n") +
-                "\n\nFile the missing claim in data/grammar-gaps.json `claims` " +
-                "(bun run gaps:sync), add the `hand-tail:` marker, or act on the migrable line.\n"
+                "\n\nAdd the missing claim to data/grammar-gaps.json `claims` ({ kind, key, issue } — " +
+                "until gaps:sync files them, issue #3869, by hand), add the `hand-tail:` marker, " +
+                "or act on the migrable line.\n"
         );
         process.exit(1);
     }

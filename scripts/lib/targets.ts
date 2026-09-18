@@ -532,6 +532,12 @@ export function coverageVerdict(
     if (marked && ctx.closure.has(row.oracleId)) return { state: "hand-tail" };
     if (row.state === "ready") return { state: "ready" };
     if (row.state === "quarantine") {
+        // Fail closed: a held card with no reason is the silent quarantine.
+        if ((row.quarantineReasons ?? []).length === 0)
+            return {
+                state: "unclaimed",
+                why: "quarantine row carries no reason to claim",
+            };
         const open = (row.quarantineReasons ?? [])
             .map(quarantineClass)
             .find((c) => !ctx.claims.has(claimId(c.kind, c.key)));
