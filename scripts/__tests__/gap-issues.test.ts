@@ -452,6 +452,54 @@ describe("parseUnlocks", () => {
         expect(parseUnlocks(engineBody(["- None"]))!.lines).toEqual([]);
     });
 
+    it("ignores a FENCED example of the section and reads the real one below it", () => {
+        // The shape `docs/agents/issue-tracker.md` teaches, quoted in a body.
+        // Read naively the scan locks onto the example, wires its sample key,
+        // reports the closing fence as residue and never reaches the genuine
+        // section — a silently dropped declaration.
+        const body = [
+            "## What to build",
+            "",
+            "Declare it like this:",
+            "",
+            "```markdown",
+            "## Unlocks",
+            "",
+            "- addMana",
+            "```",
+            "",
+            "## Unlocks",
+            "",
+            "- destroyAll",
+            "",
+            "## Target files",
+        ].join("\n");
+        const parsed = parseUnlocks(body)!;
+        expect(parsed.lines).toEqual([
+            {
+                raw: "- destroyAll",
+                candidates: [claimId("grammar", "(op) › destroyAll")],
+            },
+        ]);
+    });
+
+    it("ignores a fence INSIDE the section — an example is not a declaration", () => {
+        const parsed = parseUnlocks(
+            engineBody(["- addMana", "", "~~~", "- notAKey", "~~~"])
+        )!;
+        expect(parsed.lines).toEqual([
+            {
+                raw: "- addMana",
+                candidates: [claimId("grammar", ADD_MANA_KEY)],
+            },
+        ]);
+    });
+
+    it("reads nothing from a body whose ONLY section is fenced", () => {
+        const body = ["```md", "## Unlocks", "", "- addMana", "```"].join("\n");
+        expect(parseUnlocks(body)).toBeNull();
+    });
+
     it("stops at the next heading — a `## Target files` list is not a declaration", () => {
         const parsed = parseUnlocks(engineBody(["- addMana"]))!;
         expect(parsed.lines).toHaveLength(1);
@@ -544,6 +592,15 @@ describe("withUnlockBlockers", () => {
     });
 });
 
+describe("renderUnlockBlockedBy", () => {
+    it("never writes the literal `## Unlocks`, which is the search term", () => {
+        // Every gap issue carrying it would match `listUnlockSources`' search
+        // and crowd the page the declarations are read from.
+        expect(renderUnlockBlockedBy([4052])).not.toContain("## Unlocks");
+        expect(parseUnlocks(renderUnlockBlockedBy([4052]))).toBeNull();
+    });
+});
+
 describe("the two halves of the edge stay in parity", () => {
     it("the body section reads back as the dependency `queue:plan` defers on", () => {
         const [out] = withUnlockBlockers(
@@ -570,7 +627,7 @@ describe("the two halves of the edge stay in parity", () => {
             new Map([[claimId("grammar", ADD_MANA_KEY), 4001]]),
             tracker
         );
-        expect([...tracker.blockedBy(4001)].sort()).toEqual(
+        expect([...tracker.blockedBy(4001)].sort((a, b) => a - b)).toEqual(
             parseDependencies(out!.body(4001), 4001)
         );
     });
@@ -610,10 +667,19 @@ describe("syncUnlockEdges", () => {
         expect(tracker.edges.size).toBe(0);
     });
 
-    it("never wires an issue to itself — GitHub refuses the edge", () => {
+    it("never wires an issue to itself, and SAYS so instead of dropping it", () => {
         const tracker = new StubTracker();
         const self = new Map([[claimId("grammar", ADD_MANA_KEY), 4052]]);
-        expect(syncUnlockEdges(blockers, self, tracker)).toEqual([]);
+        // A declaration that wires nothing and prints nothing is exactly the
+        // silent drop the residue pass exists to close.
+        expect(syncUnlockEdges(blockers, self, tracker)).toEqual([
+            {
+                action: "skip-self",
+                blocked: 4052,
+                blocker: 4052,
+                claim: claimId("grammar", ADD_MANA_KEY),
+            },
+        ]);
         expect(tracker.edges.size).toBe(0);
     });
 });

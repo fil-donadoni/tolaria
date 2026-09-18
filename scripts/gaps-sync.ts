@@ -286,6 +286,7 @@ export class GhGapTracker implements GapTracker {
      *  decides — the other direction, a missed declaration, would silently
      *  drop an edge. */
     listUnlockSources(): readonly UnlockSource[] {
+        const limit = 1000;
         const out = gh([
             "issue",
             "list",
@@ -294,21 +295,44 @@ export class GhGapTracker implements GapTracker {
             "--state",
             "open",
             "--limit",
-            "500",
+            String(limit),
             "--json",
             "number,body",
         ]);
-        return JSON.parse(out) as UnlockSource[];
+        const rows = JSON.parse(out) as UnlockSource[];
+        // FAIL CLOSED on a full page, like `subIssueCount`. This list is the
+        // sole authority on what unlocks what, and the `## Blocked by` section
+        // is composed INTO each gap body — so a TRUNCATED answer is not "fewer
+        // edges", it is `syncGaps` stripping the section from every gap whose
+        // declaration fell off the page while the native edge stays, leaving
+        // the two halves out of parity and a body edit owed on every run.
+        if (rows.length >= limit) {
+            throw new Error(
+                `gaps:sync: the \`## Unlocks\` search returned ${rows.length} issue(s), which is the whole page — raise the limit or paginate; a truncated list would strip the section from the gaps it missed`
+            );
+        }
+        return rows;
     }
 
+    /** Paginated: this is both the idempotency check and `addBlockedBy`'s only
+     *  proof that the write took, and `gh api` pages at 30 — past that a
+     *  freshly written edge falls off page one and the write reads as failed. */
     blockedBy(issue: number): readonly number[] {
+        // One number per line, every page: `--slurp` is refused beside `--jq`,
+        // and the concatenated per-page output of a scalar filter is the shape
+        // `gh` does give across pages.
         const out = gh([
             "api",
+            "--paginate",
             `repos/{owner}/{repo}/issues/${issue}/dependencies/blocked_by`,
             "--jq",
-            "[.[].number]",
+            ".[].number",
         ]);
-        return JSON.parse(out.trim() === "" ? "[]" : out) as number[];
+        return out
+            .split("\n")
+            .map((line) => line.trim())
+            .filter((line) => line !== "")
+            .map(Number);
     }
 
     /**
@@ -599,14 +623,22 @@ function main(): void {
                 .map((a) => [claimId(a.kind, a.key), a.issue] as const)
         );
         const edges = syncUnlockEdges(blockers, issueOf, tracker);
-        for (const edge of edges.filter((e) => e.action === "link")) {
-            console.log(
-                `unlocks    link        issue #${edge.blocked} blocked by issue #${edge.blocker}`
-            );
+        const count = (action: string) =>
+            edges.filter((e) => e.action === action).length;
+        for (const edge of edges) {
+            if (edge.action === "link") {
+                console.log(
+                    `unlocks    link        issue #${edge.blocked} blocked by issue #${edge.blocker}`
+                );
+            } else if (edge.action === "skip-self") {
+                console.log(
+                    `unlocks    skip-self   issue #${edge.blocked} declares the gap it IS — no edge, an issue cannot block itself`
+                );
+            }
         }
         console.log(
-            `gaps:sync: unlocks pass — ${edges.filter((e) => e.action === "link").length} edge(s) wired, ` +
-                `${edges.filter((e) => e.action === "noop").length} already there, ${residue.length} residue`
+            `gaps:sync: unlocks pass — ${count("link")} edge(s) wired, ` +
+                `${count("noop")} already there, ${count("skip-self")} self-declared, ${residue.length} residue`
         );
     } catch (err) {
         console.error(

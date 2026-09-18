@@ -406,7 +406,7 @@ export interface UnlockResidue {
 }
 
 export type UnlockEdgeAction = {
-    readonly action: "link" | "noop";
+    readonly action: "link" | "noop" | "skip-self";
     /** The gap issue — the blocked side. */
     readonly blocked: number;
     /** The engine issue — the blocker. */
@@ -476,16 +476,42 @@ export function unlockCandidates(item: string): string[] {
  * Read one body's `## Unlocks` section. Returns the candidate claim ids per
  * declared line plus the lines no form could read — `null` when the body has
  * no such section at all, which is not the same as one declaring nothing.
+ *
+ * FENCED CODE IS NOT MARKDOWN HERE. A body that SHOWS the section — the
+ * example `docs/agents/issue-tracker.md` teaches, a skill's template, a review
+ * comment quoting one — carries a `## Unlocks` heading and its items inside a
+ * fence. Read naively, the scan locks onto the example, wires its sample keys
+ * as real edges, reports the closing fence as residue, and then stops at the
+ * GENUINE heading further down as if it were the section's end: the real
+ * declarations are silently dropped, which is the one outcome issue #4052
+ * forbids. So the fence state is tracked for the heading search and the item
+ * scan alike.
  */
 export function parseUnlocks(
     body: string
 ): { lines: { raw: string; candidates: string[] }[] } | null {
+    const fenced = new Set<number>();
+    let open: string | null = null;
     const all = body.split("\n");
-    const start = all.findIndex((l) => UNLOCKS_HEADING.test(l.trim()));
+    all.forEach((line, i) => {
+        const fence = /^\s*(`{3,}|~{3,})/.exec(line);
+        if (fence !== null) {
+            const marker = fence[1]![0]!;
+            if (open === null) open = marker;
+            else if (open === marker) open = null;
+            fenced.add(i);
+            return;
+        }
+        if (open !== null) fenced.add(i);
+    });
+    const start = all.findIndex(
+        (l, i) => !fenced.has(i) && UNLOCKS_HEADING.test(l.trim())
+    );
     if (start === -1) return null;
     const lines: { raw: string; candidates: string[] }[] = [];
-    for (const line of all.slice(start + 1)) {
+    for (const [offset, line] of all.slice(start + 1).entries()) {
         const trimmed = line.trim();
+        if (fenced.has(start + 1 + offset)) continue;
         if (ANY_HEADING.test(trimmed)) break;
         if (trimmed === "") continue;
         if (DECLARES_NOTHING.test(trimmed)) continue;
@@ -563,7 +589,8 @@ export function renderUnlockBlockedBy(issues: readonly number[]): string {
         "## Blocked by",
         "",
         ...issues.map(
-            (n) => `- #${n} — declares this gap in its \`## Unlocks\` section.`
+            (n) =>
+                `- #${n} — the engine issue that unblocks this gap, wired by \`gaps:sync\`.`
         ),
     ].join("\n");
 }
@@ -593,6 +620,15 @@ export function withUnlockBlockers(
  * Reads the existing edges back before writing: the tracker's `addBlockedBy`
  * is the only write, and an edge already there is a `noop`, which is what
  * makes a second run against unchanged inputs write nothing.
+ *
+ * ADD-ONLY, deliberately. A retracted declaration recomputes its `## Blocked
+ * by` section away on the next run, but the native edge stays: dropping it
+ * would mean reading every gap issue's edges back each run to find the ones
+ * nobody declares any more, and then deleting edges this pass did not write —
+ * a human's `blocked by` on a gap issue is not this script's to remove.
+ * Retracting an edge is `gh issue edit <gap> --remove-blocked-by <engine>`, by
+ * hand. Closing the engine issue needs nothing: GitHub renders a closed
+ * blocker as satisfied.
  */
 export function syncUnlockEdges(
     blockers: ReadonlyMap<string, readonly number[]>,
@@ -605,10 +641,15 @@ export function syncUnlockEdges(
         if (blocked === undefined) continue;
         const existing = new Set(tracker.blockedBy(blocked));
         for (const blocker of engineIssues) {
-            // An issue cannot block itself, and GitHub refuses the edge — but
-            // it is reachable: an engine issue may declare a gap whose own
-            // issue is itself after a key is reused.
-            if (blocker === blocked) continue;
+            // An issue cannot block itself, and GitHub refuses the edge —
+            // but it is reachable: an engine issue may declare a gap whose own
+            // issue is itself after a key is reused. REPORTED, never silently
+            // dropped: a declaration that wires nothing and prints nothing is
+            // the failure mode the residue pass exists to close.
+            if (blocker === blocked) {
+                actions.push({ action: "skip-self", blocked, blocker, claim });
+                continue;
+            }
             if (existing.has(blocker)) {
                 actions.push({ action: "noop", blocked, blocker, claim });
                 continue;
