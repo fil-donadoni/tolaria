@@ -36,7 +36,6 @@ import {
 } from "../sacrificeChoice";
 import {
     atog,
-    ashnodsAltar,
     orcishMechanics,
     sageOfLatNam,
     priestOfYawgmoth,
@@ -327,23 +326,6 @@ describe("sacrifice-as-cost activation flow (CR 602.1 / 118.5)", () => {
             state.players[0].battlefield.find((c) => c.id === "priest-1")!
                 .isTapped
         ).toBe(true);
-    });
-
-    it("Ashnod's Altar: sacrifices a creature → adds {C}{C}", () => {
-        const altar = makeInstance(ashnodsAltar.id, { id: "altar-1" });
-        const lionInst = makeInstance(grizzlyBears.id, { id: "lion-1" });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [altar, lionInst] }),
-                makePlayer("p2"),
-            ],
-        });
-        activateWithSacrificeCost(state, "p1", "altar-1", "ashnods-altar-mana");
-        selectActivationCost(state, "p1", "lion-1");
-        expect(state.players[0].manaPool.C).toBe(2);
-        expect(state.players[0].graveyard.some((c) => c.id === "lion-1")).toBe(
-            true
-        );
     });
 
     it("Orcish Mechanics: tap + sacrifice an artifact → 2 damage to target", () => {

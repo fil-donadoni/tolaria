@@ -119,7 +119,6 @@ const ashnodsTransmogrant = getDefinition(
     "2aa5b289-36ba-49b1-a5ac-f23bf71f8241"
 );
 const mishrasWarMachine = getDefinition("8f6b4652-a1d4-418f-a89b-6a977a920a9e");
-const ashnodsAltar = getDefinition("cdcccb0f-ce96-453b-9e82-41d87f52e58b");
 const mishrasWorkshop = getDefinition("135de5c7-6ac9-4b68-8f1a-97f120a4b125");
 const urzasMine = getDefinition("ddf85792-470b-4b42-99ac-9cb43a575523");
 const urzasPowerPlant = getDefinition("94896e0b-859c-47e4-bf27-35ed37b841e0");
@@ -2305,19 +2304,9 @@ describe("Mishra's War Machine (upkeep discard or 3 + tap)", () => {
     });
 });
 
-describe("Ashnod's Altar (CR 602.1 — sacrifice a creature: add {C}{C})", () => {
-    it("adds {C}{C} on resolution", () => {
-        const altar = makeInstance(ashnodsAltar.id, { id: "altar-1" });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [altar] }),
-                makePlayer("p2"),
-            ],
-        });
-        resolveActivated(state, altar, "ashnods-altar-mana");
-        expect(state.players[0].manaPool.C).toBe(2);
-    });
-});
+// Ashnod's Altar — a CR 605.1a mana ability off the stack (issue #3047); its
+// non-stack activation, mid-cast funding and option-list entry are proven on
+// the catalogue card in `convex/__tests__/manaAbilityFilterCost.test.ts`.
 
 // ---------------------------------------------------------------------------
 // Mishra's Workshop — restricted mana "artifact-spell" (cluster M, #283)

@@ -37,7 +37,6 @@ const alloyGolem = getDefinition("1fb6d6a1-9d71-405b-9c93-1a7f06c67abd");
 const chromaticSphere = getDefinition("920cd17f-9274-443e-906f-c9904f0658d5");
 const juntuStakes = getDefinition("3ab7cf53-f62d-47e1-af70-ab12be0d22e2");
 const lotusGuardian = getDefinition("ddfc6396-5377-4ab3-9c10-8abcdeae2aa1");
-const phyrexianAltar = getDefinition("25158cd5-749b-408c-9ab1-0f83e38730f7");
 const phyrexianLens = getDefinition("6ec9a91d-7af0-44a8-839f-fb9960be0ddd");
 const planarPortal = getDefinition("24315eaa-ef55-4fd6-9145-e75b3de6f492");
 const sparringGolem = getDefinition("d829d9de-83fa-4feb-8efc-0075315163c6");
@@ -448,28 +447,8 @@ describe("Juntu Stakes untap lock (CR 502.1, power 1-or-less, dynamicMatch)", ()
     });
 });
 
-describe("Phyrexian Altar (sacrifice a creature: add one mana of any color; CR 602.1/118.5, 605.1a)", () => {
-    it("resolves the chosen colour into the controller's mana pool", () => {
-        const altar = makeInstance(phyrexianAltar.id, { id: "altar" });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [altar] }),
-                makePlayer("p2"),
-            ],
-        });
-        resolveActivated(state, altar, "phyrexian-altar-mana");
-        const head = state.pendingChoices![0];
-        expect(head.kind).toBe("option-pick");
-        applyPendingChoiceSubmit(state, {
-            playerId: "p1",
-            stackItemId: head.stackItemId,
-            step: head.step,
-            choiceId: head.choiceId,
-            cardInstanceIds: ["B"], // colorChoiceModes ids are the color codes
-        });
-        expect(state.players[0].manaPool.B).toBe(1);
-    });
-});
+// Phyrexian Altar — a CR 605.1a mana ability off the stack (issue #3047);
+// proven on the catalogue card in `convex/__tests__/manaAbilityFilterCost.test.ts`.
 
 describe("Planar Portal ({6}, {T}: search library for a card into hand, then shuffle; CR 701.20a)", () => {
     it("puts the found card into hand and shuffles the rest back", () => {

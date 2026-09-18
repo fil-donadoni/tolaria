@@ -1,9 +1,18 @@
 ---
 title: Three sacrifice-for-mana outlets are mana abilities under CR 605.1a but carry useStack true
 discoveredBy: 2939
-status: draft
+status: triaged
+issue: 3047
 confidence: high
 ---
+
+**Triaged into issue #3047**, which swept the class: Ashnod's Altar and
+Phyrexian Altar are now `useStack: false` mana abilities (their output is a
+`manaProduced` / `manaChoices` descriptor the non-stack path of issue #3455
+commits inline). Priest of Yawgmoth — plus Ice Cauldron and Jeweled Amulet,
+which the sweep added — stay on the stack until issue #3989 gives the non-stack
+path a sacrifice snapshot and a `removeCounter` leg. The record below is kept as
+written.
 
 **What is wrong.** `CR 605.1a` makes an activated ability a mana ability when
 it needs no target, could add mana on resolution, is not a loyalty ability, and

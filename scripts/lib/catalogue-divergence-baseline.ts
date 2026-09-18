@@ -47,19 +47,6 @@ export interface DivergenceBaselineRow {
 
 export const CATALOGUE_DIVERGENCE_BASELINE: readonly DivergenceBaselineRow[] = [
     {
-        card: "Ashnod's Altar",
-        field: "activatedAbilities",
-        direction: "card-defect",
-        issue: 3046,
-        why:
-            'Oracle: "Sacrifice a creature: Add {C}{C}." No target, adds mana, not a ' +
-            "loyalty ability, moves no card to or from a library — a mana ability by " +
-            "CR 605.1a, and CR 605.3b keeps one off the stack. The hand-written " +
-            "definition ships `useStack: true` with an `addMana` Effect Script; the " +
-            "compiled row ships `useStack: false` with `manaProduced`. The compiler " +
-            "is right.",
-    },
-    {
         card: "Ancient Spider",
         field: "staticAbilities",
         direction: "undetermined",

@@ -41,7 +41,6 @@ import {
     setRootDecisionSink,
     type RootDecisionRecord,
 } from "../ai/decisionTelemetry";
-import { getEffectiveActivatedAbilities } from "../activatedAbilities";
 import {
     effectiveAbilityOf,
     isDeferrableStackAbility,
@@ -49,6 +48,7 @@ import {
     spendsStandingPermanent,
 } from "../ai/abilityTiming";
 import type { Move } from "../moves";
+import type { ActivatedAbility } from "../../cards/types";
 import {
     makeInstance,
     makePlayer,
@@ -1207,18 +1207,25 @@ describe("selectRootMove — a sacrifice engine is held, then converted (issue #
 });
 
 describe("spendsStandingPermanent — a sacrifice-for-MANA outlet is excluded (CR 500.5)", () => {
-    // Ashnod's Altar is the fixture only as a SHAPE: a sacrifice cost whose
-    // script adds mana. Deferring one to the opponent's end step produces mana
-    // that empties unused at the end of that step (CR 500.5).
+    // The fixture is a SHAPE, built by hand: a sacrifice cost whose script adds
+    // mana. Deferring one to the opponent's end step produces mana that empties
+    // unused at the end of that step (CR 500.5). The catalogue's own members of
+    // the shape (Ashnod's Altar, Phyrexian Altar) became `useStack: false` mana
+    // abilities in issue #3047, so no card carries it verbatim any more.
     const ALTAR = getCardByName("Ashnod's Altar").id;
+    const SAC_FOR_MANA: ActivatedAbility = {
+        id: "sac-for-mana",
+        oracleText: "Sacrifice a creature: Add {C}{C}.",
+        cost: { sacrificeFilter: { types: "Creature" } },
+        useStack: true,
+        effects: [{ op: "addMana", mana: { C: 2 } }],
+    };
 
     it("rejects an ability whose script adds mana", () => {
         const altar = perm(ALTAR, "alt");
-        const ability = getEffectiveActivatedAbilities(altar)[0].ability;
-        expect(ability.cost.sacrificeFilter).toBeDefined();
-        expect(spendsStandingPermanent(boardOf(altar), altar, ability)).toBe(
-            false
-        );
+        expect(
+            spendsStandingPermanent(boardOf(altar), altar, SAC_FOR_MANA)
+        ).toBe(false);
     });
 
     it("recurses into the structural constructs (ADR 0045)", () => {

@@ -199,13 +199,11 @@ export function isTransientOnlyAbility(ability: ActivatedAbility): boolean {
  *  which is the mover's own main phase — the exact window this predicate would
  *  otherwise defer it out of. Detected from the SCRIPT (`addMana` anywhere in
  *  it, recursing through the structural constructs the way `opsAllTransient`
- *  does), because the cards that make it bite — Ashnod's Altar, Phyrexian
- *  Altar, Priest of Yawgmoth — are mana abilities under CR 605.1a that carry
- *  `useStack: true` in their definitions, so `isDeferrableStackAbility`'s own
- *  mana-ability exclusion never sees them. That mislabel is a card-definition
- *  bug in its own right; it is recorded in
- *  `docs/findings/2939-sac-for-mana-usestack-mislabel.md` rather than fixed
- *  here, and this clause is correct even after it is fixed.
+ *  does), because a mana ability under CR 605.1a can still carry
+ *  `useStack: true` in its definition, and then `isDeferrableStackAbility`'s
+ *  own mana-ability exclusion never sees it. Ashnod's Altar and Phyrexian Altar
+ *  were flipped to `useStack: false` by issue #3047; the remaining members of
+ *  the shape wait on issue #3989, and this clause stays correct either way.
  *
  *  Per-card-agnostic by construction: reads the cost shape, the resulting
  *  board state and the Op vocabulary only — never a card name, never a

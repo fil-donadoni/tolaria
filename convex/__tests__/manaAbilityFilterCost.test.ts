@@ -46,28 +46,19 @@ import {
 
 const GAME_ID = "game-1" as Id<"games">;
 
-/** Ashnod's Altar as the Oracle compiler emits it (CR 605.1a-faithful):
- *  "Sacrifice a creature: Add {C}{C}." — no {T}, no self-sacrifice, a FILTER.
- *  The catalogue's own copy deliberately deviates to `useStack: true` for
- *  exactly the gap this issue closes (`convex/cards/sets/atq/red.ts`), so the
- *  compiled shape is exercised through a test-only definition. */
-const ALTAR: CardDefinition = {
-    id: "test-3455-altar",
-    name: "Test Sacrifice Altar",
-    rarity: "uncommon",
-    oracleText: "Sacrifice a creature: Add {C}{C}.",
-    manaCost: { X: 3 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "test-3455-altar-mana",
-            oracleText: "Sacrifice a creature: Add {C}{C}.",
-            cost: { sacrificeFilter: { types: ["Creature"] } },
-            useStack: false,
-            manaProduced: { C: 2 },
-        },
-    ],
-};
+/** Ashnod's Altar — the CATALOGUE card, not a test double: "Sacrifice a
+ *  creature: Add {C}{C}." — no {T}, no self-sacrifice, a FILTER. Issue #3455
+ *  exercised this shape through a test-only definition while the catalogue copy
+ *  still deviated to `useStack: true`; issue #3047 flipped the card, so every
+ *  test below now proves the shipped definition. */
+const ALTAR = getCardByName("Ashnod's Altar");
+const ALTAR_MANA = "ashnods-altar-mana";
+
+/** Phyrexian Altar — "Sacrifice a creature: Add one mana of any color." The
+ *  same tap-less filtered sacrifice, with the output picked from `manaChoices`
+ *  at activation instead of fixed (issue #3047). */
+const PHYREXIAN_ALTAR = getCardByName("Phyrexian Altar");
+const PHYREXIAN_ALTAR_MANA = "phyrexian-altar-mana";
 
 /** Skirge Familiar's shape: "Discard a card: Add {B}." — the FILTERED DISCARD
  *  half of the class, on a source with no {T} and no self-sacrifice. */
@@ -121,7 +112,7 @@ const TOWER: CardDefinition = {
 };
 
 beforeAll(() => {
-    preloadDefinitions([ALTAR, FAMILIAR, TOWER]);
+    preloadDefinitions([FAMILIAR, TOWER]);
 });
 
 const BOLT = () => getCardByName("Lightning Bolt").id;
@@ -276,7 +267,7 @@ describe("filtered SACRIFICE cost, non-stack path (CR 605.3b, issue #3455)", () 
     it("prompts for the victim with 2+ legal ones, then pays it and adds the mana", async () => {
         const ctx = ctxFor(board(ALTAR.id, { creatures: 2 }));
 
-        await runActivate(ctx, "source", "test-3455-altar-mana");
+        await runActivate(ctx, "source", ALTAR_MANA);
 
         // Parked, not resolved: nothing paid, no mana yet.
         const parked = ctx.state();
@@ -306,7 +297,7 @@ describe("filtered SACRIFICE cost, non-stack path (CR 605.3b, issue #3455)", () 
         const ctx = ctxFor(
             board(ALTAR.id, { creatures: 2, activePlayerId: "p2" })
         );
-        await runActivate(ctx, "source", "test-3455-altar-mana");
+        await runActivate(ctx, "source", ALTAR_MANA);
         await runPick(ctx, "bear-0");
 
         // Asserted through the PUBLIC projection — the view the client and the
@@ -320,14 +311,14 @@ describe("filtered SACRIFICE cost, non-stack path (CR 605.3b, issue #3455)", () 
             view.stack.map(
                 (i) => (i as { abilityId?: string }).abilityId ?? i.id
             )
-        ).not.toContain("test-3455-altar-mana");
+        ).not.toContain(ALTAR_MANA);
         expect(view.stack).toHaveLength(1);
     });
 
     it("auto-resolves with exactly one legal victim — no prompt", async () => {
         const ctx = ctxFor(board(ALTAR.id, { creatures: 1 }));
 
-        await runActivate(ctx, "source", "test-3455-altar-mana");
+        await runActivate(ctx, "source", ALTAR_MANA);
 
         const after = ctx.state();
         expect(after.pendingActivation).toBeUndefined();
@@ -337,7 +328,7 @@ describe("filtered SACRIFICE cost, non-stack path (CR 605.3b, issue #3455)", () 
 
     it("cancelling the pick leaves the source and every candidate untouched", async () => {
         const ctx = ctxFor(board(ALTAR.id, { creatures: 2 }));
-        await runActivate(ctx, "source", "test-3455-altar-mana");
+        await runActivate(ctx, "source", ALTAR_MANA);
 
         await runCancel(ctx);
 
@@ -354,9 +345,9 @@ describe("filtered SACRIFICE cost, non-stack path (CR 605.3b, issue #3455)", () 
 
     it("withholds the activation entirely when no permanent matches the filter", async () => {
         const ctx = ctxFor(board(ALTAR.id, { creatures: 0 }));
-        await expect(
-            runActivate(ctx, "source", "test-3455-altar-mana")
-        ).rejects.toThrow(/sacrifice cost/i);
+        await expect(runActivate(ctx, "source", ALTAR_MANA)).rejects.toThrow(
+            /sacrifice cost/i
+        );
         expect(ctx.state().pendingActivation).toBeUndefined();
     });
 });
@@ -516,7 +507,7 @@ describe("the owed-payment seam reports the inner park FIRST, not EXCLUSIVELY", 
         state.pendingActivation = {
             playerId: "p1",
             cardInstanceId: "source",
-            abilityId: "test-3455-altar-mana",
+            abilityId: ALTAR_MANA,
             manaCost: { B: 1 },
             tappedLandIds: [],
             tapSource: false,
@@ -627,5 +618,88 @@ describe("CR 605.3a — activatable mid-cast, and it funds the cast", () => {
         // window inverts that (trigger below the spell, resolving last).
         expect(state.stack.map((i) => i.id)[0]).toBe("spell");
         expect(state.stack).toHaveLength(2);
+    });
+});
+
+describe("Phyrexian Altar — a CHOSEN colour on the same window (CR 605.1a, issue #3047)", () => {
+    // `manaChoices` order is W, U, B, R, G.
+    const BLACK = 2;
+    const RED = 3;
+
+    it("offers one payment option per colour", () => {
+        const state = board(PHYREXIAN_ALTAR.id, { creatures: 1 });
+        expect(
+            getManaTapOptions(
+                state.players[0].battlefield[0],
+                "p1",
+                state.players.map((p) => ({
+                    playerId: p.id,
+                    battlefield: p.battlefield,
+                }))
+            )
+        ).toEqual([{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }]);
+    });
+
+    it("adds the chosen colour and never touches the stack or priority (CR 605.3b)", async () => {
+        const ctx = ctxFor(
+            board(PHYREXIAN_ALTAR.id, { creatures: 2, activePlayerId: "p2" })
+        );
+
+        await runActivate(ctx, "source", PHYREXIAN_ALTAR_MANA, BLACK);
+        // The colour is locked at announcement; the victim is still owed.
+        expect(ctx.state().pendingActivation?.resolveWithoutStack).toBe(true);
+        expect(ctx.state().players[0].manaPool.B ?? 0).toBe(0);
+
+        await runPick(ctx, "bear-1");
+
+        const view = projectPublicState(ctx.state(), 1, "p1");
+        expect(view.players[0].manaPool.B).toBe(1);
+        expect(view.priorityPlayerId).toBe("p1");
+        expect(view.stack).toHaveLength(0);
+        expect(ctx.state().players[0].graveyard.map((c) => c.id)).toEqual([
+            "bear-1",
+        ]);
+    });
+
+    it("refuses an activation that names no colour", async () => {
+        const ctx = ctxFor(board(PHYREXIAN_ALTAR.id, { creatures: 2 }));
+        await expect(
+            runActivate(ctx, "source", PHYREXIAN_ALTAR_MANA)
+        ).rejects.toThrow(/Must choose a mana color/);
+        expect(ctx.state().players[0].battlefield).toHaveLength(3);
+    });
+
+    it("funds a pending cast mid-payment (CR 605.3a)", () => {
+        const pendingCast: PendingCast = {
+            playerId: "p1",
+            cardInstanceId: "spell",
+            manaCost: { R: 1 },
+            tappedLandIds: [],
+        };
+        const state = board(PHYREXIAN_ALTAR.id, {
+            creatures: 2,
+            pendingCast,
+            handSpellId: "spell",
+        });
+        const player = state.players[0];
+
+        tapSourceIntoPayment(
+            state,
+            player,
+            player.battlefield[0],
+            RED,
+            pendingCast.tappedLandIds
+        );
+        expect(state.pendingActivation?.resolveWithoutStack).toBe(true);
+
+        selectSacrificeOnState(state, {
+            playerId: "p1",
+            cardInstanceId: "bear-1",
+        });
+
+        expect(state.pendingActivation).toBeUndefined();
+        expect(state.pendingCast).toBeUndefined();
+        expect(state.stack.map((i) => i.id)).toEqual(["spell"]);
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual(["bear-1"]);
     });
 });
