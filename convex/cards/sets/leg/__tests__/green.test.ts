@@ -279,7 +279,7 @@ describe("Pixie Queen ({G}{G}{G}, {T}: target gains flying EOT, CR 611.2a)", () 
 
 describe("Pradesh Gypsies ({1}{G}, {T}: target gets -2/-0 EOT, CR 611.1)", () => {
     it("debuffs the target's power", () => {
-        const gypsies = makeInstance(pradeshGypsies.id, {
+        const gypsies = makeInstance("0370330d-83d9-44d2-a1ed-c4827edc60fd", {
             id: "gyp",
             controllerId: "p1",
         });

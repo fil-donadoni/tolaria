@@ -93,32 +93,6 @@ export const calderaKavu: CardDefinition = {
     ],
 };
 
-// Deadapult — {2}{R} Enchantment. "{R}, Sacrifice a Zombie: This enchantment
-// deals 2 damage to any target." (CR 602.1 activated ability; CR 701.21
-// sacrifice-as-cost via `sacrificeFilter` — the activating player chooses
-// which Zombie to give up, the Thopter Foundry precedent `arb/multicolor.ts`;
-// CR 120 damage to `type: "any"`.)
-export const deadapult: CardDefinition = {
-    id: "bdc93b3d-bde4-422f-9edc-e337719be7b4", // PLS 59
-    rarity: "rare",
-    name: "Deadapult",
-    oracleText:
-        "{R}, Sacrifice a Zombie: This enchantment deals 2 damage to any target.",
-    manaCost: { X: 2, R: 1 },
-    types: ["Enchantment"],
-    activatedAbilities: [
-        {
-            id: "deadapult-ping",
-            oracleText:
-                "{R}, Sacrifice a Zombie: This enchantment deals 2 damage to any target.",
-            cost: { mana: { R: 1 }, sacrificeFilter: { subtypes: "Zombie" } },
-            useStack: true,
-            targetRequirement: { type: "any", count: 1 },
-            effects: [{ op: "dealDamage", amount: 2, to: { target: 0 } }],
-        },
-    ],
-};
-
 // Implode — {4}{R} Sorcery. "Destroy target land.\nDraw a card." (CR 701.8
 // destroy; CR 121 draw — two already-registered Ops, no new capability.)
 export const implode: CardDefinition = {
@@ -529,37 +503,6 @@ export const singe: CardDefinition = {
             target: { target: 0 },
             colors: ["B"],
             duration: { phase: "end-of-turn" },
-        },
-    ],
-};
-
-// Slingshot Goblin — {2}{R} Creature — Goblin, 2/2. "{R}, {T}: This creature
-// deals 2 damage to target blue creature." (CR 605 activated ability; CR
-// 120 damage; `colorFilter: "U"` narrows the announced target, CR 202.2.)
-export const slingshotGoblin: CardDefinition = {
-    id: "81825aef-bef7-46b7-bf52-29e32c1836b0", // PLS 72
-    rarity: "common",
-    name: "Slingshot Goblin",
-    oracleText:
-        "{R}, {T}: This creature deals 2 damage to target blue creature.",
-    manaCost: { X: 2, R: 1 },
-    types: ["Creature"],
-    subtypes: ["Goblin"],
-    power: 2,
-    toughness: 2,
-    activatedAbilities: [
-        {
-            id: "slingshot-goblin-ping",
-            oracleText:
-                "{R}, {T}: This creature deals 2 damage to target blue creature.",
-            cost: { mana: { R: 1 }, tap: true },
-            useStack: true,
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                colorFilter: "U",
-            },
-            effects: [{ op: "dealDamage", amount: 2, to: { target: 0 } }],
         },
     ],
 };

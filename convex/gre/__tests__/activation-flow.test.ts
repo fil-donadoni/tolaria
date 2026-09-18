@@ -22,11 +22,7 @@ import {
 import { getDefinition, getCardByName, tryGetDefinition } from "../../cards";
 import { tracker } from "../../cards/sets/drk";
 import { checkStateBasedActions } from "../sba";
-import {
-    circleOfProtectionRed,
-    jayemdaeTome,
-    lightningBolt,
-} from "../../cards/sets/lea";
+import { circleOfProtectionRed, lightningBolt } from "../../cards/sets/lea";
 import {
     oasis,
     pyramids,
@@ -354,7 +350,10 @@ describe("activation flow — Jayemdae Tome ({4}, {T}: Draw a card)", () => {
     function setup() {
         const tome = makeInstance({
             id: "tome",
-            card: { id: jayemdaeTome.id, name: "Jayemdae Tome" },
+            card: {
+                id: "cac8c421-5b92-481d-b2de-560c0231ab58",
+                name: "Jayemdae Tome",
+            },
             types: ["Artifact"],
         });
         const islands = Array.from({ length: 4 }, (_, i) =>
@@ -368,7 +367,10 @@ describe("activation flow — Jayemdae Tome ({4}, {T}: Draw a card)", () => {
         const library = Array.from({ length: 3 }, (_, i) =>
             makeInstance({
                 id: `lib-${i}`,
-                card: { id: jayemdaeTome.id, name: "Jayemdae Tome" },
+                card: {
+                    id: "cac8c421-5b92-481d-b2de-560c0231ab58",
+                    name: "Jayemdae Tome",
+                },
                 zone: "library",
                 types: ["Artifact"],
             })

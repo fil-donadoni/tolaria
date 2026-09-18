@@ -24,34 +24,6 @@ export const birdMaiden: CardDefinition = {
     staticAbilities: ["flying"],
 };
 
-export const aliBaba: CardDefinition = {
-    id: "29cd7064-3703-43e0-8702-d1ba13703fd8",
-    rarity: "uncommon",
-    name: "Ali Baba",
-    oracleText: "{R}: Tap target Wall.",
-    manaCost: { R: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Rogue"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "ali-baba-tap-wall",
-            oracleText: "{R}: Tap target Wall.",
-            cost: { mana: { R: 1 } },
-            useStack: true,
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                subtypeFilter: "Wall",
-            },
-            // Migrated resolve()→effects[] (ADR 0045, #842): tap the announced
-            // Wall target (CR 701.26a).
-            effects: [{ op: "tapUntap", action: "tap", target: { target: 0 } }],
-        },
-    ],
-};
-
 const RUKH_EGG_ID = "b28f9e63-e5e4-44b5-a17e-8301ff17c623";
 
 export const rukhEgg: CardDefinition = {

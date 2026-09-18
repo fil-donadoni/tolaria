@@ -412,33 +412,6 @@ export const drainLife: CardDefinition = {
     ],
 };
 
-// Drudge Skeletons — "{B}: Regenerate Drudge Skeletons." (CR 701.19a regen,
-// 614.5 destroy replacement). Self-targeting via `ctx.sourceInstanceId`, no
-// targetRequirement on the activated ability.
-export const drudgeSkeletons: CardDefinition = {
-    id: "23614289-0d73-4747-a849-5cb67cc97d6a",
-    rarity: "common",
-    name: "Drudge Skeletons",
-    oracleText:
-        "{B}: Regenerate this creature. (The next time this creature would be destroyed this turn, instead tap it, remove it from combat, and heal all damage on it.)",
-    manaCost: { X: 1, B: 1 },
-    types: ["Creature"],
-    subtypes: ["Skeleton"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "drudge-skeletons-regenerate",
-            oracleText: "{B}: Regenerate Drudge Skeletons.",
-            cost: { mana: { B: 1 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
-            // shield on the source (CR 701.19a) via the implicit $source.
-            effects: [{ op: "regenerate", target: { ref: "$source" } }],
-        },
-    ],
-};
-
 // Evil Presence — "Enchant land. Enchanted land is a Swamp." (CR 305.7
 // subtype replacement, CR 303.4 aura). Layer 4 subtype-set replaces the
 // host's subtypes with ["Swamp"], which also changes its mana production
@@ -480,38 +453,6 @@ export const fear: CardDefinition = {
             kind: "keyword-grant",
             applies: AURA_AFFECTS_HOST,
             keyword: "fear",
-        },
-    ],
-};
-
-// Frozen Shade — "{B}: This creature gets +1/+1 until end of turn." (CR 113.1
-// activated, 611.1 temporary P/T modification). Self-targeting pump using
-// the new `addTemporaryPTBuff` primitive.
-export const frozenShade: CardDefinition = {
-    id: "d0bd76c8-4cff-4c15-9686-7a299b589814",
-    rarity: "common",
-    name: "Frozen Shade",
-    oracleText: "{B}: This creature gets +1/+1 until end of turn.",
-    manaCost: { X: 2, B: 1 },
-    types: ["Creature"],
-    subtypes: ["Shade"],
-    power: 0,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "frozen-shade-pump",
-            oracleText: "{B}: This creature gets +1/+1 until end of turn.",
-            cost: { mana: { B: 1 } },
-            useStack: true,
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 1,
-                    toughness: 1,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
         },
     ],
 };
@@ -1206,44 +1147,6 @@ export const raiseDead: CardDefinition = {
     // Migrated resolve()→effects[] (ADR 0045, #839): return the targeted
     // graveyard creature card to its owner's hand (CR 400.7).
     effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
-};
-
-// Royal Assassin — "{T}: Destroy target tapped creature." (CR 701.26 for
-// tap-state, CR 701.8 for destroy). The tappedFilter on TargetRequirement
-// enforces legality at activation (CR 602.2b); the resolve re-checks at
-// resolution (CR 608.2b) so an opposing Twiddle-style untap fizzles this.
-export const royalAssassin: CardDefinition = {
-    id: "59590768-fa96-4869-8763-9d5ab6ac22ad",
-    rarity: "rare",
-    name: "Royal Assassin",
-    oracleText: "{T}: Destroy target tapped creature.",
-    manaCost: { X: 1, B: 2 },
-    types: ["Creature"],
-    subtypes: ["Human", "Assassin"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "royal-assassin-destroy",
-            oracleText: "{T}: Destroy target tapped creature.",
-            cost: { tap: true },
-            useStack: true,
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                tappedFilter: "tapped",
-            },
-            // CR 608.2b — an in-response untap fizzles this, and the ENGINE
-            // enforces that: target legality is re-checked against
-            // `targetRequirement` on resolution, so the `tappedFilter` above is
-            // the whole rider. The marker that stood here claimed the re-check
-            // was load-bearing card logic blocked on an `if` predicate over tap
-            // state; the behavioural gold harness (issue #2703) disproved it —
-            // this card's own CR 608.2b fizzle test passes against the compiled
-            // script below, which does no re-check of its own.
-            effects: [{ op: "destroy", target: { target: 0 } }],
-        },
-    ],
 };
 
 // Sacrifice — "As an additional cost to cast this spell, sacrifice a

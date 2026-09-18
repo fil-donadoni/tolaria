@@ -1815,7 +1815,7 @@ describe("Teferi's Response (issue #2708)", () => {
                             controllerId: "p2",
                             ownerId: "p2",
                         }),
-                        makeInstance(icyManipulator.id, {
+                        makeInstance("29dc1596-a2e7-4d60-9f99-89babaef8a06", {
                             id: "icy",
                             controllerId: "p2",
                             ownerId: "p2",
@@ -1824,7 +1824,7 @@ describe("Teferi's Response (issue #2708)", () => {
                         // item is a clone of its source, so its item id IS the
                         // source id — two activations of the SAME permanent
                         // would collide in the sweep below.
-                        makeInstance(icyManipulator.id, {
+                        makeInstance("29dc1596-a2e7-4d60-9f99-89babaef8a06", {
                             id: "icy2",
                             controllerId: "p2",
                             ownerId: "p2",

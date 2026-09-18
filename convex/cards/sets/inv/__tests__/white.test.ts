@@ -392,7 +392,7 @@ describe("Ruham Djinn (CR 604.3 CDA — -2/-2 while white is most common)", () =
             controllerId: "p2",
             ownerId: "p2",
         });
-        const blackTwo = makeInstance(drudgeSkeletons.id, {
+        const blackTwo = makeInstance("23614289-0d73-4747-a849-5cb67cc97d6a", {
             id: "bk2",
             controllerId: "p2",
             ownerId: "p2",

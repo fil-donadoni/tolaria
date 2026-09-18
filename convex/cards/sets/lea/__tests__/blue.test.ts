@@ -1463,7 +1463,7 @@ describe("Twiddle (modal tap/untap target artifact/creature/land, CR 701.26)", (
             controllerId: "p2",
             ownerId: "p2",
         });
-        const tome = makeInstance(jayemdaeTome.id, {
+        const tome = makeInstance("cac8c421-5b92-481d-b2de-560c0231ab58", {
             id: "tome",
             controllerId: "p1",
             ownerId: "p1",
@@ -1930,7 +1930,7 @@ describe("Pirate Ship ({T}: 1 dmg + can't attack unless defender controls Island
 
 describe("Prodigal Sorcerer ({T}: 1 dmg to any target — original Tim)", () => {
     function setup() {
-        const tim = makeInstance(prodigalSorcerer.id, {
+        const tim = makeInstance("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a", {
             id: "tim",
             controllerId: "p1",
             ownerId: "p1",
@@ -3366,7 +3366,7 @@ describe("Clone (enter as a copy of any creature, CR 707.2)", () => {
 
 describe("Copy Artifact (copy artifact + keep Enchantment, CR 707.9d)", () => {
     it("enters as a copy of an artifact and stays an enchantment too", () => {
-        const helm = makeInstance(helmOfChatzuk.id, {
+        const helm = makeInstance("3792c6ef-c4e6-4923-9a51-7d28fbc5c393", {
             id: "helm",
             controllerId: "p2",
             ownerId: "p2",
@@ -3397,7 +3397,9 @@ describe("Copy Artifact (copy artifact + keep Enchantment, CR 707.9d)", () => {
         const copy = state.players[0].battlefield.find(
             (c) => c.id === "copy1"
         )!;
-        expect((copy.card as { id: string }).id).toBe(helmOfChatzuk.id);
+        expect((copy.card as { id: string }).id).toBe(
+            "3792c6ef-c4e6-4923-9a51-7d28fbc5c393"
+        );
         expect(copy.types).toContain("Artifact");
         expect(copy.types).toContain("Enchantment");
         expect(copy.copiedFrom).toBe(copyArtifact.id);

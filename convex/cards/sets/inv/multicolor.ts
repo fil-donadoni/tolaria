@@ -801,46 +801,6 @@ export const spinalEmbrace: CardDefinition = {
     ],
 };
 
-// Stalking Assassin — {1}{U}{B} Creature — Human Assassin, 1/1. "{3}{U},
-// {T}: Tap target creature. {3}{B}, {T}: Destroy target tapped creature."
-// (CR 605 activated ability; CR 701.26 tap; CR 701.8 destroy filtered by
-// `tappedFilter`.) Two independent tap-cost activated abilities, exact
-// precedent pair Samite Archer (this same file).
-export const stalkingAssassin: CardDefinition = {
-    id: "ff8cc71f-3070-497f-908f-35aa13a8a857",
-    rarity: "rare",
-    name: "Stalking Assassin",
-    oracleText:
-        "{3}{U}, {T}: Tap target creature.\n{3}{B}, {T}: Destroy target tapped creature.",
-    manaCost: { X: 1, U: 1, B: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Assassin"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "stalking-assassin-tap",
-            oracleText: "{3}{U}, {T}: Tap target creature.",
-            cost: { mana: { X: 3, U: 1 }, tap: true },
-            useStack: true,
-            targetRequirement: { type: "Creature", count: 1 },
-            effects: [{ op: "tapUntap", action: "tap", target: { target: 0 } }],
-        },
-        {
-            id: "stalking-assassin-destroy",
-            oracleText: "{3}{B}, {T}: Destroy target tapped creature.",
-            cost: { mana: { X: 3, B: 1 }, tap: true },
-            useStack: true,
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                tappedFilter: "tapped",
-            },
-            effects: [{ op: "destroy", target: { target: 0 } }],
-        },
-    ],
-};
-
 // Undermine — {U}{U}{B} Instant. "Counter target spell. Its controller
 // loses 3 life." (CR 701.6a counter, CR 119.3 life loss.) A plain two-Op
 // sequence, exact precedent shape Absorb (this same file) with `loseLife`
@@ -1262,69 +1222,6 @@ export const bloodstoneCameo: CardDefinition = {
     ],
 };
 
-// Firescreamer — {3}{B} Creature — Kavu, 2/2. "{R}: This creature gets
-// +1/+0 until end of turn." (CR 613.4c firebreathing-style pump, the
-// Dragon Whelp / Rogue Kavu `pump` Op shape self-targeted via `$source`.)
-export const firescreamer: CardDefinition = {
-    id: "155a2213-bf6e-4a54-924b-e450b7d06f26",
-    rarity: "common",
-    name: "Firescreamer",
-    oracleText: "{R}: This creature gets +1/+0 until end of turn.",
-    manaCost: { X: 3, B: 1 },
-    types: ["Creature"],
-    subtypes: ["Kavu"],
-    power: 2,
-    toughness: 2,
-    activatedAbilities: [
-        {
-            id: "firescreamer-pump",
-            oracleText: "{R}: This creature gets +1/+0 until end of turn.",
-            cost: { mana: { R: 1 } },
-            useStack: true,
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 1,
-                    toughness: 0,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-};
-
-// Hooded Kavu — {2}{R} Creature — Kavu, 2/2. "{B}: This creature gains fear
-// until end of turn." (CR 702.14b fear, CR 611.2a temporary keyword grant
-// via the shipped `grantAbility` Op self-targeted via `$source`.)
-export const hoodedKavu: CardDefinition = {
-    id: "5464b80a-22fe-42c7-a839-31667712fb2d",
-    rarity: "common",
-    name: "Hooded Kavu",
-    oracleText: "{B}: This creature gains fear until end of turn.",
-    manaCost: { X: 2, R: 1 },
-    types: ["Creature"],
-    subtypes: ["Kavu"],
-    power: 2,
-    toughness: 2,
-    activatedAbilities: [
-        {
-            id: "hooded-kavu-fear",
-            oracleText: "{B}: This creature gains fear until end of turn.",
-            cost: { mana: { B: 1 } },
-            useStack: true,
-            effects: [
-                {
-                    op: "grantAbility",
-                    ability: "fear",
-                    target: { ref: "$source" },
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-};
-
 // Plague Spores — {4}{B}{R} Sorcery. "Destroy target nonblack creature and
 // target land. They can't be regenerated." (CR 701.8 destroy +
 // `excludeColors` "nonblack creature" filter, CR 701.19c "can't be
@@ -1343,31 +1240,6 @@ export const plagueSpores: CardDefinition = {
     effects: [
         { op: "destroy", target: { target: 0 }, cantBeRegenerated: true },
         { op: "destroy", target: { target: 1 }, cantBeRegenerated: true },
-    ],
-};
-
-// Reckless Assault — {2}{B}{R} Enchantment. "{1}, Pay 2 life: This
-// enchantment deals 1 damage to any target." (CR 602.1/118.5 mana + life
-// activation cost — the Bloodstained Mire / City of Brass `cost.life`
-// shape; CR 115.4 any-target; CR 120.1 damage.)
-export const recklessAssault: CardDefinition = {
-    id: "ff0f568e-4d3a-40a5-b72a-63040ec5402d",
-    rarity: "rare",
-    name: "Reckless Assault",
-    oracleText:
-        "{1}, Pay 2 life: This enchantment deals 1 damage to any target.",
-    manaCost: { X: 2, B: 1, R: 1 },
-    types: ["Enchantment"],
-    activatedAbilities: [
-        {
-            id: "reckless-assault-ping",
-            oracleText:
-                "{1}, Pay 2 life: This enchantment deals 1 damage to any target.",
-            cost: { mana: { X: 1 }, life: 2 },
-            useStack: true,
-            targetRequirement: { type: "any", count: 1 },
-            effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
-        },
     ],
 };
 
@@ -1441,37 +1313,6 @@ export const smolderingTar: CardDefinition = {
             activationPhaseRestriction: ["PRECOMBAT_MAIN", "POSTCOMBAT_MAIN"],
             targetRequirement: { type: "Creature", count: 1 },
             effects: [{ op: "dealDamage", amount: 4, to: { target: 0 } }],
-        },
-    ],
-};
-
-// Trench Wurm — {3}{B} Creature — Wurm, 3/3. "{2}{R}, {T}: Destroy target
-// nonbasic land." (CR 605 activated ability; CR 701.8 destroy filtered by
-// `excludeSupertypes: "Basic"` — the Wasteland / Vandalblast-cycle
-// precedent, e.g. `inv/red.ts`'s own "Sacrifice a creature: Destroy target
-// nonbasic land.")
-export const trenchWurm: CardDefinition = {
-    id: "1b076f85-d1bf-491a-af9d-f35b8e1bd163",
-    rarity: "uncommon",
-    name: "Trench Wurm",
-    oracleText: "{2}{R}, {T}: Destroy target nonbasic land.",
-    manaCost: { X: 3, B: 1 },
-    types: ["Creature"],
-    subtypes: ["Wurm"],
-    power: 3,
-    toughness: 3,
-    activatedAbilities: [
-        {
-            id: "trench-wurm-destroy-land",
-            oracleText: "{2}{R}, {T}: Destroy target nonbasic land.",
-            cost: { mana: { X: 2, R: 1 }, tap: true },
-            useStack: true,
-            targetRequirement: {
-                type: "Land",
-                count: 1,
-                excludeSupertypes: "Basic",
-            },
-            effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
 };
@@ -1996,31 +1837,6 @@ export const huntingKavu: CardDefinition = {
     ],
 };
 
-// Meteor Storm — {R}{G} Enchantment. "{2}{R}{G}, Discard two cards at
-// random: This enchantment deals 4 damage to any target." (CR 118.3/701.8
-// random-discard ACTIVATION COST — the Coral Helm `discardAtRandom` cost
-// shape — CR 120.1 damage to `type: "any"`, the Zap shape, `inv/red.ts`.)
-export const meteorStorm: CardDefinition = {
-    id: "36489b24-f8a8-46b6-b879-0a5ce400a6dc",
-    rarity: "rare",
-    name: "Meteor Storm",
-    oracleText:
-        "{2}{R}{G}, Discard two cards at random: This enchantment deals 4 damage to any target.",
-    manaCost: { R: 1, G: 1 },
-    types: ["Enchantment"],
-    activatedAbilities: [
-        {
-            id: "meteor-storm-blast",
-            oracleText:
-                "{2}{R}{G}, Discard two cards at random: This enchantment deals 4 damage to any target.",
-            cost: { mana: { X: 2, R: 1, G: 1 }, discardAtRandom: 2 },
-            useStack: true,
-            targetRequirement: { type: "any", count: 1 },
-            effects: [{ op: "dealDamage", amount: 4, to: { target: 0 } }],
-        },
-    ],
-};
-
 // Raging Kavu — {1}{R}{G} Creature — Kavu, 3/1. "Flash. Haste." (CR 702.8b
 // flash + CR 702.10b haste, pure printed-keyword data.)
 export const ragingKavu: CardDefinition = {
@@ -2258,40 +2074,6 @@ export const savageOffensive: CardDefinition = {
                             duration: { phase: "end-of-turn" },
                         },
                     ],
-                },
-            ],
-        },
-    ],
-};
-
-// Viashino Grappler — {2}{R} Creature — Lizard, 3/1. "{G}: This creature
-// gains trample until end of turn." (Colour-identity RG via a
-// cross-colour activated-ability cost, mono {R} cast cost — the exact
-// Hooded Kavu (fear) / Serpentine Kavu (haste) firebreathing-keyword
-// shape, this file's BR tranche / `inv/green.ts`, keyword swapped to
-// trample.)
-export const viashinoGrappler: CardDefinition = {
-    id: "4a94aeb4-349c-4394-848d-c1c9133856e2",
-    rarity: "common",
-    name: "Viashino Grappler",
-    oracleText: "{G}: This creature gains trample until end of turn.",
-    manaCost: { X: 2, R: 1 },
-    types: ["Creature"],
-    subtypes: ["Lizard"],
-    power: 3,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "viashino-grappler-trample",
-            oracleText: "{G}: This creature gains trample until end of turn.",
-            cost: { mana: { G: 1 } },
-            useStack: true,
-            effects: [
-                {
-                    op: "grantAbility",
-                    ability: "trample",
-                    target: { ref: "$source" },
-                    duration: { phase: "end-of-turn" },
                 },
             ],
         },
@@ -2818,40 +2600,6 @@ export const llanowarKnight: CardDefinition = {
     power: 2,
     toughness: 2,
     staticAbilities: ["protection from black"],
-};
-
-// Noble Panther — {1}{G}{W} Creature — Cat, 3/3. "{1}: This creature gains
-// first strike until end of turn." (CR 702.7b first strike, CR 611.2a
-// temporary keyword grant via the shipped `grantAbility` Op self-targeted
-// through `$source` — the exact Hooded Kavu shape, this file's BR
-// tranche, keyword swapped fear → first strike.)
-export const noblePanther: CardDefinition = {
-    id: "3f327818-8222-4295-8cef-118757b34d17",
-    rarity: "rare",
-    name: "Noble Panther",
-    oracleText: "{1}: This creature gains first strike until end of turn.",
-    manaCost: { X: 1, G: 1, W: 1 },
-    types: ["Creature"],
-    subtypes: ["Cat"],
-    power: 3,
-    toughness: 3,
-    activatedAbilities: [
-        {
-            id: "noble-panther-first-strike",
-            oracleText:
-                "{1}: This creature gains first strike until end of turn.",
-            cost: { mana: { X: 1 } },
-            useStack: true,
-            effects: [
-                {
-                    op: "grantAbility",
-                    ability: "first strike",
-                    target: { ref: "$source" },
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
 };
 
 // Sabertooth Nishoba — {4}{G}{W} Creature — Cat Beast Warrior, 5/5.
@@ -3474,43 +3222,6 @@ export const tinderFarm: CardDefinition = {
     ],
 };
 
-// Stormscape Apprentice — {U} Creature — Human Wizard, 1/1. "{W}, {T}: Tap
-// target creature. {B}, {T}: Target player loses 1 life." (CR 602.1
-// activated ability, CR 701.26 tap; CR 119.3 life loss.) Two independent
-// tap-only activated abilities — same fused-pair shape as Samite Archer
-// (this file, WU tranche) and Stormscape Apprentice's own sibling Sunscape
-// Apprentice (`white.ts`, deferred (tracked-by: #2785) elsewhere — a DIFFERENT ability pair).
-export const stormscapeApprentice: CardDefinition = {
-    id: "1eb42f39-9187-44e4-aa34-14ab31977199",
-    rarity: "common",
-    name: "Stormscape Apprentice",
-    oracleText:
-        "{W}, {T}: Tap target creature.\n{B}, {T}: Target player loses 1 life.",
-    manaCost: { U: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Wizard"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "stormscape-apprentice-tap",
-            oracleText: "{W}, {T}: Tap target creature.",
-            cost: { mana: { W: 1 }, tap: true },
-            useStack: true,
-            targetRequirement: { type: "Creature", count: 1 },
-            effects: [{ op: "tapUntap", action: "tap", target: { target: 0 } }],
-        },
-        {
-            id: "stormscape-apprentice-drain",
-            oracleText: "{B}, {T}: Target player loses 1 life.",
-            cost: { mana: { B: 1 }, tap: true },
-            useStack: true,
-            targetRequirement: { type: "player", count: 1 },
-            effects: [{ op: "loseLife", player: { target: 0 }, amount: 1 }],
-        },
-    ],
-};
-
 // The five WUBRG "protection from the color of your choice" modes Stormscape
 // Master's second ability offers — now routed through the shared
 // `protectionColorModes` helper (`abilities/index.ts`, issue #684/#928 dedup)
@@ -3605,49 +3316,6 @@ export const nightscapeMaster: CardDefinition = {
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
             effects: [{ op: "dealDamage", amount: 2, to: { target: 0 } }],
-        },
-    ],
-};
-
-// Thunderscape Apprentice — {R} Creature — Human Wizard, 1/1. "{B}, {T}:
-// Target player loses 1 life. {G}, {T}: Target creature gets +1/+1 until
-// end of turn." (CR 119.3 life loss; CR 613.4c temporary P/T pump.)
-export const thunderscapeApprentice: CardDefinition = {
-    id: "75a0b075-5414-48d3-a2b1-47dc20213e96",
-    rarity: "common",
-    name: "Thunderscape Apprentice",
-    oracleText:
-        "{B}, {T}: Target player loses 1 life.\n{G}, {T}: Target creature gets +1/+1 until end of turn.",
-    manaCost: { R: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Wizard"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "thunderscape-apprentice-drain",
-            oracleText: "{B}, {T}: Target player loses 1 life.",
-            cost: { mana: { B: 1 }, tap: true },
-            useStack: true,
-            targetRequirement: { type: "player", count: 1 },
-            effects: [{ op: "loseLife", player: { target: 0 }, amount: 1 }],
-        },
-        {
-            id: "thunderscape-apprentice-pump",
-            oracleText:
-                "{G}, {T}: Target creature gets +1/+1 until end of turn.",
-            cost: { mana: { G: 1 }, tap: true },
-            useStack: true,
-            targetRequirement: { type: "Creature", count: 1 },
-            effects: [
-                {
-                    op: "pump",
-                    target: { target: 0 },
-                    power: 1,
-                    toughness: 1,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
         },
     ],
 };

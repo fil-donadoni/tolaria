@@ -114,7 +114,9 @@ describe("Desert Twister (destroy target permanent)", () => {
 
 describe("Wyluli Wolf ({T}: target creature +1/+1 EOT)", () => {
     it("pumps the target until end of turn", () => {
-        const wolf = makeInstance(wyluliWolf.id, { id: "wolf" });
+        const wolf = makeInstance("15ccebe1-ef08-4805-a65f-a1c57abed9f2", {
+            id: "wolf",
+        });
         const target = makeInstance(grizzlyBears.id, { id: "bear" });
         const state = makeState({
             players: [

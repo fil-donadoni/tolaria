@@ -27,7 +27,7 @@ import {
 } from "../../cards/__tests__/setup";
 import { getPlayer, resolveTopOfStack, type GameState } from "../state";
 import { grizzlyBears } from "../../cards/sets/lea/green";
-import { royalAssassin, terror } from "../../cards/sets/lea/black";
+import { terror } from "../../cards/sets/lea/black";
 import { lightningBolt } from "../../cards/sets/lea/red";
 import { ancestralRecall, unsummon } from "../../cards/sets/lea/blue";
 import { swordsToPlowshares } from "../../cards/sets/lea/white";
@@ -316,9 +316,12 @@ describe("CR 608.2b — protection gained in response (CR 702.16b)", () => {
 describe("CR 608.2b — abilities are covered on the same terms as spells", () => {
     it("shroud counters an activated ability targeting the permanent", () => {
         const state = boardWithBear({ isTapped: true });
-        const item = pushSpell(state, royalAssassin.id, "p1", [
-            { type: "permanent", id: "bear" },
-        ]);
+        const item = pushSpell(
+            state,
+            "59590768-fa96-4869-8763-9d5ab6ac22ad",
+            "p1",
+            [{ type: "permanent", id: "bear" }]
+        );
         item.abilityId = "royal-assassin-destroy";
         grantKeyword(state, "bear", "shroud");
         resolveTopOfStack(state);
@@ -327,9 +330,12 @@ describe("CR 608.2b — abilities are covered on the same terms as spells", () =
         // Control: with no shroud the very same activation destroys it, so the
         // assertion above is about the keyword and not about the fixture.
         const control = boardWithBear({ isTapped: true });
-        const controlItem = pushSpell(control, royalAssassin.id, "p1", [
-            { type: "permanent", id: "bear" },
-        ]);
+        const controlItem = pushSpell(
+            control,
+            "59590768-fa96-4869-8763-9d5ab6ac22ad",
+            "p1",
+            [{ type: "permanent", id: "bear" }]
+        );
         controlItem.abilityId = "royal-assassin-destroy";
         resolveTopOfStack(control);
         expect(bearOf(control)).toBeUndefined();
@@ -337,7 +343,7 @@ describe("CR 608.2b — abilities are covered on the same terms as spells", () =
 
     it("protection from the ABILITY SOURCE's colour counters it (CR 109.5)", () => {
         const state = boardWithBear({ isTapped: true });
-        pushSpell(state, royalAssassin.id, "p1", [
+        pushSpell(state, "59590768-fa96-4869-8763-9d5ab6ac22ad", "p1", [
             { type: "permanent", id: "bear" },
         ]);
         state.stack[0].abilityId = "royal-assassin-destroy";
@@ -386,9 +392,12 @@ describe("CR 608.2b — abilities are covered on the same terms as spells", () =
 
         it("lets an ABILITY through", () => {
             const state = enchantedBoard();
-            const item = pushSpell(state, royalAssassin.id, "p1", [
-                { type: "permanent", id: "bear" },
-            ]);
+            const item = pushSpell(
+                state,
+                "59590768-fa96-4869-8763-9d5ab6ac22ad",
+                "p1",
+                [{ type: "permanent", id: "bear" }]
+            );
             item.abilityId = "royal-assassin-destroy";
             resolveTopOfStack(state);
             expect(bearOf(state)).toBeUndefined();

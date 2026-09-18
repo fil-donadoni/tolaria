@@ -516,7 +516,9 @@ describe("Goblin Digging Team — {T}, Sac this: destroy target Wall (CR 701.8)"
             controllerId: "p2",
             ownerId: "p2",
         });
-        const team = makeInstance(goblinDiggingTeam.id, { controllerId: "p1" });
+        const team = makeInstance("8a538b9d-351e-40bb-be11-9ba08c16352b", {
+            controllerId: "p1",
+        });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [team] }),

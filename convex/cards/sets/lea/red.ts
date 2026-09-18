@@ -125,35 +125,6 @@ export const dragonWhelp: CardDefinition = {
     ],
 };
 
-export const dwarvenDemolitionTeam: CardDefinition = {
-    id: "03482c9c-1f25-4d73-9243-17462ea37ac4",
-    rarity: "uncommon",
-    name: "Dwarven Demolition Team",
-    oracleText: "{T}: Destroy target Wall.",
-    manaCost: { X: 2, R: 1 },
-    types: ["Creature"],
-    subtypes: ["Dwarf"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "dwarven-demolition-team-destroy",
-            oracleText: "{T}: Destroy target Wall.",
-            cost: { tap: true },
-            useStack: true,
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                subtypeFilter: "Wall",
-            },
-            // Migrated resolve() → effects[] (ADR 0045, issue #831): a single
-            // `destroy` Op on the announced target (CR 701.8). Per-card test
-            // ("destroys a target Wall on resolution") is the harness.
-            effects: [{ op: "destroy", target: { target: 0 } }],
-        },
-    ],
-};
-
 // Dwarven Warriors — "{T}: Target creature with power 2 or less can't be
 // blocked this turn." (CR 113.1 grant of `unblockable` keyword via
 // grantStaticAbility, 509.1b block restriction, 613 layer 7c power filter
@@ -453,40 +424,6 @@ export const fork: CardDefinition = {
         // spell or an item that left the stack); nothing to retarget then.
         if (copyId) ctx.requestCopyRetarget(copyId);
     },
-};
-
-// Goblin Balloon Brigade — "{R}: Goblin Balloon Brigade gains flying until
-// end of turn." (CR 702.9 flying, 611.2a temporary keyword grant). The grant
-// targets self via `ctx.sourceInstanceId`, expires at CLEANUP.
-export const goblinBalloonBrigade: CardDefinition = {
-    id: "5129b422-7a35-4bc5-b14b-c814012a0d8f",
-    rarity: "uncommon",
-    name: "Goblin Balloon Brigade",
-    oracleText: "{R}: This creature gains flying until end of turn.",
-    manaCost: { R: 1 },
-    types: ["Creature"],
-    subtypes: ["Goblin", "Warrior"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "goblin-balloon-brigade-fly",
-            oracleText:
-                "{R}: Goblin Balloon Brigade gains flying until end of turn.",
-            cost: { mana: { R: 1 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, #843): self-grant flying
-            // until end of turn (CR 611.2a).
-            effects: [
-                {
-                    op: "grantAbility",
-                    ability: "flying",
-                    target: { ref: "$source" },
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
 };
 
 // Goblin King — "Other Goblins get +1/+1 and have mountainwalk." (CR 611
@@ -1321,31 +1258,6 @@ export const twoHeadedGiantOfForiys: CardDefinition = {
     toughness: 4,
     staticAbilities: ["trample"],
     canBlockAdditional: 1,
-};
-
-// Uthden Troll — "{R}: Regenerate Uthden Troll." Same self-regen shape as
-// Drudge Skeletons / Wall of Bone / Will-o'-the-Wisp.
-export const uthdenTroll: CardDefinition = {
-    id: "2ff21a6f-83a7-4bf3-a078-294e303232cc",
-    rarity: "uncommon",
-    name: "Uthden Troll",
-    oracleText: "{R}: Regenerate this creature.",
-    manaCost: { X: 2, R: 1 },
-    types: ["Creature"],
-    subtypes: ["Troll"],
-    power: 2,
-    toughness: 2,
-    activatedAbilities: [
-        {
-            id: "uthden-troll-regenerate",
-            oracleText: "{R}: Regenerate Uthden Troll.",
-            cost: { mana: { R: 1 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
-            // shield on the source (CR 701.19a) via the implicit $source.
-            effects: [{ op: "regenerate", target: { ref: "$source" } }],
-        },
-    ],
 };
 
 // Wall of Fire — defender + "{R}: This creature gets +1/+0 until end of turn."

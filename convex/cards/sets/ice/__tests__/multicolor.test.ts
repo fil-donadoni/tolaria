@@ -311,7 +311,7 @@ describe("Centaur Archer ({T}: 1 damage to a flyer, CR 605 / 120.1)", () => {
         expect(legal).not.toContain("ground");
     });
     it("deals 1 damage to the targeted flyer", () => {
-        const archer = makeInstance(centaurArcher.id, {
+        const archer = makeInstance("e275c295-72da-4a86-82c6-cfd75b38b19c", {
             id: "archer",
             controllerId: "p1",
             ownerId: "p1",
@@ -336,7 +336,7 @@ describe("Centaur Archer ({T}: 1 damage to a flyer, CR 605 / 120.1)", () => {
         expect(live.damageMarked ?? 0).toBe(1);
     });
     it("wire format: the damage survives projectPublicState", () => {
-        const archer = makeInstance(centaurArcher.id, {
+        const archer = makeInstance("e275c295-72da-4a86-82c6-cfd75b38b19c", {
             id: "archer",
             controllerId: "p1",
             ownerId: "p1",
@@ -1513,7 +1513,7 @@ describe("Chromatic Armor (re-choosable colour shield, CR 615 / 700.2c / 601.2f)
             controllerId: "p2",
             ownerId: "p2",
         });
-        const blueSrc = makeInstance(seaSpirit.id, {
+        const blueSrc = makeInstance("f2d93d05-98bc-4504-9045-dedb925895ae", {
             id: "blue-src",
             controllerId: "p2",
             ownerId: "p2",

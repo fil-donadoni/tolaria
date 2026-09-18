@@ -230,7 +230,7 @@ describe("Zirda, the Dawnwaker (Companion, activated-ability cost reduction excl
     /** Dragon Engine + Celestial Prism on one board, controlled by
      *  `hostController`; Zirda always controlled by p1. */
     function boardWithZirda(hostController: "p1" | "p2") {
-        const engine = makeInstance(dragonEngine.id, {
+        const engine = makeInstance("07793a71-1106-4303-b620-e403bd378020", {
             id: "engine",
             controllerId: hostController,
             ownerId: hostController,

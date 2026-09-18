@@ -218,34 +218,6 @@ export const erosion: CardDefinition = {
     ],
 };
 
-// Flood — "{U}{U}: Tap target creature without flying." (CR 605 activated
-// ability; CR 701.26a tap; CR 702.9 the "without flying" filter excludes
-// flyers from legal targets via `excludeAbility`.)
-export const flood: CardDefinition = {
-    id: "fabc3267-b59b-4f36-8873-5b4b072711ca",
-    rarity: "uncommon",
-    name: "Flood",
-    oracleText: "{U}{U}: Tap target creature without flying.",
-    manaCost: { U: 1 },
-    types: ["Enchantment"],
-    activatedAbilities: [
-        {
-            id: "flood-tap",
-            oracleText: "{U}{U}: Tap target creature without flying.",
-            cost: { mana: { U: 2 } },
-            useStack: true,
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                excludeAbility: "flying",
-            },
-            // Migrated resolve()→effects[] (ADR 0045, #842): tap the announced
-            // creature-without-flying target (CR 701.26a tap).
-            effects: [{ op: "tapUntap", action: "tap", target: { target: 0 } }],
-        },
-    ],
-};
-
 // Ghost Ship — "Flying\n{U}{U}{U}: Regenerate this creature." (CR 702.9 flying;
 // CR 605 activated ability; CR 701.19a regenerate via a shield consumed by the
 // next destroy.)

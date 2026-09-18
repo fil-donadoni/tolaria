@@ -839,7 +839,7 @@ describe("Aura core — attach / fizzle / SBA 704.5m (CR 303.4)", () => {
         // Exercise the "host no longer satisfies enchant" branch by
         // constructing a host that isn't a Creature after attach — easiest
         // way is to hand-attach the aura to a non-creature and run SBA.
-        const tome = makeInstance(jayemdaeTome.id, {
+        const tome = makeInstance("cac8c421-5b92-481d-b2de-560c0231ab58", {
             id: "tome",
             controllerId: "p1",
             ownerId: "p1",
@@ -2290,7 +2290,7 @@ describe("Holy Armor (Aura — +0/+2 + {1}{W}: enchanted creature gets +0/+3 EOT
 
 describe("Northern Paladin ({W}{W}, {T}: destroy target black creature)", () => {
     function setup() {
-        const paladin = makeInstance(northernPaladin.id, {
+        const paladin = makeInstance("6303233b-35eb-49ca-b844-ba6b9fe1cbd2", {
             id: "paladin",
             controllerId: "p1",
             ownerId: "p1",

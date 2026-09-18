@@ -58,12 +58,12 @@ const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 
 describe("Hurkyl's Recall (return all artifacts target player owns to hand, CR 400.7)", () => {
     it("bounces every artifact the target player owns, leaving non-artifacts", () => {
-        const a1 = makeInstance(clayStatue.id, {
+        const a1 = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
             id: "a1",
             controllerId: "p2",
             ownerId: "p2",
         });
-        const a2 = makeInstance(dragonEngine.id, {
+        const a2 = makeInstance("07793a71-1106-4303-b620-e403bd378020", {
             id: "a2",
             controllerId: "p2",
             ownerId: "p2",
@@ -92,12 +92,12 @@ describe("Hurkyl's Recall (return all artifacts target player owns to hand, CR 4
     });
 
     it("only affects the targeted player's artifacts, not the caster's", () => {
-        const mine = makeInstance(clayStatue.id, {
+        const mine = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
             id: "mine",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const theirs = makeInstance(dragonEngine.id, {
+        const theirs = makeInstance("07793a71-1106-4303-b620-e403bd378020", {
             id: "theirs",
             controllerId: "p2",
             ownerId: "p2",
@@ -125,7 +125,7 @@ describe("Hurkyl's Recall (return all artifacts target player owns to hand, CR 4
 
     it("returnToHand routes each card to its OWNER's hand", () => {
         // p2 controls and owns the artifact; it must land in p2's hand.
-        const a1 = makeInstance(clayStatue.id, {
+        const a1 = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
             id: "a1",
             controllerId: "p2",
             ownerId: "p2",
@@ -147,7 +147,7 @@ describe("Hurkyl's Recall (return all artifacts target player owns to hand, CR 4
 
 describe("Reconstruction (return artifact card from your graveyard to hand, CR 400.7)", () => {
     it("moves the targeted artifact card from graveyard to hand", () => {
-        const art = makeInstance(clayStatue.id, {
+        const art = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
             id: "art",
             controllerId: "p1",
             ownerId: "p1",
@@ -167,7 +167,7 @@ describe("Reconstruction (return artifact card from your graveyard to hand, CR 4
     });
 
     it("getLegalTargets offers only artifact cards in the caster's graveyard", () => {
-        const art = makeInstance(clayStatue.id, {
+        const art = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
             id: "art",
             controllerId: "p1",
             ownerId: "p1",
@@ -181,7 +181,7 @@ describe("Reconstruction (return artifact card from your graveyard to hand, CR 4
             zone: "graveyard",
         });
         // An artifact in the OPPONENT's graveyard must NOT be legal (controller: you).
-        const oppArt = makeInstance(dragonEngine.id, {
+        const oppArt = makeInstance("07793a71-1106-4303-b620-e403bd378020", {
             id: "oppArt",
             controllerId: "p2",
             ownerId: "p2",
@@ -205,7 +205,7 @@ describe("Reconstruction (return artifact card from your graveyard to hand, CR 4
     });
 
     it("wire format — the recovered card is in hand after projection", () => {
-        const art = makeInstance(clayStatue.id, {
+        const art = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
             id: "art",
             controllerId: "p1",
             ownerId: "p1",
@@ -227,13 +227,13 @@ describe("Reconstruction (return artifact card from your graveyard to hand, CR 4
 
 describe("Drafna's Restoration (artifact cards from graveyard to top of library, CR 401)", () => {
     it("puts the chosen artifacts on top of the owner's library in the chosen order", () => {
-        const g1 = makeInstance(clayStatue.id, {
+        const g1 = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
             id: "g1",
             controllerId: "p1",
             ownerId: "p1",
             zone: "graveyard",
         });
-        const g2 = makeInstance(dragonEngine.id, {
+        const g2 = makeInstance("07793a71-1106-4303-b620-e403bd378020", {
             id: "g2",
             controllerId: "p1",
             ownerId: "p1",
@@ -280,13 +280,13 @@ describe("Drafna's Restoration (artifact cards from graveyard to top of library,
     });
 
     it("getLegalTargets offers artifact cards from any player's graveyard", () => {
-        const g1 = makeInstance(clayStatue.id, {
+        const g1 = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
             id: "g1",
             controllerId: "p1",
             ownerId: "p1",
             zone: "graveyard",
         });
-        const oppArt = makeInstance(dragonEngine.id, {
+        const oppArt = makeInstance("07793a71-1106-4303-b620-e403bd378020", {
             id: "oppArt",
             controllerId: "p2",
             ownerId: "p2",
@@ -323,13 +323,13 @@ describe("Drafna's Restoration (artifact cards from graveyard to top of library,
     // shuffles afterward, they stay visible through the reorder too (the
     // acceptance criterion this card names specifically).
     it("stamps the moved cards known to both players, and keeps them visible through the reorder since nothing shuffles (#1721)", () => {
-        const g1 = makeInstance(clayStatue.id, {
+        const g1 = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
             id: "g1",
             controllerId: "p1",
             ownerId: "p1",
             zone: "graveyard",
         });
-        const g2 = makeInstance(dragonEngine.id, {
+        const g2 = makeInstance("07793a71-1106-4303-b620-e403bd378020", {
             id: "g2",
             controllerId: "p1",
             ownerId: "p1",
@@ -384,7 +384,10 @@ describe("Drafna's Restoration (artifact cards from graveyard to top of library,
             expect(knownInstanceIds).toEqual(["g1", "g2"]);
             const knownCardIds = lib.known.map((k) => k.card.card.id).sort();
             expect(knownCardIds).toEqual(
-                [dragonEngine.id, clayStatue.id].sort()
+                [
+                    "07793a71-1106-4303-b620-e403bd378020",
+                    "64975352-8d35-4d02-94ac-fa0c6ee12409",
+                ].sort()
             );
             expect(lib.known.map((k) => k.index).sort()).toEqual([0, 1]);
         }
@@ -393,7 +396,9 @@ describe("Drafna's Restoration (artifact cards from graveyard to top of library,
 
 describe("Sage of Lat-Nam (CR 602.1 — {T}, sac artifact: draw)", () => {
     it("draws a card on resolution", () => {
-        const sage = makeInstance(sageOfLatNam.id, { id: "sage-1" });
+        const sage = makeInstance("b4ff60ce-073c-46b8-807c-8b40467b960c", {
+            id: "sage-1",
+        });
         const libCard = makeInstance(ornithopter.id, {
             id: "lib-1",
             zone: "library",
@@ -445,7 +450,9 @@ describe("Power Artifact (enchanted artifact's abilities cost {2} less, min 1 ma
 
     /** Dragon Engine ({2}: +1/+0) enchanted by Power Artifact, on one board. */
     function enchantedDragonEngine(attached = true) {
-        const engine = makeInstance(dragonEngine.id, { id: "engine" });
+        const engine = makeInstance("07793a71-1106-4303-b620-e403bd378020", {
+            id: "engine",
+        });
         const aura = makeInstance(powerArtifact.id, {
             id: "aura",
             ...(attached ? { attachedTo: "engine" } : {}),
@@ -493,7 +500,9 @@ describe("Power Artifact (enchanted artifact's abilities cost {2} less, min 1 ma
     it("scopes the reduction to its own host, not every artifact", () => {
         const { state, aura } = enchantedDragonEngine();
         // A second, unenchanted Dragon Engine on the same board is untouched.
-        const other = makeInstance(dragonEngine.id, { id: "other" });
+        const other = makeInstance("07793a71-1106-4303-b620-e403bd378020", {
+            id: "other",
+        });
         state.players[0].battlefield.push(other);
         expect(aura.attachedTo).toBe("engine");
         expect(

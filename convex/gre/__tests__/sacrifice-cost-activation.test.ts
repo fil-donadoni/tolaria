@@ -35,11 +35,7 @@ import {
     sacrificeCandidates,
 } from "../sacrificeChoice";
 import {
-    atog,
-    orcishMechanics,
-    sageOfLatNam,
     priestOfYawgmoth,
-    dwarvenWeaponsmith,
     gateToPhyrexia,
     ornithopter,
     yotianSoldier,
@@ -221,7 +217,9 @@ function selectActivationCost(
 
 describe("sacrifice-as-cost activation flow (CR 602.1 / 118.5)", () => {
     it("rejects activation when no matching permanent exists", () => {
-        const at = makeInstance(atog.id, { id: "atog-1" });
+        const at = makeInstance("2249fc40-4412-48fd-800a-7ea3678aee3f", {
+            id: "atog-1",
+        });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [at] }),
@@ -235,7 +233,9 @@ describe("sacrifice-as-cost activation flow (CR 602.1 / 118.5)", () => {
     });
 
     it("enters pendingActivation with a sacrifice-choice picker (no tap/no mana)", () => {
-        const at = makeInstance(atog.id, { id: "atog-1" });
+        const at = makeInstance("2249fc40-4412-48fd-800a-7ea3678aee3f", {
+            id: "atog-1",
+        });
         const orn = makeInstance(ornithopter.id, { id: "orn-1" });
         const state = makeState({
             players: [
@@ -263,7 +263,9 @@ describe("sacrifice-as-cost activation flow (CR 602.1 / 118.5)", () => {
     });
 
     it("rejects a pick that doesn't match the filter", () => {
-        const at = makeInstance(atog.id, { id: "atog-1" });
+        const at = makeInstance("2249fc40-4412-48fd-800a-7ea3678aee3f", {
+            id: "atog-1",
+        });
         const orn = makeInstance(ornithopter.id, { id: "orn-1" });
         const lionInst = makeInstance(grizzlyBears.id, { id: "lion-1" });
         const state = makeState({
@@ -280,7 +282,9 @@ describe("sacrifice-as-cost activation flow (CR 602.1 / 118.5)", () => {
     });
 
     it("Atog: picking the artifact sacrifices it and pumps +2/+2", () => {
-        const at = makeInstance(atog.id, { id: "atog-1" });
+        const at = makeInstance("2249fc40-4412-48fd-800a-7ea3678aee3f", {
+            id: "atog-1",
+        });
         const orn = makeInstance(ornithopter.id, { id: "orn-1" });
         const state = makeState({
             players: [
@@ -329,7 +333,9 @@ describe("sacrifice-as-cost activation flow (CR 602.1 / 118.5)", () => {
     });
 
     it("Orcish Mechanics: tap + sacrifice an artifact → 2 damage to target", () => {
-        const mech = makeInstance(orcishMechanics.id, { id: "mech-1" });
+        const mech = makeInstance("5e34fc6b-5f00-4a22-9ee2-afc1caf99961", {
+            id: "mech-1",
+        });
         const orn = makeInstance(ornithopter.id, { id: "orn-1" });
         const state = makeState({
             players: [
@@ -356,7 +362,9 @@ describe("sacrifice-as-cost activation flow (CR 602.1 / 118.5)", () => {
     });
 
     it("Sage of Lat-Nam: tap + sacrifice an artifact → draw", () => {
-        const sage = makeInstance(sageOfLatNam.id, { id: "sage-1" });
+        const sage = makeInstance("b4ff60ce-073c-46b8-807c-8b40467b960c", {
+            id: "sage-1",
+        });
         const orn = makeInstance(ornithopter.id, { id: "orn-1" });
         const lib = makeInstance(grizzlyBears.id, {
             id: "lib-1",
@@ -382,7 +390,9 @@ describe("sacrifice-as-cost activation flow (CR 602.1 / 118.5)", () => {
     });
 
     it("Dwarven Weaponsmith: tap + sacrifice an artifact → +1/+1 counter on target", () => {
-        const smith = makeInstance(dwarvenWeaponsmith.id, { id: "smith-1" });
+        const smith = makeInstance("0848d94a-2704-460f-986b-b192dd6d26b7", {
+            id: "smith-1",
+        });
         const orn = makeInstance(ornithopter.id, { id: "orn-1" });
         const lionInst = makeInstance(grizzlyBears.id, { id: "lion-1" });
         const state = makeState({

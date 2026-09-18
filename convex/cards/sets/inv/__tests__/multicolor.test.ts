@@ -679,7 +679,7 @@ describe("Sleeper's Robe (fear keyword-grant + combat-damage draw, CR 702.14b / 
 
 describe("Stalking Assassin (two tap-cost activated abilities, CR 605 / 701.26 / 701.8)", () => {
     function setup() {
-        const assassin = makeInstance(stalkingAssassin.id, {
+        const assassin = makeInstance("ff8cc71f-3070-497f-908f-35aa13a8a857", {
             id: "assassin",
             controllerId: "p1",
         });
@@ -1052,7 +1052,7 @@ describe("Blazing Specter (CR 702.9b flying + 702.10b haste + combat-damage disc
 
 describe("Firescreamer (CR 613.4c firebreathing pump, issue #1077)", () => {
     it("{R}: gets +1/+0 until end of turn", () => {
-        const creature = makeInstance(firescreamer.id, {
+        const creature = makeInstance("155a2213-bf6e-4a54-924b-e450b7d06f26", {
             id: "fs",
             controllerId: "p1",
         });
@@ -1071,7 +1071,7 @@ describe("Firescreamer (CR 613.4c firebreathing pump, issue #1077)", () => {
 
 describe("Hooded Kavu (CR 702.14b fear temporary grant, issue #1077)", () => {
     it("{B}: gains fear until end of turn", () => {
-        const creature = makeInstance(hoodedKavu.id, {
+        const creature = makeInstance("5464b80a-22fe-42c7-a839-31667712fb2d", {
             id: "hk",
             controllerId: "p1",
         });
@@ -1120,7 +1120,7 @@ describe("Plague Spores (CR 701.8 destroy x2 + 701.19c regen-suppression, issue 
 
 describe("Reckless Assault (CR 602.1/118.5 mana+life activation cost, issue #1077)", () => {
     it("deals 1 damage to any target", () => {
-        const ench = makeInstance(recklessAssault.id, {
+        const ench = makeInstance("ff0f568e-4d3a-40a5-b72a-63040ec5402d", {
             id: "ra",
             controllerId: "p1",
         });
@@ -1236,7 +1236,7 @@ describe("Smoldering Tar (CR 603.6a upkeep target-player drain + 701.21 sacrific
 
 describe("Trench Wurm (CR 605 activated ability, 701.8 destroy nonbasic land, issue #1077)", () => {
     it("{2}{R}, {T}: destroys target nonbasic land", () => {
-        const wurm = makeInstance(trenchWurm.id, {
+        const wurm = makeInstance("1b076f85-d1bf-491a-af9d-f35b8e1bd163", {
             id: "wurm",
             controllerId: "p1",
         });
@@ -1307,7 +1307,7 @@ describe("Vicious Kavu (CR 508.1 attacks trigger + 613.4c pump, issue #1077)", (
 
 describe("Artifact Mutation (CR 701.8 destroy + 111 token creation scaled by mana value, issue #1078)", () => {
     it("destroys the target artifact (can't be regenerated) and creates Saprolings equal to its mana value", () => {
-        const artifact = makeInstance(icyManipulator.id, {
+        const artifact = makeInstance("29dc1596-a2e7-4d60-9f99-89babaef8a06", {
             id: "art",
             controllerId: "p2",
             ownerId: "p2",
@@ -1469,7 +1469,7 @@ describe("Hunting Kavu (CR 602.1 tap ability, CR 508.1/509.1 attacking-without-f
 
 describe("Meteor Storm (CR 118.3/701.8 random-discard activation cost + 120.1 damage, issue #1078)", () => {
     it("deals 4 damage to any target", () => {
-        const ench = makeInstance(meteorStorm.id, {
+        const ench = makeInstance("36489b24-f8a8-46b6-b879-0a5ce400a6dc", {
             id: "ms",
             controllerId: "p1",
         });
@@ -1609,7 +1609,7 @@ describe("Yavimaya Kavu (CR 604.3 characteristic-defining P/T, global battlefiel
         });
         // Red creature (controlled by p1, counts toward power). Yavimaya
         // Kavu is itself R+G, so it self-counts on both sides too (below).
-        const red = makeInstance(hoodedKavu.id, {
+        const red = makeInstance("5464b80a-22fe-42c7-a839-31667712fb2d", {
             id: "red-creature",
             controllerId: "p1",
             ownerId: "p1",
@@ -1720,7 +1720,7 @@ describe("Savage Offensive (CR 702.33 Kicker + 611/613 temporary keyword grant +
 
 describe("Viashino Grappler (CR 613.4c temporary trample grant, issue #1078)", () => {
     it("{G}: gains trample until end of turn", () => {
-        const creature = makeInstance(viashinoGrappler.id, {
+        const creature = makeInstance("4a94aeb4-349c-4394-848d-c1c9133856e2", {
             id: "vg",
             controllerId: "p1",
         });
@@ -1865,11 +1865,14 @@ describe("Aura Shards (CR 603.6a creature-you-control ETB + resolve() may-destro
             controllerId: "p1",
             ownerId: "p1",
         });
-        const oppArtifact = makeInstance(icyManipulator.id, {
-            id: "opp-artifact",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const oppArtifact = makeInstance(
+            "29dc1596-a2e7-4d60-9f99-89babaef8a06",
+            {
+                id: "opp-artifact",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [shards] }),
@@ -1899,11 +1902,14 @@ describe("Aura Shards (CR 603.6a creature-you-control ETB + resolve() may-destro
             controllerId: "p1",
             ownerId: "p1",
         });
-        const oppArtifact = makeInstance(icyManipulator.id, {
-            id: "opp-artifact",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
+        const oppArtifact = makeInstance(
+            "29dc1596-a2e7-4d60-9f99-89babaef8a06",
+            {
+                id: "opp-artifact",
+                controllerId: "p2",
+                ownerId: "p2",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [shards] }),
@@ -2031,7 +2037,7 @@ describe("Horned Cheetah (CR 120.3/603.2 resolve() damage-dealt lifegain, GW iss
 
 describe("Noble Panther (CR 611.2a temporary first strike grant, GW issue #1079)", () => {
     it("{1}: gains first strike until end of turn", () => {
-        const panther = makeInstance(noblePanther.id, {
+        const panther = makeInstance("3f327818-8222-4295-8cef-118757b34d17", {
             id: "np",
             controllerId: "p1",
         });
@@ -2223,10 +2229,13 @@ describe("Treva, the Renewer (CR 702.9b flying + 510.4/603.2 combat-damage trigg
 
 describe("Stormscape Apprentice (CR 602.1 tap-cost activated abilities, issue #1080)", () => {
     it("{W}, {T}: taps target creature; {B}, {T}: target player loses 1 life", () => {
-        const apprentice = makeInstance(stormscapeApprentice.id, {
-            id: "sa",
-            controllerId: "p1",
-        });
+        const apprentice = makeInstance(
+            "1eb42f39-9187-44e4-aa34-14ab31977199",
+            {
+                id: "sa",
+                controllerId: "p1",
+            }
+        );
         const foe = makeInstance(grizzlyBears.id, {
             id: "foe",
             controllerId: "p2",
@@ -2348,10 +2357,13 @@ describe("Nightscape Master (CR 400.7 bounce + 120.1 damage, issue #1080)", () =
 
 describe("Thunderscape Apprentice (CR 119.3 life loss + 613.4c temporary pump, issue #1080)", () => {
     it("{B}, {T}: target player loses 1 life", () => {
-        const apprentice = makeInstance(thunderscapeApprentice.id, {
-            id: "ta",
-            controllerId: "p1",
-        });
+        const apprentice = makeInstance(
+            "75a0b075-5414-48d3-a2b1-47dc20213e96",
+            {
+                id: "ta",
+                controllerId: "p1",
+            }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [apprentice] }),
@@ -2365,10 +2377,13 @@ describe("Thunderscape Apprentice (CR 119.3 life loss + 613.4c temporary pump, i
     });
 
     it("{G}, {T}: target creature gets +1/+1 until end of turn", () => {
-        const apprentice = makeInstance(thunderscapeApprentice.id, {
-            id: "ta",
-            controllerId: "p1",
-        });
+        const apprentice = makeInstance(
+            "75a0b075-5414-48d3-a2b1-47dc20213e96",
+            {
+                id: "ta",
+                controllerId: "p1",
+            }
+        );
         const bear = makeInstance(grizzlyBears.id, {
             id: "bear",
             controllerId: "p1",

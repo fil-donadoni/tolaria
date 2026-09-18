@@ -304,7 +304,7 @@ describe("ICE Blue tranche registry parity", () => {
 
 describe("Adarkar Sentinel ({1}: +0/+1 self-pump, CR 605 / 613)", () => {
     function setup() {
-        const sentinel = makeInstance(adarkarSentinel.id, {
+        const sentinel = makeInstance("ff62754b-f4f0-4731-8dd7-327a820f60a8", {
             id: "sentinel",
             controllerId: "p1",
             ownerId: "p1",
@@ -431,7 +431,7 @@ describe("Despotic Scepter ({T}: destroy a permanent you own, CR 605 / 701.8)", 
 
 describe("Fyndhorn Bow ({3},{T}: grant first strike, CR 605 / 702.7)", () => {
     it("grants first strike to the target until end of turn", () => {
-        const bow = makeInstance(fyndhornBow.id, {
+        const bow = makeInstance("65dd0a41-cc51-4728-b597-fdb2510accd8", {
             id: "bow",
             controllerId: "p1",
             ownerId: "p1",
@@ -533,7 +533,7 @@ describe("Jester's Cap ({2},{T},Sac: strip 3 from a library, CR 701.23 search)",
 
 describe("Pit Trap ({2},{T},Sac: destroy an attacker, CR 605 / 508.1)", () => {
     it("destroys the targeted attacker", () => {
-        const trap = makeInstance(pitTrap.id, {
+        const trap = makeInstance("c588fe7f-945d-4459-904c-67442f88b4e1", {
             id: "trap",
             controllerId: "p1",
             ownerId: "p1",
@@ -578,7 +578,7 @@ describe("Shield of the Ages ({2}: prevent 1 to you, CR 605 / 615.1)", () => {
 
 describe("Skull Catapult ({1},{T},Sac a creature: 2 dmg, CR 605 / 120.1)", () => {
     it("deals 2 damage to a targeted player", () => {
-        const cat = makeInstance(skullCatapult.id, {
+        const cat = makeInstance("eb92a3e6-dc30-4a08-baba-e125290cadc5", {
             id: "cat",
             controllerId: "p1",
             ownerId: "p1",
@@ -667,7 +667,7 @@ describe("Vibrating Sphere (turn-conditional anthem, CR 611.2c / 613)", () => {
 
 describe("War Chariot ({3},{T}: grant trample, CR 605 / 702.19)", () => {
     it("grants trample to the target until end of turn", () => {
-        const chariot = makeInstance(warChariot.id, {
+        const chariot = makeInstance("d0ea0c6c-aa76-4b16-bc99-2ff46dc56d4e", {
             id: "chariot",
             controllerId: "p1",
             ownerId: "p1",
@@ -692,7 +692,7 @@ describe("War Chariot ({3},{T}: grant trample, CR 605 / 702.19)", () => {
 
 describe("Whalebone Glider ({2},{T}: grant flying to power<=3, CR 605 / 702.9)", () => {
     it("grants flying to the target until end of turn", () => {
-        const glider = makeInstance(whaleboneGlider.id, {
+        const glider = makeInstance("4b75adf0-9501-4776-a213-456c2b821070", {
             id: "glider",
             controllerId: "p1",
             ownerId: "p1",
@@ -717,7 +717,7 @@ describe("Whalebone Glider ({2},{T}: grant flying to power<=3, CR 605 / 702.9)",
 
 describe("Zuran Orb (Sac a land: gain 2 life, CR 605 / 119.3)", () => {
     it("gains the controller 2 life", () => {
-        const orb = makeInstance(zuranOrb.id, {
+        const orb = makeInstance("3a9d1082-a862-45d4-9e5e-392e879fead6", {
             id: "orb",
             controllerId: "p1",
             ownerId: "p1",
@@ -1097,7 +1097,7 @@ describe("Talisman cycle (SPELL_CAST may-pay untap, CR 603.2 / 615 / 701.20b)", 
 
 describe("Baton of Morale ({2}: grant banding, CR 702.22 / 611 layer 6)", () => {
     it("grants banding until end of turn (wire format survives projection)", () => {
-        const baton = makeInstance(batonOfMorale.id, {
+        const baton = makeInstance("8bc29872-b1a2-4851-9eca-f3e67ae6e14c", {
             id: "baton",
             controllerId: "p1",
             ownerId: "p1",

@@ -27,7 +27,7 @@
 import { describe, expect, it } from "vitest";
 import { enumerateMoves } from "../moves";
 import { buildActivatedAbilityStackItem } from "../activationCommit";
-import { icyManipulator, island } from "../../cards/sets/lea/colorless";
+import { island } from "../../cards/sets/lea/colorless";
 import { forest } from "../../cards/sets/lea/colorless";
 import { teferisResponse } from "../../cards/sets/inv/blue";
 import { grizzlyBears } from "../../cards/sets/lea/green";
@@ -83,7 +83,7 @@ function board(opts: { abilityTarget: "myLand" | "myBear" | "theirLand" }): {
             makePlayer("p2", {
                 life: 20,
                 battlefield: [
-                    makeInstance(icyManipulator.id, {
+                    makeInstance("29dc1596-a2e7-4d60-9f99-89babaef8a06", {
                         id: "icy",
                         controllerId: "p2",
                         ownerId: "p2",

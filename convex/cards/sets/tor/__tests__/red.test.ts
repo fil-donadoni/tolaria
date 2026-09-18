@@ -104,7 +104,7 @@ function setup(overrides?: {
     ownGraveyard?: CardInstanceState[];
     oppGraveyard?: CardInstanceState[];
 }) {
-    const lavamancer = makeInstance(grimLavamancer.id, {
+    const lavamancer = makeInstance("5dd72697-24be-42c7-a6d9-a837bdbd4662", {
         id: "lava",
         controllerId: "p1",
         ownerId: "p1",

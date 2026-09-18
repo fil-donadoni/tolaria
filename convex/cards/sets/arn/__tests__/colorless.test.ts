@@ -84,7 +84,9 @@ describe("ARN keyword creatures (CR 702 — staticAbilities)", () => {
 
 describe("Jandor's Saddlebags ({3},{T}: untap target creature)", () => {
     it("untaps a tapped creature", () => {
-        const bags = makeInstance(jandorsSaddlebags.id, { id: "bags" });
+        const bags = makeInstance("bc4f4b92-7d4e-4b03-8cb4-e6b356c338b4", {
+            id: "bags",
+        });
         const tapped = makeInstance(grizzlyBears.id, {
             id: "bear",
             isTapped: true,
@@ -106,7 +108,9 @@ describe("Jandor's Saddlebags ({3},{T}: untap target creature)", () => {
 
 describe("Flying Carpet ({2},{T}: target creature gains flying EOT)", () => {
     it("grants flying to the target", () => {
-        const carpet = makeInstance(flyingCarpet.id, { id: "carpet" });
+        const carpet = makeInstance("4b71ff49-ee0a-4065-9131-380468d62a30", {
+            id: "carpet",
+        });
         const bear = makeInstance(grizzlyBears.id, { id: "bear" });
         const state = makeState({
             players: [
@@ -127,7 +131,9 @@ describe("Flying Carpet ({2},{T}: target creature gains flying EOT)", () => {
 
 describe("Aladdin's Ring ({8},{T}: 4 damage to any target)", () => {
     it("deals 4 damage to a player", () => {
-        const ring = makeInstance(aladdinsRing.id, { id: "ring" });
+        const ring = makeInstance("bb2b74a2-cb74-4b54-b9c6-78c63f14cf5b", {
+            id: "ring",
+        });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [ring] }),
@@ -357,7 +363,9 @@ describe("Oasis ({T}: prevent next 1 damage to target creature, CR 615.1)", () =
     it("prevents the next 1 damage dealt to the target creature", () => {
         const oasisLand = makeInstance(oasis.id, { id: "oasis" });
         const bear = makeInstance(grizzlyBears.id, { id: "bear" });
-        const tim = makeInstance(prodigalSorcerer.id, { id: "tim" });
+        const tim = makeInstance("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a", {
+            id: "tim",
+        });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [oasisLand, bear, tim] }),

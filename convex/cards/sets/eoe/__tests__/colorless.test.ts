@@ -217,7 +217,7 @@ describe("Tezzeret, Cruel Captain — 0: untap, then the artifact-creature rider
     });
 
     it("a NON-CREATURE artifact is untapped and gets NO counter", () => {
-        const state = boardWith(icyManipulator.id, "icy");
+        const state = boardWith("29dc1596-a2e7-4d60-9f99-89babaef8a06", "icy");
         activate(state, ZERO, [{ type: "permanent", id: "icy" }]);
         expect(
             state.players[0].battlefield.find((c) => c.id === "icy")!.isTapped
@@ -246,7 +246,7 @@ describe("Tezzeret, Cruel Captain — −3 tutor (CR 202.3 / 701.23e)", () => {
                             zone: "library",
                         }),
                         // mv 4 — over the ceiling.
-                        makeInstance(icyManipulator.id, {
+                        makeInstance("29dc1596-a2e7-4d60-9f99-89babaef8a06", {
                             id: "libIcy",
                             controllerId: "p1",
                             ownerId: "p1",
@@ -327,7 +327,10 @@ describe("Tezzeret, Cruel Captain — −7 emblem (phase-triggered emblem, CR 11
         }) as GameEvent;
 
     it("a NON-CREATURE artifact becomes a 0/0 Robot artifact creature that is a 3/3 on the wire", () => {
-        const state = withEmblem({ cardId: icyManipulator.id, id: "icy" });
+        const state = withEmblem({
+            cardId: "29dc1596-a2e7-4d60-9f99-89babaef8a06",
+            id: "icy",
+        });
         const triggers = collectTriggers(state, [combatBegin("p1")]);
         expect(triggers.map((t) => t.triggeredAbilityId)).toEqual([
             EMBLEM_TRIGGER,
@@ -383,7 +386,10 @@ describe("Tezzeret, Cruel Captain — −7 emblem (phase-triggered emblem, CR 11
     });
 
     it("does not fire on the OPPONENT's beginning of combat (CR 114.3 owner-scoped 'your turn')", () => {
-        const state = withEmblem({ cardId: icyManipulator.id, id: "icy" });
+        const state = withEmblem({
+            cardId: "29dc1596-a2e7-4d60-9f99-89babaef8a06",
+            id: "icy",
+        });
         expect(collectTriggers(state, [combatBegin("p2")])).toHaveLength(0);
     });
 

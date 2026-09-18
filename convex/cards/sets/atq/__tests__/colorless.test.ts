@@ -339,7 +339,9 @@ describe("Wall of Spears (defender + first strike, CR 702.3 / 702.7)", () => {
 
 describe("Dragon Engine ({2}: +1/+0 EOT, CR 611.1)", () => {
     it("pumps itself +1/+0 until end of turn", () => {
-        const engine = makeInstance(dragonEngine.id, { id: "engine" });
+        const engine = makeInstance("07793a71-1106-4303-b620-e403bd378020", {
+            id: "engine",
+        });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [engine] }),
@@ -358,7 +360,9 @@ describe("Dragon Engine ({2}: +1/+0 EOT, CR 611.1)", () => {
     });
 
     it("the +1/+0 buff survives projection (wire format)", () => {
-        const engine = makeInstance(dragonEngine.id, { id: "engine" });
+        const engine = makeInstance("07793a71-1106-4303-b620-e403bd378020", {
+            id: "engine",
+        });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [engine] }),
@@ -384,7 +388,9 @@ describe("Dragon Engine ({2}: +1/+0 EOT, CR 611.1)", () => {
 
 describe("Clay Statue ({2}: regenerate, CR 701.19)", () => {
     it("stacks a regeneration shield on itself", () => {
-        const statue = makeInstance(clayStatue.id, { id: "statue" });
+        const statue = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
+            id: "statue",
+        });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [statue] }),
@@ -407,7 +413,9 @@ describe("Clay Statue ({2}: regenerate, CR 701.19)", () => {
 
 describe("Grapeshot Catapult ({T}: 1 dmg to flyer, CR 120.3 / 702.9)", () => {
     it("only a creature with flying is a legal target", () => {
-        const cat = makeInstance(grapeshotCatapult.id, { id: "cat" });
+        const cat = makeInstance("4c7a7348-c82e-453c-975c-e5365e152a3a", {
+            id: "cat",
+        });
         const flyer = makeInstance(ornithopter.id, {
             id: "flyer",
             controllerId: "p2",
@@ -430,7 +438,9 @@ describe("Grapeshot Catapult ({T}: 1 dmg to flyer, CR 120.3 / 702.9)", () => {
     });
 
     it("deals 1 damage to a 0/2 flyer (does not kill it)", () => {
-        const cat = makeInstance(grapeshotCatapult.id, { id: "cat" });
+        const cat = makeInstance("4c7a7348-c82e-453c-975c-e5365e152a3a", {
+            id: "cat",
+        });
         const flyer = makeInstance(ornithopter.id, {
             id: "flyer",
             controllerId: "p2",
@@ -546,12 +556,12 @@ describe("Strip Mine ({T}: add C; sac: destroy target land, CR 701.8)", () => {
 describe("Obelisk of Undoing ({6},{T}: return your permanent, CR 400.7)", () => {
     it("only the activator's own permanents are legal targets", () => {
         const obelisk = makeInstance(obeliskOfUndoing.id, { id: "obelisk" });
-        const mine = makeInstance(clayStatue.id, {
+        const mine = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
             id: "mine",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const theirs = makeInstance(clayStatue.id, {
+        const theirs = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
             id: "theirs",
             controllerId: "p2",
             ownerId: "p2",
@@ -599,7 +609,7 @@ describe("Obelisk of Undoing ({6},{T}: return your permanent, CR 400.7)", () => 
 
     it("returns a target permanent to its owner's hand", () => {
         const obelisk = makeInstance(obeliskOfUndoing.id, { id: "obelisk" });
-        const target = makeInstance(clayStatue.id, {
+        const target = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
             id: "target",
             controllerId: "p1",
             ownerId: "p1",
@@ -643,13 +653,13 @@ describe("Feldon's Cane ({T}, Exile this artifact: shuffle graveyard into librar
      *  library, p1 holding priority in their own main phase — the shape
      *  `activateAbilityOnState` (the real mutation body) requires. */
     function caneBoard(): GameState {
-        const g1 = makeInstance(clayStatue.id, {
+        const g1 = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
             id: "g1",
             controllerId: "p1",
             ownerId: "p1",
             zone: "graveyard",
         });
-        const g2 = makeInstance(dragonEngine.id, {
+        const g2 = makeInstance("07793a71-1106-4303-b620-e403bd378020", {
             id: "g2",
             controllerId: "p1",
             ownerId: "p1",
@@ -763,13 +773,13 @@ describe("Millstone ({2},{T}: target player mills two, CR 701.17a)", () => {
             ownerId: "p2",
             zone: "library",
         });
-        const c2 = makeInstance(dragonEngine.id, {
+        const c2 = makeInstance("07793a71-1106-4303-b620-e403bd378020", {
             id: "c2",
             controllerId: "p2",
             ownerId: "p2",
             zone: "library",
         });
-        const c3 = makeInstance(clayStatue.id, {
+        const c3 = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
             id: "c3",
             controllerId: "p2",
             ownerId: "p2",
@@ -831,7 +841,7 @@ describe("Jalum Tome ({2},{T}: draw then discard, CR 121.1 / 701.8)", () => {
             ownerId: "p1",
             zone: "library",
         });
-        const inHand = makeInstance(dragonEngine.id, {
+        const inHand = makeInstance("07793a71-1106-4303-b620-e403bd378020", {
             id: "inHand",
             controllerId: "p1",
             ownerId: "p1",
@@ -1539,7 +1549,9 @@ describe("Weakstone (attacking creatures get -1/-0, CR 611)", () => {
 // Staff of Zegon (CR 611.1 temporary -2/-0)
 describe("Staff of Zegon ({3},{T}: target -2/-0 EOT, CR 611.1)", () => {
     it("applies a -2/-0 temporary buff to the chosen creature", () => {
-        const staff = makeInstance(staffOfZegon.id, { id: "staff" });
+        const staff = makeInstance("a6bf858d-bba9-4a16-9045-55384b1de633", {
+            id: "staff",
+        });
         const bear = vanilla("bear", 3, 3, { controllerId: "p1" });
         const state = makeState({
             players: [makePlayer("p1", { battlefield: [staff, bear] })],
@@ -3458,7 +3470,7 @@ describe("Urza's Miter (non-sacrifice artifact to graveyard → may pay {3} draw
 // Coral Helm (CR 118.3 random-discard cost; +2/+2 EOT)
 describe("Coral Helm ({3}, discard at random: target +2/+2 EOT)", () => {
     it("pumps the target +2/+2 until end of turn", () => {
-        const helm = makeInstance(coralHelm.id, {
+        const helm = makeInstance("6c6df9db-0a46-40a5-ae9d-59f47dae9056", {
             id: "helm",
             controllerId: "p1",
             ownerId: "p1",

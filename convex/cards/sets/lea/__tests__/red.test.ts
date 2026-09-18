@@ -517,7 +517,7 @@ describe("Burrowing (Aura — host has mountainwalk, CR 702.14c)", () => {
 
 describe("Goblin Balloon Brigade ({R}: gain flying until end of turn)", () => {
     function setup() {
-        const bb = makeInstance(goblinBalloonBrigade.id, {
+        const bb = makeInstance("5129b422-7a35-4bc5-b14b-c814012a0d8f", {
             id: "bb",
             controllerId: "p1",
             ownerId: "p1",
@@ -751,7 +751,7 @@ describe("Shatter / Stone Rain / Tunnel (destroy-target shorthand)", () => {
 
 describe("Uthden Troll ({R}: regenerate self)", () => {
     it("activating regen shields self", () => {
-        const troll = makeInstance(uthdenTroll.id, {
+        const troll = makeInstance("2ff21a6f-83a7-4bf3-a078-294e303232cc", {
             id: "troll",
             controllerId: "p1",
             ownerId: "p1",
@@ -1804,7 +1804,7 @@ describe("Sedge Troll (conditional +1/+1 if Swamp + {B}: regen, CR 611/701.19a)"
 
 describe("Dwarven Demolition Team ({T}: destroy target Wall)", () => {
     it("destroys a target Wall on resolution", () => {
-        const ddt = makeInstance(dwarvenDemolitionTeam.id, {
+        const ddt = makeInstance("03482c9c-1f25-4d73-9243-17462ea37ac4", {
             id: "ddt",
             controllerId: "p1",
             ownerId: "p1",

@@ -365,7 +365,7 @@ describe("Jokulhaups (CR 701.8 mass destruction)", () => {
 describe("Pyroblast (CR 700.2 modal, blue-gated)", () => {
     it("destroy mode destroys a blue permanent", () => {
         // Sea Spirit is a registered blue creature → colours derive correctly.
-        const bluePerm = makeInstance(seaSpirit.id, {
+        const bluePerm = makeInstance("f2d93d05-98bc-4504-9045-dedb925895ae", {
             id: "blue",
             controllerId: "p2",
             ownerId: "p2",
@@ -408,7 +408,7 @@ describe("Conquer (CR 613.1b control-change on land)", () => {
 
 describe("Flame Spirit firebreathing (CR 611.1)", () => {
     it("+1/+0 until end of turn pumps power, survives projection", () => {
-        const spirit = makeInstance(flameSpirit.id, {
+        const spirit = makeInstance("add2b82a-9aa5-4d5c-a1c2-e313541f12c8", {
             id: "spirit",
             controllerId: "p1",
             ownerId: "p1",

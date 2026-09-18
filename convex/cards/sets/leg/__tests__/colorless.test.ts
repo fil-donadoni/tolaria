@@ -482,7 +482,9 @@ describe("Planar Gate (creature spells you cast cost {2} less, CR 601.2f)", () =
 
 describe("Relic Barrier ({T}: Tap target artifact, CR 701.26)", () => {
     it("taps the target artifact", () => {
-        const barrier = makeInstance(relicBarrier.id, { id: "barrier" });
+        const barrier = makeInstance("c062cbae-ce5e-43be-9932-c81a0a3622e8", {
+            id: "barrier",
+        });
         const otherArtifact = makeInstance(manaMatrix.id, { id: "other" });
         const state = makeState({
             players: [

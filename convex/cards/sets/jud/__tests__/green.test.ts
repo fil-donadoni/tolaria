@@ -37,11 +37,14 @@ function resolveActivated(
 // wiring, see ulg/white.ts-style precedent noted in jud/green.ts).
 describe("Sylvan Safekeeper (CR 118.5 sacrifice-a-land cost; CR 702.18 shroud grant)", () => {
     function setup() {
-        const safekeeper = makeInstance(sylvanSafekeeper.id, {
-            id: "safekeeper",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
+        const safekeeper = makeInstance(
+            "f1b8413f-c9fc-4cea-b416-a1fcf651b009",
+            {
+                id: "safekeeper",
+                controllerId: "p1",
+                ownerId: "p1",
+            }
+        );
         const land = makeInstance(forest.id, {
             id: "land",
             controllerId: "p1",

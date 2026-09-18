@@ -40,7 +40,7 @@ function resolveActivated(
 }
 
 const tog = () =>
-    makeInstance(psychatog.id, {
+    makeInstance("6757bf0e-489f-4be2-9e41-463b59f00dd1", {
         id: "tog",
         controllerId: "p1",
         ownerId: "p1",

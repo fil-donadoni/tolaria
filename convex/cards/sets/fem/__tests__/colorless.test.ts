@@ -457,7 +457,7 @@ describe("FEM C6 sacrifice / tap-effect artifacts (reuse-only)", () => {
     });
 
     it("Elven Lyre gives +2/+2 until end of turn (CR 611.2c)", () => {
-        const lyre = makeInstance(elvenLyre.id, {
+        const lyre = makeInstance("c3a8cd72-04c0-46f7-a249-f1cecddfdc26", {
             id: "lyre",
             controllerId: "p1",
         });
@@ -482,7 +482,7 @@ describe("FEM C6 sacrifice / tap-effect artifacts (reuse-only)", () => {
     });
 
     it("Draconian Cylix applies a regeneration shield to target creature (CR 701.19)", () => {
-        const cylix = makeInstance(draconianCylix.id, {
+        const cylix = makeInstance("a419c9e3-5615-44f9-9256-94a3022bb69f", {
             id: "cylix",
             controllerId: "p1",
         });

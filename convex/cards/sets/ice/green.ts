@@ -462,40 +462,6 @@ export const fanaticalFever: CardDefinition = {
         },
     ],
 };
-// Folk of the Pines — {4}{G} 2/5 Dryad. "{1}{G}: This creature gets +1/+0 until
-// end of turn." (CR 605 activated ability; CR 514.2 cleanup expiry — the
-// firebreathing self-pump, the Shambling Strider shape without the toughness
-// downside.)
-export const folkOfThePines: CardDefinition = {
-    id: "0c13311d-db83-483f-ba2b-4f54ceb8b026",
-    name: "Folk of the Pines",
-    rarity: "common",
-    oracleText: "{1}{G}: This creature gets +1/+0 until end of turn.",
-    manaCost: { X: 4, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Dryad"],
-    power: 2,
-    toughness: 5,
-    activatedAbilities: [
-        {
-            id: "folk-of-the-pines-pump",
-            oracleText: "{1}{G}: This creature gets +1/+0 until end of turn.",
-            cost: { mana: { X: 1, G: 1 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+0 EOT
-            // on this creature (CR 611.2a) via the pump Op.
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 1,
-                    toughness: 0,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-};
 // Forbidden Lore — Aura on any land granting it "{T}: Target creature gets +2/+1
 // until end of turn." (CR 611 activated-grant; CR 514.2 expiry.) The Hot Springs
 // / Earthlore shape; "Enchant land" with no controller clause, so it may sit on
@@ -859,33 +825,6 @@ export const freyalisesWinds: CardDefinition = {
 // predicate the engine lacks); Thermokarst's snow-land lifegain is a no-op.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Fyndhorn Brownie — "{2}{G}, {T}: Untap target creature." (CR 605 activated
-// ability; CR 701.26a untap. The Twiddle-on-a-stick untap, scoped to creatures.)
-export const fyndhornBrownie: CardDefinition = {
-    id: "06204e82-9dfd-4334-a23a-f8240fc37772",
-    name: "Fyndhorn Brownie",
-    rarity: "common",
-    oracleText: "{2}{G}, {T}: Untap target creature.",
-    manaCost: { X: 2, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Ouphe"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "fyndhorn-brownie-untap",
-            oracleText: "{2}{G}, {T}: Untap target creature.",
-            cost: { mana: { X: 2, G: 1 }, tap: true },
-            useStack: true,
-            targetRequirement: { type: "Creature", count: 1 },
-            // Migrated resolve()→effects[] (ADR 0045, #842): untap the announced
-            // creature target (CR 701.26b).
-            effects: [
-                { op: "tapUntap", action: "untap", target: { target: 0 } },
-            ],
-        },
-    ],
-};
 // Fyndhorn Elder — "{T}: Add {G}{G}." Mana dork (CR 605.1a mana ability,
 // resolves immediately). The Llanowar Elves shape producing two green.
 export const fyndhornElder: CardDefinition = {
@@ -1104,33 +1043,6 @@ export const johtullWurm: CardDefinition = {
         },
     ],
 };
-// Juniper Order Druid — "{T}: Untap target land." (CR 605 activated ability;
-// CR 701.26a untap, scoped to lands.)
-export const juniperOrderDruid: CardDefinition = {
-    id: "cb211704-ff8e-498b-b7bb-f8384f198ffd",
-    name: "Juniper Order Druid",
-    rarity: "common",
-    oracleText: "{T}: Untap target land.",
-    manaCost: { X: 2, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Cleric", "Druid"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "juniper-order-druid-untap",
-            oracleText: "{T}: Untap target land.",
-            cost: { tap: true },
-            useStack: true,
-            targetRequirement: { type: "Land", count: 1 },
-            // Migrated resolve()→effects[] (ADR 0045, #842): untap the announced
-            // land target (CR 701.26b).
-            effects: [
-                { op: "tapUntap", action: "untap", target: { target: 0 } },
-            ],
-        },
-    ],
-};
 // Lhurgoyf — its power equals the number of creature cards in all graveyards and
 // its toughness is that number plus 1 (CR 604.3 / 613.4c CDA P/T, layer 7a). A
 // `pt-cda` whose `compute` counts `Creature`-typed cards across every player's
@@ -1312,39 +1224,6 @@ export const scaledWurm: CardDefinition = {
     subtypes: ["Wurm"],
     power: 7,
     toughness: 6,
-};
-// Shambling Strider — "{R}{G}: This creature gets +1/-1 until end of turn."
-// (CR 605 activated ability; CR 514.2 cleanup expiry — a firebreathing-style
-// self-pump trading toughness for power.)
-export const shamblingStrider: CardDefinition = {
-    id: "8886ba2d-b25a-4b74-9299-911c509ae864",
-    name: "Shambling Strider",
-    rarity: "common",
-    oracleText: "{R}{G}: This creature gets +1/-1 until end of turn.",
-    manaCost: { X: 4, G: 2 },
-    types: ["Creature"],
-    subtypes: ["Yeti"],
-    power: 5,
-    toughness: 5,
-    activatedAbilities: [
-        {
-            id: "shambling-strider-pump",
-            oracleText: "{R}{G}: This creature gets +1/-1 until end of turn.",
-            cost: { mana: { R: 1, G: 1 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/-1 EOT
-            // on this creature (CR 611.2a) via the pump Op.
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 1,
-                    toughness: -1,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
 };
 // Snowblind — Aura: enchanted creature gets -X/-Y (CR 613 layer 7c, a `pt-cda`
 // since X/Y are characteristic-defined by board state — CR 604.3). X = number

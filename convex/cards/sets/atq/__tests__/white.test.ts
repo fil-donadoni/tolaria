@@ -52,7 +52,7 @@ const hillGiant = getDefinition("0ddb98e8-13fe-4786-83f7-b72c56db135a");
 
 describe("Argivian Archaeologist ({W}{W},{T}: return artifact from graveyard, CR 605 / 400.7)", () => {
     it("returns the targeted artifact card to the controller's hand", () => {
-        const art = makeInstance(clayStatue.id, {
+        const art = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
             id: "art",
             controllerId: "p1",
             ownerId: "p1",
@@ -206,7 +206,7 @@ describe("Artifact Ward (Aura: block restriction + prevention + targeting guard,
 
     it("prevents damage to enchanted creature from artifact sources", () => {
         const { host, ward } = setup();
-        const catapult = makeInstance(grapeshotCatapult.id, {
+        const catapult = makeInstance("4c7a7348-c82e-453c-975c-e5365e152a3a", {
             id: "catapult",
             controllerId: "p2",
             ownerId: "p2",
@@ -324,7 +324,7 @@ describe("Artifact Ward (Aura: block restriction + prevention + targeting guard,
     it("wire format — prevention survives projectPublicState", () => {
         const { host, ward } = setup();
         host.isAttacking = false;
-        const catapult = makeInstance(grapeshotCatapult.id, {
+        const catapult = makeInstance("4c7a7348-c82e-453c-975c-e5365e152a3a", {
             id: "catapult",
             controllerId: "p2",
             ownerId: "p2",
@@ -355,7 +355,7 @@ describe("Martyrs of Korlis (redirect artifact damage to self while untapped, CR
             controllerId: "p1",
             ownerId: "p1",
         });
-        const catapult = makeInstance(grapeshotCatapult.id, {
+        const catapult = makeInstance("4c7a7348-c82e-453c-975c-e5365e152a3a", {
             id: "catapult",
             controllerId: "p2",
             ownerId: "p2",
@@ -384,7 +384,7 @@ describe("Martyrs of Korlis (redirect artifact damage to self while untapped, CR
             ownerId: "p1",
             isTapped: true,
         });
-        const catapult = makeInstance(grapeshotCatapult.id, {
+        const catapult = makeInstance("4c7a7348-c82e-453c-975c-e5365e152a3a", {
             id: "catapult",
             controllerId: "p2",
             ownerId: "p2",

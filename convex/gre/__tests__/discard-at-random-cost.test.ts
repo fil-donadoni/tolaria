@@ -22,7 +22,6 @@ import {
     type StackItem,
 } from "../state";
 import { getDefinition } from "../../cards";
-import { coralHelm } from "../../cards/sets/atq";
 import { grizzlyBears } from "../../cards/sets/lea";
 import {
     makeInstance,
@@ -77,7 +76,7 @@ function activateCoralHelm(
 
 describe("Coral Helm random-discard cost (CR 118.3 / 701.8, #292)", () => {
     const setup = (handSize: number) => {
-        const helm = makeInstance(coralHelm.id, {
+        const helm = makeInstance("6c6df9db-0a46-40a5-ae9d-59f47dae9056", {
             id: "helm",
             controllerId: "p1",
             ownerId: "p1",

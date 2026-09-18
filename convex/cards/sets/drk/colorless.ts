@@ -91,30 +91,6 @@ export const boneFlute: CardDefinition = {
     ],
 };
 
-// Book of Rass — "{2}, Pay 2 life: Draw a card." (CR 605 activated ability;
-// CR 119.4 life payment as part of the cost; CR 121.1 draw. Same shape as
-// Greed.)
-export const bookOfRass: CardDefinition = {
-    id: "5a391ada-e9e3-45db-ae84-17421ac6b44d",
-    rarity: "uncommon",
-    name: "Book of Rass",
-    oracleText: "{2}, Pay 2 life: Draw a card.",
-    manaCost: { X: 6 },
-    types: ["Artifact"],
-    subtypes: ["Book"],
-    activatedAbilities: [
-        {
-            id: "book-of-rass-draw",
-            oracleText: "{2}, Pay 2 life: Draw a card.",
-            cost: { mana: { X: 2 }, life: 2 },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, #832): controller draws
-            // one card (CR 121.1).
-            effects: [{ op: "draw", player: "controller", count: 1 }],
-        },
-    ],
-};
-
 // Dark Sphere — "{T}, Sacrifice this artifact: The next time a source of your
 // choice would deal damage to you this turn, prevent half that damage, rounded
 // down." (CR 605 activated ability; CR 615.1 one-shot, source-matched
@@ -154,54 +130,6 @@ export const darkSphere: CardDefinition = {
                     1
                 );
             },
-        },
-    ],
-};
-
-// Diabolic Machine — "{3}: Regenerate this creature." (CR 702.9 flying: n/a; CR 605
-// activated ability; CR 701.19a regenerate via a shield consumed by the next
-// destroy. Same shape as Clay Statue.)
-export const diabolicMachine: CardDefinition = {
-    id: "c3b0f228-6b06-4426-a557-1225d547b908",
-    rarity: "uncommon",
-    name: "Diabolic Machine",
-    oracleText: "{3}: Regenerate this creature.",
-    manaCost: { X: 7 },
-    types: ["Artifact", "Creature"],
-    subtypes: ["Construct"],
-    power: 4,
-    toughness: 4,
-    activatedAbilities: [
-        {
-            id: "diabolic-machine-regenerate",
-            oracleText: "{3}: Regenerate this creature.",
-            cost: { mana: { X: 3 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
-            // shield on the source (CR 701.19a) via the implicit $source.
-            effects: [{ op: "regenerate", target: { ref: "$source" } }],
-        },
-    ],
-};
-
-// Fountain of Youth — "{2}, {T}: You gain 1 life." (CR 605 activated ability;
-// CR 119.3 lifegain.)
-export const fountainOfYouth: CardDefinition = {
-    id: "2b60eb23-cb9a-4203-86fb-60e47dbd870b",
-    rarity: "uncommon",
-    name: "Fountain of Youth",
-    oracleText: "{2}, {T}: You gain 1 life.",
-    manaCost: {},
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "fountain-of-youth-gain",
-            oracleText: "{2}, {T}: You gain 1 life.",
-            cost: { mana: { X: 2 }, tap: true },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, #832): controller gains
-            // 1 life (CR 119.3).
-            effects: [{ op: "gainLife", player: "controller", amount: 1 }],
         },
     ],
 };

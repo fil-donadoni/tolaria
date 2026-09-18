@@ -21,8 +21,6 @@ import { describe, it, expect } from "vitest";
 import type { GameState, PendingTarget } from "../state";
 import { resolveTopOfStack } from "../state";
 import { finalizeTargetSelection } from "../../game";
-import { sealOfCleansing } from "../../cards/sets/nem/white";
-import { jayemdaeTome } from "../../cards/sets/lea/colorless";
 import {
     makeInstance,
     makePlayer,
@@ -37,7 +35,7 @@ function board(): GameState {
         players: [
             makePlayer("p1", {
                 battlefield: [
-                    makeInstance(sealOfCleansing.id, {
+                    makeInstance("af6c921e-1b82-412c-9979-adfdf83440f7", {
                         id: "seal",
                         controllerId: "p1",
                         ownerId: "p1",
@@ -47,7 +45,7 @@ function board(): GameState {
                     // from "the ability resolved and found nothing to do": a
                     // resolution that re-chose a legal target (the CR 608.2b
                     // violation) would take this one.
-                    makeInstance(sealOfCleansing.id, {
+                    makeInstance("af6c921e-1b82-412c-9979-adfdf83440f7", {
                         id: "bystander",
                         controllerId: "p1",
                         ownerId: "p1",
@@ -56,7 +54,7 @@ function board(): GameState {
             }),
             makePlayer("p2", {
                 battlefield: [
-                    makeInstance(jayemdaeTome.id, {
+                    makeInstance("cac8c421-5b92-481d-b2de-560c0231ab58", {
                         id: "tome",
                         controllerId: "p2",
                         ownerId: "p2",

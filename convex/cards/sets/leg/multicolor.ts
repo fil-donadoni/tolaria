@@ -500,39 +500,6 @@ export const borisDevilboon: CardDefinition = {
     ],
 };
 
-// Gwendlyn Di Corci — "{T}: Target player discards a card at random. Activate
-// only during your turn." (CR 602.5b turn restriction + CR 701.8a random
-// discard.) Mana cost is {U}{B}{B}{R} (MTGJSON LEG.json, mana value 4) — no
-// generic pip at all; the stray `X: 1` (found by the widened data/json
-// conformance guard) overcosted this creature by one generic mana.
-export const gwendlynDiCorci: CardDefinition = {
-    id: "473d70b6-a88c-49f4-9415-19919c4468ae",
-    rarity: "rare",
-    name: "Gwendlyn Di Corci",
-    oracleText:
-        "{T}: Target player discards a card at random. Activate only during your turn.",
-    manaCost: { U: 1, B: 2, R: 1 },
-    types: ["Creature"],
-    supertypes: ["Legendary"],
-    subtypes: ["Human", "Rogue"],
-    power: 3,
-    toughness: 5,
-    activatedAbilities: [
-        {
-            id: "gwendlyn-di-corci-discard",
-            oracleText:
-                "{T}: Target player discards a card at random. Activate only during your turn.",
-            cost: { tap: true },
-            useStack: true,
-            controllerTurnOnly: true,
-            targetRequirement: { type: "player", count: 1 },
-            effects: [
-                { op: "discardAtRandom", player: { target: 0 }, count: 1 },
-            ],
-        },
-    ],
-};
-
 // Kei Takahashi — "{T}: Prevent the next 2 damage that would be dealt to target
 // creature this turn." (CR 602 tap ability + CR 615 prevent-N shield on a
 // chosen target.)
@@ -567,67 +534,6 @@ export const keiTakahashi: CardDefinition = {
                     duration: { phase: "end-of-turn" },
                 },
             ],
-        },
-    ],
-};
-
-// Pavel Maliki — "{B}{R}: Pavel Maliki gets +1/+0 until end of turn." (CR 611.1
-// repeatable temporary buff.)
-export const pavelMaliki: CardDefinition = {
-    id: "304f9d39-3ea2-4274-b23e-e4eaabbc1c4b",
-    rarity: "uncommon",
-    name: "Pavel Maliki",
-    oracleText: "{B}{R}: Pavel Maliki gets +1/+0 until end of turn.",
-    manaCost: { X: 4, B: 1, R: 1 },
-    types: ["Creature"],
-    supertypes: ["Legendary"],
-    subtypes: ["Human"],
-    power: 5,
-    toughness: 3,
-    activatedAbilities: [
-        {
-            id: "pavel-maliki-pump",
-            oracleText: "{B}{R}: Pavel Maliki gets +1/+0 until end of turn.",
-            cost: { mana: { B: 1, R: 1 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, #840): self-pump +1/+0
-            // until end of turn (CR 611.1) via the `pump` Op.
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 1,
-                    toughness: 0,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-};
-
-// Ragnar — "{G}{W}{U}, {T}: Regenerate target creature." (CR 602 tap ability +
-// CR 701.19a regeneration shield on a chosen target.)
-export const ragnar: CardDefinition = {
-    id: "2cf6a3a3-4a06-4eb7-981a-b70cf05b2473",
-    rarity: "rare",
-    name: "Ragnar",
-    oracleText: "{G}{W}{U}, {T}: Regenerate target creature.",
-    manaCost: { G: 1, W: 1, U: 1 },
-    types: ["Creature"],
-    supertypes: ["Legendary"],
-    subtypes: ["Human", "Cleric"],
-    power: 2,
-    toughness: 2,
-    activatedAbilities: [
-        {
-            id: "ragnar-regenerate",
-            oracleText: "{G}{W}{U}, {T}: Regenerate target creature.",
-            cost: { mana: { G: 1, W: 1, U: 1 }, tap: true },
-            useStack: true,
-            targetRequirement: { type: "Creature", count: 1 },
-            // Migrated resolve()→effects[] (ADR 0045, #846): regenerate the
-            // announced creature target (CR 701.19a).
-            effects: [{ op: "regenerate", target: { target: 0 } }],
         },
     ],
 };

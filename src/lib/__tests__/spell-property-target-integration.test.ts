@@ -40,7 +40,6 @@ import { grizzlyBears, island, lightningBolt } from "@convex/cards/sets/lea";
 import { stoneRain } from "@convex/cards/sets/lea/red";
 import { confound } from "@convex/cards/sets/pls/blue";
 import { teferisResponse } from "@convex/cards/sets/inv/blue";
-import { icyManipulator } from "@convex/cards/sets/lea/colorless";
 import { buildActivatedAbilityStackItem } from "@convex/gre/activationCommit";
 import { urzasRage } from "@convex/cards/sets/inv/red";
 import type { TargetRequirement } from "@convex/cards/types";
@@ -335,7 +334,7 @@ describe("Teferi's Response — conjunctive targeted-permanent clause (issue #27
                             controllerId: "p2",
                             ownerId: "p2",
                         }),
-                        makeInstance(icyManipulator.id, {
+                        makeInstance("29dc1596-a2e7-4d60-9f99-89babaef8a06", {
                             id: "icy",
                             controllerId: "p2",
                             ownerId: "p2",

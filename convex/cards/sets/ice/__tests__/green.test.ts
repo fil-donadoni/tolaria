@@ -197,7 +197,7 @@ describe("Fyndhorn Elves / Elder (CR 605.1a mana ability)", () => {
 
 describe("Fyndhorn Brownie / Juniper Order Druid (CR 701.26a untap)", () => {
     it("Fyndhorn Brownie untaps a target creature", () => {
-        const brownie = makeInstance(fyndhornBrownie.id, {
+        const brownie = makeInstance("06204e82-9dfd-4334-a23a-f8240fc37772", {
             id: "brownie",
             controllerId: "p1",
             ownerId: "p1",
@@ -352,7 +352,7 @@ describe("Wall of Pine Needles / Yavimaya Gnats regenerate (CR 701.19)", () => {
 
 describe("Shambling Strider (CR 611.1 +1/-1 self-pump)", () => {
     it("+1/-1 until end of turn, survives projection", () => {
-        const strider = makeInstance(shamblingStrider.id, {
+        const strider = makeInstance("8886ba2d-b25a-4b74-9299-911c509ae864", {
             id: "strider",
             controllerId: "p1",
             ownerId: "p1",
@@ -960,7 +960,7 @@ describe("Fanatical Fever (CR 611.2a +3/+0 and trample)", () => {
 
 describe("Folk of the Pines (CR 611.2a firebreathing +1/+0)", () => {
     it("pumps itself +1/+0 until end of turn", () => {
-        const folk = makeInstance(folkOfThePines.id, {
+        const folk = makeInstance("0c13311d-db83-483f-ba2b-4f54ceb8b026", {
             id: "folk",
             controllerId: "p1",
             ownerId: "p1",

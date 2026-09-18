@@ -448,7 +448,7 @@ describe("Boris Devilboon ({2}{B}{R},{T}: make a Minor Demon, CR 111)", () => {
 
 describe("Gwendlyn Di Corci ({T}: random discard, your turn, CR 701.9a)", () => {
     it("makes the target player discard a card at random", () => {
-        const gwen = makeInstance(gwendlynDiCorci.id, {
+        const gwen = makeInstance("473d70b6-a88c-49f4-9415-19919c4468ae", {
             id: "gwen",
             controllerId: "p1",
         });
@@ -495,7 +495,7 @@ describe("Kei Takahashi ({T}: prevent next 2 to target creature, CR 615)", () =>
 
 describe("Pavel Maliki ({B}{R}: +1/+0 EOT, CR 611.1)", () => {
     it("buffs its own power by 1 until end of turn", () => {
-        const pavel = makeInstance(pavelMaliki.id, {
+        const pavel = makeInstance("304f9d39-3ea2-4274-b23e-e4eaabbc1c4b", {
             id: "pavel",
             controllerId: "p1",
         });
@@ -516,10 +516,13 @@ describe("Pavel Maliki ({B}{R}: +1/+0 EOT, CR 611.1)", () => {
 
 describe("Ragnar ({G}{W}{U},{T}: regenerate target creature, CR 701.19a)", () => {
     it("arms a regeneration shield on the target", () => {
-        const ragnarInst = makeInstance(ragnar.id, {
-            id: "ragnar",
-            controllerId: "p1",
-        });
+        const ragnarInst = makeInstance(
+            "2cf6a3a3-4a06-4eb7-981a-b70cf05b2473",
+            {
+                id: "ragnar",
+                controllerId: "p1",
+            }
+        );
         const bear = makeInstance("d05b92bd-797e-413f-a8b0-32e0937a1ee0", {
             id: "bear",
             controllerId: "p1",

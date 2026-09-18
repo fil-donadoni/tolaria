@@ -17,7 +17,6 @@ import {
     makeState,
 } from "../../cards/__tests__/setup";
 import {
-    drudgeSkeletons,
     grizzlyBears,
     hypnoticSpecter,
     invisibility,
@@ -537,7 +536,9 @@ describe("validateBlockerEligibility — fear (CR 702.36b)", () => {
         const fearAttacker = makeInstance(hypnoticSpecter.id, {
             staticAbilities: ["fear"],
         });
-        const blackBlocker = makeInstance(drudgeSkeletons.id);
+        const blackBlocker = makeInstance(
+            "23614289-0d73-4747-a849-5cb67cc97d6a"
+        );
         expect(
             validateBlockerEligibility(fearAttacker, blackBlocker, [
                 blackBlocker,

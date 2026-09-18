@@ -16,7 +16,7 @@ import type {
     SpellContext,
     TriggeredAbility,
 } from "../../types";
-import { AURA_AFFECTS_HOST, PERMANENT_TYPES } from "../../types";
+import { AURA_AFFECTS_HOST } from "../../types";
 import { knightStaticAbilities, makeCircleOfProtection } from "../../abilities";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
@@ -851,37 +851,6 @@ export const mesaPegasus: CardDefinition = {
     power: 1,
     toughness: 1,
     staticAbilities: ["flying", "banding"],
-};
-
-// Northern Paladin — "{W}{W}, {T}: Destroy target black permanent." (CR 701.8
-// destroy, 202.2 color filter on target).
-export const northernPaladin: CardDefinition = {
-    id: "6303233b-35eb-49ca-b844-ba6b9fe1cbd2",
-    rarity: "rare",
-    name: "Northern Paladin",
-    oracleText: "{W}{W}, {T}: Destroy target black permanent.",
-    manaCost: { X: 2, W: 2 },
-    types: ["Creature"],
-    subtypes: ["Human", "Knight"],
-    power: 3,
-    toughness: 3,
-    activatedAbilities: [
-        {
-            id: "northern-paladin-destroy",
-            oracleText: "{W}{W}, {T}: Destroy target black permanent.",
-            cost: { mana: { W: 2 }, tap: true },
-            useStack: true,
-            targetRequirement: {
-                type: [...PERMANENT_TYPES],
-                count: 1,
-                colorFilter: "B",
-            },
-            // Migrated resolve() → effects[] (ADR 0045, issue #831): a single
-            // `destroy` Op on the announced target (CR 701.8), same shape as
-            // Dwarven Demolition Team. Per-card test is the migration harness.
-            effects: [{ op: "destroy", target: { target: 0 } }],
-        },
-    ],
 };
 
 export const pearledUnicorn: CardDefinition = {

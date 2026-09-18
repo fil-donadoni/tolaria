@@ -915,7 +915,7 @@ describe("Homarid Warrior — shroud + skip-untap dive (CR 702.18, 502.1)", () =
 
 describe("Homarid Shaman — tap a green creature (CR 701.21 sacrifice cost / 701.26a tap)", () => {
     it("taps the targeted green creature", () => {
-        const shaman = makeInstance(homaridShaman.id, {
+        const shaman = makeInstance("c17c6416-86d6-46ea-aea1-41b98a66b250", {
             id: "shaman",
             controllerId: "p1",
             ownerId: "p1",

@@ -270,7 +270,7 @@ describe("Iceberg (counters-as-mana, CR 122)", () => {
 
 describe("Sea Spirit ({U}: +1/+0, CR 611.2a)", () => {
     it("pumps itself +1/+0 until end of turn", () => {
-        const spirit = makeInstance(seaSpirit.id, {
+        const spirit = makeInstance("f2d93d05-98bc-4504-9045-dedb925895ae", {
             id: "sea",
             controllerId: "p1",
             ownerId: "p1",
@@ -312,7 +312,7 @@ describe("Thunder Wall ({U}: +1/+1, CR 611.2a)", () => {
 
 describe("Zuran Spellcaster ({T}: 1 damage any target, CR 120.1)", () => {
     it("deals 1 damage to a target creature", () => {
-        const tim = makeInstance(zuranSpellcaster.id, {
+        const tim = makeInstance("152a72b1-a7b7-4e5c-8558-fab97465f549", {
             id: "tim",
             controllerId: "p1",
             ownerId: "p1",
@@ -3195,7 +3195,7 @@ describe("Soldevi Machinist — '{T}: Add {C}{C}. Spend only on artifact abiliti
     });
 
     it("integration: pays a real artifact's activated ability through activateAbilityOnState", () => {
-        const tome = makeInstance(jayemdaeTome.id, {
+        const tome = makeInstance("cac8c421-5b92-481d-b2de-560c0231ab58", {
             id: "tome",
             controllerId: "p1",
             ownerId: "p1",

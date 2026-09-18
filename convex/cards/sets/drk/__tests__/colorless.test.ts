@@ -256,7 +256,7 @@ describe("Bone Flute — {2},{T}: all creatures get -1/-0 EOT (CR 611.2)", () =>
 
 describe("Book of Rass — {2}, Pay 2 life: Draw a card (CR 119.4/121.1)", () => {
     it("draws one card (the life cost is enforced by the cost layer)", () => {
-        const book = makeInstance(bookOfRass.id, {
+        const book = makeInstance("5a391ada-e9e3-45db-ae84-17421ac6b44d", {
             id: "book",
             controllerId: "p1",
         });
@@ -283,7 +283,7 @@ describe("Book of Rass — {2}, Pay 2 life: Draw a card (CR 119.4/121.1)", () =>
 
 describe("Diabolic Machine — {3}: Regenerate this creature (CR 701.19a)", () => {
     it("arms a regeneration shield that replaces the next destroy", () => {
-        const machine = makeInstance(diabolicMachine.id, {
+        const machine = makeInstance("c3b0f228-6b06-4426-a557-1225d547b908", {
             id: "machine",
             controllerId: "p1",
         });
@@ -306,7 +306,7 @@ describe("Diabolic Machine — {3}: Regenerate this creature (CR 701.19a)", () =
 
 describe("Fountain of Youth — {2},{T}: gain 1 life (CR 119.3)", () => {
     it("gains the controller 1 life", () => {
-        const fountain = makeInstance(fountainOfYouth.id, {
+        const fountain = makeInstance("2b60eb23-cb9a-4203-86fb-60e47dbd870b", {
             id: "fountain",
             controllerId: "p1",
         });

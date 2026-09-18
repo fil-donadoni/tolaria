@@ -1167,7 +1167,7 @@ describe("Ice Storm (destroy target land)", () => {
 
 describe("Ley Druid ({T}: untap target land)", () => {
     it("untaps a tapped land on resolution", () => {
-        const druid = makeInstance(leyDruid.id, {
+        const druid = makeInstance("f9232508-d363-4ef3-987a-741f6bff331f", {
             id: "druid",
             controllerId: "p1",
             ownerId: "p1",

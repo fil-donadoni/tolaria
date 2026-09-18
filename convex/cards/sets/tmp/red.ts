@@ -6,34 +6,6 @@ import type { CardDefinition } from "../../types";
 import { damageTakenTrigger } from "../../abilities/triggers/damageTakenTrigger";
 import type { SpellContext } from "../../types";
 
-// Goblin Bombardment — "Sacrifice a creature: This enchantment deals 1
-// damage to any target." (CR 701.21 sacrifice cost, CR 120.1 damage.) The
-// sacrificed creature is any creature the activating player controls (not
-// necessarily this permanent, since Goblin Bombardment is an Enchantment,
-// not a creature) — `cost.sacrificeFilter` needs neither `excludeInstanceIds`
-// nor `excludeSource` (issue #2367): this permanent isn't itself a creature, so
-// it can never satisfy its own filter.
-export const goblinBombardment: CardDefinition = {
-    id: "179e954f-1d90-4ef4-b800-25845cc338e2",
-    rarity: "uncommon",
-    name: "Goblin Bombardment",
-    oracleText:
-        "Sacrifice a creature: This enchantment deals 1 damage to any target.",
-    manaCost: { X: 1, R: 1 },
-    types: ["Enchantment"],
-    activatedAbilities: [
-        {
-            id: "goblin-bombardment-sac",
-            oracleText:
-                "Sacrifice a creature: This enchantment deals 1 damage to any target.",
-            cost: { sacrificeFilter: { types: "Creature" } },
-            useStack: true,
-            targetRequirement: { type: "any", count: 1 },
-            effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
-        },
-    ],
-};
-
 // Mogg Fanatic — "Sacrifice this creature: It deals 1 damage to any target."
 // The sacrifice-for-effect shape shared with Seal of Fire: sacrifice THIS
 // source as an activation cost (CR 602.1 / 701.21) with no mana and no tap —

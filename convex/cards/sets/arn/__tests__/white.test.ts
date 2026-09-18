@@ -95,7 +95,9 @@ describe("Piety (blocking creatures +0/+3, CR 611.2 + isBlocking filter)", () =>
 
 describe("King Suleiman ({T}: destroy target Djinn or Efreet)", () => {
     it("destroys a Djinn", () => {
-        const king = makeInstance(kingSuleiman.id, { id: "king" });
+        const king = makeInstance("4d3dce0f-2168-4f63-b2f9-156a11beeea7", {
+            id: "king",
+        });
         const djinn = makeInstance(juzamDjinn.id, {
             id: "djinn",
             controllerId: "p2",
@@ -271,7 +273,7 @@ describe("Abu Ja'far (dies → destroy combat partners; no regen; CR 603.2/603.1
 
 describe("Eye for an Eye (reflect damage to source's controller, CR 614)", () => {
     it("reflects the chosen source's damage to its controller without reducing yours", () => {
-        const tim = makeInstance(prodigalSorcerer.id, {
+        const tim = makeInstance("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a", {
             id: "tim",
             controllerId: "p2",
             ownerId: "p2",
@@ -294,12 +296,12 @@ describe("Eye for an Eye (reflect damage to source's controller, CR 614)", () =>
     });
 
     it("is one-shot — a second hit from the source is not reflected", () => {
-        const tim = makeInstance(prodigalSorcerer.id, {
+        const tim = makeInstance("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a", {
             id: "tim",
             controllerId: "p2",
             ownerId: "p2",
         });
-        const tim2 = makeInstance(prodigalSorcerer.id, {
+        const tim2 = makeInstance("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a", {
             id: "tim2",
             controllerId: "p2",
             ownerId: "p2",

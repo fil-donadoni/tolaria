@@ -63,7 +63,7 @@ const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
 
 describe("Carrion Ants ({1}: +1/+1 EOT, CR 611.1)", () => {
     it("pumps itself by +1/+1 until end of turn (repeatable)", () => {
-        const ants = makeInstance(carrionAnts.id, {
+        const ants = makeInstance("cbc0b009-3951-4aa3-985a-97139882da7e", {
             id: "ants",
             controllerId: "p1",
         });
@@ -101,7 +101,7 @@ describe("Carrion Ants ({1}: +1/+1 EOT, CR 611.1)", () => {
 
 describe("Walking Dead ({B}: Regenerate this, CR 701.19a)", () => {
     it("arms a regeneration shield on itself", () => {
-        const wd = makeInstance(walkingDead.id, {
+        const wd = makeInstance("d7533a72-77d1-40cd-b3a1-7597d566c428", {
             id: "wd",
             controllerId: "p1",
         });
@@ -126,7 +126,7 @@ describe("Walking Dead ({B}: Regenerate this, CR 701.19a)", () => {
 
 describe("Ghosts of the Damned ({T}: target -1/-0 EOT, CR 611.1)", () => {
     it("debuffs the target's power by 1 until end of turn", () => {
-        const ghosts = makeInstance(ghostsOfTheDamned.id, {
+        const ghosts = makeInstance("20275678-3488-43d8-a93b-993e2267ab07", {
             id: "ghosts",
             controllerId: "p1",
         });
@@ -202,7 +202,7 @@ describe("Hell's Caretaker (reanimate from GY, upkeep only, CR 400.7)", () => {
             controllerId: "p1",
             ownerId: "p1",
         });
-        const deadInst = makeInstance(carrionAnts.id, {
+        const deadInst = makeInstance("cbc0b009-3951-4aa3-985a-97139882da7e", {
             id: "dead",
             controllerId: "p1",
             ownerId: "p1",
@@ -337,7 +337,7 @@ describe("Syphon Soul (2 to each opponent, gain that much, CR 120.1)", () => {
 
 describe("Horror of Horrors (Sac a Swamp: regenerate target black creature)", () => {
     it("arms a regeneration shield on a black creature", () => {
-        const horror = makeInstance(horrorOfHorrors.id, {
+        const horror = makeInstance("b9f68dc2-c048-41ec-b237-c36fdd99c27d", {
             id: "hh",
             controllerId: "p1",
             ownerId: "p1",
@@ -409,7 +409,7 @@ describe("Cyclopean Mummy (dies → exile, CR 603.2 / 406)", () => {
 
 describe("Greed ({B}, Pay 2 life: Draw a card, CR 119.4 / 121.1)", () => {
     it("draws a card and costs 2 life", () => {
-        const greedInst = makeInstance(greed.id, {
+        const greedInst = makeInstance("111a16a2-e875-4756-80db-290f9e8606db", {
             id: "greed",
             controllerId: "p1",
             ownerId: "p1",

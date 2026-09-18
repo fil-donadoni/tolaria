@@ -390,7 +390,7 @@ describe("Drain Life (X damage to any target, gain X life, CR 107.3 + 120.1)", (
 
 describe("Royal Assassin ({T}: destroy target tapped creature, CR 701.26 + 701.8)", () => {
     function setup() {
-        const assassin = makeInstance(royalAssassin.id, {
+        const assassin = makeInstance("59590768-fa96-4869-8763-9d5ab6ac22ad", {
             id: "assassin",
             isSummoningSick: false,
         });
@@ -1088,7 +1088,7 @@ describe("Cursed Land (Aura on Land — 1 dmg to host's controller at upkeep)", 
 
 describe("Drudge Skeletons ({B}: regenerate self, CR 701.19a)", () => {
     function setup() {
-        const skel = makeInstance(drudgeSkeletons.id, {
+        const skel = makeInstance("23614289-0d73-4747-a849-5cb67cc97d6a", {
             id: "skel",
             controllerId: "p1",
             ownerId: "p1",
@@ -1541,7 +1541,7 @@ describe("Zombie Master (lord swampwalk + granted regen, no pt-buff)", () => {
 
 describe("Frozen Shade ({B}: this creature gets +1/+1 until end of turn)", () => {
     function setup() {
-        const shade = makeInstance(frozenShade.id, {
+        const shade = makeInstance("d0bd76c8-4cff-4c15-9686-7a299b589814", {
             id: "shade",
             controllerId: "p1",
             ownerId: "p1",
@@ -2777,7 +2777,7 @@ describe("Terror (destroy target nonartifact, nonblack creature, CR 701.8)", () 
     });
 
     it("destroyed creature can't be regenerated (cantBeRegenerated)", () => {
-        const troll = makeInstance(uthdenTroll.id, {
+        const troll = makeInstance("2ff21a6f-83a7-4bf3-a078-294e303232cc", {
             id: "troll",
             controllerId: "p2",
             ownerId: "p2",

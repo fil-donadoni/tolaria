@@ -71,7 +71,7 @@ import { removedKeywordRows } from "../../../__tests__/setup";
 describe("Crumble (destroy artifact, no regen, controller gains life = mv, CR 701.8 / 701.19c)", () => {
     it("destroys the target artifact and grants its controller life = mv", () => {
         // Clay Statue is mv 4 (MTGJSON {4}).
-        const statue = makeInstance(clayStatue.id, {
+        const statue = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
             id: "statue",
             controllerId: "p2",
             ownerId: "p2",
@@ -97,11 +97,14 @@ describe("Crumble (destroy artifact, no regen, controller gains life = mv, CR 70
     });
 
     it("can't be regenerated — a regen shield does not save it (CR 701.19c)", () => {
-        const statue = makeInstance(clayStatue.id, {
+        const statue = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
             id: "statue",
             controllerId: "p2",
             ownerId: "p2",
-            card: { id: clayStatue.id, regenerationShields: 1 },
+            card: {
+                id: "64975352-8d35-4d02-94ac-fa0c6ee12409",
+                regenerationShields: 1,
+            },
         });
         const state = makeState({
             players: [
@@ -119,7 +122,7 @@ describe("Crumble (destroy artifact, no regen, controller gains life = mv, CR 70
     });
 
     it("indestructible artifact survives but no life is gained (destroy is replaced)", () => {
-        const statue = makeInstance(clayStatue.id, {
+        const statue = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
             id: "statue",
             controllerId: "p2",
             ownerId: "p2",
@@ -145,7 +148,7 @@ describe("Crumble (destroy artifact, no regen, controller gains life = mv, CR 70
     });
 
     it("getLegalTargets restricts to artifacts only", () => {
-        const statue = makeInstance(clayStatue.id, {
+        const statue = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
             id: "statue",
             controllerId: "p2",
             ownerId: "p2",
@@ -168,7 +171,7 @@ describe("Crumble (destroy artifact, no regen, controller gains life = mv, CR 70
     });
 
     it("wire format: target id survives projectPublicState and resolve still works", () => {
-        const statue = makeInstance(clayStatue.id, {
+        const statue = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
             id: "statue",
             controllerId: "p2",
             ownerId: "p2",
@@ -546,7 +549,7 @@ describe("Argothian Treefolk (prevent all damage from artifact sources, CR 615)"
             ownerId: "p1",
         });
         // Grapeshot Catapult is a noncreature Artifact damage source.
-        const catapult = makeInstance(grapeshotCatapult.id, {
+        const catapult = makeInstance("4c7a7348-c82e-453c-975c-e5365e152a3a", {
             id: "catapult",
             controllerId: "p2",
             ownerId: "p2",
@@ -602,7 +605,7 @@ describe("Argothian Treefolk (prevent all damage from artifact sources, CR 615)"
             controllerId: "p1",
             ownerId: "p1",
         });
-        const catapult = makeInstance(grapeshotCatapult.id, {
+        const catapult = makeInstance("4c7a7348-c82e-453c-975c-e5365e152a3a", {
             id: "catapult",
             controllerId: "p2",
             ownerId: "p2",

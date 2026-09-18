@@ -412,38 +412,6 @@ export const goblinCaves: CardDefinition = {
     ],
 };
 
-// Goblin Digging Team — "{T}, Sacrifice this creature: Destroy target Wall."
-// (CR 605 activated ability with tap + self-sacrifice cost; CR 701.8 destroy
-// restricted to Wall-subtyped creatures via `subtypeFilter`.)
-export const goblinDiggingTeam: CardDefinition = {
-    id: "8a538b9d-351e-40bb-be11-9ba08c16352b",
-    rarity: "common",
-    name: "Goblin Digging Team",
-    oracleText: "{T}, Sacrifice this creature: Destroy target Wall.",
-    manaCost: { R: 1 },
-    types: ["Creature"],
-    subtypes: ["Goblin"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "goblin-digging-team-destroy-wall",
-            oracleText: "{T}, Sacrifice this creature: Destroy target Wall.",
-            cost: { tap: true, sacrifice: true },
-            useStack: true,
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                subtypeFilter: "Wall",
-            },
-            // Migrated resolve()→effects[] (ADR 0045, #832): destroy the
-            // announced target Wall (CR 701.8 destroy). The self-sacrifice is an
-            // activation cost.
-            effects: [{ op: "destroy", target: { target: 0 } }],
-        },
-    ],
-};
-
 // Goblin Rock Sled — "Trample\nThis creature doesn't untap during your untap
 // step if it attacked during your last turn.\nThis creature can't attack unless
 // defending player controls a Mountain." (CR 702.19 trample; the conditional

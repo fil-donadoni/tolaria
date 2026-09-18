@@ -15,7 +15,6 @@ import {
     makeState,
 } from "@convex/cards/__tests__/setup";
 import { grizzlyBears } from "@convex/cards/sets/lea/green";
-import { prodigalSorcerer } from "@convex/cards/sets/lea/blue";
 import { hullBreach } from "@convex/cards/sets/pls/multicolor";
 import type { CardInstance, Player } from "~/types/game";
 import { buildTriggerStateView } from "../card-utils";
@@ -49,7 +48,7 @@ function board(opts: { wizard?: boolean; creature?: boolean }): GameState {
     });
     const mine = opts.wizard
         ? [
-              makeInstance(prodigalSorcerer.id, {
+              makeInstance("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a", {
                   id: "wiz",
                   controllerId: "p1",
                   ownerId: "p1",

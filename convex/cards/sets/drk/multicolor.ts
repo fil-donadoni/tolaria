@@ -36,26 +36,3 @@ export const marshGoblins: CardDefinition = {
     toughness: 1,
     staticAbilities: ["swampwalk"],
 };
-
-// Dark Heart of the Wood — {B}{G} Enchantment, "Sacrifice a Forest: You gain 3
-// life." (CR 605 activated ability; CR 118.5 / 602.1 filtered-sacrifice cost —
-// the controller sacrifices a Forest they control to pay; CR 119.3 life gain.)
-export const darkHeartOfTheWood: CardDefinition = {
-    id: "e3d3df64-1e90-4aef-86ae-0062aa23ff30",
-    rarity: "common",
-    name: "Dark Heart of the Wood",
-    oracleText: "Sacrifice a Forest: You gain 3 life.",
-    manaCost: { B: 1, G: 1 },
-    types: ["Enchantment"],
-    activatedAbilities: [
-        {
-            id: "dark-heart-of-the-wood-gain",
-            oracleText: "Sacrifice a Forest: You gain 3 life.",
-            cost: { sacrificeFilter: { subtypes: "Forest" } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, #832): controller gains
-            // 3 life (CR 119.3). The Forest sacrifice is an activation cost.
-            effects: [{ op: "gainLife", player: "controller", amount: 3 }],
-        },
-    ],
-};

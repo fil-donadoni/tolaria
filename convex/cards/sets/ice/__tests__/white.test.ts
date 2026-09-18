@@ -339,7 +339,7 @@ describe("Elvish Healer ({T}: damage prevention, CR 615)", () => {
 
 describe("Kelsinko Ranger (grant first strike to green, CR 611.2a)", () => {
     it("grants first strike to the target green creature until end of turn", () => {
-        const ranger = makeInstance(kelsinkoRanger.id, {
+        const ranger = makeInstance("8402543e-5406-404f-95c4-800a1dce35f1", {
             id: "ranger",
             controllerId: "p1",
             ownerId: "p1",
@@ -857,7 +857,7 @@ describe("Scarab cycle (#653) — colour block-restriction + conditional +2/+2",
     });
 
     it("Black Scarab: the buff turns off when the opponent controls no black permanent", () => {
-        const bluePerm = makeInstance(seaSpirit.id, {
+        const bluePerm = makeInstance("f2d93d05-98bc-4504-9045-dedb925895ae", {
             id: "blue-perm",
             controllerId: "p2",
         });
@@ -911,10 +911,13 @@ describe("Scarab cycle (#653) — colour block-restriction + conditional +2/+2",
     it("Black Scarab: a NON-black creature can still block the host", () => {
         const { state, host } = withScarab(blackScarab, []);
         host.isAttacking = true;
-        const blueBlocker = makeInstance(seaSpirit.id, {
-            id: "blue-blocker",
-            controllerId: "p2",
-        });
+        const blueBlocker = makeInstance(
+            "f2d93d05-98bc-4504-9045-dedb925895ae",
+            {
+                id: "blue-blocker",
+                controllerId: "p2",
+            }
+        );
         state.players[1].battlefield.push(blueBlocker);
         const res = validateBlockerEligibility(
             host,
@@ -926,17 +929,20 @@ describe("Scarab cycle (#653) — colour block-restriction + conditional +2/+2",
     });
 
     it("Red Scarab keys off red (Centaur Archer is red): host buffed and red-block-restricted", () => {
-        const redPerm = makeInstance(centaurArcher.id, {
+        const redPerm = makeInstance("e275c295-72da-4a86-82c6-cfd75b38b19c", {
             id: "red-perm",
             controllerId: "p2",
         });
         const { state, host } = withScarab(redScarab, [redPerm]);
         expect(getEffectivePower(state, host)).toBe(4);
         host.isAttacking = true;
-        const redBlocker = makeInstance(centaurArcher.id, {
-            id: "red-blocker",
-            controllerId: "p2",
-        });
+        const redBlocker = makeInstance(
+            "e275c295-72da-4a86-82c6-cfd75b38b19c",
+            {
+                id: "red-blocker",
+                controllerId: "p2",
+            }
+        );
         state.players[1].battlefield.push(redBlocker);
         expect(
             validateBlockerEligibility(
@@ -1536,7 +1542,7 @@ describe("Prismatic Ward (colour-filtered damage prevention, CR 615)", () => {
             controllerId: "p2",
             ownerId: "p2",
         });
-        const blueSrc = makeInstance(seaSpirit.id, {
+        const blueSrc = makeInstance("f2d93d05-98bc-4504-9045-dedb925895ae", {
             id: "blue-src",
             controllerId: "p2",
             ownerId: "p2",

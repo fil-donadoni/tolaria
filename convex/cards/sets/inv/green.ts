@@ -385,36 +385,6 @@ export const kavuLair: CardDefinition = {
     ],
 };
 
-// Llanowar Cavalry — {2}{G} Creature — Human Soldier, 1/4. "{W}: This
-// creature gains vigilance until end of turn." (CR 613.1f keyword grant.)
-export const llanowarCavalry: CardDefinition = {
-    id: "21d92191-a743-4916-bbe4-5e207e964d9b",
-    rarity: "common",
-    name: "Llanowar Cavalry",
-    oracleText: "{W}: This creature gains vigilance until end of turn.",
-    manaCost: { X: 2, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Soldier"],
-    power: 1,
-    toughness: 4,
-    activatedAbilities: [
-        {
-            id: "llanowar-cavalry-vigilance",
-            oracleText: "{W}: This creature gains vigilance until end of turn.",
-            cost: { mana: { W: 1 } },
-            useStack: true,
-            effects: [
-                {
-                    op: "grantAbility",
-                    ability: "vigilance",
-                    target: { ref: "$source" },
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-};
-
 // Llanowar Elite — {G} Creature — Elf, 1/1. "Kicker {8}. Trample\nIf this
 // creature was kicked, it enters with five +1/+1 counters on it." (CR 702.33
 // Kicker; CR 702.19e trample; CR 122.1 ETB counters.) Trample is unconditional
@@ -451,37 +421,6 @@ export const llanowarElite: CardDefinition = {
             { type: "+1/+1", count: "kicker" },
         ],
     },
-};
-
-// Llanowar Vanguard — {2}{G} Creature — Dryad, 1/1. "{T}: This creature gets
-// +0/+4 until end of turn." (CR 613.4c pump.)
-export const llanowarVanguard: CardDefinition = {
-    id: "72e6ed79-bdfd-49f9-bfa4-be4196880487",
-    rarity: "common",
-    name: "Llanowar Vanguard",
-    oracleText: "{T}: This creature gets +0/+4 until end of turn.",
-    manaCost: { X: 2, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Dryad"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "llanowar-vanguard-pump",
-            oracleText: "{T}: This creature gets +0/+4 until end of turn.",
-            cost: { tap: true },
-            useStack: true,
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 0,
-                    toughness: 4,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
 };
 
 // Might Weaver — {1}{G} Creature — Human Wizard, 2/1. "{2}: Target red or
@@ -722,36 +661,6 @@ export const quirionTrailblazer: CardDefinition = {
     ],
 };
 
-// Serpentine Kavu — {4}{G} Creature — Kavu, 4/4. "{R}: This creature gains
-// haste until end of turn." (CR 613.1f keyword grant.)
-export const serpentineKavu: CardDefinition = {
-    id: "699f1fe8-02c6-4d95-9231-3f8aefe603da",
-    rarity: "common",
-    name: "Serpentine Kavu",
-    oracleText: "{R}: This creature gains haste until end of turn.",
-    manaCost: { X: 4, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Kavu"],
-    power: 4,
-    toughness: 4,
-    activatedAbilities: [
-        {
-            id: "serpentine-kavu-haste",
-            oracleText: "{R}: This creature gains haste until end of turn.",
-            cost: { mana: { R: 1 } },
-            useStack: true,
-            effects: [
-                {
-                    op: "grantAbility",
-                    ability: "haste",
-                    target: { ref: "$source" },
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-};
-
 // Sulam Djinn — {5}{G} Creature — Djinn, 6/6. "Trample. This creature gets
 // -2/-2 as long as green is the most common color among all permanents or is
 // tied for most common." (CR 702.19e trample; CR 611.2c conditional CDA
@@ -794,48 +703,6 @@ export const sulamDjinn: CardDefinition = {
                 ),
             power: -2,
             toughness: -2,
-        },
-    ],
-};
-
-// Thornscape Apprentice — {G} Creature — Human Wizard, 1/1. "{R}, {T}: Target
-// creature gains first strike until end of turn. {W}, {T}: Tap target
-// creature." (CR 613.1f keyword grant; CR 701.26 tap.)
-export const thornscapeApprentice: CardDefinition = {
-    id: "505da522-73a8-4232-ae1a-d3365f3e598f",
-    rarity: "common",
-    name: "Thornscape Apprentice",
-    oracleText:
-        "{R}, {T}: Target creature gains first strike until end of turn.\n{W}, {T}: Tap target creature.",
-    manaCost: { G: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Wizard"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "thornscape-apprentice-first-strike",
-            oracleText:
-                "{R}, {T}: Target creature gains first strike until end of turn.",
-            cost: { mana: { R: 1 }, tap: true },
-            useStack: true,
-            targetRequirement: { type: "Creature", count: 1 },
-            effects: [
-                {
-                    op: "grantAbility",
-                    ability: "first strike",
-                    target: { target: 0 },
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-        {
-            id: "thornscape-apprentice-tap",
-            oracleText: "{W}, {T}: Tap target creature.",
-            cost: { mana: { W: 1 }, tap: true },
-            useStack: true,
-            targetRequirement: { type: "Creature", count: 1 },
-            effects: [{ op: "tapUntap", action: "tap", target: { target: 0 } }],
         },
     ],
 };

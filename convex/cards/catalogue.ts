@@ -372,25 +372,8 @@ for (const m of setModules) {
     }
 }
 
-const definitionRegistry = new Map<string, CardDefinition>(
-    allCards.map((card) => [card.id, card])
-);
-
 // Populate the runtime registry with all card definitions.
 preloadDefinitions(allCards);
-
-// Wire print-id → same-def-object lookups so `getDefinition(printId)` returns
-// the SAME object reference as `getDefinition(definitionId)` — sharing the
-// `expansionCache` (WeakMap) entry.
-for (const print of allPrints) {
-    const def = definitionRegistry.get(print.definitionId);
-    if (!def) {
-        throw new Error(
-            `CardPrint ${print.printId} references unknown definitionId ${print.definitionId}`
-        );
-    }
-    registerPrintAlias(print.printId, print.definitionId);
-}
 
 // Compiled-card hydration (issue #2702). The collision between a compiled row
 // and a hand-written definition for the same print id is resolved at BUILD
@@ -539,6 +522,22 @@ export function registerCompiledDefinitions(
 }
 
 registerCompiledDefinitions(compiledReadyDefinitions);
+
+// Wire print-id → same-def-object lookups so `getDefinition(printId)` returns
+// the SAME object reference as `getDefinition(definitionId)` — sharing the
+// `expansionCache` (WeakMap) entry. Run AFTER compiled hydration (ADR 0114
+// §2): a retired card's reprint stub now resolves only through the compiled
+// twin, which is not in the registry until `registerCompiledDefinitions` has
+// run — issue #4027 is the first retirement to expose the ordering.
+for (const print of allPrints) {
+    const def = tryGetDefinition(print.definitionId);
+    if (!def) {
+        throw new Error(
+            `CardPrint ${print.printId} references unknown definitionId ${print.definitionId}`
+        );
+    }
+    registerPrintAlias(print.printId, print.definitionId);
+}
 
 export const getCardByName = (name: string): CardDefinition => {
     const card = nameRegistry.get(name.toLowerCase());

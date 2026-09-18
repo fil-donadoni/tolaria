@@ -678,7 +678,7 @@ describe("Combat Medic (activated preventDamage next-n shield on an announced ta
 // resolution context.
 describe("Icatian Infantry (self-granted activated keywords, grantAbility targets $source, CR 611.2a)", () => {
     it("gains first strike until end of turn when its {1} ability resolves", () => {
-        const inf = makeInstance(icatianInfantry.id, {
+        const inf = makeInstance("f95d42d8-ba75-43bf-81b8-b02374f03e83", {
             id: "inf",
             controllerId: "p1",
             ownerId: "p1",
@@ -698,7 +698,7 @@ describe("Icatian Infantry (self-granted activated keywords, grantAbility target
     });
 
     it("wire format: the first strike grant survives projectPublicState", () => {
-        const inf = makeInstance(icatianInfantry.id, {
+        const inf = makeInstance("f95d42d8-ba75-43bf-81b8-b02374f03e83", {
             id: "inf2",
             controllerId: "p1",
             ownerId: "p1",
@@ -821,7 +821,7 @@ describe("Icatian Priest / Lieutenant — temporary pumps (CR 611 layer 7c)", ()
             controllerId: "p1",
             ownerId: "p1",
         });
-        const priest = makeInstance(icatianPriest.id, {
+        const priest = makeInstance("d7690cdd-6610-4310-9e93-60dc4db2ae8d", {
             id: "ip",
             controllerId: "p1",
             ownerId: "p1",

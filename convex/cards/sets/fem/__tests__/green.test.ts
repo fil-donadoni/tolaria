@@ -188,7 +188,7 @@ describe("Spore Flower — spore payoff Fog (CR 615)", () => {
 
 describe("Fungal Bloom — feed the spore engine (CR 122.1)", () => {
     it("puts a spore counter on a target Fungus", () => {
-        const bloom = makeInstance(fungalBloom.id, {
+        const bloom = makeInstance("cf1a2cb2-9a6b-41f7-96f7-ec457c69c16c", {
             controllerId: "p1",
             zone: "battlefield",
         });
@@ -225,7 +225,7 @@ describe("Elvish Farmer — sacrifice-a-Saproling lifegain (CR 602.1)", () => {
 
 describe("Elven Fortress — pump a blocking creature (CR 611.2)", () => {
     it("gives a target blocking creature +0/+1 until end of turn", () => {
-        const fortress = makeInstance(elvenFortress.id, {
+        const fortress = makeInstance("9387105d-46d0-4db0-8980-dd0fded15eef", {
             controllerId: "p1",
             zone: "battlefield",
         });

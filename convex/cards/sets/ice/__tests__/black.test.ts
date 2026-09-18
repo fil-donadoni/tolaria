@@ -226,12 +226,15 @@ describe("Dark Banishing (destroy nonblack creature, CR 701.8)", () => {
 describe("Demonic Consultation (name + exile loop, CR 202.3)", () => {
     it("exiles the top six, then digs to the named card", () => {
         const lib = [0, 1, 2, 3, 4, 5, 6, 7].map((i) =>
-            makeInstance(i === 7 ? moorFiend.id : hoarShade.id, {
-                id: `lib${i}`,
-                controllerId: "p1",
-                ownerId: "p1",
-                zone: "library",
-            })
+            makeInstance(
+                i === 7 ? moorFiend.id : "72242dff-15ca-4da0-b3ae-9984d037b31f",
+                {
+                    id: `lib${i}`,
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    zone: "library",
+                }
+            )
         );
         const state = makeState({
             players: [makePlayer("p1", { library: lib }), makePlayer("p2")],
@@ -303,7 +306,7 @@ describe("Foul Familiar (can't block + bounce, CR 509.1b / 701.14)", () => {
 
 describe("Hoar Shade ({B}: +1/+1, CR 611.2a)", () => {
     it("pumps itself +1/+1 until end of turn (wire format)", () => {
-        const shade = makeInstance(hoarShade.id, {
+        const shade = makeInstance("72242dff-15ca-4da0-b3ae-9984d037b31f", {
             id: "hs",
             controllerId: "p1",
             ownerId: "p1",
@@ -702,7 +705,7 @@ describe("Call to Arms (#653) — white anthem while chosen colour is opponent's
             id: "b2",
             controllerId: "p2",
         });
-        const blue1 = makeInstance(seaSpirit.id, {
+        const blue1 = makeInstance("f2d93d05-98bc-4504-9045-dedb925895ae", {
             id: "u1",
             controllerId: "p2",
         });
@@ -717,7 +720,7 @@ describe("Call to Arms (#653) — white anthem while chosen colour is opponent's
             id: "b1",
             controllerId: "p2",
         });
-        const blue1 = makeInstance(seaSpirit.id, {
+        const blue1 = makeInstance("f2d93d05-98bc-4504-9045-dedb925895ae", {
             id: "u1",
             controllerId: "p2",
         });

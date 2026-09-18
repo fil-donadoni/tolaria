@@ -28,7 +28,6 @@ import {
 import { evaluateBreakdown } from "../../evaluate";
 import { latentGraveyardValue } from "../graveyardReach";
 import { DEFAULT_EVAL_WEIGHTS, type EvalWeights } from "../evalWeights";
-import { grimLavamancer } from "../../../cards/sets/tor/red";
 
 /** The production vector with ONE latent dimension moved. Everything else —
  *  every scalar weight, every other dimension — is untouched, so a term that
@@ -46,7 +45,7 @@ function withLatent(
 /** Grim Lavamancer: a 1/1 body whose whole interest is an activated ability
  *  that deals 2 damage — so `latent.damage` is the dimension its script is
  *  priced in, and the body (a `creatureValueRaw` of a 1/1) is not. */
-const LAVAMANCER = grimLavamancer.id;
+const LAVAMANCER = "5dd72697-24be-42c7-a6d9-a837bdbd4662";
 
 function stateWith(zone: "battlefield" | "hand" | "graveyard") {
     const card = makeInstance(LAVAMANCER, {

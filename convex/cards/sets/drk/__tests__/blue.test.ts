@@ -194,7 +194,10 @@ describe("Flood — {U}{U}: tap target creature without flying (CR 701.26a / 702
     });
 
     it("taps the targeted non-flyer", () => {
-        const fl = makeInstance(flood.id, { id: "flood", controllerId: "p1" });
+        const fl = makeInstance("fabc3267-b59b-4f36-8873-5b4b072711ca", {
+            id: "flood",
+            controllerId: "p1",
+        });
         const ground = makeInstance(
             getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870").id,
             {

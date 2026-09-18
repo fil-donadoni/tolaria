@@ -228,11 +228,14 @@ describe("Goblin Warrens — sacrifice two Goblins for three tokens (CR 111)", (
 
 describe("Goblin Chirurgeon — sacrifice a Goblin, regenerate (CR 701.19a)", () => {
     it("applies a regeneration shield to the target creature", () => {
-        const chirurgeon = makeInstance(goblinChirurgeon.id, {
-            id: "chir",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
+        const chirurgeon = makeInstance(
+            "2b710c21-e9f5-4660-80f6-2104ec65f63f",
+            {
+                id: "chir",
+                controllerId: "p1",
+                ownerId: "p1",
+            }
+        );
         const ally = makeInstance(grizzlyBears.id, {
             id: "ally",
             controllerId: "p1",
@@ -425,7 +428,7 @@ describe("Orgg — trample + attack/block restrictions (CR 702.19, 508.1c)", () 
 
 describe("Dwarven Lieutenant — pump a Dwarf (CR 611.2)", () => {
     it("gives a Dwarf +1/+0 until end of turn", () => {
-        const lt = makeInstance(dwarvenLieutenant.id, {
+        const lt = makeInstance("ea9a38b1-4676-425a-b40d-4fb478966024", {
             id: "lt",
             controllerId: "p1",
             ownerId: "p1",

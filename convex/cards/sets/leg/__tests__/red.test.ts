@@ -227,7 +227,7 @@ describe("Beasts of Bogardan (+1/+1 vs nontoken white permanent, CR 611.2c)", ()
 
 describe("Spinal Villain ({T}: destroy target blue creature, CR 701.8)", () => {
     it("destroys a blue creature", () => {
-        const villain = makeInstance(spinalVillain.id, {
+        const villain = makeInstance("d6d5e36f-0049-4be8-bf85-8dc0186339a4", {
             id: "villain",
             controllerId: "p1",
         });

@@ -785,37 +785,6 @@ export const searingRays: CardDefinition = {
     ],
 };
 
-// Shivan Harvest — {1}{R} Enchantment. "{1}{R}, Sacrifice a creature: Destroy
-// target nonbasic land." (CR 602.1/118.5 sacrifice-a-permanent activation
-// cost via `sacrificeFilter`; CR 701.8 destroy; `excludeSupertypes: "Basic"`
-// for "nonbasic land" — the Wasteland template.)
-export const shivanHarvest: CardDefinition = {
-    id: "47dbd765-d7ea-4181-bd22-5c749ad081af",
-    rarity: "uncommon",
-    name: "Shivan Harvest",
-    oracleText: "{1}{R}, Sacrifice a creature: Destroy target nonbasic land.",
-    manaCost: { X: 1, R: 1 },
-    types: ["Enchantment"],
-    activatedAbilities: [
-        {
-            id: "shivan-harvest-destroy-land",
-            oracleText:
-                "{1}{R}, Sacrifice a creature: Destroy target nonbasic land.",
-            cost: {
-                mana: { X: 1, R: 1 },
-                sacrificeFilter: { types: "Creature" },
-            },
-            useStack: true,
-            targetRequirement: {
-                type: "Land",
-                count: 1,
-                excludeSupertypes: "Basic",
-            },
-            effects: [{ op: "destroy", target: { target: 0 } }],
-        },
-    ],
-};
-
 // Skittish Kavu — {1}{R} Creature — Kavu, 1/1. "This creature gets +1/+1 as
 // long as no opponent controls a white or blue creature." (CR 611.2c
 // conditional CDA anthem via `pt-buff`'s `condition(source, state, ctx)` —

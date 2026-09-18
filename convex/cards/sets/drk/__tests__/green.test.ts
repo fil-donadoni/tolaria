@@ -719,7 +719,7 @@ describe("Savaen Elves — destroy target Aura on a land (CR 605 / 701.8)", () =
 
 describe("Scavenger Folk — sacrifice to destroy an artifact (CR 118.5 / 701.8)", () => {
     it("destroys the target artifact (sacrifice-self cost paid by the engine)", () => {
-        const folk = makeInstance(scavengerFolk.id, {
+        const folk = makeInstance("8e99870c-b2b9-431b-b8a8-3f4a80aa8fa5", {
             id: "folk",
             controllerId: "p1",
             ownerId: "p1",
@@ -749,7 +749,7 @@ describe("Scavenger Folk — sacrifice to destroy an artifact (CR 118.5 / 701.8)
 
 describe("Niall Silvain — regenerate target creature (CR 605 / 701.19)", () => {
     it("shields the target so the next destroy is replaced by regeneration", () => {
-        const niall = makeInstance(niallSilvain.id, {
+        const niall = makeInstance("9d5911b5-a54e-4ebb-9c36-d4dc8e97bb4b", {
             id: "niall",
             controllerId: "p1",
         });

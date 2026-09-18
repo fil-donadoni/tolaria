@@ -466,41 +466,6 @@ export const pixieQueen: CardDefinition = {
     ],
 };
 
-// Pradesh Gypsies — "{1}{G}, {T}: Target creature gets -2/-0 until end of
-// turn." (CR 611.1 temporary debuff via a tap ability.)
-export const pradeshGypsies: CardDefinition = {
-    id: "0370330d-83d9-44d2-a1ed-c4827edc60fd",
-    rarity: "uncommon",
-    name: "Pradesh Gypsies",
-    oracleText: "{1}{G}, {T}: Target creature gets -2/-0 until end of turn.",
-    manaCost: { X: 2, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Nomad"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "pradesh-gypsies-debuff",
-            oracleText:
-                "{1}{G}, {T}: Target creature gets -2/-0 until end of turn.",
-            cost: { mana: { X: 1, G: 1 }, tap: true },
-            useStack: true,
-            targetRequirement: { type: "Creature", count: 1 },
-            // Migrated resolve()→effects[] (ADR 0045, #840): -2/-0 to the
-            // targeted creature until end of turn (CR 611.1) via `pump`.
-            effects: [
-                {
-                    op: "pump",
-                    target: { target: 0 },
-                    power: -2,
-                    toughness: 0,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-};
-
 // --- Burn spells scaling on a per-player count (CR 120.1) ------------------
 
 // Storm Seeker — "Storm Seeker deals damage to target player equal to the

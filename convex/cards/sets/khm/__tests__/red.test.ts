@@ -41,7 +41,7 @@ function board(library: string[] = []): GameState {
             makePlayer("p1", {
                 battlefield: [
                     mk(magda.id, "magda"),
-                    mk(dwarvenLieutenant.id, "dwarf"),
+                    mk("ea9a38b1-4676-425a-b40d-4fb478966024", "dwarf"),
                     mk(grizzlyBears.id, "bear"),
                 ],
                 library: library.map((cardId, i) => ({
@@ -50,7 +50,13 @@ function board(library: string[] = []): GameState {
                 })),
             }),
             makePlayer("p2", {
-                battlefield: [mk(dwarvenLieutenant.id, "opp-dwarf", "p2")],
+                battlefield: [
+                    mk(
+                        "ea9a38b1-4676-425a-b40d-4fb478966024",
+                        "opp-dwarf",
+                        "p2"
+                    ),
+                ],
             }),
         ],
     });

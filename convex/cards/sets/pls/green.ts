@@ -259,46 +259,6 @@ export const amphibiousKavu: CardDefinition = {
 // (ADR 0045) unless noted.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Alpha Kavu — {2}{G} Creature — Kavu, 2/2. "{1}{G}: Target Kavu creature
-// gets -1/+1 until end of turn." (CR 602.1 activated ability, `pump` Op with
-// a negative power delta — the shrink half of the already-censused Giant
-// Growth shape — restricted to the Kavu subtype via `TargetRequirement.
-// subtypeFilter`, no new construct.)
-export const alphaKavu: CardDefinition = {
-    id: "545ed916-59fc-4c60-9260-8c2dc88e67a1", // PLS 77
-    name: "Alpha Kavu",
-    rarity: "uncommon",
-    oracleText: "{1}{G}: Target Kavu creature gets -1/+1 until end of turn.",
-    manaCost: { X: 2, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Kavu"],
-    power: 2,
-    toughness: 2,
-    activatedAbilities: [
-        {
-            id: "alpha-kavu-pump",
-            oracleText:
-                "{1}{G}: Target Kavu creature gets -1/+1 until end of turn.",
-            cost: { mana: { X: 1, G: 1 } },
-            useStack: true,
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                subtypeFilter: "Kavu",
-            },
-            effects: [
-                {
-                    op: "pump",
-                    target: { target: 0 },
-                    power: -1,
-                    toughness: 1,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-};
-
 // Gaea's Herald — {1}{G} Creature — Elf, 1/1. "Creature spells can't be
 // countered."
 //
@@ -823,56 +783,6 @@ export const skyshroudBlessing: CardDefinition = {
             ],
         },
         { op: "draw", player: "controller", count: 1 },
-    ],
-};
-
-// Stone Kavu — {4}{G} Creature — Kavu, 3/3. "{R}: This creature gets +1/+0
-// until end of turn.\n{W}: This creature gets +0/+1 until end of turn."
-// (CR 602.1 activated abilities, off-color activation costs — Caldera
-// Kavu's own off-color-cost precedent (`pls/red.ts`) — two independent
-// single-mana `pump` abilities, no new construct.)
-export const stoneKavu: CardDefinition = {
-    id: "36a1cdca-d48c-4936-ad6a-4610aeb991ce", // PLS 93
-    name: "Stone Kavu",
-    rarity: "common",
-    oracleText:
-        "{R}: This creature gets +1/+0 until end of turn.\n{W}: This creature gets +0/+1 until end of turn.",
-    manaCost: { X: 4, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Kavu"],
-    power: 3,
-    toughness: 3,
-    activatedAbilities: [
-        {
-            id: "stone-kavu-pump-power",
-            oracleText: "{R}: This creature gets +1/+0 until end of turn.",
-            cost: { mana: { R: 1 } },
-            useStack: true,
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 1,
-                    toughness: 0,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-        {
-            id: "stone-kavu-pump-toughness",
-            oracleText: "{W}: This creature gets +0/+1 until end of turn.",
-            cost: { mana: { W: 1 } },
-            useStack: true,
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 0,
-                    toughness: 1,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
     ],
 };
 

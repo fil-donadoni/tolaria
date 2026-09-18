@@ -82,9 +82,9 @@ const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 // Multi-art black prints (C5) — each resolves to its shared definition.
 const C5_MULTI_ART_PRINTS: { print: CardPrint; defId: string }[] = [
-    { print: armorThrullFemB, defId: armorThrull.id },
-    { print: armorThrullFemC, defId: armorThrull.id },
-    { print: armorThrullFemD, defId: armorThrull.id },
+    { print: armorThrullFemB, defId: "a98384d1-8e7d-4c41-9f23-47bc2ae2ad6a" },
+    { print: armorThrullFemC, defId: "a98384d1-8e7d-4c41-9f23-47bc2ae2ad6a" },
+    { print: armorThrullFemD, defId: "a98384d1-8e7d-4c41-9f23-47bc2ae2ad6a" },
     { print: basalThrullFemB, defId: basalThrull.id },
     { print: basalThrullFemC, defId: basalThrull.id },
     { print: basalThrullFemD, defId: basalThrull.id },
@@ -241,7 +241,7 @@ describe("Basal Thrull — sac-self mana ability (CAPABILITY C, ADR 0039, CR 605
 
 describe("Armor Thrull — sac-self +1/+2 counter (CR 602.1, 122.1)", () => {
     it("puts a +1/+2 counter on the target, lifting its effective P/T", () => {
-        const armorer = makeInstance(armorThrull.id, {
+        const armorer = makeInstance("a98384d1-8e7d-4c41-9f23-47bc2ae2ad6a", {
             id: "armorer",
             controllerId: "p1",
             ownerId: "p1",

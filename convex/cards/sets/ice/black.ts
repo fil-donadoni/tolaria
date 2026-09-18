@@ -1161,38 +1161,6 @@ export const hecatomb: CardDefinition = {
         },
     ],
 };
-// Hoar Shade — classic Shade pump (CR 611.2a). "{B}: This creature gets +1/+1
-// until end of turn."
-export const hoarShade: CardDefinition = {
-    id: "72242dff-15ca-4da0-b3ae-9984d037b31f",
-    name: "Hoar Shade",
-    rarity: "common",
-    oracleText: "{B}: This creature gets +1/+1 until end of turn.",
-    manaCost: { X: 3, B: 1 },
-    types: ["Creature"],
-    subtypes: ["Shade"],
-    power: 1,
-    toughness: 2,
-    activatedAbilities: [
-        {
-            id: "hoar-shade-pump",
-            oracleText: "{B}: This creature gets +1/+1 until end of turn.",
-            cost: { mana: { B: 1 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+1 EOT
-            // on this creature (CR 611.2a) via the pump Op.
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 1,
-                    toughness: 1,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-};
 // Howl from Beyond — ICE reprint of the LEA original (ADR 0014). The +X/+0
 // pump mechanics live on the existing LEA definition; this is a CardPrint.
 export const howlFromBeyondIce: CardPrint = {

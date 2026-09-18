@@ -1,54 +1,6 @@
 // jud — green cards (ADR 0043 colour split).
 import type { CardDefinition } from "../../types";
 
-// Sylvan Safekeeper — {G} Creature — Human Wizard (issue #684, Cube FREE
-// evasion/protection statics). "Sacrifice a land: Target creature you
-// control gains shroud until end of turn." (CR 702.18 shroud; CR 118.5
-// sacrifice-a-permanent activation cost.)
-//
-// The granted shroud is LIVE: `permanentGuard.ts::isGuardedAgainst` bridges
-// the bare `staticAbilities: ["shroud"]` keyword string directly (the
-// `hasShroud` helper, mirroring the existing `hasHexproof` bridge for CR
-// 702.11b), unfiltered per CR 702.18, so `grantStaticAbility`'s plain string
-// push is enforced without a per-card `permanent-guard` staticEffect. (This
-// used to be documented here as decorative; the catalogue-wide gap closed in
-// `permanentGuard.ts`, not per-card — see the Mechanics Registry's shroud
-// row, issue #959.)
-export const sylvanSafekeeper: CardDefinition = {
-    id: "f1b8413f-c9fc-4cea-b416-a1fcf651b009",
-    name: "Sylvan Safekeeper",
-    rarity: "rare",
-    oracleText:
-        "Sacrifice a land: Target creature you control gains shroud until end of turn.",
-    manaCost: { G: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Wizard"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "sylvan-safekeeper-shroud",
-            oracleText:
-                "Sacrifice a land: Target creature you control gains shroud until end of turn.",
-            cost: { sacrificeFilter: { types: "Land" } },
-            useStack: true,
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                controller: "you",
-            },
-            effects: [
-                {
-                    op: "grantAbility",
-                    ability: "shroud",
-                    target: { target: 0 },
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-};
-
 // Krosan Reclamation — {1}{G} Instant. "Target player shuffles up to two
 // target cards from their graveyard into their library." with Flashback {1}{G}
 // (CR 702.34 — cast from the graveyard for the flashback cost, then exile it).

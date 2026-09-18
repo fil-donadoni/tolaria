@@ -59,7 +59,9 @@ const psionicBlast = getDefinition("a6a86e6e-bfff-46af-9d36-c912901fea92");
 
 describe("Ali Baba ({R}: tap target Wall)", () => {
     it("taps a Wall", () => {
-        const ali = makeInstance(aliBaba.id, { id: "ali" });
+        const ali = makeInstance("29cd7064-3703-43e0-8702-d1ba13703fd8", {
+            id: "ali",
+        });
         // Synthetic Wall (no Wall card in lea registry needed — minimal view).
         const wall = makeInstance(grizzlyBears.id, {
             id: "wall",
@@ -146,12 +148,12 @@ describe("Ali from Cairo (clamp life >= 1, CR 614)", () => {
 
     it("is repeatable across multiple damage events", () => {
         const ali = makeInstance(aliFromCairo.id, { id: "ali" });
-        const tim = makeInstance(prodigalSorcerer.id, {
+        const tim = makeInstance("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a", {
             id: "tim",
             controllerId: "p2",
             ownerId: "p2",
         });
-        const tim2 = makeInstance(prodigalSorcerer.id, {
+        const tim2 = makeInstance("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a", {
             id: "tim2",
             controllerId: "p2",
             ownerId: "p2",
@@ -296,7 +298,9 @@ describe("Desert Nomads (desertwalk + prevent damage from Deserts)", () => {
             ownerId: "p2",
         });
         const des = makeInstance(desert.id, { id: "des" });
-        const tim = makeInstance(prodigalSorcerer.id, { id: "tim" });
+        const tim = makeInstance("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a", {
+            id: "tim",
+        });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [des, tim] }),

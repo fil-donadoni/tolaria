@@ -843,38 +843,6 @@ export const errantry: CardDefinition = {
         },
     ],
 };
-// Flame Spirit — 2/3 with firebreathing "{R}: +1/+0 until end of turn" (CR 605
-// activated ability, CR 611.1 temporary pump).
-export const flameSpirit: CardDefinition = {
-    id: "add2b82a-9aa5-4d5c-a1c2-e313541f12c8",
-    name: "Flame Spirit",
-    rarity: "uncommon",
-    oracleText: "{R}: This creature gets +1/+0 until end of turn.",
-    manaCost: { X: 4, R: 1 },
-    types: ["Creature"],
-    subtypes: ["Elemental", "Spirit"],
-    power: 2,
-    toughness: 3,
-    activatedAbilities: [
-        {
-            id: "flame-spirit-firebreathing",
-            oracleText: "{R}: This creature gets +1/+0 until end of turn.",
-            cost: { mana: { R: 1 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+0 EOT
-            // on this creature (CR 611.2a) via the pump Op.
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 1,
-                    toughness: 0,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-};
 // Flare — {2}{R} Instant. "Flare deals 1 damage to any target" (CR 120.1
 // damage) plus the next-upkeep cantrip rider (CR 502.2 / 603.7d).
 export const flare: CardDefinition = {
