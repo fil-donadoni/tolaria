@@ -7,6 +7,8 @@
 import { describe, expect, it } from "vitest";
 import {
     CARD_LEVEL,
+    findGapKeys,
+    gapCards,
     gapOf,
     gapShape,
     NO_SLOT,
@@ -212,6 +214,52 @@ describe("rankGrammarGaps", () => {
     it("takes the example from a Target card when there is one", () => {
         const [head] = rankGrammarGaps(LOCK, new Set(["c"]));
         expect(head!.example).toEqual({ line: HEAD.text, card: "Card c" });
+    });
+});
+
+describe("one gap, card by card (--gap, issue #3834)", () => {
+    const EQUIP = "keyword-line › keyword ability › Equip {…}";
+
+    it("an exact key wins; otherwise every key containing the query, sorted", () => {
+        expect(findGapKeys(LOCK, EQUIP)).toEqual([EQUIP]);
+        expect(findGapKeys(LOCK, "Equip")).toEqual([EQUIP]);
+        expect(findGapKeys(LOCK, "gain life")).toEqual([
+            "triggered › trigger head › Whenever you gain life",
+        ]);
+        // Ambiguous: every candidate comes back, never the first match.
+        expect(findGapKeys(LOCK, "›").length).toBe(4);
+        expect(findGapKeys(LOCK, "nothing like this")).toEqual([]);
+    });
+
+    it("lists every refused card with its line, sole-gap cards first — the ranking's counts, card by card", () => {
+        const cards = gapCards(LOCK, EQUIP, null);
+        expect(cards.map((c) => [c.name, c.line, c.sole])).toEqual([
+            ["Card a", "Equip {2}", true],
+            ["Card b", "Equip {3}", false],
+            ["Card d", "Equip {2}", false],
+        ]);
+        const [ranked] = rankGrammarGaps(LOCK, null).filter(
+            (g) => g.key === EQUIP
+        );
+        expect(cards.filter((c) => c.sole).length).toBe(
+            ranked!.corpus.compiles
+        );
+        expect(cards.length).toBe(ranked!.corpus.refuses);
+    });
+
+    it("puts Target cards before the rest within each class", () => {
+        const head = "triggered › trigger head › Whenever you gain life";
+        expect(
+            gapCards(LOCK, head, new Set(["d"])).map((c) => [
+                c.name,
+                c.sole,
+                c.inTarget,
+            ])
+        ).toEqual([
+            ["Card c", true, false],
+            ["Card d", false, true],
+            ["Card b", false, false],
+        ]);
     });
 });
 

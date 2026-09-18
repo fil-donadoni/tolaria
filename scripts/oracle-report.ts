@@ -17,6 +17,10 @@
  *   bun scripts/oracle-report.ts --targets [<id>]
  *                                  # every registered Target List (data/targets.json),
  *                                  # card by card in its coverage state, + playable
+ *   bun scripts/oracle-report.ts --gap "<key or substring>" [--set apc | --pool premodern]
+ *                                  # ONE Grammar Gap, card by card: every refused
+ *                                  # line, sole-gap cards (the ones the rule
+ *                                  # graduates) first — /grammar-rule's input
  *   bun scripts/oracle-report.ts --delta [<ref>]
  *                                  # ready delta per set + corpus against
  *                                  # <ref>'s lockfile (default: origin/<base>)
@@ -40,6 +44,8 @@ import {
 } from "./lib/oracle-ready-delta";
 import {
     CARD_LEVEL,
+    findGapKeys,
+    gapCards,
     poolTarget,
     rankGrammarGaps,
     setTargetFromMtgjson,
@@ -443,6 +449,45 @@ function reportGaps(
     process.stdout.write("\n");
 }
 
+/**
+ * One Grammar Gap, card by card (`--gap`, issue #3834): the evidence a Grammar
+ * Rule is written against. An ambiguous query prints the candidate keys and
+ * exits 1 — picking the first match would hand the reader someone else's gap.
+ */
+function reportGapCards(
+    lock: Lockfile,
+    query: string,
+    target: Target | null
+): void {
+    const keys = findGapKeys(lock, query);
+    if (keys.length !== 1) {
+        process.stderr.write(
+            keys.length === 0
+                ? `oracle:report --gap — no Grammar Gap key contains "${query}"\n`
+                : `oracle:report --gap — "${query}" names ${keys.length} gaps; pass one key:\n` +
+                      keys.map((k) => `  ${k}\n`).join("")
+        );
+        process.exit(1);
+    }
+    const key = keys[0]!;
+    const cards = gapCards(lock, key, target?.ids ?? null);
+    const tally = (rows: readonly (typeof cards)[number][]) =>
+        `${rows.filter((c) => c.sole).length} compile / ${rows.length} refuse`;
+    const inTarget = cards.filter((c) => c.inTarget);
+    process.stdout.write(
+        `\nGrammar Gap: ${key}\n` +
+            (target === null
+                ? `corpus: ${tally(cards)}\n`
+                : `${target.label}: ${tally(inTarget)} · corpus: ${tally(cards)}\n`) +
+            `compile = the gap is the card's only one (the rule alone graduates it)\n\n`
+    );
+    for (const card of cards) {
+        const mark = `${card.sole ? "compile" : "refuse "}${target !== null && card.inTarget ? " *" : "  "}`;
+        process.stdout.write(`${mark}  ${card.name} — ${card.line}\n`);
+    }
+    if (target !== null) process.stdout.write(`\n* = in the ${target.label}\n`);
+}
+
 function main(): void {
     if (!existsSync(LOCKFILE_PATH)) {
         process.stderr.write(
@@ -472,6 +517,11 @@ function main(): void {
             lock,
             ref === undefined || ref.startsWith("--") ? ORIGIN_BASE : ref
         );
+        return;
+    }
+    const gapQuery = flag("--gap");
+    if (gapQuery !== undefined) {
+        reportGapCards(lock, gapQuery, readTarget(lock));
         return;
     }
     const gapsAt = process.argv.indexOf("--gaps");
