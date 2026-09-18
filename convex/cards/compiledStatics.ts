@@ -160,6 +160,12 @@ export type CompiledStaticScope =
  * hand-written catalogue writes as a closure (`target.id === source.id &&
  * target.wasKicked === true`), made JSON.
  *
+ * Modelled as the permanent's OWN static grant, exactly as the hand-written
+ * closure is — not as an effect timestamped at entry. The two part only where
+ * a layer-6 ability-loss effect (Humility) is already on the battlefield, or
+ * the permanent later becomes a copy of something else: there the grant goes
+ * with the permanent's abilities, where a CR 613.7 timestamp would keep it.
+ *
  * `kickerId` absent: any kicker paid ("if this creature was kicked"). Present:
  * that ONE kicker's payment record (CR 702.33f — "with its {1}{U} kicker").
  */

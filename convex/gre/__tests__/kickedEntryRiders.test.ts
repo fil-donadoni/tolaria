@@ -21,7 +21,9 @@ import { projectPublicState } from "../../gameProjections";
 import { makePlayer, makeState, pushSpell } from "../../cards/__tests__/setup";
 import { getEffectiveActivatedAbilities } from "../activatedAbilities";
 import {
+    exileWithAttachments,
     resolveTopOfStack,
+    returnExiledForSource,
     type CardInstanceState,
     type GameState,
 } from "../state";
@@ -221,6 +223,32 @@ describe("kicker-gated quoted ability — activated-grant, appliesTo: self-if-ki
             });
         }
     );
+
+    it("CR 400.7 — a kicked permanent that leaves and returns uncast loses both grants", () => {
+        // Blink: the returning object is a new object that was never cast
+        // (CR 400.7), so neither `kickerPayments` gate can still read paid.
+        withTemporaryDefinition(PER_KICKER, () => {
+            const { state, live } = resolveWith(PER_KICKER, {
+                "kicker-u": 1,
+                "kicker-b": 1,
+            });
+            expect(live.staticAbilities).toContain("flying");
+            expect(
+                exileWithAttachments(state, live.id, {
+                    sourceId: "blinker",
+                    returnTapped: false,
+                })
+            ).not.toBeNull();
+            returnExiledForSource(state, "blinker");
+            const back = state.players[0]!.battlefield.find(
+                (c) => c.id === live.id
+            )!;
+            expect(back.kickerPayments).toBeUndefined();
+            expect(back.counters?.["+1/+1"] ?? 0).toBe(0);
+            expect(back.staticAbilities).not.toContain("flying");
+            expect(grantedIds(back)).not.toContain("per-kicker-regen");
+        });
+    });
 
     it("survives the wire projection (the client sees the keyword and the ability)", () => {
         withTemporaryDefinition(PER_KICKER, () => {
