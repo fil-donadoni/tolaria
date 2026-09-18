@@ -16,7 +16,11 @@ import type {
     StaticEffectStateView,
     TriggeredAbility,
 } from "../../types";
-import { AURA_AFFECTS_HOST, BASIC_LAND_SUBTYPES } from "../../types";
+import {
+    AURA_AFFECTS_HOST,
+    BASIC_LAND_SUBTYPES,
+    PERMANENT_TYPES,
+} from "../../types";
 import { cumulativeUpkeepTrigger } from "../../abilities/cumulativeUpkeep";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
@@ -827,7 +831,11 @@ export const hydroblast: CardDefinition = {
             id: "destroy",
             label: "Destroy target red permanent",
             oracleText: "Destroy target permanent if it's red.",
-            targetRequirement: { type: "any", count: 1, colorFilter: "R" },
+            targetRequirement: {
+                type: [...PERMANENT_TYPES],
+                count: 1,
+                colorFilter: "R",
+            },
             effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],

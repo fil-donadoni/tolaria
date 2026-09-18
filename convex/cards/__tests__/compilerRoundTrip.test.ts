@@ -119,7 +119,12 @@ import {
 // ability): Benalish Lancer, Duskwalker, Faerie Squadron, Kavu Titan and
 // Pouncing Kavu round-trip once "… and with <keyword>" lowers to a
 // `self-if-kicked` keyword grant.
-const BASELINE_CEILING = 1648;
+//
+// Lowered 1648 -> 1644 by issue #3073 / #3046 ("target permanent" encoded as
+// CR 115.4 "any", or narrowed to one card type): Active Volcano, Desert
+// Twister, Flash Flood and Northern Paladin round-trip once their
+// `targetRequirement.type` is the permanent-type list (CR 110.4).
+const BASELINE_CEILING = 1644;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that

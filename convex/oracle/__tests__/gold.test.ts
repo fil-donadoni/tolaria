@@ -45,36 +45,10 @@ const KNOWN_DIVERGENCES: readonly string[] = [
     // of CR 605.1a, so `useStack: false`. The hand-written ability puts it on
     // the stack. docs/findings/2697-gold-catalogue-divergences.md
     "Ashnod's Altar (activated)",
-    // Oracle: "Destroy target black permanent." The hand-written
-    // `targetRequirement` is `type: "Creature"` — narrower than the card
-    // (CR 109.1 / 300.1). Same finding.
-    "Northern Paladin (activated)",
-    // ── #2699: the spell slot's first pass over gold ──────────────────────
-    //
-    // Oracle: "Choose one — • Destroy target blue permanent. • Return target
-    // Island to its owner's hand." Both hand-written definitions encode
-    // "target <colour> permanent" as `type: "any"` — the SAME defect as
-    // Northern Paladin above, and the reason it is a defect rather than an
-    // encoding tie is that `"any"` is not a synonym for "permanent": CR 115.4
-    // "any target" is a creature, planeswalker, battle or PLAYER, which is
-    // what `matchesTargetRequirement` (src/lib/card-utils.ts) and
-    // `getLegalTargets` (gre/rules.ts) both implement. So as shipped these two
-    // cannot destroy a blue artifact, enchantment or land. (An earlier version
-    // of this comment also said they can destroy a blue PLAYER; they cannot —
-    // `getLegalTargets` gates its player branch on `!colorFilter &&
-    // !colorFilterAny` (gre/rules.ts, CR 109.3), and both carry a
-    // `colorFilter`. Desert Twister below, which has none, IS reachable that
-    // way. Corrected while triaging the baseline, issue #3050.) The compiler
-    // emits the six permanent card types (CR 110.4).
-    "Active Volcano (spell)",
-    "Flash Flood (spell)",
-    // Oracle: "Destroy target permanent." — `type: "any"` again, the FIFTH
-    // instance of the Northern Paladin defect, and the reason `gold.ts`
-    // exempts a closure body per KEY rather than per card: this one authors
-    // its body with the `effect: "destroy-target"` shorthand, so a whole-card
-    // exemption hid a live divergence behind it (review of PR #3044).
-    // docs/findings/2699-spell-slot-gaps.md
-    "Desert Twister (other)",
+    // Northern Paladin, Active Volcano, Flash Flood and Desert Twister left
+    // this list in issues #3046 / #3073: each encoded "target … permanent" as
+    // `type: "Creature"` or CR 115.4's `"any"`, and each now carries the
+    // permanent-type list the compiler emits (CR 110.1 / 110.4).
 ];
 
 describe("gold round-trip — precision", () => {
@@ -130,10 +104,9 @@ describe("gold round-trip — precision", () => {
         // Fissure, Goblin Grenade, Ice Storm, Royal Assassin, Shatter,
         // Sinkhole, Stone Rain — the five `effect: "destroy-target"` shorthand
         // spells plus three `resolve()` closures), and they now round-trip as
-        // `equal`. Desert Twister stayed a MISMATCH throughout: its
-        // hand-written `type: "any"` is narrower than the six permanent types
-        // the compiler reads, so its behavioural green proves only the case
-        // its own test covers. Onulet is the survivor.
+        // `equal`. Desert Twister stayed a MISMATCH until issue #3073 gave it
+        // the six permanent types the compiler reads and retired its shorthand
+        // to the same `destroy` script. Onulet is the survivor.
         //
         // The bound is still a bound and not a ratio — growth has to be
         // explained. So does emptiness: the `toContain` below is the vacuity

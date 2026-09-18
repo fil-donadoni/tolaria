@@ -601,7 +601,11 @@ export const flashFlood: CardDefinition = {
             id: "destroy-red",
             label: "Destroy target red permanent",
             oracleText: "Destroy target red permanent.",
-            targetRequirement: { type: "any", count: 1, colorFilter: "R" },
+            targetRequirement: {
+                type: [...PERMANENT_TYPES],
+                count: 1,
+                colorFilter: "R",
+            },
             // Migrated resolve()→effects[] (ADR 0045, #795): destroy the
             // announced target (CR 701.8).
             effects: [{ op: "destroy", target: { target: 0 } }],

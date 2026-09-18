@@ -2,9 +2,10 @@
  * The merge's one-time BASELINE (issue #3052, ADR 0114 §3).
  *
  * ADR 0114 §3 says a hand-written definition and its compiled twin must AGREE,
- * and that disagreement stops the build. Four cards disagree today. Stopping
- * the build on all four would mean this artifact cannot be generated until
- * four unrelated adjudications land, so they are named here instead — the same
+ * and that disagreement stops the build. Four cards disagreed at birth; two
+ * remain (Northern Paladin and Desert Twister graduated in issues #3046 /
+ * #3073). Stopping the build on them would mean this artifact cannot be
+ * generated until unrelated adjudications land, so they are named here instead — the same
  * amnesty shape Guard C's `compilerRoundTrip.baseline.ts` uses, with the same
  * one-directional property: **this list only ever shrinks.**
  *
@@ -59,17 +60,6 @@ export const CATALOGUE_DIVERGENCE_BASELINE: readonly DivergenceBaselineRow[] = [
             "is right.",
     },
     {
-        card: "Northern Paladin",
-        field: "activatedAbilities",
-        direction: "card-defect",
-        issue: 3047,
-        why:
-            'Oracle: "Destroy target black permanent." The hand-written ' +
-            '`targetRequirement` is `type: "Creature"` — strictly narrower than the ' +
-            "card that is printed (CR 109.1 / 300.1). The compiled row emits the six " +
-            "permanent card types (CR 110.4). The compiler is right.",
-    },
-    {
         card: "Ancient Spider",
         field: "staticAbilities",
         direction: "undetermined",
@@ -81,23 +71,6 @@ export const CATALOGUE_DIVERGENCE_BASELINE: readonly DivergenceBaselineRow[] = [
             "normalisation axis over a field the layer system reads, which ADR 0114 §4 " +
             "puts out of reach of this ticket. docs/findings/3052-keyword-order-divergence.md",
     },
-    {
-        card: "Desert Twister",
-        field: "targetRequirement",
-        direction: "card-defect",
-        issue: 3073,
-        why:
-            'Oracle: "Destroy target permanent." The hand-written ' +
-            '`targetRequirement` is `type: ["any"]`, and "any target" is NOT a ' +
-            "synonym for a permanent — CR 115.4 makes it a creature, planeswalker, " +
-            "battle or player, which is what `getLegalTargets` and " +
-            "`matchesTargetRequirement` both implement. So the card as shipped " +
-            "cannot destroy an artifact, an enchantment or a land. The compiled row " +
-            "emits the six permanent card types (CR 110.4). The compiler is right. " +
-            'It is the card whose body is the `effect: "destroy-target"` shorthand, ' +
-            "so a comparator that exempted a whole card on the closure sentinel " +
-            "would hide this — see `twinDivergence`.",
-    },
 ] as const;
 
 /**
@@ -106,7 +79,9 @@ export const CATALOGUE_DIVERGENCE_BASELINE: readonly DivergenceBaselineRow[] = [
  * the stale-row check forces a fixed card out, and this stops a new one being
  * parked in.
  */
-export const BASELINE_CEILING = 4;
+// Lowered 4 -> 2 by issues #3046 / #3073: Northern Paladin and Desert
+// Twister carry the permanent-type list their compiled twins emit.
+export const BASELINE_CEILING = 2;
 
 /** `card|field` — the key a divergence is matched on. */
 export const baselineKey = (row: {

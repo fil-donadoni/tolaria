@@ -18,6 +18,7 @@ import type {
 import {
     AURA_AFFECTS_HOST,
     BASIC_LAND_SUBTYPES,
+    PERMANENT_TYPES,
     TARGET_ACL_PERMANENT,
 } from "../../types";
 import { stateTrigger } from "../../abilities/triggers/stateTrigger";
@@ -128,18 +129,17 @@ export function makeElementalBlast(args: {
                 id: "destroy",
                 label: `Destroy target ${args.oracleColor} permanent`,
                 oracleText: `Destroy target ${args.oracleColor} permanent.`,
+                // "Target <colour> permanent" is every permanent type (CR
+                // 110.1 / 110.4), not CR 115.4 "any" — which admits only the
+                // damageable types and so missed coloured artifacts,
+                // enchantments and lands (issue #3073).
                 targetRequirement: {
-                    type: "any",
+                    type: [...PERMANENT_TYPES],
                     count: 1,
                     colorFilter: args.targetColor,
                 },
                 // Migrated resolve()→effects[] (ADR 0045, PRD #795): a
-                // `colorFilter` target excludes players (colorless — CR
-                // 202.2, see `getLegalTargets` in gre/rules.ts), so the
-                // announced target always resolves to a permanent — the
-                // former closure's `t.type === "permanent"` check was
-                // defensive, never load-bearing. `destroy` throws on a
-                // player TargetSelection, but that branch is unreachable here.
+                // single `destroy` Op on the announced permanent.
                 effects: [{ op: "destroy", target: { target: 0 } }],
             },
         ],

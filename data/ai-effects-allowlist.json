@@ -577,12 +577,6 @@
     },
     {
         "class": "effect-shorthand",
-        "cardId": "0d77c149-cca2-45c7-bc83-5ba1872ad5e0",
-        "name": "Desert Twister",
-        "note": "no honest shadow script: pre-existing effect-shorthand card, ability/effect-shorthand scope extension tracked by #1519"
-    },
-    {
-        "class": "effect-shorthand",
         "cardId": "c4104546-abd9-4bfb-a65e-5928cdd4522f",
         "name": "Morale",
         "note": "no honest shadow script: pre-existing effect-shorthand card, ability/effect-shorthand scope extension tracked by #1519"

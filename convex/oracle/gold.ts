@@ -162,11 +162,11 @@ export type GoldBucket =
  * behaviour lives in a closure", and rendering it as one says so to the
  * comparison too.
  *
- * Six cards print `effect: "destroy-target"`. Five (Disenchant, Ice Storm,
- * Shatter, Sinkhole, Stone Rain) agree with the compiler on everything else
- * and are counted `incomparable`; the sixth, Desert Twister, does NOT, and is
- * a mismatch — see `BODY_KEYS`, which is what keeps the sentinel from
- * exempting a card's comparable fields along with its body.
+ * Six cards once printed `effect: "destroy-target"`. Five (Disenchant, Ice
+ * Storm, Shatter, Sinkhole, Stone Rain) agreed with the compiler on everything
+ * else and were counted `incomparable`; the sixth, Desert Twister, did NOT
+ * (issue #3073), and was a mismatch — see `BODY_KEYS`, which is what keeps
+ * the sentinel from exempting a card's comparable fields along with its body.
  */
 const CLOSURE_VALUED_KEYS: ReadonlySet<string> = new Set(["effect"]);
 

@@ -13,6 +13,7 @@ import type {
     StaticEffectContext,
     Color,
 } from "../../types";
+import { PERMANENT_TYPES } from "../../types";
 import { payOrSacrificeUpkeepTrigger } from "./multicolor";
 import { colorChoiceModes } from "../../abilities/chooseColor";
 
@@ -257,7 +258,7 @@ export const alchorsTomb: CardDefinition = {
             cost: { mana: { X: 2 }, tap: true },
             useStack: true,
             targetRequirement: {
-                type: "any",
+                type: [...PERMANENT_TYPES],
                 count: 1,
                 controller: "you",
             },

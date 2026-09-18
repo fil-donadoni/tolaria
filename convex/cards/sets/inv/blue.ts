@@ -171,7 +171,7 @@ export const empressGalina: CardDefinition = {
             cost: { mana: { U: 2 }, tap: true },
             useStack: true,
             targetRequirement: {
-                type: "any",
+                type: [...PERMANENT_TYPES],
                 count: 1,
                 supertypeFilter: ["Legendary"],
             },
