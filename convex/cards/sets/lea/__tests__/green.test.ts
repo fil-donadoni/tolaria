@@ -1218,7 +1218,7 @@ describe("Stream of Life (target player gains X life)", () => {
     });
 });
 
-describe("Wall of Brambles (vanilla 2/3 defender)", () => {
+describe("Wall of Brambles (2/3 defender, {G}: regenerate)", () => {
     it("cannot attack (defender restriction, CR 702.3)", () => {
         const wob = makeInstance(wallOfBrambles.id, {
             id: "wob",

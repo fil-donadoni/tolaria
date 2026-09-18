@@ -1835,26 +1835,19 @@ export const CARD_DEFECT_ROWS: readonly string[] = [
     "Desert Twister", // #3073 — `type: ["any"]` for "permanent"
     "Flash Flood", // #3073 — `type: ["any"]` for "red permanent"
     "Northern Paladin", // #3046 — "black creature" for "black permanent"
-    "Wall of Brambles", // #3074 — ships without its regenerate ability
 ];
 
 /**
  * The compiler produced a definition, the two disagree, and which encoding is
  * canonical is an open question rather than a defect on either side.
  *
- * Both rows here are the same question: a sacrifice cost whose Oracle text
- * names a LAND TYPE. The catalogue writes `{ types: ["Land"], subtypes:
- * ["Swamp"] }`; the compiler emits `{ subtypes: ["Swamp"] }`. CR 205.3i puts
- * land types on lands only, so the two select the same permanents today — but
- * `cost` is a field the engine reads to decide, and ADR 0114 §4 forbids the
- * comparator folding it. Somebody has to say which form is canonical and make
- * both sides write it; until then the row is honestly undetermined, and it is
- * NOT evidence of a grammar gap or of a card bug.
+ * Empty since issue #3823: its last two rows (Horror of Horrors, Lava Dart)
+ * were one question — a sacrifice cost naming a LAND TYPE written as
+ * `{ types: ["Land"], subtypes: [...] }` beside the compiler's
+ * `{ subtypes: [...] }`. CR 205.3i puts land types on lands only, so both
+ * cards now write the subtype alone.
  */
-export const UNDETERMINED_ROWS: readonly string[] = [
-    "Horror of Horrors",
-    "Lava Dart",
-];
+export const UNDETERMINED_ROWS: readonly string[] = [];
 
 const rows = (
     names: readonly string[],

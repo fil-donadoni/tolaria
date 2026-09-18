@@ -1184,6 +1184,16 @@ export const wallOfBrambles: CardDefinition = {
     power: 2,
     toughness: 3,
     staticAbilities: ["defender"],
+    activatedAbilities: [
+        {
+            id: "wall-of-brambles-regenerate",
+            oracleText: "{G}: Regenerate this creature.",
+            cost: { mana: { G: 1 } },
+            useStack: true,
+            // CR 701.19a — a regeneration shield on this creature.
+            effects: [{ op: "regenerate", target: { ref: "$source" } }],
+        },
+    ],
 };
 
 export const wallOfIce: CardDefinition = {

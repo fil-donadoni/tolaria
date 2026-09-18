@@ -11,13 +11,24 @@
  *   bun scripts/oracle-report.ts             # per-format table + top fragments
  *   bun scripts/oracle-report.ts --gaps 50   # more of the fragment backlog
  *   bun scripts/oracle-report.ts --decks     # per-deck, per-card state (M1)
+ *   bun scripts/oracle-report.ts --delta [<ref>]
+ *                                            # ready delta per set + corpus
+ *                                            # against <ref>'s lockfile
+ *                                            # (default: origin/<base>)
  */
 
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { REPORTED_FORMATS } from "./oracle-corpus";
 import { poolOracleIds } from "./oracle-compile";
 import { parseLockfile } from "./lib/oracle-lockfile";
+import { ORIGIN_BASE } from "./lib/branches";
+import {
+    formatReadyDelta,
+    readyDelta,
+    type SetMembership,
+} from "./lib/oracle-ready-delta";
 import {
     readTier1Decks,
     summaryLine,
@@ -89,6 +100,54 @@ function reportDecks(lock: ReturnType<typeof parseLockfile>): void {
     process.stdout.write("\n");
 }
 
+/** Every COMMITTED MTGJSON set (`data/json/<SET>.json`), by oracle id — an
+ *  untracked snapshot in the working tree would make the rows depend on the
+ *  checkout. */
+function vendoredSets(): SetMembership[] {
+    return execFileSync("git", ["ls-files", "--", "data/json/*.json"], {
+        cwd: ROOT,
+        encoding: "utf8",
+    })
+        .split("\n")
+        .filter((file) => file.endsWith(".json"))
+        .sort()
+        .map((file) => {
+            const set = JSON.parse(readFileSync(join(ROOT, file), "utf8")) as {
+                data: {
+                    code: string;
+                    cards: { identifiers?: { scryfallOracleId?: string } }[];
+                };
+            };
+            const oracleIds = new Set<string>();
+            for (const card of set.data.cards) {
+                const id = card.identifiers?.scryfallOracleId;
+                if (id !== undefined) oracleIds.add(id);
+            }
+            return { code: set.data.code, oracleIds };
+        });
+}
+
+function reportDelta(
+    lock: ReturnType<typeof parseLockfile>,
+    ref: string
+): void {
+    const baseline = parseLockfile(
+        execFileSync("git", ["show", `${ref}:data/oracle-compiled.json`], {
+            cwd: ROOT,
+            encoding: "utf8",
+            maxBuffer: 256 * 1024 * 1024,
+        })
+    );
+    const rows = readyDelta(baseline.cards, lock.cards, vendoredSets());
+    process.stdout.write(`\n${formatReadyDelta(rows, ref)}`);
+    const corpus = rows[rows.length - 1]!;
+    if (corpus.lost.length > 0)
+        process.stdout.write(
+            `\nno longer ready (${corpus.lost.length}): ${corpus.lost.join(", ")}\n`
+        );
+    process.stdout.write("\n");
+}
+
 function main(): void {
     if (!existsSync(LOCKFILE_PATH)) {
         process.stderr.write(
@@ -99,6 +158,15 @@ function main(): void {
     const lock = parseLockfile(readFileSync(LOCKFILE_PATH, "utf8"));
     if (process.argv.includes("--decks")) {
         reportDecks(lock);
+        return;
+    }
+    const deltaAt = process.argv.indexOf("--delta");
+    if (deltaAt !== -1) {
+        const ref = process.argv[deltaAt + 1];
+        reportDelta(
+            lock,
+            ref === undefined || ref.startsWith("--") ? ORIGIN_BASE : ref
+        );
         return;
     }
     const gapsAt = process.argv.indexOf("--gaps");

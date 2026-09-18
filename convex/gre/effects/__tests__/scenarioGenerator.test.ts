@@ -15,6 +15,8 @@ import {
     OPPONENT_ID,
     opCoverageGaps,
     planSmokeTest,
+    SMOKE_SKIP_CLASS,
+    SMOKE_SKIP_CODES,
 } from "../scenarioGenerator";
 import { EFFECT_OP_REGISTRY } from "../../../cards/mechanicsRegistry";
 
@@ -268,5 +270,64 @@ describe("Op vocabulary coverage guard (issue #804)", () => {
         expect([...ASSERTED_OP_KINDS].sort()).toEqual(
             EFFECT_OP_REGISTRY.map((r) => r.op).sort()
         );
+    });
+});
+
+describe("smoke skip classes (ADR 0105 § 7.1, issue #3823)", () => {
+    it("every skip code has exactly one class, and every class key is a code", () => {
+        expect(Object.keys(SMOKE_SKIP_CLASS).sort()).toEqual(
+            [...SMOKE_SKIP_CODES].sort()
+        );
+        for (const code of SMOKE_SKIP_CODES)
+            expect(["op-covered", "card-dependent"]).toContain(
+                SMOKE_SKIP_CLASS[code]
+            );
+    });
+
+    it("a skipped script reports its NESTED skips, not only the container's", () => {
+        const plan = planSmokeTest([
+            {
+                op: "mayPay",
+                player: "controller",
+                prompt: "Return it?",
+                bind: "$may1",
+            },
+            {
+                op: "if",
+                predicate: { binding: "$may1" },
+                then: [
+                    { op: "moveZone", target: { ref: "$source" }, to: "hand" },
+                ],
+            },
+        ] as EffectOp[]);
+        expect(plan.kind).toBe("skip");
+        if (plan.kind !== "skip") return;
+        expect(
+            plan.skips.map((s) => [s.op?.op, SMOKE_SKIP_CLASS[s.code]])
+        ).toEqual([
+            ["mayPay", "op-covered"],
+            ["if", "op-covered"],
+            ["moveZone", "card-dependent"],
+        ]);
+    });
+
+    it("a comparison predicate's `op` is not walked as a nested Op", () => {
+        const plan = planSmokeTest([
+            {
+                op: "if",
+                predicate: { left: 1, op: "gt", right: 0 },
+                then: [{ op: "draw", player: "controller", count: 1 }],
+            },
+        ] as EffectOp[]);
+        expect(plan.kind).toBe("skip");
+        if (plan.kind !== "skip") return;
+        expect(plan.skips.map((s) => s.op?.op)).toEqual(["if"]);
+    });
+
+    it("a script that runs reports no skips at all", () => {
+        const plan = planSmokeTest([
+            { op: "draw", player: "controller", count: 1 },
+        ] as EffectOp[]);
+        expect(plan.kind).toBe("run");
     });
 });

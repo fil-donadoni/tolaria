@@ -59,13 +59,20 @@ import { resolveCompiledTrigger } from "../cards/compiledTriggers";
 import {
     FILLER_CARD_DEFINITION,
     planSmokeTest,
+    SMOKE_SKIP_CLASS,
+    type SmokeSkip,
 } from "../gre/effects/scenarioGenerator";
 import {
     validateAbilityEffectScript,
     validateEffectScript,
 } from "../gre/effects/validate";
-import type { EffectOp, TriggeredAbility } from "../cards/types";
+import type {
+    EffectOp,
+    TargetRequirement,
+    TriggeredAbility,
+} from "../cards/types";
 import type { CompiledDefinition, QuarantineReason } from "./types";
+import { GOLDEN_FIXTURES, type GoldenFixture } from "./grammar/fixtures";
 
 /** Every `op` name anywhere in the definition, sorted and deduplicated. */
 export function collectOps(definition: CompiledDefinition): string[] {
@@ -91,29 +98,180 @@ export function collectOps(definition: CompiledDefinition): string[] {
  * definition, so this cannot silently widen to scripts the compiler did not
  * write — see the narrow-rebuild argument in `runGates`.
  */
+interface ScriptSite {
+    readonly effects: EffectOp[];
+    /** The target requirement of the spell / mode / ability hosting the
+     *  script — what an announced-slot Op's object actually is. */
+    readonly targetRequirement?: TargetRequirement;
+}
+
 function collectScripts(
     definition: CompiledDefinition,
     rebuiltTriggers: readonly TriggeredAbility[]
-): EffectOp[][] {
-    const scripts: EffectOp[][] = [];
-    if (definition.effects) scripts.push(definition.effects);
+): ScriptSite[] {
+    const scripts: ScriptSite[] = [];
+    const push = (
+        effects: EffectOp[] | undefined,
+        host: { targetRequirement?: TargetRequirement }
+    ): void => {
+        if (effects)
+            scripts.push({
+                effects,
+                targetRequirement: host.targetRequirement,
+            });
+    };
+    push(definition.effects, definition);
     // CR 700.2 — a modal spell's body lives on its MODES; the card-level
     // `effects` is undefined by construction (see `lower.ts`), so a walk that
     // read only the card level would smoke nothing at all for every modal card
     // — the same fail-open the trigger rebuild above closes, one field over.
+    // A mode's own requirement wins; one without inherits the card's.
     for (const mode of definition.modes ?? []) {
-        if (mode.effects) scripts.push(mode.effects);
+        push(mode.effects, {
+            targetRequirement:
+                mode.targetRequirement ?? definition.targetRequirement,
+        });
     }
     for (const ability of definition.activatedAbilities ?? []) {
-        if (ability.effects) scripts.push(ability.effects);
+        push(ability.effects, ability);
     }
     for (const ability of definition.triggeredAbilities ?? []) {
-        if (ability.effects) scripts.push(ability.effects);
+        push(ability.effects, ability);
     }
     for (const ability of rebuiltTriggers) {
-        if (ability.effects) scripts.push(ability.effects);
+        push(ability.effects, ability);
     }
     return scripts;
+}
+
+/** Free-text fields an Op carries for display or wiring, never for meaning. */
+const FORM_FREE_TEXT_KEYS: ReadonlySet<string> = new Set([
+    "prompt",
+    "bind",
+    "label",
+    "id",
+    "oracleText",
+]);
+
+/**
+ * The Op's STRUCTURE with its literals abstracted: every number becomes `#`,
+ * display/wiring text is dropped, and a nested Effect Script becomes
+ * `[script]` (a nested Op raises its own skip, with its own form). "gets +1/+1"
+ * and "gets +2/+2" share a skeleton; `$source` and `$each`, "to hand" and "to
+ * exile", a `forEach` over creatures and one over lands do not.
+ */
+function opSkeleton(node: unknown): unknown {
+    if (typeof node === "number") return "#";
+    if (Array.isArray(node))
+        return node.some(
+            (child) =>
+                typeof child === "object" && child !== null && "op" in child
+        )
+            ? "[script]"
+            : node.map(opSkeleton);
+    if (node === null || typeof node !== "object") return node;
+    const out: Record<string, unknown> = {};
+    for (const key of Object.keys(node).sort()) {
+        if (FORM_FREE_TEXT_KEYS.has(key)) continue;
+        out[key] = opSkeleton((node as Record<string, unknown>)[key]);
+    }
+    return out;
+}
+
+/**
+ * ADR 0105 § 7.1 — the FORM of a card-dependent smoke skip: the skip's code
+ * and reason, the Op's abstracted structure, and — when the Op reads an
+ * announced target slot — the zone that slot's object lives in. Two clauses
+ * share a form exactly when one golden fixture is evidence for both.
+ *
+ * The zone facet exists because the Op alone does not say where its object
+ * comes from: "return target creature to its owner's hand" and "return target
+ * creature card from your graveyard to your hand" are the same `moveZone`
+ * with the same skeleton, and differ only in the zone of the announced object
+ * — which lives on the HOST's requirement, not on the Op.
+ */
+export function smokeSkipForm(
+    skip: SmokeSkip,
+    targetRequirement: TargetRequirement | undefined
+): string {
+    const parts = [
+        skip.code,
+        skip.reason,
+        JSON.stringify(opSkeleton(skip.op ?? null)),
+    ];
+    if (skip.op !== undefined && JSON.stringify(skip.op).includes('"target":'))
+        parts.push(`slot zone ${targetRequirement?.zone ?? "battlefield"}`);
+    return parts.join(" | ");
+}
+
+/** The card-dependent skips of every script in a definition, with forms. */
+function cardDependentSkips(
+    definition: CompiledDefinition,
+    rebuiltTriggers: readonly TriggeredAbility[]
+): { skip: SmokeSkip; form: string }[] {
+    const found: { skip: SmokeSkip; form: string }[] = [];
+    for (const site of collectScripts(definition, rebuiltTriggers)) {
+        let plan: ReturnType<typeof planSmokeTest>;
+        try {
+            plan = planSmokeTest(site.effects);
+        } catch (error) {
+            // Per SCRIPT, so one script that throws still lets the others be
+            // read: a throw is its own card-dependent reason, never clearable
+            // by a fixture (its form names the message, not an Op).
+            const reason = `smoke planner threw: ${error instanceof Error ? error.message : String(error)}`;
+            found.push({
+                skip: { code: "unanalysed", reason },
+                form: `threw | ${reason}`,
+            });
+            continue;
+        }
+        if (plan.kind !== "skip") continue;
+        for (const skip of plan.skips) {
+            if (SMOKE_SKIP_CLASS[skip.code] !== "card-dependent") continue;
+            found.push({
+                skip,
+                form: smokeSkipForm(skip, site.targetRequirement),
+            });
+        }
+    }
+    return found;
+}
+
+const fixtureFormsCache = new WeakMap<
+    readonly GoldenFixture[],
+    ReadonlySet<string>
+>();
+
+/**
+ * Every card-dependent form some golden fixture's EXPECTED definition
+ * exhibits — computed by the same planner and the same `smokeSkipForm` the
+ * gate applies to a card, so a fixture covers precisely the forms it contains
+ * and nothing it merely claims.
+ */
+export function fixtureForms(
+    fixtures: readonly GoldenFixture[]
+): ReadonlySet<string> {
+    const cached = fixtureFormsCache.get(fixtures);
+    if (cached !== undefined) return cached;
+    registerTokenDefinition(FILLER_CARD_DEFINITION);
+    const forms = new Set<string>();
+    for (const fixture of fixtures) {
+        let rebuilt: TriggeredAbility[];
+        try {
+            rebuilt = (fixture.expected.compiledTriggeredAbilities ?? []).map(
+                resolveCompiledTrigger
+            );
+        } catch {
+            // A fixture whose trigger cannot be rebuilt is evidence of
+            // nothing; `goldenFixtures.test.ts` reds on it. The gate never
+            // throws (ADR 0105 § 3).
+            continue;
+        }
+        for (const { form } of cardDependentSkips(fixture.expected, rebuilt))
+            forms.add(form);
+    }
+    fixtureFormsCache.set(fixtures, forms);
+    return forms;
 }
 
 export interface GateInput {
@@ -123,6 +281,10 @@ export interface GateInput {
     readonly plannedMechanics: readonly string[];
     /** Keywords GRANTED whose implementation is definition-level (issue #2700). */
     readonly ungrantableKeywords: readonly string[];
+    /** The golden fixtures whose forms clear a card-dependent skip. Omitted
+     *  in production — the registry is the only source; a test passes its
+     *  own to exercise a fixture that does not exist yet. */
+    readonly fixtures?: readonly GoldenFixture[];
 }
 
 export interface GateResult {
@@ -273,21 +435,18 @@ export function runGates(input: GateInput): GateResult {
         // a missing fixture rather than for anything about the card.
         // `registerTokenDefinition` is idempotent (`cards/registry.ts`).
         registerTokenDefinition(FILLER_CARD_DEFINITION);
-        for (const script of collectScripts(definition, rebuiltTriggers)) {
-            try {
-                const plan = planSmokeTest(script);
-                if (plan.kind === "skip") {
-                    reasons.push({
-                        kind: "smoke-scenario",
-                        detail: plan.reason,
-                    });
-                }
-            } catch (error) {
-                reasons.push({
-                    kind: "smoke-scenario",
-                    detail: `smoke planner threw: ${error instanceof Error ? error.message : String(error)}`,
-                });
-            }
+        // ADR 0105 § 7.1 — an `op-covered` skip is the per-Op regime of
+        // ADR 0045 and withholds nothing; a `card-dependent` one withholds the
+        // card unless a golden fixture already exhibits its form.
+        const covered = fixtureForms(input.fixtures ?? GOLDEN_FIXTURES);
+        const seen = new Set<string>();
+        for (const { skip, form } of cardDependentSkips(
+            definition,
+            rebuiltTriggers
+        )) {
+            if (covered.has(form) || seen.has(skip.reason)) continue;
+            seen.add(skip.reason);
+            reasons.push({ kind: "smoke-scenario", detail: skip.reason });
         }
     }
 
