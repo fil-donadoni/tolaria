@@ -453,7 +453,11 @@ function registered(card: OracleCard, id: string): CardDefinition {
     return { ...compiledOf(card), id, rarity: "common" };
 }
 
-/** Resolve `auraDef` onto a Grizzly Bears controlled by `bearController`. */
+/**
+ * Resolve `auraDef` onto a Grizzly Bears controlled by `bearController`,
+ * beside a second, UNENCHANTED bear the Aura must leave alone — the negative
+ * half, which is the one that reds when the host scope widens to a set.
+ */
 function enchantBear(auraDef: CardDefinition, bearController = "p1") {
     const bear = makeInstance(grizzlyBears.id, {
         id: "bear",
@@ -461,10 +465,17 @@ function enchantBear(auraDef: CardDefinition, bearController = "p1") {
         ownerId: bearController,
         isSummoningSick: false,
     });
+    const bystander = makeInstance(grizzlyBears.id, {
+        id: "bystander",
+        controllerId: "p1",
+        ownerId: "p1",
+        isSummoningSick: false,
+    });
     const state = makeState({
         players: [
             makePlayer("p1", {
-                battlefield: bearController === "p1" ? [bear] : [],
+                battlefield:
+                    bearController === "p1" ? [bear, bystander] : [bystander],
             }),
             makePlayer("p2", {
                 battlefield: bearController === "p2" ? [bear] : [],
@@ -474,10 +485,9 @@ function enchantBear(auraDef: CardDefinition, bearController = "p1") {
     pushSpell(state, auraDef.id, "p1", [{ type: "permanent", id: "bear" }]);
     resolveTopOfStack(state);
     checkStateBasedActions(state);
-    const host = state.players
-        .flatMap((p) => p.battlefield)
-        .find((c) => c.id === "bear")!;
-    return { state, host };
+    const find = (id: string) =>
+        state.players.flatMap((p) => p.battlefield).find((c) => c.id === id)!;
+    return { state, host: find("bear"), other: find("bystander") };
 }
 
 describe("Aura statics in the real engine (CR 303.4b)", () => {
@@ -494,13 +504,17 @@ describe("Aura statics in the real engine (CR 303.4b)", () => {
             const { state, host } = enchantBear(def);
             expect(getEffectivePower(state, host)).toBe(3);
             const projected = projectPublicState(state, 1, "p1");
-            const slim = projected.players[0]!.battlefield.find(
-                (c) => c.id === "bear"
-            )!;
-            expect(getEffectivePower(projected, slim)).toBe(3);
-            expect(getEffectiveToughness(projected, slim)).toBe(2);
-            expect(slim.staticAbilities).toEqual(
+            const slim = (id: string) =>
+                projected.players[0]!.battlefield.find((c) => c.id === id)!;
+            expect(getEffectivePower(projected, slim("bear"))).toBe(3);
+            expect(getEffectiveToughness(projected, slim("bear"))).toBe(2);
+            expect(slim("bear").staticAbilities).toEqual(
                 expect.arrayContaining(["flying", "first strike"])
+            );
+            // The host, and ONLY the host (CR 303.4b).
+            expect(getEffectivePower(projected, slim("bystander"))).toBe(2);
+            expect(slim("bystander").staticAbilities ?? []).not.toContain(
+                "flying"
             );
         });
     });
@@ -515,8 +529,9 @@ describe("Aura statics in the real engine (CR 303.4b)", () => {
             "compiled-control-3833"
         );
         withTemporaryDefinition(def, () => {
-            const { state, host } = enchantBear(def, "p2");
+            const { state, host, other } = enchantBear(def, "p2");
             expect(host.controllerId).toBe("p1");
+            expect(other.controllerId).toBe("p1");
             expect(state.players[0]!.battlefield.map((c) => c.id)).toContain(
                 "bear"
             );
@@ -533,10 +548,13 @@ describe("Aura statics in the real engine (CR 303.4b)", () => {
             "compiled-pacifism-3833"
         );
         withTemporaryDefinition(def, () => {
-            const { state, host } = enchantBear(def);
+            const { state, host, other } = enchantBear(def);
             expect(validateAttackerEligibility(host, [], state)).toEqual({
                 eligible: false,
                 reason: "Enchanted creature can't attack or block.",
+            });
+            expect(validateAttackerEligibility(other, [], state)).toEqual({
+                eligible: true,
             });
             const attacker = makeInstance(grizzlyBears.id, {
                 id: "attacker",
@@ -559,13 +577,14 @@ describe("Aura statics in the real engine (CR 303.4b)", () => {
             "compiled-study-3833"
         );
         withTemporaryDefinition(def, () => {
-            const { state, host } = enchantBear(def);
+            const { state, host, other } = enchantBear(def);
             const granted = getEffectiveActivatedAbilities(host).map(
                 (a) => a.ability.oracleText
             );
             expect(granted).toEqual([
                 "{T}: This creature deals 1 damage to any target.",
             ]);
+            expect(getEffectiveActivatedAbilities(other)).toEqual([]);
             const auraInstance = state.players[0]!.battlefield.find(
                 (c) => c.card.id === def.id
             )!;
