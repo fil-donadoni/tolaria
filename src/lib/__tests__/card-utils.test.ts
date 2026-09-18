@@ -3645,6 +3645,8 @@ describe("resolvePreviewAbilities (#156)", () => {
 // ---------------------------------------------------------------------------
 
 const FLYING_MEN_ID = "25ab9a2b-e248-4ae2-aac3-b49fdb3e260a"; // blue {U} creature
+// CR 105.2b — {1}{W}{U}, a MULTICOLORED creature (two of the five colors).
+const GALINAS_KNIGHT_ID = "11b492d6-5e28-4f4b-942c-080d03cb0e92";
 const GRIZZLY_BEARS_ID = "ce2d603a-3231-4a8c-bf39-1617586ea870"; // green creature
 
 describe("matchesPermanentFilter (client mirror — colors + tapped)", () => {
@@ -4143,6 +4145,23 @@ describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity
                 // reads as "did not enter this turn".
                 card: makeCardInstance({ id: "fresh", enteredOnTurn: 5 }),
                 filter: { enteredThisTurn: true },
+                expected: false,
+            },
+        ],
+        // CR 105.2b (issue #3837) — "multicolored" is two or more colors, and
+        // the adapter reads the same derived colour set `colors` does. The
+        // mono-coloured case is the one that matters: a bound dropped by the
+        // adapter would match it, which is Dragon Arch putting a mono-coloured
+        // creature onto the battlefield.
+        colorCountAtLeast: [
+            {
+                card: makeCardInstance({ card: { id: GALINAS_KNIGHT_ID } }),
+                filter: { colorCountAtLeast: 2 },
+                expected: true,
+            },
+            {
+                card: makeCardInstance({ card: { id: FLYING_MEN_ID } }),
+                filter: { colorCountAtLeast: 2 },
                 expected: false,
             },
         ],

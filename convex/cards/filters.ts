@@ -146,6 +146,15 @@ export interface PermanentFilter {
      *  like Mana Vortex's "whenever a Land matching {color}" cycle and by
      *  protection-style filters. */
     colors?: Color | Color[];
+    /** Inclusive lower bound on HOW MANY colors the permanent has (CR 105.2b,
+     *  issue #3837) — the battlefield-side counterpart of
+     *  `EffectCardFilter.colorCountAtLeast`, propagated 1:1 by
+     *  `toPermanentFilter`. Read off the DERIVED `colors` the same way
+     *  `colors` itself is, so a layer-5 colour change (Painter's Servant)
+     *  counts. FAIL-CLOSED on a missing colour list, exactly as
+     *  `powerAtLeast` is on a missing power: an absent list counts as zero
+     *  colours and does not match. */
+    colorCountAtLeast?: number;
     /** Inclusive lower bound on effective power (CR 613 layer 7c). Matches
      *  only if `card.power !== undefined` and `card.power >= powerAtLeast`. */
     powerAtLeast?: number;
@@ -468,6 +477,11 @@ export function matchesPermanentFilter(
         const wanted = asArray(filter.colors);
         const have = card.colors ?? [];
         if (!wanted.some((c) => have.includes(c))) return false;
+    }
+    // CR 105.2b (issue #3837) — how MANY colors, not which. An absent colour
+    // list counts as zero (CR 105.2c colourless), so the bound fails closed.
+    if (filter.colorCountAtLeast !== undefined) {
+        if ((card.colors ?? []).length < filter.colorCountAtLeast) return false;
     }
     if (filter.powerAtLeast !== undefined) {
         if (card.power === undefined) return false;

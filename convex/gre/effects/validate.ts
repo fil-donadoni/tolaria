@@ -316,6 +316,14 @@ function isCardFilter(
                 (m) => typeof m === "string" && TOKEN_COLORS.has(m)
             );
         }
+        // CR 105.2b (issue #3837) — "multicolored" as a colour COUNT bound.
+        // A positive integer literal only: zero is no constraint at all (every
+        // object has at least zero colours) and would read as an author
+        // mistake rather than a selector, and there is no dynamic form because
+        // no printed line scales the bound.
+        if (k === "colorCountAtLeast") {
+            return typeof v === "number" && Number.isInteger(v) && v >= 1;
+        }
         if (k === "manaValueAtMost") {
             return (
                 (typeof v === "number" && Number.isInteger(v) && v >= 0) ||
