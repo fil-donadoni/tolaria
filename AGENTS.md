@@ -182,10 +182,7 @@ out; a wrapper (`/usr/bin/time`, `env`, `xargs`) is no exception.
 
 ## Browser verification
 
-**Mandatory for any diff that can change what a user sees**, at five viewports
-with Floors at zero (happy-dom has no layout): **`bun run check:ui`**, its
-output pasted byte-exact, `bun run land` enforcing it — `SCOPED` to the diff's
-surfaces (ADR 0131). Engine/Convex/script work owes nothing here. Rule: `.claude/rules/chrome-debug.md` (resident);
+The rule is `.claude/rules/chrome-debug.md`, resident and not repeated here;
 procedure and click sequences: `docs/guides/browser-verification.md`,
 `docs/guides/ui-runbooks.md`.
 
@@ -237,8 +234,8 @@ prose is the fallback for judgment, not the home of invariants.
    proven to fail** (break the subject, watch red, revert, say what you broke
    — § Proof-of-failure).
 
-6. **Validate** — full gate once before done: `bun run check:all` +
-   `bun run test`, both zero-error
+6. **Validate** — targeted runs + the review round; no pre-PR gate, the lane
+   is paid once by `land` (ADR 0136 §1)
 7. **Preset scenario** — for any new card/gameplay feature (ADR 0044, DB is
    the source of truth #770/#1455): a ```json `{ "label", "spec": { "cards" } }`fence under a`## Preset scenario` heading. **`land`refuses without one** on
 a`convex/{cards/sets,gre}/\*\*`diff and seeds it post-merge; a refactor owes
@@ -248,33 +245,30 @@ silently loads as `"me"`). Sweep: `bun run seed:backlog`.
    freeze, no silent ignore. Three seams per
    `.claude/rules/gre-development.md` § Bot reachability; declare the outcome
    in the PR like a preset scenario.
-9. **UI verify** — mandatory whenever the diff can change what a user sees
-   (`bun run check:ui`, five viewports + probe receipt,
-   `.claude/rules/chrome-debug.md`); nothing owed when the diff cannot reach
-   the DOM
+9. **UI verify** — `bun run check:ui` whenever the diff can reach the DOM,
+   nothing owed when it cannot (`.claude/rules/chrome-debug.md`)
 
 ### Quality gates (mandatory, no exceptions)
 
 Rationale, lane contents and measurements: `docs/agents/quality-gates.md`.
 
-| When      | Run                                                                                                                          |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Iterating | targeted only — `bunx vitest run <path>`. Formatting is automatic.                                                           |
-| Pre-PR    | `bunx vitest run <paths touched>` + review — **no lane gate** (ADR 0136)                                                     |
-| Merge     | `bun run land <PR#>` — rebase onto the base branch + **`check:lane`** under the machine mutex, merge into it (ADR 0110/0116) |
-| Release   | **`bun run release`** — full gate (`check:all` + 3 suites) on the base tip, then fast-forward the release branch (ADR 0116)  |
+| When      | Run                                                                                                                         |
+| --------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Iterating | targeted only — `bunx vitest run <path>`. Formatting is automatic.                                                          |
+| Pre-PR    | `bunx vitest run <paths touched>` + review — **no lane gate** (ADR 0136)                                                    |
+| Merge     | `bun run land <PR#>` — rebase, **`check:lane`**, merge into the base branch, all under the machine mutex (ADR 0136)         |
+| Release   | **`bun run release`** — full gate (`check:all` + 3 suites) on the base tip, then fast-forward the release branch (ADR 0116) |
 
 - **`check:lane` is paid ONCE, by `land`, on the rebased tip** (ADR 0136;
   skipped when that tip and base were already gated green). It classifies the
   diff into `skin` (`src/**` only) / `engine` (`convex/**`, `scripts/**`,
   `data/**`) / `cards` / `docs` (prose only, `check:docs` verbatim) / `full`,
   and runs exactly that lane's checks. Prose beside code keeps the code's lane
-  plus `node[docs]`. On anything it cannot affirmatively place — `src/**`
-  mixed with `convex/**`, `package.json`, a lockfile, `.claude/**` — it
-  degrades to `check:pr` **verbatim**, so the fallback can never rot.
-  **No lane ever scopes a project's tests to the diff**: the diff decides
-  whether a project runs at all, never a diff-derived slice of it (ADR 0104,
-  derivation in `docs/agents/quality-gates.md`).
+  plus `node[docs]`. Anything it cannot place — `src/**` mixed with
+  `convex/**`, `package.json`, a lockfile, `.claude/**` — degrades to
+  `check:pr` **verbatim**, so the fallback cannot rot. **No lane ever scopes a
+  project's tests to the diff**: the diff decides whether a project runs at
+  all, never a slice of it (ADR 0104).
 - **Never hand-pick a subset of `check:pr`.**
 - **`check:all` VERIFIES formatting**, it does not repair it — on drift run
   `bun run format` and re-run (#1807).
@@ -285,9 +279,10 @@ Rationale, lane contents and measurements: `docs/agents/quality-gates.md`.
 - **Cover `src/` changes with targeted runs** — the dom project is outside the
   light gate.
 - **There is no CI: the local gates are the only gates.** The full offline
-  gate runs at release (`bun run release`, ADR 0116;
-  by hand: `bun run health`) — running it before a merge is never wrong,
-  just not owed.
+  gate runs **per batch** — `health:main` on the current base tip, detached by
+  `land` at the 5th landing since the last GREEN or 2 h after the first
+  un-healthed one, yielding to a queued `land` (ADR 0136 §6) — and again at
+  release (`bun run release`, ADR 0116; by hand: `bun run health`).
 
 **CPU admission control** (`scripts/gate.ts`) — sessions share this machine:
 
@@ -295,6 +290,12 @@ Rationale, lane contents and measurements: `docs/agents/quality-gates.md`.
 | --------- | ------------------------------------------------------------------ | -------------------------------------------------------------- |
 | **heavy** | `bun run test`, `test:app`, `test:bot`, `check:all`                | machine-wide mutex, `min(ncpu - 1, 4)` workers (RAM-capped)    |
 | **light** | `bunx vitest run <path>`, `check:pr`, `check:ts`, `lint`, `format` | no lock, vitest capped at 2 workers (`TOLARIA_VITEST_WORKERS`) |
+
+**Session admission** is the tier above (ADR 0136 §6-7): `queue:plan` refuses
+a pick while live `in-progress` claims are at `sessions.cap` — 3, the measured
+PR/h knee, configuration not a literal, `--no-cap` the announced escape — or
+while a health `RED` marker stands. `land` only warns, so a session already
+mid-issue finishes.
 
 A queued heavy gate is not a hang: **`bun run gate:who`** names the holder and
 its CPU; one that stops burning CPU is reclaimed (issue #2999).
@@ -308,7 +309,7 @@ gated too, so an unfinished ADR there reds `check:all` for every other session
 on this machine). Enforced by `deny-guard.sh` § 0; gitignored paths stay
 writable; per-session hatch `TOLARIA_ALLOW_MAIN_EDIT=1 claude`. Docs-only
 lane — `bun run wt:docs <slug>` → write → `bun run docs:ship` (`check:docs`:
-seconds, no lock). Anything else: own worktree + full gate. Rationale and
+seconds, no lock). Anything else: its own worktree. Rationale and
 measurements: `docs/agents/quality-gates.md` § Worktree isolation.
 
 **Branches are configuration** (ADR 0116): `tolaria.config.json` names the
@@ -319,8 +320,8 @@ read it; an `origin/<name>` literal elsewhere reds `branches.test.ts`.
 **Merging goes through `bun run land <PR#>`, from anywhere** (#2537). The gate
 mutex serialises gating; `land` extends it across rebase → `check:lane` →
 push → merge, so the tree that lands is the tree that was gated. No health
-per landing: the full gate runs once, at `release`. It refuses a PR whose
-base is not the base branch. Worktrees come from `bun run wt:new <N>`
+per landing — `land` only appends the tip and detaches the batch decision. It
+refuses a PR whose base is not the base branch. Worktrees come from `bun run wt:new <N>`
 (branches from `origin/<base>`). `deny-guard.sh` § 1 denies a
 hand-typed `gh pr merge` in every directory; if only the MERGE failed, retry
 `bun scripts/pr-merge.ts <PR#>` — never a second `land`, which re-pays the whole
@@ -328,22 +329,21 @@ gate. Per-command hatch: `TOLARIA_ALLOW_MANUAL_MERGE=1`. A `skin`-lane PR owes
 a byte-exact `check:ui` receipt only if its diff can reach the DOM — a
 test-only `src/**` diff is exempt (ADR 0110 §4).
 
-**Fresh worktrees need `bun run worktree:init`.** The tell for a missing
-bootstrap: **`216 files failed, 0 tests failed`** (import errors, not a red
+**Fresh worktrees need `bun run worktree:init`** — the tell for a missing
+bootstrap is `216 files failed, 0 tests failed` (import errors, not a red
 baseline).
 
 **Green-at-release (ADR 0116): the release branch only moves to a
-health-proven base tip.** `land` proves the lane; `release` proves the rest
-and leaves a durable `RED` marker on failure (`bun run health:status`). RED
-means fix-forward FIRST — never stack unrelated work on a red tip, never
-silence a test, "not my test" is not an exemption.
+health-proven base tip.** `land` proves the lane, the batch health proves the
+rest between releases, `release` re-proves it on the exact tip. Either leaves a
+durable `RED` marker on failure (`bun run health:status`): fix-forward FIRST
+(`bun run health:fix`) — never stack work on a red tip, never silence a test,
+"not my test" is not an exemption.
 
-**Browser verification is a gate for UI-affecting diffs** — `bun run check:ui`,
-five viewports, `.claude/rules/chrome-debug.md`. It stays outside `check:all`
-(the full gate is offline by contract; this lane needs a live Convex
-deployment and a browser), so nothing fails on its absence: the receipt in the
-PR is the whole enforcement. A surface the lane could not reach prints
-`UNWALKED` and exits non-zero — a coverage hole is a red, not a pass.
+**`check:ui` is a gate, and it stays outside `check:all`** — the full gate is
+offline by contract, this lane needs a live deployment and a browser — so
+nothing fails on its absence: the PR receipt is the whole enforcement
+(`.claude/rules/chrome-debug.md`).
 
 ## Rules Implementation Process
 

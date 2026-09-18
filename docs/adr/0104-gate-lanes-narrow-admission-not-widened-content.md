@@ -6,16 +6,19 @@ accepted — amended 2026-09-09 (see below); §2 amended for `check:ui` alone
 by ADR 0131 (2026-09-15); §2 amended by ADR 0136 §5 (2026-09-17): a lane may
 run a FIXED, content-classified partition of a vitest project
 (`node-engine` / `node-tooling`, issue #3774) — never a diff-derived subset,
-which stays forbidden
+which stays forbidden. **Item 1 is superseded by ADR 0136 §1**: the lane gate
+is not a pre-PR path any more, it is the one `land` pays on the rebased tip;
+and the backstop below is re-cadenced by ADR 0136 §6 — the full gate runs per
+batch of landings as well as at release.
 
 ## Amendment (2026-09-09): the downstream total run moved; item 5 superseded
 
 The argument below is unchanged; one of its **names** is not. When this record
 was written, the downstream total run was the merge-train's full gate, paid on
 the rebased tree **before** each PR merged. ADR 0116 moved it: `land` now pays
-only `check:lane`, and the full gate — `node` AND `dom`, both whole — runs
-once per release, on the base tip, through `bun run release` →
-`scripts/health-main.ts`. Backstop 3 below therefore still exists, but stands
+only `check:lane`, and the full gate — `node` AND `dom`, both whole — runs on
+the base tip through `scripts/health-main.ts`, per batch of landings (5 since
+the last GREEN, or 2 h) and again at `bun run release` (ADR 0136 §6). Backstop 3 below therefore still exists, but stands
 one step **later** than this ADR first recorded it: after a PR merges into the
 base branch, not before. That widens the residual risk this ADR states plainly;
 it does not remove it. A `dom` breakage that an `engine`-lane diff slips past
@@ -152,8 +155,9 @@ carried here so this ADR is the one place a reader checks the claim):
 1. **The `engine` lane keeps the WHOLE type-check** (`bun run check:ts`,
    `tsc[all]` in `classifyLane`) — `src/**` imports `convex/gre` (ADR 0074:
    the client-side Brain and the Draft Lab both do), so a `convex/**` change
-   that breaks a type the frontend depends on is still caught, pre-PR, on
-   every `engine` diff.
+   that breaks a type the frontend depends on is still caught before the
+   merge, on every `engine` diff — at `land`, which is where the lane gate is
+   paid since ADR 0136 §1.
 2. **`scripts/__tests__/convex-cards-barrel-mock.test.ts`**, kept because the
    `engine` lane keeps the whole `node` project, catches the one documented
    cross-boundary breakage class statically, without needing a DOM
@@ -161,18 +165,19 @@ carried here so this ADR is the one place a reader checks the claim):
    suite's `vi.mock("@convex/cards")` factory goes stale against (#2339 — 102
    tests across 12 files, first seen at the merge-train before this guard
    existed).
-3. **The full gate at release** (`bun run release` → `scripts/health-main.ts`,
-   ADR 0116) runs the complete suite — `node` AND `dom`, both whole — on the
-   base tip. Note the amendment above: when this ADR was written this backstop
-   was the merge-train's full gate, which `land` paid on the rebased tree
-   before any PR merged; it now stands one step later, after the merge into
-   the base branch.
+3. **The full gate on the base tip** (`scripts/health-main.ts`) runs the
+   complete suite — `node` AND `dom`, both whole — per batch of landings and
+   at `bun run release` (ADR 0116, re-cadenced by ADR 0136 §6). Note the
+   amendment above: when this ADR was written this backstop was the
+   merge-train's full gate, which `land` paid on the rebased tree before any
+   PR merged; it now stands one step later, after the merge into the base
+   branch — but at most 5 landings or 2 h later, not a whole release cycle.
 
 **State the residual risk plainly, because that is what this ADR is for:** a
 convex-only diff that reddens a `dom` test in a way the type-check and the
 barrel-mock guard do not catch — a runtime behaviour change visible only to a
 rendered component, not to `tsc` or to an import-graph census — is now caught
-downstream instead of pre-PR. That is **later** than #2655 put it:
+downstream instead of at the lane gate. That is **later** than #2655 put it:
 #2655's whole point was moving the `dom` guard from "surfaces at the
 merge-train" to "surfaces before review." For the `engine` lane's slice of
 diffs, this work moves it back, on purpose, in exchange for not paying a
@@ -203,8 +208,9 @@ because #2655 was left untouched. It was not.
 
 ## Decision
 
-1. **`bun run check:lane` is the default pre-PR path** (CLAUDE.md § Quality
-   gates); `check:pr` remains exactly as it is and is the fallback the
+1. **`bun run check:lane` is the gate a diff pays** (CLAUDE.md § Quality
+   gates) — written here as the default pre-PR path, moved by ADR 0136 §1 to
+   `land`, once, on the rebased tip; `check:pr` remains exactly as it is and is the fallback the
    classifier itself falls back to on any diff it cannot affirmatively place
    in `skin` or `engine` (`laneFor`'s `full` terminal case, `check-lane.ts`).
 2. **Lane content is never diff-derived.** No check in a lane's plan scopes a

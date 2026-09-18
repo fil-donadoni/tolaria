@@ -258,9 +258,11 @@ wrong-mental-model defect, see §1's escalation note.
   worktree and both branch refs. Its log says `lane: ran`, or
   `lane: skipped (gated <sha> against <base>)` when that exact rebased tip was
   already gated green against that exact base — a `land` retried after a
-  merge refusal does not pay the lane twice. No health gate per landing (ADR 0116): the
-  full gate runs once at `bun run release`, on the base tip, before the
-  release branch moves. If `land` warns that a health RED marker exists,
+  merge refusal does not pay the lane twice. No health gate per landing: `land`
+  records the tip and detaches the batch decision, which runs the full gate on
+  the current base tip at the 5th landing since the last GREEN or 2 h after the
+  first un-healthed one (ADR 0136 §6); `bun run release` re-proves the tip
+  before the release branch moves. If `land` warns that a health RED marker exists,
   read `bun run health:status` first: fixing the base tip comes before
   landing new work. `land` refuses a PR whose base is not the base branch —
   `gh pr edit <PR#> --base <base>` is the fix.
