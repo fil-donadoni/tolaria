@@ -281,6 +281,37 @@ describe("canPayAlternativeCost — life & hand legs (CR 119.4 / 118.9)", () => 
         );
         expect(matches.map((c) => c.id)).toEqual(["orn"]);
     });
+
+    // `EffectCardFilter.colorCountAtLeast` (CR 105.2b, issue #3837) — the
+    // third card in this same gallery. `handCardMatchesFilter` is a SEPARATE
+    // copy of the hidden-zone matcher, so every field threaded into
+    // `matchesCardFilter` and NOT into this one falls straight through to
+    // `return true` and matches every hand card (fail OPEN) — exactly what
+    // `any` did at issue #897 and `manaCostEquals` at issue #1898.
+    //
+    // The fixtures cover both wrong readings at once: Vindicate ({1}{W}{B})
+    // is the only multicoloured card, Lightning Bolt ({R}) and Counterspell
+    // ({U}{U}) are mono-coloured — Counterspell deliberately carries TWO mana
+    // symbols of ONE colour, so a matcher counting SYMBOLS instead of COLOURS
+    // would admit it — and the Island is colourless (CR 105.2c: no colour to
+    // count, not a sixth colour).
+    it("matchingHandCardsForAltCost honors colorCountAtLeast — one colour and colourless both excluded (CR 105.2b, issue #3837)", () => {
+        const vindicate = getCardByName("Vindicate");
+        const player = makePlayer("p1", {
+            hand: [
+                handCard(vindicate.id, "vin"),
+                handCard(island.id, "isl"),
+                handCard(lightningBolt.id, "bolt"),
+                handCard(counterspell.id, "ctr"),
+            ],
+        });
+        const matches = matchingHandCardsForAltCost(
+            player,
+            { colorCountAtLeast: 2 },
+            "foil"
+        );
+        expect(matches.map((c) => c.id)).toEqual(["vin"]);
+    });
 });
 
 describe("buildAlternativeCostHandChoice — auto-resolve vs park (CR 118.9 / 601.2h)", () => {

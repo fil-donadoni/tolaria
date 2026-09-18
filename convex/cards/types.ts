@@ -3333,7 +3333,7 @@ export type AsEntersChoice =
      *  source and no copy rides the prompt. What is enforced is exactly the
      *  subset of `EffectCardFilter` the shared `handCardMatchesFilter` reads
      *  (name / type / excludeType / subtype / supertype / color /
-     *  manaValueAtMost / manaCostEquals / any); the printed-characteristic
+     *  colorCountAtLeast / manaValueAtMost / manaCostEquals / any); the printed-characteristic
      *  fields it does not read — `excludeSupertype`, `excludeColor`,
      *  `manaValueEquals`, `hasAbility` — fall through to "matches", so a
      *  `filter` declaring only one of those is inert rather than restrictive.
@@ -3439,7 +3439,7 @@ export type AsEntersChoice =
      *  or it goes to Y" is the general shape and Y is the card's to say; today
      *  only the graveyard leg is printed. `filter` is matched with the shared
      *  `handCardMatchesFilter`, the same matcher the alt-cost hand leg and the
-     *  as-enters `name` filter use — so it reads 9 of `EffectCardFilter`'s
+     *  as-enters `name` filter use — so it reads 10 of `EffectCardFilter`'s
      *  fields and treats the rest as "matches". */
     | { kind: "discard"; filter?: EffectCardFilter; ifDeclined: "graveyard" }
     /** CR 614.12c — "some replacement effects cause a permanent to enter the
@@ -12883,6 +12883,30 @@ export interface EffectCardFilter {
      *  choice; `PermanentFilter` has no exclude-colors counterpart yet (no
      *  shipped card needs a battlefield-scoped color exclusion). */
     excludeColor?: Color | Color[];
+    /** Inclusive lower bound on HOW MANY colors the object has (CR 105.2b —
+     *  "a multicolored object is two or more of the five colors", issue
+     *  #3837). Distinct from `color`, which asks WHICH colors: "multicolored"
+     *  names no colour at all, so it cannot be spelled as an OR over the five
+     *  (that reading admits every mono-coloured card). Dragon Arch's "a
+     *  multicolored creature card from your hand" is
+     *  `colorCountAtLeast: 2` paired with `type: "Creature"`.
+     *
+     *  A COUNT bound rather than a `multicolored: true` flag, mirroring
+     *  `powerAtLeast`/`manaValueAtMost`'s shape (ADR 0045 "generalize, don't
+     *  add"): CR 105.2a's monocolored ("exactly one") and the "three or more
+     *  colors" domain-adjacent forms are the same axis at a different bound,
+     *  and a boolean would have to be joined by a second boolean for each.
+     *  The upper bound waits for card #2 to show it is needed
+     *  (`.claude/rules/gre-development.md` § Naming).
+     *
+     *  Colourless fails it (CR 105.2c — no colour to count), and so does a
+     *  card shape carrying no `colors` slot: an absent colour list counts as
+     *  zero, so the field fails CLOSED exactly like `manaCostEquals` does,
+     *  never widening the selector. AND with every other field, `color`
+     *  included. Propagated onto `PermanentFilter.colorCountAtLeast` by
+     *  `toPermanentFilter`, so a `zone: "battlefield"` choice reads the LIVE
+     *  colours off the layer pipeline rather than the printed ones. */
+    colorCountAtLeast?: number;
     manaValueAtMost?: number | EffectXValue;
     /** Exact mana-value match (CR 202.3, issue #1083) — a card matches only if
      *  its mana value equals `manaValueEquals` precisely, not merely "at

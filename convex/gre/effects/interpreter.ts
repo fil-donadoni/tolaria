@@ -1039,6 +1039,11 @@ function toPermanentFilter(
         supertypes: filter.supertype,
         excludeSupertypes: filter.excludeSupertype,
         colors: filter.color,
+        // CR 105.2b (issue #3837) — propagated so a `zone: "battlefield"`
+        // selector reads the same bound the hidden-zone matcher does. Dropping
+        // it here would be fail-OPEN, the bug class `name`'s note above
+        // records: a `PermanentFilter` with no bound imposes none.
+        colorCountAtLeast: filter.colorCountAtLeast,
         isToken: filter.isToken,
         // CR 702 (issue #1097) — "with <keyword>" (Canopy Surge's "each
         // creature with flying"), propagated 1:1 onto
@@ -1230,6 +1235,17 @@ function matchesCardFilter(
     if (
         excludeColors !== undefined &&
         excludeColors.some((c) => (card.colors ?? []).includes(c))
+    ) {
+        return false;
+    }
+    // CR 105.2b (issue #3837) — "multicolored" is a COUNT of colors, not a
+    // colour: Dragon Arch's "a multicolored creature card from your hand".
+    // A card shape with no `colors` slot counts as colourless (CR 105.2c) and
+    // fails CLOSED, mirroring `manaCostEquals`' missing-`cost` convention
+    // rather than `excludeColor`'s nothing-to-exclude fail-open.
+    if (
+        filter.colorCountAtLeast !== undefined &&
+        (card.colors ?? []).length < filter.colorCountAtLeast
     ) {
         return false;
     }

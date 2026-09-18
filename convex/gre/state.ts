@@ -14862,7 +14862,7 @@ function enqueueAsEntersChoice(state: GameState, entry: StagedEntry): void {
  *
  *  `handCardMatchesFilter` is the shared registry-definition matcher the
  *  alt-cost hand leg and the as-enters `name` filter already use — one matcher,
- *  not a third copy. It reads 9 of `EffectCardFilter`'s fields and returns true
+ *  not a third copy. It reads 10 of `EffectCardFilter`'s fields and returns true
  *  for the rest, so a filter declaring only `excludeSupertype` /
  *  `excludeColor` / `manaValueEquals` / `hasAbility` is inert here rather than
  *  restrictive; Mox Diamond's `{ type: "Land" }` is squarely inside the read

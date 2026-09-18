@@ -423,7 +423,7 @@ export function asEntersNameFilter(
  *  a drift there is a frozen game, not a bad play (ADR 0047, #2283/#2497).
  *
  *  Bounded by what {@link handCardMatchesFilter} enforces: that shared matcher
- *  reads 9 of `EffectCardFilter`'s fields and returns `true` for the rest, so a
+ *  reads 10 of `EffectCardFilter`'s fields and returns `true` for the rest, so a
  *  filter declaring only `excludeSupertype` / `excludeColor` / `manaValueEquals`
  *  / `hasAbility` is inert on BOTH sides — picker and check stay in agreement
  *  precisely because they fail open together. */
@@ -525,7 +525,7 @@ export function applyNameCardSubmit(
         // registry-definition matcher (it is typed on the definition id it
         // reads, not on a hand card), so this is the same matcher the alt-cost
         // hand leg and `discardFilter` use rather than a third copy — which
-        // also bounds what this check enforces: the matcher reads 9 of
+        // also bounds what this check enforces: the matcher reads 10 of
         // `EffectCardFilter`'s fields and returns `true` for the rest, so a
         // filter declaring only `excludeSupertype` / `excludeColor` /
         // `manaValueEquals` / `hasAbility` is inert here. Widening the shared

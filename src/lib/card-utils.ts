@@ -3894,6 +3894,12 @@ export const MIRROR_CENSUS: Record<keyof PermanentFilter, MirrorStatus> = {
     // board-highlight filter needs it), but the engine path already reads the
     // same printed-supertypes fallback as `excludeSupertypes` above.
     supertypes: "adapter-only",
+    // CR 105.2b (issue #3837) — a colour COUNT bound rides the SAME
+    // `getEffectiveColors` read `colors` above already uses, so the
+    // engine-matcher path matches it exactly as the server does;
+    // `ClientPermanentFilter` has a `colors` field but no count bound, and no
+    // shipped board-highlight filter asks for one.
+    colorCountAtLeast: "adapter-only",
     // `power`/`toughness` are always populated.
     powerAtLeast: "adapter-only",
     // The upper-bound twin (issue #2084, Enduring Innocence's "with power 2 or
@@ -3975,6 +3981,9 @@ export const TRIGGER_STATE_VIEW_CENSUS: Record<
     requireAbility: "populated",
     excludeAbility: "populated",
     colors: "populated",
+    // CR 105.2b (issue #3837) — the count bound reads the SAME `colors` array
+    // the key above does, so it is populated for free by this reducer.
+    colorCountAtLeast: "populated",
     tapped: "populated",
     isToken: "populated",
     isAttacking: "populated",
