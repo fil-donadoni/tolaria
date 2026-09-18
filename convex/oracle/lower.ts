@@ -75,8 +75,12 @@ interface Accumulator {
     kickers?: KickerCost[];
     plannedMechanics: string[];
     ungrantableKeywords: string[];
-    /** CR 113.3a — the spell site: at most one per card, see `lowerLine`. */
+    /** CR 113.3a — the spell site: ONE resolution body per card, however
+     *  many Oracle lines print it (see `lowerLine`). */
     spellEffects?: EffectOp[];
+    /** CR 608.2c — every spell-text sentence read so far, in printed order;
+     *  `spellEffects` is always this list lowered as one body. */
+    spellSentences?: EffectSentenceIR[];
     spellTargetRequirement?: TargetRequirement;
     /** CR 702.5a — the Aura's printed enchant restriction, at most one. */
     enchantRequirement?: TargetRequirement;
@@ -292,15 +296,24 @@ function lowerLine(
             return null;
         }
         case "spell": {
-            // CR 113.3a — a spell has ONE resolution body. Two spell-text
-            // lines on one card is not a card that resolves twice; it is a
-            // card whose lines we have misread (an unread trailing clause
-            // routed as a second sentence, say), so it fails rather than
-            // silently concatenating into one script.
-            if (acc.spellEffects !== undefined || acc.spellModes !== undefined)
+            // CR 113.3a / 608.2c — a spell has ONE resolution body, and its
+            // controller follows the instructions "in the order written". An
+            // Oracle paragraph break ("Destroy target artifact.\nDraw a
+            // card.") is layout, not a second spell: every spell-text line is
+            // one more run of sentences in that single body. Each line routed
+            // here was consumed WHOLE by the spell slot, so appending it
+            // cannot swallow an unread clause.
+            //
+            // The body is re-lowered from the whole prefix on every line, not
+            // line by line: the sentence walk carries referents and target
+            // slots ACROSS sentences ("it", a second "target" becoming slot
+            // 1), and a failure is charged to the line whose sentences broke
+            // it — the same fragment a single-line card reports.
+            if (acc.spellModes !== undefined)
                 return "a card declares spell text twice (CR 113.3a)";
             censusGrantedKeywords(ir.effects, acc);
-            const body = lowerSpellBody(ir.effects, {
+            const sentences = [...(acc.spellSentences ?? []), ...ir.effects];
+            const body = lowerSpellBody(sentences, {
                 // CR 107.3 — a spell announces X for the `{X}` pip in its own
                 // printed mana cost, and only then. Judged HERE because it is
                 // a fact about the cost rather than about the sentence
@@ -310,6 +323,7 @@ function lowerLine(
                 ...(acc.kickers !== undefined ? { kickers: acc.kickers } : {}),
             });
             if (!body.ok) return body.reason;
+            acc.spellSentences = sentences;
             acc.spellEffects = body.value.effects;
             if (body.value.targetRequirement !== undefined)
                 acc.spellTargetRequirement = body.value.targetRequirement;
@@ -517,8 +531,9 @@ export function lowerCard(
     if (acc.entersWithCounters.length > 0)
         definition.entersWith = { counters: acc.entersWithCounters };
     // CR 113.3a — the spell site. `modes` and `effects` are mutually exclusive
-    // by construction (one `lowerLine` case writes each, and the second one to
-    // run fails the card), which is also what `validateEffectScript` asserts.
+    // by construction (one `lowerLine` case writes each, and a line of the
+    // other kind fails the card), which is also what `validateEffectScript`
+    // asserts. Several plain spell-text lines are ONE `effects` body.
     // CR 601.2f / 702.34a — an additional cost and a flashback cost are RIDERS
     // on casting the spell; neither is a spell. A card that consumed one and
     // no body line is a card whose effect line we failed to read while

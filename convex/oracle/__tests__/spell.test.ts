@@ -138,6 +138,68 @@ describe("spell slot — plain spell text (CR 113.3a)", () => {
         expect(routed.ok).toBe(true);
         if (routed.ok) expect(routed.value.slot).toBe(SPELL_SLOT);
     });
+
+    // CR 113.3a / 608.2c — issue #3827: a second Oracle-printed LINE of spell
+    // text ("Destroy target artifact.\nDraw a card.", Smash, APC) is a second
+    // sentence of the same resolution body, not a second spell declaration.
+    // Before the fix every one of these 54 corpus cards refused with "a card
+    // declares spell text twice".
+    it("reads a second Oracle LINE as one more sentence of the same body (Smash, APC)", () => {
+        const def = compiled(
+            spellCard({
+                typeLine: "Sorcery",
+                oracleText: "Destroy target artifact.\nDraw a card.",
+            })
+        );
+        expect(def.effects).toEqual([
+            { op: "destroy", target: { target: 0 } },
+            { op: "draw", player: "controller", count: 1 },
+        ]);
+        expect(def.targetRequirement).toEqual({
+            type: "Artifact",
+            count: 1,
+        });
+    });
+
+    it("folds a THIRD Oracle line into the same body, in print order", () => {
+        // Untargeted sentences either side of the targeted one: the point is
+        // the THIRD line, not a second target (grammar v0 caps a site at one
+        // target regardless of line count — `TargetSlots.allocate`, unrelated
+        // to this fix).
+        const def = compiled(
+            spellCard({
+                typeLine: "Sorcery",
+                oracleText:
+                    "You gain 1 life.\nDestroy target artifact.\nDraw a card.",
+            })
+        );
+        expect(def.effects).toEqual([
+            { op: "gainLife", player: "controller", amount: 1 },
+            { op: "destroy", target: { target: 0 } },
+            { op: "draw", player: "controller", count: 1 },
+        ]);
+    });
+
+    it("still refuses a SECOND target across two lines (CR 601.2c), attributed to the second", () => {
+        // The line the plain single-line "up to one target" test above
+        // guards is unrelated: THIS asserts that merging lines into one body
+        // does not also merge their target allocators into something that
+        // silently accepts two — `TargetSlots.allocate` still caps a site at
+        // one target, now enforced across the WHOLE body rather than per
+        // line, and the second line is the one that trips it.
+        const outcome = compileCard(
+            spellCard({
+                typeLine: "Sorcery",
+                oracleText:
+                    "Destroy target artifact.\nDestroy target creature.",
+            })
+        );
+        expect(outcome.state).toBe("unparsed");
+        if (outcome.state !== "unparsed") return;
+        expect(outcome.gaps).toHaveLength(1);
+        expect(outcome.gaps[0]!.reason).toMatch(/one target per effect site/);
+        expect(outcome.gaps[0]!.fragment).toBe("Destroy target creature.");
+    });
 });
 
 // ── 1b. The two shapes Impractical Joke needed (issue #3238) ───────────────

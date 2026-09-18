@@ -262,6 +262,15 @@ export const bogInitiate: CardDefinition = {
 // Cremate — {B} Instant. "Exile target card from a graveyard. Draw a card."
 // (CR 701.13 exile, CR 121.1 draw.) Any graveyard (`controller` omitted =
 // "any"), any card type (`type: "card"`).
+//
+// issue #3827 review — `{ op: "exile" }`'s executor (`ctx.exile`,
+// `gre/state.ts`) routes through `removePermanentTo`, the
+// battlefield-departure funnel: it never found this GRAVEYARD-zone target,
+// so the card silently exiled nothing while still drawing a card. `exile` is
+// for a battlefield permanent (CR 701.13 as most commonly printed); a
+// graveyard/hand/library target goes through the general `moveZone` Op,
+// which infers the object's current zone from its kind — the same reading
+// the Oracle compiler independently produces for this card.
 export const cremate: CardDefinition = {
     id: "1095cdfe-8060-4a73-bacf-9f983152b486", // INV 96
     rarity: "uncommon",
@@ -269,9 +278,14 @@ export const cremate: CardDefinition = {
     oracleText: "Exile target card from a graveyard.\nDraw a card.",
     manaCost: { B: 1 },
     types: ["Instant"],
-    targetRequirement: { type: "card", count: 1, zone: "graveyard" },
+    targetRequirement: {
+        type: "card",
+        count: 1,
+        zone: "graveyard",
+        controller: "any",
+    },
     effects: [
-        { op: "exile", target: { target: 0 } },
+        { op: "moveZone", target: { target: 0 }, to: "exile" },
         { op: "draw", player: "controller", count: 1 },
     ],
 };

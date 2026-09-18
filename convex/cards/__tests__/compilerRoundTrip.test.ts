@@ -96,7 +96,7 @@ import {
 // Lowered 1703 -> 1697 by issue #3826 (the kicker line): Ardent Soldier,
 // Dismantling Blow, Llanowar Elite, Phyrexian Scuta, Pincer Spider and Urborg
 // Skeleton round-trip once "Kicker …" and its read-backs are grammar.
-const BASELINE_CEILING = 1697;
+const BASELINE_CEILING = 1688;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that
