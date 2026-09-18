@@ -36,6 +36,15 @@
  * but not sufficient for them. They stay `unparsed`, not approximated: a
  * quantity read as a constant is the competitor's documented "for each
  * collapsed to a constant" misparse.
+ *
+ * The painland rider (`PAINLAND_RIDER` below, issue #3828) is scoped to the
+ * literal "This land …" — the Talisman cycle prints the byte-identical shape
+ * on "This artifact …" (`cards/abilities/index.ts`'s `makeTalisman`, whose own
+ * comment calls out the shared shape) and stays unparsed here. Widening the
+ * pattern to every self-referring noun (`grammar/shared/cost.ts`'s
+ * `isSelfPhrase`) is the natural next slice — left for the corpus report to
+ * rank rather than folded into this one, which is scoped to the land cycle
+ * issue #3828 names.
  */
 
 import { PERMANENT_TYPES } from "../../../cards/types";
@@ -130,7 +139,12 @@ const PAINLAND_RIDER = /^This land deals (\S+) damage to you$/;
 
 function readPainlandDamage(span: string): number | null {
     const m = PAINLAND_RIDER.exec(span);
-    return m === null ? null : readNumberWord(m[1]!);
+    if (m === null) return null;
+    const damage = readNumberWord(m[1]!);
+    // "Deals 0 damage" is not a printed sentence, and the field it would
+    // write is a no-op the engine silently accepts — stay fail-closed rather
+    // than emit a rider with no effect.
+    return damage !== null && damage > 0 ? damage : null;
 }
 
 /** CR 106.1 / 605.1a — the effect half: "Add <mana>". */

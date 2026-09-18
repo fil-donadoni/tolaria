@@ -23078,6 +23078,7 @@
         {"id":"605.1a","line":"// Grammar v0: keyword lines (CR 702.1), mana abilities (CR 605.1a), activated","sites":1,"status":"baseline"},
         {"id":"605.1a","line":"// Mana Confluence — \"{T}, Pay 1 life: Add one mana of any color.\" (CR 605.1a","sites":2,"status":"baseline"},
         {"id":"605.1a","line":"// Mana abilities (CR 605.1a) PRODUCE mana — they're sources, not","sites":1,"status":"baseline"},
+        {"id":"605.1a","line":"// Mana ability: the painland rider on a CHOICE production (CR 605.1a, issue","sites":1,"status":"confirmed","ruleHash":"ab1518e4c1e43bc2"},
         {"id":"605.1a","line":"// Multi-colour FIXED **tap** mana abilities — CR 605.1a / 106.4 / 106.6,","sites":1,"status":"baseline"},
         {"id":"605.1a","line":"// NOTE (out of scope) (CR 605.1a deviation): Ashnod's Altar and Priest of","sites":1,"status":"baseline"},
         {"id":"605.1a","line":"// Princess Lucrezia — \"{T}: Add {U}.\" (CR 605.1a mana ability.)","sites":1,"status":"baseline"},

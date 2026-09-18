@@ -3192,6 +3192,16 @@
         "source": "compiled"
     },
     {
+        "name": "Battlefield Forge",
+        "scryfallId": "a9c25e71-0140-48fe-8b9e-33b4b50c5c12",
+        "oracleId": "6b75b94e-83b7-457e-ac41-7ca90b5a59aa",
+        "firstSet": "apc",
+        "firstPrintId": "a9c25e71-0140-48fe-8b9e-33b4b50c5c12",
+        "firstPrintSet": "apc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Battlefield Raptor",
         "scryfallId": "389f0045-218d-41cd-bdca-8a9a0ab1b31b",
         "oracleId": "68a99e50-0e98-480b-ad25-aa2c226d24ca",
@@ -5212,6 +5222,16 @@
         "firstPrintSet": "pls"
     },
     {
+        "name": "Caldera Lake",
+        "scryfallId": "7f01fe22-e8ff-4106-8ac5-693ef920b2c9",
+        "oracleId": "c737d27b-db14-4bd4-8f16-bcbd4401c47b",
+        "firstSet": "tmp",
+        "firstPrintId": "7f01fe22-e8ff-4106-8ac5-693ef920b2c9",
+        "firstPrintSet": "tmp",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Call of the Herd",
         "scryfallId": "429a88cc-53db-4c5e-a061-f0f49a38c675",
         "oracleId": "ee243f81-f51c-4d9a-a396-f7cef84b46c1",
@@ -5620,6 +5640,16 @@
         "firstSet": "leg",
         "firstPrintId": "209f7479-b3a0-4c27-9602-78babb8d2e99",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Caves of Koilos",
+        "scryfallId": "144dd08e-451e-4438-b572-7a138e1a15f3",
+        "oracleId": "33de01e9-ce5a-42d4-afcb-343cd54a6d80",
+        "firstSet": "apc",
+        "firstPrintId": "144dd08e-451e-4438-b572-7a138e1a15f3",
+        "firstPrintSet": "apc",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Celestial Colonnade",
@@ -20942,6 +20972,16 @@
         "source": "compiled"
     },
     {
+        "name": "Llanowar Wastes",
+        "scryfallId": "610b7cd5-5532-45a9-acfe-24a818034d1c",
+        "oracleId": "32116127-cf96-4a1b-8896-a1ebc087b597",
+        "firstSet": "apc",
+        "firstPrintId": "610b7cd5-5532-45a9-acfe-24a818034d1c",
+        "firstPrintSet": "apc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Loafing Giant",
         "scryfallId": "fab5f738-04d0-44c9-88ec-28469b668040",
         "oracleId": "038dce4c-f754-45ef-98a4-4e16f931a65c",
@@ -26346,6 +26386,16 @@
         "source": "compiled"
     },
     {
+        "name": "Pine Barrens",
+        "scryfallId": "d5ac39e8-bd0e-4fa3-bc1e-a93944d013f3",
+        "oracleId": "603dc263-270c-4a16-9b75-41f36fd7dfde",
+        "firstSet": "tmp",
+        "firstPrintId": "d5ac39e8-bd0e-4fa3-bc1e-a93944d013f3",
+        "firstPrintSet": "tmp",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Piranha Fly",
         "scryfallId": "cd891675-12d4-40df-996a-97d694155227",
         "oracleId": "58d87cfe-7402-43c3-81ce-13de8cd04005",
@@ -29874,6 +29924,16 @@
         "source": "compiled"
     },
     {
+        "name": "Salt Flats",
+        "scryfallId": "224cb63f-9af0-4b00-ba0b-0b604abf20c8",
+        "oracleId": "7a951bd7-4f7d-44ea-9c2f-fe2f6b2f5289",
+        "firstSet": "tmp",
+        "firstPrintId": "224cb63f-9af0-4b00-ba0b-0b604abf20c8",
+        "firstPrintSet": "tmp",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Salt Marsh",
         "scryfallId": "ed64934b-0e64-4b2f-97aa-c3fb7e6ce0b0",
         "oracleId": "6a40823f-130c-4416-a987-75e205d3e1dd",
@@ -30218,6 +30278,16 @@
         "firstSet": "pls",
         "firstPrintId": "31b0a87f-e946-4ef1-b30d-fe32c19a0f52",
         "firstPrintSet": "pls"
+    },
+    {
+        "name": "Scabland",
+        "scryfallId": "0374f269-b07e-43af-911a-5454b35f14e6",
+        "oracleId": "2896f01d-003b-4d68-9d0a-64990ba59cbe",
+        "firstSet": "tmp",
+        "firstPrintId": "0374f269-b07e-43af-911a-5454b35f14e6",
+        "firstPrintSet": "tmp",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Scalding Tarn",
@@ -31602,6 +31672,16 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Shivan Reef",
+        "scryfallId": "c3403143-2b4e-4408-b138-c856bbc1e9a5",
+        "oracleId": "0fe16212-66c3-4e45-a641-7391e9b2e304",
+        "firstSet": "apc",
+        "firstPrintId": "c3403143-2b4e-4408-b138-c856bbc1e9a5",
+        "firstPrintSet": "apc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Shivan Wurm",
         "scryfallId": "4bc72997-78b0-47aa-a029-bf55f77c3e73",
         "oracleId": "fc988ce3-0cad-41a5-8f13-656caca732df",
@@ -32617,6 +32697,16 @@
         "firstPrintId": "afb86621-1a6e-4d56-ab0e-531105775c56",
         "firstPrintSet": "sth",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Skyshroud Forest",
+        "scryfallId": "aa01f43b-d0b3-4cd5-9694-aed30a79462c",
+        "oracleId": "117a5fae-7fc4-4e24-b646-5727ea392fa7",
+        "firstSet": "tmp",
+        "firstPrintId": "aa01f43b-d0b3-4cd5-9694-aed30a79462c",
+        "firstPrintSet": "tmp",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -41592,6 +41682,16 @@
         "firstSet": "inv",
         "firstPrintId": "8e17377d-4dad-4144-b0ce-c849636096a2",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Yavimaya Coast",
+        "scryfallId": "177ee102-d981-4fc3-9f09-9dd07755f22c",
+        "oracleId": "40b36bc6-c185-4bda-99e7-0118953c2c97",
+        "firstSet": "apc",
+        "firstPrintId": "177ee102-d981-4fc3-9f09-9dd07755f22c",
+        "firstPrintSet": "apc",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Yavimaya Gnats",

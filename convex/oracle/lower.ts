@@ -174,7 +174,9 @@ const FIXED_MANA_ABILITY_KEYS: ReadonlySet<string> = new Set([
 function isPainlessColorlessTap(ability: ActivatedAbility): boolean {
     const mana = ability.manaProduced;
     return (
+        ability.useStack === false &&
         mana !== undefined &&
+        mana.C !== undefined &&
         Object.keys(mana).every((k) => k === "C") &&
         Object.keys(ability).every((k) => FIXED_MANA_ABILITY_KEYS.has(k))
     );
