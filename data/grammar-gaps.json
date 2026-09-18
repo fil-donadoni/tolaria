@@ -1,5 +1,5 @@
 {
-    "note": "Grammar Gap allowlist — implemented Ops no Compiled Definition emits (ADR 0105 § 7.3, ADR 0137). SHRINK-ONLY: a row leaves when its emitting grammar rule lands; a new Op never enters. Verified offline by `bun run check:gaps`, which runs in `health` only. Seeded at issue #3824 with the 87 Ops never-emitted that day, each pointing at PRD issue #3820 until `gaps:sync` files its own.",
+    "note": "Grammar Gap allowlist — implemented Ops no Compiled Definition emits (ADR 0105 § 7.3, ADR 0137). SHRINK-ONLY: a row leaves when its emitting grammar rule lands; a new Op never enters. Verified offline by `bun run check:gaps`, which runs in `health` only. Seeded at issue #3824 with the 87 Ops never-emitted that day, each pointing at PRD issue #3820 until `gaps:sync` files its own; each row now names its own issue, a child of the Op-gap umbrella issue #3972 (issue #3829).",
     "ops": [
         {
             "key": "(op) › addMana",

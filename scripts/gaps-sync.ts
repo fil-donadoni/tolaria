@@ -2,68 +2,95 @@
 /**
  * `bun run gaps:sync` — idempotent Grammar Gap / Bot Gap → issue filing
  * (ADR 0137, PRD issue #3820, issue #3829). One issue per allowlist row of
- * `data/grammar-gaps.json`: creates it, links it under the current set
- * umbrella (or PRD #3820), and writes the new issue number back into the
- * row. A second run against unchanged inputs performs no `gh` writes at all
- * — see `lib/gap-issues.ts`'s header for the full idempotency contract and
- * why this command's scope is the Op census, not the unbounded per-fragment
- * backlog `oracle:report --gaps` prints.
+ * `data/grammar-gaps.json`, a child of the Op-gap umbrella (issue #3972),
+ * with its number written back into the row. A second run against unchanged
+ * inputs writes nothing — see `lib/gap-issues.ts`'s header for the
+ * idempotency contract, the scope, and why the umbrella is not PRD #3820.
  *
  * `land` runs this post-merge, non-gating, from the PRIMARY checkout — like
  * this command run by hand. It commits + pushes the allowlist update
  * straight to the base branch when it wrote one: the write is a single
- * `issue` field per row, computed offline from the lockfile and the
- * registry, at the same trust tier ADR 0137 already grants the issue
- * creation itself ("a deliberate exception to the loop drains the queue,
- * never fills it… these issues come from a computed gate… never a
+ * `issue` field per row, at the same trust tier ADR 0137 already grants the
+ * issue creation itself ("a deliberate exception to the loop drains the
+ * queue, never fills it… these issues come from a computed gate… never a
  * subagent's judgement").
  *
- * ── Why a direct push, not a PR (review round 1) ──────────────────────────
+ * ── Why a direct push, not a PR ───────────────────────────────────────────
  *
  * This is the one place in the repo a script commits a TRACKED file straight
- * to the base branch outside `land`'s gated merge — worth owning explicitly,
- * not leaving implicit. The alternative of a gitignored ledger (like
- * `.claude/telemetry/board-priority.json`) was considered and rejected: the
- * issue body says plainly "it writes the issue number back into the
- * allowlist row", and `check-gaps.ts`'s own render()/EXITS text quotes
- * `row.issue` as "the open issue that closes the gap" — a session picking up
- * an Op gap reads THAT field, so a private cache the committed file never
- * saw would silently drift from what the allowlist claims (the exact class
- * of bug CLAUDE.md warns about: "a rule that lives in two places is a rule
- * that drifts"). The write itself is narrow enough to take on faith: one
- * `issue` integer per row, computed offline, never touching the shrink-only
- * `ops[]` membership `check-gaps.ts` actually guards — a bad value here
- * cannot break that invariant, only point a reader at the wrong issue
- * number, which the next `gaps:sync` run self-heals (it re-derives the body
- * and re-checks the tracker every time, never trusting its own past write).
+ * to the base branch outside `land`'s gated merge. A gitignored ledger (like
+ * `.claude/telemetry/board-priority.json`) was rejected: `check-gaps.ts`
+ * quotes `row.issue` as "the open issue that closes the gap", so a session
+ * picking up an Op gap reads THAT field, and a private cache the committed
+ * file never saw would drift from what the allowlist claims. The write is
+ * narrow: one `issue` integer per row, never the shrink-only `ops[]`
+ * membership `check-gaps.ts` guards — a bad value can only point a reader at
+ * the wrong issue, which the next run re-checks against the tracker.
  *
- * Offline in its planning half (lockfile + registry + allowlist, no
- * network); the tracker half talks to GitHub through `lib/gh.ts`, which
- * strips `GITHUB_TOKEN` so it authenticates as the developer, never as the
- * app's bug-report PAT (same rule `queue:plan` follows).
+ * The tracker talks to GitHub through `lib/gh.ts`, which strips
+ * `GITHUB_TOKEN` so it authenticates as the developer, never as the app's
+ * bug-report PAT (same rule `queue:plan` follows). It reads every Op-gap
+ * issue in ONE list call, not one `gh issue view` per row — this runs on
+ * every landing.
  */
 
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { ALLOWLIST_PATH, LOCKFILE_PATH, parseAllowlist } from "./check-gaps";
+import { ALLOWLIST_PATH, parseAllowlist } from "./check-gaps";
 import { BASE_BRANCH } from "./lib/branches";
 import { gh } from "./lib/gh";
 import {
     applyUpdatedIssues,
     buildGrammarGapFilings,
     GRAMMAR_GAP_LABELS,
+    OP_GAP_UMBRELLA,
     syncGaps,
     type GapTracker,
     type TrackedIssue,
 } from "./lib/gap-issues";
-import { parseLockfile } from "./lib/oracle-lockfile";
-import { readTargetRegistry, resolveContext } from "./lib/targets";
 
 /** The `gh`-backed `GapTracker` — the one place this module touches the
- *  network. Every other function here is pure over its inputs. */
+ *  network. */
 export class GhGapTracker implements GapTracker {
+    private cache: Map<number, TrackedIssue> | null = null;
+
+    /** Every `Grammar Gap:` issue, open and closed, in one call. A number the
+     *  list misses falls back to a single `view`. */
+    private prefetch(): Map<number, TrackedIssue> {
+        if (this.cache !== null) return this.cache;
+        const out = gh([
+            "issue",
+            "list",
+            "--search",
+            'in:title "Grammar Gap:"',
+            "--state",
+            "all",
+            "--limit",
+            "500",
+            "--json",
+            "number,state,body",
+        ]);
+        const rows = JSON.parse(out) as {
+            number: number;
+            state: string;
+            body: string;
+        }[];
+        this.cache = new Map(
+            rows.map((r) => [
+                r.number,
+                {
+                    state: r.state === "CLOSED" ? "CLOSED" : "OPEN",
+                    body: r.body,
+                },
+            ])
+        );
+        return this.cache;
+    }
+
     getIssue(number: number): TrackedIssue | null {
+        const hit = this.prefetch().get(number);
+        if (hit !== undefined) return hit;
         try {
             const out = gh([
                 "issue",
@@ -113,29 +140,20 @@ export class GhGapTracker implements GapTracker {
         gh(["issue", "edit", String(number), "--body", body]);
     }
 
-    findSetUmbrella(setCode: string): number | null {
+    subIssueCount(parent: number): number {
         const out = gh([
-            "issue",
-            "list",
-            "--state",
-            "open",
-            "--label",
-            "prd",
-            "--search",
-            `"[${setCode}]" in:title`,
-            "--json",
-            "number,title",
+            "api",
+            `repos/{owner}/{repo}/issues/${parent}`,
+            "--jq",
+            ".sub_issues_summary.total // 0",
         ]);
-        const rows = JSON.parse(out) as { number: number; title: string }[];
-        const re = new RegExp(`^\\[${setCode}\\]`, "i");
-        return rows.find((r) => re.test(r.title))?.number ?? null;
+        return Number(out.trim());
     }
 
     /**
      * `gh issue edit --parent` is unreliable under rapid fire (issue-tracker
-     * doc, `queue-lint.ts`): it can exit non-zero on success or no-op
-     * silently. Read the edge back and retry rather than trust the exit
-     * code; give up loudly after three attempts rather than mislink.
+     * doc): it can exit non-zero on success or no-op silently. Read the edge
+     * back and retry rather than trust the exit code.
      */
     private setParent(child: number, parent: number): void {
         for (let attempt = 0; attempt < 3; attempt++) {
@@ -168,10 +186,9 @@ export class GhGapTracker implements GapTracker {
 }
 
 /** Commit + push the allowlist update straight to `origin/<base>`, from a
- *  clean primary checkout already on that branch. Never throws: a failure
- *  here must not turn a successful filing pass into a reported error, since
- *  `land`'s own step already treats this whole script as non-gating — but
- *  it still prints so a human notices the file drifted from the remote. */
+ *  clean primary checkout already on that branch. Never throws: `land`
+ *  treats this whole script as non-gating — but it prints, so a human
+ *  notices the file drifted from the remote. */
 export function commitAndPushAllowlist(root: string): void {
     const git = (args: string[]) =>
         spawnSync("git", args, { cwd: root, encoding: "utf8" });
@@ -204,30 +221,30 @@ export function commitAndPushAllowlist(root: string): void {
 
 function main(): void {
     const root = resolve(".");
-    if (!existsSync(join(root, LOCKFILE_PATH))) {
-        console.error(`${LOCKFILE_PATH} missing — run: bun run oracle:compile`);
-        process.exit(1);
-    }
-    const lock = parseLockfile(readFileSync(join(root, LOCKFILE_PATH), "utf8"));
     const allowlist = parseAllowlist(
         readFileSync(join(root, ALLOWLIST_PATH), "utf8")
     );
-    const registry = readTargetRegistry(root);
-    const ctx = resolveContext(root, lock);
+    const result = syncGaps(
+        buildGrammarGapFilings(allowlist),
+        new GhGapTracker(),
+        GRAMMAR_GAP_LABELS,
+        OP_GAP_UMBRELLA
+    );
 
-    const filings = buildGrammarGapFilings(lock, allowlist, registry, ctx);
-    const result = syncGaps(filings, new GhGapTracker(), GRAMMAR_GAP_LABELS);
-
+    const counts = new Map<string, number>();
     for (const action of result.actions) {
-        console.log(
-            `${action.kind.padEnd(11)} ${action.key} -> issue #${action.issue}`
-        );
+        counts.set(action.kind, (counts.get(action.kind) ?? 0) + 1);
+        if (action.kind !== "noop") {
+            console.log(
+                `${action.kind.padEnd(11)} ${action.key} -> issue #${action.issue}`
+            );
+        }
     }
+    console.log(
+        `gaps:sync: ${[...counts].map(([k, n]) => `${n} ${k}`).join(", ") || "no gaps"}`
+    );
 
-    if (result.updatedRows.size === 0) {
-        console.log("gaps:sync: no allowlist row changed");
-        return;
-    }
+    if (result.updatedRows.size === 0) return;
     const updated = applyUpdatedIssues(allowlist, result.updatedRows);
     writeFileSync(
         join(root, ALLOWLIST_PATH),

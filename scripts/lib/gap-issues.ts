@@ -1,52 +1,54 @@
 /**
  * `gaps:sync` — idempotent Grammar Gap / Bot Gap → issue filing (ADR 0137,
- * PRD issue #3820, issue #3829). PURE planning over an in-memory lockfile,
- * allowlist and Target registry: `gaps-sync.ts` does the I/O (the lockfile
- * read, the `gh`-backed tracker, the allowlist write-back).
+ * PRD issue #3820, issue #3829). PURE planning over the allowlist:
+ * `gaps-sync.ts` does the I/O (the `gh`-backed tracker, the write-back).
  *
- * ── Scope of THIS module ────────────────────────────────────────────────
+ * ── Scope ──────────────────────────────────────────────────────────────
  *
  * Grammar Gaps here are the DERIVED OP CENSUS rows of `data/grammar-gaps.json`
- * (`check-gaps.ts`, ADR 0105 § 7.3) — the allowlist named in the issue body.
- * The census is bounded and shrink-only, so "one issue per gap" here is a
- * closed set, unlike the unbounded per-fragment backlog `oracle-report.ts
- * --gaps` prints (that one is `/new-set` v2's backlog, ADR 0137, not this
- * command's — filing an issue per fragment span on every `land` would flood
- * the tracker). An Op-census key shares `rankGrammarGaps`'s key space
- * (`opGapKey`, `grammar-gaps.ts`), so the corpus and per-Target counts below
- * are read straight off the SAME ranked backlog — no separate computation.
+ * (`check-gaps.ts`, ADR 0105 § 7.3): bounded and shrink-only, so "one issue
+ * per gap" is a closed set. The per-fragment backlog `oracle:report --gaps`
+ * ranks per Target, and the other Gap kinds, are issue #3869's.
  *
- * Bot Gaps: no sweep exists yet (ADR 0105 § 7.2's Bot-play census is not
- * built — ADR 0137 "Bot reachability is computed, not walked" describes it,
- * `git grep` turns up no implementation as of this issue). `botGapFilings`
- * is wired to the same `GapTracker`/`syncGaps` machinery and returns nothing
- * until that sweep lands; the issue body's "once the sweep exists" is this.
+ * An Op-census gap carries NO corpus or per-Target count. The key FORMAT is
+ * shared with `rankGrammarGaps` (`opGapKey`), but the compiler attributes a
+ * refused line to the slot that got furthest — never to an Op — so no
+ * Fragment ever lands on an `(op) › …` key (0 of ~34k in the lockfile the day
+ * this was measured). The first version read those counts anyway and filed
+ * 87 bodies all saying "0 cards, no Target"; the body now says what the gap
+ * is instead of printing a number that is zero by construction.
+ *
+ * Bot Gaps: no Bot-play sweep exists yet (ADR 0105 § 7.2), so
+ * `buildBotGapFilings` returns nothing until it does.
+ *
+ * ── Parent ─────────────────────────────────────────────────────────────
+ *
+ * Every Op-gap issue is a child of `OP_GAP_UMBRELLA`, never of PRD #3820
+ * directly: GitHub caps a parent at 100 sub-issues, and 87 Op gaps under the
+ * PRD filled it, leaving no room for its own slices. The census only shrinks,
+ * so the umbrella never outgrows its first 87 — and `syncGaps` refuses up
+ * front, before any write, a run whose creates would exceed the cap anyway.
  *
  * ── Idempotency ────────────────────────────────────────────────────────
  *
- * Every allowlist row is seeded pointing at PRD issue #3820 (`PRD_ISSUE`)
- * until `gaps:sync` files its own — that placeholder IS the "unfiled" state,
- * not a magic sentinel invented here (`data/grammar-gaps.json`'s own `note`).
- * A row whose `issue` differs is "already filed": the tracker is asked for
- * that issue's live state — CLOSED is left alone (a gap closes through its
- * PR, never through disappearing from the allowlist, ADR 0137), OPEN gets
- * its body refreshed only when the computed body actually changed, so a
- * second run against unchanged inputs performs no writes at all.
+ * Every allowlist row was seeded pointing at PRD issue #3820 (`PRD_ISSUE`)
+ * until `gaps:sync` files its own — that placeholder IS the "unfiled" state
+ * (`data/grammar-gaps.json`'s own `note`). A filed row's issue is read back:
+ * CLOSED is left alone (a gap closes through its PR, ADR 0137), OPEN gets its
+ * body rewritten only when the computed body differs, so a second run against
+ * unchanged inputs writes nothing.
  */
 
 import type { Allowlist } from "../check-gaps";
-import { rankGrammarGaps, type GapCounts } from "./grammar-gaps";
-import type { Lockfile } from "./oracle-lockfile";
-import {
-    resolveTarget,
-    type ResolveContext,
-    type TargetKind,
-    type TargetRegistry,
-} from "./targets";
 
-/** The PRD umbrella every allowlist row is seeded pointing at — also the
- *  fallback parent for any gap that no priority Target of kind `set` ranks. */
+/** The placeholder every allowlist row was seeded with: "not filed yet". */
 export const PRD_ISSUE = 3820;
+
+/** The parent of every Op-gap issue (itself a child of PRD #3820). */
+export const OP_GAP_UMBRELLA = 3972;
+
+/** GitHub's hard cap on sub-issues per parent. */
+export const SUB_ISSUE_CAP = 100;
 
 export const GRAMMAR_GAP_LABELS = [
     "ready-for-agent",
@@ -54,141 +56,44 @@ export const GRAMMAR_GAP_LABELS = [
 ] as const;
 export const BOT_GAP_LABELS = ["ready-for-agent", "area:game-bot"] as const;
 
-/** One priority Target's leverage for a single gap key — only Targets that
- *  actually rank the gap (`refuses > 0`) appear. */
-export interface TargetGapCount {
-    readonly targetId: string;
-    readonly kind: TargetKind;
-    readonly compiles: number;
-    readonly refuses: number;
-}
-
-export interface GrammarGapFiling {
+export interface GapFiling {
     readonly key: string;
-    readonly op: string;
     /** The allowlist row's CURRENT `issue` — `PRD_ISSUE` means unfiled. */
     readonly currentIssue: number;
     readonly filed: boolean;
-    readonly corpus: GapCounts;
-    /** Priority Targets that rank this gap, in priority order. */
-    readonly perTarget: readonly TargetGapCount[];
-    /** The highest-priority Target that ranks this gap, or null. */
-    readonly topTarget: TargetGapCount | null;
-    /** The set code (`APC`, …) when `topTarget.kind === "set"`, else null. */
-    readonly topTargetSetCode: string | null;
     readonly title: string;
     readonly body: string;
-}
-
-function targetSetCode(source: string): string | null {
-    const m = /([^/]+)\.json$/i.exec(source);
-    return m === null ? null : m[1]!.toUpperCase();
 }
 
 export function grammarGapTitle(key: string): string {
     return `Grammar Gap: ${key}`;
 }
 
-function formatTargetLine(t: TargetGapCount): string {
-    return `- ${t.targetId} (${t.kind}): refuses ${t.refuses}, compiles ${t.compiles}`;
-}
-
-export function renderGrammarGapBody(
-    op: string,
-    key: string,
-    corpus: GapCounts,
-    perTarget: readonly TargetGapCount[]
-): string {
+export function renderOpGapBody(op: string, key: string): string {
     return [
         `Op census gap (ADR 0105 § 7.3, ADR 0137): \`${op}\` is \`implemented\` in the Mechanics Registry, but no Compiled Definition emits it.`,
         "",
-        `Corpus: ${corpus.refuses} unparsed card(s) attributed to this gap, ${corpus.compiles} of which would compile the day the rule lands (it is their only remaining gap).`,
+        `The work is the Grammar Rule that emits \`${op}\` — find the Oracle clause forms the hand-written cards using \`${op}\` express, and teach a slot or shared sub-grammar to lower them to it, with golden fixtures per form. Or retire the Op, if nothing should emit it.`,
         "",
-        perTarget.length === 0
-            ? "No registered Target List (`data/targets.json`) currently ranks this gap."
-            : `Cards unlocked per Target, priority order:\n${perTarget.map(formatTargetLine).join("\n")}`,
+        `No card count here: the compiler attributes a refused line to the slot that got furthest, never to an Op, so an Op gap has no corpus or per-Target figure of its own. Which clause forms matter most is \`bun run oracle:report --gaps\`'s question.`,
         "",
-        `Land the grammar rule that emits \`${op}\`, or retire the Op — the allowlist only shrinks (\`data/grammar-gaps.json\`, key \`${key}\`).`,
+        `Closes when the rule lands: \`check:gaps\` then forces the allowlist row (\`data/grammar-gaps.json\`, key \`${key}\`) out — the allowlist only shrinks.`,
     ].join("\n");
 }
 
-/**
- * One `GrammarGapFiling` per allowlist row, corpus and per-Target counts read
- * straight off `rankGrammarGaps` (shared key space, module header). Only
- * Targets carrying a `priority` rank — `targets.ts`: "A Target with no
- * priority is measured, not ranked by."
- */
-export function buildGrammarGapFilings(
-    lock: Pick<Lockfile, "cards" | "fragments">,
-    allowlist: Allowlist,
-    registry: TargetRegistry,
-    ctx: ResolveContext
-): GrammarGapFiling[] {
-    const corpusByKey = new Map(
-        rankGrammarGaps(lock, null).map((g) => [g.key, g.corpus] as const)
-    );
-
-    const priorityTargets = registry.targets
-        .filter((t) => t.priority !== undefined)
-        .slice()
-        .sort((a, b) => a.priority! - b.priority!)
-        .map((row) => {
-            const resolved = resolveTarget(row, ctx);
-            const ids = new Set(resolved.cards.map((c) => c.oracleId));
-            return {
-                row,
-                byKey: new Map(
-                    rankGrammarGaps(lock, ids).map(
-                        (g) => [g.key, g.target] as const
-                    )
-                ),
-            };
-        });
-
-    return allowlist.ops.map((opRow) => {
-        const key = opRow.key;
-        const corpus = corpusByKey.get(key) ?? { refuses: 0, compiles: 0 };
-        const perTarget: TargetGapCount[] = [];
-        let topTarget: TargetGapCount | null = null;
-        let topTargetSetCode: string | null = null;
-        for (const { row, byKey } of priorityTargets) {
-            const counts = byKey.get(key);
-            if (counts === undefined) continue;
-            const entry: TargetGapCount = {
-                targetId: row.id,
-                kind: row.kind,
-                compiles: counts.compiles,
-                refuses: counts.refuses,
-            };
-            perTarget.push(entry);
-            if (topTarget === null) {
-                topTarget = entry;
-                topTargetSetCode =
-                    row.kind === "set" ? targetSetCode(row.source) : null;
-            }
-        }
-        const filed = opRow.issue !== PRD_ISSUE;
-        return {
-            key,
-            op: opRow.op,
-            currentIssue: opRow.issue,
-            filed,
-            corpus,
-            perTarget,
-            topTarget,
-            topTargetSetCode,
-            title: grammarGapTitle(key),
-            body: renderGrammarGapBody(opRow.op, key, corpus, perTarget),
-        };
-    });
+/** One filing per allowlist row. */
+export function buildGrammarGapFilings(allowlist: Allowlist): GapFiling[] {
+    return allowlist.ops.map((row) => ({
+        key: row.key,
+        currentIssue: row.issue,
+        filed: row.issue !== PRD_ISSUE,
+        title: grammarGapTitle(row.key),
+        body: renderOpGapBody(row.op, row.key),
+    }));
 }
 
-/**
- * The Bot Gap sweep does not exist yet (module header). Returns nothing
- * until it does; kept as its own function so `gaps-sync.ts` and its tests
- * already wire the second kind ADR 0137 names.
- */
-export function buildBotGapFilings(): GrammarGapFiling[] {
+/** The Bot Gap sweep does not exist yet (module header). */
+export function buildBotGapFilings(): GapFiling[] {
     return [];
 }
 
@@ -209,8 +114,8 @@ export interface GapTracker {
         parent: number;
     }): number;
     updateBody(number: number, body: string): void;
-    /** The open, `prd`-labelled `[<CODE>] … set rollout` issue, or null. */
-    findSetUmbrella(setCode: string): number | null;
+    /** How many sub-issues `parent` holds right now. */
+    subIssueCount(parent: number): number;
 }
 
 export type GapSyncAction =
@@ -229,81 +134,64 @@ export interface GapSyncResult {
     readonly updatedRows: ReadonlyMap<string, number>;
 }
 
-/** The parent to file/reconcile `filing` under (issue body: "parent = the
- *  current set umbrella when the gap was ranked for a set, else PRD #3820"). */
-function parentOf(filing: GrammarGapFiling, tracker: GapTracker): number {
-    if (filing.topTargetSetCode === null) return PRD_ISSUE;
-    return tracker.findSetUmbrella(filing.topTargetSetCode) ?? PRD_ISSUE;
-}
-
 /**
  * Create, update or leave alone — one decision per filing, entirely through
- * `tracker` so a stub can prove create / update / idempotent-noop / a closed
- * issue staying closed without touching a real tracker.
+ * `tracker`. Reads every filed issue first and refuses, before any write, a
+ * run whose creates would push `parent` past GitHub's sub-issue cap: an issue
+ * created and then left unparented is the failure this guards.
  */
 export function syncGaps(
-    filings: readonly GrammarGapFiling[],
+    filings: readonly GapFiling[],
     tracker: GapTracker,
-    labels: readonly string[]
+    labels: readonly string[],
+    parent: number
 ): GapSyncResult {
-    const actions: GapSyncAction[] = [];
-    const updatedRows = new Map<string, number>();
-
-    for (const filing of filings) {
-        if (!filing.filed) {
-            const issue = tracker.createIssue({
-                title: filing.title,
-                body: filing.body,
-                labels,
-                parent: parentOf(filing, tracker),
-            });
-            updatedRows.set(filing.key, issue);
-            actions.push({ kind: "create", key: filing.key, issue });
-            continue;
+    const existing = new Map<string, TrackedIssue | null>();
+    for (const f of filings) {
+        if (f.filed) existing.set(f.key, tracker.getIssue(f.currentIssue));
+    }
+    const creates = filings.filter(
+        (f) => !f.filed || existing.get(f.key) === null
+    ).length;
+    if (creates > 0) {
+        const children = tracker.subIssueCount(parent);
+        if (children + creates > SUB_ISSUE_CAP) {
+            throw new Error(
+                `gaps:sync: issue #${parent} holds ${children} sub-issues; ${creates} more would pass GitHub's cap of ${SUB_ISSUE_CAP} — nothing was filed`
+            );
         }
-
-        const existing = tracker.getIssue(filing.currentIssue);
-        if (existing === null) {
-            const issue = tracker.createIssue({
-                title: filing.title,
-                body: filing.body,
-                labels,
-                parent: parentOf(filing, tracker),
-            });
-            updatedRows.set(filing.key, issue);
-            actions.push({ kind: "create", key: filing.key, issue });
-            continue;
-        }
-        if (existing.state === "CLOSED") {
-            actions.push({
-                kind: "skip-closed",
-                key: filing.key,
-                issue: filing.currentIssue,
-            });
-            continue;
-        }
-        if (existing.body === filing.body) {
-            actions.push({
-                kind: "noop",
-                key: filing.key,
-                issue: filing.currentIssue,
-            });
-            continue;
-        }
-        tracker.updateBody(filing.currentIssue, filing.body);
-        actions.push({
-            kind: "update",
-            key: filing.key,
-            issue: filing.currentIssue,
-        });
     }
 
+    const actions: GapSyncAction[] = [];
+    const updatedRows = new Map<string, number>();
+    for (const filing of filings) {
+        const current = filing.filed ? existing.get(filing.key)! : null;
+        if (current === null) {
+            const issue = tracker.createIssue({
+                title: filing.title,
+                body: filing.body,
+                labels,
+                parent,
+            });
+            updatedRows.set(filing.key, issue);
+            actions.push({ kind: "create", key: filing.key, issue });
+            continue;
+        }
+        const issue = filing.currentIssue;
+        if (current.state === "CLOSED") {
+            actions.push({ kind: "skip-closed", key: filing.key, issue });
+        } else if (current.body === filing.body) {
+            actions.push({ kind: "noop", key: filing.key, issue });
+        } else {
+            tracker.updateBody(issue, filing.body);
+            actions.push({ kind: "update", key: filing.key, issue });
+        }
+    }
     return { actions, updatedRows };
 }
 
-/** Apply a sync's `updatedRows` onto the allowlist — the write-back the
- *  issue body asks for. A no-op input returns the SAME object (reference
- *  equality), so a caller can skip writing the file when nothing changed. */
+/** Apply a sync's `updatedRows` onto the allowlist. A no-op input returns
+ *  the SAME object, so a caller can skip writing the file. */
 export function applyUpdatedIssues(
     allowlist: Allowlist,
     updatedRows: ReadonlyMap<string, number>
