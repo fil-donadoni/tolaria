@@ -410,7 +410,7 @@ export function lowerSentence(
  * cost, and reads that kicker's own payment record. A cost that matches no
  * kicker, or more than one, is a sentence linked to nothing we can name.
  */
-function kickedValue(
+export function kickedValue(
     kicked: KickedRefIR,
     kickers: readonly KickerCost[]
 ): Lowered<EffectValue> {

@@ -23405,6 +23405,95 @@
         "rarity": "common"
     },
     {
+        "name": "Degavolver",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Volver"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Kicker {1}{B} and/or {R} (You may pay an additional {1}{B} and/or {R} as you cast this spell.)\nIf this creature was kicked with its {1}{B} kicker, it enters with two +1/+1 counters on it and with \"Pay 3 life: Regenerate this creature.\"\nIf this creature was kicked with its {R} kicker, it enters with a +1/+1 counter on it and with first strike.",
+        "compiledStaticEffects": [
+            {
+                "kind": "activated-grant",
+                "abilityId": "degavolver-kicked",
+                "appliesTo": "self-if-kicked",
+                "kickerId": "kicker-b"
+            },
+            {
+                "kind": "keyword-grant",
+                "keyword": "first strike",
+                "appliesTo": "self-if-kicked",
+                "kickerId": "kicker-r"
+            }
+        ],
+        "kickers": [
+            {
+                "id": "kicker-b",
+                "description": "Kicker {1}{B}",
+                "mana": {
+                    "X": 1,
+                    "B": 1
+                }
+            },
+            {
+                "id": "kicker-r",
+                "description": "Kicker {R}",
+                "mana": {
+                    "R": 1
+                }
+            }
+        ],
+        "entersWith": {
+            "counters": [
+                {
+                    "type": "+1/+1",
+                    "count": {
+                        "additionalCostPaid": "kicker-b"
+                    }
+                },
+                {
+                    "type": "+1/+1",
+                    "count": {
+                        "additionalCostPaid": "kicker-b"
+                    }
+                },
+                {
+                    "type": "+1/+1",
+                    "count": {
+                        "additionalCostPaid": "kicker-r"
+                    }
+                }
+            ]
+        },
+        "grantTemplates": [
+            {
+                "id": "degavolver-kicked",
+                "oracleText": "Pay 3 life: Regenerate this creature.",
+                "cost": {
+                    "life": 3
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "ref": "$source"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "36a52c3a-2f58-4b4d-b3c6-f9a08e25c7de",
+        "rarity": "rare"
+    },
+    {
         "name": "Yavimaya's Embrace",
         "types": [
             "Enchantment"
@@ -38465,6 +38554,95 @@
         "rarity": "common"
     },
     {
+        "name": "Anavolver",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Volver"
+        ],
+        "manaCost": {
+            "X": 3,
+            "G": 1
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "Kicker {1}{U} and/or {B} (You may pay an additional {1}{U} and/or {B} as you cast this spell.)\nIf this creature was kicked with its {1}{U} kicker, it enters with two +1/+1 counters on it and with flying.\nIf this creature was kicked with its {B} kicker, it enters with a +1/+1 counter on it and with \"Pay 3 life: Regenerate this creature.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "keyword": "flying",
+                "appliesTo": "self-if-kicked",
+                "kickerId": "kicker-u"
+            },
+            {
+                "kind": "activated-grant",
+                "abilityId": "anavolver-kicked",
+                "appliesTo": "self-if-kicked",
+                "kickerId": "kicker-b"
+            }
+        ],
+        "kickers": [
+            {
+                "id": "kicker-u",
+                "description": "Kicker {1}{U}",
+                "mana": {
+                    "X": 1,
+                    "U": 1
+                }
+            },
+            {
+                "id": "kicker-b",
+                "description": "Kicker {B}",
+                "mana": {
+                    "B": 1
+                }
+            }
+        ],
+        "entersWith": {
+            "counters": [
+                {
+                    "type": "+1/+1",
+                    "count": {
+                        "additionalCostPaid": "kicker-u"
+                    }
+                },
+                {
+                    "type": "+1/+1",
+                    "count": {
+                        "additionalCostPaid": "kicker-u"
+                    }
+                },
+                {
+                    "type": "+1/+1",
+                    "count": {
+                        "additionalCostPaid": "kicker-b"
+                    }
+                }
+            ]
+        },
+        "grantTemplates": [
+            {
+                "id": "anavolver-kicked",
+                "oracleText": "Pay 3 life: Regenerate this creature.",
+                "cost": {
+                    "life": 3
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "ref": "$source"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "5e685a8c-fba6-495f-ac0f-1ff5456b22d0",
+        "rarity": "rare"
+    },
+    {
         "name": "Chasm Drake",
         "types": [
             "Creature"
@@ -43135,6 +43313,77 @@
         ],
         "id": "68c6fbdb-7b5c-4ad0-88f5-4779deae16ce",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Cetavolver",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Volver"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Kicker {1}{R} and/or {G} (You may pay an additional {1}{R} and/or {G} as you cast this spell.)\nIf this creature was kicked with its {1}{R} kicker, it enters with two +1/+1 counters on it and with first strike.\nIf this creature was kicked with its {G} kicker, it enters with a +1/+1 counter on it and with trample.",
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "keyword": "first strike",
+                "appliesTo": "self-if-kicked",
+                "kickerId": "kicker-r"
+            },
+            {
+                "kind": "keyword-grant",
+                "keyword": "trample",
+                "appliesTo": "self-if-kicked",
+                "kickerId": "kicker-g"
+            }
+        ],
+        "kickers": [
+            {
+                "id": "kicker-r",
+                "description": "Kicker {1}{R}",
+                "mana": {
+                    "X": 1,
+                    "R": 1
+                }
+            },
+            {
+                "id": "kicker-g",
+                "description": "Kicker {G}",
+                "mana": {
+                    "G": 1
+                }
+            }
+        ],
+        "entersWith": {
+            "counters": [
+                {
+                    "type": "+1/+1",
+                    "count": {
+                        "additionalCostPaid": "kicker-r"
+                    }
+                },
+                {
+                    "type": "+1/+1",
+                    "count": {
+                        "additionalCostPaid": "kicker-r"
+                    }
+                },
+                {
+                    "type": "+1/+1",
+                    "count": {
+                        "additionalCostPaid": "kicker-g"
+                    }
+                }
+            ]
+        },
+        "id": "69063cc2-4f6e-4cce-bb09-ccd57b69b993",
+        "rarity": "rare"
     },
     {
         "name": "Accursed Horde",
@@ -59089,6 +59338,57 @@
         "toughness": 2,
         "id": "8e389c92-b54b-46b3-a7ab-b8a5a2a7d380",
         "rarity": "common"
+    },
+    {
+        "name": "Pouncing Wurm",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Wurm"
+        ],
+        "manaCost": {
+            "X": 3,
+            "G": 1
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "Kicker {2}{G} (You may pay an additional {2}{G} as you cast this spell.)\nIf this creature was kicked, it enters with three +1/+1 counters on it and with haste.",
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "keyword": "haste",
+                "appliesTo": "self-if-kicked"
+            }
+        ],
+        "kickers": [
+            {
+                "id": "kicker",
+                "description": "Kicker {2}{G}",
+                "mana": {
+                    "X": 2,
+                    "G": 1
+                }
+            }
+        ],
+        "entersWith": {
+            "counters": [
+                {
+                    "type": "+1/+1",
+                    "count": "kicker"
+                },
+                {
+                    "type": "+1/+1",
+                    "count": "kicker"
+                },
+                {
+                    "type": "+1/+1",
+                    "count": "kicker"
+                }
+            ]
+        },
+        "id": "8e48a2f3-9c30-4187-868e-33dbf5e279fc",
+        "rarity": "uncommon"
     },
     {
         "name": "Pelakka Wurm",

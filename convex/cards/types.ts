@@ -2286,6 +2286,7 @@ export type {
 // both directions.
 
 import type { CompiledStaticEffect } from "./compiledStatics";
+import type { EntersWithCount } from "./entersWith";
 export type {
     CompiledSpellFilter,
     CompiledStaticEffect,
@@ -18392,6 +18393,10 @@ export interface CardDefinition {
      *  `count: "kicker"` reads how many times the spell was kicked (CR 702.33e —
      *  "a charge counter for each time it was kicked", Everflowing Chalice);
      *  both are 0 for a permanent that was never cast (CR 107.3b).
+     *  `count: { additionalCostPaid: "<kicker id>" }` reads how many times ONE
+     *  named Kicker was paid (CR 702.33f — "if this creature was kicked with
+     *  its {1}{U} kicker, it enters with two +1/+1 counters", the Apocalypse
+     *  Volvers), off the per-id payment record the tally cannot split.
      *  `count: "sunburst"` reads how many DISTINCT COLORS of mana were spent to
      *  cast the spell (CR 702.44a — colors, not pips: `{R}{R}` is one), off the
      *  `notedManaSpent` capture the cast-commit step records when the card also
@@ -18412,7 +18417,7 @@ export interface CardDefinition {
     entersWith?: {
         counters?: {
             type: string;
-            count: number | "X" | "kicker" | "sunburst";
+            count: EntersWithCount;
         }[];
         /** CR 614.1c / 614.12a (ADR 0100 D3) — the ordered "as this enters …"
          *  choices this permanent's controller answers BEFORE it enters, while

@@ -8864,6 +8864,10 @@ function finalizeSpellResolution(
                 // on the resolving stack item, summed across its Kickers
                 // (ADR 0079 — the total is always derived, never stored).
                 kickerCount: totalKickerCount(item.kickerPayments),
+                // CR 702.33f — the per-id record the tally above is summed
+                // from, for "if this creature was kicked with its {A} kicker"
+                // (the Apocalypse Volvers). Same snapshot, same instant.
+                kickerPayments: item.kickerPayments,
                 // CR 702.44a/b (issue #2378) — Sunburst. THE one entry site
                 // that can supply this: 702.44b adds counters "only if the
                 // object with sunburst is entering the battlefield from the

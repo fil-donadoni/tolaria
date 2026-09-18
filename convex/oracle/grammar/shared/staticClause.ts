@@ -69,7 +69,8 @@ import type { KeywordIR, SlotIR } from "../ir";
 import { activatedSlot } from "../slots/activated";
 import { manaAbilitySlot } from "../slots/manaAbility";
 import type { ParseContext } from "../../types";
-import type { CardType } from "../../../cards/types";
+import type { CardType, ManaCost } from "../../../cards/types";
+import { readManaCost } from "../../manaCost";
 import type { CompiledSpellFilter } from "../../../cards/compiledStatics";
 import type { EffectCardFilter, PermanentFilter } from "../../../cards/types";
 import {
@@ -140,6 +141,14 @@ export type StaticClauseIR =
           readonly kind: "kicked-enters-with";
           readonly counters: { readonly type: string; readonly count: number };
           readonly per: "kicked" | "each-kick";
+          /** CR 702.33f — "kicked with its {1}{U} kicker": the PRINTED cost
+           *  of the one kicker this rider reads, resolved to a kicker id in
+           *  lowering (the id is a fact about the kicker line, not this one).
+           *  Absent: "if this creature was kicked" — any kicker. */
+          readonly kickedWith?: ManaCost;
+          /** CR 614.1c — "… and with <keyword>" / "… and with \"<ability>\"":
+           *  what the kicked permanent ALSO enters with, in printed order. */
+          readonly grants?: readonly SelfGrantIR[];
       }
     /** CR 502.3 — "doesn't untap during your untap step". */
     | { readonly kind: "does-not-untap" }
@@ -156,6 +165,13 @@ export type StaticClauseIR =
           /** CR 702.16n — "This effect doesn't remove this Aura." */
           readonly keepsThisAura?: true;
       };
+
+/** What a kicked entry rider's "and with …" tail grants the permanent itself
+ *  — the two host-effect shapes that name an ABILITY (CR 614.1c). */
+export type SelfGrantIR = Extract<
+    HostEffectIR,
+    { kind: "keyword-grant" } | { kind: "activated-grant" }
+>;
 
 /** What "enchanted <noun>" names: a card type, or any permanent. */
 export type HostNoun = CardType | "permanent";
@@ -741,33 +757,94 @@ const entersTappedWithCounters: Rule<StaticClauseIR> = pattern(
 // ── Frame: kicked entry riders (CR 614.1c / 702.33e) ───────────────────────
 
 const KICKED_ENTERS_WITH =
-    /^If (.+) was kicked, it enters with (\S+) (\S+) counters? on it$/;
+    /^If (.+?) was kicked(?: with its (\{[^ ]+\}) kicker)?, it enters with (\S+) (\S+) counters? on it(?: and with (.+))?$/;
 const ENTERS_WITH_EACH_KICK =
     /^(.+) enters with (\S+) (\S+) counters? on it for each time it was kicked$/;
+const QUOTED_TAIL = /^"([^"]+)"$/;
 
 /**
- * "If this creature was kicked, it enters with two +1/+1 counters on it."
+ * "If this creature was kicked[ with its {A} kicker], it enters with N <kind>
+ * counters on it[ and with <keyword list> | and with \"<ability>\"]."
  *
- * Anchored at BOTH ends, so each printed extension of the sentence fails the
- * card rather than compiling to its counters alone:
+ * Every optional part is READ, never skipped: a captured "with its {A}
+ * kicker" becomes the kicker the rider is linked to (CR 702.33f), and a
+ * captured "and with …" tail must parse WHOLE as a keyword list or ONE quoted
+ * ability, or the card fails — so no printed extension can compile to its
+ * counters alone (the prefix-match defect ADR 0105 exists to refuse). Still
+ * refused:
  *
- *  - "… on it and with flying" / "… and with \"<ability>\"" — the kicked
- *    permanent ALSO enters with an ability, which no compiled descriptor can
- *    gate on the kicker yet;
- *  - "If this creature was kicked with its {1}{U} kicker, …" (CR 702.33f) —
- *    a per-kicker count, which `entersWith`'s kicker tally cannot read;
- *  - "… for each nonbasic land your opponents control" — a different count.
+ *  - "… for each nonbasic land your opponents control" — a different count;
+ *  - a quoted ability the activated / mana slots do not read — "Whenever this
+ *    creature deals damage, you gain that much life." (a triggered grant) and
+ *    "This creature can attack as though it didn't have defender." (a static
+ *    one, Prison Barricade) have no self-grant reader yet.
  *
- * The CARD-level half — that "kicked" here means the lone, non-multi kicker,
- * so the tally is 0 or 1 — is checked in `lower.ts`, which sees the kicker
+ * The CARD-level half — which kicker "kicked" and "with its {A} kicker" name,
+ * and that the tally is 0 or 1 — is checked in lowering, which sees the kicker
  * line this sentence is linked to (CR 702.33e).
  */
-const kickedEntersWithRule: Rule<StaticClauseIR> = pattern(
+const kickedEntersWithRule: Rule<StaticClauseIR> = rule(
     "kicked enters with counters",
-    KICKED_ENTERS_WITH,
-    (match): RuleResult<StaticClauseIR> =>
-        kickedCounters(match[1]!, match[2]!, match[3]!, "kicked")
+    (span, ctx): RuleResult<StaticClauseIR> => {
+        const match = span.match(KICKED_ENTERS_WITH);
+        if (match === null)
+            return fail("not a kicked entry rider this grammar knows", span);
+        const base = kickedCounters(match[1]!, match[3]!, match[4]!, "kicked");
+        if (!base.ok) return base;
+        let kickedWith: ManaCost | undefined;
+        if (match[2] !== undefined) {
+            const mana = readManaCost(match[2]);
+            if (!mana.ok) return fail(mana.reason, mana.fragment);
+            kickedWith = mana.cost;
+        }
+        let grants: readonly SelfGrantIR[] | undefined;
+        if (match[5] !== undefined) {
+            const tail = readSelfGrants(match[5], ctx as ParseContext);
+            if (!tail.ok) return tail;
+            grants = tail.value;
+        }
+        return ok({
+            ...(base.value as Extract<
+                StaticClauseIR,
+                { kind: "kicked-enters-with" }
+            >),
+            ...(kickedWith !== undefined ? { kickedWith } : {}),
+            ...(grants !== undefined ? { grants } : {}),
+        });
+    }
 );
+
+/**
+ * The "and with …" tail of a kicked entry rider (CR 614.1c): a keyword list,
+ * or ONE ability in quotation marks, read by the same readers the enchanted
+ * host frame uses — the ability the permanent enters with is exactly what it
+ * would be if printed on it (CR 113.1a).
+ */
+function readSelfGrants(
+    span: string,
+    ctx: ParseContext
+): RuleResult<readonly SelfGrantIR[]> {
+    const quoted = span.match(QUOTED_TAIL);
+    if (quoted !== null) {
+        const ability = readQuotedAbilityIn(quoted[1]!, ctx);
+        if (!ability.ok) return ability;
+        return ok([
+            {
+                kind: "activated-grant" as const,
+                text: quoted[1]!,
+                ability: ability.value,
+            },
+        ]);
+    }
+    const keywords = readGrantedKeywords(span);
+    if (!keywords.ok) return keywords;
+    return ok(
+        keywords.value.map((keyword) => ({
+            kind: "keyword-grant" as const,
+            keyword,
+        }))
+    );
+}
 
 /** "This creature enters with a +1/+1 counter on it for each time it was
  *  kicked." (CR 702.33c/d — Multikicker's usual reader). */
@@ -948,14 +1025,27 @@ function readQuotedAbility(
     // this Aura to its owner's hand" would bounce the creature.
     if (text.includes(ctx.selfMarker) || SELF_AURA_PHRASE.test(text))
         return fail("a granted ability naming the Aura itself", text);
-    const hostCtx: ParseContext = {
+    return readQuotedAbilityIn(text, {
         ...ctx,
         typeLine: { types: [host], supertypes: [], subtypes: [] },
-    };
+    });
+}
+
+/**
+ * The slot dispatch at the heart of {@link readQuotedAbility}, with the parse
+ * context already set to the permanent the ability will BELONG to. Shared with
+ * the kicked entry rider (CR 614.1c), whose quoted ability belongs to the card
+ * itself — so its own type line is the right one, and "this creature" inside
+ * the quote is the card, not a different object.
+ */
+function readQuotedAbilityIn(
+    text: string,
+    ctx: ParseContext
+): RuleResult<QuotedAbilityIR> {
     const hits: QuotedAbilityIR[] = [];
     const misses: string[] = [];
     for (const slot of [activatedSlot, manaAbilitySlot]) {
-        const r = slot.run(text, hostCtx);
+        const r = slot.run(text, ctx);
         if (!r.ok) {
             misses.push(r.reason);
             continue;

@@ -279,6 +279,155 @@ describe("kicker-counted entry riders (CR 614.1c / 702.33d)", () => {
     });
 });
 
+describe("kicked entry riders that also grant an ability (CR 614.1c / 702.33e–f, issue #3864)", () => {
+    // Golden: the WHOLE compiled definition, so every field the "and with …"
+    // tail and the "with its {A} kicker" qualifier produce is pinned.
+    it("single kicker, counters + keyword (Kavu Titan)", () => {
+        const text =
+            "Kicker {2}{G}\nIf this creature was kicked, it enters with three +1/+1 counters on it and with trample.";
+        expect(compiled(creature("Kavu Titan", "{1}{G}", text))).toEqual({
+            name: "Kavu Titan",
+            types: ["Creature"],
+            manaCost: { X: 1, G: 1 },
+            power: 2,
+            toughness: 2,
+            oracleText: text,
+            kickers: [
+                {
+                    id: "kicker",
+                    description: "Kicker {2}{G}",
+                    mana: { X: 2, G: 1 },
+                },
+            ],
+            entersWith: {
+                counters: [
+                    { type: "+1/+1", count: "kicker" },
+                    { type: "+1/+1", count: "kicker" },
+                    { type: "+1/+1", count: "kicker" },
+                ],
+            },
+            compiledStaticEffects: [
+                {
+                    kind: "keyword-grant",
+                    keyword: "trample",
+                    appliesTo: "self-if-kicked",
+                },
+            ],
+        });
+    });
+
+    it("per-kicker id, counters + keyword on both riders (Cetavolver)", () => {
+        const text =
+            "Kicker {1}{R} and/or {G}\nIf this creature was kicked with its {1}{R} kicker, it enters with two +1/+1 counters on it and with first strike.\nIf this creature was kicked with its {G} kicker, it enters with a +1/+1 counter on it and with trample.";
+        expect(compiled(creature("Cetavolver", "{1}{U}", text))).toEqual({
+            name: "Cetavolver",
+            types: ["Creature"],
+            manaCost: { X: 1, U: 1 },
+            power: 2,
+            toughness: 2,
+            oracleText: text,
+            kickers: [
+                {
+                    id: "kicker-r",
+                    description: "Kicker {1}{R}",
+                    mana: { X: 1, R: 1 },
+                },
+                { id: "kicker-g", description: "Kicker {G}", mana: { G: 1 } },
+            ],
+            entersWith: {
+                counters: [
+                    {
+                        type: "+1/+1",
+                        count: { additionalCostPaid: "kicker-r" },
+                    },
+                    {
+                        type: "+1/+1",
+                        count: { additionalCostPaid: "kicker-r" },
+                    },
+                    {
+                        type: "+1/+1",
+                        count: { additionalCostPaid: "kicker-g" },
+                    },
+                ],
+            },
+            compiledStaticEffects: [
+                {
+                    kind: "keyword-grant",
+                    keyword: "first strike",
+                    appliesTo: "self-if-kicked",
+                    kickerId: "kicker-r",
+                },
+                {
+                    kind: "keyword-grant",
+                    keyword: "trample",
+                    appliesTo: "self-if-kicked",
+                    kickerId: "kicker-g",
+                },
+            ],
+        });
+    });
+
+    it("per-kicker id, counters + quoted ability (Anavolver)", () => {
+        const text =
+            'Kicker {1}{U} and/or {B}\nIf this creature was kicked with its {1}{U} kicker, it enters with two +1/+1 counters on it and with flying.\nIf this creature was kicked with its {B} kicker, it enters with a +1/+1 counter on it and with "Pay 3 life: Regenerate this creature."';
+        expect(compiled(creature("Anavolver", "{3}{G}", text))).toEqual({
+            name: "Anavolver",
+            types: ["Creature"],
+            manaCost: { X: 3, G: 1 },
+            power: 2,
+            toughness: 2,
+            oracleText: text,
+            kickers: [
+                {
+                    id: "kicker-u",
+                    description: "Kicker {1}{U}",
+                    mana: { X: 1, U: 1 },
+                },
+                { id: "kicker-b", description: "Kicker {B}", mana: { B: 1 } },
+            ],
+            entersWith: {
+                counters: [
+                    {
+                        type: "+1/+1",
+                        count: { additionalCostPaid: "kicker-u" },
+                    },
+                    {
+                        type: "+1/+1",
+                        count: { additionalCostPaid: "kicker-u" },
+                    },
+                    {
+                        type: "+1/+1",
+                        count: { additionalCostPaid: "kicker-b" },
+                    },
+                ],
+            },
+            compiledStaticEffects: [
+                {
+                    kind: "keyword-grant",
+                    keyword: "flying",
+                    appliesTo: "self-if-kicked",
+                    kickerId: "kicker-u",
+                },
+                {
+                    kind: "activated-grant",
+                    abilityId: "anavolver-kicked",
+                    appliesTo: "self-if-kicked",
+                    kickerId: "kicker-b",
+                },
+            ],
+            grantTemplates: [
+                {
+                    id: "anavolver-kicked",
+                    oracleText: "Pay 3 life: Regenerate this creature.",
+                    cost: { life: 3 },
+                    useStack: true,
+                    effects: [{ op: "regenerate", target: { ref: "$source" } }],
+                },
+            ],
+        });
+    });
+});
+
 describe("Kicker gold over the hand-written catalogue", () => {
     const KICKER_LINE = /^(?:Multi)?[Kk]icker[ —].*$/m;
 
@@ -342,26 +491,26 @@ describe("Kicker refusals — grammar", () => {
     });
 });
 
-describe("Kicker refusals — per-kicker entry riders (fail-closed until the engine has a surface)", () => {
-    // The engine counts `entersWith` by the kicker TALLY and grants a kicked
-    // keyword only through a closure (Duskwalker's `applies`), so none of these
-    // has a JSON encoding yet. Each must leave the card unparsed — never
+describe("Kicker refusals — kicked entry riders the engine still has no surface for", () => {
+    // The "and with …" tail grants a keyword list or ONE activated/mana
+    // ability (issue #3864). A quoted TRIGGERED or STATIC ability has no
+    // self-grant reader, so each must leave the card unparsed — never
     // compiled to its counters alone.
     it.each([
         [
-            "Anavolver",
-            'Kicker {1}{U} and/or {B}\nIf this creature was kicked with its {1}{U} kicker, it enters with two +1/+1 counters on it and with flying.\nIf this creature was kicked with its {B} kicker, it enters with a +1/+1 counter on it and with "Pay 3 life: Regenerate this creature."',
-            "If this creature was kicked with its {1}{U} kicker, it enters with two +1/+1 counters on it and with flying.",
-        ],
-        [
-            "Kavu Titan",
-            "Kicker {2}{G}\nIf this creature was kicked, it enters with three +1/+1 counters on it and with trample.",
-            "If this creature was kicked, it enters with three +1/+1 counters on it and with trample.",
+            "Necravolver",
+            'Kicker {1}{G} and/or {W}\nIf this creature was kicked with its {1}{G} kicker, it enters with two +1/+1 counters on it and with trample.\nIf this creature was kicked with its {W} kicker, it enters with a +1/+1 counter on it and with "Whenever this creature deals damage, you gain that much life."',
+            'If this creature was kicked with its {W} kicker, it enters with a +1/+1 counter on it and with "Whenever this creature deals damage, you gain that much life."',
         ],
         [
             "Prison Barricade",
             'Defender\nKicker {1}{W}\nIf this creature was kicked, it enters with a +1/+1 counter on it and with "This creature can attack as though it didn\'t have defender."',
             'If this creature was kicked, it enters with a +1/+1 counter on it and with "This creature can attack as though it didn\'t have defender."',
+        ],
+        [
+            "a tail that is not a keyword list",
+            "Kicker {2}{G}\nIf this creature was kicked, it enters with three +1/+1 counters on it and with trample until end of turn.",
+            "If this creature was kicked, it enters with three +1/+1 counters on it and with trample until end of turn.",
         ],
     ])("%s stays unparsed on its entry rider", (name, text, fragment) => {
         const outcome = compileCard(creature(name, "{3}{G}", text));
@@ -455,6 +604,35 @@ describe("Kicker refusals — lowering invariants", () => {
                 "If this creature was kicked, it enters with a +1/+1 counter on it.",
             ])
         ).toMatch(/kicked entry rider twice/);
+    });
+
+    it("refuses two riders naming the SAME kicker (CR 702.33f)", () => {
+        expect(
+            refusal("Creature — Bear", [
+                "Kicker {1}{G} and/or {W}",
+                "If this creature was kicked with its {W} kicker, it enters with a +1/+1 counter on it.",
+                "If this creature was kicked with its {W} kicker, it enters with a +1/+1 counter on it and with flying.",
+            ])
+        ).toMatch(/kicked entry rider twice/);
+    });
+
+    it("refuses a named rider beside a tally rider — their counts would sum", () => {
+        expect(
+            refusal("Creature — Bear", [
+                "Kicker {1}{G} and/or {W}",
+                "If this creature was kicked with its {W} kicker, it enters with a +1/+1 counter on it.",
+                "This creature enters with a +1/+1 counter on it for each time it was kicked.",
+            ])
+        ).toMatch(/kicked entry rider twice/);
+    });
+
+    it("refuses an entry rider naming a kicker the card does not print (CR 702.33f)", () => {
+        expect(
+            refusal("Creature — Bear", [
+                "Kicker {1}{G} and/or {W}",
+                "If this creature was kicked with its {U} kicker, it enters with a +1/+1 counter on it and with flying.",
+            ])
+        ).toMatch(/702\.33f/);
     });
 
     it("'for each time it was kicked' on a two-kicker card counts both (CR 702.33d)", () => {
