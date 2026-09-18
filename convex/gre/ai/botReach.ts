@@ -423,6 +423,8 @@ export function playBotReach(
     // Neither seat played. `never-chosen` outranks `position-unmodelled`: a
     // seat that could pose the card and did not choose it has measured the
     // Bot, which is the stronger claim of the two.
-    const measured = seats.find((s) => s.cause === "never-chosen");
+    const measured = seats.find(
+        (s) => s.outcome !== "played" && s.cause === "never-chosen"
+    );
     return measured ?? seats[0]!;
 }
