@@ -211,6 +211,16 @@ form into Bot Gaps, ranked like Grammar Gaps. The sweep runs in
 `oracle:compile`, incrementally (cache keyed by definition hash and Bot
 hash) — never in `check:pr` or `land`.
 
+_As built (issue #3830)._ The player is `convex/gre/ai/botReach.ts`; the cache
+is the committed lockfile itself — each `ready` row carries `botReach` (and a
+`botGap` key when not `played`), the header the `botHash` those verdicts were
+played under, and a ranked `botGaps` table sits beside `fragments`. The Bot
+hash is a cache key, never a drift condition: `check:oracle`'s regenerate tier
+and `oracle:compile --check` carry the committed verdicts forward on unchanged
+definitions and never play, so a Bot edit does not red the gate; the next
+`oracle:compile` re-plays (`--replay-bot` forces it for an engine edit the
+hash does not cover).
+
 **7.3 Derived Op census.** An Op of the Mechanics Registry is grammar-covered
 when at least one Compiled Definition — `ready` or `quarantine`, since
 quarantine is a trust gate on the card, not on the grammar — emits it. An

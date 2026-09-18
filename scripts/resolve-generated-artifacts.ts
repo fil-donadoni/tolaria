@@ -74,12 +74,16 @@ if (plan.kind === "refuse") {
 
 for (const artifact of plan.artifacts) {
     process.stderr.write(
-        `${DIM}resolve-generated-artifacts: regenerating ${artifact.path} (bun run ${artifact.script})${RESET}\n`
+        `${DIM}resolve-generated-artifacts: regenerating ${artifact.path} (bun run ${[artifact.script, ...(artifact.args ?? [])].join(" ")})${RESET}\n`
     );
-    const r = spawnSync("bun", ["run", artifact.script], {
-        cwd: root,
-        stdio: "inherit",
-    });
+    const r = spawnSync(
+        "bun",
+        ["run", artifact.script, ...(artifact.args ?? [])],
+        {
+            cwd: root,
+            stdio: "inherit",
+        }
+    );
     if (r.status !== 0) {
         process.stderr.write(
             `${RED}✗ resolve-generated-artifacts — bun run ${artifact.script} failed; ${artifact.path} is NOT re-derived${RESET}\n`

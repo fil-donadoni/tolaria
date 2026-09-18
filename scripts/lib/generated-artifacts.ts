@@ -93,6 +93,8 @@ export interface RegeneratedArtifact {
     readonly path: string;
     /** The `package.json` script that re-derives it, run as `bun run <script>`. */
     readonly script: string;
+    /** Extra arguments passed to that script. */
+    readonly args?: readonly string[];
     /** The committed field(s) that are a function of the whole file. */
     readonly wholeFileState: string;
     /** Whether re-deriving it needs the gitignored Card Corpus cache. */
@@ -103,6 +105,13 @@ export const REGENERATED_ARTIFACTS: readonly RegeneratedArtifact[] = [
     {
         path: "data/oracle-compiled.json",
         script: "oracle:compile",
+        // ADR 0105 § 7.2 — `land` runs this resolver, and the sweep never
+        // runs inside `land`: the lockfile is re-derived with the committed
+        // Bot-play verdicts CARRIED FORWARD, never played. A card whose
+        // definition the merge changed is left unswept until the next
+        // `oracle:compile` (issue #3830 — without this, `land` played all
+        // 3,400 cards under the machine mutex).
+        args: ["--carry-bot"],
         wholeFileState:
             "header.compilerHash, header.registryHash, header.counts, formats[*]",
         requiresCorpus: true,

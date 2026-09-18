@@ -123,7 +123,15 @@ export interface QuarantineReason {
         | "validate-effect-script"
         | "smoke-scenario"
         | "wire-projection"
-        | "not-json";
+        | "not-json"
+        /**
+         * ADR 0105 § 7.2 (issue #3830) — the Bot-play sweep found the card
+         * `frozen`: no legal move uses it in its generated position, or the
+         * follow-through owes an input the driver cannot answer. Stamped by
+         * `oracle:compile` (`scripts/lib/oracle-bot-reach.ts`), never by the
+         * gates here — they read the definition, the sweep plays it.
+         */
+        | "bot-unreachable";
     readonly detail: string;
 }
 

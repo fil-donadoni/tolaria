@@ -14,6 +14,20 @@
  * Usage:
  *   bun scripts/oracle-compile.ts            # regenerate the lockfile
  *   bun scripts/oracle-compile.ts --check    # regenerate into memory and diff
+ *   bun scripts/oracle-compile.ts --replay-bot   # re-play every `ready` card
+ *   bun scripts/oracle-compile.ts --carry-bot    # write, never play (`land`)
+ *
+ * The write path also runs the Bot-play sweep (ADR 0105 § 7.2, issue #3830):
+ * every card that compiles `ready` is played by the Bot at both seats
+ * (`convex/gre/ai/botReach.ts`), incrementally — a verdict is reused while its
+ * definition and the Bot hash are unchanged (`lib/oracle-bot-reach.ts`).
+ * `--check` never plays; it carries the committed verdicts forward.
+ *
+ * A card the sweep turns `frozen` moves out of `ready`, and the `ready` set is
+ * what `data/oracle-compiled-pool.json` and `data/card-index.json` are built
+ * from — so a run whose `frozen` count CHANGES owes `bun run oracle:pool` and
+ * a green `bun run check:index` before it lands (review of PR #4057,
+ * finding 10).
  */
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -24,8 +38,13 @@ import type {
     CompileState,
     Gap,
     OracleCard,
+    QuarantineReason,
 } from "../convex/oracle/types";
 import { GRAMMAR_VERSION } from "../convex/oracle/version";
+import type { CardDefinition } from "../convex/cards/types";
+// PURE over a definition, and free of the search — see its header for why the
+// gate may import it and why the Bot hash excludes it.
+import { castShape } from "../convex/gre/ai/botReachForm";
 import {
     readCorpus,
     readPin,
@@ -43,6 +62,14 @@ import {
     type FragmentRow,
     type Lockfile,
 } from "./lib/oracle-lockfile";
+import {
+    botGapKey,
+    botHash,
+    carriedBotReach,
+    playingBotReach,
+    rankBotGaps,
+    type BotReachSource,
+} from "./lib/oracle-bot-reach";
 import {
     emptyRetirementLedger,
     parseRetirementLedger,
@@ -187,7 +214,22 @@ interface MutableFormatRow {
     pool: number;
 }
 
-export function buildLockfile(corpus: readonly CorpusCard[]): Lockfile {
+export interface BuildLockfileOptions {
+    /**
+     * Where a `ready` card's Bot-play verdict comes from (ADR 0105 § 7.2,
+     * issue #3830). Omitted, no row carries one and the header's Bot hash is
+     * empty — the compiler alone. The write path passes a source that PLAYS
+     * (`playingBotReach`); the drift guard passes one that only carries the
+     * committed verdicts forward (`carriedBotReach`), so the gate never plays.
+     */
+    readonly botReach?: BotReachSource;
+}
+
+export function buildLockfile(
+    corpus: readonly CorpusCard[],
+    options: BuildLockfileOptions = {}
+): Lockfile {
+    const { botReach } = options;
     const pin = readPin();
     if (pin === null) {
         throw new Error(
@@ -252,11 +294,33 @@ export function buildLockfile(corpus: readonly CorpusCard[]): Lockfile {
 
     for (const card of corpus) {
         const outcome = compileCard(toOracleCard(card));
-        counts[outcome.state] += 1;
+        // ADR 0105 § 7.2 — every card that reaches `ready` is played by the
+        // Bot; a `frozen` one is withheld (`bot-unreachable`), an `ignored`
+        // one ships and counts toward a Bot Gap. Decided BEFORE the tallies,
+        // because a withheld card is a quarantined card in every count.
+        const verdict =
+            outcome.state === "ready"
+                ? botReach?.verdictFor(card.oracleId, outcome.definition)
+                : undefined;
+        const gap =
+            verdict !== undefined && outcome.state !== "unparsed"
+                ? botGapKey(
+                      verdict,
+                      outcome.opsUsed,
+                      castShape({
+                          ...outcome.definition,
+                          id: card.oracleId,
+                          rarity: "common",
+                      } as CardDefinition)
+                  )
+                : undefined;
+        const state: CompileState =
+            verdict?.outcome === "frozen" ? "quarantine" : outcome.state;
+        counts[state] += 1;
         for (const format of card.legalIn) {
             const row = formats[format]!;
             row.total += 1;
-            row[outcome.state] += 1;
+            row[state] += 1;
             if (pool.has(card.oracleId)) row.pool += 1;
         }
         if (outcome.state === "unparsed") {
@@ -277,17 +341,25 @@ export function buildLockfile(corpus: readonly CorpusCard[]): Lockfile {
                 gaps: [...distinctGaps.values()].map(internFragment),
             });
         } else {
+            const reasons: readonly QuarantineReason[] | undefined =
+                outcome.state === "quarantine"
+                    ? outcome.reasons
+                    : state === "quarantine"
+                      ? [{ kind: "bot-unreachable", detail: gap ?? "" }]
+                      : undefined;
             rawRows.push({
                 oracleId: card.oracleId,
                 name: card.name,
-                state: outcome.state,
+                state,
                 ...poolOf(card),
                 slots: outcome.slots,
                 opsUsed: outcome.opsUsed,
-                ...(outcome.state === "quarantine"
-                    ? { quarantineReasons: outcome.reasons }
+                ...(reasons !== undefined
+                    ? { quarantineReasons: reasons }
                     : {}),
                 definition: outcome.definition,
+                ...(verdict !== undefined ? { botReach: verdict.outcome } : {}),
+                ...(gap !== undefined ? { botGap: gap } : {}),
             });
         }
     }
@@ -343,19 +415,96 @@ export function buildLockfile(corpus: readonly CorpusCard[]): Lockfile {
             grammarVersion: GRAMMAR_VERSION,
             compilerHash: compilerHash(ROOT),
             registryHash: registryHash(),
+            botHash: botReach?.hash ?? "",
             poolHash: poolHash(pool),
             corpus: pin,
             counts: { ...counts, total: corpus.length },
         },
         formats: formats as Lockfile["formats"],
         fragments,
+        botGaps: rankBotGaps(cards),
         cards,
     };
 }
 
+/** The committed lockfile — the Bot-play cache — or null on a first run. */
+export function readCommittedLockfile(): Lockfile | null {
+    return existsSync(LOCKFILE_PATH)
+        ? (JSON.parse(readFileSync(LOCKFILE_PATH, "utf8")) as Lockfile)
+        : null;
+}
+
+/**
+ * The write path's Bot-play source (ADR 0105 § 7.2). The Bot is imported
+ * HERE, dynamically, and nowhere else in this file: `buildLockfile` is also
+ * the drift guard's regenerator (`check-oracle-lockfile.ts`, inside
+ * `check:pr` / `land`), and a static import would put the whole search in
+ * the gate's module graph for a path that must never play.
+ */
+async function sweepingBotReach(
+    previous: Lockfile | null,
+    replay: boolean
+): Promise<ReturnType<typeof playingBotReach>> {
+    const { playBotReach } = await import("../convex/gre/ai/botReach");
+    const { preloadDefinitions } = await import("../convex/cards/registry");
+    const started = Date.now();
+    return playingBotReach(
+        previous,
+        botHash(ROOT),
+        (oracleId, definition) => {
+            // A compiled definition is not a catalogue card: registered by id
+            // for the play, through the batch seam so an inset or split
+            // card's twins are registered with it.
+            const def = {
+                ...definition,
+                id: `oracle-bot-reach:${oracleId}`,
+                rarity: "common",
+            } as CardDefinition;
+            preloadDefinitions([def]);
+            try {
+                return playBotReach(def);
+            } catch (error) {
+                // A throw here is the SWEEP failing, never the card: without
+                // this catch it unwinds through `buildLockfile` to `main`,
+                // nothing is written, and the whole 21-minute run is lost
+                // with every verdict it had already earned (review of
+                // PR #4057, finding 7). Ship the card, rank the shape.
+                return {
+                    outcome: "ignored",
+                    cause: "harness-error",
+                    form:
+                        error instanceof Error
+                            ? error.message.slice(0, 120)
+                            : String(error).slice(0, 120),
+                };
+            }
+        },
+        {
+            replay,
+            onPlay: () => {
+                const s = Math.round((Date.now() - started) / 1000);
+                process.stderr.write(`\roracle:compile — bot-play sweep ${s}s`);
+            },
+        }
+    );
+}
+
 async function main(): Promise<void> {
     const check = process.argv.includes("--check");
-    const text = serializeLockfile(buildLockfile(readCorpus()));
+    const replay = process.argv.includes("--replay-bot");
+    // `--carry-bot` WRITES the lockfile without playing: the committed
+    // verdicts are carried forward on unchanged definitions, a changed one is
+    // left unswept. What `land`'s artifact resolver runs (ADR 0105 § 7.2).
+    const carry = process.argv.includes("--carry-bot");
+    const previous = readCommittedLockfile();
+    // `--check` never plays: it is the drift guard's question, asked from a
+    // script (ADR 0105 § 7.2 — the sweep never runs inside a gate).
+    const sweep =
+        check || carry ? null : await sweepingBotReach(previous, replay);
+    const source = sweep ?? carriedBotReach(previous);
+    const text = serializeLockfile(
+        buildLockfile(readCorpus(), { botReach: source })
+    );
     if (check) {
         const current = existsSync(LOCKFILE_PATH)
             ? readFileSync(LOCKFILE_PATH, "utf8")
@@ -371,10 +520,16 @@ async function main(): Promise<void> {
     }
     writeFileSync(LOCKFILE_PATH, text);
     const lock = JSON.parse(text) as Lockfile;
+    const reach = { played: 0, ignored: 0, frozen: 0 };
+    for (const row of lock.cards) if (row.botReach) reach[row.botReach] += 1;
+    const playedNow = sweep?.played() ?? 0;
     process.stderr.write(
-        `oracle:compile — ${lock.header.counts.total} cards: ` +
+        `\noracle:compile — ${lock.header.counts.total} cards: ` +
             `${lock.header.counts.ready} ready, ${lock.header.counts.quarantine} quarantine, ` +
-            `${lock.header.counts.unparsed} unparsed -> data/oracle-compiled.json\n`
+            `${lock.header.counts.unparsed} unparsed -> data/oracle-compiled.json\n` +
+            `oracle:compile — bot reach: ${reach.played} played, ${reach.ignored} ignored, ` +
+            `${reach.frozen} frozen (${playedNow} played this run, the rest cached); ` +
+            `${lock.botGaps.length} Bot Gaps\n`
     );
 }
 
