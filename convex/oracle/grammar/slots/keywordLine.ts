@@ -31,6 +31,7 @@ import {
     oneOf,
     ok,
     rule,
+    subGrammar,
     type Rule,
     type RuleResult,
 } from "../../rule";
@@ -43,7 +44,32 @@ import {
 
 const KEYWORD_VOCABULARY = keywordVocabulary();
 
-const keyword: Rule<KeywordIR> = atom("keyword ability", KEYWORD_VOCABULARY);
+/** The sub-grammar the attribution diagnostic names for this slot. */
+export const KEYWORD_ABILITY = "keyword ability";
+
+/**
+ * Does the span open with a keyword's name — "Equip {2}", "Protection from
+ * white", "Enchant creature"? Only then is a refusal this slot's to own: a
+ * parameterised keyword the vocabulary cannot read. Any other span reached
+ * the atom because `listOf` split a sentence at its commas, and blaming the
+ * keyword vocabulary for "Destroy target creature" would rank a gap nobody
+ * can close (issue #3822).
+ */
+function opensWithKeyword(span: string): boolean {
+    const probe = span.toLowerCase();
+    for (const name of KEYWORD_VOCABULARY.keys()) {
+        if (!probe.startsWith(name)) continue;
+        const next = probe.charAt(name.length);
+        if (next === " " || next === "\u2014") return true;
+    }
+    return false;
+}
+
+const keyword: Rule<KeywordIR> = subGrammar(
+    KEYWORD_ABILITY,
+    atom(KEYWORD_ABILITY, KEYWORD_VOCABULARY),
+    opensWithKeyword
+);
 
 /** `"Flying, vigilance"` — a comma-separated run of keywords. */
 const commaRun: Rule<KeywordIR[]> = listOf("keyword run", ", ", keyword);

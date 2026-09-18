@@ -34,6 +34,7 @@
 
 import { PERMANENT_TYPES } from "../../../cards/types";
 import {
+    disowning,
     fail,
     listOf,
     ok,
@@ -46,6 +47,7 @@ import type { ParseContext } from "../../types";
 import { activationCostRule, type ActivationCostIR } from "../shared/cost";
 import {
     assembleSentences,
+    assemblyTrace,
     sentenceRule,
     type SentenceIR,
 } from "../shared/effectClause";
@@ -53,12 +55,21 @@ import type { SlotIR } from "../ir";
 
 export const ACTIVATED_SLOT = "activated";
 
+/**
+ * A sentence of the ability. One that opens "Add " is a mana ability's
+ * (CR 605.1a), whose form is the mana slot's to own — refused here exactly as
+ * before, but never blamed here (`disowning`, issue #3822).
+ */
+const activatedSentence: Rule<SentenceIR> = disowning(sentenceRule, (span) =>
+    span.startsWith("Add ")
+);
+
 const activatedBody: Rule<SlotIR> = rule("activated body", (span, ctx) => {
     const parsed = pair(
         ACTIVATED_SLOT,
         ": ",
         activationCostRule,
-        listOf("effect sentences", ". ", sentenceRule),
+        listOf("effect sentences", ". ", activatedSentence),
         (
             cost,
             sentences
@@ -73,7 +84,12 @@ const activatedBody: Rule<SlotIR> = rule("activated body", (span, ctx) => {
     const assembled = assembleSentences(parsed.value.sentences, {
         site: "ability",
     });
-    if (!assembled.ok) return fail(assembled.reason, span);
+    if (!assembled.ok)
+        return fail(
+            assembled.reason,
+            span,
+            assemblyTrace(span, parsed.value.sentences.length)
+        );
     return ok({
         kind: "activated" as const,
         cost: parsed.value.cost,

@@ -39,6 +39,30 @@
  */
 
 /**
+ * Where a failure happened, for the attribution diagnostic (issue #3822,
+ * ADR 0137): the chain of SUB-GRAMMARS the failing parse had entered,
+ * outermost first, and the span the innermost one could not consume.
+ *
+ * It is a diagnostic BESIDE the refusal, never a partial parse: a trace rides
+ * on a failure only, carries no value, and nothing downstream of the router
+ * can turn it back into a definition. Fail-closed is untouched — the trace
+ * only says which rule is missing.
+ *
+ * `progress` is how many sibling parses SUCCEEDED on the way down: the right
+ * side of a `pair` whose left side parsed, the fourth element of a list whose
+ * first three did. Nesting alone cannot rank two failures — "When X enters,
+ * <sentence>" split at the wrong comma fails deep inside the trigger head, and
+ * the reading that got further is the one whose head parsed.
+ */
+export interface FailureTrace {
+    /** Sub-grammar labels, outermost → innermost. Never empty. */
+    readonly path: readonly string[];
+    /** The span the innermost sub-grammar could not consume. */
+    readonly span: string;
+    readonly progress: number;
+}
+
+/**
  * Success carries a value and nothing else. There is deliberately no residue:
  * see guarantee 1 above.
  */
@@ -48,6 +72,8 @@ export type RuleResult<T> =
           readonly ok: false;
           readonly reason: string;
           readonly fragment: string;
+          /** Present iff the failure happened inside a {@link subGrammar}. */
+          readonly trace?: FailureTrace;
       };
 
 export interface Rule<T> {
@@ -63,8 +89,93 @@ export function ok<T>(value: T): RuleResult<T> {
     return { ok: true, value };
 }
 
-export function fail(reason: string, fragment: string): RuleResult<never> {
-    return { ok: false, reason, fragment };
+export function fail(
+    reason: string,
+    fragment: string,
+    trace?: FailureTrace
+): RuleResult<never> {
+    return trace === undefined
+        ? { ok: false, reason, fragment }
+        : { ok: false, reason, fragment, trace };
+}
+
+/**
+ * Total order on traces — `> 0` when `a` is DEEPER than `b`.
+ *
+ * More progress, then more nesting, then a shorter unconsumed span; the last
+ * keys are plain string comparisons so that two traces never tie. A total
+ * order is what keeps `oneOf`'s promise one level down: the trace it reports
+ * must not depend on the order of its alternatives any more than its verdict
+ * does.
+ */
+export function compareTraces(a: FailureTrace, b: FailureTrace): number {
+    const cmp = (x: string, y: string): number => (x < y ? -1 : x > y ? 1 : 0);
+    return (
+        a.progress - b.progress ||
+        a.path.length - b.path.length ||
+        b.span.length - a.span.length ||
+        cmp(b.path.join("\u0000"), a.path.join("\u0000")) ||
+        cmp(b.span, a.span)
+    );
+}
+
+/** The deepest of some traces, or `undefined` when none is present. */
+export function deepestTrace(
+    traces: readonly (FailureTrace | undefined)[]
+): FailureTrace | undefined {
+    let best: FailureTrace | undefined;
+    for (const t of traces) {
+        if (
+            t !== undefined &&
+            (best === undefined || compareTraces(t, best) > 0)
+        )
+            best = t;
+    }
+    return best;
+}
+
+/** A trace credited with `by` more sibling parses that succeeded before it. */
+function advanced(
+    trace: FailureTrace | undefined,
+    by: number
+): FailureTrace | undefined {
+    return trace === undefined || by === 0
+        ? trace
+        : { ...trace, progress: trace.progress + by };
+}
+
+/**
+ * Mark a rule as a SUB-GRAMMAR — a unit the attribution diagnostic can name
+ * (issue #3822). Success, failure, reason and label are exactly the inner
+ * rule's; only the failure's trace changes: the label is pushed onto the
+ * front of the inner trace's path, or starts one at the failing fragment.
+ *
+ * `enters` is for a sub-grammar with a printed OPENER ("When", "if", a
+ * keyword's name). A span that does not even open like one was never this
+ * sub-grammar's to read — a splitting combinator merely offered it — so its
+ * failure carries no blame. Without it, "Destroy target creature, then draw a
+ * card." on an instant is attributed to the trigger head, because the
+ * triggered slot's split at the comma hands "Destroy target creature" to a
+ * rule that fails on it at a shorter span than the spell slot's real miss.
+ */
+export function subGrammar<T>(
+    name: string,
+    inner: Rule<T>,
+    enters?: (span: string) => boolean
+): Rule<T> {
+    return rule(inner.label, (span, ctx) => {
+        const r = inner.run(span, ctx);
+        if (r.ok) return r;
+        // Stripped, not passed through: a trace from inside a span this
+        // sub-grammar never opened would still blame something within it.
+        if (enters !== undefined && !enters(span))
+            return fail(r.reason, r.fragment);
+        const trace: FailureTrace =
+            r.trace === undefined
+                ? { path: [name], span: r.fragment, progress: 0 }
+                : { ...r.trace, path: [name, ...r.trace.path] };
+        return fail(r.reason, r.fragment, trace);
+    });
 }
 
 export function rule<T>(
@@ -152,6 +263,27 @@ export function pattern<T>(
 }
 
 /**
+ * The same rule, with its failure's trace dropped whenever `disowned` holds
+ * for the span — verdict and reason untouched.
+ *
+ * For a slot that reaches a span through a shared sub-grammar but is not the
+ * slot that owns its FORM: "{T}: Add {R}. This land deals 1 damage to you."
+ * is a mana ability (CR 605.1a) — the activated slot's effect clause refusing
+ * "Add {R}" is true and beside the point, and blaming it would send a grammar
+ * author to add a mana verb to the wrong slot.
+ */
+export function disowning<T>(
+    inner: Rule<T>,
+    disowned: (span: string) => boolean
+): Rule<T> {
+    return rule(inner.label, (span, ctx) => {
+        const r = inner.run(span, ctx);
+        if (r.ok || !disowned(span)) return r;
+        return fail(r.reason, r.fragment);
+    });
+}
+
+/**
  * UNIQUE alternation — every alternative is tried, exactly one must succeed.
  *
  * This is not an optimisation of `alt`, it is a different operator. `alt`
@@ -167,14 +299,22 @@ export function oneOf<T>(label: string, alts: readonly Rule<T>[]): Rule<T> {
     return rule(label, (span, ctx) => {
         const hits: { alt: Rule<T>; value: T }[] = [];
         const misses: string[] = [];
+        const traces: (FailureTrace | undefined)[] = [];
         for (const alt of alts) {
             const r = alt.run(span, ctx);
             if (r.ok) hits.push({ alt, value: r.value });
-            else misses.push(`${alt.label}: ${r.reason}`);
+            else {
+                misses.push(`${alt.label}: ${r.reason}`);
+                traces.push(r.trace);
+            }
         }
         if (hits.length === 1) return ok(hits[0]!.value);
         if (hits.length === 0)
-            return fail(`no ${label} matched (${misses.join("; ")})`, span);
+            return fail(
+                `no ${label} matched (${misses.join("; ")})`,
+                span,
+                deepestTrace(traces)
+            );
         // The labels are SORTED, not listed in declaration order: the whole
         // point of `oneOf` is that the answer does not depend on the order of
         // its alternatives, and a diagnostic that does would leak that
@@ -216,7 +356,11 @@ export function listOf<T>(
         for (const p of parts) {
             const r = part.run(p, ctx);
             if (!r.ok)
-                return fail(`${label} element — ${r.reason}`, r.fragment);
+                return fail(
+                    `${label} element — ${r.reason}`,
+                    r.fragment,
+                    advanced(r.trace, out.length)
+                );
             out.push(r.value);
         }
         return ok(out);
@@ -243,6 +387,7 @@ export function pair<A, B, T>(
     return rule(label, (span, ctx) => {
         const hits: T[] = [];
         const misses: string[] = [];
+        const traces: (FailureTrace | undefined)[] = [];
         let at = span.indexOf(sep);
         while (at !== -1) {
             const l = span.slice(0, at);
@@ -251,9 +396,14 @@ export function pair<A, B, T>(
             const rr = lr.ok ? right.run(r, ctx) : null;
             if (lr.ok && rr !== null && rr.ok)
                 hits.push(combine(lr.value, rr.value));
-            else if (!lr.ok) misses.push(`${left.label}: ${lr.reason}`);
-            else if (rr !== null && !rr.ok)
+            else if (!lr.ok) {
+                misses.push(`${left.label}: ${lr.reason}`);
+                traces.push(lr.trace);
+            } else if (rr !== null && !rr.ok) {
                 misses.push(`${right.label}: ${rr.reason}`);
+                // The left side parsed: this reading got one step further.
+                traces.push(advanced(rr.trace, 1));
+            }
             at = span.indexOf(sep, at + 1);
         }
         if (hits.length === 1) return ok(hits[0]!);
@@ -262,7 +412,8 @@ export function pair<A, B, T>(
                 misses.length > 0
                     ? `${label} — ${misses.join("; ")}`
                     : `${label} — no "${sep}" in the span`,
-                span
+                span,
+                deepestTrace(traces)
             );
         }
         return fail(

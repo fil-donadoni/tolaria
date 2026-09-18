@@ -58,6 +58,7 @@ import {
 import { conditionRule, type ConditionIR } from "../shared/condition";
 import {
     assembleSentences,
+    assemblyTrace,
     capitalise,
     optionalSentenceRule,
     sentenceRule,
@@ -135,7 +136,12 @@ const triggeredBody: Rule<SlotIR> = rule("triggered body", (span, ctx) => {
         rejectRestrictions:
             "an activation restriction (CR 602.5) has no meaning on a triggered ability",
     });
-    if (!assembled.ok) return fail(assembled.reason, span);
+    if (!assembled.ok)
+        return fail(
+            assembled.reason,
+            span,
+            assemblyTrace(span, parsed.value.tail.sentences.length)
+        );
     return ok({
         kind: "triggered" as const,
         head: parsed.value.head,

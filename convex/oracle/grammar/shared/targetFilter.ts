@@ -55,7 +55,14 @@ import type {
     PermanentFilter,
     TargetRequirement,
 } from "../../../cards/types";
-import { fail, ok, rule, type Rule, type RuleResult } from "../../rule";
+import {
+    fail,
+    ok,
+    rule,
+    type Rule,
+    type RuleResult,
+    subGrammar,
+} from "../../rule";
 import { keywordVocabulary } from "./keywordVocabulary";
 import { CREATURE_SUBTYPES, LAND_SUBTYPES } from "./subtypes";
 
@@ -655,8 +662,10 @@ export function descriptorRuleWith(
 }
 
 /** The descriptor rule over the vocabulary this grammar ships. */
-export const descriptorRule: Rule<DescriptorIR> =
-    descriptorRuleWith(DESCRIPTOR_READERS);
+export const descriptorRule: Rule<DescriptorIR> = subGrammar(
+    DESCRIPTOR,
+    descriptorRuleWith(DESCRIPTOR_READERS)
+);
 
 function finish(
     state: DescriptorState,
@@ -870,9 +879,9 @@ const UP_TO_ONE_HEAD = "up to one target ";
  * creatures") whose lowering has to reach `TargetRequirement.count` AND the
  * effect's per-target ops, and half of that is worse than none.
  */
-export const targetFilterRule: Rule<TargetRequirement> = rule(
+export const targetFilterRule: Rule<TargetRequirement> = subGrammar(
     TARGET_FILTER,
-    (span, ctx) => {
+    rule(TARGET_FILTER, (span, ctx) => {
         if (span === "any target")
             return ok({ type: "any", count: 1 } as TargetRequirement);
         if (span.startsWith(UP_TO_ONE_HEAD)) {
@@ -894,7 +903,7 @@ export const targetFilterRule: Rule<TargetRequirement> = rule(
         );
         if (!descriptor.ok) return descriptor;
         return targetRequirementFromDescriptor(descriptor.value);
-    }
+    })
 );
 
 /**

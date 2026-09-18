@@ -68,6 +68,25 @@ export type CompiledDefinition = Omit<
 /** The three lockfile states. Computed, never assigned by hand (PRD #2693). */
 export type CompileState = "ready" | "quarantine" | "unparsed";
 
+/**
+ * Where the grammar refused a line — the attribution diagnostic (issue #3822,
+ * ADR 0137). Of every slot's deepest failing path, the deepest one: the slot
+ * that got furthest, the chain of shared sub-grammars it had entered
+ * (outermost first), and the span the innermost of them could not consume.
+ *
+ * This is how a Fragment is attributed to a Grammar Gap mechanically: two
+ * lines that fail in the same sub-grammar on the same span are the same
+ * missing rule, whatever the rest of their text says. It sits BESIDE the
+ * refusal and carries no parsed value — fail-closed is untouched.
+ */
+export interface Attribution {
+    readonly slot: string;
+    /** Sub-grammar labels, outermost → innermost. Never empty. */
+    readonly path: readonly string[];
+    /** The span the innermost sub-grammar could not consume. */
+    readonly span: string;
+}
+
 /** A fragment the grammar could not consume. This is the ONLY failure payload. */
 export interface Gap {
     /** The normalised line the fragment came from. */
@@ -78,6 +97,14 @@ export interface Gap {
     readonly reason: string;
     /** The slot that came closest, when exactly one slot was even attempted. */
     readonly slot?: string;
+    /**
+     * Present iff no slot consumed the line AND at least one slot entered a
+     * sub-grammar before refusing it. Absent for a line every slot refused at
+     * its own frame, for an ambiguity, and for every card-level refusal
+     * (layout, type line, lowering) — none of those is a missing rule inside
+     * a sub-grammar.
+     */
+    readonly attribution?: Attribution;
 }
 
 /** Why a fully-parsed card did not reach `ready`. */

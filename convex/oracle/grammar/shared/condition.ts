@@ -21,7 +21,7 @@
  * (ADR 0045).
  */
 
-import { fail, ok, rule, type Rule } from "../../rule";
+import { fail, ok, rule, type Rule, subGrammar } from "../../rule";
 import { descriptorRule, permanentFilterFromDescriptor } from "./targetFilter";
 import type { PermanentFilter } from "../../../cards/filters";
 
@@ -72,30 +72,39 @@ const UNEVALUABLE_FILTER_KEYS = [
  * `controller` field outright, which is exactly that check and is not repeated
  * here.
  */
-export const conditionRule: Rule<ConditionIR> = rule(CONDITION, (span, ctx) => {
-    const opener = "if you control ";
-    if (!span.startsWith(opener))
-        return fail("not a condition this grammar knows", span);
-    const rest = span.slice(opener.length);
-    const article = ARTICLES.find((a) => rest.startsWith(a));
-    if (article === undefined)
-        return fail(
-            'a "you control" condition counts a singular descriptor',
-            span
+export const conditionRule: Rule<ConditionIR> = subGrammar(
+    CONDITION,
+    rule(CONDITION, (span, ctx) => {
+        const opener = "if you control ";
+        if (!span.startsWith(opener))
+            return fail("not a condition this grammar knows", span);
+        const rest = span.slice(opener.length);
+        const article = ARTICLES.find((a) => rest.startsWith(a));
+        if (article === undefined)
+            return fail(
+                'a "you control" condition counts a singular descriptor',
+                span
+            );
+        const descriptor = descriptorRule.run(rest.slice(article.length), ctx);
+        if (!descriptor.ok) return descriptor;
+        if (descriptor.value.plural === true)
+            return fail('"a" introduces a singular descriptor', span);
+        const filter = permanentFilterFromDescriptor(descriptor.value);
+        if (!filter.ok) return filter;
+        const unevaluable = UNEVALUABLE_FILTER_KEYS.find(
+            (key) => filter.value[key] !== undefined
         );
-    const descriptor = descriptorRule.run(rest.slice(article.length), ctx);
-    if (!descriptor.ok) return descriptor;
-    if (descriptor.value.plural === true)
-        return fail('"a" introduces a singular descriptor', span);
-    const filter = permanentFilterFromDescriptor(descriptor.value);
-    if (!filter.ok) return filter;
-    const unevaluable = UNEVALUABLE_FILTER_KEYS.find(
-        (key) => filter.value[key] !== undefined
-    );
-    if (unevaluable !== undefined)
-        return fail(
-            `a "${unevaluable}" clause cannot be evaluated at trigger-check time (CR 205.4a)`,
-            span
-        );
-    return ok({ kind: "controls" as const, filter: filter.value, atLeast: 1 });
-});
+        if (unevaluable !== undefined)
+            return fail(
+                `a "${unevaluable}" clause cannot be evaluated at trigger-check time (CR 205.4a)`,
+                span
+            );
+        return ok({
+            kind: "controls" as const,
+            filter: filter.value,
+            atLeast: 1,
+        });
+    }),
+    // CR 603.4 — an intervening "if" clause opens with the word itself.
+    (span) => /^if /i.test(span)
+);

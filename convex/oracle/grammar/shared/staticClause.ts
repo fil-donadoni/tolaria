@@ -64,6 +64,7 @@ import {
     rule,
     type Rule,
     type RuleResult,
+    subGrammar,
 } from "../../rule";
 
 export const STATIC_CLAUSE = "static clause";
@@ -671,12 +672,15 @@ const doesNotUntapRule: Rule<StaticClauseIR> = pattern(
 
 // ── The clause ─────────────────────────────────────────────────────────────
 
-export const staticClauseRule: Rule<StaticClauseIR> = oneOf(STATIC_CLAUSE, [
-    anthemRule,
-    keywordGrantRule,
-    costModifierRule,
-    castPermissionRule,
-    entersTappedPlain,
-    entersTappedWithCounters,
-    doesNotUntapRule,
-]);
+export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
+    STATIC_CLAUSE,
+    oneOf(STATIC_CLAUSE, [
+        anthemRule,
+        keywordGrantRule,
+        costModifierRule,
+        castPermissionRule,
+        entersTappedPlain,
+        entersTappedWithCounters,
+        doesNotUntapRule,
+    ])
+);

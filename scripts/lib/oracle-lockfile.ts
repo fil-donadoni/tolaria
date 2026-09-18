@@ -14,6 +14,7 @@ import {
     MECHANICS_REGISTRY,
 } from "../../convex/cards/mechanicsRegistry";
 import type {
+    Attribution,
     CompiledDefinition,
     CompileState,
     QuarantineReason,
@@ -73,12 +74,25 @@ export interface FragmentRow {
     readonly text: string;
     readonly reason: string;
     readonly cards: number;
+    /**
+     * Which slot and sub-grammar refused the line, and the span it could not
+     * consume (issue #3822) — what `oracle:report` attributes the fragment to
+     * a Grammar Gap by. Absent exactly when the compiler's `Gap` carries none.
+     */
+    readonly attribution?: Attribution;
 }
 
 export interface CardRow {
     readonly oracleId: string;
     readonly name: string;
     readonly state: CompileState;
+    /**
+     * The formats whose card pool holds this card — the corpus's `poolIn`
+     * (legal, banned or restricted), omitted when empty. Carried so a format
+     * pool can be a Grammar Gap ranking Target (issue #3822) from the
+     * lockfile alone, which is the report's contract: no corpus, no network.
+     */
+    readonly poolIn?: readonly ReportedFormat[];
     /** Indexes into `fragments`. Present iff `state === "unparsed"`. */
     readonly gaps?: readonly number[];
     readonly slots?: readonly string[];

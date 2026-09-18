@@ -29,9 +29,9 @@
  * both have their own lowering and their own gate.
  */
 
-import type { Rule, RuleResult } from "../rule";
-import { fail, ok } from "../rule";
-import type { ParseContext } from "../types";
+import type { FailureTrace, Rule, RuleResult } from "../rule";
+import { compareTraces, fail, ok } from "../rule";
+import type { Attribution, ParseContext } from "../types";
 import type { LineParse, SlotIR } from "./ir";
 import { ACTIVATED_SLOT, activatedSlot } from "./slots/activated";
 import { KEYWORD_LINE_SLOT, keywordLineSlot } from "./slots/keywordLine";
@@ -67,18 +67,40 @@ export const SLOTS: readonly Slot[] = [
  * green. Synthetic slots make the branch reachable today, so the regression is
  * caught now rather than when #2697–#2700 make it reachable for real.
  */
+export type RouteResult =
+    | Extract<RuleResult<LineParse>, { ok: true }>
+    | {
+          readonly ok: false;
+          readonly reason: string;
+          readonly fragment: string;
+          readonly attribution?: Attribution;
+      };
+
 export function routeLineWith(
     slots: readonly Slot[],
     line: string,
     ctx: ParseContext
-): RuleResult<LineParse> {
+): RouteResult {
     const hits: LineParse[] = [];
+    const traced: { slot: string; trace: FailureTrace }[] = [];
     for (const slot of slots) {
         const r = slot.rule.run(line, ctx);
         if (r.ok) hits.push({ line, slot: slot.name, ir: r.value });
+        else if (r.trace !== undefined)
+            traced.push({ slot: slot.name, trace: r.trace });
     }
     if (hits.length === 1) return ok(hits[0]!);
-    if (hits.length === 0) return fail("no slot consumed the line", line);
+    if (hits.length === 0) {
+        const attribution = attribute(traced);
+        return attribution === undefined
+            ? fail("no slot consumed the line", line)
+            : {
+                  ok: false,
+                  reason: "no slot consumed the line",
+                  fragment: line,
+                  attribution,
+              };
+    }
     // Sorted for the same reason `oneOf` sorts: slot order is presentational,
     // so it must not reach the lockfile.
     return fail(
@@ -90,11 +112,38 @@ export function routeLineWith(
     );
 }
 
+/**
+ * The deepest of every slot's deepest failing path (issue #3822).
+ *
+ * The final tie-breaks are arbitrary but total. A line two slots refuse at the
+ * same depth — "This spell can't be countered." in the static clause on a
+ * permanent and in the effect clause on an instant — goes to whichever the
+ * order names; the type line then decides which slot a card's copy of the
+ * line is attributed to, and one missing rule can show as two gaps.
+ *
+ * Each slot's own trace is already its deepest (the combinators keep the
+ * deepest miss of every alternative and split point); across slots the same
+ * total order applies, and an exact tie — two slots failing at the same span
+ * of the same sub-grammar path with the same progress — breaks on the slot
+ * name, so the answer never depends on the order of `SLOTS`, whose order the
+ * header promises is presentational.
+ */
+function attribute(
+    traced: readonly { slot: string; trace: FailureTrace }[]
+): Attribution | undefined {
+    let best: { slot: string; trace: FailureTrace } | undefined;
+    for (const t of traced) {
+        const order =
+            best === undefined ? 1 : compareTraces(t.trace, best.trace);
+        if (order > 0 || (order === 0 && t.slot < best!.slot)) best = t;
+    }
+    return best === undefined
+        ? undefined
+        : { slot: best.slot, path: best.trace.path, span: best.trace.span };
+}
+
 /** Route a line through every slot the compiler knows. */
-export function routeLine(
-    line: string,
-    ctx: ParseContext
-): RuleResult<LineParse> {
+export function routeLine(line: string, ctx: ParseContext): RouteResult {
     return routeLineWith(SLOTS, line, ctx);
 }
 
@@ -110,9 +159,12 @@ export function routeLine(
 export function explainLine(
     line: string,
     ctx: ParseContext
-): { slot: string; verdict: string }[] {
+): { slot: string; verdict: string; trace?: FailureTrace }[] {
     return SLOTS.map((slot) => {
         const r = slot.rule.run(line, ctx);
-        return { slot: slot.name, verdict: r.ok ? "consumed" : r.reason };
+        if (r.ok) return { slot: slot.name, verdict: "consumed" };
+        return r.trace === undefined
+            ? { slot: slot.name, verdict: r.reason }
+            : { slot: slot.name, verdict: r.reason, trace: r.trace };
     });
 }

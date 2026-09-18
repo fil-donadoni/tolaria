@@ -9,7 +9,7 @@
  * how a tutor becomes a mill; all three are parsed or the phrase fails.
  */
 
-import { fail, ok, rule, type Rule } from "../../rule";
+import { fail, ok, rule, type Rule, subGrammar } from "../../rule";
 
 export const ZONE_REF = "zone reference";
 
@@ -61,9 +61,12 @@ const PHRASES: ReadonlyMap<string, ZoneRefIR> = new Map<string, ZoneRefIR>([
     ],
 ]);
 
-export const zoneRefRule: Rule<ZoneRefIR> = rule(ZONE_REF, (span) => {
-    const hit = PHRASES.get(span.toLowerCase());
-    return hit === undefined
-        ? fail("not a zone reference this grammar knows", span)
-        : ok(hit);
-});
+export const zoneRefRule: Rule<ZoneRefIR> = subGrammar(
+    ZONE_REF,
+    rule(ZONE_REF, (span) => {
+        const hit = PHRASES.get(span.toLowerCase());
+        return hit === undefined
+            ? fail("not a zone reference this grammar knows", span)
+            : ok(hit);
+    })
+);

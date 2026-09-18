@@ -277,6 +277,37 @@ describe("oracle:compile classifies the synthetic corpus as expected", () => {
     });
 });
 
+describe("the lockfile carries the attribution diagnostic (issue #3822)", () => {
+    const lock = buildLockfile([
+        corpusCard({
+            oracleId: "00000000-0000-0000-0000-000000000091",
+            name: "Test Smite",
+            manaCost: "{W}",
+            typeLine: "Instant",
+            oracleText: "Destroy target blocked creature.",
+            power: undefined,
+            toughness: undefined,
+            legalIn: ["premodern"],
+            // Pool membership is NOT legality: a banned card is still in it.
+            poolIn: ["premodern", "vintage"],
+        }),
+    ]);
+
+    it("records the attributed path on the refused line's fragment", () => {
+        const row = lock.cards[0]!;
+        expect(row.state).toBe("unparsed");
+        expect(lock.fragments[row.gaps![0]!]!.attribution).toEqual({
+            slot: "spell",
+            path: ["effect clause", "target filter", "object descriptor"],
+            span: "blocked creature",
+        });
+    });
+
+    it("records the card's pool membership, not its legality", () => {
+        expect(lock.cards[0]!.poolIn).toEqual(["premodern", "vintage"]);
+    });
+});
+
 describe("the committed lockfile", () => {
     const text = existsSync(LOCKFILE_PATH)
         ? readFileSync(LOCKFILE_PATH, "utf8")

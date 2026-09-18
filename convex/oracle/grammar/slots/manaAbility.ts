@@ -49,6 +49,7 @@ import {
     oneOf,
     pair,
     rule,
+    subGrammar,
     terminated,
     type Rule,
 } from "../../rule";
@@ -99,16 +100,38 @@ const choiceProduction: Rule<ManaProductionIR> = rule(
     }
 );
 
-const production: Rule<ManaProductionIR> = oneOf("mana production", [
-    fixedProduction,
-    choiceProduction,
-]);
+/** The sub-grammar the attribution diagnostic names for this slot. */
+export const MANA_PRODUCTION = "mana production";
+
+const production: Rule<ManaProductionIR> = subGrammar(
+    MANA_PRODUCTION,
+    oneOf(MANA_PRODUCTION, [fixedProduction, choiceProduction])
+);
+
+/**
+ * The attribution sub-grammar of a sentence AFTER a production that parsed —
+ * "{T}: Add {R}. This land deals 1 damage to you." (issue #3822). The slot has
+ * no rider sentences at all, so the production refuses the whole remainder;
+ * the missing rule is the rider, and the diagnostic says so.
+ */
+export const MANA_ABILITY_RIDER = "mana ability rider";
 
 /** CR 106.1 / 605.1a — the effect half: "Add <mana>". */
 const addEffect: Rule<ManaProductionIR> = rule("add effect", (span, ctx) => {
     if (!span.startsWith("Add "))
         return fail('effect does not begin with "Add "', span);
-    return production.run(span.slice("Add ".length), ctx);
+    const body = span.slice("Add ".length);
+    const r = production.run(body, ctx);
+    if (r.ok) return r;
+    // Verdict and reason are the production's; only the blame moves, and only
+    // when the first sentence alone is a production this grammar reads.
+    const stop = body.indexOf(". ");
+    if (stop === -1 || !production.run(body.slice(0, stop), ctx).ok) return r;
+    return fail(r.reason, r.fragment, {
+        path: [MANA_ABILITY_RIDER],
+        span: body.slice(stop + ". ".length),
+        progress: 1,
+    });
 });
 
 const manaAbilityBody: Rule<SlotIR> = pair(

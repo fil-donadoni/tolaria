@@ -5,7 +5,7 @@
  *
  * Deterministic by construction: the corpus rows are sorted by oracle id when
  * the cache is written, the fragment table is sorted by
- * (cards desc, text asc, reason asc) — the full intern key, so the order is
+ * (cards desc, text asc, reason asc, attribution asc) — the full intern key, so the order is
  * total and never rests on sort stability — and the serializer emits one row
  * per line with a fixed key order. Two runs on
  * the same tree and the same corpus are byte-identical — asserted in
@@ -19,7 +19,12 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { compileCard } from "../convex/oracle/compile";
-import type { CompileState, Gap, OracleCard } from "../convex/oracle/types";
+import type {
+    Attribution,
+    CompileState,
+    Gap,
+    OracleCard,
+} from "../convex/oracle/types";
 import { GRAMMAR_VERSION } from "../convex/oracle/version";
 import {
     readCorpus,
@@ -160,6 +165,20 @@ function toOracleCard(card: CorpusCard): OracleCard {
     };
 }
 
+/** An attribution as one intern/sort key — `""` when there is none. */
+function attributionKey(attribution: Attribution | undefined): string {
+    return attribution === undefined
+        ? ""
+        : [attribution.slot, ...attribution.path, attribution.span].join(
+              "\u0001"
+          );
+}
+
+/** The card's `poolIn`, as a row fragment — omitted when empty. */
+function poolOf(card: CorpusCard): { poolIn?: CorpusCard["poolIn"] } {
+    return card.poolIn.length > 0 ? { poolIn: card.poolIn } : {};
+}
+
 interface MutableFormatRow {
     total: number;
     ready: number;
@@ -184,9 +203,19 @@ export function buildLockfile(corpus: readonly CorpusCard[]): Lockfile {
     // unambiguous. Escaped rather than literal — a raw control byte in source
     // makes the whole FILE binary to git and grep, which took this driver out
     // of `gh pr diff` entirely.
-    const gapKey = (gap: Gap): string => `${gap.fragment}\u0000${gap.reason}`;
+    //
+    // The attribution is part of the key: the same line can fail at a
+    // different place on a different card (the slot guards read the type
+    // line), and folding the two would credit one card's gap to the other.
+    const gapKey = (gap: Gap): string =>
+        `${gap.fragment}\u0000${gap.reason}\u0000${attributionKey(gap.attribution)}`;
     const fragmentIndex = new Map<string, number>();
-    const fragmentOrder: { text: string; reason: string; cards: number }[] = [];
+    const fragmentOrder: {
+        text: string;
+        reason: string;
+        cards: number;
+        attribution?: Attribution;
+    }[] = [];
     /** Callers MUST call this at most once per (card, fragment) — see below. */
     const internFragment = (gap: Gap): number => {
         const key = gapKey(gap);
@@ -200,6 +229,9 @@ export function buildLockfile(corpus: readonly CorpusCard[]): Lockfile {
             text: gap.fragment,
             reason: gap.reason,
             cards: 1,
+            ...(gap.attribution !== undefined
+                ? { attribution: gap.attribution }
+                : {}),
         });
         fragmentIndex.set(key, index);
         return index;
@@ -241,6 +273,7 @@ export function buildLockfile(corpus: readonly CorpusCard[]): Lockfile {
                 oracleId: card.oracleId,
                 name: card.name,
                 state: "unparsed",
+                ...poolOf(card),
                 gaps: [...distinctGaps.values()].map(internFragment),
             });
         } else {
@@ -248,6 +281,7 @@ export function buildLockfile(corpus: readonly CorpusCard[]): Lockfile {
                 oracleId: card.oracleId,
                 name: card.name,
                 state: outcome.state,
+                ...poolOf(card),
                 slots: outcome.slots,
                 opsUsed: outcome.opsUsed,
                 ...(outcome.state === "quarantine"
@@ -272,7 +306,11 @@ export function buildLockfile(corpus: readonly CorpusCard[]): Lockfile {
             (a, b) =>
                 b.cards - a.cards ||
                 cmp(a.text, b.text) ||
-                cmp(a.reason, b.reason)
+                cmp(a.reason, b.reason) ||
+                cmp(
+                    attributionKey(a.attribution),
+                    attributionKey(b.attribution)
+                )
         );
     const remap = new Map<number, number>();
     sortedFragments.forEach((f, newIndex) => remap.set(f.index, newIndex));
@@ -280,6 +318,7 @@ export function buildLockfile(corpus: readonly CorpusCard[]): Lockfile {
         text: f.text,
         reason: f.reason,
         cards: f.cards,
+        ...(f.attribution !== undefined ? { attribution: f.attribution } : {}),
     }));
     // No dedupe here: the row's gap indexes are already distinct (deduped at
     // intern time) and `remap` is a bijection. Deduping again would only hide a
