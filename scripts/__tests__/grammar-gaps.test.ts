@@ -228,6 +228,20 @@ describe("one gap, card by card (--gap, issue #3834)", () => {
         ]);
         // Ambiguous: every candidate comes back, never the first match.
         expect(findGapKeys(LOCK, "›").length).toBe(4);
+        // A key that is a prefix of another is still reachable exactly.
+        const flash: FragmentRow = {
+            text: "Flash",
+            reason: "no slot consumed the line",
+            cards: 1,
+        };
+        const flashback: FragmentRow = { ...flash, text: "Flashback {…}" };
+        const prefixLock = {
+            fragments: [flash, flashback],
+            cards: [unparsed("x", [0]), unparsed("y", [1])],
+        };
+        expect(findGapKeys(prefixLock, `${NO_SLOT} › Flash`)).toEqual([
+            `${NO_SLOT} › Flash`,
+        ]);
         expect(findGapKeys(LOCK, "nothing like this")).toEqual([]);
     });
 
