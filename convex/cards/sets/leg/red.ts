@@ -10,6 +10,7 @@ import type {
     PermanentView,
     TargetSelection,
 } from "../../types";
+import { PERMANENT_TYPES } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { rampageTrigger } from "../../abilities/triggers/rampageTrigger";
 
@@ -727,7 +728,11 @@ export const activeVolcano: CardDefinition = {
             id: "destroy-blue",
             label: "Destroy target blue permanent",
             oracleText: "Destroy target blue permanent.",
-            targetRequirement: { type: "any", count: 1, colorFilter: "U" },
+            targetRequirement: {
+                type: [...PERMANENT_TYPES],
+                count: 1,
+                colorFilter: "U",
+            },
             effects: [{ op: "destroy", target: { target: 0 } }],
         },
         {

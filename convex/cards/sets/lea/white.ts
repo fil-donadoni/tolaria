@@ -16,7 +16,7 @@ import type {
     SpellContext,
     TriggeredAbility,
 } from "../../types";
-import { AURA_AFFECTS_HOST } from "../../types";
+import { AURA_AFFECTS_HOST, PERMANENT_TYPES } from "../../types";
 import { knightStaticAbilities, makeCircleOfProtection } from "../../abilities";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
@@ -853,7 +853,7 @@ export const mesaPegasus: CardDefinition = {
     staticAbilities: ["flying", "banding"],
 };
 
-// Northern Paladin — "{W}{W}, {T}: Destroy target black creature." (CR 701.8
+// Northern Paladin — "{W}{W}, {T}: Destroy target black permanent." (CR 701.8
 // destroy, 202.2 color filter on target).
 export const northernPaladin: CardDefinition = {
     id: "6303233b-35eb-49ca-b844-ba6b9fe1cbd2",
@@ -868,11 +868,11 @@ export const northernPaladin: CardDefinition = {
     activatedAbilities: [
         {
             id: "northern-paladin-destroy",
-            oracleText: "{W}{W}, {T}: Destroy target black creature.",
+            oracleText: "{W}{W}, {T}: Destroy target black permanent.",
             cost: { mana: { W: 2 }, tap: true },
             useStack: true,
             targetRequirement: {
-                type: "Creature",
+                type: [...PERMANENT_TYPES],
                 count: 1,
                 colorFilter: "B",
             },

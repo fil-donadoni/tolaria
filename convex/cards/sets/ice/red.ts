@@ -11,7 +11,11 @@ import type {
     TargetSelection,
 } from "../../types";
 import { controlsSnowSubtype } from "../../snowReads";
-import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
+import {
+    AURA_AFFECTS_HOST,
+    EFFECT_AFFECTS_SELF,
+    PERMANENT_TYPES,
+} from "../../types";
 import { cumulativeUpkeepTrigger } from "../../abilities/cumulativeUpkeep";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
@@ -2139,7 +2143,11 @@ export const pyroblast: CardDefinition = {
             id: "destroy",
             label: "Destroy target blue permanent",
             oracleText: "Destroy target permanent if it's blue.",
-            targetRequirement: { type: "any", count: 1, colorFilter: "U" },
+            targetRequirement: {
+                type: [...PERMANENT_TYPES],
+                count: 1,
+                colorFilter: "U",
+            },
             effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],

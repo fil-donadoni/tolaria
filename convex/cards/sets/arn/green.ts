@@ -7,6 +7,7 @@
 // cost) live in colorless.ts.
 
 import type { CardDefinition, SpellContext } from "../../types";
+import { PERMANENT_TYPES } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { stateTrigger } from "../../abilities/triggers/stateTrigger";
 
@@ -136,8 +137,10 @@ export const desertTwister: CardDefinition = {
     oracleText: "Destroy target permanent.",
     manaCost: { X: 4, G: 2 },
     types: ["Sorcery"],
-    targetRequirement: { type: "any", count: 1 },
-    effect: "destroy-target",
+    // "Target permanent" is every permanent type (CR 109.1 / 110.4), never
+    // "any" — CR 115.4 any target admits players and misses lands (#3073).
+    targetRequirement: { type: [...PERMANENT_TYPES], count: 1 },
+    effects: [{ op: "destroy", target: { target: 0 } }],
 };
 
 export const singingTree: CardDefinition = {

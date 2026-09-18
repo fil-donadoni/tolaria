@@ -1769,7 +1769,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
  * that assertion is the durable guard, not the backfill.
  */
 export const CARD_DEFECT_ROWS: readonly string[] = [
-    "Active Volcano", // #3073 — `type: ["any"]` for "blue permanent"
     // A DELIBERATE deviation, not a slip: the engine's non-stack mana path
     // cannot pay a `sacrificeFilter`, so the card is modelled on the stack on
     // purpose and flipping `useStack` today makes the ability payable without
@@ -1777,9 +1776,6 @@ export const CARD_DEFECT_ROWS: readonly string[] = [
     // Still `card-defect` — CR 605.1a says the compiler's reading is the right
     // one — but the fix is the engine gap, not the flag.
     "Ashnod's Altar", // #3047 — mana ability on the stack, CR 605.3b
-    "Desert Twister", // #3073 — `type: ["any"]` for "permanent"
-    "Flash Flood", // #3073 — `type: ["any"]` for "red permanent"
-    "Northern Paladin", // #3046 — "black creature" for "black permanent"
 ];
 
 /**
