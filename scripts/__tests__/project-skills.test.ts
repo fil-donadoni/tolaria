@@ -30,7 +30,7 @@ const REPO_ROOT = path.resolve(__dirname, "..", "..");
 
 /** Skills whose residency is load-bearing. Add a row when a workflow skill
  *  becomes part of this project rather than the machine. */
-const IN_REPO_SKILLS = ["next-issue", "grammar-rule"];
+const IN_REPO_SKILLS = ["next-issue", "grammar-rule", "new-card"];
 
 function isTracked(relPath: string): boolean {
     try {
@@ -414,5 +414,85 @@ describe("/new-set v2 is compile-first (ADR 0137, issue #3835)", () => {
         expect(text).toMatch(/no structural construct/i);
         expect(text).toMatch(/no Op named for a line/i);
         expect(text).toMatch(/no leniency/i);
+    });
+});
+
+describe("/new-card compiles first, hand-writes last (ADR 0137, issue #3836)", () => {
+    const rel = path.join(".claude", "skills", "new-card", "SKILL.md");
+    /** The body WITHOUT frontmatter: `allowed-tools` carries permission globs
+     *  (`bun run cr:*`), which are not commands a session runs. */
+    const body = (): string =>
+        fs
+            .readFileSync(path.join(REPO_ROOT, rel), "utf8")
+            .replace(/^---\n[\s\S]*?\n---\n/, "");
+
+    it("every `bun run <script>` it tells a session to run is a package.json script", () => {
+        // A prose reference to a renamed script is worse than none: the
+        // session runs it, gets nothing, and falls back to authoring by hand —
+        // which is the exact behaviour this rewrite removed.
+        const named = [...body().matchAll(/bun run ([a-z][\w:-]*)/g)].map(
+            (m) => m[1]!
+        );
+        expect(named.length).toBeGreaterThan(0);
+        const pkg = JSON.parse(
+            fs.readFileSync(path.join(REPO_ROOT, "package.json"), "utf8")
+        ) as { scripts: Record<string, string> };
+        expect(named.filter((s) => !(s in pkg.scripts))).toEqual([]);
+    });
+
+    it("reads the compile state BEFORE any authoring step", () => {
+        // The branch order is the whole point. A skill whose authoring section
+        // comes first is the pre-ADR-0137 skill again, with the compiler as an
+        // afterthought. Headings, not mentions: the intro may name the
+        // authoring branch while promising to reach it last.
+        const text = body();
+        const lockfile = text.indexOf("data/oracle-compiled.json");
+        const authoring = text.search(/^#+ .*Write the definition/m);
+        expect(lockfile).toBeGreaterThan(-1);
+        expect(authoring).toBeGreaterThan(lockfile);
+        // …and the lockfile it reads is the one the gates read.
+        expect(
+            fs.existsSync(path.join(REPO_ROOT, "data/oracle-compiled.json"))
+        ).toBe(true);
+    });
+
+    it("names all four compile-state branches, keyed on the floor", () => {
+        const text = body();
+        for (const needle of [
+            "`ready`",
+            "`quarantine`",
+            "`unparsed`",
+            "handTailFloor",
+        ])
+            expect(text).toContain(needle);
+        // The floor is configuration, not a literal in prose: the skill must
+        // point at the file that carries it.
+        expect(text).toContain("data/targets.json");
+        const registry = JSON.parse(
+            fs.readFileSync(path.join(REPO_ROOT, "data/targets.json"), "utf8")
+        ) as { handTailFloor: number };
+        expect(Number.isInteger(registry.handTailFloor)).toBe(true);
+    });
+
+    it("gives Guard C both markers, each with the shape its scanner accepts", () => {
+        // `compiler-gap:` claims the grammar still owes the rule; `hand-tail:`
+        // says it never will. Below the floor the first is a false claim, and
+        // `check:targets` reds on it — so the skill has to name both and say
+        // which goes where.
+        const text = body();
+        expect(text).toMatch(/hand-tail: <the exact Oracle fragment> \(#/);
+        expect(text).toMatch(/compiler-gap: <the exact Oracle fragment> \(#/);
+        const scanner = fs.readFileSync(
+            path.join(REPO_ROOT, "scripts", "lib", "compiler-gap-markers.ts"),
+            "utf8"
+        );
+        for (const marker of ["compiler-gap", "hand-tail"])
+            expect(scanner).toContain(`${marker}:`);
+    });
+
+    it("states the three anti-Forge guards (ADR 0137)", () => {
+        expect(body()).toMatch(/Add a structural construct/);
+        expect(body()).toMatch(/Name an Op after a card/);
+        expect(body()).toMatch(/Buy coverage with leniency/);
     });
 });
