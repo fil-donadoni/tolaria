@@ -11,6 +11,8 @@ import {
     emittedOps,
     parseAllowlist,
     render,
+    renderBotGaps,
+    unclaimedBotGaps,
     type Allowlist,
     type Violation,
 } from "../check-gaps";
@@ -341,5 +343,46 @@ describe("render", () => {
         expect(red).toContain("shrink check SKIPPED");
         expect(red).toContain("do not add a row");
         expect(red).toContain("/new-op");
+    });
+});
+
+describe("in-scope Bot Gaps are filed (issue #4061)", () => {
+    const KEYS = [
+        "never-chosen › Enchantment › destroy",
+        "position-unmodelled › Instant target:spell",
+    ];
+
+    it("reds an in-scope Bot Gap key with no `bot` claim row", () => {
+        expect(
+            unclaimedBotGaps(KEYS, [
+                { kind: "bot", key: KEYS[0]!, issue: 4300 },
+            ])
+        ).toEqual([KEYS[1]]);
+        expect(renderBotGaps(2, [KEYS[1]!])).toMatch(
+            /^✗ gaps: 1 of 2 in-scope Bot Gap key\(s\) have no `bot` claim row/
+        );
+    });
+
+    it("a claim of ANOTHER kind on the same key does not count", () => {
+        expect(
+            unclaimedBotGaps(KEYS, [
+                { kind: "scenario", key: KEYS[0]!, issue: 4300 },
+                { kind: "bot", key: KEYS[1]!, issue: 4301 },
+            ])
+        ).toEqual([KEYS[0]]);
+    });
+
+    it("is green when every in-scope key is claimed", () => {
+        expect(
+            unclaimedBotGaps(
+                KEYS,
+                KEYS.map((key, i) => ({
+                    kind: "bot" as const,
+                    key,
+                    issue: 4300 + i,
+                }))
+            )
+        ).toEqual([]);
+        expect(renderBotGaps(2, [])).toMatch(/^✓ gaps: 2 Bot Gap key/);
     });
 });

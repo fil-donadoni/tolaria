@@ -381,6 +381,7 @@ export type CoverageState = (typeof COVERAGE_STATES)[number];
  * - `grammar` — a Grammar Gap key (`gapOf(fragment).key`); the file's `ops`
  *   rows claim their `(op) › …` keys under this kind too;
  * - `mechanic` / `scenario` — a quarantine class key (`quarantineClass`);
+ * - `bot` — a Bot Gap key (`botGaps[].key`), the class of a `frozen` card;
  * - `hand-tail` — a card name.
  *
  * `gaps:sync` (issue #3869) is the filer that writes them; this reads them.
@@ -391,15 +392,19 @@ export type CoverageState = (typeof COVERAGE_STATES)[number];
  *
  * - `grammar` — a Grammar Gap key (`gapOf(fragment).key`, `opGapKey(op)`);
  * - `mechanic` / `scenario` — a quarantine class key (`quarantineClass`);
- * - `bot` — a Bot Gap form (issue #3830; the sweep is not built);
+ * - `bot` — a Bot Gap key (`botGaps[].key`, `<cause> › <form>[ › <ops>]`,
+ *   issue #3830) — also the claim a `frozen` card's `bot-unreachable`
+ *   quarantine reason needs (`quarantineClass`, issue #4061);
  * - `hand-tail` — a card name;
  * - `migration` — the slot signature of the graduates' compiled definitions,
  *   i.e. the grammar rules that now produce them.
  *
  * {@link CLAIM_KINDS} is the SUBSET the Coverage Invariant reads back. The two
- * differ on purpose: `bot` and `migration` are work the grammar owes nobody's
- * Target card, so a card is never `unclaimed` for want of one — but they still
- * take a row, because the row is what makes the filer idempotent.
+ * differ on purpose: `migration` is work the grammar owes nobody's Target
+ * card, so a card is never `unclaimed` for want of one — but it still takes a
+ * row, because the row is what makes the filer idempotent. `bot` IS read
+ * back: a `frozen` card is quarantined `bot-unreachable`, and the `bot` claim
+ * on its Bot Gap key is what settles it (issue #4061).
  */
 export const GAP_KINDS = [
     "grammar",
@@ -415,6 +420,7 @@ export const CLAIM_KINDS = [
     "grammar",
     "mechanic",
     "scenario",
+    "bot",
     "hand-tail",
 ] as const;
 export type ClaimKind = (typeof CLAIM_KINDS)[number];
@@ -510,7 +516,7 @@ export function parseClaimRows(
 
 /**
  * The COVERAGE claims of the allowlist document, as `claimId`s — the four
- * kinds of {@link CLAIM_KINDS}. A `bot` or `migration` row is validated by
+ * kinds of {@link CLAIM_KINDS}. A `migration` row is validated by
  * {@link parseClaimRows} and then dropped here: it settles no card's state.
  */
 export function parseClaims(
@@ -533,11 +539,19 @@ export function parseClaims(
  * quarantined for the same reason share one key. `planned-op`,
  * `planned-mechanic` and `ungrantable-keyword` are the engine missing a
  * mechanic; the rest are the card's generated checks (ADR 0105 § 7.1).
+ *
+ * `bot-unreachable` is the one reason that is neither: the card compiled and
+ * passed its checks, and the Bot-play sweep found it `frozen`. Its detail IS
+ * the card's Bot Gap key (`oracle-compile.ts`), so its class is kind `bot`
+ * keyed VERBATIM on that key — the same claim the Bot Gap filer writes for
+ * the key, and so the one row that settles the card (issue #4061).
  */
 export function quarantineClass(reason: QuarantineReason): {
-    kind: "mechanic" | "scenario";
+    kind: "mechanic" | "scenario" | "bot";
     key: string;
 } {
+    if (reason.kind === "bot-unreachable")
+        return { kind: "bot", key: reason.detail };
     const detail = reason.detail.replace(/^.+? \([0-9a-f-]{36}\): /, "");
     return {
         kind:

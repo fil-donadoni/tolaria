@@ -8,7 +8,7 @@
  *   grammar    a missing Grammar Rule — the derived Op census `ops` rows
  *   mechanic   a quarantine class the engine owes a mechanic
  *   scenario   a card-dependent smoke-skip class (ADR 0105 § 7.1)
- *   bot        Bot Gaps (issue #3830 — the sweep is not built; files nothing)
+ *   bot        a Bot Gap key a ranked card carries (issue #4061)
  *   hand-tail  a ranked Target card whose residual gaps ALL sit below the floor
  *   migration  graduates, clustered by the rule that unlocked them
  *
@@ -71,7 +71,6 @@ import {
 } from "./lib/gh";
 import {
     applyUpdatedIssues,
-    buildBotGapFilings,
     buildGrammarGapFilings,
     GAP_TITLE_PREFIX,
     planUnlockEdges,
@@ -90,11 +89,13 @@ import {
     handTailOracleIds,
 } from "./lib/coverage-context";
 import {
+    buildBotGapFilings,
     buildHandTailFilings,
     buildMigrationFilings,
     buildQuarantineFilings,
     orphanCardActions,
     prioritySlices,
+    rankedCardIds,
     registeredCardIds,
     type KindInputs,
 } from "./lib/gap-kinds";
@@ -106,7 +107,6 @@ import {
     parseClaimRows,
     readTargetRegistry,
     resolveContext,
-    resolveTarget,
     splitClaimId,
     type GapKind,
 } from "./lib/targets";
@@ -446,12 +446,7 @@ export function buildAllFilings(
     const slices = prioritySlices(registry, ctx);
     // priority ∪ enforced: `check:targets` reds an enforced Target's
     // below-floor card, so it needs a filer even with no priority.
-    const ranked = new Set(slices.flatMap((slice) => [...slice.ids]));
-    for (const row of registry.targets) {
-        if (row.enforced !== true || row.priority !== undefined) continue;
-        for (const card of resolveTarget(row, ctx).cards)
-            ranked.add(card.oracleId);
-    }
+    const ranked = rankedCardIds(registry, ctx, slices);
     const inputs: KindInputs = {
         lock,
         slices,
@@ -468,7 +463,7 @@ export function buildAllFilings(
             ...buildGrammarGapFilings(allowlist),
             ...buildQuarantineFilings(inputs, "mechanic"),
             ...buildQuarantineFilings(inputs, "scenario"),
-            ...buildBotGapFilings(),
+            ...buildBotGapFilings(inputs),
             ...handTail.filings,
             ...buildMigrationFilings(inputs, buildGraduates(root, ctx)),
         ],

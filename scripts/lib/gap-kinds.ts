@@ -1,8 +1,7 @@
 /**
  * The five computed Gap kinds `gaps:sync` files beside `grammar` (issue
- * #3869): `mechanic`, `scenario`, `hand-tail`, `migration` — and `bot`, whose
- * sweep (issue #3830) is not built, so its builder lives in `gap-issues.ts`
- * returning nothing.
+ * #3869): `mechanic`, `scenario`, `hand-tail`, `migration` and `bot` (issue
+ * #4061, over the Bot-play sweep of issue #3830).
  *
  * PURE over its inputs: the lockfile, the resolved Targets, the allowlist's
  * filed rows and the marker/graduate sets `coverage-context.ts` reads off the
@@ -89,6 +88,27 @@ export function registeredCardIds(
         for (const card of resolveTarget(row, ctx).cards)
             ids.add(card.oracleId);
     return ids;
+}
+
+/**
+ * The cards something RANKS or HOLDS to the invariant — the union of every
+ * priority Target's cards and every enforced Target's (see
+ * {@link KindInputs.ranked}). One definition, read by `gaps:sync` to scope a
+ * filing and by `check:gaps` to scope what must be filed, so the two can
+ * never disagree about which gap is owed an issue.
+ */
+export function rankedCardIds(
+    registry: TargetRegistry,
+    ctx: ResolveContext,
+    slices: readonly TargetSlice[] = prioritySlices(registry, ctx)
+): Set<string> {
+    const ranked = new Set(slices.flatMap((slice) => [...slice.ids]));
+    for (const row of registry.targets) {
+        if (row.enforced !== true || row.priority !== undefined) continue;
+        for (const card of resolveTarget(row, ctx).cards)
+            ranked.add(card.oracleId);
+    }
+    return ranked;
 }
 
 /** Everything the five builders read, built once per run. */
@@ -479,6 +499,145 @@ export function buildMigrationFilings(
         };
     });
     return rank(drafts, inputs, "migration");
+}
+
+// ── bot — one issue per Bot Gap KEY (issue #4061) ────────────────────────
+
+/**
+ * What each Bot Gap cause MEANS, so a reader triages the issue without
+ * re-deriving the sweep (`BotReachCause`, `convex/gre/ai/botReach.ts`). Only
+ * the text differs per cause: the filing rule is the same for every one.
+ */
+const BOT_CAUSE_TEXT: Readonly<Record<string, string>> = {
+    "never-chosen":
+        "**A valuation gap.** The move that plays each card below is legal and affordable, and the search never picks it — seam 3 of the Bot reachability walk (`OP_VALUERS` + `OP_BENEFICENCE`, `docs/guides/bot-reachability.md`): the Bot does not WANT to play the card, because what its Ops do is valued at nothing or less.",
+    "position-unmodelled":
+        "**A gap in the sweep's harness, not in the Bot's judgement.** The generated position could not pose these cards at all — the engine refuses a human the cast too (no legal target, an additional cost the seeded board cannot pay, a mana cost the seeded lands cannot produce). The work is teaching the sweep's position (`botReachSpec`, `convex/gre/ai/botReach.ts`) the shape; the Bot may well play the card once posed.",
+    "no-progress":
+        "**A harness limit.** The follow-through did not settle inside the sweep's step budget (`MAX_FOLLOW_THROUGH_STEPS`); every decision in it was answered. Not a claim about the Bot — raise the budget or shorten the follow-through, then re-read the verdict.",
+    "harness-error":
+        "**A harness limit.** Playing the card threw inside the sweep: a generated definition reached a GRE path that refuses it. The sweep failed, not the card — find the throw, then re-read the verdict.",
+    "no-legal-move":
+        "**The Bot cannot reach the card.** The engine offers a human the action, and no move the Bot enumerates uses it — seam 1 of the Bot reachability walk (`enumerateMoves`). The card is `frozen`: withheld from the catalogue until this closes.",
+    "unanswerable-input":
+        "**The Bot cannot finish the card.** Its follow-through owes an input no legal move answers — seam 2 of the Bot reachability walk (the choice surface). The card is `frozen`: withheld from the catalogue until this closes.",
+};
+
+/**
+ * The cause a Bot Gap key opens with (`botGapKey`: `<cause> › <form>…`). The
+ * separator is `oracle-bot-reach.ts`'s, restated rather than imported: that
+ * module is a compiler-hash input, and pulling it here would drag the engine
+ * into `gaps:sync`. Parity is pinned by `gaps-sync.test.ts`, which splits
+ * `botGapKey`'s own output for every cause.
+ */
+export function botCauseOf(key: string): string {
+    return key.split(" › ")[0] ?? "";
+}
+
+/**
+ * A card's Bot Gap key, when it carries one — `botGap` is present iff the
+ * sweep's verdict is not `played`, and the pair is re-checked here rather
+ * than trusted: a `played` row with a stale key would file a gap for a card
+ * the Bot plays.
+ */
+function botGapOf(row: CardRow): string | undefined {
+    return row.botReach !== undefined && row.botReach !== "played"
+        ? row.botGap
+        : undefined;
+}
+
+/**
+ * The Bot Gap keys `gaps:sync` owes an issue: a key at least one RANKED card
+ * carries (`KindInputs.ranked` — priority ∪ enforced). The rest stay in the
+ * lockfile's `botGaps` table, reported and not filed, and enter the filer the
+ * day their Target takes a priority, exactly like a hand-tail card. Sorted,
+ * so `check:gaps` prints one list per tree.
+ */
+export function inScopeBotGapKeys(
+    cards: readonly CardRow[],
+    ranked: ReadonlySet<string>
+): string[] {
+    const keys = new Set<string>();
+    for (const row of cards) {
+        const key = botGapOf(row);
+        if (key !== undefined && ranked.has(row.oracleId)) keys.add(key);
+    }
+    return [...keys].sort();
+}
+
+/**
+ * One issue per Bot Gap KEY (issue #4061), under the rules every other
+ * computed kind follows: scoped to the ranked Targets, ranked per Target,
+ * the measure named beside each number, parented under the top Target's
+ * umbrella else PRD #3820. The corpus count is every card carrying the key —
+ * the lockfile's `botGaps[].cards` — so the body's corpus line and the table
+ * agree.
+ *
+ * The same key is the claim a `frozen` card's `bot-unreachable` quarantine
+ * needs (`quarantineClass`), so filing a frozen key is exactly what takes its
+ * cards out of `unclaimed` — the `mechanic` / `scenario` pattern.
+ */
+export function buildBotGapFilings(inputs: KindInputs): GapFiling[] {
+    const byKey = new Map<string, { ids: Set<string>; frozen: boolean }>();
+    for (const row of inputs.lock.cards) {
+        const key = botGapOf(row);
+        if (key === undefined) continue;
+        let entry = byKey.get(key);
+        if (entry === undefined) {
+            entry = { ids: new Set(), frozen: false };
+            byKey.set(key, entry);
+        }
+        entry.ids.add(row.oracleId);
+        if (row.botReach === "frozen") entry.frozen = true;
+    }
+
+    const nameOf = new Map(
+        inputs.lock.cards.map((c) => [c.oracleId, c.name] as const)
+    );
+    const drafts: Draft[] = [];
+    for (const [key, entry] of byKey) {
+        if (![...entry.ids].some((id) => inputs.ranked.has(id))) continue;
+        const counts = inputs.slices.map(
+            (slice) => [...entry.ids].filter((id) => slice.ids.has(id)).length
+        );
+        const held = [...entry.ids]
+            .map((id) => nameOf.get(id))
+            .filter((name): name is string => name !== undefined)
+            .sort();
+        const cause = botCauseOf(key);
+        drafts.push({
+            kind: "bot",
+            key,
+            title: title(GAP_TITLE_PREFIX.bot, key),
+            parentSetCode: topSetCode(inputs.slices, entry.ids),
+            counts,
+            corpus: entry.ids.size,
+            render: () =>
+                [
+                    `A **Bot Gap** (ADR 0105 § 7.2): the Bot-play sweep (\`oracle:compile\`, issue #3830) does not see the Bot play the cards below, and every one of them fails the same way — cause \`${cause}\`.`,
+                    "",
+                    BOT_CAUSE_TEXT[cause] ??
+                        `Cause \`${cause}\` has no triage text in \`gap-kinds.ts\` yet — read \`BotReachCause\` in \`convex/gre/ai/botReach.ts\`.`,
+                    "",
+                    `Bot Gap key (\`botGaps[].key\` in \`data/oracle-compiled.json\`): \`${key}\``,
+                    entry.frozen
+                        ? "Outcome: `frozen` — the cards are withheld (quarantine `bot-unreachable`); this issue's claim is what the Coverage Invariant reads for them."
+                        : "Outcome: `ignored` — the cards ship; the Bot just does not play them.",
+                    "",
+                    perTargetBlock(
+                        inputs.slices,
+                        counts,
+                        entry.ids.size,
+                        "cards the Bot does not play"
+                    ),
+                    "",
+                    `Cards held (${held.length}): ${held.slice(0, 60).join(", ")}${held.length > 60 ? `, … (+${held.length - 60})` : ""}`,
+                    "",
+                    "The gap disappears when the sweep's next verdict plays every card above — `oracle:compile` re-plays a card whenever its definition or the Bot changes. This issue closes through the PR that does it, never by `gaps:sync`. A behaviour change to the Bot owes a `must` blade entry (`/bot-slice`).",
+                ].join("\n"),
+        });
+    }
+    return rank(drafts, inputs, "bot");
 }
 
 // ── Orphan card issues — the two exits the owner chose ───────────────────
