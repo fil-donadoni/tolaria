@@ -74,7 +74,15 @@ import type { BoardPriority } from "./queue-plan";
 
 export type { BoardPriority };
 
-export const VALID_PRIORITIES: readonly BoardPriority[] = ["P0", "P1", "P2"];
+/** The values the board reader accepts. Anything else is a NON-rate-limit
+ *  failure and hard-stops (issue #2520) — which is why the code learns a new
+ *  band BEFORE the board offers it, never after (issue #4051). */
+export const VALID_PRIORITIES: readonly BoardPriority[] = [
+    "P0",
+    "P1",
+    "P2",
+    "P3",
+];
 
 /** The `--no-priority` skip's own message — exported so a caller that wants
  *  to report the same warning WITHOUT making the (skipped) call at all, e.g.

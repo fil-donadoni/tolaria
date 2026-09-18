@@ -26,6 +26,9 @@ import {
     admitPick,
     liveClaims,
     releasedClaims,
+    priorityRank,
+    effectivePriority,
+    UNPRIORITIZED,
     type AdmissionInput,
     type BatchPlan,
     type BoardPriority,
@@ -49,6 +52,7 @@ import {
     type BoardPriorityDeps,
     type BoardPrioritySnapshot,
 } from "../queue-plan";
+import { VALID_PRIORITIES } from "../lib/board-priority";
 
 /**
  * Queue planner — the loop's scheduling contract (issue #2181, PRD #2180).
@@ -287,6 +291,94 @@ describe("queue planner — priority (issue #2181)", () => {
  * "a P2 sorted above a bug" reads like a regression to anyone who does not know
  * it is the entire point.
  */
+describe("priority axis — the rank table and its sentinel (issue #4051)", () => {
+    // The vocabulary lives in two modules and BOTH have to agree: the union +
+    // rank table the comparator reads (`lib/queue-plan.ts`) and the set the
+    // board reader accepts (`lib/board-priority.ts`). A value the board can
+    // hold but the reader rejects is a NON-rate-limit failure, and those
+    // hard-stop every session on the machine (issue #2520).
+
+    it("ranks P3 strictly ABOVE unprioritized — the sentinel-collision guard", () => {
+        // `UNPRIORITIZED` is "one past the last named rank" written as a
+        // number. Leave it at 3 while `P3: 3` joins the table and this is the
+        // ONLY thing that notices: the comparator returns 0 for a pair the
+        // whole axis exists to separate, and no other test goes red.
+        expect(priorityRank("P3")).toBeLessThan(priorityRank(null));
+        expect(priorityRank("P3")).toBeLessThan(priorityRank(undefined));
+        expect(UNPRIORITIZED).toBe(priorityRank("P3") + 1);
+    });
+
+    it("orders the whole axis strictly: P0 < P1 < P2 < P3 < unprioritized", () => {
+        const ranks = [
+            priorityRank("P0"),
+            priorityRank("P1"),
+            priorityRank("P2"),
+            priorityRank("P3"),
+            priorityRank(null),
+        ];
+        for (let i = 1; i < ranks.length; i++) {
+            expect(ranks[i - 1]).toBeLessThan(ranks[i]);
+        }
+    });
+
+    it("accepts exactly the four named bands on the board read — no more, no fewer", () => {
+        expect([...VALID_PRIORITIES]).toEqual(["P0", "P1", "P2", "P3"]);
+    });
+
+    it("gives every accepted board value a rank — no value can reach the comparator as undefined", () => {
+        for (const p of VALID_PRIORITIES) {
+            expect(Number.isInteger(priorityRank(p))).toBe(true);
+            expect(priorityRank(p)).toBeLessThan(UNPRIORITIZED);
+        }
+    });
+});
+
+describe("priority axis — band inheritance over four values (issue #3212, issue #4051)", () => {
+    const P3_CHILD = { number: 20, parent: { number: 100 } };
+
+    /**
+     * The band, AND that every value the case names is a RANKED one.
+     *
+     * The label alone does not discriminate (PR #4059 review, finding 4).
+     * With `P3` absent from `PRIORITY_RANK`, `priorityRank("P3")` is
+     * `undefined`, every `<=` against it is false, and `effectivePriority`
+     * falls through to the branch that happens to return the expected label
+     * anyway — four of these five cases passed against the pre-change table.
+     * Asserting the rank puts the table and its sentinel back inside the
+     * assertion: `undefined < 4` is red before the change, and `3 < 3` is red
+     * under the collision the sentinel guards against.
+     */
+    function expectBand(
+        priority: Record<number, BoardPriority>,
+        expected: BoardPriority
+    ): void {
+        expect(effectivePriority(P3_CHILD, priority)).toBe(expected);
+        for (const p of Object.values(priority)) {
+            expect(priorityRank(p)).toBeLessThan(UNPRIORITIZED);
+        }
+    }
+
+    it("lifts a P3 child of a P1 parent into the P1 band", () => {
+        expectBand({ 100: "P1", 20: "P3" }, "P1");
+    });
+
+    it("never demotes a P1 child of a P3 parent — the stronger wins, not the parent", () => {
+        expectBand({ 100: "P3", 20: "P1" }, "P1");
+    });
+
+    it("keeps a P3 child of a P3 parent in the P3 band, NOT unprioritized", () => {
+        expectBand({ 100: "P3", 20: "P3" }, "P3");
+    });
+
+    it("degrades to the child's own P3 when the parent is not on the board", () => {
+        expectBand({ 20: "P3" }, "P3");
+    });
+
+    it("inherits P3 from the parent when the child itself has no value", () => {
+        expectBand({ 100: "P3" }, "P3");
+    });
+});
+
 describe("queue planner — board priority (GitHub Project `Priority` field)", () => {
     const disjoint = (...ns: number[]) =>
         Object.fromEntries(
@@ -308,6 +400,24 @@ describe("queue planner — board priority (GitHub Project `Priority` field)", (
             })
         );
         expect(numbers(plan)).toEqual([50, 30, 40, 10, 20]);
+    });
+
+    it("sorts a P3 issue below P2 and still ABOVE anything unprioritized (issue #4051)", () => {
+        // The comparator, not `priorityRank` in isolation: #60 is ruled-on
+        // and last, #10/#20 were never looked at. Collapse the two onto one
+        // rank and this order becomes the lineage tie-break's, not the
+        // board's.
+        const issues = [issue(10), issue(20), issue(40), issue(50), issue(60)];
+        const plan = planBatch(
+            issues,
+            { ...CONFIG, batchCap: 5 },
+            makePort(disjoint(10, 20, 40, 50, 60), [], {
+                50: "P0",
+                40: "P2",
+                60: "P3",
+            })
+        );
+        expect(numbers(plan)).toEqual([50, 40, 60, 10, 20]);
     });
 
     it("puts a P2 above an unprioritized BUG — the human override outranks the default", () => {
@@ -1914,6 +2024,16 @@ describe("board priority — readBoardPriorityCache / writeBoardPriorityCache (i
         // still qualified as a usable snapshot and `formatSnapshotAge` printed
         // "NaNhNaNm ago" for it. Reject the snapshot outright instead.
         expect(readBoardPriorityCache(cachePath)).toBeUndefined();
+    });
+
+    it("accepts a snapshot carrying P3 — the fourth band is a ranked value, not an unknown one (issue #4051)", () => {
+        const cachePath = tmpCachePath();
+        const snapshot = {
+            fetchedAt: "2026-09-18T12:00:00Z",
+            priority: { 10: "P0", 20: "P3" },
+        };
+        fs.writeFileSync(cachePath, JSON.stringify(snapshot));
+        expect(readBoardPriorityCache(cachePath)).toEqual(snapshot);
     });
 
     it("rejects a snapshot carrying a priority value outside VALID_PRIORITIES", () => {

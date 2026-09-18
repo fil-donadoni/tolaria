@@ -40,7 +40,7 @@ export interface ClaimVerdict {
     reason: string;
 }
 
-export type BoardPriority = "P0" | "P1" | "P2";
+export type BoardPriority = "P0" | "P1" | "P2" | "P3";
 
 export interface ClaimRow {
     issue: number;
@@ -58,6 +58,7 @@ export interface QueueDepth {
     P0: number;
     P1: number;
     P2: number;
+    P3: number;
     unprioritized: number;
     total: number;
 }

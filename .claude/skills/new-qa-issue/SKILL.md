@@ -147,6 +147,13 @@ execute this without asking someone", it is `needs-triage`. Otherwise it is
 
 ### Step 6b — Decide the board Priority (P0/P1/P2)
 
+**The board offers a fourth band, `P3`, and this step does NOT seed it**
+(issue #4051). `P3` is a maintainer's ruling — "I looked at this and it goes
+last" — and a seed is by definition not one: a fresh QA issue nobody has
+ranked belongs in the unprioritized residue, which is where it lands with no
+value set. Only an explicit `P3` in the user's own message (rule 1 below)
+reaches the board from here.
+
 The GitHub Project board's `Priority` single-select (Project #2) is what
 `queue:plan` sorts on as its zeroth key
 (`docs/agents/issue-tracker.md` § Why the queue is sorted the way it is) — an
@@ -157,7 +164,7 @@ STARTING value so a fresh QA issue does not silently fall to the bottom of a
 board still overrides it at any time, exactly as before.
 
 1. **Explicit wins.** If the user's own message names a priority — `P0`/`P1`/
-   `P2` literally, or an unambiguous severity word (`critico`/`blocca tutto`/
+   `P2`/`P3` literally, or an unambiguous severity word (`critico`/`blocca tutto`/
    `crash`/`urgente` → P0; `minore`/`cosmetico`/`nice to have` → P2) — use it
    verbatim. Never override an explicit request with the heuristic below.
 2. **Otherwise, infer from the drafted Agent Brief:**
@@ -270,7 +277,7 @@ was just published into.
 Add the new issue to the board and set its `Priority` to the value decided (or
 corrected) in Step 6b/7 — `<owner>`/`<project>` default to `fil-donadoni`/`2`
 (override with `TOLARIA_PROJECT_OWNER`/`TOLARIA_PROJECT_NUMBER`, matching
-`scripts/queue-plan.ts`), `<priority>` is one of `P0`/`P1`/`P2`:
+`scripts/queue-plan.ts`), `<priority>` is one of `P0`/`P1`/`P2`/`P3`:
 
 ```sh
 gh project item-add <project> --owner <owner> --url <issue-url>

@@ -53,7 +53,7 @@ const payload = (over: Partial<NowPayload> = {}): NowPayload =>
         },
         claims: [],
         claimsError: null,
-        queueDepth: { P0: 1, P1: 2, P2: 3, unprioritized: 4, total: 10 },
+        queueDepth: { P0: 1, P1: 2, P2: 3, P3: 0, unprioritized: 4, total: 10 },
         queueDepthError: null,
         receiptsSummary: { total: 12, counts: [], interesting: [] },
         batch: "cfa2cdaf-591a-4b8f-9926-613d3e8543d6",
@@ -138,6 +138,37 @@ describe("traffic lights — a subsystem fact, never a second health verdict", (
     });
 });
 
+describe("traffic lights — the queue light's breakdown names every band (issue #4051)", () => {
+    it("accounts for the whole headline figure — a band missing from the prose is a band silently dropped", () => {
+        const light = lightById(
+            payload({
+                queueDepth: {
+                    P0: 1,
+                    P1: 2,
+                    P2: 2,
+                    P3: 1,
+                    unprioritized: 1,
+                    total: 7,
+                },
+            }),
+            "queue"
+        );
+        expect(light.number).toBe(7);
+        // `queueLight` declares itself a mirror of `renderQueueDepthLines`.
+        // Leave a band out and the breakdown stops summing to the headline —
+        // on the one surface an operator actually reads.
+        for (const [band, count] of [
+            ["P0", 1],
+            ["P1", 2],
+            ["P2", 2],
+            ["P3", 1],
+            ["unprioritized", 1],
+        ] as const) {
+            expect(light.prose, `band ${band}`).toContain(`${band} ${count}`);
+        }
+    });
+});
+
 describe("traffic lights — a failed read and an empty one share nothing", () => {
     it("a failed queue read is UNAVAILABLE, never a zero", () => {
         const failed = lightById(
@@ -150,6 +181,7 @@ describe("traffic lights — a failed read and an empty one share nothing", () =
                     P0: 0,
                     P1: 0,
                     P2: 0,
+                    P3: 0,
                     unprioritized: 0,
                     total: 0,
                 },

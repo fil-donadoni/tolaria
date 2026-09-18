@@ -72,6 +72,7 @@ describe("loop-status — gatherLoopStatus (fail-closed sections)", () => {
             P0: 0,
             P1: 0,
             P2: 0,
+            P3: 0,
             unprioritized: 0,
             total: 0,
         });
@@ -357,7 +358,7 @@ function gathered(
         driver: EMPTY_DRIVER,
         claims: [],
         claimsError: null,
-        queueDepth: { P0: 0, P1: 0, P2: 0, unprioritized: 0, total: 0 },
+        queueDepth: { P0: 0, P1: 0, P2: 0, P3: 0, unprioritized: 0, total: 0 },
         queueDepthError: null,
         receiptsSummary: EMPTY_RECEIPTS_SUMMARY,
         batch: null,
@@ -397,7 +398,14 @@ describe("loop-status — renderGatheredLoopStatusText", () => {
             gathered({
                 claims: null,
                 claimsError: "claimed issues: boom",
-                queueDepth: { P0: 1, P1: 0, P2: 0, unprioritized: 0, total: 1 },
+                queueDepth: {
+                    P0: 1,
+                    P1: 0,
+                    P2: 0,
+                    P3: 0,
+                    unprioritized: 0,
+                    total: 1,
+                },
                 queueDepthError: null,
             })
         );
