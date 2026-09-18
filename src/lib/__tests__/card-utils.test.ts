@@ -4425,6 +4425,42 @@ describe("buildTriggerStateView — TRIGGER_STATE_VIEW_CENSUS (issue #1951 revie
         expect(entry.createdBy).toBe("source-1");
     });
 
+    // CR 105.2b (issue #3837) — the colour-COUNT bound is judged off the same
+    // `colors` the view already carries, so it must survive the reducer. A
+    // dropped colour array reads as colourless, which fails the bound CLOSED
+    // (the gold permanent stops matching) — the direction this asserts in both
+    // signs so a vacuous "nothing matches" cannot pass for a real read.
+    it("reads colorCountAtLeast off the view's own colours, through the real reducer (CR 105.2b, issue #3837)", () => {
+        const entry = (definitionId: string) => {
+            const card = {
+                id: "gold",
+                card: { id: definitionId },
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "battlefield" as const,
+                types: ["Creature"] as const,
+                subtypes: [],
+                staticAbilities: [],
+                isTapped: false,
+            } as unknown as CardInstance;
+            return buildTriggerStateView([
+                { id: "p1", life: 20, hand: [], battlefield: [card] },
+            ]).players[0].battlefield[0];
+        };
+
+        const gold = entry(GALINAS_KNIGHT_ID);
+        expect(gold.colors).toEqual(expect.arrayContaining(["W", "U"]));
+        expect(
+            matchesEnginePermanentFilter(gold, { colorCountAtLeast: 2 })
+        ).toBe(true);
+
+        const mono = entry(FLYING_MEN_ID);
+        expect(mono.colors).toEqual(["U"]);
+        expect(
+            matchesEnginePermanentFilter(mono, { colorCountAtLeast: 2 })
+        ).toBe(false);
+    });
+
     it("carries the CR 307.1 / 117.1a cast-time snapshot a CR 603.4 condition reads (issue #2392)", () => {
         // `castOffSorceryTiming` is not a `PermanentFilter` dimension, so the
         // census above cannot police it — but it IS a field a card condition

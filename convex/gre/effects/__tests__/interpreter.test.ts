@@ -146,6 +146,32 @@ registerTokenDefinition({
     types: ["Instant"],
 });
 
+/** CR 105.2b — a MULTICOLORED creature (two of the five colors), for the
+ *  `colorCountAtLeast` filter tests (issue #3837). */
+const GOLD_CREATURE_ID = "test-effects-gold-creature";
+registerTokenDefinition({
+    id: GOLD_CREATURE_ID,
+    name: GOLD_CREATURE_ID,
+    rarity: "common",
+    manaCost: { X: 1, W: 1, U: 1 },
+    types: ["Creature"],
+    power: 2,
+    toughness: 2,
+});
+
+/** CR 105.2c — a COLOURLESS artifact creature: the other side of the bound,
+ *  which an "any of the five colours" reading would also admit. */
+const COLORLESS_CREATURE_ID = "test-effects-colorless-creature";
+registerTokenDefinition({
+    id: COLORLESS_CREATURE_ID,
+    name: COLORLESS_CREATURE_ID,
+    rarity: "common",
+    manaCost: { X: 2 },
+    types: ["Artifact", "Creature"],
+    power: 1,
+    toughness: 1,
+});
+
 describe("Effect Script Op: dealDamage (CR 120.1)", () => {
     it("deals damage to the announced player target and puts the sorcery in the graveyard", () => {
         const id = registerScript("test-op-dmg-player", [
@@ -14046,6 +14072,115 @@ describe("Effect Script Op: choice — zoneOwnerId (issue #920)", () => {
         });
         expect(state.players[1].hand.map((c) => c.id)).toEqual(["black1"]);
         expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["bear1"]);
+    });
+
+    // CR 105.2b (issue #3837) — "multicolored" is a COUNT of colours, so it
+    // cannot be written as an OR over the five: that reading admits every
+    // mono-coloured card, which is Dragon Arch putting a mono-coloured
+    // creature onto the battlefield. Both wrong readings are asserted against
+    // here — the mono-coloured card (the OR misparse) and the colourless one
+    // (CR 105.2c: no colour to count).
+    it("admits only multicoloured cards to a hand choice via colorCountAtLeast (CR 105.2b, issue #3837)", () => {
+        const gold = makeInstance(GOLD_CREATURE_ID, {
+            id: "gold1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const mono = makeInstance(BEAR_ID, {
+            id: "bear1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const colorless = makeInstance(COLORLESS_CREATURE_ID, {
+            id: "grey1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const id = registerScript(
+            "test-op-choice-colorcount",
+            [
+                { op: "reveal", player: { target: 0 }, zone: "hand" },
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zoneOwnerId: { target: 0 },
+                    zone: "hand",
+                    filter: { colorCountAtLeast: 2 },
+                    count: 1,
+                    prompt: "Choose a multicolored card.",
+                    bind: "$picked",
+                },
+                {
+                    op: "discard",
+                    player: { target: 0 },
+                    cards: { ref: "$picked" },
+                },
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: [gold, mono, colorless] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(head.candidateIds).toEqual(["gold1"]);
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["gold1"],
+        });
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["gold1"]);
+    });
+
+    // The battlefield half of the same bound: `toPermanentFilter` must carry
+    // it across, or a `zone: "battlefield"` selector silently matches every
+    // permanent (fail-OPEN — the bug class the `name` mapping records).
+    it("carries colorCountAtLeast across toPermanentFilter for a battlefield choice (CR 105.2b, issue #3837)", () => {
+        const gold = makeInstance(GOLD_CREATURE_ID, {
+            id: "goldPerm",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const mono = makeInstance(BEAR_ID, {
+            id: "monoPerm",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const id = registerScript("test-op-foreach-colorcount-bf", [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    controller: "controller",
+                    filter: { type: "Creature", colorCountAtLeast: 2 },
+                },
+                effects: [{ op: "gainLife", player: "controller", amount: 1 }],
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [gold, mono] }),
+                makePlayer("p2"),
+            ],
+        });
+        const before = state.players[0].life;
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // One gold creature, one mono-coloured one: a dropped bound gains 2.
+        expect(state.players[0].life).toBe(before + 1);
     });
 });
 
