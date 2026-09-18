@@ -22428,6 +22428,16 @@
         "source": "compiled"
     },
     {
+        "name": "Krosan Adaptation",
+        "scryfallId": "60909727-0e87-4f58-a0e6-424eb81fff4f",
+        "oracleId": "6121d856-2dc9-4a43-b2b3-16af889eaa1f",
+        "firstSet": "cmb1",
+        "firstPrintId": "60909727-0e87-4f58-a0e6-424eb81fff4f",
+        "firstPrintSet": "cmb1",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Krosan Archer",
         "scryfallId": "e188562f-8219-4fb0-ac2c-5618cfb00bca",
         "oracleId": "be886ff5-e004-420f-b7d5-01f1ab5021cb",
