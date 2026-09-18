@@ -607,7 +607,7 @@ Derivation: `docs/agents/gre-guards.md` § No card name in an engine identifier.
 Pure functions, no async. Card definitions are DATA. Types from
 `convex/cards/types.ts` / `convex/gre/state.ts`, constants from
 `convex/gre/constants.ts` — never local copies. Mana abilities use
-`useStack: false` (CR 605.3a).
+`useStack: false` (CR 605.3b).
 
 ### Primitive reuse (mandatory)
 
