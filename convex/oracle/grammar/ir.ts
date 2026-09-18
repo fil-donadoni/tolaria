@@ -11,7 +11,12 @@
  * a card that compiles to a definition missing an ability.
  */
 
-import type { Color, ManaCost, PermanentFilter } from "../../cards/types";
+import type {
+    Color,
+    ManaCost,
+    PermanentFilter,
+    TargetRequirement,
+} from "../../cards/types";
 import type { ActivationCostIR } from "./shared/cost";
 import type { ConditionIR } from "./shared/condition";
 import type { EffectSentenceIR, RestrictionIR } from "./shared/effectClause";
@@ -56,6 +61,16 @@ export type ManaProductionIR =
 
 export type SlotIR =
     | { readonly kind: "keywords"; readonly keywords: readonly KeywordIR[] }
+    /**
+     * CR 702.5a — "Enchant [object]": what an Aura spell can target and what
+     * the Aura can enchant. Kept as the `TargetRequirement` the engine reads
+     * it from (`resolveEnchantRestriction`), because the descriptor's two
+     * sites — cast-time target and attachment legality — are one field there.
+     */
+    | {
+          readonly kind: "enchant";
+          readonly requirement: TargetRequirement;
+      }
     | {
           readonly kind: "mana-ability";
           readonly cost: ActivationCostIR;

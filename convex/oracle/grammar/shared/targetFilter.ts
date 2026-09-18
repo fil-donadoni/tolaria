@@ -56,7 +56,7 @@ import type {
     TargetRequirement,
 } from "../../../cards/types";
 import { fail, ok, rule, type Rule, type RuleResult } from "../../rule";
-import { keywordVocabulary } from "../slots/keywordLine";
+import { keywordVocabulary } from "./keywordVocabulary";
 import { CREATURE_SUBTYPES, LAND_SUBTYPES } from "./subtypes";
 
 export const TARGET_FILTER = "target filter";

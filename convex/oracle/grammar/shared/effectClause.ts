@@ -29,7 +29,7 @@ import type { TargetRequirement } from "../../../cards/types";
 import type { KeywordIR } from "../ir";
 import type { Phase } from "../../../gre/types";
 import { fail, ok, rule, type Rule } from "../../rule";
-import { keywordVocabulary } from "../slots/keywordLine";
+import { keywordVocabulary } from "./keywordVocabulary";
 import { durationRule, type DurationIR } from "./duration";
 import { playerRefRule, type PlayerRefIR } from "./playerRef";
 import { readNumberWord } from "./quantity";
