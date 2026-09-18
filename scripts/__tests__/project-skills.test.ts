@@ -294,3 +294,125 @@ describe("/grammar-rule names only commands that exist (issue #3834)", () => {
         expect(body()).toMatch(/No leniency/);
     });
 });
+
+describe("/new-set v2 is compile-first (ADR 0137, issue #3835)", () => {
+    const rel = path.join(".claude", "skills", "new-set", "SKILL.md");
+    const body = () => fs.readFileSync(path.join(REPO_ROOT, rel), "utf8");
+    const src = (...p: string[]) =>
+        fs.readFileSync(path.join(REPO_ROOT, ...p), "utf8");
+
+    it("every `bun run <script>` it tells a session to run is a package.json script", () => {
+        // Same failure as `/grammar-rule`'s: a prose command that was renamed
+        // away is worse than none — the session tries it, gets nothing, and
+        // improvises the step it was supposed to follow.
+        const named = [...body().matchAll(/bun run ([a-z][\w:-]*)/g)].map(
+            (m) => m[1]!
+        );
+        expect(named.length).toBeGreaterThan(0);
+        const pkg = JSON.parse(src("package.json")) as {
+            scripts: Record<string, string>;
+        };
+        expect(named.filter((s) => !(s in pkg.scripts))).toEqual([]);
+    });
+
+    it("scopes the rollout through `oracle:report`, and every Target flag it names exists", () => {
+        // A flag the skill teaches but the report does not parse is the worst
+        // shape of drift here: `flag()` returns undefined, `readTarget` falls
+        // through to the corpus, and the session ranks all of Magic believing
+        // it ranked its set (issue #3835 review).
+        const text = body();
+        const report = src("scripts", "oracle-report.ts");
+        for (const f of ["--set", "--pool", "--target"]) {
+            expect(text, `the skill never names ${f}`).toContain(f);
+            expect(report, `oracle-report.ts does not parse ${f}`).toContain(
+                `flag("${f}")`
+            );
+        }
+        expect(text).toMatch(/oracle:report --set/);
+        expect(text).toMatch(/`--target <id>`/);
+        // `--targets` (the coverage report) is a DIFFERENT flag, parsed
+        // positionally — the skill uses both and must not conflate them.
+        expect(text).toMatch(/oracle:report --targets/);
+        expect(report).toContain('process.argv.indexOf("--targets")');
+    });
+
+    it("the closure invariant is the computed coverage states, not a hand tally", () => {
+        // v1 asserted `done+staged+free+capability+OOS == total` over buckets a
+        // human assigned. v2's partition is computed, so the skill must name
+        // the states `targets.ts` actually produces — a renamed state that the
+        // prose still teaches sends a rollout looking for a section that the
+        // report no longer prints.
+        const text = body();
+        const states = [
+            "ready",
+            "quarantine",
+            "gap-pending",
+            "hand-tail",
+            "unclaimed",
+        ];
+        const targets = src("scripts", "lib", "targets.ts");
+        for (const state of states) {
+            expect(text).toContain(`\`${state}\``);
+            expect(targets).toContain(`"${state}"`);
+        }
+        expect(text).toMatch(/`unclaimed == 0`/);
+    });
+
+    it("the hand-authoring axis is gone — no import, no scaffold, no free tranche", () => {
+        // The whole point of v2 (ADR 0137): hand-writing survives only as the
+        // Guard C residue. A skill that still tells a session to scaffold
+        // colour modules re-opens the axis the ADR closed.
+        const text = body();
+        expect(text).toMatch(/runs no[\s\S]{0,4}`json-to-cards\.mjs`/);
+        expect(text).toMatch(/creates no `sets\/<code>\/` directory/);
+        expect(text).toMatch(/emits no\s*\n?\s*commented stubs/);
+        // v1's own words for the axis, so a copy-back is caught verbatim.
+        for (const v1 of [
+            "free tranche per colour module",
+            "Triage every card into five buckets",
+            "walking skeleton",
+            "bun scripts/json-to-cards.mjs",
+        ]) {
+            expect(text.toLowerCase()).not.toContain(v1.toLowerCase());
+        }
+    });
+
+    it("its gap tickets do not collide with the ones `gaps:sync` files", () => {
+        // Two backlogs, two prefixes: the bounded Op-census rows `gaps:sync`
+        // owns (`Grammar Gap: <key>`) and the unbounded per-fragment backlog
+        // `oracle:report --gaps` ranks, which is this skill's. One prefix for
+        // both would make every rollout double-file its own set.
+        const text = body();
+        expect(text).toMatch(
+            /`\[Grammar\] <slot>: <form> — N <set> \/ M corpus`/
+        );
+        expect(text).toMatch(/deliberately NOT `gaps:sync`'s/);
+        expect(src("scripts", "lib", "gap-issues.ts")).toContain(
+            'grammar: "Grammar Gap:"'
+        );
+    });
+
+    it("pins the umbrella title to the shape `gaps:sync` parents by", () => {
+        // `findSetUmbrella` matches `^\[<CODE>\]` over open `prd` issues; a
+        // title that does not match silently sends every computed gap of the
+        // set to PRD #3820 instead, and nothing reds.
+        expect(body()).toMatch(/title MUST start `\[<CODE>\]`/);
+        expect(src("scripts", "gaps-sync.ts")).toContain("findSetUmbrella");
+    });
+
+    it("forbids `gaps:sync` from the worktree — it pushes HEAD onto the base branch", () => {
+        expect(body()).toMatch(
+            /Never run it from\s*\n?a worktree|Never run `bun run gaps:sync` from a worktree/
+        );
+        expect(src("scripts", "gaps-sync.ts")).toContain(
+            "`HEAD:${BASE_BRANCH}`"
+        );
+    });
+
+    it("states the three anti-Forge guards (ADR 0137), like `/grammar-rule`", () => {
+        const text = body();
+        expect(text).toMatch(/no structural construct/i);
+        expect(text).toMatch(/no Op named for a line/i);
+        expect(text).toMatch(/no leniency/i);
+    });
+});

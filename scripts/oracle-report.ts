@@ -12,6 +12,9 @@
  *   bun scripts/oracle-report.ts --gaps 50     # more of the ranked backlog
  *   bun scripts/oracle-report.ts --set apc     # Grammar Gaps ranked for one set
  *   bun scripts/oracle-report.ts --pool premodern  # … for one format pool
+ *   bun scripts/oracle-report.ts --target vintage-cube
+ *                                  # … for one REGISTERED Target (data/targets.json):
+ *                                  # a deck list or a name list, not just a set
  *   bun scripts/oracle-report.ts --decks       # per-deck, per-card state (M1),
  *                                  # Tier 1 lists + the pinned metagame import
  *   bun scripts/oracle-report.ts --targets [<id>]
@@ -348,9 +351,11 @@ interface Target {
 function readTarget(lock: Lockfile): Target | null {
     const set = flag("--set");
     const pool = flag("--pool");
-    if (set !== undefined && pool !== undefined) {
+    const registered = flag("--target");
+    const named = [set, pool, registered].filter((v) => v !== undefined);
+    if (named.length > 1) {
         process.stderr.write(
-            "oracle:report — pass --set or --pool, not both\n"
+            "oracle:report — pass one of --set, --pool, --target\n"
         );
         process.exit(1);
     }
@@ -377,6 +382,26 @@ function readTarget(lock: Lockfile): Target | null {
             process.exit(1);
         }
         return { label: `${pool} pool`, ids: poolTarget(lock, pool) };
+    }
+    if (registered !== undefined) {
+        // A registered Target — a deck list or a name list (the premodern
+        // metagame, the Vintage Cube). `--targets` renders its COVERAGE; this
+        // is the same cards as the RANKING Target, so `/new-set` can roll out
+        // a pool that is not a set (issue #3835, wayfinder issue #3846).
+        const registry = readTargetRegistry(ROOT);
+        const row = registry.targets.find((t) => t.id === registered);
+        if (row === undefined) {
+            process.stderr.write(
+                `oracle:report — no Target \`${registered}\` in ${TARGETS_PATH} (one of: ` +
+                    `${registry.targets.map((t) => t.id).join(", ")})\n`
+            );
+            process.exit(1);
+        }
+        const cards = resolveTarget(row, resolveContext(ROOT, lock)).cards;
+        return {
+            label: `Target ${row.id}`,
+            ids: new Set(cards.map((c) => c.oracleId)),
+        };
     }
     return null;
 }
