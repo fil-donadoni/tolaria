@@ -39,6 +39,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { EFFECT_OP_REGISTRY } from "../convex/cards/mechanicsRegistry";
 import { opGapKey } from "./lib/grammar-gaps";
+import type { ClaimRow } from "./lib/targets";
 import { parseLockfile } from "./lib/oracle-lockfile";
 
 export const ALLOWLIST_PATH = "data/grammar-gaps.json";
@@ -56,6 +57,14 @@ export interface GapRow {
 export interface Allowlist {
     readonly note?: string;
     readonly ops: readonly GapRow[];
+    /**
+     * The other five kinds `gaps:sync` files (issue #3869), each row the same
+     * `{ key, issue }` shape as an `ops` row plus the `kind` that names its key
+     * scheme. Read back by `parseClaimRows` / `parseClaims` (`lib/targets.ts`);
+     * this census neither reads nor guards them — the shrink-only invariant is
+     * about `ops` alone.
+     */
+    readonly claims?: readonly ClaimRow[];
 }
 
 export type Violation =

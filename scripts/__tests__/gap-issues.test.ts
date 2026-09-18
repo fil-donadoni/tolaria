@@ -20,7 +20,9 @@ import {
     type GapFiling,
     type GapTracker,
     type TrackedIssue,
+    type TrackedIssueSummary,
 } from "../lib/gap-issues";
+import { claimId } from "../lib/targets";
 import { gapOf, OP_LEVEL } from "../lib/grammar-gaps";
 import { parseLockfile } from "../lib/oracle-lockfile";
 import { isIssueNotFound } from "../gaps-sync";
@@ -41,12 +43,18 @@ describe("buildGrammarGapFilings", () => {
                 { key: "(op) › draw", op: "draw", issue: 4001 },
             ])
         );
-        expect(filings.map((f) => [f.key, f.filed, f.currentIssue])).toEqual([
-            [ADD_MANA_KEY, false, PRD_ISSUE],
-            ["(op) › draw", true, 4001],
+        // `currentIssue: null` IS "unfiled" now — the PRD placeholder is
+        // translated once, here, so no later reader repeats the sentinel.
+        expect(filings.map((f) => [f.key, f.currentIssue])).toEqual([
+            [ADD_MANA_KEY, null],
+            ["(op) › draw", 4001],
         ]);
+        expect(filings[0]!.kind).toBe("grammar");
+        expect(filings[0]!.fallbackParent).toBe(OP_GAP_UMBRELLA);
         expect(filings[0]!.title).toBe(grammarGapTitle(ADD_MANA_KEY));
-        expect(filings[0]!.body).toBe(renderOpGapBody("addMana", ADD_MANA_KEY));
+        expect(filings[0]!.body(0)).toBe(
+            renderOpGapBody("addMana", ADD_MANA_KEY)
+        );
     });
 });
 
@@ -117,44 +125,60 @@ class StubTracker implements GapTracker {
     subIssueCount(): number {
         return this.children;
     }
+
+    findSetUmbrella(): number | null {
+        return null;
+    }
+
+    listOpen(): readonly TrackedIssueSummary[] {
+        return [];
+    }
+
+    addLabel(): void {}
+
+    comment(): void {}
 }
 
 function filing(over: Partial<GapFiling> = {}): GapFiling {
     return {
+        kind: "grammar",
         key: ADD_MANA_KEY,
-        currentIssue: PRD_ISSUE,
-        filed: false,
+        currentIssue: null,
         title: grammarGapTitle(ADD_MANA_KEY),
-        body: "body v1",
+        labels: LABELS,
+        parentSetCode: null,
+        fallbackParent: OP_GAP_UMBRELLA,
+        body: () => "body v1",
         ...over,
     };
 }
 
 const LABELS = ["ready-for-agent"];
+const ADD_MANA_ROW = claimId("grammar", ADD_MANA_KEY);
 
 describe("syncGaps", () => {
     it("creates an unfiled gap under the given parent and reports the new number", () => {
         const tracker = new StubTracker();
-        const result = syncGaps([filing()], tracker, LABELS, OP_GAP_UMBRELLA);
+        const result = syncGaps([filing()], tracker);
         expect(result.actions).toEqual([
-            { kind: "create", key: ADD_MANA_KEY, issue: 5000 },
+            {
+                action: "create",
+                kind: "grammar",
+                key: ADD_MANA_KEY,
+                issue: 5000,
+            },
         ]);
-        expect(result.updatedRows.get(ADD_MANA_KEY)).toBe(5000);
+        expect(result.updatedRows.get(ADD_MANA_ROW)).toBe(5000);
         expect(tracker.parents.get(5000)).toBe(OP_GAP_UMBRELLA);
     });
 
     it("a second run against the tracker it just wrote is a no-op — idempotent", () => {
         const tracker = new StubTracker();
-        const first = syncGaps([filing()], tracker, LABELS, OP_GAP_UMBRELLA);
-        const issue = first.updatedRows.get(ADD_MANA_KEY)!;
-        const second = syncGaps(
-            [filing({ currentIssue: issue, filed: true })],
-            tracker,
-            LABELS,
-            OP_GAP_UMBRELLA
-        );
+        const first = syncGaps([filing()], tracker);
+        const issue = first.updatedRows.get(ADD_MANA_ROW)!;
+        const second = syncGaps([filing({ currentIssue: issue })], tracker);
         expect(second.actions).toEqual([
-            { kind: "noop", key: ADD_MANA_KEY, issue },
+            { action: "noop", kind: "grammar", key: ADD_MANA_KEY, issue },
         ]);
         expect(second.updatedRows.size).toBe(0);
         expect(tracker.createCalls).toBe(1);
@@ -165,13 +189,16 @@ describe("syncGaps", () => {
         const tracker = new StubTracker();
         tracker.issues.set(4001, { state: "OPEN", body: "stale" });
         const result = syncGaps(
-            [filing({ currentIssue: 4001, filed: true, body: "fresh" })],
-            tracker,
-            LABELS,
-            OP_GAP_UMBRELLA
+            [filing({ currentIssue: 4001, body: () => "fresh" })],
+            tracker
         );
         expect(result.actions).toEqual([
-            { kind: "update", key: ADD_MANA_KEY, issue: 4001 },
+            {
+                action: "update",
+                kind: "grammar",
+                key: ADD_MANA_KEY,
+                issue: 4001,
+            },
         ]);
         expect(result.updatedRows.size).toBe(0);
         expect(tracker.getIssue(4001)?.body).toBe("fresh");
@@ -181,13 +208,16 @@ describe("syncGaps", () => {
         const tracker = new StubTracker();
         tracker.issues.set(4001, { state: "CLOSED", body: "old" });
         const result = syncGaps(
-            [filing({ currentIssue: 4001, filed: true, body: "new" })],
-            tracker,
-            LABELS,
-            OP_GAP_UMBRELLA
+            [filing({ currentIssue: 4001, body: () => "new" })],
+            tracker
         );
         expect(result.actions).toEqual([
-            { kind: "skip-closed", key: ADD_MANA_KEY, issue: 4001 },
+            {
+                action: "skip-closed",
+                kind: "grammar",
+                key: ADD_MANA_KEY,
+                issue: 4001,
+            },
         ]);
         expect(tracker.getIssue(4001)).toEqual({
             state: "CLOSED",
@@ -198,22 +228,15 @@ describe("syncGaps", () => {
     it("a gap gone from the allowlist is never passed in — its issue stays open", () => {
         const tracker = new StubTracker();
         tracker.issues.set(4001, { state: "OPEN", body: "still tracked" });
-        expect(syncGaps([], tracker, LABELS, OP_GAP_UMBRELLA).actions).toEqual(
-            []
-        );
+        expect(syncGaps([], tracker).actions).toEqual([]);
         expect(tracker.getIssue(4001)?.state).toBe("OPEN");
     });
 
     it("recreates when the filed number resolves to nothing", () => {
         const tracker = new StubTracker();
-        const result = syncGaps(
-            [filing({ currentIssue: 9999, filed: true })],
-            tracker,
-            LABELS,
-            OP_GAP_UMBRELLA
-        );
-        expect(result.actions[0]!.kind).toBe("create");
-        expect(result.updatedRows.get(ADD_MANA_KEY)).toBe(5000);
+        const result = syncGaps([filing({ currentIssue: 9999 })], tracker);
+        expect(result.actions[0]!.action).toBe("create");
+        expect(result.updatedRows.get(ADD_MANA_ROW)).toBe(5000);
     });
 
     it("refuses BEFORE any write when the creates would pass GitHub's sub-issue cap", () => {
@@ -222,7 +245,7 @@ describe("syncGaps", () => {
         const tracker = new StubTracker();
         tracker.children = SUB_ISSUE_CAP - 1;
         const two = [filing(), filing({ key: "(op) › draw" })];
-        expect(() => syncGaps(two, tracker, LABELS, OP_GAP_UMBRELLA)).toThrow(
+        expect(() => syncGaps(two, tracker)).toThrow(
             /cap of 100 — nothing was filed/
         );
         expect(tracker.createCalls).toBe(0);
@@ -231,7 +254,7 @@ describe("syncGaps", () => {
     it("files right up to the cap", () => {
         const tracker = new StubTracker();
         tracker.children = SUB_ISSUE_CAP - 1;
-        syncGaps([filing()], tracker, LABELS, OP_GAP_UMBRELLA);
+        syncGaps([filing()], tracker);
         expect(tracker.createCalls).toBe(1);
     });
 
@@ -239,13 +262,8 @@ describe("syncGaps", () => {
         const tracker = new StubTracker();
         tracker.children = SUB_ISSUE_CAP;
         tracker.issues.set(4001, { state: "OPEN", body: "body v1" });
-        const result = syncGaps(
-            [filing({ currentIssue: 4001, filed: true })],
-            tracker,
-            LABELS,
-            OP_GAP_UMBRELLA
-        );
-        expect(result.actions[0]!.kind).toBe("noop");
+        const result = syncGaps([filing({ currentIssue: 4001 })], tracker);
+        expect(result.actions[0]!.action).toBe("noop");
     });
 });
 
@@ -257,7 +275,7 @@ describe("applyUpdatedIssues", () => {
         ]);
         const after = applyUpdatedIssues(
             before,
-            new Map([[ADD_MANA_KEY, 5000]])
+            new Map([[ADD_MANA_ROW, 5000]])
         );
         expect(after.ops).toEqual([
             { key: ADD_MANA_KEY, op: "addMana", issue: 5000 },

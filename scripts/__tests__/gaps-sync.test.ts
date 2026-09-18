@@ -1,0 +1,749 @@
+/**
+ * `gaps:sync`'s six kinds (issue #3869) — a SYNTHETIC lockfile, a synthetic
+ * registry of FORMAT Targets (they resolve off `poolIn`, so no file is read)
+ * and a STUB tracker, so every count below is derivable by hand and no test
+ * here touches the network or the committed corpus.
+ *
+ * `gap-issues.test.ts` owns the `grammar` kind and the create / update /
+ * idempotent-noop / closed-stays-closed decision; this file owns the five
+ * kinds built on top of it and the orphan-card pass.
+ */
+
+import { describe, expect, it } from "vitest";
+import {
+    syncGaps,
+    type GapFiling,
+    type GapTracker,
+    type TrackedIssue,
+    type TrackedIssueSummary,
+} from "../lib/gap-issues";
+import {
+    buildHandTailFilings,
+    buildMigrationFilings,
+    buildQuarantineFilings,
+    cardsNamedByTitle,
+    orphanCardActions,
+    prioritySlices,
+    unlockingRule,
+    type Graduate,
+    type KindInputs,
+} from "../lib/gap-kinds";
+import { staleClaims } from "../gaps-sync";
+import type { CardRow, FragmentRow, Lockfile } from "../lib/oracle-lockfile";
+import {
+    claimId,
+    gapIndex,
+    resolveContext,
+    resolveTarget,
+    type TargetRegistry,
+} from "../lib/targets";
+
+// ── Fixtures ─────────────────────────────────────────────────────────────
+
+/** Two priority Targets, both formats — resolved from `poolIn`, no disk. */
+const REGISTRY: TargetRegistry = {
+    handTailFloor: 3,
+    handTailFiling: false,
+    targets: [
+        {
+            id: "format-premodern",
+            kind: "format",
+            source: "premodern",
+            priority: 1,
+        },
+        {
+            id: "format-vintage",
+            kind: "format",
+            source: "vintage",
+            priority: 2,
+        },
+    ],
+};
+
+function fragment(text: string): FragmentRow {
+    return { text, reason: "no slot consumed the line", cards: 1 };
+}
+
+/** `refuses`-by-construction: N unparsed cards sharing one fragment index. */
+function unparsed(
+    oracleId: string,
+    name: string,
+    gaps: number[],
+    poolIn?: CardRow["poolIn"]
+): CardRow {
+    return {
+        oracleId,
+        name,
+        state: "unparsed",
+        gaps,
+        ...(poolIn === undefined ? {} : { poolIn }),
+    };
+}
+
+/**
+ * Two inert `ready` cards, one per priority Target: `resolveTarget` throws on
+ * a Target that resolves to NO cards (a denominator that could shrink silently
+ * is the whole point of the registry's fail-closed reader), and a `ready` row
+ * counts for no gap and no quarantine class, so every figure below is still
+ * derivable by hand.
+ */
+const FILLER: CardRow[] = [
+    {
+        oracleId: "f-1",
+        name: "Filler Premodern",
+        state: "ready",
+        opsUsed: [],
+        poolIn: ["premodern"],
+    },
+    {
+        oracleId: "f-2",
+        name: "Filler Vintage",
+        state: "ready",
+        opsUsed: [],
+        poolIn: ["vintage"],
+    },
+];
+
+function quarantined(
+    oracleId: string,
+    name: string,
+    reasons: { kind: string; detail: string }[],
+    poolIn?: CardRow["poolIn"]
+): CardRow {
+    return {
+        oracleId,
+        name,
+        state: "quarantine",
+        opsUsed: [],
+        quarantineReasons: reasons as CardRow["quarantineReasons"],
+        ...(poolIn === undefined ? {} : { poolIn }),
+    };
+}
+
+/**
+ * The gap keys here are `(no slot) › <shape>` — `gapOf` on an unattributed
+ * fragment whose reason is the router's. Written out so a test can assert a
+ * key without re-deriving it.
+ */
+const NARROW_GAP = "(no slot) › a one-off line";
+
+function inputs(
+    lock: Pick<Lockfile, "cards" | "fragments">,
+    over: Partial<KindInputs> = {},
+    registry: TargetRegistry = REGISTRY
+): KindInputs {
+    const ctx = resolveContext("/tmp/gaps-sync-no-such-root", lock);
+    const slices = prioritySlices(registry, ctx);
+    return {
+        lock,
+        slices,
+        ranked: new Set(slices.flatMap((slice) => [...slice.ids])),
+        filed: new Map(),
+        floor: registry.handTailFloor,
+        handTailFiling: registry.handTailFiling,
+        handTail: new Set(),
+        ...gapIndex(lock),
+        ...over,
+    };
+}
+
+class StubTracker implements GapTracker {
+    private next = 5000;
+    readonly issues = new Map<number, TrackedIssue>();
+    readonly created: Array<{
+        title: string;
+        labels: readonly string[];
+        parent: number;
+    }> = [];
+    readonly umbrellas = new Map<string, number>();
+    open: TrackedIssueSummary[] = [];
+    readonly added: Array<{ issue: number; label: string }> = [];
+    readonly comments: Array<{ issue: number; body: string }> = [];
+    updateCalls = 0;
+
+    getIssue(number: number): TrackedIssue | null {
+        return this.issues.get(number) ?? null;
+    }
+
+    createIssue(input: {
+        title: string;
+        body: string;
+        labels: readonly string[];
+        parent: number;
+    }): number {
+        this.created.push({
+            title: input.title,
+            labels: input.labels,
+            parent: input.parent,
+        });
+        const number = this.next++;
+        this.issues.set(number, { state: "OPEN", body: input.body });
+        return number;
+    }
+
+    updateBody(number: number, body: string): void {
+        this.updateCalls += 1;
+        this.issues.set(number, { state: "OPEN", body });
+    }
+
+    findSetUmbrella(setCode: string): number | null {
+        return this.umbrellas.get(setCode) ?? null;
+    }
+
+    /** Far below `SUB_ISSUE_CAP`, so the cap refusal (its own cases live in
+     *  `gap-issues.test.ts`) never fires in this file. */
+    subIssueCount(): number {
+        return 0;
+    }
+
+    listOpen(): readonly TrackedIssueSummary[] {
+        return this.open;
+    }
+
+    addLabel(number: number, label: string): void {
+        this.added.push({ issue: number, label });
+    }
+
+    comment(number: number, body: string): void {
+        this.comments.push({ issue: number, body });
+    }
+}
+
+/** Sync `filings`, then sync the SAME filings with their new issue numbers —
+ *  the second pass is what "a second run changes nothing" means. */
+function syncTwice(
+    filings: readonly GapFiling[],
+    tracker = new StubTracker()
+): { tracker: StubTracker; second: ReturnType<typeof syncGaps> } {
+    const first = syncGaps(filings, tracker);
+    const filed = new Map(
+        first.actions.map((a) => [claimId(a.kind, a.key), a.issue] as const)
+    );
+    const second = syncGaps(
+        filings.map((f) => ({
+            ...f,
+            currentIssue: filed.get(claimId(f.kind, f.key)) ?? f.currentIssue,
+        })),
+        tracker
+    );
+    return { tracker, second };
+}
+
+// ── mechanic / scenario ─────────────────────────────────────────────────
+
+const CHANGELING = {
+    kind: "planned-mechanic",
+    detail: 'Woodland Changeling (aaaaaaaa-0000-4000-8000-000000000001): keyword "changeling" is not implemented in the Mechanics Registry',
+};
+const SMOKE = {
+    kind: "smoke-scenario",
+    detail: 'Onulet (aaaaaaaa-0000-4000-8000-000000000002): Op "moveZone" changes zones on an object the canned generator does not model',
+};
+
+describe("the mechanic and scenario kinds — one issue per quarantine class", () => {
+    const lock = {
+        fragments: [],
+        cards: [
+            quarantined(
+                "q-1",
+                "Woodland Changeling",
+                [CHANGELING],
+                ["premodern"]
+            ),
+            quarantined("q-2", "Changeling Titan", [CHANGELING]),
+            quarantined("q-3", "Onulet", [SMOKE], ["premodern", "vintage"]),
+            ...FILLER,
+        ],
+    };
+
+    it("files a mechanic class with area:mechanics, the per-Target body and both measures named", () => {
+        const filings = buildQuarantineFilings(inputs(lock), "mechanic");
+        expect(filings).toHaveLength(1);
+        const filing = filings[0]!;
+        expect(filing.kind).toBe("mechanic");
+        expect(filing.key).toBe(
+            'planned-mechanic › keyword "changeling" is not implemented in the Mechanics Registry'
+        );
+        expect(filing.labels).toEqual(["ready-for-agent", "area:mechanics"]);
+        const body = filing.body(7001);
+        // Two cards carry the class; only one of them is in the premodern pool.
+        expect(body).toContain("- format-premodern (format, priority 1): 1");
+        expect(body).toContain("- format-vintage (format, priority 2): 0");
+        expect(body).toContain("- corpus: 2");
+        expect(body).toContain("measure: cards held by this class");
+        expect(body).toContain("Woodland Changeling");
+        expect(body).toContain("Rank 1 of 1 in kind `mechanic`");
+    });
+
+    it("files a scenario class separately, under area:mechanics too", () => {
+        const filings = buildQuarantineFilings(inputs(lock), "scenario");
+        expect(filings.map((f) => f.key)).toEqual([
+            'smoke-scenario › Op "moveZone" changes zones on an object the canned generator does not model',
+        ]);
+        expect(filings[0]!.kind).toBe("scenario");
+        expect(filings[0]!.body(1).includes("smoke-skip class")).toBe(true);
+    });
+
+    it("a class already carrying a claim reconciles that issue instead of creating a second", () => {
+        const key =
+            'planned-mechanic › keyword "changeling" is not implemented in the Mechanics Registry';
+        const filings = buildQuarantineFilings(
+            inputs(lock, {
+                filed: new Map([[claimId("mechanic", key), 4242]]),
+            }),
+            "mechanic"
+        );
+        expect(filings[0]!.currentIssue).toBe(4242);
+    });
+
+    it("a second run against the tracker it just wrote to creates nothing and edits nothing", () => {
+        const { tracker, second } = syncTwice(
+            buildQuarantineFilings(inputs(lock), "mechanic")
+        );
+        expect(tracker.created).toHaveLength(1);
+        expect(second.actions.map((a) => a.action)).toEqual(["noop"]);
+        expect(second.updatedRows.size).toBe(0);
+        expect(tracker.updateCalls).toBe(0);
+    });
+
+    it("a class that disappears from the lockfile closes nothing — it is simply no longer filed", () => {
+        const tracker = new StubTracker();
+        syncGaps(buildQuarantineFilings(inputs(lock), "mechanic"), tracker);
+        // The keyword landed: the same cards compile, the class is gone.
+        const gone = {
+            fragments: [],
+            cards: lock.cards.map((card) =>
+                card.state === "quarantine"
+                    ? {
+                          ...card,
+                          state: "ready" as const,
+                          quarantineReasons: [],
+                      }
+                    : card
+            ),
+        };
+        const after = syncGaps(
+            buildQuarantineFilings(inputs(gone), "mechanic"),
+            tracker
+        );
+        expect(after.actions).toEqual([]);
+        expect(tracker.getIssue(5000)).toEqual({
+            state: "OPEN",
+            body: expect.stringContaining("changeling"),
+        });
+    });
+});
+
+// ── hand-tail ───────────────────────────────────────────────────────────
+
+describe("the hand-tail kind — one issue per CARD, gated by handTailFiling", () => {
+    // The widespread gap refuses EXACTLY three cards — the floor itself, so a
+    // `>` where the rule says `>=` flips all three into the hand tail — and
+    // NARROW_GAP two, below it.
+    const lock = {
+        fragments: [fragment("a widespread line"), fragment("a one-off line")],
+        cards: [
+            unparsed("w-1", "Wide One", [0], ["premodern"]),
+            unparsed("w-2", "Wide Two", [0], ["premodern"]),
+            unparsed("t-1", "Tail Card", [1], ["premodern", "vintage"]),
+            unparsed("m-1", "Mixed Card", [0, 1], ["premodern"]),
+            ...FILLER,
+        ],
+    };
+
+    it("files nothing while `handTailFiling` is false, and reports the card as held", () => {
+        const { filings, held } = buildHandTailFilings(inputs(lock));
+        expect(filings).toEqual([]);
+        expect(held.map((f) => f.key)).toEqual(["Tail Card"]);
+    });
+
+    it("files exactly the below-floor card once the flag is true — a mixed card stays the grammar kind's", () => {
+        const { filings, held } = buildHandTailFilings(
+            inputs(lock, { handTailFiling: true })
+        );
+        expect(held).toEqual([]);
+        expect(filings.map((f) => f.key)).toEqual(["Tail Card"]);
+        // "Mixed Card" carries the widespread gap too (leverage 3 ≥ floor 3):
+        // it is `gap-pending`, not Hand Tail (issue #3868).
+        expect(filings.map((f) => f.key)).not.toContain("Mixed Card");
+        expect(filings[0]!.labels).toEqual([
+            "ready-for-agent",
+            "area:cards",
+            "hand-tail",
+        ]);
+    });
+
+    it("names the fragment, the below-floor gap with its leverage, and the exact marker line the closing PR must add", () => {
+        const { filings } = buildHandTailFilings(
+            inputs(lock, { handTailFiling: true })
+        );
+        const body = filings[0]!.body(4321);
+        expect(body).toContain("`a one-off line`");
+        // NARROW_GAP refuses Tail Card and Mixed Card: leverage 2, below the
+        // floor of 3.
+        expect(body).toContain(
+            `gap \`${NARROW_GAP}\` — leverage 2 corpus cards`
+        );
+        expect(body).toContain("// hand-tail: a one-off line (#4321)");
+        expect(body).toContain("- format-premodern (format, priority 1): 1");
+    });
+
+    it("the marker line quotes the issue's OWN number — the create is followed by exactly one patch", () => {
+        const { filings } = buildHandTailFilings(
+            inputs(lock, { handTailFiling: true })
+        );
+        const tracker = new StubTracker();
+        const result = syncGaps(filings, tracker);
+        const issue = result.actions[0]!.issue;
+        expect(tracker.getIssue(issue)!.body).toContain(
+            `// hand-tail: a one-off line (#${issue})`
+        );
+        expect(tracker.updateCalls).toBe(1);
+        // …and the NEXT run sees the settled body, so it patches nothing.
+        const second = syncGaps(
+            filings.map((f) => ({ ...f, currentIssue: issue })),
+            tracker
+        );
+        expect(second.actions.map((a) => a.action)).toEqual(["noop"]);
+        expect(tracker.updateCalls).toBe(1);
+    });
+
+    it("a card already carrying a `hand-tail:` marker is settled and never filed again", () => {
+        const { filings, held } = buildHandTailFilings(
+            inputs(lock, {
+                handTailFiling: true,
+                handTail: new Set(["t-1"]),
+            })
+        );
+        expect(filings).toEqual([]);
+        expect(held).toEqual([]);
+    });
+
+    it("a card no PRIORITY Target ranks is never filed — nobody's ranked objective needs it", () => {
+        const orphanLock = {
+            fragments: [...lock.fragments, fragment("an orphan's own line")],
+            cards: [...lock.cards, unparsed("x-1", "Orphan Card", [2])],
+        };
+        const { filings } = buildHandTailFilings(
+            inputs(orphanLock, { handTailFiling: true })
+        );
+        expect(filings.map((f) => f.key)).toEqual(["Tail Card"]);
+    });
+
+    it("a hand-written card whose compiler-gap names a gap that has fallen below the floor lands here", () => {
+        // The widespread gap refuses only this card once its siblings compile:
+        // leverage 1 < floor 3, and no `hand-tail:` marker vouches for it.
+        const fallen = {
+            fragments: [fragment("a widespread line")],
+            cards: [unparsed("w-1", "Wide One", [0], ["premodern"]), ...FILLER],
+        };
+        const { filings } = buildHandTailFilings(
+            inputs(fallen, { handTailFiling: true })
+        );
+        expect(filings.map((f) => f.key)).toEqual(["Wide One"]);
+        expect(filings[0]!.body(9)).toContain(
+            "`compiler-gap:` here instead would claim the grammar still owes the rule"
+        );
+    });
+});
+
+// ── migration ───────────────────────────────────────────────────────────
+
+function graduate(
+    name: string,
+    slots: string[],
+    over: Partial<Graduate> = {}
+): Graduate {
+    return {
+        oracleId: `g-${name}`,
+        name,
+        module: "convex/cards/sets/lea/white.ts",
+        tests: [],
+        slots,
+        ...over,
+    };
+}
+
+describe("the migration kind — graduates cluster by the rule that unlocked them", () => {
+    const lock = { fragments: [], cards: FILLER };
+
+    it("clusters by slot signature, never per card", () => {
+        const filings = buildMigrationFilings(inputs(lock), [
+            graduate("Air Elemental", ["keyword-line"]),
+            graduate("Bad Moon", ["static"]),
+            graduate("Black Ward", ["keyword-line"]),
+            graduate("Castle", ["static", "keyword-line"]),
+        ]);
+        expect(filings.map((f) => f.key).sort()).toEqual([
+            "keyword-line",
+            "keyword-line + static",
+            "static",
+        ]);
+        const cluster = filings.find((f) => f.key === "keyword-line")!;
+        expect(cluster.labels).toEqual([
+            "ready-for-agent",
+            "area:cards",
+            "migration",
+        ]);
+        const body = cluster.body(1);
+        expect(body).toContain("Air Elemental");
+        expect(body).toContain("Black Ward");
+        expect(body).not.toContain("Bad Moon");
+    });
+
+    it("`unlockingRule` folds a repeated slot and sorts, so one cluster is one key", () => {
+        expect(unlockingRule(["static", "keyword-line", "static"])).toBe(
+            "keyword-line + static"
+        );
+        expect(unlockingRule([])).toBe("(no slot)");
+    });
+
+    it("the body lists each card's module and the test files naming it, and the ADR 0114 retirement steps", () => {
+        const filings = buildMigrationFilings(inputs(lock), [
+            graduate("Onulet", ["activated"], {
+                tests: ["convex/cards/__tests__/atqArtifacts.test.ts"],
+            }),
+        ]);
+        const body = filings[0]!.body(1);
+        expect(body).toContain("convex/cards/sets/lea/white.ts");
+        expect(body).toContain("convex/cards/__tests__/atqArtifacts.test.ts");
+        expect(body).toContain("oracle:retire");
+        expect(body).toContain("ADR 0114");
+    });
+
+    it("a second run reconciles the same cluster and writes nothing", () => {
+        const filings = buildMigrationFilings(inputs(lock), [
+            graduate("Onulet", ["activated"]),
+        ]);
+        const { tracker, second } = syncTwice(filings);
+        expect(tracker.created).toHaveLength(1);
+        expect(second.actions.map((a) => a.action)).toEqual(["noop"]);
+    });
+});
+
+// ── the rank ────────────────────────────────────────────────────────────
+
+describe("the rank — lexicographic on the priority Targets, corpus as tie-break", () => {
+    it("puts the class the highest-priority Target holds most of first", () => {
+        const lock = {
+            fragments: [],
+            cards: [
+                // Class A: one premodern card, three in the corpus.
+                quarantined("a-1", "A One", [CHANGELING], ["premodern"]),
+                quarantined("a-2", "A Two", [CHANGELING]),
+                quarantined("a-3", "A Three", [CHANGELING]),
+                // Class B: two premodern cards, two in the corpus.
+                quarantined("b-1", "B One", [SMOKE], ["premodern"]),
+                quarantined("b-2", "B Two", [SMOKE], ["premodern"]),
+                ...FILLER,
+            ],
+        };
+        const both = [
+            ...buildQuarantineFilings(inputs(lock), "mechanic"),
+            ...buildQuarantineFilings(inputs(lock), "scenario"),
+        ];
+        // Ranked WITHIN a kind, so each is rank 1 of 1 — but the premodern
+        // count each body prints is what the order would read.
+        expect(both[0]!.body(1)).toContain(
+            "- format-premodern (format, priority 1): 1"
+        );
+        expect(both[1]!.body(1)).toContain(
+            "- format-premodern (format, priority 1): 2"
+        );
+    });
+
+    it("orders two classes of ONE kind by the top Target's count, corpus last", () => {
+        const other = {
+            kind: "planned-mechanic",
+            detail: 'X (aaaaaaaa-0000-4000-8000-000000000009): keyword "flanking" is not implemented in the Mechanics Registry',
+        };
+        const lock = {
+            fragments: [],
+            cards: [
+                quarantined("a-1", "A One", [CHANGELING]),
+                quarantined("a-2", "A Two", [CHANGELING]),
+                quarantined("a-3", "A Three", [CHANGELING]),
+                quarantined("b-1", "B One", [other], ["premodern"]),
+                ...FILLER,
+            ],
+        };
+        const filings = buildQuarantineFilings(inputs(lock), "mechanic");
+        // "flanking" has 1 premodern card, "changeling" has 0 — priority 1
+        // beats a corpus of 3.
+        expect(filings.map((f) => f.key)).toEqual([
+            'planned-mechanic › keyword "flanking" is not implemented in the Mechanics Registry',
+            'planned-mechanic › keyword "changeling" is not implemented in the Mechanics Registry',
+        ]);
+        expect(filings[0]!.body(1)).toContain("Rank 1 of 2 in kind `mechanic`");
+        expect(filings[1]!.body(1)).toContain("Rank 2 of 2 in kind `mechanic`");
+    });
+});
+
+// ── the orphan card pass ────────────────────────────────────────────────
+
+describe("orphan card issues — ready-for-human, once", () => {
+    const byName = (name: string): string | undefined =>
+        ({ "Tail Card": "t-1", "Orphan Card": "x-1" })[name];
+    const registered = new Set(["t-1"]);
+
+    it("reads the card names out of a `[card]` title, and only names the lockfile carries", () => {
+        expect(cardsNamedByTitle("[card] Orphan Card — ships plain", byName)) //
+            .toEqual(["Orphan Card"]);
+        expect(
+            cardsNamedByTitle("[card] Tail Card + Orphan Card — pair", byName)
+        ).toEqual(["Tail Card", "Orphan Card"]);
+        // Not a per-card title, and a name nothing resolves: both yield none,
+        // so a real slice is never labelled `ready-for-human` on a guess.
+        expect(cardsNamedByTitle("[APC] Free tranche — Green", byName)).toEqual(
+            []
+        );
+        expect(
+            cardsNamedByTitle("[card] Not A Card — whatever", byName)
+        ).toEqual([]);
+    });
+
+    it("labels and comments on an issue whose cards no Target requires", () => {
+        const actions = orphanCardActions(
+            [
+                {
+                    number: 900,
+                    title: "[card] Orphan Card — ships plain",
+                    labels: ["area:cards"],
+                },
+            ],
+            byName,
+            registered
+        );
+        expect(actions).toHaveLength(1);
+        expect(actions[0]!.cards).toEqual(["Orphan Card"]);
+        expect(actions[0]!.comment).toContain("Which objective needs");
+        expect(actions[0]!.comment).toContain("`Orphan Card`");
+        expect(actions[0]!.comment).toContain("wontfix");
+    });
+
+    it("never touches an issue naming a card a Target DOES require, even beside an orphan", () => {
+        expect(
+            orphanCardActions(
+                [
+                    {
+                        number: 901,
+                        title: "[card] Tail Card + Orphan Card — pair",
+                        labels: ["area:cards"],
+                    },
+                ],
+                byName,
+                registered
+            )
+        ).toEqual([]);
+    });
+
+    it("is idempotent — an issue already labelled `ready-for-human` gets no second comment", () => {
+        expect(
+            orphanCardActions(
+                [
+                    {
+                        number: 900,
+                        title: "[card] Orphan Card — ships plain",
+                        labels: ["area:cards", "ready-for-human"],
+                    },
+                ],
+                byName,
+                registered
+            )
+        ).toEqual([]);
+    });
+});
+
+// ── The duplicate-key guard (review of PR #3978) ────────────────────────
+
+describe("one claimId, one filing", () => {
+    it("dedupes two cards sharing a name — 38 lockfile names are carried by two rows", () => {
+        // Both rows are unparsed, both below the floor, both ranked. Filing
+        // both would create two issues for one `hand-tail` claim key, keep
+        // only the second in `updatedRows`, then flip that one issue's body
+        // between the two cards on every later run.
+        const lock = {
+            fragments: [fragment("a one-off line")],
+            cards: [
+                unparsed("dup-a", "Inferno", [0], ["premodern"]),
+                unparsed("dup-b", "Inferno", [0], ["vintage"]),
+                ...FILLER,
+            ],
+        };
+        const { filings } = buildHandTailFilings(
+            inputs(lock, { handTailFiling: true })
+        );
+        expect(filings.map((f) => f.key)).toEqual(["Inferno"]);
+        const tracker = new StubTracker();
+        expect(syncGaps(filings, tracker).actions).toHaveLength(1);
+        expect(tracker.created).toHaveLength(1);
+    });
+});
+
+// ── enforced-without-priority (review of PR #3978) ──────────────────────
+
+describe("the ranked set is priority ∪ enforced", () => {
+    it("an enforced Target with no priority still gets its below-floor cards filed", () => {
+        // `check:targets` reds an enforced Target's unclaimed card, so a card
+        // it holds needs a filer even when nothing ranks it.
+        const registry: TargetRegistry = {
+            handTailFloor: 3,
+            handTailFiling: true,
+            targets: [
+                {
+                    id: "format-premodern",
+                    kind: "format",
+                    source: "premodern",
+                    priority: 1,
+                },
+                {
+                    id: "format-vintage",
+                    kind: "format",
+                    source: "vintage",
+                    enforced: true,
+                },
+            ],
+        };
+        const lock = {
+            fragments: [fragment("a one-off line")],
+            cards: [
+                unparsed("v-1", "Enforced Only", [0], ["vintage"]),
+                ...FILLER,
+            ],
+        };
+        const ctx = resolveContext("/tmp/gaps-sync-no-such-root", lock);
+        const slices = prioritySlices(registry, ctx);
+        const ranked = new Set(slices.flatMap((slice) => [...slice.ids]));
+        // Priority alone leaves the enforced Target's card out…
+        expect(ranked.has("v-1")).toBe(false);
+        for (const row of registry.targets) {
+            if (row.enforced !== true || row.priority !== undefined) continue;
+            for (const card of resolveTarget(row, ctx).cards)
+                ranked.add(card.oracleId);
+        }
+        expect(ranked.has("v-1")).toBe(true);
+        const { filings } = buildHandTailFilings(
+            inputs(lock, { handTailFiling: true, ranked }, registry)
+        );
+        expect(filings.map((f) => f.key)).toContain("Enforced Only");
+    });
+});
+
+// ── stale claims (review of PR #3978) ───────────────────────────────────
+
+describe("staleClaims — a row no filing referenced", () => {
+    it("names the rows whose gap is gone, and never an `ops` row", () => {
+        const filings = buildMigrationFilings(
+            { ...inputs({ fragments: [], cards: FILLER }) },
+            [graduate("Onulet", ["activated"])]
+        );
+        const filed = new Map([
+            [claimId("migration", "activated"), 7001],
+            [claimId("migration", "renamed-slot"), 7002],
+            [claimId("grammar", "(op) › addMana"), 7003],
+        ]);
+        expect(staleClaims(filed, filings)).toEqual([
+            { kind: "migration", key: "renamed-slot", issue: 7002 },
+        ]);
+    });
+});

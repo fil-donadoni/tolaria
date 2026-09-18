@@ -385,6 +385,32 @@ export type CoverageState = (typeof COVERAGE_STATES)[number];
  *
  * `gaps:sync` (issue #3869) is the filer that writes them; this reads them.
  */
+/**
+ * Every kind `gaps:sync` FILES (issue #3869) — the six of the issue body, one
+ * stable key scheme each:
+ *
+ * - `grammar` — a Grammar Gap key (`gapOf(fragment).key`, `opGapKey(op)`);
+ * - `mechanic` / `scenario` — a quarantine class key (`quarantineClass`);
+ * - `bot` — a Bot Gap form (issue #3830; the sweep is not built);
+ * - `hand-tail` — a card name;
+ * - `migration` — the slot signature of the graduates' compiled definitions,
+ *   i.e. the grammar rules that now produce them.
+ *
+ * {@link CLAIM_KINDS} is the SUBSET the Coverage Invariant reads back. The two
+ * differ on purpose: `bot` and `migration` are work the grammar owes nobody's
+ * Target card, so a card is never `unclaimed` for want of one — but they still
+ * take a row, because the row is what makes the filer idempotent.
+ */
+export const GAP_KINDS = [
+    "grammar",
+    "mechanic",
+    "scenario",
+    "bot",
+    "hand-tail",
+    "migration",
+] as const;
+export type GapKind = (typeof GAP_KINDS)[number];
+
 export const CLAIM_KINDS = [
     "grammar",
     "mechanic",
@@ -394,25 +420,48 @@ export const CLAIM_KINDS = [
 export type ClaimKind = (typeof CLAIM_KINDS)[number];
 
 export interface ClaimRow {
-    readonly kind: ClaimKind;
+    readonly kind: GapKind;
     readonly key: string;
     /** The open issue that settles the claim. Liveness is the network
      *  sweep's question, as for Guard B — never health's. */
     readonly issue: number;
 }
 
-/** The one identity of a claim — a kind and a key. */
-export function claimId(kind: ClaimKind, key: string): string {
+/**
+ * The one identity of a claim — a kind and a key, joined by a TAB. The
+ * separator is what `parseClaimRows` forbids inside a key: a key carrying one
+ * would split back into the wrong pair, the written `claims` row would never
+ * match the recomputed id, and the filer would create a fresh duplicate issue
+ * on every run, forever. Quarantine keys embed free-text compiler
+ * diagnostics, so "no key ever contains a tab" is enforced, not assumed.
+ */
+export function claimId(kind: GapKind, key: string): string {
     return `${kind}\t${key}`;
 }
 
+/** The inverse of {@link claimId} — splits at the FIRST tab, never all of
+ *  them, so the round trip survives whatever `parseClaimRows` let through. */
+export function splitClaimId(id: string): { kind: GapKind; key: string } {
+    const at = id.indexOf("\t");
+    if (at === -1) throw new Error(`not a claim id: ${JSON.stringify(id)}`);
+    return {
+        kind: id.slice(0, at) as GapKind,
+        key: id.slice(at + 1),
+    };
+}
+
 /**
- * Every claim of the allowlist document, as `claimId`s. Fail-closed: a claim
- * of an unknown kind, with no key or no issue, or twice, throws — a row the
- * reader skipped would be a card red for no reason it could print, and a
- * duplicate is two issues for one decision.
+ * Every row of the allowlist document that carries an issue, validated.
+ * Fail-closed: a row of an unknown kind, with no key or no issue, or twice,
+ * throws — a row the reader skipped would be a card red for no reason it could
+ * print, and a duplicate is two issues for one decision. A typo in a `bot` or
+ * `migration` row therefore reds exactly as loudly as one in a coverage kind,
+ * though the invariant never reads those two back.
+ *
+ * `ops` rows are `grammar` rows in the census's own shape (issue #3824): the
+ * `kind` is implied by which array the row sits in, never written twice.
  */
-export function parseClaims(
+export function parseClaimRows(
     doc: {
         readonly ops?: readonly {
             readonly key?: unknown;
@@ -421,32 +470,60 @@ export function parseClaims(
         readonly claims?: readonly Partial<Record<keyof ClaimRow, unknown>>[];
     },
     path = "data/grammar-gaps.json"
-): Set<string> {
+): ClaimRow[] {
     const fail = (message: string): never => {
         throw new Error(`${path}: ${message}`);
     };
-    const ids = new Set<string>();
+    const rows: ClaimRow[] = [];
+    const seen = new Set<string>();
     const add = (kind: unknown, key: unknown, issue: unknown): void => {
-        if (!(CLAIM_KINDS as readonly unknown[]).includes(kind))
+        if (!(GAP_KINDS as readonly unknown[]).includes(kind))
             fail(
-                `claim ${JSON.stringify(key)}: unknown kind \`${String(kind)}\` (one of: ${CLAIM_KINDS.join(", ")})`
+                `claim ${JSON.stringify(key)}: unknown kind \`${String(kind)}\` (one of: ${GAP_KINDS.join(", ")})`
             );
         if (typeof key !== "string" || key.length === 0)
             fail(`a \`${String(kind)}\` claim has no \`key\``);
+        if (/[\t\n]/.test(key as string))
+            fail(
+                `a \`${String(kind)}\` claim's \`key\` contains a tab or newline — \`claimId\` joins on a tab, so such a key never round-trips and the gap would be re-filed on every run`
+            );
         if (!Number.isInteger(issue) || (issue as number) <= 0)
             fail(
                 `claim \`${String(key)}\`: \`issue\` is ${JSON.stringify(issue)}, want a positive integer`
             );
-        const id = claimId(kind as ClaimKind, key as string);
-        if (ids.has(id))
+        const id = claimId(kind as GapKind, key as string);
+        if (seen.has(id))
             fail(`claim \`${String(key)}\` (${String(kind)}) is listed twice`);
-        ids.add(id);
+        seen.add(id);
+        rows.push({
+            kind: kind as GapKind,
+            key: key as string,
+            issue: issue as number,
+        });
     };
     if (doc.claims !== undefined && !Array.isArray(doc.claims))
         fail("`claims` must be an array");
     for (const row of doc.ops ?? []) add("grammar", row.key, row.issue);
     for (const row of doc.claims ?? []) add(row.kind, row.key, row.issue);
-    return ids;
+    return rows;
+}
+
+/**
+ * The COVERAGE claims of the allowlist document, as `claimId`s — the four
+ * kinds of {@link CLAIM_KINDS}. A `bot` or `migration` row is validated by
+ * {@link parseClaimRows} and then dropped here: it settles no card's state.
+ */
+export function parseClaims(
+    doc: Parameters<typeof parseClaimRows>[0],
+    path = "data/grammar-gaps.json"
+): Set<string> {
+    return new Set(
+        parseClaimRows(doc, path)
+            .filter((row) =>
+                (CLAIM_KINDS as readonly string[]).includes(row.kind)
+            )
+            .map((row) => claimId(row.kind, row.key))
+    );
 }
 
 /**

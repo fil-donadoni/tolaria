@@ -9,9 +9,11 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { auditCoverage } from "../check-targets";
+import { compilerGapCards } from "../lib/coverage-context";
 import { HEALTH_SCRIPTS } from "../lib/health-step";
 import type { CardRow } from "../lib/oracle-lockfile";
 import {
@@ -307,10 +309,35 @@ describe("parseClaims — the allowlist's claims, fail-closed", () => {
         );
     });
 
+    it("validates a `bot` / `migration` row but never returns it — those two settle no card's state (issue #3869)", () => {
+        const ids = parseClaims({
+            claims: [
+                { kind: "migration", key: "activated", issue: 4100 },
+                { kind: "bot", key: "some-form", issue: 4101 },
+                { kind: "hand-tail", key: "Onulet", issue: 3900 },
+            ],
+        });
+        expect([...ids]).toEqual([claimId("hand-tail", "Onulet")]);
+        expect(() =>
+            parseClaims({ claims: [{ kind: "migration", key: "x", issue: 0 }] })
+        ).toThrow(/positive integer/);
+    });
+
+    it("throws on a key carrying a tab — `claimId` joins on one, so it would never round-trip", () => {
+        // A quarantine key embeds a free-text compiler diagnostic; one tab in
+        // it and the written row never matches the recomputed id, so the gap
+        // is filed afresh on every run, forever (review of PR #3978).
+        expect(() =>
+            parseClaims({
+                claims: [{ kind: "mechanic", key: "a\tb", issue: 1 }],
+            })
+        ).toThrow(/tab or newline/);
+    });
+
     it.each([
         [
             "an unknown kind",
-            { kind: "bot", key: "x", issue: 1 },
+            { kind: "gramar", key: "x", issue: 1 },
             /unknown kind/,
         ],
         ["no key", { kind: "grammar", key: "", issue: 1 }, /no `key`/],
@@ -367,5 +394,45 @@ describe("quarantineClass — one claim per class, never per card", () => {
             "mechanic"
         );
         expect(quarantineClass(SCENARIO).kind).toBe("scenario");
+    });
+});
+
+describe("compilerGapCards — the markers `gaps:sync` reports against the floor", () => {
+    /** A throwaway root with the one directory the scanner reads. */
+    function fixtureRoot(source: string): string {
+        const dir = mkdtempSync(join(tmpdir(), "compiler-gap-cards-"));
+        const sets = join(dir, "convex", "cards", "sets");
+        mkdirSync(sets, { recursive: true });
+        writeFileSync(join(sets, "fixture.ts"), source);
+        return dir;
+    }
+
+    it("returns the `compiler-gap:` cards and NEVER a `hand-tail:` one", () => {
+        // The two marker kinds say opposite things — one that the grammar
+        // still owes a rule, the other that it never will — and `gaps:sync`
+        // reports only the first against the floor. The committed tree
+        // carries no `hand-tail:` marker yet, so this pair is synthetic: a
+        // reader that dropped the kind filter would pass over that tree.
+        const root = fixtureRoot(
+            [
+                "// compiler-gap: draws a card for each (#1)",
+                "export const OWED: CardDefinition = {",
+                '    name: "Owed Card",',
+                "};",
+                "",
+                "// hand-tail: a one-off clause (#2)",
+                "export const TAIL: CardDefinition = {",
+                '    name: "Tail Card",',
+                "};",
+                "",
+            ].join("\n")
+        );
+        expect([...compilerGapCards(root)]).toEqual(["Owed Card"]);
+    });
+
+    it("is non-vacuous over the committed tree — the catalogue carries markers today", () => {
+        // A reader that silently returned nothing would report no fallen
+        // marker ever, which is the failure this assertion exists to catch.
+        expect(compilerGapCards(ROOT).size).toBeGreaterThan(0);
     });
 });
