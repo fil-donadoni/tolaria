@@ -436,6 +436,45 @@ describe("Kicker refusals — lowering invariants", () => {
         }
     );
 
+    it("refuses two kicked entry riders rather than summing them", () => {
+        expect(
+            refusal("Creature — Bear", [
+                "Kicker {2}",
+                "If this creature was kicked, it enters with a +1/+1 counter on it.",
+                "If this creature was kicked, it enters with a +1/+1 counter on it.",
+            ])
+        ).toMatch(/kicked entry rider twice/);
+    });
+
+    it("'for each time it was kicked' on a two-kicker card counts both (CR 702.33d)", () => {
+        const r = lowerOn("Creature — Bear", [
+            "Kicker {1}{G} and/or {W}",
+            "This creature enters with a +1/+1 counter on it for each time it was kicked.",
+        ]);
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        expect(r.definition.kickers?.map((k) => k.id)).toEqual([
+            "kicker-g",
+            "kicker-w",
+        ]);
+        expect(r.definition.entersWith).toEqual({
+            counters: [{ type: "+1/+1", count: "kicker" }],
+        });
+    });
+
+    it("'If this spell was kicked' on a Multikicker spell reads 'kicked at least once'", () => {
+        const r = lowerOn("Instant", [
+            "Multikicker {1}",
+            "You gain 1 life. If this spell was kicked, draw a card.",
+        ]);
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        expect(r.definition.effects?.[1]).toMatchObject({
+            op: "if",
+            predicate: { left: { kickerCount: true }, op: "ge", right: 1 },
+        });
+    });
+
     it("refuses 'for each time it was kicked' with no kicker to count", () => {
         expect(
             refusal("Creature — Bear", [

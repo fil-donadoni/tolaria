@@ -69,7 +69,7 @@ interface Accumulator {
     entersTapped: boolean;
     entersWithCounters: { type: string; count: number | "kicker" }[];
     /** CR 702.33e — how each kicker-counted entry rider reads the tally. */
-    kickerRiders: ("kicked" | "each-kick")[];
+    kickerRiders: { per: "kicked" | "each-kick"; line: string }[];
     /** CR 702.33a — the card's kicker costs, lowered BEFORE every other line
      *  so a line that reads a kicker back can name it (see `lowerCard`). */
     kickers?: KickerCost[];
@@ -270,8 +270,16 @@ function lowerLine(
             if (out.entersWithCounters !== undefined)
                 acc.entersWithCounters.push(out.entersWithCounters);
             if (out.kickerCounters !== undefined) {
+                // Same-type entries SUM, so a second kicked rider would add to
+                // the first silently. No printed card has two; reading two is
+                // a sign a line was misread, as a marker named twice is.
+                if (acc.kickerRiders.length > 0)
+                    return "a card declares a kicked entry rider twice";
                 acc.entersWithCounters.push(...out.kickerCounters.counters);
-                acc.kickerRiders.push(out.kickerCounters.per);
+                acc.kickerRiders.push({
+                    per: out.kickerCounters.per,
+                    line: parsed.line,
+                });
             }
             if (out.staticAbility !== undefined) {
                 // The same duplicate check the keyword-line slot pays: a
@@ -402,7 +410,7 @@ export function lowerCard(
     if (kickerLines.length > 1)
         return {
             ok: false,
-            reason: "a card declares kicker on two lines (CR 702.33b)",
+            reason: "a card declares kicker on two lines (one kicker line per card, the catalogue convention)",
             fragment: kickerLines[1]!.line,
         };
     const kickerLine = kickerLines[0];
@@ -486,22 +494,23 @@ export function lowerCard(
     // 0 or N, which that tally gives only for a lone, single kicker: a second
     // kicker or Multikicker would multiply the counters. "For each time it
     // was kicked" is the tally itself, and needs only a kicker to count.
-    if (acc.kickerRiders.length > 0) {
+    const rider = acc.kickerRiders[0];
+    if (rider !== undefined) {
         const kickers = acc.kickers ?? [];
         if (kickers.length === 0)
             return {
                 ok: false,
                 reason: "a kicked entry rider on a card that prints no kicker (CR 702.33e)",
-                fragment: card.oracleText,
+                fragment: rider.line,
             };
         if (
-            acc.kickerRiders.includes("kicked") &&
+            rider.per === "kicked" &&
             (kickers.length !== 1 || kickers[0]!.multi === true)
         )
             return {
                 ok: false,
                 reason: '"if it was kicked" counted by the kicker tally needs exactly one single kicker (CR 702.33d)',
-                fragment: card.oracleText,
+                fragment: rider.line,
             };
     }
     if (acc.kickers !== undefined) definition.kickers = acc.kickers;

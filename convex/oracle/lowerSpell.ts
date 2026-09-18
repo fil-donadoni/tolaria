@@ -237,13 +237,13 @@ export function lowerKickers(
             if (colors.length === 0)
                 return {
                     ok: false,
-                    reason: "a colourless cost in a kicker pair has no id (CR 702.33b)",
+                    reason: "a colourless cost in a kicker pair has no id under the catalogue's colour-named convention",
                 };
             id = `kicker-${colors.join("").toLowerCase()}`;
             if (out.some((k) => k.id === id))
                 return {
                     ok: false,
-                    reason: `two kicker costs both named "${id}" (CR 702.33b)`,
+                    reason: `two kicker costs both named "${id}" under the catalogue's colour-named convention`,
                 };
         }
         const cost: KickerCost = { id, description: kicker.description };
