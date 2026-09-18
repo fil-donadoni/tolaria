@@ -4062,7 +4062,14 @@ export function planSmokeTest(
         // `card-dependent` clause in its body (`moveZone` of an unmodelled
         // object). Only a skipped script is walked: a script that RUNS is
         // asserted as it is, and walking it could only invent reasons.
-        const nested = emptyRequirements(site);
+        //
+        // The nested walk is always a SPELL-site walk, whatever hosts the
+        // script (issue #3831 review): it reads Ops that will NOT run — the
+        // plan has already skipped — so the seeded source proves nothing about
+        // them, and accepting a `$source` subject here would let an op-covered
+        // container (`mayPay` + `if`) hide a body acting on `$source`. That is
+        // the very fail-open this walk exists to close (ADR 0105 § 7.1).
+        const nested = emptyRequirements("spell");
         for (const op of nestedOps(effects)) analyseOpFully(op, nested);
         return skipPlan([...built.skip, ...nested.skips]);
     }

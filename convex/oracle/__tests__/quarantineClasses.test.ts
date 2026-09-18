@@ -114,6 +114,18 @@ const SELF_BOUNCE_TWO = oracleCard({
     power: "1",
     toughness: "1",
 });
+// An op-covered CONTAINER (`mayPay` + `if`) whose body acts on `$source`:
+// the plan skips, so nothing is ever resolved against the seeded source and
+// the body's subject stays card-dependent (ADR 0105 § 7.1, issue #3831 review).
+const MAY_SELF_COUNTER = oracleCard({
+    name: "Scavenger Drake",
+    manaCost: "{3}{B}",
+    typeLine: "Creature — Drake",
+    oracleText:
+        "Flying\nWhenever another creature dies, you may put a +1/+1 counter on this creature.",
+    power: "1",
+    toughness: "1",
+});
 const SELF_HASTE = oracleCard({
     name: "Hasty Tester",
     manaCost: "{1}{R}",
@@ -170,6 +182,16 @@ describe("card-dependent smoke skips quarantine until a fixture exhibits the for
         expect(outcome.state).toBe("quarantine");
         expect(smokeReasons(outcome)).toEqual([
             expect.stringContaining(`Op "moveZone"`),
+        ]);
+    });
+
+    it("an op-covered container does not hide a $source body that never runs", () => {
+        // The seeded source is evidence only for a script that RUNS: this one
+        // skips at `mayPay`, so its `$source` counters clause is unproven.
+        const outcome = compileCard(MAY_SELF_COUNTER);
+        expect(outcome.state).toBe("quarantine");
+        expect(smokeReasons(outcome)).toEqual([
+            expect.stringContaining(`Op "counters" targets $source/$each`),
         ]);
     });
 
