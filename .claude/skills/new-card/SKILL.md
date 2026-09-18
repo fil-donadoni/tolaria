@@ -67,7 +67,7 @@ the gates cannot disagree:
 jq -r --arg n "<Card Name>" '. as $l | $l.cards[] | select(.name==$n)
   | "state=\(.state)  ops=\(.opsUsed // [])  quarantine=\(.quarantineReasons // [])",
     ((.gaps // [])[] as $i | $l.fragments[$i]
-      | "  fragment: \(.text)\n    reason: \(.reason)  attribution: \(.attribution // "—")  corpus: \(.cards)")' \
+      | "  fragment: \(.text)\n    reason: \(.reason)  attribution: \(.attribution // "—")  fragment-cards: \(.cards)")' \
   data/oracle-compiled.json
 ```
 
@@ -75,17 +75,43 @@ Nothing printed → the card is not in the pinned corpus (§2b). Otherwise the
 `state` picks the branch, and **the branch is the whole decision — never write
 a definition because the card "looks simple"**:
 
-| `state`                                 | What the card needs               | §   |
-| --------------------------------------- | --------------------------------- | --- |
-| `ready`                                 | nothing authored — artefacts only | §3  |
-| `quarantine`                            | the engine owes a mechanic        | §4  |
-| `unparsed`, any gap ≥ `handTailFloor`   | a Grammar Rule                    | §5  |
-| `unparsed`, every gap < `handTailFloor` | the hand tail — write it          | §6  |
+| `state`                                  | What the card needs               | §   |
+| ---------------------------------------- | --------------------------------- | --- |
+| `ready`                                  | nothing authored — artefacts only | §3  |
+| `quarantine`                             | the engine owes a mechanic        | §4  |
+| `unparsed`, any gap's leverage ≥ floor   | a Grammar Rule                    | §5  |
+| `unparsed`, every gap's leverage < floor | the hand tail — write it          | §6  |
 
-`handTailFloor` is `data/targets.json`'s (3 today), measured as a gap's corpus
-`refuses` — the cards in all of Magic carrying that gap. A rule that pays for
-fewer than the floor is a per-card script in grammar's clothing (wayfinder
-issue #3848), which is why the floor, not the card's urgency, decides §5 vs §6.
+### 2a. The floor comparison runs on the GAP, never on the fragment
+
+`fragments[].cards` above is **not** the number the floor is compared against,
+and using it is the one way to land in §6 a card that belongs in §5. It counts
+the cards printing that fragment's EXACT literal text; the floor is compared
+against a gap's **leverage** — the cards carrying the GAP, whose key folds
+mana amounts to `{…}` and numbers to `N` and counts each card once across all
+its lines (`gapIndex` in `scripts/lib/targets.ts`, the same measure
+`coverageVerdict`, `check:targets` and `buildHandTailFilings` use;
+`scripts/lib/gap-kinds.ts`'s header states it outright). 11,436 fragments in
+today's lockfile sit below the floor on `.cards` while their gap is at or above
+it — Greta, Sweettooth Scourge prints two fragments of one card each, and their
+gap `activated › activation cost › object descriptor › Food` refuses 19.
+
+So take the attribution from the jq, build the key (`slot › path › span`,
+folded), and read the leverage off the report — its header is the authority:
+
+```bash
+L="$SCRATCHPAD/gap.log"
+bun run oracle:report --gap "<key or a unique substring of the span>" >"$L" 2>&1; echo "exit=$?"; head -5 "$L"
+```
+
+`corpus: <C> compile / <R> refuse` — **`R` is the leverage**, the figure the
+floor is compared against (`C` is the subset this gap is the card's ONLY gap
+for, i.e. the cards the rule alone graduates). An ambiguous substring exits 1
+and lists the candidates; pick one, never the first.
+
+`handTailFloor` is `data/targets.json`'s (3 today). A rule that pays for fewer
+than the floor is a per-card script in grammar's clothing (wayfinder issue
+#3848), which is why the floor, not the card's urgency, decides §5 vs §6.
 
 Read the card's coverage state back the same way the gate does, when the card
 belongs to a registered Target:
@@ -100,9 +126,11 @@ that state — one of them is 28k names long, and it lands in the transcript
 whole.)
 
 States are `ready` / `quarantine` / `gap-pending` / `hand-tail` / `unclaimed`
-(`scripts/lib/targets.ts` § `coverageVerdict`). **`unclaimed` is the only red**
-— it means no issue stands behind the card's state, and closing that is part of
-whichever branch you take.
+(`scripts/lib/targets.ts` § `coverageVerdict`). `check:targets` reds on two of
+them: **`unclaimed`** — no issue stands behind the card's state, and closing
+that is part of whichever branch you take — and a **migrable `hand-tail:`
+marker**, one on a card whose row is now `ready` (retire the twin, ADR 0114) or
+whose gap has climbed back to the floor (flip it to `compiler-gap:`).
 
 ### 2b. Not in the corpus
 
@@ -167,6 +195,12 @@ every card carrying it — never this one card:
   (`.claude/rules/gre-development.md`), on its `Quarantine (mechanic):` issue.
 - `smoke-scenario` → a card-dependent form owed a `GOLDEN_FIXTURES` row
   (ADR 0105 § 7.1), on its `Quarantine (scenario):` issue.
+- `validate-effect-script` / `wire-projection` / `not-json` → the compiled
+  definition is well-formed to the grammar and wrong to the ENGINE: it fails
+  validation, does not survive `projectPublicState`, or is not plain JSON.
+  `quarantineClass` buckets all three under the same `scenario` claim kind, so
+  they share the `Quarantine (scenario):` issue shape — but the fix is in the
+  lowering or the engine surface, not in a fixture.
 
 Find the issue that already stands behind the class before opening anything —
 `gaps:sync` files these idempotently and writes the number back:
@@ -184,13 +218,15 @@ at all — that is the point of the state.
 This is the case ADR 0137 exists for: the card is one of N the same rule
 unlocks, and writing it by hand buys one card and leaves the other N-1.
 
-1. **Attribute the fragment** — §2 printed it: text, reason, attribution
-   (`slot › path › span`) and its corpus count.
+1. **Attribute the fragment** — §2 printed it, §2a turned it into a gap key
+   and read its leverage off `oracle:report --gap`.
 2. **Find or lodge the gap issue.** `data/grammar-gaps.json` holds the filed
    claims (`ops` rows for the Op census, `claims` rows for the other kinds).
-   Nothing there → run `bun run gaps:sync --dry-run` **from the primary
-   checkout** (never a worktree: it commits and pushes the allowlist from its
-   cwd) and read the computed plan. Still nothing → open it by hand, titled
+   Nothing there → run `bun run gaps:sync --dry-run` and read the computed
+   plan. `--dry-run` writes nothing, but run it **from the primary checkout**
+   anyway, never a worktree: drop the flag by accident there and it commits the
+   allowlist and pushes `HEAD` onto the base branch from its cwd. Still nothing
+   → open the issue by hand, titled
    `Grammar Gap: <key>`, labelled `ready-for-agent` + `area:mechanics`,
    parented on the Op-gap umbrella issue #3972 for an Op gap or PRD issue #3820
    otherwise, with a `## Target files` section — the queue planner runs an

@@ -490,6 +490,32 @@ describe("/new-card compiles first, hand-writes last (ADR 0137, issue #3836)", (
             expect(scanner).toContain(`${marker}:`);
     });
 
+    it("compares the floor against the GAP's leverage, not a fragment's own count", () => {
+        // The defect this guards, found in review of issue #3836: the lockfile
+        // row prints `fragments[].cards`, the cards printing that fragment's
+        // exact literal text — while `coverageVerdict` and
+        // `buildHandTailFilings` compare the floor against `gapIndex().leverage`,
+        // the cards carrying the shape-folded GAP, counted once each. 11,436 of
+        // today's fragments are below the floor on the first number and at or
+        // above it on the second, so a skill that conflates them files
+        // `hand-tail:` markers on cards that owe a Grammar Rule.
+        const text = body();
+        expect(text).toMatch(/leverage/);
+        expect(text).toMatch(/oracle:report --gap/);
+        // …and it says which of the report's two figures is the one compared.
+        expect(text).toMatch(/refuse\*\* is the leverage|`R` is the leverage/);
+        const src = fs.readFileSync(
+            path.join(REPO_ROOT, "scripts", "lib", "targets.ts"),
+            "utf8"
+        );
+        expect(src).toContain("export function gapIndex");
+        const reportSrc = fs.readFileSync(
+            path.join(REPO_ROOT, "scripts", "oracle-report.ts"),
+            "utf8"
+        );
+        expect(reportSrc).toContain('flag("--gap")');
+    });
+
     it("states the three anti-Forge guards (ADR 0137)", () => {
         expect(body()).toMatch(/Add a structural construct/);
         expect(body()).toMatch(/Name an Op after a card/);
