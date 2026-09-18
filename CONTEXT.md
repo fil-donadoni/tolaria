@@ -918,6 +918,22 @@ _Avoid_: Unlocks, sole-gap count, unblocks
 The cards the gap refuses — every card with at least one line failing there, counted once however many of its lines do. The gap's potential: those cards compile only once their other gaps fall too. The second ranking key, and — over the corpus — the leverage tie-break.
 _Avoid_: Blocks, blast radius, affected cards
 
+**Target List**:
+A named list of cards an objective requires — a deck list, a name list (the Vintage Cube), a set, or a format pool — registered as one row in `data/targets.json` and resolved fail-closed to **Card Corpus** ids: an unresolved name throws, the denominator never shrinks. A **Grammar Gap** is ranked by the cards it unlocks in each Target List, in the order of their priority, with the corpus as tie-break; changing that order is editing two integers, never code.
+_Avoid_: Target alone (the row is the list, the objective is what needs it), objective, pool (reserved for **Deck Pool** and **Compiled Pool**), set (a Target List may be one; most are not)
+
+**Coverage Invariant**:
+Every card of every **Target List** is in exactly one state — `ready`; `quarantine` whose reason class is claimed by an open **Gap** issue; `gap-pending`, every residual **Grammar Gap** at or above the hand-tail floor having its issue; **Hand Tail** — and anything else is red on `health`. It is what makes closing a hand-authoring issue safe: an issue for a card may close only because the invariant proves the tooling holds that card. Playable (`ready` or hand-written) is a separate figure — the release gate, not the invariant.
+_Avoid_: Coverage (the percentage; this is the guard), completeness, checklist
+
+**Hand Tail**:
+The cards of a **Target List** whose residual **Grammar Gaps** all sit below the hand-tail floor — a rule that would unlock fewer corpus cards than the floor (initially three) is a per-card script in grammar's clothing, so the card is written by hand instead, one issue per card, and carries a terminal `hand-tail:` marker naming its fragment. A state, never a sentence: the **Oracle Lockfile** compiles every corpus card, hand-written ones included, so a Hand Tail card whose row turns `ready` is migrated (**Card Retirement**), and one whose gaps climb back above the floor re-enters the grammar queue — both red on `health` until acted on. A Target List is complete at 100% playable with its Hand Tail declared by name, never at 100% grammar.
+_Avoid_: Exception, unsupported, manual card, legacy card, residue (that is the queue before the floor is applied)
+
+**Gap**:
+Anything the tooling computed to be missing and files as an issue — never a person's observation. Six kinds, one filer (`gaps:sync`), one allowlist, a stable key each: **Grammar Gap** (a missing **Grammar Rule**); Mechanic Gap (a keyword the **Mechanics Registry** lists as planned, holding compiled cards in `quarantine`); Scenario Gap (a form the generated smoke scenario cannot exercise); Bot Gap (a compiled card the Bot ignores); **Hand Tail** (a card below the floor); Migration (hand-written cards a landed rule now compiles, clustered by that rule). Every kind is ranked per **Target List**; an issue closes through its PR, never because the gap disappeared.
+_Avoid_: Bug (a Gap is an absence, not a defect), TODO, backlog item, finding (that is the drawer for what a person noticed and was not asked to fix)
+
 **Card Retirement**:
 Deleting a hand-written **Card Definition** once its compiled twin is proven to behave identically, leaving the **Oracle Lockfile** as the only copy. The card's own test does not go with it — it moves onto the registry lookup, because it is the only standing proof that the compilation was ever right. A retired card's lockfile row is marked as such, so a later change to it is reviewed rather than merely diffed.
 _Avoid_: Deletion, deprecation, cleanup
