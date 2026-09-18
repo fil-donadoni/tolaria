@@ -188,7 +188,7 @@ comes FROM:
 | `/audit-tracker <N>` | Stale roll-up issue             | Re-verifies gaps vs HEAD, slices survivors, retires the tracker                              |
 | `/mtg-rules-check`   | Before any game mechanic        | CR text + implementation status                                                              |
 | `/gre-test`          | Adding/modifying GRE logic      | Generates vitest tests per project patterns                                                  |
-| `/new-op`            | Card needs a missing DSL verb   | Walks all seven Op registration sites + the Op's permanent test                              |
+| `/new-op`            | Card needs a missing DSL verb   | Walks all eight Op sites (+ emitting Grammar Rule) + permanent test                          |
 | `/bot-slice`         | Any play-Bot / draft-Bot change | Maps the AI subsystem, walks seams, enforces verification doctrine                           |
 
 **Workflow skills are versioned in this repo** (`.claude/skills/…`), changed
