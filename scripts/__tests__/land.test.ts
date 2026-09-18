@@ -18,6 +18,7 @@ import {
     issueOfBranch,
     releaseClaimStep,
     recordLandingStep,
+    gapsSyncStep,
     healthDetachStep,
     lockedEnv,
     laneStep,
@@ -448,6 +449,39 @@ describe("land.ts — the locked command", () => {
         expect(step.startsWith("(cd '/repo' && ")).toBe(true);
         // Non-gating, like the rest of the post-merge housekeeping.
         expect(step.endsWith("; true)")).toBe(true);
+    });
+
+    it("syncs Grammar/Bot Gap issues post-merge, beside the preset-scenario seeding, non-gating (ADR 0137, issue #3829)", () => {
+        const cmd = buildLockedCommand(base);
+        const step = gapsSyncStep("/repo");
+        expect(cmd).toContain(step);
+        expect(step).toMatch(/bun '[^']*gaps-sync\.ts'/);
+        expect(step.startsWith("(cd '/repo' && ")).toBe(true);
+        // Non-gating: a `gh` outage must never turn a merged PR into a
+        // reported failure.
+        expect(step.endsWith("; true)")).toBe(true);
+        expect(step).toContain(
+            'echo "land: gaps:sync failed — Grammar/Bot Gap issues may be stale" >&2'
+        );
+        // Beside the preset-scenario seeding — AFTER it, same as the issue
+        // body says ("beside the preset-scenario seeding it already does").
+        const seedIdx = cmd.indexOf("seed-scenario.ts");
+        const gapsIdx = cmd.indexOf("gaps-sync.ts");
+        expect(gapsIdx).toBeGreaterThan(seedIdx);
+        // Past the merged-tip verification too, like the rest of the housekeeping.
+        expect(gapsIdx).toBeGreaterThan(
+            cmd.indexOf(`$OLD_TIP..${ORIGIN_BASE}`)
+        );
+    });
+
+    it("does not sync gaps without a merge (--no-merge gates and pushes only)", () => {
+        const cmd = buildLockedCommand({ ...base, merge: false });
+        expect(cmd).not.toContain("gaps-sync.ts");
+    });
+
+    it("syncs gaps even under --keep — teardown is about the worktree, not the sync", () => {
+        const cmd = buildLockedCommand({ ...base, teardown: false });
+        expect(cmd).toContain("gaps-sync.ts");
     });
 
     it("starts the batch-health decision LAST, through `spawn` and never by backgrounding it", () => {

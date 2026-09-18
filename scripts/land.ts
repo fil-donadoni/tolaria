@@ -303,6 +303,7 @@ const PR_MERGE = resolve(__dirname, "pr-merge.ts");
 const HEALTH_CADENCE_REL = "scripts/health-cadence.ts";
 const SEED_SCENARIO = resolve(__dirname, "seed-scenario.ts");
 const RESOLVE_ARTIFACTS = resolve(__dirname, "resolve-generated-artifacts.ts");
+const GAPS_SYNC = resolve(__dirname, "gaps-sync.ts");
 
 // Computed the same way scripts/__tests__/gate.test.ts computes it (from a
 // FILE's own directory, not from `import.meta.dir`, which is bun-only and
@@ -747,6 +748,28 @@ export function releaseClaimStep(branch: string): string | null {
 }
 
 /**
+ * `gaps:sync` post-merge (ADR 0137, issue #3829) — files or reconciles one
+ * issue per Grammar/Bot Gap allowlist row, "beside the preset-scenario
+ * seeding [`land`] already does" (issue #3829). Runs in the PRIMARY
+ * checkout, same as `SEED_SCENARIO` above and for the same reason: it must
+ * see the merged tree, and `__dirname` still resolves into this worktree at
+ * this point in the pipeline (before teardown — step ORDER, see
+ * `HEALTH_CADENCE_REL`'s comment for the failure mode that happens when a
+ * step like this one runs AFTER it instead).
+ *
+ * Non-gating like the rest of the post-merge housekeeping: a `gh` outage, a
+ * rate limit or a network blip must never turn a merged PR into a reported
+ * failure — the allowlist just stays stale until the next landing retries it.
+ */
+export function gapsSyncStep(primaryCheckout: string): string {
+    const p = shQuote(primaryCheckout);
+    return (
+        `(cd ${p} && bun ${shQuote(GAPS_SYNC)} || ` +
+        `echo "land: gaps:sync failed — Grammar/Bot Gap issues may be stale" >&2; true)`
+    );
+}
+
+/**
  * Record the landing in the batch-health ledger (ADR 0136 §6, issue #3780).
  *
  * The FULL gate runs per BATCH — after the 5th landing since the last GREEN,
@@ -865,6 +888,10 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
         steps.push(
             `(cd ${shQuote(opts.primaryCheckout)} && bun ${shQuote(SEED_SCENARIO)} ${opts.pr} || true)`
         );
+        // File/reconcile Grammar and Bot Gap issues (ADR 0137, issue #3829) —
+        // beside the preset-scenario seeding just above, non-gating for the
+        // same reason.
+        steps.push(gapsSyncStep(opts.primaryCheckout));
         // The claim outlives nothing: the PR is merged, the issue is closing.
         const release = releaseClaimStep(opts.branch);
         if (release !== null) steps.push(release);
