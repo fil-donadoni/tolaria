@@ -16,6 +16,7 @@ import { parseLockfile, type CardRow } from "../lib/oracle-lockfile";
 import {
     claimId,
     coverageState,
+    quarantineClass,
     gapIndex,
     parseNameList,
     parseTargetRegistry,
@@ -271,9 +272,10 @@ describe("coverage states — exactly one per card", () => {
         { text: "Unique ability.", reason: ROUTER, cards: 1 },
         { text: "Another unique ability.", reason: ROUTER, cards: 1 },
     ];
+    const HELD = { kind: "planned-mechanic" as const, detail: "keyword" };
     const cards: CardRow[] = [
         row("r", "Ready", "ready"),
-        row("q", "Held", "quarantine"),
+        row("q", "Held", "quarantine", { quarantineReasons: [HELD] }),
         // Four corpus cards carry the widespread gap: above the floor of 3.
         row("p1", "Pending One", "unparsed", { gaps: [0] }),
         row("p2", "Pending Two", "unparsed", { gaps: [0] }),
@@ -293,7 +295,10 @@ describe("coverage states — exactly one per card", () => {
         handTail: new Set(["h", "hr", "hc"]),
         closure: new Set(),
         // The widespread gap has its grammar issue; nothing else is claimed.
-        claims: new Set([claimId("grammar", WIDESPREAD!)]),
+        claims: new Set([
+            claimId("grammar", WIDESPREAD!),
+            claimId("mechanic", quarantineClass(HELD).key),
+        ]),
         byOracleId,
         ...gaps,
     };
