@@ -26,16 +26,20 @@ function goldenDefect(fixture: GoldenFixture): string | null {
     return null;
 }
 
-const SELF_PUMP = oracleCard({
-    name: "Darkling Stalker",
-    manaCost: "{3}{B}",
-    typeLine: "Creature — Shade Spirit",
-    oracleText: "{B}: Darkling Stalker gets +1/+1 until end of turn.",
+// A card whose script the canned smoke generator cannot scenario-ize (its
+// `moveZone` leaves the battlefield), so it exhibits a card-dependent form and
+// a fixture of it clears something. A `$source` pump does NOT qualify any more
+// — the generator seeds the ability's source and runs it (issue #3831).
+const SELF_BOUNCE = oracleCard({
+    name: "Flickering Sprite",
+    manaCost: "{1}{U}",
+    typeLine: "Creature — Faerie",
+    oracleText: "{2}: Return Flickering Sprite to its owner's hand.",
     power: "1",
     toughness: "1",
 });
 
-function compiledOf(card = SELF_PUMP) {
+function compiledOf(card = SELF_BOUNCE) {
     const outcome = compileCard(card);
     if (outcome.state === "unparsed") throw new Error("does not parse");
     return outcome.definition;
@@ -50,7 +54,7 @@ describe("golden fixtures (ADR 0137)", () => {
         expect(
             goldenDefect({
                 rule: "effect clause",
-                card: SELF_PUMP,
+                card: SELF_BOUNCE,
                 expected: compiledOf(),
             })
         ).toBeNull();
@@ -61,7 +65,7 @@ describe("golden fixtures (ADR 0137)", () => {
         expect(
             goldenDefect({
                 rule: "effect clause",
-                card: SELF_PUMP,
+                card: SELF_BOUNCE,
                 expected: { ...expected, power: 2 },
             })
         ).toMatch(/different definition/);

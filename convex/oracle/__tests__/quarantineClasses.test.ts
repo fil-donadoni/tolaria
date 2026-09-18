@@ -1,10 +1,12 @@
 // ADR 0105 § 7.1 (issue #3823) — the two classes of smoke skip.
 //
-// An `op-covered` skip (a dormant regeneration shield, a Pay/Skip suspension,
-// an untap of a permanent the generator already seeds untapped) is the per-Op
+// An `op-covered` skip (a Pay/Skip suspension, an untap of a permanent the
+// generator already seeds untapped) is the per-Op
 // regime of ADR 0045 and no longer withholds a Compiled Definition. A
-// `card-dependent` skip (`$source` targeting, an unmodelled zone, a cast-time
-// X) withholds the card until a golden fixture exhibits the same form.
+// `card-dependent` skip (an unmodelled zone, a cast-time X) withholds the card
+// until a golden fixture exhibits the same form. An ability acting on its own
+// `$source` is no longer one: the smoke generator seeds the source permanent
+// and runs the script against it (issue #3831).
 
 import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
@@ -47,13 +49,13 @@ function fixture(card: OracleCard): GoldenFixture {
 }
 
 // Real corpus cards, as the compiler receives them.
-const REGENERATOR = oracleCard({
-    name: "Metallurgeon",
-    manaCost: "{1}{W}",
-    typeLine: "Artifact Creature — Human Artificer",
-    oracleText: "{W}, {T}: Regenerate target artifact.",
-    power: "1",
-    toughness: "2",
+const UNTAPPER = oracleCard({
+    name: "Seeker of Skybreak",
+    manaCost: "{1}{G}",
+    typeLine: "Creature — Elf",
+    oracleText: "{T}: Untap target creature.",
+    power: "2",
+    toughness: "1",
 });
 const SELF_REGENERATOR = oracleCard({
     name: "Odious Trow",
@@ -96,6 +98,34 @@ const SELF_PUMP_TWO = oracleCard({
     power: "0",
     toughness: "1",
 });
+const SELF_BOUNCE = oracleCard({
+    name: "Flickering Sprite",
+    manaCost: "{1}{U}",
+    typeLine: "Creature — Faerie",
+    oracleText: "{2}: Return Flickering Sprite to its owner's hand.",
+    power: "1",
+    toughness: "1",
+});
+const SELF_BOUNCE_TWO = oracleCard({
+    name: "Skittish Wisp",
+    manaCost: "{U}",
+    typeLine: "Creature — Spirit",
+    oracleText: "{3}{U}: Return Skittish Wisp to its owner's hand.",
+    power: "1",
+    toughness: "1",
+});
+// An op-covered CONTAINER (`mayPay` + `if`) whose body acts on `$source`:
+// the plan skips, so nothing is ever resolved against the seeded source and
+// the body's subject stays card-dependent (ADR 0105 § 7.1, issue #3831 review).
+const MAY_SELF_COUNTER = oracleCard({
+    name: "Scavenger Drake",
+    manaCost: "{3}{B}",
+    typeLine: "Creature — Drake",
+    oracleText:
+        "Flying\nWhenever another creature dies, you may put a +1/+1 counter on this creature.",
+    power: "1",
+    toughness: "1",
+});
 const SELF_HASTE = oracleCard({
     name: "Hasty Tester",
     manaCost: "{1}{R}",
@@ -115,11 +145,11 @@ const MAY_BOUNCE = oracleCard({
 });
 
 describe("op-covered smoke skips no longer quarantine (ADR 0105 § 7.1)", () => {
-    it("a dormant regeneration shield (CR 701.19a) on a target reaches ready", () => {
-        const outcome = compileCard(REGENERATOR);
+    it("an untap of a target the generator seeds untapped reaches ready", () => {
+        const outcome = compileCard(UNTAPPER);
         expect(outcome.state).toBe("ready");
         if (outcome.state === "ready")
-            expect(outcome.opsUsed).toContain("regenerate");
+            expect(outcome.opsUsed).toContain("tapUntap");
     });
 
     it("a Pay/Skip suspension guarding an assertable body reaches ready", () => {
@@ -132,24 +162,48 @@ describe("op-covered smoke skips no longer quarantine (ADR 0105 § 7.1)", () => 
     });
 });
 
+describe("an ability acting on its own $source is smoked, not quarantined (issue #3831)", () => {
+    it.each([
+        ["pump", SELF_PUMP],
+        ["pump", SELF_PUMP_TWO],
+        ["grantAbility", SELF_HASTE],
+        ["regenerate", SELF_REGENERATOR],
+    ])("a $source %s reaches ready with no fixture", (op, card) => {
+        const outcome = compileCard(card);
+        expect(smokeReasons(outcome)).toEqual([]);
+        expect(outcome.state).toBe("ready");
+        if (outcome.state === "ready") expect(outcome.opsUsed).toContain(op);
+    });
+});
+
 describe("card-dependent smoke skips quarantine until a fixture exhibits the form", () => {
-    it("a $source pump stays quarantined with no fixture", () => {
-        const outcome = compileCard(SELF_PUMP);
+    it("a $source zone change stays quarantined with no fixture", () => {
+        const outcome = compileCard(SELF_BOUNCE);
         expect(outcome.state).toBe("quarantine");
         expect(smokeReasons(outcome)).toEqual([
-            `Op "pump" targets $source/$each — covered by the card's own per-card test`,
+            expect.stringContaining(`Op "moveZone"`),
+        ]);
+    });
+
+    it("an op-covered container does not hide a $source body that never runs", () => {
+        // The seeded source is evidence only for a script that RUNS: this one
+        // skips at `mayPay`, so its `$source` counters clause is unproven.
+        const outcome = compileCard(MAY_SELF_COUNTER);
+        expect(outcome.state).toBe("quarantine");
+        expect(smokeReasons(outcome)).toEqual([
+            expect.stringContaining(`Op "counters" targets $source/$each`),
         ]);
     });
 
     it("clears once a fixture of ANOTHER card exhibits the same form", () => {
-        const definition = compiled(SELF_PUMP);
+        const definition = compiled(SELF_BOUNCE);
         expect(gate(definition, [])).toHaveLength(1);
-        expect(gate(definition, [fixture(SELF_PUMP_TWO)])).toEqual([]);
+        expect(gate(definition, [fixture(SELF_BOUNCE_TWO)])).toEqual([]);
     });
 
     it("a fixture of a different form clears nothing", () => {
-        const definition = compiled(SELF_PUMP);
-        expect(gate(definition, [fixture(SELF_HASTE)])).toHaveLength(1);
+        const definition = compiled(SELF_BOUNCE);
+        expect(gate(definition, [fixture(MAY_BOUNCE)])).toHaveLength(1);
     });
 
     it("an op-covered container does not hide a card-dependent body", () => {
@@ -159,14 +213,6 @@ describe("card-dependent smoke skips quarantine until a fixture exhibits the for
         expect(outcome.state).toBe("quarantine");
         expect(smokeReasons(outcome)).toEqual([
             expect.stringContaining(`Op "moveZone"`),
-        ]);
-    });
-
-    it("an op-covered Op does not hide a $source subject in its own arguments", () => {
-        const outcome = compileCard(SELF_REGENERATOR);
-        expect(outcome.state).toBe("quarantine");
-        expect(smokeReasons(outcome)).toEqual([
-            `Op "regenerate" acts on $source — covered by the card's own per-card test`,
         ]);
     });
 

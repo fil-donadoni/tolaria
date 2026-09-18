@@ -32,6 +32,7 @@
 import type {
     CardDefinition,
     EffectCountSpec,
+    EffectObjectSelector,
     EffectOp,
     EffectPlayerRef,
     EffectValue,
@@ -53,6 +54,20 @@ import {
  *  opponent / target owner. CR 102.2 — a two-player game. */
 export const CASTER_ID = "p1";
 export const OPPONENT_ID = "p2";
+
+/** The instance id of the SOURCE permanent a scenario seeds when an ability
+ *  script acts on `{ ref: "$source" }` (issue #3831). It is a filler creature
+ *  on the caster's battlefield; the caller pushes the ability's stack item
+ *  under this same id, which is what binds `$source` to it (CR 113.7 — an
+ *  ability's source is the object that created it; `seedSourceBindings` in
+ *  `interpreter.ts` snapshots `sourceInstanceId`, i.e. the stack item's id). */
+export const SOURCE_PERMANENT_ID = "gen-source";
+
+/** Where a script is hosted. Only an ABILITY has a source permanent for
+ *  `$source` to name (CR 113.7); a spell's `$source` is the spell itself on
+ *  the stack, which the canned scenario does not model — so a spell-site
+ *  `$source` subject stays a card-dependent skip. */
+export type SmokeSite = "spell" | "ability";
 
 /** A vanilla creature used as a filler target / library card / zone occupant.
  *  Toughness is high (8) so a smoke-test damage Op leaves observable marked
@@ -109,6 +124,10 @@ export interface Scenario {
      *  indexed by target slot — assertors reading a destroy/exile outcome look
      *  the permanent up by these. */
     targetPermanentIds: Record<number, string>;
+    /** The seeded source permanent (`SOURCE_PERMANENT_ID`) when an ability
+     *  script acts on `$source`; absent otherwise. The caller pushes the stack
+     *  item under this id instead of placing a source of its own. */
+    sourcePermanentId?: string;
     /** True when the script targets a player in at least one slot (drives the
      *  synthetic card's `targetRequirement`). */
     targetKind: "player" | "permanent" | "none";
@@ -137,8 +156,9 @@ export type Plan =
  *   Op. The Op's permanent test is the evidence — the per-Op regime of
  *   ADR 0045 — so the skip does not withhold a Compiled Definition.
  * - `card-dependent`: the skip is caused by what the CARD's clause feeds the Op
- *   (a `$source`/`$each` subject, a runtime amount, a cast-time X, an object or
- *   zone the canned scenario does not seed). No Op test can speak for it; the
+ *   (a `$each` subject, a `$source` one the site does not seed — see
+ *   `SmokeSite` — a runtime amount, a cast-time X, an object or zone the
+ *   canned scenario does not seed). No Op test can speak for it; the
  *   Oracle compiler withholds the card until the emitting Grammar Rule carries
  *   a golden fixture for that form (`convex/oracle/gates.ts`).
  *
@@ -315,6 +335,13 @@ interface Requirements {
     countSets: EffectCountSpec[];
     /** Every reason the script cannot be scenario-ized; empty when it can. */
     skips: SmokeSkip[];
+    /** The site hosting the script — whether `$source` names a permanent. */
+    site: SmokeSite;
+    /** An Op acts on `$source`: seed the source permanent. */
+    sourceSubject: boolean;
+    /** The tap state an Op drives `$source` to. An untap seeds the source
+     *  tapped, so the untap has an outcome to observe. */
+    sourceTapAction?: "tap" | "untap";
     /** The Op `analyseOp` is walking — stamped on each skip it raises. */
     currentOp?: EffectOp;
 }
@@ -836,6 +863,49 @@ function recordSlot(
         return;
     }
     req.targetSlots.set(slot, kind);
+}
+
+function isSourceRef(selector: EffectObjectSelector): boolean {
+    return "ref" in selector && selector.ref === "$source";
+}
+
+/** True when the canned scenario can seed the object `selector` names: an
+ *  announced target slot, or — at an ability site — the ability's own source
+ *  permanent (issue #3831). `$each` (a runtime-selected `forEach` member) and a
+ *  spell-site `$source` are not modelled. */
+function subjectModelled(
+    req: Requirements,
+    selector: EffectObjectSelector
+): boolean {
+    return (
+        "target" in selector ||
+        (isSourceRef(selector) && req.site === "ability")
+    );
+}
+
+/** Records the permanent subject of an Op `subjectModelled` accepted. The
+ *  skip REASONS at the call sites still read "targets $source/$each" although
+ *  only `$each` (or a spell site) can reach them: `smokeSkipForm` hashes the
+ *  reason, so rewording one invalidates every golden fixture whose form it
+ *  spells (ADR 0137). */
+function recordSubject(
+    req: Requirements,
+    selector: EffectObjectSelector
+): void {
+    if ("target" in selector) recordSlot(req, selector.target, "permanent");
+    else req.sourceSubject = true;
+}
+
+/** The seeded permanent an Op's subject names in the built scenario, or
+ *  undefined when the scenario seeded none for it (`$each`, a spell-site
+ *  `$source` — skipped upstream in `analyseOp`). */
+function subjectPermanentId(
+    scenario: Scenario,
+    selector: EffectObjectSelector
+): string | undefined {
+    if ("target" in selector)
+        return scenario.targetPermanentIds[selector.target];
+    return isSourceRef(selector) ? scenario.sourcePermanentId : undefined;
 }
 
 /** Walks a single Op, recording what the scenario must provide. Unknown Op
@@ -1439,10 +1509,10 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // `pump` (issue #840) adds a temporary P/T buff (CR 613.4c). The
             // generator can assert a FIXED-amount pump on an announced
             // permanent slot (it seeds a filler creature there and reads the
-            // effective P/T delta after resolution). A `$source` / `$each`
+            // effective P/T delta after resolution). A `$each` (or spell-site `$source`)
             // target or a `ref`/`count` amount is not modelled — skip and let
             // the card's own per-card test cover it.
-            if (!("target" in op.target)) {
+            if (!subjectModelled(req, op.target)) {
                 skipBecause(
                     req,
                     "source-or-each-subject",
@@ -1461,13 +1531,13 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 );
                 return;
             }
-            recordSlot(req, op.target.target, "permanent");
+            recordSubject(req, op.target);
             return;
         case "counters":
             // `counters` (issue #841) puts/removes counters (CR 122). The
             // generator can assert a FIXED-count ADD on an announced permanent
             // slot (it seeds a filler creature there and reads the counter
-            // tally after resolution). A `$source` / `$each` target, a
+            // tally after resolution). A `$each` (or spell-site `$source`) target, a
             // `ref`/`count` amount, or a `remove` (which needs pre-seeded
             // counters the canned generator does not place) is not modelled —
             // skip and let the card's own per-card test cover it.
@@ -1479,7 +1549,7 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 );
                 return;
             }
-            if (!("target" in op.target)) {
+            if (!subjectModelled(req, op.target)) {
                 skipBecause(
                     req,
                     "source-or-each-subject",
@@ -1495,19 +1565,21 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 );
                 return;
             }
-            recordSlot(req, op.target.target, "permanent");
+            recordSubject(req, op.target);
             return;
         case "setLevel":
             // `setLevel` (issue #3234) sets a permanent's class level
             // (CR 716.2a). The generator can assert it on an announced
             // permanent slot (it seeds a filler permanent there — level 1 by
             // CR 716.2d, since nothing seeds a level — and reads the level
-            // after resolution). A `$source` / `$each` target is not modelled;
-            // that is the shape EVERY class level bar uses (CR 716.2a's ability
-            // is printed on the Class it levels), so this Op's real coverage is
-            // its interpreter test plus Stormchaser's Talent's own per-card
-            // test, and the skip below is the surfaced signal saying so.
-            if (!("target" in op.target)) {
+            // after resolution) and, since a class level bar is printed on the
+            // Class it levels (CR 716.2a), on an ability's own `$source` —
+            // against the generic filler permanent, which is what that proves
+            // and all it proves: the level lands, not that a Class card's own
+            // bar reads right (Stormchaser's Talent's per-card test and the
+            // Op's interpreter test stay the behavioural guarantors). A `$each`
+            // (or spell-site `$source`) target is not modelled.
+            if (!subjectModelled(req, op.target)) {
                 skipBecause(
                     req,
                     "source-or-each-subject",
@@ -1515,17 +1587,19 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 );
                 return;
             }
-            recordSlot(req, op.target.target, "permanent");
+            recordSubject(req, op.target);
             return;
         case "tapUntap":
             // `tapUntap` (issue #842) taps/untaps a permanent (CR 701.26). The
-            // generator can assert a TAP on an announced permanent slot (it
-            // seeds a filler permanent there — untapped by default — and reads
-            // its tap state after resolution). An untap (the canned generator
+            // generator can assert a TAP on an announced permanent slot or on
+            // an ability's own source (it seeds a filler permanent there —
+            // untapped by default — and reads its tap state after resolution),
+            // and an UNTAP of the source, which it then seeds tapped (issue
+            // #3831). An untap of an announced slot (the canned generator
             // seeds untapped permanents, so there is nothing to observe) or a
-            // `$source` / `$each` target is not modelled — skip and let the
-            // card's own per-card test cover it.
-            if (op.action !== "tap") {
+            // `$each` target is not modelled — skip and let the card's own
+            // per-card test cover it.
+            if (op.action !== "tap" && !isSourceRef(op.target)) {
                 skipBecause(
                     req,
                     "untapped-seed",
@@ -1533,7 +1607,7 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 );
                 return;
             }
-            if (!("target" in op.target)) {
+            if (!subjectModelled(req, op.target)) {
                 skipBecause(
                     req,
                     "source-or-each-subject",
@@ -1541,16 +1615,33 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 );
                 return;
             }
-            recordSlot(req, op.target.target, "permanent");
+            if (isSourceRef(op.target)) {
+                // One seeded tap state serves one final-state assertion: a
+                // script that both taps and untaps its source is order-
+                // dependent, which the canned run does not model.
+                if (
+                    req.sourceTapAction !== undefined &&
+                    req.sourceTapAction !== op.action
+                ) {
+                    skipBecause(
+                        req,
+                        "source-or-each-subject",
+                        `Op "tapUntap" both taps and untaps $source — the canned run asserts one final tap state`
+                    );
+                    return;
+                }
+                req.sourceTapAction = op.action;
+            }
+            recordSubject(req, op.target);
             return;
         case "skipNextUntap":
             // `skipNextUntap` (PRD #795, CR 302.6/502.1) arms a one-shot
             // "doesn't untap next untap step" flag on a permanent. The
             // generator can assert it on an announced permanent slot (it seeds
             // a filler creature there and reads `skipNextUntap` after
-            // resolution). A `$source` / `$each` target is not modelled — skip
+            // resolution). A `$each` (or spell-site `$source`) target is not modelled — skip
             // and let the card's own per-card test cover it.
-            if (!("target" in op.target)) {
+            if (!subjectModelled(req, op.target)) {
                 skipBecause(
                     req,
                     "source-or-each-subject",
@@ -1558,16 +1649,16 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 );
                 return;
             }
-            recordSlot(req, op.target.target, "permanent");
+            recordSubject(req, op.target);
             return;
         case "grantAbility":
             // `grantAbility` (issue #843) grants a keyword static ability to a
             // permanent for a duration (CR 611.2a / 613.1f). The generator can
             // assert a grant on an announced permanent slot (it seeds a filler
             // creature there and reads its `staticAbilities` after resolution).
-            // A `$source` / `$each` target is not modelled — skip and let the
+            // A `$each` (or spell-site `$source`) target is not modelled — skip and let the
             // card's own per-card test cover it.
-            if (!("target" in op.target)) {
+            if (!subjectModelled(req, op.target)) {
                 skipBecause(
                     req,
                     "source-or-each-subject",
@@ -1575,7 +1666,7 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 );
                 return;
             }
-            recordSlot(req, op.target.target, "permanent");
+            recordSubject(req, op.target);
             return;
         case "animate":
             // `animate` (issue #1317) turns a permanent into a creature (CR
@@ -1613,10 +1704,10 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // `addSubtype` (issue #1194) adds a subtype to a permanent
             // INDEFINITELY (CR 613.1d layer 4). The generator can assert an
             // add on an announced permanent slot (it seeds a filler creature
-            // there and reads `subtypes` after resolution). A `$source` /
-            // `$each` target is not modelled — skip and let the card's own
+            // there and reads `subtypes` after resolution). A `$each` (or
+            // spell-site `$source`) target is not modelled — skip and let the card's own
             // per-card test cover it.
-            if (!("target" in op.target)) {
+            if (!subjectModelled(req, op.target)) {
                 skipBecause(
                     req,
                     "source-or-each-subject",
@@ -1637,7 +1728,7 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 );
                 return;
             }
-            recordSlot(req, op.target.target, "permanent");
+            recordSubject(req, op.target);
             return;
         case "setColor":
             // `setColor` (issue #1083) sets colorOverride (CR 613.1e layer
@@ -1798,28 +1889,33 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             );
             return;
         case "regenerate":
-            // CR 701.19 (issue #846) — a regeneration shield sits DORMANT until
-            // a later destroy event on the permanent consumes it; the canned
-            // scenario only resolves the spell (it never subsequently destroys
-            // the target), so the shield has no same-resolution outcome the
-            // generator can assert. Explicit skip — shield registration and
-            // consumption are covered by the Op's own interpreter tests (per-Op
-            // regime).
-            skipBecause(
-                req,
-                "dormant-shield",
-                `Op "regenerate" registers a dormant regeneration shield (no same-resolution destroy event) — covered by the Op's interpreter tests`
-            );
+            // CR 701.19a (issue #846) — a regeneration shield is a replacement
+            // effect that sits DORMANT until a later destroy event consumes it;
+            // the canned scenario never destroys anything afterwards, so the
+            // shield's CONSUMPTION is the Op's own interpreter tests (per-Op
+            // regime). Its REGISTRATION is observable in the same resolution —
+            // the shield count on the permanent rises by one — so the generator
+            // asserts that on an announced permanent slot or on an ability's
+            // own source (issue #3831: "Regenerate this creature"). A `$each`
+            // target is not modelled.
+            if (!subjectModelled(req, op.target)) {
+                skipBecause(
+                    req,
+                    "source-or-each-subject",
+                    `Op "regenerate" targets $source/$each — covered by the card's own per-card test`
+                );
+                return;
+            }
+            recordSubject(req, op.target);
             return;
         case "preventRegeneration":
             // `preventRegeneration` (CR 701.19c, issue #1283) sets an IMMEDIATE
-            // `cantBeRegeneratedThisTurn` flag on the target creature (unlike
-            // the dormant `regenerate` shield, the outcome is observable in the
-            // same resolution). The generator can assert it on an announced
+            // `cantBeRegeneratedThisTurn` flag on the target creature,
+            // observable in the same resolution. The generator can assert it on an announced
             // permanent slot (it seeds a filler creature there and reads the
-            // flag after resolution). A `$source` / `$each` target is not
+            // flag after resolution). A `$each` (or spell-site `$source`) target is not
             // modelled — skip and let the card's own per-card test cover it.
-            if (!("target" in op.target)) {
+            if (!subjectModelled(req, op.target)) {
                 skipBecause(
                     req,
                     "source-or-each-subject",
@@ -1827,17 +1923,16 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 );
                 return;
             }
-            recordSlot(req, op.target.target, "permanent");
+            recordSubject(req, op.target);
             return;
         case "exileOnDeath":
             // `exileOnDeath` (CR 614.1a, issue #1095) sets an IMMEDIATE
             // `exileOnDeath` flag on the target creature — like
-            // `preventRegeneration` right above (and unlike the dormant
-            // `regenerate` shield), the outcome is observable in the same
-            // resolution, so the generator asserts it on an announced permanent
-            // slot. A `$source` / `$each` target is not modelled — skip and let
+            // `preventRegeneration` right above, the outcome is observable in
+            // the same resolution, so the generator asserts it on an announced
+            // permanent slot or on an ability's own source. A `$each` (or spell-site `$source`) target is not modelled — skip and let
             // the card's own per-card test cover it.
-            if (!("target" in op.target)) {
+            if (!subjectModelled(req, op.target)) {
                 skipBecause(
                     req,
                     "source-or-each-subject",
@@ -1845,15 +1940,15 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 );
                 return;
             }
-            recordSlot(req, op.target.target, "permanent");
+            recordSubject(req, op.target);
             return;
         case "lockDamage":
             // `lockDamage` (CR 615.12 / 614.9, issue #2231) sets an IMMEDIATE
             // `damageLockThisTurn` flag on the target creature — the same shape
             // as `exileOnDeath` right above, observable in the same resolution.
-            // A `$source` / `$each` target is not modelled — skip and let the
+            // A `$each` (or spell-site `$source`) target is not modelled — skip and let the
             // card's own per-card test cover it.
-            if (!("target" in op.target)) {
+            if (!subjectModelled(req, op.target)) {
                 skipBecause(
                     req,
                     "source-or-each-subject",
@@ -1861,7 +1956,7 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 );
                 return;
             }
-            recordSlot(req, op.target.target, "permanent");
+            recordSubject(req, op.target);
             return;
         case "suppressDamagePrevention":
             // `suppressDamagePrevention` (CR 615.12, issue #3303) — the
@@ -1878,9 +1973,9 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // `state.sourcePreventionShields` list (observable in the same
             // resolution). The generator asserts it
             // on an announced permanent slot (seeds a filler creature there and
-            // reads the array after resolution). A `$source` / `$each` target is
+            // reads the array after resolution). A `$each` (or spell-site `$source`) target is
             // not modelled — skip and let the card's own per-card test cover it.
-            if (!("target" in op.target)) {
+            if (!subjectModelled(req, op.target)) {
                 skipBecause(
                     req,
                     "source-or-each-subject",
@@ -1888,7 +1983,7 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 );
                 return;
             }
-            recordSlot(req, op.target.target, "permanent");
+            recordSubject(req, op.target);
             return;
         case "transform":
             // CR 701.27 / 712 (issue #1210) — flips a permanent between its
@@ -2380,6 +2475,34 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
         }
     }
 
+    // CR 113.7 — the source of an activated or triggered ability is the object
+    // whose ability it is: a permanent the caster controls, untapped and past
+    // summoning sickness (its cost is not what the smoke run proves). Tapped
+    // when an Op untaps it, so the untap has an outcome to observe.
+    //
+    // Two limits this seeding accepts, both recorded rather than guarded
+    // (issue #3831 review): the source is always the generic filler creature,
+    // whatever the real card is — an Op whose primitive needs a specific kind
+    // (a Class for `setLevel`, a creature for `exileOnDeath`) is proven only
+    // against a creature; and it is pushed AFTER the count-set banks, so a
+    // script pairing a `$source` subject with a controller battlefield `count`
+    // would predict one less than it counts (a false RED, not a fail-open —
+    // no card in the corpus pairs them today).
+    let sourcePermanentId: string | undefined;
+    if (req.sourceSubject) {
+        sourcePermanentId = SOURCE_PERMANENT_ID;
+        p1Bf.push(
+            makeInstance(FILLER_CARD_ID, {
+                id: SOURCE_PERMANENT_ID,
+                controllerId: CASTER_ID,
+                ownerId: CASTER_ID,
+                zone: "battlefield",
+                isSummoningSick: false,
+                isTapped: req.sourceTapAction === "untap",
+            })
+        );
+    }
+
     const state = makeState({
         players: [
             makePlayer(CASTER_ID, {
@@ -2399,6 +2522,7 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
         state,
         targets,
         targetPermanentIds,
+        ...(sourcePermanentId === undefined ? {} : { sourcePermanentId }),
         targetKind: sawPlayerSlot
             ? "player"
             : sawPermanentSlot
@@ -2954,15 +3078,15 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // `pump` (issue #840, CR 613.4c) — a fixed-amount pump on an announced
     // permanent slot is observable as an effective-P/T delta (the temporary
     // buff is active for the rest of the turn, so it reads immediately after
-    // resolution). `$source`/`$each` targets and `ref`/`count` amounts are
+    // resolution). `$each` / spell-site `$source` targets and `ref`/`count` amounts are
     // skipped upstream in `analyseOp` (returns null defensively here).
     pump(rawOp, scenario, pre) {
         const op = rawOp as Extract<EffectOp, { op: "pump" }>;
-        if (!("target" in op.target)) return null;
+        const permId = subjectPermanentId(scenario, op.target);
+        if (permId === undefined) return null;
         if (typeof op.power !== "number" || typeof op.toughness !== "number") {
             return null;
         }
-        const permId = scenario.targetPermanentIds[op.target.target];
         const permBefore = pre.players
             .flatMap((p) => p.battlefield)
             .find((c) => c.id === permId);
@@ -2992,18 +3116,18 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // `counters` (issue #841, CR 122) — a fixed-count ADD on an announced
     // permanent slot is observable as a rise in the counter tally on the card
     // (counters are stored on the instance and persist, so they read
-    // immediately after resolution). `remove`, `$source`/`$each` targets and
+    // immediately after resolution). `remove`, `$each` / spell-site `$source` targets and
     // `ref`/`count` amounts are skipped upstream in `analyseOp` (returns null
     // defensively here).
     // `setLevel` (issue #3234, CR 716.2a) — an announced permanent slot's class
     // level is observable directly on the instance after resolution (CR 716.2d:
     // a permanent the generator seeded has no level, so it reads as 1).
-    // `$source`/`$each` targets are skipped upstream in `analyseOp` (returns
+    // `$each` / spell-site `$source` targets are skipped upstream in `analyseOp` (returns
     // null defensively here).
     setLevel(rawOp, scenario, pre) {
         const op = rawOp as Extract<EffectOp, { op: "setLevel" }>;
-        if (!("target" in op.target)) return null;
-        const permId = scenario.targetPermanentIds[op.target.target];
+        const permId = subjectPermanentId(scenario, op.target);
+        if (permId === undefined) return null;
         const permBefore = pre.players
             .flatMap((p) => p.battlefield)
             .find((c) => c.id === permId);
@@ -3031,9 +3155,9 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     counters(rawOp, scenario, pre) {
         const op = rawOp as Extract<EffectOp, { op: "counters" }>;
         if (op.action !== "add") return null;
-        if (!("target" in op.target)) return null;
+        const permId = subjectPermanentId(scenario, op.target);
+        if (permId === undefined) return null;
         if (typeof op.count !== "number") return null;
-        const permId = scenario.targetPermanentIds[op.target.target];
         const permBefore = pre.players
             .flatMap((p) => p.battlefield)
             .find((c) => c.id === permId);
@@ -3060,15 +3184,18 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // `tapUntap` (issue #842, CR 701.26) — a TAP on an announced permanent slot
     // is observable as `isTapped` flipping false→true on the seeded (untapped)
     // filler permanent. `untap` (the filler starts untapped, nothing to
-    // observe) and `$source`/`$each` targets are skipped upstream in
+    // observe) and `$each` / spell-site `$source` targets are skipped upstream in
     // `analyseOp` (returns null defensively here).
     tapUntap(rawOp, scenario) {
         const op = rawOp as Extract<EffectOp, { op: "tapUntap" }>;
-        if (op.action !== "tap") return null;
-        if (!("target" in op.target)) return null;
-        const permId = scenario.targetPermanentIds[op.target.target];
+        // An untap is modelled only on `$source`, which `buildScenario` then
+        // seeds tapped (issue #3831); a slot untap is skipped upstream.
+        if (op.action !== "tap" && !isSourceRef(op.target)) return null;
+        const permId = subjectPermanentId(scenario, op.target);
+        if (permId === undefined) return null;
+        const tapped = op.action === "tap";
         return {
-            label: `tap permanent ${permId} (isTapped false→true)`,
+            label: `${op.action} permanent ${permId} (isTapped ${!tapped}→${tapped})`,
             check: (post) => {
                 const perm = post.players
                     .flatMap((p) => p.battlefield)
@@ -3077,21 +3204,22 @@ const OP_ASSERTORS: Record<string, Assertor> = {
                     return { ok: false, detail: "target permanent gone" };
                 }
                 return {
-                    ok: perm.isTapped === true,
-                    detail: `isTapped ${perm.isTapped}, expected true`,
+                    ok: (perm.isTapped === true) === tapped,
+                    detail: `isTapped ${perm.isTapped}, expected ${tapped}`,
                 };
             },
         };
     },
     // `skipNextUntap` (PRD #795, CR 302.6/502.1) — a lock on an announced
     // permanent slot is observable as the one-shot `skipNextUntap` flag
-    // flipping undefined→true on the seeded filler permanent. `$source`/`$each`
-    // targets are skipped upstream in `analyseOp` (returns null defensively
-    // here).
+    // flipping undefined→true on the seeded filler permanent. An ability's own
+    // source is seeded too (issue #3831); a `$each` / spell-site `$source`
+    // subject is skipped upstream in `analyseOp` (`subjectPermanentId` returns
+    // undefined defensively here).
     skipNextUntap(rawOp, scenario) {
         const op = rawOp as Extract<EffectOp, { op: "skipNextUntap" }>;
-        if (!("target" in op.target)) return null;
-        const permId = scenario.targetPermanentIds[op.target.target];
+        const permId = subjectPermanentId(scenario, op.target);
+        if (permId === undefined) return null;
         return {
             label: `lock permanent ${permId} (skipNextUntap undefined→true)`,
             check: (post) => {
@@ -3112,18 +3240,18 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // permanent slot is observable as the keyword appearing in the target's
     // `staticAbilities` (the primitive appends it, and the grant is active for
     // the rest of the turn so it reads immediately after resolution).
-    // `$source`/`$each` targets are skipped upstream in `analyseOp` (returns
+    // `$each` / spell-site `$source` targets are skipped upstream in `analyseOp` (returns
     // null defensively here).
     grantAbility(rawOp, scenario) {
         const op = rawOp as Extract<EffectOp, { op: "grantAbility" }>;
-        if (!("target" in op.target)) return null;
+        const permId = subjectPermanentId(scenario, op.target);
+        if (permId === undefined) return null;
         // The activated-ability (`grantedActivatedId`, issue #738) and
         // triggered-ability (`grantedTriggeredId`, issue #1665) grant variants
         // aren't observable via `staticAbilities` — they land on
         // `grantedActivatedAbilities` / `grantedTriggeredAbilities` instead;
         // their cards carry a hand-written per-card test, so skip them here
         // (return null → smoke test skips).
-        const permId = scenario.targetPermanentIds[op.target.target];
         // The attack-requirement grant (issue #1972, CR 508.1d) is observable
         // as an entry on the target's `grantedAttackRequirements`.
         if (op.attackRequirement) {
@@ -3187,13 +3315,13 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // `addSubtype` (issue #1194, CR 613.1d layer 4) — an add on an announced
     // permanent slot is observable as the subtype appearing in the target's
     // `subtypes` (the primitive appends it immediately, indefinitely).
-    // `$source`/`$each` targets are skipped upstream in `analyseOp` (returns
+    // `$each` / spell-site `$source` targets are skipped upstream in `analyseOp` (returns
     // null defensively here).
     addSubtype(rawOp, scenario) {
         const op = rawOp as Extract<EffectOp, { op: "addSubtype" }>;
-        if (!("target" in op.target)) return null;
+        const permId = subjectPermanentId(scenario, op.target);
+        if (permId === undefined) return null;
         const subtype = op.subtype;
-        const permId = scenario.targetPermanentIds[op.target.target];
         return {
             label: `add subtype "${subtype}" to permanent ${permId}`,
             check: (post) => {
@@ -3366,23 +3494,45 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     preventDamage() {
         return null;
     },
-    // `regenerate` (CR 701.19, issue #846) — never reached: `analyseOp` skips
-    // every script with a regenerate Op (a shield sits dormant until a later
-    // destroy event, with no same-resolution outcome the canned scenario can
-    // assert). Kept for the 1:1 coverage guard; shield registration and
-    // consumption are covered by the Op's own interpreter tests.
-    regenerate() {
-        return null;
+    // `regenerate` (CR 701.19a, issue #846) — the shield's REGISTRATION is
+    // observable as the permanent's `regenerationShields` count rising by one;
+    // its consumption (a later destroy) is the Op's own interpreter tests.
+    regenerate(rawOp, scenario, pre) {
+        const op = rawOp as Extract<EffectOp, { op: "regenerate" }>;
+        const permId = subjectPermanentId(scenario, op.target);
+        if (permId === undefined) return null;
+        const permBefore = pre.players
+            .flatMap((p) => p.battlefield)
+            .find((c) => c.id === permId);
+        if (!permBefore) return null;
+        const expected = (permBefore.regenerationShields ?? 0) + 1;
+        return {
+            label: `regeneration shield on permanent ${permId} (shields →${expected})`,
+            check: (post) => {
+                const perm = post.players
+                    .flatMap((p) => p.battlefield)
+                    .find((c) => c.id === permId);
+                if (!perm) {
+                    return { ok: false, detail: "target permanent gone" };
+                }
+                const actual = perm.regenerationShields ?? 0;
+                return {
+                    ok: actual === expected,
+                    detail: `regenerationShields ${actual}, expected ${expected}`,
+                };
+            },
+        };
     },
     // `preventRegeneration` (CR 701.19c, issue #1283) — a lock on an announced
     // permanent slot is observable as the `cantBeRegeneratedThisTurn` flag
-    // flipping undefined→true on the seeded filler creature. `$source`/`$each`
-    // targets are skipped upstream in `analyseOp` (returns null defensively
-    // here).
+    // flipping undefined→true on the seeded filler creature. An ability's own
+    // source is seeded too (issue #3831); a `$each` / spell-site `$source`
+    // subject is skipped upstream in `analyseOp` (`subjectPermanentId` returns
+    // undefined defensively here).
     preventRegeneration(rawOp, scenario) {
         const op = rawOp as Extract<EffectOp, { op: "preventRegeneration" }>;
-        if (!("target" in op.target)) return null;
-        const permId = scenario.targetPermanentIds[op.target.target];
+        const permId = subjectPermanentId(scenario, op.target);
+        if (permId === undefined) return null;
         return {
             label: `regen-lock permanent ${permId} (cantBeRegeneratedThisTurn undefined→true)`,
             check: (post) => {
@@ -3403,12 +3553,12 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // announced permanent slot is observable as the `exileOnDeath` flag
     // flipping undefined→true on the seeded filler creature (the generator
     // seeds CREATURES, which is what `setExileOnDeath` requires).
-    // `$source`/`$each` targets are skipped upstream in `analyseOp` (returns
+    // `$each` / spell-site `$source` targets are skipped upstream in `analyseOp` (returns
     // null defensively here).
     exileOnDeath(rawOp, scenario) {
         const op = rawOp as Extract<EffectOp, { op: "exileOnDeath" }>;
-        if (!("target" in op.target)) return null;
-        const permId = scenario.targetPermanentIds[op.target.target];
+        const permId = subjectPermanentId(scenario, op.target);
+        if (permId === undefined) return null;
         return {
             label: `exile-on-death permanent ${permId} (exileOnDeath undefined→true)`,
             check: (post) => {
@@ -3429,12 +3579,12 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // anti-prevention / anti-redirection lock on an announced permanent slot is
     // observable as the `damageLockThisTurn` flag flipping undefined→true on
     // the seeded filler creature (the generator seeds CREATURES, which is what
-    // `setDamageLockThisTurn` requires). `$source`/`$each` targets are skipped
+    // `setDamageLockThisTurn` requires). `$each` / spell-site `$source` targets are skipped
     // upstream in `analyseOp` (returns null defensively here).
     lockDamage(rawOp, scenario) {
         const op = rawOp as Extract<EffectOp, { op: "lockDamage" }>;
-        if (!("target" in op.target)) return null;
-        const permId = scenario.targetPermanentIds[op.target.target];
+        const permId = subjectPermanentId(scenario, op.target);
+        if (permId === undefined) return null;
         return {
             label: `damage-lock permanent ${permId} (damageLockThisTurn undefined→true)`,
             check: (post) => {
@@ -3467,16 +3617,17 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // `markAssignsNoCombatDamage` (CR 510.1c, issue #1283) — a source-side
     // combat-damage lock on an announced permanent slot is observable as a
     // combat-only SOURCE-scoped shield covering the permanent's id
-    // (`state.sourcePreventionShields`, issue #1955). `$source`/`$each`
-    // targets are skipped upstream in `analyseOp` (returns null defensively
-    // here).
+    // (`state.sourcePreventionShields`, issue #1955). An ability's own
+    // source is seeded too (issue #3831); a `$each` / spell-site `$source`
+    // subject is skipped upstream in `analyseOp` (`subjectPermanentId` returns
+    // undefined defensively here).
     markAssignsNoCombatDamage(rawOp, scenario) {
         const op = rawOp as Extract<
             EffectOp,
             { op: "markAssignsNoCombatDamage" }
         >;
-        if (!("target" in op.target)) return null;
-        const permId = scenario.targetPermanentIds[op.target.target];
+        const permId = subjectPermanentId(scenario, op.target);
+        if (permId === undefined) return null;
         return {
             label: `combat-damage lock permanent ${permId} (source-scoped combat shield covers id)`,
             check: (post) => {
@@ -3898,23 +4049,24 @@ export function opCoverageGaps(): string[] {
 // --- Public entry point -----------------------------------------------------
 
 /** Builds a full plan (scenario + assertions) for one Effect Script, or a skip
- *  with a reason. Site-agnostic: `effects` may be a spell or an ability script
- *  (the caller supplies the site-appropriate stack item). A script with no
- *  assertable Op (every Op skipped by its assertor — e.g. all amounts are refs)
- *  is reported as a skip so it never counts as passing. */
-export function planSmokeTest(effects: readonly EffectOp[]): Plan {
+ *  with a reason. `effects` may be a spell or an ability script (the caller
+ *  supplies the site-appropriate stack item); `site` says which, because only
+ *  an ability has a source permanent for `$source` to name (issue #3831). It
+ *  defaults to `"spell"` — fail-closed: a caller that does not say an ability
+ *  is hosting the script gets no `$source` seeded, and a skip. A script with
+ *  no assertable Op (every Op skipped by its assertor — e.g. all amounts are
+ *  refs) is reported as a skip so it never counts as passing. */
+export function planSmokeTest(
+    effects: readonly EffectOp[],
+    site: SmokeSite = "spell"
+): Plan {
     if (effects.length === 0) {
         return skipPlan([
             { code: "no-assertable-outcome", reason: "empty effect script" },
         ]);
     }
 
-    const req: Requirements = {
-        targetSlots: new Map(),
-        drawingPlayers: new Set(),
-        countSets: [],
-        skips: [],
-    };
+    const req = emptyRequirements(site);
     for (const op of effects) analyseOpFully(op, req);
 
     const built = buildScenario(req);
@@ -3927,12 +4079,14 @@ export function planSmokeTest(effects: readonly EffectOp[]): Plan {
         // `card-dependent` clause in its body (`moveZone` of an unmodelled
         // object). Only a skipped script is walked: a script that RUNS is
         // asserted as it is, and walking it could only invent reasons.
-        const nested: Requirements = {
-            targetSlots: new Map(),
-            drawingPlayers: new Set(),
-            countSets: [],
-            skips: [],
-        };
+        //
+        // The nested walk is always a SPELL-site walk, whatever hosts the
+        // script (issue #3831 review): it reads Ops that will NOT run — the
+        // plan has already skipped — so the seeded source proves nothing about
+        // them, and accepting a `$source` subject here would let an op-covered
+        // container (`mayPay` + `if`) hide a body acting on `$source`. That is
+        // the very fail-open this walk exists to close (ADR 0105 § 7.1).
+        const nested = emptyRequirements("spell");
         for (const op of nestedOps(effects)) analyseOpFully(op, nested);
         return skipPlan([...built.skip, ...nested.skips]);
     }
@@ -3961,6 +4115,17 @@ export function planSmokeTest(effects: readonly EffectOp[]): Plan {
         ]);
     }
     return { kind: "run", scenario: built, assertions };
+}
+
+function emptyRequirements(site: SmokeSite): Requirements {
+    return {
+        targetSlots: new Map(),
+        drawingPlayers: new Set(),
+        countSets: [],
+        skips: [],
+        site,
+        sourceSubject: false,
+    };
 }
 
 function skipPlan(skips: SmokeSkip[]): Plan {
