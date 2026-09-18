@@ -31,6 +31,33 @@ worth a lint over the artifacts this repo generates once enough of them follow
 it. Until then it is a habit, and a reference you have not qualified is one the
 next reader has to look up.
 
+## `## Unlocks` — what an engine issue unblocks (issue #4052)
+
+An engine issue may carry an `## Unlocks` section naming the computed Gaps it
+unblocks. `bun run gaps:sync` reads it and writes BOTH halves of the edge — the
+native `blocked by` relationship the board draws, and the `## Blocked by` body
+section `queue:plan` defers a pick on. **You never write the edge by hand**: the
+gap's issue does not exist yet when the engine issue is filed, and 470
+hand-maintained edges rot in a week (issue #3851 decision 2).
+
+One key per list item, no prose — three accepted forms, and a line matching none
+of them is reported as residue rather than guessed at:
+
+```markdown
+## Unlocks
+
+- addMana
+- grammar: (op) › addMana
+- mechanic: planned-mechanic › keyword "changeling" is not implemented in the Mechanics Registry
+```
+
+A bare Op name is auto-filled to its `(op) › <name>` Grammar Gap key — the
+common case (an issue that adds an Op unblocks that Op's census gap) costs no
+lookup. `None.` declares nothing. The keys are the allowlist's own
+(`data/grammar-gaps.json`), so a typo resolves to nothing and `gaps:sync` prints
+it as `unlocks residue` — read those lines, they are the only place a
+mistyped key becomes visible.
+
 ## When a skill says "publish to the issue tracker"
 
 Create a GitHub issue.
