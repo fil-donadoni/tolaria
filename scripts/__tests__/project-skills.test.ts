@@ -30,7 +30,7 @@ const REPO_ROOT = path.resolve(__dirname, "..", "..");
 
 /** Skills whose residency is load-bearing. Add a row when a workflow skill
  *  becomes part of this project rather than the machine. */
-const IN_REPO_SKILLS = ["next-issue"];
+const IN_REPO_SKILLS = ["next-issue", "grammar-rule"];
 
 function isTracked(relPath: string): boolean {
     try {
@@ -248,5 +248,49 @@ describe("every queue-facing skill instructs `Target files`", () => {
             silent,
             `queue-facing skill(s) that never mention \`Target files\`:\n${silent.join("\n")}`
         ).toEqual([]);
+    });
+});
+
+describe("/grammar-rule names only commands that exist (issue #3834)", () => {
+    const rel = path.join(".claude", "skills", "grammar-rule", "SKILL.md");
+    const body = () => fs.readFileSync(path.join(REPO_ROOT, rel), "utf8");
+    const pkg = () =>
+        JSON.parse(
+            fs.readFileSync(path.join(REPO_ROOT, "package.json"), "utf8")
+        ) as { scripts: Record<string, string> };
+
+    it("every `bun run <script>` it tells a session to run is a package.json script", () => {
+        const named = [...body().matchAll(/bun run ([a-z][\w:-]*)/g)].map(
+            (m) => m[1]!
+        );
+        expect(named.length).toBeGreaterThan(0);
+        const scripts = pkg().scripts;
+        expect(named.filter((s) => !(s in scripts))).toEqual([]);
+    });
+
+    it("reads the gap through `oracle:report --gap`, and the report accepts that flag", () => {
+        expect(body()).toMatch(/oracle:report --gap/);
+        const src = fs.readFileSync(
+            path.join(REPO_ROOT, "scripts", "oracle-report.ts"),
+            "utf8"
+        );
+        expect(src).toContain('flag("--gap")');
+    });
+
+    it("forbids `gaps:sync` from the worktree — it pushes HEAD onto the base branch", () => {
+        expect(body()).toMatch(
+            /Never run `bun run gaps:sync` from the worktree/
+        );
+        const src = fs.readFileSync(
+            path.join(REPO_ROOT, "scripts", "gaps-sync.ts"),
+            "utf8"
+        );
+        expect(src).toContain("`HEAD:${BASE_BRANCH}`");
+    });
+
+    it("states the three anti-Forge guards (ADR 0137)", () => {
+        expect(body()).toMatch(/No structural construct/);
+        expect(body()).toMatch(/No Op named for a line/);
+        expect(body()).toMatch(/No leniency/);
     });
 });

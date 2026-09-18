@@ -188,6 +188,73 @@ export function rankGrammarGaps(
         }));
 }
 
+/**
+ * The gap keys a `--gap` query names: the one key equal to `query` when there
+ * is one, else every key CONTAINING it (sorted). The printed ranking clips a
+ * long span, so a reader copies a unique substring rather than retyping the
+ * key — and an ambiguous substring must come back as the list to choose from,
+ * never as the first match.
+ */
+export function findGapKeys(
+    lock: Pick<Lockfile, "fragments" | "cards">,
+    query: string
+): string[] {
+    const keys = new Set<string>();
+    for (const card of lock.cards) {
+        if (card.state !== "unparsed" || card.gaps === undefined) continue;
+        for (const index of card.gaps)
+            keys.add(gapOf(lock.fragments[index]!).key);
+    }
+    if (keys.has(query)) return [query];
+    return [...keys].filter((k) => k.includes(query)).sort();
+}
+
+/** One card a Grammar Gap refuses, with the line of its that fails there. */
+export interface GapCard {
+    readonly name: string;
+    readonly oracleId: string;
+    /** The card's first refused line attributed to the gap. */
+    readonly line: string;
+    /** The gap is the card's ONLY one: the rule alone makes it compile. */
+    readonly sole: boolean;
+    readonly inTarget: boolean;
+}
+
+/**
+ * Every card the gap `key` refuses — the evidence a Grammar Rule is written
+ * against (`/grammar-rule`, issue #3834). Sole-gap cards first (the ones the
+ * rule graduates), Target cards before the rest, then by name: the same
+ * counts `rankGrammarGaps` prints, card by card.
+ */
+export function gapCards(
+    lock: Pick<Lockfile, "fragments" | "cards">,
+    key: string,
+    target: ReadonlySet<string> | null
+): GapCard[] {
+    const gapOfFragment = lock.fragments.map(gapOf);
+    const out: GapCard[] = [];
+    for (const card of lock.cards) {
+        if (card.state !== "unparsed" || card.gaps === undefined) continue;
+        const keys = distinctGaps(card, gapOfFragment);
+        const hit = keys.get(key);
+        if (hit === undefined) continue;
+        out.push({
+            name: card.name,
+            oracleId: card.oracleId,
+            line: lock.fragments[hit.fragment]!.text,
+            sole: keys.size === 1,
+            inTarget: target === null || target.has(card.oracleId),
+        });
+    }
+    const rank = (c: GapCard): number =>
+        (c.sole ? 0 : 2) + (c.inTarget ? 0 : 1);
+    return out.sort(
+        (a, b) =>
+            rank(a) - rank(b) ||
+            (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)
+    );
+}
+
 /** A card's gaps, one entry per Grammar Gap — the first fragment kept. */
 function distinctGaps(
     card: CardRow,

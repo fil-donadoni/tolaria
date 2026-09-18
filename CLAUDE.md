@@ -179,17 +179,18 @@ labelled `ready-for-agent`; **`/next-issue` drains that queue one issue per
 session** (ADR 0110 — single-session pipeline). Pick intake by where work
 comes FROM:
 
-| Skill                | Trigger                         | Does                                                                                         |
-| -------------------- | ------------------------------- | -------------------------------------------------------------------------------------------- |
-| `/next-issue`        | Draining the queue              | ONE issue end-to-end in this session: pick → worktree → implement → one routed review → land |
-| `/new-card`          | One new card                    | Scryfall oracle → Ops mapping / gap flags → PRD + tickets                                    |
-| `/new-set`           | Whole set rollout               | MTGJSON profile, per-card triage, capability clusters, umbrella PRD                          |
-| `/new-qa-issue`      | Observed bug/enhancement        | Explores, drafts one agent-readable issue, posts after confirmation                          |
-| `/audit-tracker <N>` | Stale roll-up issue             | Re-verifies gaps vs HEAD, slices survivors, retires the tracker                              |
-| `/mtg-rules-check`   | Before any game mechanic        | CR text + implementation status                                                              |
-| `/gre-test`          | Adding/modifying GRE logic      | Generates vitest tests per project patterns                                                  |
-| `/new-op`            | Card needs a missing DSL verb   | Walks all eight Op sites (+ emitting Grammar Rule) + permanent test                          |
-| `/bot-slice`         | Any play-Bot / draft-Bot change | Maps the AI subsystem, walks seams, enforces verification doctrine                           |
+| Skill                | Trigger                         | Does                                                                         |
+| -------------------- | ------------------------------- | ---------------------------------------------------------------------------- |
+| `/next-issue`        | Draining the queue              | ONE issue end-to-end: pick → worktree → implement → one routed review → land |
+| `/new-card`          | One new card                    | Scryfall oracle → Ops mapping / gap flags → PRD + tickets                    |
+| `/new-set`           | Whole set rollout               | MTGJSON profile, per-card triage, capability clusters, umbrella PRD          |
+| `/new-qa-issue`      | Observed bug/enhancement        | Explores, drafts one agent-readable issue, posts after confirmation          |
+| `/audit-tracker <N>` | Stale roll-up issue             | Re-verifies gaps vs HEAD, slices survivors, retires the tracker              |
+| `/mtg-rules-check`   | Before any game mechanic        | CR text + implementation status                                              |
+| `/gre-test`          | Adding/modifying GRE logic      | Generates vitest tests per project patterns                                  |
+| `/new-op`            | Card needs a missing DSL verb   | Walks all eight Op sites (+ emitting Grammar Rule) + permanent test          |
+| `/grammar-rule`      | One Grammar Gap                 | Rule + golden fixture per form → recompile → `ready` delta → graduation      |
+| `/bot-slice`         | Any play-Bot / draft-Bot change | Maps the AI subsystem, walks seams, enforces verification doctrine           |
 
 **Workflow skills are versioned in this repo** (`.claude/skills/…`), changed
 via branch + PR + gate like any source file
