@@ -92,7 +92,11 @@ import {
 // they HAVE an input — Grizzly Bears, Craw Wurm, Scathe Zombies, … The other 8
 // moved to `COMPILER_GAP_ROWS`, which buys no slot: the ceiling is taken on the
 // union, so it comes down by the graduates alone.
-const BASELINE_CEILING = 1703;
+//
+// Lowered 1703 -> 1697 by issue #3826 (the kicker line): Ardent Soldier,
+// Dismantling Blow, Llanowar Elite, Phyrexian Scuta, Pincer Spider and Urborg
+// Skeleton round-trip once "Kicker …" and its read-backs are grammar.
+const BASELINE_CEILING = 1697;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that
