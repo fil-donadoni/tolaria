@@ -622,24 +622,28 @@ _Avoid_: CPU, computer player, enemy
 The component that computes the **Bot**'s next move. Distinct from authority: the **Brain** only _proposes_ a move; the **GRE** still validates and applies it. Runs client-side, off the authoritative path.
 _Avoid_: AI engine, solver
 
-**Blade Scenario**:
-A hand-curated position where the right play is not a matter of opinion, kept as the **Brain**'s correctness metric. A position qualifies only when the wrong move loses something **forced by the rules** — a creature, the game — never merely "worse on average"; a thin-margin position is not a blade.
-_Avoid_: AI test, benchmark position, puzzle
+**Test Position**:
+A **Verdict** frozen into a test: the position, a fixed seed, a fixed search budget and the move expected of the **Brain** — or the move it must avoid. It belongs to a tier: _must_, which the gate requires, or _stretch_, which it does not yet. A position enters _must_ only by **Admission**, and only when the wrong move loses something **forced by the rules** — a creature, the game — never merely "worse on average"; a thin-margin position is never admitted. The **Brain**'s correctness floor, as **Held-out Agreement** is its strength number. A **Verdict** in no tier is only a **Verdict**.
+_Avoid_: Blade Scenario (the former name), AI test, benchmark position, puzzle
+
+**Admission**:
+A human's decision that a **Test Position** joins the _must_ tier, made by looking at the board against the forced-loss criterion. Tooling only proposes — an **Admission Candidate** is a **Verdict** attested by enough people whose answer has stayed satisfied across successive **Weight Fits** — and never admits. Distinct from **Promotion**, which is automatic and widens what the **Weight Fit** reads: a promoted **Verdict** teaches the **Evaluation**, an admitted one binds the gate.
+_Avoid_: Promotion (that is the lock's word), approval, graduation
 
 **Charter Scenario**:
-The four **Blade Scenarios** that define _done_ for the credible-opponent effort: Stifle on one's own punisher trigger, fetchland timing and target, modal choice, and lethal-block defence.
+The four **Test Positions** that define _done_ for the credible-opponent effort: Stifle on one's own punisher trigger, fetchland timing and target, modal choice, and lethal-block defence.
 _Avoid_: Acceptance test, milestone scenario
 
-**Discriminating Pair**:
-Two **Blade Scenarios** identical except for one card, asserting opposite verdicts. Neither proves anything alone — only the pair distinguishes a **Brain** that reads the consequence from one that always, or never, makes the play.
-_Avoid_: A/B test, control pair
+**Minimal Pair**:
+Two **Test Positions** identical except for one card, asserting opposite answers. Neither proves anything alone — only the pair distinguishes a **Brain** that reads the consequence from one that always, or never, makes the play.
+_Avoid_: Discriminating Pair (the former name), A/B test, control pair
 
 **Scenario Spec**:
-The vocabulary a position is written in: cards by NAME and seat, never by instance id, which every rebuild reassigns. Describes a board **and its Stack**, whose objects are named rather than derived by replaying the moves that put them there. What a **Verdict**, a **Blade Scenario** and a preset scenario all carry, so one position means the same thing to the quiz, the suite and the Debug panel.
+The vocabulary a position is written in: cards by NAME and seat, never by instance id, which every rebuild reassigns. Describes a board **and its Stack**, whose objects are named rather than derived by replaying the moves that put them there. What a **Verdict**, a **Test Position** and a preset scenario all carry, so one position means the same thing to the quiz, the suite and the Debug panel.
 _Avoid_: Serialized state, save file, board dump, snapshot
 
 **Scenario Seat**:
-A **Scenario Spec**'s `"me"` / `"opp"`: a point of view, never a position at the table. Two loading contracts read it differently (issue #3786), and they must not share a positional convention. A **Blade Scenario** ORIENTS: `"me"` is the seat under test, whose decision the entry asserts, built as whichever live seat the **Brain** drives — the other seat follows. A Debug scenario (the `debugScenarios` table / preset scenario / `/admin/scenarios` "Test") renders AS WRITTEN: `"me"` is always the human viewer's seat, resolved from the immutable `games` row, whatever order a prior Blade load left the live snapshot's seats in. Reading the two as an order — first seat, second seat — is what put a **Blade Scenario**'s question on the human's side of the board, and what later mirrored a Debug scenario onto the Bot's.
+A **Scenario Spec**'s `"me"` / `"opp"`: a point of view, never a position at the table. Two loading contracts read it differently (issue #3786), and they must not share a positional convention. A **Test Position** ORIENTS: `"me"` is the seat under test, whose decision the entry asserts, built as whichever live seat the **Brain** drives — the other seat follows. A Debug scenario (the `debugScenarios` table / preset scenario / `/admin/scenarios` "Test") renders AS WRITTEN: `"me"` is always the human viewer's seat, resolved from the immutable `games` row, whatever order a prior **Test Position** load left the live snapshot's seats in. Reading the two as an order — first seat, second seat — is what put a **Test Position**'s question on the human's side of the board, and what later mirrored a Debug scenario onto the Bot's.
 _Avoid_: Player 1, first seat, home/away, seat index
 
 **Lowering**:
@@ -651,7 +655,7 @@ The outcome of a **Lowering** that stops with a NAMED cause instead of producing
 _Avoid_: Error, failure, skip, dropped
 
 **Verdict**:
-A player's answer to one decision the **Brain** faced: the position — written in the **Scenario Spec** — every candidate move the **Brain** could legally make there, and which one is right (the **Brain**'s own move being one possible answer). The unit of training data for the **Evaluation**: kept as the position and the answer, never as numbers, so it stays valid when the **Evaluation** gains a new term. Collected in play, from a quiz, or from the **Blade Scenario** registry, whose expected moves are verdicts already.
+A player's answer to one decision the **Brain** faced: the position — written in the **Scenario Spec** — every candidate move the **Brain** could legally make there, and which one is right (the **Brain**'s own move being one possible answer). The unit of training data for the **Evaluation**: kept as the position and the answer, never as numbers, so it stays valid when the **Evaluation** gains a new term. Collected in play, from a quiz, or from the **Test Position** registry, whose expected moves are verdicts already.
 _Avoid_: Label, rating, feedback, thumbs up
 
 **Verdict Store**:
@@ -690,35 +694,39 @@ What KIND of decision a **Verdict** holds, in the words a player would use: a la
 _Avoid_: Move type, action kind, category
 
 **Verdict Proposal**:
-A decision telemetry noticed and queued for the player to rule on later — the play they made differed from what the **Evaluation** would have picked, by more than a margin worth recording. It is a question, never an answer: confirmed, it becomes a **Verdict**; unconfirmed, it stays a position nobody has judged. The distinction is the whole point — a move a player chose in the middle of a game is not a move they would defend.
+A decision telemetry noticed and queued for the player to rule on later. Most are disagreements — the play they made differed from what the **Evaluation** would have picked, by more than a margin worth recording — but a share are ordinary decisions where player and **Brain** agreed, sampled by quota per **Decision Class** so that the kinds of decision nobody argues about are judged too: a corpus made only of disagreements cannot see a change that breaks what the **Brain** already gets right. It is a question, never an answer: confirmed, it becomes a **Verdict**; unconfirmed, it stays a position nobody has judged, whether or not the **Brain** agreed. The distinction is the whole point — a move a player chose in the middle of a game is not a move they would defend. A player reviewing their own plays after a game answers the same queue.
 _Avoid_: Implicit verdict, auto-label, inferred judgement
 
 **Eval Pair**:
-Two positions ordered by a **Verdict** — the board after the right move against the board after any other candidate — checked against the **Evaluation** alone: no search, microseconds. The **Evaluation**'s own correctness metric, as the **Blade Scenario** is the search's: a blade proves a forced play is not missed, an eval pair proves the value function orders two boards the way a player would.
+Two positions ordered by a **Verdict** — the board after the right move against the board after any other candidate — checked against the **Evaluation** alone: no search, microseconds. The **Evaluation**'s own correctness metric, as the **Test Position** is the search's: a test position proves a forced play is not missed, an eval pair proves the value function orders two boards the way a player would.
 _Avoid_: Eval test, weight test, position test
 
 **Weight Fit**:
 The deterministic procedure that turns the accumulated **Verdicts** into the **Evaluation**'s weights: every **Eval Pair** is a constraint the weights should satisfy by a fixed margin, the fit moves the weights as little as possible from where they are to satisfy as many as it can, and reports the pairs it could not — those name a missing term, never a bad player. Same verdicts, same weights, to the bit; no self-play, no **Ladder**.
 _Avoid_: Training, machine learning, tuning run, calibration
 
+**Held-out Agreement**:
+How often the **Brain** answers the way a player did on **Verdicts** it was never tuned against. The **Verdicts** are divided once, by their own content, into a side the **Weight Fit** may read and a side it never sees; agreement is counted only on the unseen side, because agreement on judgements the weights were fitted to is inflated by memorisation and says nothing about a position nobody has judged yet. Counted two ways: _eval agreement_ — the share of unseen **Eval Pairs** the **Evaluation** alone orders as the player did — and _pick agreement_ — the share of unseen **Verdicts** where the whole **Brain**, search included, chooses the player's move. Pick agreement is the **Brain**'s strength number, the one that is meant to climb; the gap between the two says what the search adds to, or takes from, the **Evaluation** beneath it.
+_Avoid_: Accuracy, test score, validation score, win rate
+
 **Beyond Budget**:
 A position the **Brain** solves only with more search than a real game grants. Recorded with _why_ — too many candidate moves at one decision, a payoff too far ahead, or a hidden-information coincidence that rarely occurs — because each cause names a missing piece of **Brain** knowledge, not a shortfall of thinking time.
 _Avoid_: Too slow, needs more iterations, timeout
 
 **Greedy Pick**:
-The move the **Brain**'s one-ply policy chooses on its own — score every legal move by the position it leaves after resolving, take the best — with no search at all. It is the policy the search already uses to finish its rollouts, asked at the root instead. Not a way the **Brain** plays; a yardstick: run against the **Blade Scenarios** and beside the search's own pick, it says how much of the **Brain**'s judgement the search adds over the policy it contains.
+The move the **Brain**'s one-ply policy chooses on its own — score every legal move by the position it leaves after resolving, take the best — with no search at all. It is the policy the search already uses to finish its rollouts, asked at the root instead. Not a way the **Brain** plays; a yardstick: run against the **Test Positions** and beside the search's own pick, it says how much of the **Brain**'s judgement the search adds over the policy it contains.
 _Avoid_: Heuristic bot, easy mode, fallback
 
 **Ladder**:
-The **Brain**'s strength metric: paired bot-vs-bot games in which the two **Players** use the same decks and the same shuffles and only the **Brain** configuration differs by seat, so the verdict ("stronger", "weaker", "inconclusive") is about the **Brain**, never about the decks. Complements the **Blade Scenario**: a blade proves a forced play is not missed, a ladder proves a change that shifts every decision a little is a net gain.
-_Avoid_: Self-play benchmark, deck win-rate, tournament
+Paired bot-vs-bot games in which the two **Players** use the same decks and the same shuffles and only the **Brain** configuration differs by seat, so the verdict ("stronger", "weaker", "inconclusive") is about the **Brain**, never about the decks. An experiment, not a metric: run by hand, on an idle machine, for a large claim only — no change owes one and no pipeline runs one, because its noise floor is wide and its cost is hours. The **Brain**'s strength number is **Held-out Agreement**; its correctness floor is the **Test Position**.
+_Avoid_: Self-play benchmark, deck win-rate, tournament, strength metric
 
 **Pairing Registry**:
 The curated list of deck pairs the **Ladder** plays, each row tagged with the gameplay **Dynamics** it exercises (racing, go-wide combat, discard, sacrifice outlets, two-card combos…). A change claims strength on the **Dynamics** it touches; a dynamic with no row is added with the change that needs it.
 _Avoid_: Deck list, matchup table, gauntlet
 
 **Environment Rung**:
-A tier of the **Pairing Registry** ordered by how much interaction the decks carry — combat and racing first, instant-speed interaction and repeatable abilities next, cube archetypes with combos last. Work on the **Brain** climbs the rungs in order; a rung is not skipped because the player happens to play at a higher one.
+A tier of the **Pairing Registry** ordered by how much interaction the decks carry — combat and racing first, instant-speed interaction and repeatable abilities next, cube archetypes with combos last. A label that says what a **Ladder** run exercised; no longer a sequence work on the **Brain** climbs.
 _Avoid_: Level, difficulty, format
 
 **Shortcut**:
