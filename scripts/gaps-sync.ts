@@ -50,6 +50,13 @@ import {
     type TrackedIssue,
 } from "./lib/gap-issues";
 
+/** Whether a failed `gh issue view` said the issue does not exist. */
+export function isIssueNotFound(err: unknown): boolean {
+    const e = err as { stderr?: unknown; message?: unknown };
+    const text = `${String(e?.stderr ?? "")}\n${String(e?.message ?? "")}`;
+    return /Could not resolve to an issue/i.test(text);
+}
+
 /** The `gh`-backed `GapTracker` — the one place this module touches the
  *  network. */
 export class GhGapTracker implements GapTracker {
@@ -104,8 +111,12 @@ export class GhGapTracker implements GapTracker {
                 state: parsed.state === "CLOSED" ? "CLOSED" : "OPEN",
                 body: parsed.body,
             };
-        } catch {
-            return null;
+        } catch (err) {
+            // Only "no such issue" means gone. Anything else — network, rate
+            // limit, auth — rethrows: read as null it would file a duplicate
+            // and orphan the real issue.
+            if (isIssueNotFound(err)) return null;
+            throw err;
         }
     }
 
@@ -145,9 +156,16 @@ export class GhGapTracker implements GapTracker {
             "api",
             `repos/{owner}/{repo}/issues/${parent}`,
             "--jq",
-            ".sub_issues_summary.total // 0",
+            ".sub_issues_summary.total",
         ]);
-        return Number(out.trim());
+        const total = Number(out.trim());
+        // Fail closed: a missing field read as 0 would let the cap check pass.
+        if (out.trim() === "" || !Number.isInteger(total)) {
+            throw new Error(
+                `gaps:sync: could not read issue #${parent}'s sub-issue count (got ${JSON.stringify(out.trim())})`
+            );
+        }
+        return total;
     }
 
     /**

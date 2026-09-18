@@ -23,6 +23,7 @@ import {
 } from "../lib/gap-issues";
 import { gapOf, OP_LEVEL } from "../lib/grammar-gaps";
 import { parseLockfile } from "../lib/oracle-lockfile";
+import { isIssueNotFound } from "../gaps-sync";
 
 const ADD_MANA_KEY = "(op) › addMana";
 
@@ -62,9 +63,10 @@ describe("renderOpGapBody", () => {
 
 describe("an Op gap has no corpus attribution — the premise the body states", () => {
     it("no Fragment of the committed lockfile lands on an `(op) › …` key", () => {
-        // If the compiler ever attributes a refused line to an Op, the body's
-        // "no card count here" becomes false and the counts are worth
-        // printing again: this is the tripwire that says so.
+        // STRUCTURAL guard, not a measurement of the compiler: `gapOf` keys a
+        // fragment by its attribution slot, so an `(op) ›` key needs a slot
+        // literally named `(op)`. Should one ever appear, the body's "no card
+        // count here" is false and the counts are worth printing again.
         const lock = parseLockfile(
             readFileSync("data/oracle-compiled.json", "utf8")
         );
@@ -279,5 +281,30 @@ describe("the committed allowlist is fully filed", () => {
         expect(
             committed.ops.filter((r) => r.issue === PRD_ISSUE).map((r) => r.op)
         ).toEqual([]);
+    });
+});
+
+describe("isIssueNotFound — only a missing issue reads as gone", () => {
+    // Anything else read as null makes `syncGaps` file a duplicate and
+    // orphan the real issue (review of the fix for issue #3829).
+    it("recognises gh's not-found error", () => {
+        const err = Object.assign(new Error("Command failed: gh issue view"), {
+            stderr: "GraphQL: Could not resolve to an issue or pull request with the number of 999999. (repository.issue)\n",
+        });
+        expect(isIssueNotFound(err)).toBe(true);
+    });
+
+    it("does not mistake a network, rate-limit or auth failure for it", () => {
+        for (const stderr of [
+            "error connecting to api.github.com",
+            "GraphQL: API rate limit exceeded for user ID 1.",
+            "HTTP 401: Bad credentials",
+        ]) {
+            expect(
+                isIssueNotFound(
+                    Object.assign(new Error("Command failed"), { stderr })
+                )
+            ).toBe(false);
+        }
     });
 });

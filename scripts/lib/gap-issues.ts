@@ -77,7 +77,9 @@ export function renderOpGapBody(op: string, key: string): string {
         "",
         `No card count here: the compiler attributes a refused line to the slot that got furthest, never to an Op, so an Op gap has no corpus or per-Target figure of its own. Which clause forms matter most is \`bun run oracle:report --gaps\`'s question.`,
         "",
-        `Closes when the rule lands: \`check:gaps\` then forces the allowlist row (\`data/grammar-gaps.json\`, key \`${key}\`) out — the allowlist only shrinks.`,
+        `Closes when the rule lands: \`bun run check:gaps\` then forces the allowlist row (\`data/grammar-gaps.json\`, key \`${key}\`) out — the allowlist only shrinks.`,
+        "",
+        `Parent: #${OP_GAP_UMBRELLA} (Op census gaps umbrella).`,
     ].join("\n");
 }
 
@@ -165,7 +167,9 @@ export function syncGaps(
     const actions: GapSyncAction[] = [];
     const updatedRows = new Map<string, number>();
     for (const filing of filings) {
-        const current = filing.filed ? existing.get(filing.key)! : null;
+        const current = filing.filed
+            ? (existing.get(filing.key) ?? null)
+            : null;
         if (current === null) {
             const issue = tracker.createIssue({
                 title: filing.title,
