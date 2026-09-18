@@ -178,11 +178,17 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         // The sweep registers 3,400 definitions into one long-running
         // process; a verdict that moved with registration order would make
         // the lockfile non-reproducible.
-        const bears = getCardByName("Grizzly Bears");
-        const bolt = getCardByName("Lightning Bolt");
-        const forward = [playBotReach(bears), playBotReach(bolt)];
-        const backward = [playBotReach(bolt), playBotReach(bears)];
-        expect(forward).toEqual([backward[1], backward[0]]);
+        // A PAIR THAT DISAGREES — one `played`, one `ignored`. Two cards with
+        // the same verdict cannot see an order dependency at all: whatever
+        // leaked between them would carry the answer they already share.
+        withTemporaryDefinition(NO_OP_SORCERY, () => {
+            const bears = getCardByName("Grizzly Bears");
+            const forward = [playBotReach(bears), playBotReach(NO_OP_SORCERY)];
+            const backward = [playBotReach(NO_OP_SORCERY), playBotReach(bears)];
+            expect(forward[0]!.outcome).toBe("played");
+            expect(forward[1]!.outcome).toBe("ignored");
+            expect(forward).toEqual([backward[1], backward[0]]);
+        });
     });
 
     it("the form is the cast shape, never the card", () => {
