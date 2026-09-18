@@ -18,6 +18,25 @@
  * never fills it… these issues come from a computed gate… never a
  * subagent's judgement").
  *
+ * ── Why a direct push, not a PR (review round 1) ──────────────────────────
+ *
+ * This is the one place in the repo a script commits a TRACKED file straight
+ * to the base branch outside `land`'s gated merge — worth owning explicitly,
+ * not leaving implicit. The alternative of a gitignored ledger (like
+ * `.claude/telemetry/board-priority.json`) was considered and rejected: the
+ * issue body says plainly "it writes the issue number back into the
+ * allowlist row", and `check-gaps.ts`'s own render()/EXITS text quotes
+ * `row.issue` as "the open issue that closes the gap" — a session picking up
+ * an Op gap reads THAT field, so a private cache the committed file never
+ * saw would silently drift from what the allowlist claims (the exact class
+ * of bug CLAUDE.md warns about: "a rule that lives in two places is a rule
+ * that drifts"). The write itself is narrow enough to take on faith: one
+ * `issue` integer per row, computed offline, never touching the shrink-only
+ * `ops[]` membership `check-gaps.ts` actually guards — a bad value here
+ * cannot break that invariant, only point a reader at the wrong issue
+ * number, which the next `gaps:sync` run self-heals (it re-derives the body
+ * and re-checks the tracker every time, never trusting its own past write).
+ *
  * Offline in its planning half (lockfile + registry + allowlist, no
  * network); the tracker half talks to GitHub through `lib/gh.ts`, which
  * strips `GITHUB_TOKEN` so it authenticates as the developer, never as the
