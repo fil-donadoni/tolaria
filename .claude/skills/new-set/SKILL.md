@@ -21,9 +21,10 @@ injects the settled conventions, so the user never re-explains them.
 
 `$1` (or the word after `/new-set`) is the **3-letter lowercase set code**
 (`inv`, `apc`, `usg`, …). The same pass drives any other **Target**: a format
-pool (`--pool premodern`) or a registered name list (`--target vintage-cube`,
-the Vintage Cube — wayfinder map issue #3846). If the argument is missing or
-ambiguous, ask for it — one question — before anything else.
+pool (`--pool premodern`) or any Target registered in `data/targets.json` —
+a deck list or a name list, the premodern metagame or the Vintage Cube
+(`--target vintage-cube`, wayfinder map issue #3846). If the argument is
+missing or ambiguous, ask for it — one question — before anything else.
 
 ## What v1 did that v2 does not (read once, then forget v1)
 
@@ -148,8 +149,11 @@ unparsed`); the table is the backlog, one row per Grammar Gap:
   and a real card that prints it.
 
 Ranking is Target `compiles` → Target `refuses` → corpus `refuses` → key, so
-two runs over one lockfile print one list. `--pool <format>` and
-`--target <id>` rank the same table for a format pool or a name list.
+two runs over one lockfile print one list. `--pool <format>` ranks the same
+table for a format pool and `--target <id>` for a registered Target; the three
+are mutually exclusive and the report refuses two of them rather than picking
+one. A `--target` id that no row carries exits 1 and lists the registry — it
+never falls through to the corpus ranking.
 
 ### 0.4 The scope manifest — done (ready) + gaps (ranked) + residue
 
@@ -397,12 +401,17 @@ Three layers, all computed; wire all three:
    `#NNN`, or an `out of scope` / `ADR NNNN` marker), and no commented block
    duplicates an active definition. Only the residue can produce a stub in v2.
 
-`bun run gaps:sync` files the computed kinds (`mechanic`, `scenario`,
-`hand-tail`, `migration`, and the Op-census `grammar` rows) idempotently,
-parented under this set's umbrella once its title matches. **Never run it from
-a worktree** — it commits the allowlist and pushes `HEAD:<base>` from its cwd.
-`land` runs it post-merge from the primary checkout; `--dry-run` prints the
-plan and writes nothing.
+`bun run gaps:sync` files the computed kinds idempotently, parented under this
+set's umbrella once its title matches: `mechanic`, `scenario`, `migration` and
+the Op-census `grammar` rows today. **Two of the six file nothing yet, and the
+rollout must not plan around them**: `bot` has no sweep (issue #3830), and
+`hand-tail` is gated by `handTailFiling` in `data/targets.json`, `false` until
+the APC pilot is accepted (issue #3837) — a run prints the held count instead.
+That is exactly why Phase 3 cuts the **residue ticket by hand**: until #3837
+lands, nothing else claims the hand tail. **Never run it from a worktree** —
+it commits the allowlist and pushes `HEAD:<base>` from its cwd. `land` runs it
+post-merge from the primary checkout; `--dry-run` prints the plan and writes
+nothing.
 
 ## Testing requirements (every gap slice)
 

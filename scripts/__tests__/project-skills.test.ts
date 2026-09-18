@@ -315,9 +315,25 @@ describe("/new-set v2 is compile-first (ADR 0137, issue #3835)", () => {
         expect(named.filter((s) => !(s in pkg.scripts))).toEqual([]);
     });
 
-    it("scopes the rollout through `oracle:report --set`, and the report accepts that flag", () => {
-        expect(body()).toMatch(/oracle:report --set/);
-        expect(src("scripts", "oracle-report.ts")).toContain('flag("--set")');
+    it("scopes the rollout through `oracle:report`, and every Target flag it names exists", () => {
+        // A flag the skill teaches but the report does not parse is the worst
+        // shape of drift here: `flag()` returns undefined, `readTarget` falls
+        // through to the corpus, and the session ranks all of Magic believing
+        // it ranked its set (issue #3835 review).
+        const text = body();
+        const report = src("scripts", "oracle-report.ts");
+        for (const f of ["--set", "--pool", "--target"]) {
+            expect(text, `the skill never names ${f}`).toContain(f);
+            expect(report, `oracle-report.ts does not parse ${f}`).toContain(
+                `flag("${f}")`
+            );
+        }
+        expect(text).toMatch(/oracle:report --set/);
+        expect(text).toMatch(/`--target <id>`/);
+        // `--targets` (the coverage report) is a DIFFERENT flag, parsed
+        // positionally — the skill uses both and must not conflate them.
+        expect(text).toMatch(/oracle:report --targets/);
+        expect(report).toContain('process.argv.indexOf("--targets")');
     });
 
     it("the closure invariant is the computed coverage states, not a hand tally", () => {
@@ -348,8 +364,17 @@ describe("/new-set v2 is compile-first (ADR 0137, issue #3835)", () => {
         // colour modules re-opens the axis the ADR closed.
         const text = body();
         expect(text).toMatch(/runs no[\s\S]{0,4}`json-to-cards\.mjs`/);
-        expect(text).not.toMatch(/free tranche per colour module/);
-        expect(text).not.toMatch(/bun scripts\/json-to-cards\.mjs/);
+        expect(text).toMatch(/creates no `sets\/<code>\/` directory/);
+        expect(text).toMatch(/emits no\s*\n?\s*commented stubs/);
+        // v1's own words for the axis, so a copy-back is caught verbatim.
+        for (const v1 of [
+            "free tranche per colour module",
+            "Triage every card into five buckets",
+            "walking skeleton",
+            "bun scripts/json-to-cards.mjs",
+        ]) {
+            expect(text.toLowerCase()).not.toContain(v1.toLowerCase());
+        }
     });
 
     it("its gap tickets do not collide with the ones `gaps:sync` files", () => {
