@@ -319,6 +319,33 @@
         "rarity": "common"
     },
     {
+        "name": "Phyresis",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature has infect. (It deals damage to creatures in the form of -1/-1 counters and to players in the form of poison counters.)",
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "infect"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "0059d21b-0725-4806-8691-2451db36787f",
+        "rarity": "common"
+    },
+    {
         "name": "Refresh",
         "types": [
             "Instant"
@@ -821,6 +848,42 @@
         "rarity": "common"
     },
     {
+        "name": "Tiger Claws",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "oracleText": "Flash\nEnchant creature\nEnchanted creature gets +1/+1 and has trample.",
+        "staticAbilities": [
+            "flash"
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 1,
+                "toughness": 1
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "trample"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "0146a689-4817-4849-a90d-4cc64566960d",
+        "rarity": "common"
+    },
+    {
         "name": "Magmaw",
         "types": [
             "Creature"
@@ -1220,6 +1283,39 @@
         "rarity": "common"
     },
     {
+        "name": "Swashbuckling",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +2/+2 and has haste.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 2
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "haste"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "01ed59b1-968b-4297-9e98-42d940f9478c",
+        "rarity": "common"
+    },
+    {
         "name": "Ravenous Chupacabra",
         "types": [
             "Creature"
@@ -1524,6 +1620,62 @@
             }
         ],
         "id": "02c1310c-1b54-42dd-bf24-889770fa2ded",
+        "rarity": "common"
+    },
+    {
+        "name": "Arcane Teachings",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "oracleText": "Enchant creature (Target a creature as you cast this. This card enters attached to that creature.)\nEnchanted creature gets +2/+2 and has \"{T}: This creature deals 1 damage to any target.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 2
+            },
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "arcane-teachings-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "arcane-teachings-granted",
+                "oracleText": "{T}: This creature deals 1 damage to any target.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 1,
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "02c56677-c8e2-4500-9ee0-0b102496f454",
         "rarity": "common"
     },
     {
@@ -3008,6 +3160,33 @@
         "rarity": "common"
     },
     {
+        "name": "River's Favor",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "U": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +1/+1.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 1,
+                "toughness": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "05c98408-7fe5-4aaf-ba47-38536b2982bf",
+        "rarity": "common"
+    },
+    {
         "name": "Wall of Faith",
         "types": [
             "Creature"
@@ -4478,6 +4657,34 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Feast of the Unicorn",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +4/+0.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 4,
+                "toughness": 0
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "096e41d6-79c3-463f-ae63-872c3d8729a7",
+        "rarity": "common"
+    },
+    {
         "name": "Capashen Templar",
         "types": [
             "Creature"
@@ -4519,6 +4726,34 @@
             }
         ],
         "id": "0976a193-463a-4bcb-a951-ca73347a5572",
+        "rarity": "common"
+    },
+    {
+        "name": "Debilitating Injury",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets -2/-2.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": -2,
+                "toughness": -2
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "09b2b263-34db-4961-bf41-1eaaba3701da",
         "rarity": "common"
     },
     {
@@ -4569,6 +4804,38 @@
             }
         ],
         "id": "09eeb301-bc28-4515-ad69-0b1b5164a5bc",
+        "rarity": "common"
+    },
+    {
+        "name": "Arcane Flight",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "U": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +1/+1 and has flying.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 1,
+                "toughness": 1
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "flying"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "09fbb1c0-ba57-4a5a-8ad6-77fbc6aeeec9",
         "rarity": "common"
     },
     {
@@ -4797,6 +5064,34 @@
             "trample"
         ],
         "id": "0ad9744f-797a-4dd3-8617-192773be995c",
+        "rarity": "common"
+    },
+    {
+        "name": "Mire's Grasp",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets -3/-3.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": -3,
+                "toughness": -3
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "0ae0c536-612d-4916-a8da-5aaaf14218b1",
         "rarity": "common"
     },
     {
@@ -5261,6 +5556,39 @@
         "rarity": "common"
     },
     {
+        "name": "Cast into Darkness",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets -2/-0 and can't block.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": -2,
+                "toughness": 0
+            },
+            {
+                "kind": "block-restriction",
+                "id": "cast-into-darkness-cant-block",
+                "oracleText": "Enchanted creature can't block."
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "0c1880d4-90c7-46a2-bbc9-d2b52971d11c",
+        "rarity": "common"
+    },
+    {
         "name": "Council of Advisors",
         "types": [
             "Creature"
@@ -5538,6 +5866,62 @@
         },
         "id": "0cd4007c-eb51-4da0-b8df-38aae1482a5a",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Oblivion Crown",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Flash (You may cast this spell any time you could cast an instant.)\nEnchant creature\nEnchanted creature has \"Discard a card: This creature gets +1/+1 until end of turn.\"",
+        "staticAbilities": [
+            "flash"
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "oblivion-crown-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "oblivion-crown-granted",
+                "oracleText": "Discard a card: This creature gets +1/+1 until end of turn.",
+                "cost": {
+                    "discardFilter": {
+                        "filter": {},
+                        "count": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 1,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "0cd5486b-c6f4-4cfc-9590-8ffc78b48b0a",
+        "rarity": "common"
     },
     {
         "name": "Breathstealer",
@@ -8124,6 +8508,63 @@
         "rarity": "common"
     },
     {
+        "name": "Compulsory Rest",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature can't attack or block.\nEnchanted creature has \"{2}, Sacrifice this creature: You gain 2 life.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "attack-restriction",
+                "id": "compulsory-rest-cant-attack",
+                "oracleText": "Enchanted creature can't attack or block."
+            },
+            {
+                "kind": "block-restriction",
+                "id": "compulsory-rest-cant-block",
+                "oracleText": "Enchanted creature can't attack or block."
+            },
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "compulsory-rest-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "compulsory-rest-granted",
+                "oracleText": "{2}, Sacrifice this creature: You gain 2 life.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 2
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "11cb3a5b-beee-4f53-a6b5-e9b5603546fa",
+        "rarity": "common"
+    },
+    {
         "name": "Lightning Elemental",
         "types": [
             "Creature"
@@ -9070,6 +9511,44 @@
         "rarity": "rare"
     },
     {
+        "name": "Serra's Embrace",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 2
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +2/+2 and has flying and vigilance. (Attacking doesn't cause it to tap.)",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 2
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "flying"
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "vigilance"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "145c3ebd-7a67-4606-8427-f3b91ab26b84",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Happy Hogan, Dauntless Driver",
         "types": [
             "Creature"
@@ -9612,6 +10091,58 @@
         "rarity": "common"
     },
     {
+        "name": "Racecourse Fury",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "R": 1
+        },
+        "oracleText": "Enchant land\nEnchanted land has \"{T}: Target creature gains haste until end of turn.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "racecourse-fury-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "racecourse-fury-granted",
+                "oracleText": "{T}: Target creature gains haste until end of turn.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "target": 0
+                        },
+                        "ability": "haste",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Land",
+            "count": 1
+        },
+        "id": "15d13d35-b5f7-4d3d-a1fa-84178b28acae",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Bane Alley Blackguard",
         "types": [
             "Creature"
@@ -9654,6 +10185,53 @@
         ],
         "id": "162754cc-cf00-4de5-ad88-845ed1ddea40",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Capashen Standard",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +1/+1.\n{2}, Sacrifice this Aura: Draw a card.",
+        "activatedAbilities": [
+            {
+                "id": "capashen-standard-ability",
+                "oracleText": "{2}, Sacrifice this Aura: Draw a card.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 1,
+                "toughness": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "16665386-405e-48c9-8c69-c21b03931c2f",
+        "rarity": "common"
     },
     {
         "name": "Thornling",
@@ -9993,6 +10571,37 @@
         },
         "id": "16b2e842-6c92-47b0-bed4-e0e64485f168",
         "rarity": "common"
+    },
+    {
+        "name": "Stoneskin",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "Flash\nEnchant creature\nEnchanted creature gets +0/+10.",
+        "staticAbilities": [
+            "flash"
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 0,
+                "toughness": 10
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "16b9fdaa-9da9-48ff-b271-e6a41aabf073",
+        "rarity": "uncommon"
     },
     {
         "name": "Castle Sengir",
@@ -10663,6 +11272,42 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Flaming Sword",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "oracleText": "Flash\nEnchant creature\nEnchanted creature gets +1/+0 and has first strike.",
+        "staticAbilities": [
+            "flash"
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 1,
+                "toughness": 0
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "first strike"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "17ecd9ff-8c30-4e17-8cff-dd40d653c4af",
+        "rarity": "common"
+    },
+    {
         "name": "Sphere of Resistance",
         "types": [
             "Artifact"
@@ -11154,6 +11799,51 @@
         ],
         "id": "19869e75-0925-45dc-b5d9-6968fbfb35b5",
         "rarity": "common"
+    },
+    {
+        "name": "Underworld Connections",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 2
+        },
+        "oracleText": "Enchant land\nEnchanted land has \"{T}, Pay 1 life: Draw a card.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "underworld-connections-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "underworld-connections-granted",
+                "oracleText": "{T}, Pay 1 life: Draw a card.",
+                "cost": {
+                    "tap": true,
+                    "life": 1
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Land",
+            "count": 1
+        },
+        "id": "19c52e3b-b3b8-4243-96fe-fa4c8eea7c59",
+        "rarity": "rare"
     },
     {
         "name": "The Dross Pits",
@@ -11670,6 +12360,39 @@
         },
         "id": "1ab15b40-c5c8-4d77-a4c0-982b6bf94267",
         "rarity": "common"
+    },
+    {
+        "name": "Angelic Reward",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 2
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +3/+3 and has flying.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 3,
+                "toughness": 3
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "flying"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "1ac43a3e-962a-4391-8fcb-6b1575cf7893",
+        "rarity": "uncommon"
     },
     {
         "name": "Ringwarden Owl",
@@ -12310,6 +13033,37 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Feebleness",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Flash\nEnchant creature\nEnchanted creature gets -2/-1.",
+        "staticAbilities": [
+            "flash"
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": -2,
+                "toughness": -1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "1ba2660d-b661-4266-b7e5-07bb8b72bce6",
+        "rarity": "common"
+    },
+    {
         "name": "Roast",
         "types": [
             "Sorcery"
@@ -12484,6 +13238,54 @@
             "flying"
         ],
         "id": "1bddb733-2100-42f8-8ea1-a55d516c5958",
+        "rarity": "common"
+    },
+    {
+        "name": "Tin Street Market",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 4,
+            "R": 1
+        },
+        "oracleText": "Enchant land\nEnchanted land has \"{T}, Discard a card: Draw a card.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "tin-street-market-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "tin-street-market-granted",
+                "oracleText": "{T}, Discard a card: Draw a card.",
+                "cost": {
+                    "tap": true,
+                    "discardFilter": {
+                        "filter": {},
+                        "count": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Land",
+            "count": 1
+        },
+        "id": "1c1f543b-2222-4ef5-b4f7-2c3d2ea27fdc",
         "rarity": "common"
     },
     {
@@ -12922,6 +13724,56 @@
         ],
         "id": "1c759e94-e437-4dda-af0f-6578c0a50619",
         "rarity": "common"
+    },
+    {
+        "name": "Barbed Field",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 2
+        },
+        "oracleText": "Enchant land\nEnchanted land has \"{T}: This land deals 1 damage to any target.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "barbed-field-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "barbed-field-granted",
+                "oracleText": "{T}: This land deals 1 damage to any target.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 1,
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Land",
+            "count": 1
+        },
+        "id": "1c76db48-6f05-49c3-a49c-587c0a8a3613",
+        "rarity": "uncommon"
     },
     {
         "name": "Gallantry",
@@ -13738,6 +14590,51 @@
             ]
         },
         "id": "1f08749e-05e0-4fb4-a4ae-35e7187584ab",
+        "rarity": "common"
+    },
+    {
+        "name": "Divine Favor",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "Enchant creature\nWhen this Aura enters, you gain 3 life.\nEnchanted creature gets +1/+3.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "divine-favor-trigger",
+                "oracleText": "When this Aura enters, you gain 3 life.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 3
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 1,
+                "toughness": 3
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "1f44e053-95c2-410f-b35d-8ea3e3607e82",
         "rarity": "common"
     },
     {
@@ -14832,6 +15729,37 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Mageta's Boon",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "Flash\nEnchant creature\nEnchanted creature gets +1/+2.",
+        "staticAbilities": [
+            "flash"
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 1,
+                "toughness": 2
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "22db8a3b-413d-4f4d-b103-f50fc0415e9b",
+        "rarity": "common"
+    },
+    {
         "name": "Cinderbones",
         "types": [
             "Creature"
@@ -15503,6 +16431,34 @@
         ],
         "id": "24846eba-e085-4d1d-8c7a-d4faf11034a6",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Boon of Emrakul",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +3/-3.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 3,
+                "toughness": -3
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "24bb97c6-d2ff-459f-986e-73e30534d865",
+        "rarity": "common"
     },
     {
         "name": "Lucky Offering",
@@ -17029,6 +17985,43 @@
         "rarity": "common"
     },
     {
+        "name": "Asha's Favor",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature has flying, first strike, and vigilance.",
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "flying"
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "first strike"
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "vigilance"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "28b817f7-ae05-4d31-8a2c-29d8082b4132",
+        "rarity": "common"
+    },
+    {
         "name": "Pith Driller",
         "types": [
             "Artifact",
@@ -17819,6 +18812,34 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Clinging Darkness",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets -4/-1.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": -4,
+                "toughness": -1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "2a939a4e-5a9e-454f-8716-cee7470f05e2",
+        "rarity": "common"
+    },
+    {
         "name": "Goblin Turncoat",
         "types": [
             "Creature"
@@ -18246,6 +19267,39 @@
         "rarity": "common"
     },
     {
+        "name": "One With the Wind",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +2/+2 and has flying.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 2
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "flying"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "2c00f8bf-0088-44ad-b40b-26a2951a2428",
+        "rarity": "common"
+    },
+    {
         "name": "Bile-Vial Boggart",
         "types": [
             "Creature"
@@ -18563,6 +19617,38 @@
             "count": 1
         },
         "id": "2c7ac70a-6484-4b1f-8948-4646a380ed20",
+        "rarity": "common"
+    },
+    {
+        "name": "Luminous Bonds",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature can't attack or block.",
+        "compiledStaticEffects": [
+            {
+                "kind": "attack-restriction",
+                "id": "luminous-bonds-cant-attack",
+                "oracleText": "Enchanted creature can't attack or block."
+            },
+            {
+                "kind": "block-restriction",
+                "id": "luminous-bonds-cant-block",
+                "oracleText": "Enchanted creature can't attack or block."
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "2ca3a547-ef22-4b87-b90f-e8ffb42f73ac",
         "rarity": "common"
     },
     {
@@ -18982,6 +20068,40 @@
         "entersTapped": true,
         "id": "2dd40d90-c939-458a-9a98-27d10da6ff2f",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Primal Visitation",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 3,
+            "R": 1,
+            "G": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +3/+3 and has haste.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 3,
+                "toughness": 3
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "haste"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "2dd518e8-047a-4df0-a0b8-ba116d048fa8",
+        "rarity": "common"
     },
     {
         "name": "Shizo, Death's Storehouse",
@@ -20856,6 +21976,60 @@
         "rarity": "common"
     },
     {
+        "name": "Trollhide",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +2/+2 and has \"{1}{G}: Regenerate this creature.\" (The next time the creature would be destroyed this turn, instead tap it, remove it from combat, and heal all damage on it.)",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 2
+            },
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "trollhide-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "trollhide-granted",
+                "oracleText": "{1}{G}: Regenerate this creature.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "G": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "ref": "$source"
+                        }
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "32c8d6ed-4764-433b-9617-363e46e5b250",
+        "rarity": "common"
+    },
+    {
         "name": "Lace with Moonglove",
         "types": [
             "Instant"
@@ -21741,6 +22915,45 @@
         "rarity": "common"
     },
     {
+        "name": "Unflinching Courage",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1,
+            "G": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +2/+2 and has trample and lifelink. (Damage dealt by the creature also causes its controller to gain that much life.)",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 2
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "trample"
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "lifelink"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "35952c24-d728-4ec6-b0d1-b8183a18554a",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Coral Eel",
         "types": [
             "Creature"
@@ -21992,6 +23205,73 @@
         "rarity": "common"
     },
     {
+        "name": "Lunarch Mantle",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +2/+2 and has \"{1}, Sacrifice a permanent: This creature gains flying until end of turn.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 2
+            },
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "lunarch-mantle-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "lunarch-mantle-granted",
+                "oracleText": "{1}, Sacrifice a permanent: This creature gains flying until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "sacrificeFilter": {
+                        "types": [
+                            "Artifact",
+                            "Battle",
+                            "Creature",
+                            "Enchantment",
+                            "Land",
+                            "Planeswalker"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "ability": "flying",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "360f4759-c178-4ac2-b561-c81e13f67740",
+        "rarity": "common"
+    },
+    {
         "name": "Tanglebloom",
         "types": [
             "Artifact"
@@ -22125,6 +23405,44 @@
         "rarity": "common"
     },
     {
+        "name": "Yavimaya's Embrace",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 5,
+            "U": 2,
+            "G": 1
+        },
+        "oracleText": "Enchant creature\nYou control enchanted creature.\nEnchanted creature gets +2/+2 and has trample.",
+        "compiledStaticEffects": [
+            {
+                "kind": "control-change",
+                "appliesTo": "host"
+            },
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 2
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "trample"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "36b41ff1-240a-447b-bb47-1b9be53ab3e6",
+        "rarity": "rare"
+    },
+    {
         "name": "Silverbeak Griffin",
         "types": [
             "Creature"
@@ -22238,6 +23556,108 @@
         },
         "id": "36e7691f-c771-4451-ac54-3532ca10d48f",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Caustic Tar",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 4,
+            "B": 2
+        },
+        "oracleText": "Enchant land\nEnchanted land has \"{T}: Target player loses 3 life.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "caustic-tar-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "caustic-tar-granted",
+                "oracleText": "{T}: Target player loses 3 life.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "loseLife",
+                        "player": {
+                            "target": 0
+                        },
+                        "amount": 3
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Land",
+            "count": 1
+        },
+        "id": "3700a61f-76fe-42e6-be93-0ba319b7b543",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Mind Control",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 2
+        },
+        "oracleText": "Enchant creature\nYou control enchanted creature.",
+        "compiledStaticEffects": [
+            {
+                "kind": "control-change",
+                "appliesTo": "host"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "37151305-e489-4df1-9b0a-c5e11c77d2f1",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Robe of Mirrors",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "U": 1
+        },
+        "oracleText": "Enchant creature (Target a creature as you cast this. This card enters attached to that creature.)\nEnchanted creature has shroud. (It can't be the target of spells or abilities.)",
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "shroud"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "371720a2-ec3f-43a5-9551-c018e164e79f",
+        "rarity": "common"
     },
     {
         "name": "A-Midnight Assassin",
@@ -22397,6 +23817,63 @@
             }
         ],
         "id": "37940486-2d7f-40d9-9c19-151b9307d374",
+        "rarity": "common"
+    },
+    {
+        "name": "Pursuit of Flight",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +2/+2 and has \"{U}: This creature gains flying until end of turn.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 2
+            },
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "pursuit-of-flight-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "pursuit-of-flight-granted",
+                "oracleText": "{U}: This creature gains flying until end of turn.",
+                "cost": {
+                    "mana": {
+                        "U": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "ability": "flying",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "37a6290c-a0a8-4032-972b-84a7eef04dae",
         "rarity": "common"
     },
     {
@@ -22846,6 +24323,49 @@
         "power": 7,
         "toughness": 3,
         "id": "3928bbce-87b7-4b28-9af4-20362935c909",
+        "rarity": "common"
+    },
+    {
+        "name": "Frog Tongue",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "oracleText": "Enchant creature\nWhen this Aura enters, draw a card.\nEnchanted creature has reach. (It can block creatures with flying.)",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "frog-tongue-trigger",
+                "oracleText": "When this Aura enters, draw a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "reach"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "3941e799-a254-423e-90bb-091dbe56ca6a",
         "rarity": "common"
     },
     {
@@ -23750,6 +25270,39 @@
         ],
         "id": "3ab1e253-47cb-4089-87d5-0f998025d98c",
         "rarity": "rare"
+    },
+    {
+        "name": "Mantle of Webs",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +1/+3 and has reach. (It can block creatures with flying.)",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 1,
+                "toughness": 3
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "reach"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "3b09e36a-ad53-44ae-8586-2b658e3c533c",
+        "rarity": "common"
     },
     {
         "name": "Wind-Scarred Crag",
@@ -24708,6 +26261,89 @@
         ],
         "id": "3d66f3c4-5a11-4e28-a4ae-673b3b36d3ec",
         "rarity": "common"
+    },
+    {
+        "name": "Gift of Orzhova",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "hybrid": [
+                [
+                    "W",
+                    "B"
+                ],
+                [
+                    "W",
+                    "B"
+                ]
+            ]
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +1/+1 and has flying and lifelink.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 1,
+                "toughness": 1
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "flying"
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "lifelink"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "3d759ef8-cb04-4769-9944-85793af3f6e8",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Epic Proportions",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 4,
+            "G": 2
+        },
+        "oracleText": "Flash\nEnchant creature\nEnchanted creature gets +5/+5 and has trample.",
+        "staticAbilities": [
+            "flash"
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 5,
+                "toughness": 5
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "trample"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "3d7ffca1-c73c-4de1-b811-bd1876ea6d6f",
+        "rarity": "rare"
     },
     {
         "name": "Megantic Sliver",
@@ -26366,6 +28002,34 @@
         "rarity": "common"
     },
     {
+        "name": "Oakenform",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +3/+3.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 3,
+                "toughness": 3
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "42df372a-af2b-464a-b54c-039132f70d00",
+        "rarity": "common"
+    },
+    {
         "name": "Anthem of Champions",
         "types": [
             "Enchantment"
@@ -26568,6 +28232,39 @@
             }
         ],
         "id": "43790471-6ec8-4c1d-b6d3-74c6cdf8ce43",
+        "rarity": "common"
+    },
+    {
+        "name": "Goblin War Paint",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +2/+2 and has haste.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 2
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "haste"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "4388e57e-0c87-4d66-a862-58261d76c5ac",
         "rarity": "common"
     },
     {
@@ -27250,6 +28947,33 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Sensory Deprivation",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "U": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets -3/-0.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": -3,
+                "toughness": 0
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "454739db-a3d6-45e8-849a-287438c36627",
+        "rarity": "common"
+    },
+    {
         "name": "Hornet Harasser",
         "types": [
             "Creature"
@@ -27340,6 +29064,36 @@
         ],
         "id": "455c92ca-bb23-495d-be9e-2e0101b115ac",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Alexi's Cloak",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "oracleText": "Flash\nEnchant creature\nEnchanted creature has shroud. (It can't be the target of spells or abilities.)",
+        "staticAbilities": [
+            "flash"
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "shroud"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "457a5613-d1d4-4112-8484-f40120079b7b",
+        "rarity": "common"
     },
     {
         "name": "Foot Soldiers",
@@ -28945,6 +30699,50 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Angelic Gift",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "Enchant creature\nWhen this Aura enters, draw a card.\nEnchanted creature has flying.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "angelic-gift-trigger",
+                "oracleText": "When this Aura enters, draw a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "flying"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "4941246b-7d6a-4b2d-8144-f36ac890a389",
+        "rarity": "common"
+    },
+    {
         "name": "Gravel-Hide Goblin",
         "types": [
             "Creature"
@@ -30472,6 +32270,37 @@
             "count": 1
         },
         "id": "4dd8bdbd-99c9-4fa7-936a-acc7f4238507",
+        "rarity": "common"
+    },
+    {
+        "name": "Shield of Duty and Reason",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature has protection from green and from blue.",
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "protection from green"
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "protection from blue"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "4ddf4ee0-75d6-48a5-955c-97faf73b899f",
         "rarity": "common"
     },
     {
@@ -34607,6 +36436,42 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Spiteful Motives",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 3,
+            "R": 1
+        },
+        "oracleText": "Flash (You may cast this spell any time you could cast an instant.)\nEnchant creature\nEnchanted creature gets +3/+0 and has first strike.",
+        "staticAbilities": [
+            "flash"
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 3,
+                "toughness": 0
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "first strike"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "592d7349-d066-49b0-9920-c1ec1595e00d",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Blizzard Elemental",
         "types": [
             "Creature"
@@ -34669,6 +36534,39 @@
             "reach"
         ],
         "id": "594de429-58ed-4a0c-9631-464cde7a48c3",
+        "rarity": "common"
+    },
+    {
+        "name": "Untamed Hunger",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +2/+1 and has menace. (It can't be blocked except by two or more creatures.)",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 1
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "menace"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "595deb86-b6cf-4e4f-a6cf-f5ff128b720d",
         "rarity": "common"
     },
     {
@@ -35285,6 +37183,37 @@
         "rarity": "common"
     },
     {
+        "name": "Greel's Caress",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Flash\nEnchant creature\nEnchanted creature gets -3/-0.",
+        "staticAbilities": [
+            "flash"
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": -3,
+                "toughness": 0
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "5b25ce3f-fab3-40f8-8a16-fe580f3d97a5",
+        "rarity": "common"
+    },
+    {
         "name": "Aven Fisher",
         "types": [
             "Creature"
@@ -35728,6 +37657,37 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Feral Invocation",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "oracleText": "Flash (You may cast this spell any time you could cast an instant.)\nEnchant creature\nEnchanted creature gets +2/+2.",
+        "staticAbilities": [
+            "flash"
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 2
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "5c1f15a2-0058-4188-9696-385fa6974bd4",
+        "rarity": "common"
+    },
+    {
         "name": "Gnarled Mass",
         "types": [
             "Creature"
@@ -36166,6 +38126,58 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Midnight Covenant",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature has \"{B}: This creature gets +1/+1 until end of turn.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "midnight-covenant-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "midnight-covenant-granted",
+                "oracleText": "{B}: This creature gets +1/+1 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "B": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 1,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "5d797e91-3fc7-4f62-8cd8-dbd5f445e69c",
+        "rarity": "common"
+    },
+    {
         "name": "Charging Badger",
         "types": [
             "Creature"
@@ -36271,6 +38283,39 @@
             }
         ],
         "id": "5da5587d-6b6c-4645-8cc9-2866d1e6911b",
+        "rarity": "common"
+    },
+    {
+        "name": "Nimbus Wings",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +1/+2 and has flying.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 1,
+                "toughness": 2
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "flying"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "5dae4042-8806-437c-8fc1-2d6996ff38c6",
         "rarity": "common"
     },
     {
@@ -37297,6 +39342,41 @@
         "rarity": "common"
     },
     {
+        "name": "Krosan Adaptation",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "oracleText": "Enchant creature\nStorm (When you cast this spell, copy it for each spell cast before it this turn. You may choose new targets for the copies. The copies enter as tokens.)\nEnchanted creature gets +1/+0 and has vigilance.",
+        "staticAbilities": [
+            "storm"
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 1,
+                "toughness": 0
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "vigilance"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "60909727-0e87-4f58-a0e6-424eb81fff4f",
+        "rarity": "rare"
+    },
+    {
         "name": "Arctic Flats",
         "types": [
             "Land"
@@ -37600,6 +39680,32 @@
             }
         ],
         "id": "6145bcd5-a583-4a04-9a13-a64ecdf4425a",
+        "rarity": "common"
+    },
+    {
+        "name": "Reflexes",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "R": 1
+        },
+        "oracleText": "Enchant creature (Target a creature as you cast this. This card enters attached to that creature.)\nEnchanted creature has first strike. (It deals combat damage before creatures without first strike.)",
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "first strike"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "614782c2-a38a-4b3e-9716-7f5c09c4ad43",
         "rarity": "common"
     },
     {
@@ -38065,6 +40171,56 @@
         ],
         "id": "628dbc4c-3640-44a9-8439-873103989409",
         "rarity": "common"
+    },
+    {
+        "name": "Future Flight",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 2
+        },
+        "oracleText": "Enchant creature\nWhen this Aura enters, draw two cards.\nEnchanted creature gets +2/+0 and has flying. (It can't be blocked except by creatures with flying or reach.)",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "future-flight-trigger",
+                "oracleText": "When this Aura enters, draw two cards.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 2
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 0
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "flying"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "62a8b9a4-86cd-4fb3-bda6-a044a79cc6fd",
+        "rarity": "rare"
     },
     {
         "name": "Eviscerate",
@@ -38538,6 +40694,38 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Riot Spikes",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "hybrid": [
+                [
+                    "B",
+                    "R"
+                ]
+            ]
+        },
+        "oracleText": "({B/R} can be paid with either {B} or {R}.)\nEnchant creature\nEnchanted creature gets +2/-1.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": -1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "63d0f909-9906-4ff7-9b10-9d817f20d8a9",
+        "rarity": "common"
+    },
+    {
         "name": "Boggart Ram-Gang",
         "types": [
             "Creature"
@@ -38645,6 +40833,61 @@
         ],
         "id": "64056edb-6de2-4694-b771-f35542c25771",
         "rarity": "common"
+    },
+    {
+        "name": "Sadistic Obsession",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature has \"{B}, {T}: Put a -1/-1 counter on target creature.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "sadistic-obsession-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "sadistic-obsession-granted",
+                "oracleText": "{B}, {T}: Put a -1/-1 counter on target creature.",
+                "cost": {
+                    "mana": {
+                        "B": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "counters",
+                        "action": "add",
+                        "counter": "-1/-1",
+                        "target": {
+                            "target": 0
+                        },
+                        "count": 1
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "64080d0d-163b-450d-8919-79a0465f3645",
+        "rarity": "uncommon"
     },
     {
         "name": "Cackling Imp",
@@ -38868,6 +41111,34 @@
         "power": 3,
         "toughness": 3,
         "id": "64bcc06a-de86-4387-882d-ead33e9c9e01",
+        "rarity": "common"
+    },
+    {
+        "name": "Twisted Experiment",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +3/-1.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 3,
+                "toughness": -1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "64e37889-7dc0-476b-8b99-8f06881d352c",
         "rarity": "common"
     },
     {
@@ -39603,6 +41874,55 @@
         "rarity": "common"
     },
     {
+        "name": "Pious Interdiction",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "oracleText": "Enchant creature\nWhen this Aura enters, you gain 2 life.\nEnchanted creature can't attack or block.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "pious-interdiction-trigger",
+                "oracleText": "When this Aura enters, you gain 2 life.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 2
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "attack-restriction",
+                "id": "pious-interdiction-cant-attack",
+                "oracleText": "Enchanted creature can't attack or block."
+            },
+            {
+                "kind": "block-restriction",
+                "id": "pious-interdiction-cant-block",
+                "oracleText": "Enchanted creature can't attack or block."
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "670b9645-ce34-41eb-a527-4af3e13c3a54",
+        "rarity": "common"
+    },
+    {
         "name": "Fireborn Knight",
         "types": [
             "Creature"
@@ -40224,6 +42544,39 @@
         ],
         "id": "67e87f30-b27a-48e2-a133-192309dd5902",
         "rarity": "rare"
+    },
+    {
+        "name": "Madcap Skills",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +3/+0 and has menace.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 3,
+                "toughness": 0
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "menace"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "67ef2667-40f6-4c1c-af81-3e45d2437d5f",
+        "rarity": "common"
     },
     {
         "name": "Fiery Intervention",
@@ -41360,6 +43713,38 @@
         "rarity": "common"
     },
     {
+        "name": "Crippling Blight",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "B": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets -1/-1 and can't block.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": -1,
+                "toughness": -1
+            },
+            {
+                "kind": "block-restriction",
+                "id": "crippling-blight-cant-block",
+                "oracleText": "Enchanted creature can't block."
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "6a96a5d6-6527-4018-923e-7e850fda106a",
+        "rarity": "common"
+    },
+    {
         "name": "Ember Shot",
         "types": [
             "Instant"
@@ -41453,6 +43838,37 @@
             "deathtouch"
         ],
         "id": "6ab810f1-21d6-4a98-b77a-e455370aa6cc",
+        "rarity": "common"
+    },
+    {
+        "name": "Maggot Therapy",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "oracleText": "Flash\nEnchant creature\nEnchanted creature gets +2/-2.",
+        "staticAbilities": [
+            "flash"
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": -2
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "6ab963aa-2304-4ee6-a8c7-c485c5133b40",
         "rarity": "common"
     },
     {
@@ -41783,6 +44199,37 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Mask of Law and Grace",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature has protection from black and from red.",
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "protection from black"
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "protection from red"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "6bd97150-b405-4bb5-b5a8-fceda4a45ebb",
+        "rarity": "common"
+    },
+    {
         "name": "Elite Vanguard",
         "types": [
             "Creature"
@@ -41864,6 +44311,56 @@
         ],
         "id": "6c02cc57-f589-4c5d-b306-cceb0ab3ce8b",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Power of Fire",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature has \"{T}: This creature deals 1 damage to any target.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "power-of-fire-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "power-of-fire-granted",
+                "oracleText": "{T}: This creature deals 1 damage to any target.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 1,
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "6c02d053-0885-4720-bf74-b65b3f87cfd9",
+        "rarity": "common"
     },
     {
         "name": "Cabaretti Initiate",
@@ -42681,6 +45178,68 @@
         "rarity": "common"
     },
     {
+        "name": "Chant of the Skifsang",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets -13/-0.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": -13,
+                "toughness": 0
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "6e604b2e-f257-465d-9342-6eb55b2334c5",
+        "rarity": "common"
+    },
+    {
+        "name": "Bound in Silence",
+        "types": [
+            "Kindred",
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Rebel",
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature can't attack or block.",
+        "compiledStaticEffects": [
+            {
+                "kind": "attack-restriction",
+                "id": "bound-in-silence-cant-attack",
+                "oracleText": "Enchanted creature can't attack or block."
+            },
+            {
+                "kind": "block-restriction",
+                "id": "bound-in-silence-cant-block",
+                "oracleText": "Enchanted creature can't attack or block."
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "6e8a6e04-ce3b-4025-92ba-8980022b8038",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Shauku's Minion",
         "types": [
             "Creature"
@@ -43325,6 +45884,34 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Hardened-Scale Armor",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +3/+3.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 3,
+                "toughness": 3
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "708e7438-b449-490e-820f-9ecd3199541b",
+        "rarity": "common"
+    },
+    {
         "name": "Two-Headed Hunter",
         "types": [
             "Creature"
@@ -43896,6 +46483,61 @@
         "rarity": "common"
     },
     {
+        "name": "Inferno Fist",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "oracleText": "Enchant creature you control\nEnchanted creature gets +2/+0.\n{R}, Sacrifice this Aura: This Aura deals 2 damage to any target.",
+        "activatedAbilities": [
+            {
+                "id": "inferno-fist-ability",
+                "oracleText": "{R}, Sacrifice this Aura: This Aura deals 2 damage to any target.",
+                "cost": {
+                    "mana": {
+                        "R": 1
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 2,
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 0
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "controller": "you"
+        },
+        "id": "721a42f4-5884-418f-b1f9-7cb651559ad0",
+        "rarity": "common"
+    },
+    {
         "name": "Venerable Monk",
         "types": [
             "Creature"
@@ -44008,6 +46650,37 @@
         "rarity": "common"
     },
     {
+        "name": "Corrupted Conscience",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 2
+        },
+        "oracleText": "Enchant creature\nYou control enchanted creature.\nEnchanted creature has infect. (It deals damage to creatures in the form of -1/-1 counters and to players in the form of poison counters.)",
+        "compiledStaticEffects": [
+            {
+                "kind": "control-change",
+                "appliesTo": "host"
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "infect"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "7276c584-76ed-4c20-a5ea-627c8f7751e6",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Tome Blast",
         "types": [
             "Sorcery"
@@ -44035,6 +46708,39 @@
             "R": 1
         },
         "id": "72a3b17d-1e00-48e9-8402-c81bacd595a7",
+        "rarity": "common"
+    },
+    {
+        "name": "Cagemail",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +2/+2 and can't attack.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 2
+            },
+            {
+                "kind": "attack-restriction",
+                "id": "cagemail-cant-attack",
+                "oracleText": "Enchanted creature can't attack."
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "72ab91ab-2bcf-4617-bec3-2bf040d4997c",
         "rarity": "common"
     },
     {
@@ -44100,6 +46806,37 @@
         "rarity": "common"
     },
     {
+        "name": "Indomitable Will",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "Flash (You may cast this spell any time you could cast an instant.)\nEnchant creature\nEnchanted creature gets +1/+2.",
+        "staticAbilities": [
+            "flash"
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 1,
+                "toughness": 2
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "73263906-c66b-4f85-b138-0b5deda64ab1",
+        "rarity": "common"
+    },
+    {
         "name": "Bonescythe Sliver",
         "types": [
             "Creature"
@@ -44162,6 +46899,59 @@
             }
         },
         "id": "73475d29-2673-4614-86d3-404232426aa8",
+        "rarity": "common"
+    },
+    {
+        "name": "Steal Enchantment",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "U": 2
+        },
+        "oracleText": "Enchant enchantment\nYou control enchanted enchantment.",
+        "compiledStaticEffects": [
+            {
+                "kind": "control-change",
+                "appliesTo": "host"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Enchantment",
+            "count": 1
+        },
+        "id": "734be7fa-0998-4771-9b97-4989b3fc1471",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Knight's Pledge",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +2/+2.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 2
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "734ff6ac-000d-4fc6-b97b-07b9b21f745c",
         "rarity": "common"
     },
     {
@@ -47051,6 +49841,33 @@
         "rarity": "common"
     },
     {
+        "name": "Dead Weight",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "B": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets -2/-2.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": -2,
+                "toughness": -2
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "7933987e-7b8c-4d5a-804a-708d6bb6d231",
+        "rarity": "common"
+    },
+    {
         "name": "Third Path Savant",
         "types": [
             "Creature"
@@ -47409,6 +50226,33 @@
         "rarity": "common"
     },
     {
+        "name": "Battle Mastery",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature has double strike. (It deals both first-strike and regular combat damage.)",
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "double strike"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "79e234ce-6d61-4d62-a8cd-fa985a6aba60",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Woodland Patrol",
         "types": [
             "Creature"
@@ -47655,6 +50499,60 @@
             }
         ],
         "id": "7a7fe9f1-f3c0-43e4-aa30-d0bdab4ae94d",
+        "rarity": "common"
+    },
+    {
+        "name": "Skygames",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "oracleText": "Enchant land\nEnchanted land has \"{T}: Target creature gains flying until end of turn. Activate only as a sorcery.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "skygames-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "skygames-granted",
+                "oracleText": "{T}: Target creature gains flying until end of turn. Activate only as a sorcery.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "target": 0
+                        },
+                        "ability": "flying",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                },
+                "sorcerySpeedOnly": true
+            }
+        ],
+        "targetRequirement": {
+            "type": "Land",
+            "count": 1
+        },
+        "id": "7ab5bf75-762f-46ef-8304-aacdb248bc5b",
         "rarity": "common"
     },
     {
@@ -48296,6 +51194,39 @@
         "rarity": "common"
     },
     {
+        "name": "Giant Spectacle",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +2/+1 and has menace.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 1
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "menace"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "7c425337-6f1f-494e-a7ae-7d533d7a0b4e",
+        "rarity": "common"
+    },
+    {
         "name": "Douser of Lights",
         "types": [
             "Creature"
@@ -48311,6 +51242,66 @@
         "toughness": 5,
         "id": "7c554be7-6fd4-4642-aaa0-2781d9c388e4",
         "rarity": "common"
+    },
+    {
+        "name": "Foul Presence",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets -1/-1 and has \"{T}: Target creature gets -1/-1 until end of turn.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": -1,
+                "toughness": -1
+            },
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "foul-presence-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "foul-presence-granted",
+                "oracleText": "{T}: Target creature gets -1/-1 until end of turn.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "target": 0
+                        },
+                        "power": -1,
+                        "toughness": -1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "7c5a6fa8-d422-4e56-9e7b-2ff2fc8aecfe",
+        "rarity": "uncommon"
     },
     {
         "name": "Sylvok Replica",
@@ -48404,6 +51395,39 @@
         ],
         "id": "7cb8d3a2-ed96-4490-9432-401da19ad3c5",
         "rarity": "common"
+    },
+    {
+        "name": "Confiscate",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 4,
+            "U": 2
+        },
+        "oracleText": "Enchant permanent\nYou control enchanted permanent.",
+        "compiledStaticEffects": [
+            {
+                "kind": "control-change",
+                "appliesTo": "host"
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Artifact",
+                "Battle",
+                "Creature",
+                "Enchantment",
+                "Land",
+                "Planeswalker"
+            ],
+            "count": 1
+        },
+        "id": "7cba6d4a-58d0-42d6-b49b-65c72b86007f",
+        "rarity": "uncommon"
     },
     {
         "name": "Misty Palms Oasis",
@@ -48683,6 +51707,32 @@
         },
         "id": "7db219ea-2ed1-4a86-955c-d61ecedbc019",
         "rarity": "common"
+    },
+    {
+        "name": "Persuasion",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 2
+        },
+        "oracleText": "Enchant creature (Target a creature as you cast this. This card enters attached to that creature.)\nYou control enchanted creature.",
+        "compiledStaticEffects": [
+            {
+                "kind": "control-change",
+                "appliesTo": "host"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "7db5d930-23b4-4726-8f5c-3c690b36f4a4",
+        "rarity": "rare"
     },
     {
         "name": "Wolf Cove Villager",
@@ -49773,6 +52823,53 @@
         "rarity": "common"
     },
     {
+        "name": "Illuminated Wings",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature has flying.\n{2}, Sacrifice this Aura: Draw a card.",
+        "activatedAbilities": [
+            {
+                "id": "illuminated-wings-ability",
+                "oracleText": "{2}, Sacrifice this Aura: Draw a card.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "flying"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "7f98e703-a0d3-497f-840a-aa026b02d47f",
+        "rarity": "common"
+    },
+    {
         "name": "Iguana Parrot",
         "types": [
             "Creature"
@@ -50677,6 +53774,38 @@
         "rarity": "common"
     },
     {
+        "name": "Zephyr Net",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature has defender and flying.",
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "defender"
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "flying"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "817b8996-388f-4704-a4c8-ef99d4701805",
+        "rarity": "common"
+    },
+    {
         "name": "Advance Scout",
         "types": [
             "Creature"
@@ -50930,6 +54059,39 @@
         ],
         "id": "82846d31-4981-4ef1-85c3-703569146a84",
         "rarity": "common"
+    },
+    {
+        "name": "Mythic Proportions",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 4,
+            "G": 3
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +8/+8 and has trample.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 8,
+                "toughness": 8
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "trample"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "829069cf-7e63-4443-b679-65ad15d6ca5e",
+        "rarity": "rare"
     },
     {
         "name": "Tenth District Guard",
@@ -51300,6 +54462,56 @@
             }
         ],
         "id": "830d1980-f460-4be2-9379-c3f74c8318f3",
+        "rarity": "common"
+    },
+    {
+        "name": "Hermetic Study",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature has \"{T}: This creature deals 1 damage to any target.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "hermetic-study-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "hermetic-study-granted",
+                "oracleText": "{T}: This creature deals 1 damage to any target.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 1,
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "8321888a-a450-4c15-9461-255cfaa05367",
         "rarity": "common"
     },
     {
@@ -52088,6 +55300,56 @@
         "power": 5,
         "toughness": 1,
         "id": "85e61e00-c55b-4384-923b-a777f75cbe79",
+        "rarity": "common"
+    },
+    {
+        "name": "Psionic Gift",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature has \"{T}: This creature deals 1 damage to any target.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "psionic-gift-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "psionic-gift-granted",
+                "oracleText": "{T}: This creature deals 1 damage to any target.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 1,
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "862fc18f-90d2-430d-aff2-47c1483dee9d",
         "rarity": "common"
     },
     {
@@ -53189,6 +56451,42 @@
             "first strike"
         ],
         "id": "882e3c69-dca7-4c0a-8f8c-984250e6a867",
+        "rarity": "common"
+    },
+    {
+        "name": "Torpor Dust",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "hybrid": [
+                [
+                    "U",
+                    "B"
+                ]
+            ]
+        },
+        "oracleText": "Flash\nEnchant creature\nEnchanted creature gets -3/-0.",
+        "staticAbilities": [
+            "flash"
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": -3,
+                "toughness": 0
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "8840551f-d43a-487f-a960-9b220dec5df4",
         "rarity": "common"
     },
     {
@@ -54390,6 +57688,39 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Furious Strength",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +2/+2 and has menace. (It can't be blocked except by two or more creatures.)",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 2
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "menace"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "8abeabbd-215b-4f25-908d-5650862835be",
+        "rarity": "common"
+    },
+    {
         "name": "Scepter of Insight",
         "types": [
             "Artifact"
@@ -54580,6 +57911,60 @@
         ],
         "id": "8b710ff3-1ed9-4be3-99b7-d90c513ed1f5",
         "rarity": "rare"
+    },
+    {
+        "name": "Savage Silhouette",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +2/+2 and has \"{1}{G}: Regenerate this creature.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 2
+            },
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "savage-silhouette-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "savage-silhouette-granted",
+                "oracleText": "{1}{G}: Regenerate this creature.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "G": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "ref": "$source"
+                        }
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "8b8547e0-2928-4edc-a15a-a613cb4d1eac",
+        "rarity": "common"
     },
     {
         "name": "Overeager Apprentice",
@@ -56209,6 +59594,39 @@
         "rarity": "common"
     },
     {
+        "name": "Lightning Talons",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +3/+0 and has first strike. (It deals combat damage before creatures without first strike.)",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 3,
+                "toughness": 0
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "first strike"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "8fc1ad4c-b394-48b9-9a5a-ec9f42bf6a00",
+        "rarity": "common"
+    },
+    {
         "name": "Golgari Guildgate",
         "types": [
             "Land"
@@ -56356,6 +59774,39 @@
         "power": 2,
         "toughness": 2,
         "id": "9047075e-9fca-484d-bb79-32c0d6821281",
+        "rarity": "common"
+    },
+    {
+        "name": "Mark of the Vampire",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +2/+2 and has lifelink.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 2
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "lifelink"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "90484815-2529-4a81-9f1b-f0f7382e4b66",
         "rarity": "common"
     },
     {
@@ -56676,6 +60127,51 @@
         ],
         "id": "914f204c-7f3d-41f2-a771-0b6227d539eb",
         "rarity": "rare"
+    },
+    {
+        "name": "Sheltering Boughs",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "oracleText": "Enchant creature\nWhen this Aura enters, draw a card.\nEnchanted creature gets +1/+3.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "sheltering-boughs-trigger",
+                "oracleText": "When this Aura enters, draw a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 1,
+                "toughness": 3
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "915dd4c2-0e9f-440c-8e4c-80db351a5eba",
+        "rarity": "common"
     },
     {
         "name": "Demolish",
@@ -57409,6 +60905,37 @@
             "lifelink"
         ],
         "id": "93cf5fb3-bb41-4efa-9721-2c2d169b05cd",
+        "rarity": "common"
+    },
+    {
+        "name": "Messenger's Speed",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "R": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature has trample and haste.",
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "trample"
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "haste"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "93d7f033-217f-4fb3-a57b-e32291257ec8",
         "rarity": "common"
     },
     {
@@ -59712,6 +63239,35 @@
         ],
         "id": "9990bdff-c27a-447f-b530-d8b7614fe9a0",
         "rarity": "common"
+    },
+    {
+        "name": "Threads of Disloyalty",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 2
+        },
+        "oracleText": "Enchant creature with mana value 2 or less\nYou control enchanted creature.",
+        "compiledStaticEffects": [
+            {
+                "kind": "control-change",
+                "appliesTo": "host"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "mvFilter": {
+                "max": 2
+            }
+        },
+        "id": "999440a5-9659-4218-8594-1950f1155975",
+        "rarity": "rare"
     },
     {
         "name": "Beast Walkers",
@@ -62194,6 +65750,59 @@
         "rarity": "common"
     },
     {
+        "name": "Feather of Flight",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "Flash\nEnchant creature\nWhen this Aura enters, draw a card.\nEnchanted creature gets +1/+0 and has flying.",
+        "staticAbilities": [
+            "flash"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "feather-of-flight-trigger",
+                "oracleText": "When this Aura enters, draw a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 1,
+                "toughness": 0
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "flying"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "9fb41503-8632-4bf1-9bfe-6d9b9993c337",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Heart of Ramos",
         "types": [
             "Artifact"
@@ -62990,6 +66599,51 @@
         "rarity": "common"
     },
     {
+        "name": "Dark Favor",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Enchant creature\nWhen this Aura enters, you lose 1 life.\nEnchanted creature gets +3/+1.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "dark-favor-trigger",
+                "oracleText": "When this Aura enters, you lose 1 life.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "loseLife",
+                        "player": "controller",
+                        "amount": 1
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 3,
+                "toughness": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "a258a235-086e-429b-9ac1-3178f902658b",
+        "rarity": "common"
+    },
+    {
         "name": "Watercourser",
         "types": [
             "Creature"
@@ -63031,6 +66685,59 @@
         ],
         "id": "a27c441a-b31d-4214-8fc5-054003e257dc",
         "rarity": "common"
+    },
+    {
+        "name": "Lofty Dreams",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 2
+        },
+        "oracleText": "Convoke (Your creatures can help cast this spell. Each creature you tap while casting this spell pays for {1} or one mana of that creature's color.)\nEnchant creature\nWhen this Aura enters, draw a card.\nEnchanted creature gets +2/+2 and has flying.",
+        "staticAbilities": [
+            "convoke"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "lofty-dreams-trigger",
+                "oracleText": "When this Aura enters, draw a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 2
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "flying"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "a2908ed1-517e-4f1a-94e5-b06fb033c1a6",
+        "rarity": "uncommon"
     },
     {
         "name": "Crush",
@@ -64347,6 +68054,60 @@
         "rarity": "common"
     },
     {
+        "name": "Claim of Erebos",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature has \"{1}{B}, {T}: Target player loses 2 life.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "claim-of-erebos-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "claim-of-erebos-granted",
+                "oracleText": "{1}{B}, {T}: Target player loses 2 life.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "B": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "loseLife",
+                        "player": {
+                            "target": 0
+                        },
+                        "amount": 2
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "a51db556-b3e8-4628-9e39-6353023b0696",
+        "rarity": "common"
+    },
+    {
         "name": "Copper Myr",
         "types": [
             "Artifact",
@@ -64579,6 +68340,57 @@
             "count": 1
         },
         "id": "a5d7bb33-fdf7-479a-93df-b2d0acddf033",
+        "rarity": "common"
+    },
+    {
+        "name": "Glaring Aegis",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "oracleText": "Enchant creature\nWhen this Aura enters, tap target creature an opponent controls.\nEnchanted creature gets +1/+3.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "glaring-aegis-trigger",
+                "oracleText": "When this Aura enters, tap target creature an opponent controls.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "controller": "opponent"
+                },
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "tap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 1,
+                "toughness": 3
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "a5f66474-05bb-4235-b8b4-c2e6452118fc",
         "rarity": "common"
     },
     {
@@ -65960,6 +69772,34 @@
             "infect"
         ],
         "id": "a978c49d-483a-42fe-971c-858288d07e40",
+        "rarity": "common"
+    },
+    {
+        "name": "Weight of the Underworld",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets -3/-2.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": -3,
+                "toughness": -2
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "a99bcecd-0b5a-4806-824b-4885fcad1449",
         "rarity": "common"
     },
     {
@@ -69347,6 +73187,36 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Buoyancy",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "oracleText": "Flash\nEnchant creature\nEnchanted creature has flying.",
+        "staticAbilities": [
+            "flash"
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "flying"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "b208dad2-a412-45fd-b19a-d370426ef5b8",
+        "rarity": "common"
+    },
+    {
         "name": "Herbal Poultice",
         "types": [
             "Artifact"
@@ -70544,6 +74414,34 @@
         "rarity": "common"
     },
     {
+        "name": "Hero's Resolve",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +1/+5.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 1,
+                "toughness": 5
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "b4cdcc7c-0d01-4aa2-8934-079dfc00eef2",
+        "rarity": "common"
+    },
+    {
         "name": "Fervor",
         "types": [
             "Enchantment"
@@ -71186,6 +75084,37 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Slimebind",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "oracleText": "Flash (You may cast this spell any time you could cast an instant.)\nEnchant creature\nEnchanted creature gets -4/-0.",
+        "staticAbilities": [
+            "flash"
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": -4,
+                "toughness": 0
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "b6263410-20c5-43b4-8183-3c02c10d07fb",
+        "rarity": "common"
+    },
+    {
         "name": "Swooping Lookout",
         "types": [
             "Artifact",
@@ -71745,6 +75674,59 @@
         "rarity": "common"
     },
     {
+        "name": "Molting Snakeskin",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "B": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +2/+0 and has \"{2}{B}: Regenerate this creature.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 0
+            },
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "molting-snakeskin-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "molting-snakeskin-granted",
+                "oracleText": "{2}{B}: Regenerate this creature.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "B": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "ref": "$source"
+                        }
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "b781cbcf-dbba-41c1-be02-2396b824a217",
+        "rarity": "common"
+    },
+    {
         "name": "Belligerent Sliver",
         "types": [
             "Creature"
@@ -72026,6 +76008,57 @@
         ],
         "id": "b81c6c8b-a9cf-4866-89ba-7f8ad077b836",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Setessan Training",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "oracleText": "Enchant creature you control\nWhen this Aura enters, draw a card.\nEnchanted creature gets +1/+0 and has trample. (It can deal excess combat damage to the player or planeswalker it's attacking.)",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "setessan-training-trigger",
+                "oracleText": "When this Aura enters, draw a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 1,
+                "toughness": 0
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "trample"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "controller": "you"
+        },
+        "id": "b8322d31-6194-4fda-99a3-b6426c57488a",
+        "rarity": "common"
     },
     {
         "name": "Improvised Club",
@@ -72658,6 +76691,59 @@
         "rarity": "common"
     },
     {
+        "name": "Skeletal Grimace",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +1/+1 and has \"{B}: Regenerate this creature.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 1,
+                "toughness": 1
+            },
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "skeletal-grimace-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "skeletal-grimace-granted",
+                "oracleText": "{B}: Regenerate this creature.",
+                "cost": {
+                    "mana": {
+                        "B": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "ref": "$source"
+                        }
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "b9b28f37-d6b8-4d35-95e9-9533aea0a071",
+        "rarity": "common"
+    },
+    {
         "name": "Frostbridge Guard",
         "types": [
             "Creature"
@@ -72898,6 +76984,39 @@
         "toughness": 3,
         "id": "ba165e25-5328-40f4-b87c-9d02590f9d38",
         "rarity": "common"
+    },
+    {
+        "name": "Prodigious Growth",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 4,
+            "G": 2
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +7/+7 and has trample.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 7,
+                "toughness": 7
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "trample"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "ba2b0966-4e9e-44dc-9145-3c1e644578bc",
+        "rarity": "rare"
     },
     {
         "name": "Lash of the Whip",
@@ -73540,6 +77659,42 @@
             "count": 1
         },
         "id": "bbb03f2e-2b92-4aa1-afae-301ed5d151d3",
+        "rarity": "common"
+    },
+    {
+        "name": "Frantic Strength",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "oracleText": "Flash\nEnchant creature\nEnchanted creature gets +2/+2 and has trample.",
+        "staticAbilities": [
+            "flash"
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 2
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "trample"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "bbd9d35d-7fd0-4193-9f7e-b8a59fae4ac5",
         "rarity": "common"
     },
     {
@@ -74719,6 +78874,39 @@
         "rarity": "common"
     },
     {
+        "name": "Magefire Wings",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "U": 1,
+            "R": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +2/+0 and has flying.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 0
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "flying"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "be18c2d9-60c4-454b-b6c7-7c22ed2985fb",
+        "rarity": "common"
+    },
+    {
         "name": "Fulminator Mage",
         "types": [
             "Creature"
@@ -74770,6 +78958,59 @@
         ],
         "id": "be1df367-8e85-4fd8-aa6f-f02a478fecb3",
         "rarity": "rare"
+    },
+    {
+        "name": "Astral Wingspan",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 4,
+            "U": 1
+        },
+        "oracleText": "Convoke (Your creatures can help cast this spell. Each creature you tap while casting this spell pays for {1} or one mana of that creature's color.)\nEnchant creature\nWhen this Aura enters, draw a card.\nEnchanted creature gets +2/+2 and has flying.",
+        "staticAbilities": [
+            "convoke"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "astral-wingspan-trigger",
+                "oracleText": "When this Aura enters, draw a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 2
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "flying"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "be2ef728-a2c7-45ee-8594-372ed135b482",
+        "rarity": "uncommon"
     },
     {
         "name": "Skinrender",
@@ -74931,6 +79172,39 @@
         "rarity": "common"
     },
     {
+        "name": "Aspect of Gorgon",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +1/+3 and has deathtouch. (Any amount of damage it deals to a creature is enough to destroy it.)",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 1,
+                "toughness": 3
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "deathtouch"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "be8956d0-5502-415d-bead-d8bbddf9871d",
+        "rarity": "common"
+    },
+    {
         "name": "Ironshell Beetle",
         "types": [
             "Creature"
@@ -75036,6 +79310,33 @@
             "flying"
         ],
         "id": "bf49e5bf-07fb-44b0-8e74-092088d9019f",
+        "rarity": "common"
+    },
+    {
+        "name": "Enfeeblement",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "B": 2
+        },
+        "oracleText": "Enchant creature (Target a creature as you cast this. This card enters attached to that creature.)\nEnchanted creature gets -2/-2.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": -2,
+                "toughness": -2
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "bf808509-c6c2-4dcb-b35b-e61291faf5d9",
         "rarity": "common"
     },
     {
@@ -75322,6 +79623,34 @@
         ],
         "id": "c0441583-c9d5-47a1-8754-c9162cec64bc",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Pin to the Earth",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets -6/-0.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": -6,
+                "toughness": 0
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "c04e6915-39b0-4fbc-9114-2ecf371b6f72",
+        "rarity": "common"
     },
     {
         "name": "Angelheart Protector",
@@ -77871,6 +82200,38 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Pacifism",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature can't attack or block.",
+        "compiledStaticEffects": [
+            {
+                "kind": "attack-restriction",
+                "id": "pacifism-cant-attack",
+                "oracleText": "Enchanted creature can't attack or block."
+            },
+            {
+                "kind": "block-restriction",
+                "id": "pacifism-cant-block",
+                "oracleText": "Enchanted creature can't attack or block."
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "c891df1b-bae6-4d6d-85ee-42901c149f98",
+        "rarity": "common"
+    },
+    {
         "name": "Warriors of Wakanda",
         "types": [
             "Creature"
@@ -78228,6 +82589,32 @@
         },
         "id": "c957bbb7-0322-46d1-89e1-1a59515b3b1b",
         "rarity": "common"
+    },
+    {
+        "name": "Annex",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 2
+        },
+        "oracleText": "Enchant land (Target a land as you cast this. This card enters attached to that land.)\nYou control enchanted land.",
+        "compiledStaticEffects": [
+            {
+                "kind": "control-change",
+                "appliesTo": "host"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Land",
+            "count": 1
+        },
+        "id": "c95d5cb7-3121-430b-80c3-84c75e5f869e",
+        "rarity": "uncommon"
     },
     {
         "name": "Fell",
@@ -81162,6 +85549,33 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Defensive Stance",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "U": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets -1/+1.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": -1,
+                "toughness": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "d0670653-d4fe-4fac-b769-d19ca4698c97",
+        "rarity": "common"
+    },
+    {
         "name": "Courier Hawk",
         "types": [
             "Creature"
@@ -81546,6 +85960,60 @@
         ],
         "id": "d11a56e7-30a4-44da-a58b-336f4c0c4882",
         "rarity": "common"
+    },
+    {
+        "name": "Verdant Field",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "oracleText": "Enchant land\nEnchanted land has \"{T}: Target creature gets +1/+1 until end of turn.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "verdant-field-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "verdant-field-granted",
+                "oracleText": "{T}: Target creature gets +1/+1 until end of turn.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "target": 0
+                        },
+                        "power": 1,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Land",
+            "count": 1
+        },
+        "id": "d123da53-9fd3-492b-beb7-76d1c0f5e4f6",
+        "rarity": "uncommon"
     },
     {
         "name": "Specter's Wail",
@@ -82124,6 +86592,32 @@
             "first strike"
         ],
         "id": "d24d9bd7-5721-4436-a86f-35e376727f46",
+        "rarity": "common"
+    },
+    {
+        "name": "Vigilance",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature has vigilance. (Attacking doesn't cause it to tap.)",
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "vigilance"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "d24dc353-abc9-430a-a7f5-5da3b38cd411",
         "rarity": "common"
     },
     {
@@ -83825,6 +88319,36 @@
         "rarity": "common"
     },
     {
+        "name": "Gift of Granite",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "oracleText": "Flash (You may cast this spell any time you could cast an instant.)\nEnchant creature\nEnchanted creature gets +0/+2.",
+        "staticAbilities": [
+            "flash"
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 0,
+                "toughness": 2
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "d7b5231b-aed9-4b88-aba5-43e57a705dc5",
+        "rarity": "common"
+    },
+    {
         "name": "Iron Tusk Elephant",
         "types": [
             "Creature"
@@ -83981,6 +88505,58 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Cartouche of Knowledge",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura",
+            "Cartouche"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "oracleText": "Enchant creature you control\nWhen this Aura enters, draw a card.\nEnchanted creature gets +1/+1 and has flying.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "cartouche-of-knowledge-trigger",
+                "oracleText": "When this Aura enters, draw a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 1,
+                "toughness": 1
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "flying"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "controller": "you"
+        },
+        "id": "d806458e-81cd-4413-bba0-14d957bece79",
+        "rarity": "common"
+    },
+    {
         "name": "Silverbluff Bridge",
         "types": [
             "Artifact",
@@ -84135,6 +88711,88 @@
         ],
         "id": "d85ad08d-1120-411a-8bbe-ac93a56476bd",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Spirit Away",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 5,
+            "U": 2
+        },
+        "oracleText": "Enchant creature\nYou control enchanted creature.\nEnchanted creature gets +2/+2 and has flying.",
+        "compiledStaticEffects": [
+            {
+                "kind": "control-change",
+                "appliesTo": "host"
+            },
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 2
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "flying"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "d8823bdc-0467-47f1-9bef-a281b4a7071d",
+        "rarity": "rare"
+    },
+    {
+        "name": "Chosen by Heliod",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "Enchant creature\nWhen this Aura enters, draw a card.\nEnchanted creature gets +0/+2.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "chosen-by-heliod-trigger",
+                "oracleText": "When this Aura enters, draw a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 0,
+                "toughness": 2
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "d8ead499-920c-465a-a23d-f08710d7e9bc",
+        "rarity": "common"
     },
     {
         "name": "Triton Shorethief",
@@ -84460,6 +89118,74 @@
             "prowess"
         ],
         "id": "d9768cc6-8f53-4922-ae32-376a2f32d719",
+        "rarity": "common"
+    },
+    {
+        "name": "Dragon Mantle",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "R": 1
+        },
+        "oracleText": "Enchant creature\nWhen this Aura enters, draw a card.\nEnchanted creature has \"{R}: This creature gets +1/+0 until end of turn.\"",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "dragon-mantle-trigger",
+                "oracleText": "When this Aura enters, draw a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "dragon-mantle-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "dragon-mantle-granted",
+                "oracleText": "{R}: This creature gets +1/+0 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "R": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 1,
+                        "toughness": 0,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "d97b1080-9001-4751-b2f5-7f56d9f58dff",
         "rarity": "common"
     },
     {
@@ -85254,6 +89980,39 @@
         "rarity": "common"
     },
     {
+        "name": "Marked by Honor",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +2/+2 and has vigilance. (Attacking doesn't cause it to tap.)",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 2
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "vigilance"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "dbc7e2c3-6de6-453d-ade6-8571e7d53df3",
+        "rarity": "common"
+    },
+    {
         "name": "Goldmire Bridge",
         "types": [
             "Artifact",
@@ -85580,6 +90339,56 @@
         "entersTapped": true,
         "id": "dd222c07-0b28-41cb-9237-ad7991ab078f",
         "rarity": "rare"
+    },
+    {
+        "name": "Epiphany Storm",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "R": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature has \"{R}, {T}, Discard a card: Draw a card.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "epiphany-storm-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "epiphany-storm-granted",
+                "oracleText": "{R}, {T}, Discard a card: Draw a card.",
+                "cost": {
+                    "mana": {
+                        "R": 1
+                    },
+                    "tap": true,
+                    "discardFilter": {
+                        "filter": {},
+                        "count": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "dd3a0128-4499-498d-9721-b1fd70ea84b4",
+        "rarity": "common"
     },
     {
         "name": "Wall of Denial",
@@ -87004,6 +91813,53 @@
         "rarity": "common"
     },
     {
+        "name": "Ephara's Radiance",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature has \"{1}{W}, {T}: You gain 3 life.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "ephara-s-radiance-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "ephara-s-radiance-granted",
+                "oracleText": "{1}{W}, {T}: You gain 3 life.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "W": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 3
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "e0741582-0c7b-4d5b-83a9-dd8862de1f24",
+        "rarity": "common"
+    },
+    {
         "name": "Halo Hopper",
         "types": [
             "Artifact",
@@ -87130,6 +91986,59 @@
         "rarity": "common"
     },
     {
+        "name": "Ancestral Vengeance",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "B": 2
+        },
+        "oracleText": "Enchant creature\nWhen this Aura enters, put a +1/+1 counter on target creature you control.\nEnchanted creature gets -1/-1.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "ancestral-vengeance-trigger",
+                "oracleText": "When this Aura enters, put a +1/+1 counter on target creature you control.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "counters",
+                        "action": "add",
+                        "counter": "+1/+1",
+                        "target": {
+                            "target": 0
+                        },
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": -1,
+                "toughness": -1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "e0d0094e-07ff-4b47-8c6e-500adabf12e4",
+        "rarity": "common"
+    },
+    {
         "name": "Raze the Effigy",
         "types": [
             "Instant"
@@ -87221,6 +92130,62 @@
         "power": 2,
         "toughness": 1,
         "id": "e148c1bf-84a2-48cd-882e-ad0fd74b8f0f",
+        "rarity": "common"
+    },
+    {
+        "name": "Deviant Glee",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "B": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +2/+1 and has \"{R}: This creature gains trample until end of turn.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 1
+            },
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "deviant-glee-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "deviant-glee-granted",
+                "oracleText": "{R}: This creature gains trample until end of turn.",
+                "cost": {
+                    "mana": {
+                        "R": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "ability": "trample",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "e150896e-8745-42ac-894b-8f42a92bd7a7",
         "rarity": "common"
     },
     {
@@ -89288,6 +94253,80 @@
         "rarity": "common"
     },
     {
+        "name": "Cartouche of Ambition",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura",
+            "Cartouche"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "oracleText": "Enchant creature you control\nWhen this Aura enters, you may put a -1/-1 counter on target creature.\nEnchanted creature gets +1/+1 and has lifelink.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "cartouche-of-ambition-trigger",
+                "oracleText": "When this Aura enters, you may put a -1/-1 counter on target creature.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Put a -1/-1 counter on target creature?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "counters",
+                                "action": "add",
+                                "counter": "-1/-1",
+                                "target": {
+                                    "target": 0
+                                },
+                                "count": 1
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 1,
+                "toughness": 1
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "lifelink"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "controller": "you"
+        },
+        "id": "e68b96b1-b75e-4ee1-a6d7-6545a34fef9b",
+        "rarity": "common"
+    },
+    {
         "name": "Gnarled Effigy",
         "types": [
             "Artifact"
@@ -90164,6 +95203,39 @@
             "W": 1
         },
         "id": "e8fe0c8e-f361-4eac-8c2c-ca6602dad352",
+        "rarity": "common"
+    },
+    {
+        "name": "Candlelight Vigil",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +3/+2 and has vigilance.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 3,
+                "toughness": 2
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "vigilance"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "e920a75f-7dec-4815-a358-e174401da83b",
         "rarity": "common"
     },
     {
@@ -91627,6 +96699,36 @@
         "rarity": "common"
     },
     {
+        "name": "Twinblade Blessing",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 2
+        },
+        "oracleText": "Flash (You may cast this spell any time you could cast an instant.)\nEnchant creature\nEnchanted creature has double strike. (It deals both first-strike and regular combat damage.)",
+        "staticAbilities": [
+            "flash"
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "double strike"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "ecf01cbe-9fcb-4f35-bc6b-2280620b06ff",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Starfleet Crew",
         "types": [
             "Creature"
@@ -91720,6 +96822,51 @@
             "deathtouch"
         ],
         "id": "ed220158-e4e3-4d46-8098-7b940a923ce9",
+        "rarity": "common"
+    },
+    {
+        "name": "Scourgemark",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Enchant creature\nWhen this Aura enters, draw a card.\nEnchanted creature gets +1/+0.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "scourgemark-trigger",
+                "oracleText": "When this Aura enters, draw a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 1,
+                "toughness": 0
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "ed36a150-a686-4fa6-8364-8be262ad7d98",
         "rarity": "common"
     },
     {
@@ -92096,6 +97243,50 @@
             }
         ],
         "id": "ee58a5ef-68ec-48cf-bb7e-73bcbe86cc3c",
+        "rarity": "common"
+    },
+    {
+        "name": "Flight of Fancy",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 1
+        },
+        "oracleText": "Enchant creature\nWhen this Aura enters, draw two cards.\nEnchanted creature has flying.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "flight-of-fancy-trigger",
+                "oracleText": "When this Aura enters, draw two cards.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 2
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "flying"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "ee5dbf7d-d129-4bed-8e8d-3dfc327fb857",
         "rarity": "common"
     },
     {
@@ -92487,6 +97678,40 @@
         ],
         "id": "ef7011f4-fc08-4b15-973d-d15357cbe744",
         "rarity": "common"
+    },
+    {
+        "name": "Indestructibility",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "oracleText": "Enchant permanent\nEnchanted permanent has indestructible. (Effects that say \"destroy\" don't destroy that permanent. A creature with indestructible can't be destroyed by damage.)",
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "indestructible"
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Artifact",
+                "Battle",
+                "Creature",
+                "Enchantment",
+                "Land",
+                "Planeswalker"
+            ],
+            "count": 1
+        },
+        "id": "ef8765a0-c2ae-4b1a-a3f5-0243b43e6da0",
+        "rarity": "rare"
     },
     {
         "name": "Grandmother Sengir",
@@ -93078,6 +98303,32 @@
             }
         },
         "id": "f0c95dee-a480-4878-a967-9e46be9ee372",
+        "rarity": "common"
+    },
+    {
+        "name": "Lifelink",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature has lifelink. (Damage dealt by the creature also causes its controller to gain that much life.)",
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "lifelink"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "f0d881c1-24e7-4ce7-8ab1-474cb040ddd7",
         "rarity": "common"
     },
     {
@@ -94689,6 +99940,32 @@
         "rarity": "common"
     },
     {
+        "name": "Primal Frenzy",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature has trample.",
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "trample"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "f5e2d822-09d0-42e5-ad91-67c66e947b3d",
+        "rarity": "common"
+    },
+    {
         "name": "Impervious Greatwurm",
         "types": [
             "Creature"
@@ -95444,6 +100721,39 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Spectral Flight",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +2/+2 and has flying.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 2
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "flying"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "f7149f2a-6917-4ad7-8035-c7a1babd4d4b",
+        "rarity": "common"
+    },
+    {
         "name": "Wetland Sambar",
         "types": [
             "Creature"
@@ -95693,6 +101003,32 @@
             "haste"
         ],
         "id": "f7654d8a-7013-4311-b29e-b55aaa1bf502",
+        "rarity": "common"
+    },
+    {
+        "name": "Guard Duty",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature has defender.",
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "defender"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "f77efd36-f9e7-4c34-a6ee-9e1c9b273fb7",
         "rarity": "common"
     },
     {
@@ -96104,6 +101440,62 @@
         "rarity": "rare"
     },
     {
+        "name": "Talons of Falkenrath",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "oracleText": "Flash (You may cast this spell any time you could cast an instant.)\nEnchant creature\nEnchanted creature has \"{1}{R}: This creature gets +2/+0 until end of turn.\"",
+        "staticAbilities": [
+            "flash"
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "talons-of-falkenrath-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "talons-of-falkenrath-granted",
+                "oracleText": "{1}{R}: This creature gets +2/+0 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "R": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 2,
+                        "toughness": 0,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "f8e38239-a9ec-4149-9c90-74dcd46ed95d",
+        "rarity": "common"
+    },
+    {
         "name": "Sigardian Priest",
         "types": [
             "Creature"
@@ -96388,6 +101780,39 @@
         "rarity": "common"
     },
     {
+        "name": "Frenzied Rage",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +2/+1 and has menace. (It can't be blocked except by two or more creatures.)",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 1
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "menace"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "f9ca9c16-5720-4531-88ea-48b48d189479",
+        "rarity": "common"
+    },
+    {
         "name": "Zephyr Charge",
         "types": [
             "Enchantment"
@@ -96580,6 +102005,39 @@
         "rarity": "rare"
     },
     {
+        "name": "Sangrite Backlash",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "R": 1,
+            "hybrid": [
+                [
+                    "B",
+                    "G"
+                ]
+            ]
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +3/-3.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 3,
+                "toughness": -3
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "fa56b15e-d02d-4306-82a6-ced778fee90f",
+        "rarity": "common"
+    },
+    {
         "name": "Gold Myr",
         "types": [
             "Artifact",
@@ -96699,6 +102157,124 @@
         "toughness": 2,
         "id": "fae9abc7-ecd3-4042-a5b0-5f2b24491fa6",
         "rarity": "common"
+    },
+    {
+        "name": "Debtor's Pulpit",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 4,
+            "W": 1
+        },
+        "oracleText": "Enchant land\nEnchanted land has \"{T}: Tap target creature.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "debtor-s-pulpit-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "debtor-s-pulpit-granted",
+                "oracleText": "{T}: Tap target creature.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "tap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Land",
+            "count": 1
+        },
+        "id": "fafb0372-6860-4b0b-b92e-873735489006",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Diplomatic Immunity",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "oracleText": "Enchant creature\nShroud (A permanent with shroud can't be the target of spells or abilities.)\nEnchanted creature has shroud.",
+        "staticAbilities": [
+            "shroud"
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "shroud"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "fb1e610e-a4a2-460b-8e4c-13674badbce3",
+        "rarity": "common"
+    },
+    {
+        "name": "Zephid's Embrace",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 2
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +2/+2 and has flying and shroud. (It can't be the target of spells or abilities.)",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 2
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "flying"
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "shroud"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "fb3312de-c153-4e75-8f8c-b7762b30d492",
+        "rarity": "uncommon"
     },
     {
         "name": "Flailing Soldier",
@@ -96998,6 +102574,34 @@
             }
         ],
         "id": "fb9cd7d9-8aad-4607-890c-9c8efe016a92",
+        "rarity": "common"
+    },
+    {
+        "name": "Siegecraft",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +2/+4.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 4
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "fbd17ef9-9f1b-4937-a60a-d7175f04eef2",
         "rarity": "common"
     },
     {
@@ -97481,6 +103085,38 @@
         "rarity": "common"
     },
     {
+        "name": "Detained by Legionnaires",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature can't attack or block.",
+        "compiledStaticEffects": [
+            {
+                "kind": "attack-restriction",
+                "id": "detained-by-legionnaires-cant-attack",
+                "oracleText": "Enchanted creature can't attack or block."
+            },
+            {
+                "kind": "block-restriction",
+                "id": "detained-by-legionnaires-cant-block",
+                "oracleText": "Enchanted creature can't attack or block."
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "fe06e87f-8915-4fc2-81fd-168a371dc407",
+        "rarity": "common"
+    },
+    {
         "name": "Mardu Banner",
         "types": [
             "Artifact"
@@ -97665,6 +103301,34 @@
         ],
         "id": "fe3802f3-feb3-4dcd-a5ba-f493baf3d447",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Torment",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets -3/-0.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": -3,
+                "toughness": 0
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "fe74a415-ea8f-4f16-8889-ae649f1483b2",
+        "rarity": "common"
     },
     {
         "name": "Smokespew Invoker",

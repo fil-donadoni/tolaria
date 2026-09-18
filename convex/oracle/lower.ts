@@ -24,8 +24,7 @@ import type {
 } from "../cards/types";
 import type { CompiledStaticEffect } from "../cards/compiledStatics";
 import type { CompiledTriggeredAbility } from "../cards/compiledTriggers";
-import { lowerActivationCost } from "./grammar/shared/cost";
-import { lowerActivatedAbility } from "./lowerActivated";
+import { lowerActivatedAbility, lowerManaAbility } from "./lowerActivated";
 import {
     lowerAdditionalCosts,
     lowerFlashback,
@@ -33,7 +32,12 @@ import {
     lowerSpellBody,
     lowerSpellModes,
 } from "./lowerSpell";
-import { isDefinitionLevelKeyword, lowerStaticClause } from "./lowerStatic";
+import {
+    isDefinitionLevelKeyword,
+    lowerStaticClause,
+    type LoweredStatic,
+} from "./lowerStatic";
+import type { HostNoun } from "./grammar/shared/staticClause";
 import { lowerTriggeredAbility } from "./lowerTriggered";
 import { sortKeys } from "./gates";
 import { readManaCost } from "./manaCost";
@@ -85,6 +89,15 @@ interface Accumulator {
     spellTargetRequirement?: TargetRequirement;
     /** CR 702.5a — the Aura's printed enchant restriction, at most one. */
     enchantRequirement?: TargetRequirement;
+    /** CR 303.4b — every "enchanted <noun>" a static line named, checked
+     *  against `enchantRequirement` once every line is read. */
+    hostNouns: HostNoun[];
+    /** CR 113.1a — abilities granted in quotation marks, by template id. */
+    grantTemplates: ActivatedAbility[];
+    /** CR 702.16n — "This effect doesn't remove this Aura." */
+    exemptFromProtectionDetach?: true;
+    /** Every id this card has handed out, so a second one is never minted. */
+    mintedIds: Set<string>;
     spellModes?: SpellMode[];
     additionalCosts?: NonNullable<CardDefinition["additionalCosts"]>;
     flashback?: NonNullable<CardDefinition["flashback"]>;
@@ -128,22 +141,6 @@ function censusGrantedKeywords(
             acc.ungrantableKeywords.push(ability);
     }
 }
-
-/** CR 605.1a — activation-cost legs a MANA ability (`useStack: false`) has no
- *  payment site for, so lowering one would emit free mana.
- *
- *  NOT the complement of what the mana path pays: `sacrificeFilter` and
- *  `discardFilter` reach compiled mana abilities today (8 rows) through
- *  `tapSourceIntoPayment`, and re-adjudicating those is a separate question
- *  from this one. What earns a row here is a leg that removes the SOURCE from
- *  the battlefield with no mana-path payer — `cost.returnThisToHand`
- *  (issue #3204): `activateManaAbility` handles only `tap` / `sacrifice` /
- *  `tapOtherFilter` / `mana` / `life`, and `applyActivationCostsForSearch` is
- *  never reached for a stackless ability, so "Return this artifact to its
- *  owner's hand: Add {C}" would tap for mana every priority window forever. */
-const MANA_ABILITY_UNPAYABLE_COST_LEGS: ReadonlySet<string> = new Set([
-    "returnThisToHand",
-]);
 
 /**
  * CR 605.1a — the painland cycle prints TWO mana abilities ("{T}: Add {C}."
@@ -189,6 +186,47 @@ function sameCost(
     return JSON.stringify(sortKeys(a)) === JSON.stringify(sortKeys(b));
 }
 
+/** A card-unique id: `base`, then `base-2`, `base-3` … on reuse. */
+function mintId(acc: Accumulator, base: string): string {
+    let id = base;
+    for (let n = 2; acc.mintedIds.has(id); n++) id = `${base}-${n}`;
+    acc.mintedIds.add(id);
+    return id;
+}
+
+/**
+ * CR 113.1a — an ability granted in quotation marks, lowered into the
+ * template the `activated-grant` descriptor names.
+ *
+ * "This creature" inside the quote is the HOST, because the ability is the
+ * host's (the engine resolves a granted ability with the host as its source —
+ * `StaticActivatedGrant`), and the ordinary `$source` lowering already says
+ * exactly that. The census a printed ability pays is paid here too.
+ */
+function lowerQuotedAbility(
+    quoted: NonNullable<LoweredStatic["quotedAbilities"]>[number],
+    card: OracleCard,
+    acc: Accumulator
+): { ok: true; ability: ActivatedAbility } | { ok: false; reason: string } {
+    const ir = quoted.ability;
+    if (ir.kind === "mana-ability")
+        return lowerManaAbility({
+            id: quoted.id,
+            oracleText: quoted.text,
+            cost: ir.cost,
+            produces: ir.produces,
+        });
+    censusGrantedKeywords(ir.effects, acc);
+    return lowerActivatedAbility({
+        id: quoted.id,
+        oracleText: quoted.text,
+        cardName: card.name,
+        cost: ir.cost,
+        effects: ir.effects,
+        restrictions: ir.restrictions,
+    });
+}
+
 function lowerLine(
     parsed: LineParse,
     card: OracleCard,
@@ -226,25 +264,14 @@ function lowerLine(
                 index === 0
                     ? `${slugify(card.name)}-mana`
                     : `${slugify(card.name)}-mana-${index + 1}`;
-            // The cost lowering is shared with the stack-using activated slot
-            // (CR 602.1a draws no distinction); only the EFFECT half differs.
-            const cost = lowerActivationCost(ir.cost);
-            if (!cost.ok) return cost.reason;
-            // CR 605.1a — a mana ability does NOT use the stack, so it is paid
-            // by `activateManaAbility` / `tapSourceIntoPayment`, not by the
-            // `PendingActivation` machinery every stack ability rides. A leg
-            // neither of those pays would be lowered into a definition that
-            // produces mana FOR FREE, forever — and dropping a cost atom is
-            // exactly the failure `grammar/shared/cost.ts`'s own header calls
-            // out (an unpayable cost silently becomes no cost). Fail CLOSED
-            // here, the way `lowerAdditionalCosts` and `flashbackLine` already
-            // do for the same atom stream, rather than emit the ability.
-            const unpayable = Object.keys(cost.value).filter((leg) =>
-                MANA_ABILITY_UNPAYABLE_COST_LEGS.has(leg)
-            );
-            if (unpayable.length > 0) {
-                return `mana ability cost leg "${unpayable[0]}" has no payment site on the CR 605.1a stackless path`;
-            }
+            const lowered = lowerManaAbility({
+                id,
+                oracleText: parsed.line,
+                cost: ir.cost,
+                produces: ir.produces,
+            });
+            if (!lowered.ok) return lowered.reason;
+            const ability = lowered.ability;
             // See `isPainlessColorlessTap`'s doc comment — the painland merge.
             if (
                 ir.produces.kind === "choice" &&
@@ -255,7 +282,7 @@ function lowerLine(
                 if (
                     prior !== undefined &&
                     isPainlessColorlessTap(prior) &&
-                    sameCost(prior.cost, cost.value)
+                    sameCost(prior.cost, ability.cost)
                 ) {
                     const colorless = prior.manaProduced!;
                     delete prior.manaProduced;
@@ -268,25 +295,6 @@ function lowerLine(
                     prior.oracleText = `${prior.oracleText}\n${parsed.line}`;
                     return null;
                 }
-            }
-            const ability: ActivatedAbility = {
-                id,
-                oracleText: parsed.line,
-                cost: cost.value,
-                // CR 605.3b — a mana ability doesn't go on the stack. Safe to emit
-                // unconditionally: see the CR 605.1a argument in the slot file.
-                useStack: false,
-            };
-            if (ir.produces.kind === "fixed")
-                ability.manaProduced = ir.produces.mana;
-            else {
-                ability.manaChoices = ir.produces.options as ManaCost[];
-                if (
-                    ir.produces.dealsDamageToControllerOnColoredTap !==
-                    undefined
-                )
-                    ability.dealsDamageToControllerOnColoredTap =
-                        ir.produces.dealsDamageToControllerOnColoredTap;
             }
             acc.activatedAbilities.push(ability);
             return null;
@@ -332,21 +340,37 @@ function lowerLine(
             return null;
         }
         case "static": {
-            const lowered = lowerStaticClause(ir.clause, parsed.line);
+            const slug = slugify(card.name);
+            const lowered = lowerStaticClause(
+                ir.clause,
+                parsed.line,
+                (suffix) => mintId(acc, `${slug}-${suffix}`)
+            );
             if (!lowered.ok) return lowered.reason;
             const out = lowered.lowered;
-            if (out.effect !== undefined)
-                acc.compiledStaticEffects.push(out.effect);
+            // CR 113.1a — a granted ability is lowered by the SAME function a
+            // printed one is, so a quoted ability is exactly as well read as
+            // the line it would be if it were printed on the host. Lowered
+            // BEFORE anything is committed to `acc`, so a refusal here leaves
+            // the card with no half-applied line.
+            const templates: ActivatedAbility[] = [];
+            for (const quoted of out.quotedAbilities ?? []) {
+                const template = lowerQuotedAbility(quoted, card, acc);
+                if (!template.ok) return template.reason;
+                templates.push(template.ability);
+            }
+            if (templates.length > 0) acc.grantTemplates.push(...templates);
+            acc.compiledStaticEffects.push(...(out.effects ?? []));
+            if (out.host !== undefined) acc.hostNouns.push(out.host);
+            if (out.exemptFromProtectionDetach === true)
+                acc.exemptFromProtectionDetach = true;
             // CR 702.1 — see `lowerStatic.ts`: a granted keyword is censused
             // exactly like a printed one, so an unimplemented grant
             // quarantines instead of shipping an inert card.
-            if (
-                out.grantedKeyword !== undefined &&
-                !out.grantedKeyword.implemented
-            )
-                acc.plannedMechanics.push(out.grantedKeyword.ability);
-            if (out.ungrantableKeyword !== undefined)
-                acc.ungrantableKeywords.push(out.ungrantableKeyword);
+            for (const granted of out.grantedKeywords ?? [])
+                if (!granted.implemented)
+                    acc.plannedMechanics.push(granted.ability);
+            acc.ungrantableKeywords.push(...(out.ungrantableKeywords ?? []));
             if (out.entersTapped === true) acc.entersTapped = true;
             if (out.entersWithCounters !== undefined)
                 acc.entersWithCounters.push(out.entersWithCounters);
@@ -492,6 +516,9 @@ export function lowerCard(
         kickerRiders: [],
         plannedMechanics: [],
         ungrantableKeywords: [],
+        hostNouns: [],
+        grantTemplates: [],
+        mintedIds: new Set(),
     };
     // CR 702.33e — a kicker's linked abilities "can refer only to those
     // specific kicker … abilities" printed on the same object, so every line
@@ -635,6 +662,35 @@ export function lowerCard(
             reason: "a cast-time cost rider with no spell text to ride on",
             fragment: card.oracleText,
         };
+    // CR 303.4b — "enchanted <noun>" is the Aura's host. A card that says it
+    // without an enchant line has no host we read, and a noun its enchant
+    // restriction can never satisfy ("Enchant land" + "Enchanted creature")
+    // names an object the Aura cannot be attached to — both misreads.
+    if (acc.hostNouns.length > 0) {
+        const requirement = acc.enchantRequirement;
+        if (requirement === undefined)
+            return {
+                ok: false,
+                reason: '"enchanted" on a card with no enchant line (CR 303.4b)',
+                fragment: card.oracleText,
+            };
+        const enchantable = Array.isArray(requirement.type)
+            ? requirement.type
+            : [requirement.type];
+        const stranger = acc.hostNouns.find(
+            (noun) => noun !== "permanent" && !enchantable.includes(noun)
+        );
+        if (stranger !== undefined)
+            return {
+                ok: false,
+                reason: `"enchanted ${stranger.toLowerCase()}" on an Aura that cannot enchant one (CR 303.4b)`,
+                fragment: card.oracleText,
+            };
+    }
+    if (acc.grantTemplates.length > 0)
+        definition.grantTemplates = acc.grantTemplates;
+    if (acc.exemptFromProtectionDetach === true)
+        definition.exemptFromProtectionDetach = true;
     if (acc.enchantRequirement !== undefined) {
         // CR 702.5a / 303.4a — enchant restricts an AURA; on any other object
         // it restricts nothing the engine would ever ask about, so a card that

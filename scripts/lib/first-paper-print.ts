@@ -117,15 +117,22 @@ export async function resolveFirstPaperPrint(
                 rarity: string;
             }>;
         };
-        const paper = (json.data ?? []).filter(
+        const prints = json.data ?? [];
+        const paper = prints.filter(
             (p) => !p.digital && !NON_PRINT_SET_TYPES.has(p.set_type)
         );
-        if (paper.length === 0) return null;
-        return {
-            id: paper[0].id,
-            set: paper[0].set,
-            rarity: paper[0].rarity,
-        };
+        // A card printed ONLY in `funny` sets (the Mystery Booster playtest
+        // cards — Krosan Adaptation, issue #3833) has no other home: the
+        // argument for skipping an acorn set ("printed on paper, but not the
+        // card's home set") presumes a real printing elsewhere, and without
+        // this the card reads exactly like a Scryfall that never answered.
+        // Only `funny` earns the fallback — a token or memorabilia print is
+        // not a printing of a card at all.
+        const home =
+            paper[0] ??
+            prints.find((p) => !p.digital && p.set_type === "funny");
+        if (home === undefined) return null;
+        return { id: home.id, set: home.set, rarity: home.rarity };
     }
     return null;
 }

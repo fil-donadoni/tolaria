@@ -32,16 +32,39 @@ import { expandKeywordTriggers } from "../cards/abilities/keywordTriggers";
 import type { CompiledStaticEffect } from "../cards/compiledStatics";
 import type { CardDefinition } from "../cards/types";
 import { deriveCastPermissionId } from "./castPermissionId";
-import type { StaticClauseIR } from "./grammar/shared/staticClause";
+import type {
+    HostNoun,
+    QuotedAbilityIR,
+    StaticClauseIR,
+} from "./grammar/shared/staticClause";
 
 /** Where one lowered static clause lands. All fields are optional and merged. */
 export interface LoweredStatic {
-    readonly effect?: CompiledStaticEffect;
-    /** CR 702.1 — a keyword this clause GRANTS, censused like a printed one. */
-    readonly grantedKeyword?: {
+    readonly effects?: readonly CompiledStaticEffect[];
+    /** CR 702.1 — keywords this clause GRANTS, censused like printed ones. */
+    readonly grantedKeywords?: readonly {
         readonly ability: string;
         readonly implemented: boolean;
-    };
+    }[];
+    /**
+     * CR 303.4b — the noun "enchanted" was printed with. Present only on a
+     * host clause; `lower.ts` checks it against the card's enchant line,
+     * which this per-line lowering cannot see.
+     */
+    readonly host?: HostNoun;
+    /**
+     * CR 113.1a — abilities granted in quotation marks, still as IR: they
+     * are lowered by `lower.ts` through the same functions a printed ability
+     * goes through, onto `grantTemplates[]` under `id` — the id the
+     * `activated-grant` descriptor in `effects` names.
+     */
+    readonly quotedAbilities?: readonly {
+        readonly id: string;
+        readonly text: string;
+        readonly ability: QuotedAbilityIR;
+    }[];
+    /** CR 702.16n — "This effect doesn't remove this Aura." */
+    readonly exemptFromProtectionDetach?: true;
     readonly entersTapped?: true;
     readonly entersWithCounters?: {
         readonly type: string;
@@ -64,7 +87,7 @@ export interface LoweredStatic {
     };
     readonly staticAbility?: string;
     /** CR 702.1 — granted, but only ever implemented for a PRINTED keyword. */
-    readonly ungrantableKeyword?: string;
+    readonly ungrantableKeywords?: readonly string[];
 }
 
 export type LowerStaticResult =
@@ -125,72 +148,67 @@ export function isDefinitionLevelKeyword(keyword: string): boolean {
 }
 
 /**
- * @param oracleText the whole static LINE, full stop included. Only the
- * `cast-permission` kind needs it, and it needs it for a reason no other kind
- * has: the sentence is what the caster reads on the cast option itself
- * (`AlternativeCost.description`, `gre/castPermissions.ts`), so it is
- * behaviour-adjacent text rather than a label lowering could synthesise.
+ * @param oracleText the whole static LINE, full stop included. The
+ * `cast-permission` kind needs it because the sentence is what the caster
+ * reads on the cast option itself (`AlternativeCost.description`,
+ * `gre/castPermissions.ts`), so it is behaviour-adjacent text rather than a
+ * label lowering could synthesise.
+ * @param nextId a card-unique id for an object this clause names — a granted
+ * ability's template, a combat restriction. Minted by `lower.ts`, which is
+ * the only place that knows what the card has already claimed.
  */
 export function lowerStaticClause(
     clause: StaticClauseIR,
-    oracleText: string
+    oracleText: string,
+    nextId: (suffix: string) => string
 ): LowerStaticResult {
     switch (clause.kind) {
         case "pt-buff":
             return {
                 ok: true,
                 lowered: {
-                    effect: {
-                        kind: "pt-buff",
-                        filter: clause.filter,
-                        power: clause.power,
-                        toughness: clause.toughness,
-                    },
+                    effects: [
+                        {
+                            kind: "pt-buff",
+                            filter: clause.filter,
+                            power: clause.power,
+                            toughness: clause.toughness,
+                        },
+                    ],
                 },
             };
         case "keyword-grant":
             return {
                 ok: true,
                 lowered: {
-                    // Quarantined, never refused: the SENTENCE was read
-                    // correctly and only the engine's encoding is missing, so
-                    // recording it as a parse gap would put a fragment we
-                    // understand into the backlog histogram that ranks the next
-                    // grammar rule (`compile.ts`).
-                    ...(isDefinitionLevelKeyword(clause.keyword.ability)
-                        ? { ungrantableKeyword: clause.keyword.ability }
-                        : {}),
-                    effect: {
-                        kind: "keyword-grant",
-                        filter: clause.filter,
-                        keyword: clause.keyword.ability,
-                    },
-                    // A GRANTED keyword the engine does not implement ships a
-                    // card whose whole behaviour is inert, exactly like a
-                    // printed one (the Guard A shape, #962) — so it is
-                    // censused on the same path, not trusted because the
-                    // grant itself lowered cleanly.
-                    grantedKeyword: {
-                        ability: clause.keyword.ability,
-                        implemented: clause.keyword.status === "implemented",
-                    },
+                    ...grantCensus([clause.keyword]),
+                    effects: [
+                        {
+                            kind: "keyword-grant",
+                            filter: clause.filter,
+                            keyword: clause.keyword.ability,
+                        },
+                    ],
                 },
             };
         case "cost-modifier":
             return {
                 ok: true,
                 lowered: {
-                    effect: {
-                        kind: "cost-modifier",
-                        spells: clause.spells,
-                        // CR 118.7a — a generic reduction affects ONLY the
-                        // generic component of a cost, which is why both
-                        // directions carry a bare number and the descriptor
-                        // turns it into mana (CR 601.2f applies it).
-                        ...(clause.direction === "more"
-                            ? { increase: clause.amount }
-                            : { reduction: clause.amount }),
-                    },
+                    effects: [
+                        {
+                            kind: "cost-modifier",
+                            spells: clause.spells,
+                            // CR 118.7a — a generic reduction affects ONLY the
+                            // generic component of a cost, which is why both
+                            // directions carry a bare number and the
+                            // descriptor turns it into mana (CR 601.2f
+                            // applies it).
+                            ...(clause.direction === "more"
+                                ? { increase: clause.amount }
+                                : { reduction: clause.amount }),
+                        },
+                    ],
                 },
             };
         case "cast-permission": {
@@ -218,7 +236,7 @@ export function lowerStaticClause(
             return {
                 ok: true,
                 lowered: {
-                    effect: { ...terms, id: deriveCastPermissionId(terms) },
+                    effects: [{ ...terms, id: deriveCastPermissionId(terms) }],
                 },
             };
         }
@@ -260,6 +278,8 @@ export function lowerStaticClause(
                 ok: true,
                 lowered: { staticAbility: DOES_NOT_UNTAP_MARKER },
             };
+        case "enchanted-host":
+            return lowerHostClause(clause, nextId);
         default: {
             const never: never = clause;
             return {
@@ -268,4 +288,119 @@ export function lowerStaticClause(
             };
         }
     }
+}
+
+/**
+ * CR 702.1 — the census every GRANTED keyword pays. A granted keyword the
+ * engine does not implement ships a card whose whole behaviour is inert,
+ * exactly like a printed one (the Guard A shape, #962) — so it is censused on
+ * the same path, not trusted because the grant itself lowered cleanly. And one
+ * whose implementation is a definition-level expander is QUARANTINED, never
+ * refused: the SENTENCE was read correctly and only the engine's encoding is
+ * missing, so recording it as a parse gap would put a fragment we understand
+ * into the backlog histogram that ranks the next grammar rule (`compile.ts`).
+ */
+function grantCensus(
+    keywords: readonly { ability: string; status: string }[]
+): Pick<LoweredStatic, "grantedKeywords" | "ungrantableKeywords"> {
+    const ungrantable = keywords
+        .map((k) => k.ability)
+        .filter(isDefinitionLevelKeyword);
+    return {
+        grantedKeywords: keywords.map((k) => ({
+            ability: k.ability,
+            implemented: k.status === "implemented",
+        })),
+        ...(ungrantable.length > 0 ? { ungrantableKeywords: ungrantable } : {}),
+    };
+}
+
+/**
+ * CR 303.4b — every effect a host clause names, scoped to the Aura's host.
+ *
+ * Emitted in the order the sentence prints them, one descriptor each — the
+ * shape the hand-written catalogue writes ("gets +0/+2 and has reach" is a
+ * `pt-buff` then a `keyword-grant`, Web).
+ */
+function lowerHostClause(
+    clause: Extract<StaticClauseIR, { kind: "enchanted-host" }>,
+    nextId: (suffix: string) => string
+): LowerStaticResult {
+    const effects: CompiledStaticEffect[] = [];
+    const keywords: { ability: string; status: string }[] = [];
+    const quotedAbilities: {
+        id: string;
+        text: string;
+        ability: QuotedAbilityIR;
+    }[] = [];
+    for (const effect of clause.effects) {
+        switch (effect.kind) {
+            case "pt-buff":
+                effects.push({
+                    kind: "pt-buff",
+                    appliesTo: "host",
+                    power: effect.power,
+                    toughness: effect.toughness,
+                });
+                break;
+            case "keyword-grant":
+                keywords.push(effect.keyword);
+                effects.push({
+                    kind: "keyword-grant",
+                    appliesTo: "host",
+                    keyword: effect.keyword.ability,
+                });
+                break;
+            case "activated-grant": {
+                const id = nextId("granted");
+                quotedAbilities.push({
+                    id,
+                    text: effect.text,
+                    ability: effect.ability,
+                });
+                effects.push({
+                    kind: "activated-grant",
+                    appliesTo: "host",
+                    abilityId: id,
+                });
+                break;
+            }
+            case "control-change":
+                effects.push({ kind: "control-change", appliesTo: "host" });
+                break;
+            case "attack-restriction":
+                effects.push({
+                    kind: "attack-restriction",
+                    id: nextId("cant-attack"),
+                    oracleText: effect.sentence,
+                });
+                break;
+            case "block-restriction":
+                effects.push({
+                    kind: "block-restriction",
+                    id: nextId("cant-block"),
+                    oracleText: effect.sentence,
+                });
+                break;
+            default: {
+                const never: never = effect;
+                return {
+                    ok: false,
+                    reason: `no lowering for host effect ${JSON.stringify(never)}`,
+                };
+            }
+        }
+    }
+    return {
+        ok: true,
+        lowered: {
+            effects,
+            host: clause.host,
+            ...(keywords.length > 0 ? grantCensus(keywords) : {}),
+            ...(quotedAbilities.length > 0 ? { quotedAbilities } : {}),
+            ...(clause.keepsThisAura === true
+                ? { exemptFromProtectionDetach: true as const }
+                : {}),
+        },
+    };
 }

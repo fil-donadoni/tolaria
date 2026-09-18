@@ -33,17 +33,26 @@
  * a second condition vocabulary beside `CompiledTriggerCondition` — earned by
  * a fragment count, never by anticipation (`cards/compiledTriggers.ts`).
  *
- * ATTACHED-scope statics ("Enchanted creature gets +1/+1", "Equipped creature
- * gets +2/+0" — 99 corpus lines between them) are refused, and refusing them
- * costs nothing today: an Aura's "Enchant creature" line (892 lines) and an
- * Equipment's "Equip {2}" line (226) are both unparsed, so no card carrying
- * one could compile whole regardless. The frame is worth having the day one of
- * those lands, not before.
+ * ENCHANTED-scope statics are read by their own frames (issue #3833), now
+ * that an Aura's "Enchant <filter>" line parses (issue #3825):
  *
- * SINGULAR "gets" is refused for the same reason from the other direction:
- * essentially every printed "<x> gets +N/+N." with a singular subject is
- * either attached-scope or carries an "as long as" clause, so a rule for it
- * would exist to accept the half of a sentence it understood.
+ *   "Enchanted <noun> gets +N/+N[ and <rest>]"      → layer 7c, host scope
+ *   "Enchanted <noun> has <keyword>[, …, and <kw>]" → layer 6, host scope
+ *   'Enchanted <noun> has "<activated ability>"'    → layer 6 `activated-grant`
+ *   "Enchanted <noun> can't attack[ or block]"      → CR 508.1c / 509.1b
+ *   "You control enchanted <noun>"                  → layer 2 `control-change`
+ *
+ * "Enchanted" names ONE object — the Aura's host (CR 303.4b) — so these
+ * frames carry no filter at all; the scope is an identity, and it is lowered
+ * to the `AURA_AFFECTS_HOST` predicate every hand-written Aura declares. That
+ * the card IS an Aura is a card-level fact, checked in `lower.ts` against the
+ * enchant line, not here. EQUIPPED-scope ("Equipped creature gets +2/+0") is
+ * still refused: no "Equip" line parses yet.
+ *
+ * SINGULAR "gets" with any OTHER subject is refused: essentially every printed
+ * "<x> gets +N/+N." with a singular subject is either attached-scope or
+ * carries an "as long as" clause, so a rule for it would exist to accept the
+ * half of a sentence it understood.
  */
 
 import { readNumberWord } from "./quantity";
@@ -56,7 +65,11 @@ import {
     type StaticFilterEvaluation,
 } from "./targetFilter";
 import { keywordVocabulary } from "./keywordVocabulary";
-import type { KeywordIR } from "../ir";
+import type { KeywordIR, SlotIR } from "../ir";
+import { activatedSlot } from "../slots/activated";
+import { manaAbilitySlot } from "../slots/manaAbility";
+import type { ParseContext } from "../../types";
+import type { CardType } from "../../../cards/types";
 import type { CompiledSpellFilter } from "../../../cards/compiledStatics";
 import type { EffectCardFilter, PermanentFilter } from "../../../cards/types";
 import {
@@ -129,7 +142,60 @@ export type StaticClauseIR =
           readonly per: "kicked" | "each-kick";
       }
     /** CR 502.3 — "doesn't untap during your untap step". */
-    | { readonly kind: "does-not-untap" };
+    | { readonly kind: "does-not-untap" }
+    /**
+     * CR 303.4b — one or more effects on the Aura's host ("Enchanted creature
+     * gets +2/+2 and has flying", "You control enchanted creature"). `host`
+     * is the printed noun, kept so lowering can check it against the Aura's
+     * own enchant restriction.
+     */
+    | {
+          readonly kind: "enchanted-host";
+          readonly host: HostNoun;
+          readonly effects: readonly HostEffectIR[];
+          /** CR 702.16n — "This effect doesn't remove this Aura." */
+          readonly keepsThisAura?: true;
+      };
+
+/** What "enchanted <noun>" names: a card type, or any permanent. */
+export type HostNoun = CardType | "permanent";
+
+/** An ability printed in quotation marks: an activated or a mana ability. */
+export type QuotedAbilityIR = Extract<
+    SlotIR,
+    { kind: "activated" } | { kind: "mana-ability" }
+>;
+
+/** One effect a host frame applies to the enchanted permanent. */
+export type HostEffectIR =
+    /** CR 613.4c layer 7c. */
+    | {
+          readonly kind: "pt-buff";
+          readonly power: number;
+          readonly toughness: number;
+      }
+    /** CR 613.1f layer 6. */
+    | { readonly kind: "keyword-grant"; readonly keyword: KeywordIR }
+    /** CR 113.1a / 613.1f — an ability granted in quotation marks. */
+    | {
+          readonly kind: "activated-grant";
+          /** The quoted text, full stop included — the granted ability's
+           *  own Oracle text. */
+          readonly text: string;
+          readonly ability: QuotedAbilityIR;
+      }
+    /** CR 613.1b layer 2. */
+    | { readonly kind: "control-change" }
+    /**
+     * CR 508.1c / 509.1b. `sentence` is the restriction ALONE ("Enchanted
+     * creature can't block.") — the rejection reason the engine shows, which
+     * must not carry a P/T clause the same line also printed; it is the text
+     * the hand-written catalogue writes (Maniacal Rage, Hobble).
+     */
+    | {
+          readonly kind: "attack-restriction" | "block-restriction";
+          readonly sentence: string;
+      };
 
 // ── Shared pieces ──────────────────────────────────────────────────────────
 
@@ -221,6 +287,13 @@ function uniqueSplit<T>(
 
 const PT_MODIFIER = /^([+-]\d+)\/([+-]\d+)$/;
 
+/** A printed signed modifier as a number. "-0" ("gets -2/-0") is zero: the
+ *  `+ 0` folds IEEE negative zero, which JSON would print as `0` anyway and
+ *  which a structural comparison would otherwise tell apart from it. */
+function signedModifier(printed: string): number {
+    return Number(printed) + 0;
+}
+
 export const anthemRule: Rule<StaticClauseIR> = rule(
     "anthem",
     (span): RuleResult<StaticClauseIR> =>
@@ -232,8 +305,8 @@ export const anthemRule: Rule<StaticClauseIR> = rule(
             return ok({
                 kind: "pt-buff" as const,
                 filter: filter.value,
-                power: Number(pt[1]),
-                toughness: Number(pt[2]),
+                power: signedModifier(pt[1]!),
+                toughness: signedModifier(pt[2]!),
             });
         })
 );
@@ -744,6 +817,283 @@ const doesNotUntapRule: Rule<StaticClauseIR> = pattern(
             : fail(`"${match[1]}" is not this permanent (CR 109.2)`, match[1]!)
 );
 
+// ── Frames: the enchanted host (CR 303.4b) ────────────────────────────────
+
+/** The nouns "enchanted" is printed with, and the card type each names. */
+const HOST_NOUNS: ReadonlyMap<string, HostNoun> = new Map<string, HostNoun>([
+    ["creature", "Creature"],
+    ["artifact", "Artifact"],
+    ["land", "Land"],
+    ["enchantment", "Enchantment"],
+    ["planeswalker", "Planeswalker"],
+    ["permanent", "permanent"],
+]);
+
+const HOST_NOUN_ALTERNATION = [...HOST_NOUNS.keys()].join("|");
+const ENCHANTED_SUBJECT = new RegExp(
+    `^Enchanted (${HOST_NOUN_ALTERNATION}) (.+)$`
+);
+const YOU_CONTROL_HOST = new RegExp(
+    `^You control enchanted (${HOST_NOUN_ALTERNATION})$`
+);
+const HOST_PT = /^gets ([+-]\d+)\/([+-]\d+)(?: and (.+))?$/;
+const QUOTED_GRANT = /^has "([^"]+)"$/;
+
+/**
+ * CR 702.16n — the Aura-keeping rider. Anchored at the END of the sentence and only
+ * ever accepted beside a protection grant (see `enchantedHostRule`), because
+ * that is the only thing it modifies.
+ */
+const KEEPS_THIS_AURA = ". This effect doesn't remove this Aura";
+
+/** CR 105.1 — the five colour words protection is printed with here. */
+const COLOUR_WORDS: ReadonlySet<string> = new Set([
+    "white",
+    "blue",
+    "black",
+    "red",
+    "green",
+]);
+
+const PROTECTION_FROM = "protection from ";
+
+/** "this Aura" / "this enchantment" — the granting Aura, never the host. */
+const SELF_AURA_PHRASE = /\bthis (aura|enchantment)\b/i;
+
+/**
+ * "flying", "flying and first strike", "flying, first strike, and trample",
+ * "protection from green and from blue" — a list of keywords a host is
+ * granted.
+ *
+ * Every item must be a keyword the registry vocabulary names, or a
+ * "protection from <colour>" (CR 702.16a) — the one parameterised keyword read
+ * here, and only in its colour family, which is the family every engine
+ * consult site answers (`gre/protection.ts`). "protection from green and from
+ * blue" is two instances (CR 702.16a: each "from" names a quality), which is
+ * exactly how the hand-written catalogue writes it — two `staticAbilities`
+ * strings, never one. Anything else fails the list, never drops an item.
+ */
+function readGrantedKeywords(span: string): RuleResult<readonly KeywordIR[]> {
+    // A serial list ends in "and" ("flying, first strike, and trample");
+    // a bare comma list ("shroud, flying") is not an Oracle keyword list.
+    if (span.includes(", ") && !/(, | )and [^,]+$/.test(span))
+        return fail(
+            'a keyword list whose last item is not joined by "and"',
+            span
+        );
+    const items = span.split(/, and |, | and /);
+    const out: KeywordIR[] = [];
+    let previousWasProtection = false;
+    for (const raw of items) {
+        const item = raw.toLowerCase();
+        let colour: string | undefined;
+        if (item.startsWith(PROTECTION_FROM))
+            colour = item.slice(PROTECTION_FROM.length);
+        else if (previousWasProtection && item.startsWith("from "))
+            colour = item.slice("from ".length);
+        if (colour !== undefined) {
+            if (!COLOUR_WORDS.has(colour))
+                return fail(
+                    `"${item}" is not a colour protection quality (CR 702.16a)`,
+                    raw
+                );
+            const protection = keywordVocabulary().get("protection");
+            if (protection === undefined)
+                return fail("protection is not in the registry", raw);
+            out.push({ ...protection, ability: `${PROTECTION_FROM}${colour}` });
+            previousWasProtection = true;
+            continue;
+        }
+        previousWasProtection = false;
+        const keyword = keywordVocabulary().get(item);
+        if (keyword === undefined)
+            return fail(`"${raw}" is not a keyword ability`, raw);
+        out.push(keyword);
+    }
+    const names = out.map((k) => k.ability);
+    if (new Set(names).size !== names.length)
+        return fail("a keyword granted twice in one sentence", span);
+    return ok(out);
+}
+
+/**
+ * The ability inside 'has "…"' — read by the SAME slots that read a printed
+ * one, because a granted ability is exactly what it would be if it were
+ * printed on the host (CR 113.1a).
+ *
+ * The parse context's TYPE LINE is the host's, not the Aura's: the ability
+ * belongs to the enchanted permanent, and the activated slots ask the type
+ * line whether a permanent is what they are reading. "Enchanted permanent"
+ * names no single type to put there, and is refused rather than given one.
+ *
+ * Exactly one slot must accept it, the router's own unique-dispatch rule
+ * (`router.ts`); a line both an activated and a mana reading accept is a
+ * grammar defect to report, not a coin to flip.
+ */
+function readQuotedAbility(
+    text: string,
+    host: HostNoun,
+    ctx: ParseContext
+): RuleResult<QuotedAbilityIR> {
+    if (host === "permanent")
+        return fail(
+            'a granted ability on "enchanted permanent" names no host type',
+            text
+        );
+    // The Aura's own name inside the quote would be the AURA (CR 201.5a), a
+    // different object from the one the ability is granted to — and so is
+    // "this Aura" / "this enchantment", which modern Oracle text prints in
+    // place of the name and `normalize` leaves alone. Lowered, either would
+    // bind to `$source`, which for a granted ability is the HOST: "Return
+    // this Aura to its owner's hand" would bounce the creature.
+    if (text.includes(ctx.selfMarker) || SELF_AURA_PHRASE.test(text))
+        return fail("a granted ability naming the Aura itself", text);
+    const hostCtx: ParseContext = {
+        ...ctx,
+        typeLine: { types: [host], supertypes: [], subtypes: [] },
+    };
+    const hits: QuotedAbilityIR[] = [];
+    const misses: string[] = [];
+    for (const slot of [activatedSlot, manaAbilitySlot]) {
+        const r = slot.run(text, hostCtx);
+        if (!r.ok) {
+            misses.push(r.reason);
+            continue;
+        }
+        if (r.value.kind !== "activated" && r.value.kind !== "mana-ability")
+            return fail(
+                "a quoted ability that is not an activated ability",
+                text
+            );
+        hits.push(r.value);
+    }
+    if (hits.length === 1) return ok(hits[0]!);
+    if (hits.length > 1)
+        return fail("ambiguous quoted ability: two slots consumed it", text);
+    return fail(`quoted ability — ${[...new Set(misses)].join("; ")}`, text);
+}
+
+/** What follows "Enchanted <noun> gets +N/+N and" — or the whole predicate. */
+function readHostPredicate(
+    span: string,
+    subject: string,
+    host: HostNoun,
+    ctx: ParseContext
+): RuleResult<readonly HostEffectIR[]> {
+    const sentence = `${subject} ${span}.`;
+    if (span === "can't attack")
+        return ok([{ kind: "attack-restriction" as const, sentence }]);
+    if (span === "can't block")
+        return ok([{ kind: "block-restriction" as const, sentence }]);
+    if (span === "can't attack or block")
+        return ok([
+            { kind: "attack-restriction" as const, sentence },
+            { kind: "block-restriction" as const, sentence },
+        ]);
+    const quoted = span.match(QUOTED_GRANT);
+    if (quoted !== null) {
+        const ability = readQuotedAbility(quoted[1]!, host, ctx);
+        if (!ability.ok) return ability;
+        return ok([
+            {
+                kind: "activated-grant" as const,
+                text: quoted[1]!,
+                ability: ability.value,
+            },
+        ]);
+    }
+    if (span.startsWith("has ")) {
+        const keywords = readGrantedKeywords(span.slice("has ".length));
+        if (!keywords.ok) return keywords;
+        return ok(
+            keywords.value.map((keyword) => ({
+                kind: "keyword-grant" as const,
+                keyword,
+            }))
+        );
+    }
+    return fail(`"${span}" is not an effect this frame reads on a host`, span);
+}
+
+/**
+ * "Enchanted <noun> <predicate>[. This effect doesn't remove this Aura]".
+ *
+ * The predicate is an optional P/T modifier, then at most ONE of: a keyword
+ * list, a quoted ability, or a combat restriction — the shapes the corpus
+ * prints ("gets +2/+2 and has flying", "gets +2/+2 and can't block"). Every
+ * other tail ("gets +2/+2 as long as …", "gets +X/+X, where X is …", "has
+ * shroud as long as it's untapped", "is goaded", "attacks each combat if
+ * able") fails the frame whole rather than compiling the half it read.
+ */
+const enchantedHostRule: Rule<StaticClauseIR> = rule(
+    "enchanted host",
+    (span, ctx): RuleResult<StaticClauseIR> => {
+        let body = span;
+        let keepsThisAura = false;
+        if (body.endsWith(KEEPS_THIS_AURA)) {
+            keepsThisAura = true;
+            body = body.slice(0, -KEEPS_THIS_AURA.length);
+        }
+        const match = body.match(ENCHANTED_SUBJECT);
+        if (match === null)
+            return fail('not an "Enchanted <noun>" sentence', span);
+        const host = HOST_NOUNS.get(match[1]!)!;
+        let rest = match[2]!;
+        const effects: HostEffectIR[] = [];
+        const pt = rest.match(HOST_PT);
+        if (pt !== null) {
+            effects.push({
+                kind: "pt-buff",
+                power: signedModifier(pt[1]!),
+                toughness: signedModifier(pt[2]!),
+            });
+            if (pt[3] === undefined) rest = "";
+            else rest = pt[3];
+        }
+        if (rest.length > 0) {
+            const more = readHostPredicate(
+                rest,
+                `Enchanted ${match[1]!}`,
+                host,
+                ctx as ParseContext
+            );
+            if (!more.ok) return more;
+            effects.push(...more.value);
+        }
+        // CR 702.16n — the rider modifies a protection grant and nothing else.
+        if (
+            keepsThisAura &&
+            !effects.some(
+                (e) =>
+                    e.kind === "keyword-grant" &&
+                    e.keyword.ability.startsWith(PROTECTION_FROM)
+            )
+        )
+            return fail(
+                '"This effect doesn\'t remove this Aura" without a protection grant (CR 702.16n)',
+                span
+            );
+        return ok({
+            kind: "enchanted-host" as const,
+            host,
+            effects,
+            ...(keepsThisAura ? { keepsThisAura: true as const } : {}),
+        });
+    }
+);
+
+/** "You control enchanted <noun>" (Control Magic, Steal Artifact). */
+const youControlHostRule: Rule<StaticClauseIR> = pattern(
+    "control enchanted host",
+    YOU_CONTROL_HOST,
+    (match): RuleResult<StaticClauseIR> =>
+        ok({
+            kind: "enchanted-host" as const,
+            host: HOST_NOUNS.get(match[1]!)!,
+            effects: [{ kind: "control-change" as const }],
+        })
+);
+
 // ── The clause ─────────────────────────────────────────────────────────────
 
 export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
@@ -758,5 +1108,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         kickedEntersWithRule,
         entersWithEachKickRule,
         doesNotUntapRule,
+        enchantedHostRule,
+        youControlHostRule,
     ])
 );

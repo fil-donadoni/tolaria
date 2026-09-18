@@ -117,7 +117,7 @@ describe("resolveFirstPaperPrint (issue #3423)", () => {
                 data: [
                     print({ digital: true, set: "mtgo" }),
                     print({ set_type: "token" }),
-                    print({ set_type: "funny" }),
+                    print({ set_type: "memorabilia" }),
                 ],
             })
         );
@@ -135,6 +135,46 @@ describe("resolveFirstPaperPrint (issue #3423)", () => {
             "minigame",
             "token",
         ]);
+    });
+});
+
+describe("resolveFirstPaperPrint — a card printed only in funny sets (issue #3833)", () => {
+    const CMB1_ID = "cmb1-print";
+    const CMB2_ID = "cmb2-print";
+
+    it("skips a funny set when the card has a real printing elsewhere", async () => {
+        const fetchImpl = vi.fn(async () =>
+            jsonResponse({
+                data: [
+                    print({ id: CMB1_ID, set: "cmb1", set_type: "funny" }),
+                    print(),
+                ],
+            })
+        );
+        expect(
+            await resolveFirstPaperPrint(ORACLE, {
+                fetch: fetchImpl as unknown as typeof fetch,
+                sleep: noSleep,
+            })
+        ).toEqual({ id: ODY_ID, set: "ody", rarity: "rare" });
+    });
+
+    it("takes the earliest funny printing when there is no other home", async () => {
+        const fetchImpl = vi.fn(async () =>
+            jsonResponse({
+                data: [
+                    print({ digital: true, set: "mtgo" }),
+                    print({ id: CMB1_ID, set: "cmb1", set_type: "funny" }),
+                    print({ id: CMB2_ID, set: "cmb2", set_type: "funny" }),
+                ],
+            })
+        );
+        expect(
+            await resolveFirstPaperPrint(ORACLE, {
+                fetch: fetchImpl as unknown as typeof fetch,
+                sleep: noSleep,
+            })
+        ).toEqual({ id: CMB1_ID, set: "cmb1", rarity: "rare" });
     });
 });
 
