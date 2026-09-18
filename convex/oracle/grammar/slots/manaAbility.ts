@@ -36,6 +36,15 @@
  * but not sufficient for them. They stay `unparsed`, not approximated: a
  * quantity read as a constant is the competitor's documented "for each
  * collapsed to a constant" misparse.
+ *
+ * The painland rider (`PAINLAND_RIDER` below, issue #3828) is scoped to the
+ * literal "This land …" — the Talisman cycle prints the byte-identical shape
+ * on "This artifact …" (`cards/abilities/index.ts`'s `makeTalisman`, whose own
+ * comment calls out the shared shape) and stays unparsed here. Widening the
+ * pattern to every self-referring noun (`grammar/shared/cost.ts`'s
+ * `isSelfPhrase`) is the natural next slice — left for the corpus report to
+ * rank rather than folded into this one, which is scoped to the land cycle
+ * issue #3828 names.
  */
 
 import { PERMANENT_TYPES } from "../../../cards/types";
@@ -55,6 +64,7 @@ import {
 } from "../../rule";
 import type { ParseContext } from "../../types";
 import { activationCostRule } from "../shared/cost";
+import { readNumberWord } from "../shared/quantity";
 import type { ManaProductionIR, SlotIR } from "../ir";
 
 export const MANA_ABILITY_SLOT = "mana-ability";
@@ -116,6 +126,27 @@ const production: Rule<ManaProductionIR> = subGrammar(
  */
 export const MANA_ABILITY_RIDER = "mana ability rider";
 
+/**
+ * CR 605.1a — "This land deals N damage to you", the painland cycle's rider on
+ * a CHOICE production (Adarkar Wastes, the enemy painlands — issue #3828):
+ * `cards/types.ts`'s `dealsDamageToControllerOnColoredTap`, fired only on the
+ * coloured pick. The identical sentence after a FIXED production is the
+ * unconditional `dealsDamageToControllerOnTap` (Ancient Tomb) — a different
+ * field this rule does not read; a FIXED production is refused the rider by
+ * `addEffect` below rather than by this pattern.
+ */
+const PAINLAND_RIDER = /^This land deals (\S+) damage to you$/;
+
+function readPainlandDamage(span: string): number | null {
+    const m = PAINLAND_RIDER.exec(span);
+    if (m === null) return null;
+    const damage = readNumberWord(m[1]!);
+    // "Deals 0 damage" is not a printed sentence, and the field it would
+    // write is a no-op the engine silently accepts — stay fail-closed rather
+    // than emit a rider with no effect.
+    return damage !== null && damage > 0 ? damage : null;
+}
+
 /** CR 106.1 / 605.1a — the effect half: "Add <mana>". */
 const addEffect: Rule<ManaProductionIR> = rule("add effect", (span, ctx) => {
     if (!span.startsWith("Add "))
@@ -126,10 +157,21 @@ const addEffect: Rule<ManaProductionIR> = rule("add effect", (span, ctx) => {
     // Verdict and reason are the production's; only the blame moves, and only
     // when the first sentence alone is a production this grammar reads.
     const stop = body.indexOf(". ");
-    if (stop === -1 || !production.run(body.slice(0, stop), ctx).ok) return r;
+    if (stop === -1) return r;
+    const head = production.run(body.slice(0, stop), ctx);
+    if (!head.ok) return r;
+    const riderSpan = body.slice(stop + ". ".length);
+    if (head.value.kind === "choice") {
+        const damage = readPainlandDamage(riderSpan);
+        if (damage !== null)
+            return ok({
+                ...head.value,
+                dealsDamageToControllerOnColoredTap: damage,
+            });
+    }
     return fail(r.reason, r.fragment, {
         path: [MANA_ABILITY_RIDER],
-        span: body.slice(stop + ". ".length),
+        span: riderSpan,
         progress: 1,
     });
 });

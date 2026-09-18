@@ -83,7 +83,20 @@ export interface KickerIR {
 /** What a mana ability adds (CR 605.1a). */
 export type ManaProductionIR =
     | { readonly kind: "fixed"; readonly mana: ManaCost }
-    | { readonly kind: "choice"; readonly options: readonly ManaCost[] };
+    | {
+          readonly kind: "choice";
+          readonly options: readonly ManaCost[];
+          /**
+           * CR 605.1a — the painland rider: "This land deals N damage to
+           * you" on a CHOICE production, gated on the coloured pick (`cards/
+           * types.ts`'s `dealsDamageToControllerOnColoredTap`, Adarkar
+           * Wastes). Absent on a plain choice ("{T}: Add {B} or {R}."). The
+           * SAME sentence after a FIXED production is the unconditional
+           * `dealsDamageToControllerOnTap` rider (Ancient Tomb) — a
+           * different field, a different grammar rule, not carried here.
+           */
+          readonly dealsDamageToControllerOnColoredTap?: number;
+      };
 
 export type SlotIR =
     | { readonly kind: "keywords"; readonly keywords: readonly KeywordIR[] }

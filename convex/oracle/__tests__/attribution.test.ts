@@ -90,23 +90,25 @@ describe("attribution — one real card per slot names the sub-grammar that fail
         });
     });
 
-    it("mana-ability: the rider sentence after a production that parsed (Shivan Reef)", () => {
-        // CR 605.1a — this is a mana ability; the activated slot's effect
-        // clause also refuses "Add {R}", and must not take the blame for it.
+    it("mana-ability: the rider sentence after a FIXED production (Ancient Tomb)", () => {
+        // CR 605.1a — issue #3828 taught this rider to a CHOICE production
+        // (the painland cycle, `dealsDamageToControllerOnColoredTap`); a FIXED
+        // production's identical sentence is the unconditional
+        // `dealsDamageToControllerOnTap` (Ancient Tomb), a different field the
+        // grammar does not read yet, so the diagnostic still fires here.
         expect(
             attributionOf({
-                name: "Shivan Reef",
+                name: "Ancient Tomb",
                 manaCost: "",
                 typeLine: "Land",
-                oracleText:
-                    "{T}: Add {C}.\n{T}: Add {U} or {R}. This land deals 1 damage to you.",
+                oracleText: "{T}: Add {C}{C}. This land deals 2 damage to you.",
                 power: undefined,
                 toughness: undefined,
             })
         ).toEqual({
             slot: "mana-ability",
             path: [MANA_ABILITY_RIDER],
-            span: "This land deals 1 damage to you",
+            span: "This land deals 2 damage to you",
         });
     });
 

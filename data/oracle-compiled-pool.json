@@ -1323,6 +1323,38 @@
         "rarity": "common"
     },
     {
+        "name": "Scabland",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "This land enters tapped.\n{T}: Add {C}.\n{T}: Add {R} or {W}. This land deals 1 damage to you.",
+        "activatedAbilities": [
+            {
+                "id": "scabland-mana",
+                "oracleText": "{T}: Add {C}.\n{T}: Add {R} or {W}. This land deals 1 damage to you.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "C": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "W": 1
+                    }
+                ],
+                "dealsDamageToControllerOnColoredTap": 1
+            }
+        ],
+        "entersTapped": true,
+        "id": "0374f269-b07e-43af-911a-5454b35f14e6",
+        "rarity": "rare"
+    },
+    {
         "name": "Clockwork Drawbridge",
         "types": [
             "Artifact",
@@ -7352,6 +7384,37 @@
         "rarity": "common"
     },
     {
+        "name": "Caves of Koilos",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {C}.\n{T}: Add {W} or {B}. This land deals 1 damage to you.",
+        "activatedAbilities": [
+            {
+                "id": "caves-of-koilos-mana",
+                "oracleText": "{T}: Add {C}.\n{T}: Add {W} or {B}. This land deals 1 damage to you.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "C": 1
+                    },
+                    {
+                        "W": 1
+                    },
+                    {
+                        "B": 1
+                    }
+                ],
+                "dealsDamageToControllerOnColoredTap": 1
+            }
+        ],
+        "id": "144dd08e-451e-4438-b572-7a138e1a15f3",
+        "rarity": "rare"
+    },
+    {
         "name": "Happy Hogan, Dauntless Driver",
         "types": [
             "Creature"
@@ -8258,6 +8321,37 @@
         ],
         "id": "1776f5b4-1292-460f-9719-e1b603cee46c",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Yavimaya Coast",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {C}.\n{T}: Add {G} or {U}. This land deals 1 damage to you.",
+        "activatedAbilities": [
+            {
+                "id": "yavimaya-coast-mana",
+                "oracleText": "{T}: Add {C}.\n{T}: Add {G} or {U}. This land deals 1 damage to you.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "C": 1
+                    },
+                    {
+                        "G": 1
+                    },
+                    {
+                        "U": 1
+                    }
+                ],
+                "dealsDamageToControllerOnColoredTap": 1
+            }
+        ],
+        "id": "177ee102-d981-4fc3-9f09-9dd07755f22c",
+        "rarity": "rare"
     },
     {
         "name": "Bilbo's Deadly Slice",
@@ -11997,6 +12091,38 @@
         "entersTapped": true,
         "id": "2224d7ef-2e2f-47dd-a4a0-e36b3170b124",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Salt Flats",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "This land enters tapped.\n{T}: Add {C}.\n{T}: Add {W} or {B}. This land deals 1 damage to you.",
+        "activatedAbilities": [
+            {
+                "id": "salt-flats-mana",
+                "oracleText": "{T}: Add {C}.\n{T}: Add {W} or {B}. This land deals 1 damage to you.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "C": 1
+                    },
+                    {
+                        "W": 1
+                    },
+                    {
+                        "B": 1
+                    }
+                ],
+                "dealsDamageToControllerOnColoredTap": 1
+            }
+        ],
+        "entersTapped": true,
+        "id": "224cb63f-9af0-4b00-ba0b-0b604abf20c8",
+        "rarity": "rare"
     },
     {
         "name": "Foggy Bottom Swamp",
@@ -30418,6 +30544,37 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Llanowar Wastes",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {C}.\n{T}: Add {B} or {G}. This land deals 1 damage to you.",
+        "activatedAbilities": [
+            {
+                "id": "llanowar-wastes-mana",
+                "oracleText": "{T}: Add {C}.\n{T}: Add {B} or {G}. This land deals 1 damage to you.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "C": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ],
+                "dealsDamageToControllerOnColoredTap": 1
+            }
+        ],
+        "id": "610b7cd5-5532-45a9-acfe-24a818034d1c",
+        "rarity": "rare"
+    },
+    {
         "name": "Vizkopa Vampire",
         "types": [
             "Creature"
@@ -39652,6 +39809,38 @@
         ],
         "id": "7efe00f9-bf42-4d6f-9a22-b357b1c1e092",
         "rarity": "common"
+    },
+    {
+        "name": "Caldera Lake",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "This land enters tapped.\n{T}: Add {C}.\n{T}: Add {U} or {R}. This land deals 1 damage to you.",
+        "activatedAbilities": [
+            {
+                "id": "caldera-lake-mana",
+                "oracleText": "{T}: Add {C}.\n{T}: Add {U} or {R}. This land deals 1 damage to you.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "C": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "R": 1
+                    }
+                ],
+                "dealsDamageToControllerOnColoredTap": 1
+            }
+        ],
+        "entersTapped": true,
+        "id": "7f01fe22-e8ff-4106-8ac5-693ef920b2c9",
+        "rarity": "rare"
     },
     {
         "name": "High Fae Trickster",
@@ -53124,6 +53313,37 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Battlefield Forge",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {C}.\n{T}: Add {R} or {W}. This land deals 1 damage to you.",
+        "activatedAbilities": [
+            {
+                "id": "battlefield-forge-mana",
+                "oracleText": "{T}: Add {C}.\n{T}: Add {R} or {W}. This land deals 1 damage to you.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "C": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "W": 1
+                    }
+                ],
+                "dealsDamageToControllerOnColoredTap": 1
+            }
+        ],
+        "id": "a9c25e71-0140-48fe-8b9e-33b4b50c5c12",
+        "rarity": "rare"
+    },
+    {
         "name": "Cogwork Wrestler",
         "types": [
             "Artifact",
@@ -53194,6 +53414,38 @@
         ],
         "id": "a9db550e-ed1f-4973-a7f5-ec2e6adb8e6b",
         "rarity": "common"
+    },
+    {
+        "name": "Skyshroud Forest",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "This land enters tapped.\n{T}: Add {C}.\n{T}: Add {G} or {U}. This land deals 1 damage to you.",
+        "activatedAbilities": [
+            {
+                "id": "skyshroud-forest-mana",
+                "oracleText": "{T}: Add {C}.\n{T}: Add {G} or {U}. This land deals 1 damage to you.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "C": 1
+                    },
+                    {
+                        "G": 1
+                    },
+                    {
+                        "U": 1
+                    }
+                ],
+                "dealsDamageToControllerOnColoredTap": 1
+            }
+        ],
+        "entersTapped": true,
+        "id": "aa01f43b-d0b3-4cd5-9694-aed30a79462c",
+        "rarity": "rare"
     },
     {
         "name": "Wardscale Crocodile",
@@ -61629,6 +61881,37 @@
         "rarity": "common"
     },
     {
+        "name": "Shivan Reef",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {C}.\n{T}: Add {U} or {R}. This land deals 1 damage to you.",
+        "activatedAbilities": [
+            {
+                "id": "shivan-reef-mana",
+                "oracleText": "{T}: Add {C}.\n{T}: Add {U} or {R}. This land deals 1 damage to you.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "C": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "R": 1
+                    }
+                ],
+                "dealsDamageToControllerOnColoredTap": 1
+            }
+        ],
+        "id": "c3403143-2b4e-4408-b138-c856bbc1e9a5",
+        "rarity": "rare"
+    },
+    {
         "name": "Balloon Peddler",
         "types": [
             "Creature"
@@ -67580,6 +67863,38 @@
         ],
         "id": "d596feee-6ccc-4648-884b-ed2eeb1cffc0",
         "rarity": "common"
+    },
+    {
+        "name": "Pine Barrens",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "This land enters tapped.\n{T}: Add {C}.\n{T}: Add {B} or {G}. This land deals 1 damage to you.",
+        "activatedAbilities": [
+            {
+                "id": "pine-barrens-mana",
+                "oracleText": "{T}: Add {C}.\n{T}: Add {B} or {G}. This land deals 1 damage to you.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "C": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ],
+                "dealsDamageToControllerOnColoredTap": 1
+            }
+        ],
+        "entersTapped": true,
+        "id": "d5ac39e8-bd0e-4fa3-bc1e-a93944d013f3",
+        "rarity": "rare"
     },
     {
         "name": "Unhallowed Phalanx",

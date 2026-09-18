@@ -96,7 +96,18 @@ import {
 // Lowered 1703 -> 1697 by issue #3826 (the kicker line): Ardent Soldier,
 // Dismantling Blow, Llanowar Elite, Phyrexian Scuta, Pincer Spider and Urborg
 // Skeleton round-trip once "Kicker …" and its read-backs are grammar.
-const BASELINE_CEILING = 1688;
+//
+// Lowered 1697 -> 1688 by issue #3827 (folding multi-line spell text into one
+// body): Cremate and 8 others (Aggressive Urge, Annihilate, Aura Blast,
+// Implode, Repulse, Reviving Dose, Slay, Zap) round-trip once a second
+// Oracle-printed line is read as a second sentence of the same spell, not a
+// second declaration.
+//
+// Lowered 1688 -> 1683 by issue #3828 (the painland rider): Adarkar Wastes,
+// Brushland, Karplusan Forest, Sulfurous Springs and Underground River
+// round-trip once the mana-ability slot reads "This land deals N damage to
+// you" on a CHOICE production and the colourless line merges into it.
+const BASELINE_CEILING = 1683;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that
