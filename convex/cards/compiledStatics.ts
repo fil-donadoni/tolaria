@@ -179,7 +179,7 @@ export type CompiledStaticEffect =
           readonly abilityId: string;
       }
     /**
-     * CR 508.1c — "Enchanted creature can't attack." / CR 509.1a — "…can't
+     * CR 508.1c — "Enchanted creature can't attack." / CR 509.1b — "…can't
      * block." Unconditional, so the rebuilt predicate is a constant `false`.
      *
      * No scope field, and deliberately: the engine collects these from a
@@ -344,7 +344,7 @@ export function resolveCompiledStatic(
             return {
                 kind: "block-restriction",
                 id: descriptor.id,
-                // CR 509.1a — the restriction is on the enchanted creature AS
+                // CR 509.1b — the restriction is on the enchanted creature AS
                 // a blocker; the attacker side restricts who may block IT.
                 side: "blocker",
                 predicate: () => false,

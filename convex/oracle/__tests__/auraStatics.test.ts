@@ -243,7 +243,7 @@ const GOLDEN: readonly (readonly [OracleCard, CompiledDefinition])[] = [
             ],
         },
     ],
-    // CR 508.1c / 509.1a — "can't attack or block": one restriction per
+    // CR 508.1c / 509.1b — "can't attack or block": one restriction per
     // declaration, each carrying the sentence the engine shows on refusal.
     [
         aura(
@@ -272,7 +272,7 @@ const GOLDEN: readonly (readonly [OracleCard, CompiledDefinition])[] = [
             ],
         },
     ],
-    // CR 509.1a — a restriction joined to a P/T clause carries its OWN
+    // CR 509.1b — a restriction joined to a P/T clause carries its OWN
     // sentence: the P/T half is no reason the engine refuses a block.
     [
         aura(
@@ -381,7 +381,7 @@ describe("Aura statics — golden fixtures (CR 303.4b)", () => {
 
 describe("Aura statics — refusals", () => {
     it.each([
-        // An "as long as" condition the frame would drop (CR 611.2c).
+        // An "as long as" condition the frame would drop.
         "Enchanted creature gets +2/+2 as long as an opponent controls a black permanent.",
         // A variable modifier.
         "Enchanted creature gets +X/+X, where X is the number of Forests you control.",
@@ -433,7 +433,7 @@ describe("Aura statics — refusals", () => {
         ).toContain("cannot enchant one");
     });
 
-    it("refuses a quoted ability that names the Aura itself (CR 201.5)", () => {
+    it("refuses a quoted ability that names the Aura itself (CR 201.5a)", () => {
         expect(
             refusedOf(
                 aura(
@@ -538,7 +538,7 @@ describe("Aura statics in the real engine (CR 303.4b)", () => {
         });
     });
 
-    it("stops the host attacking and blocking (CR 508.1c / 509.1a)", () => {
+    it("stops the host attacking and blocking (CR 508.1c / 509.1b)", () => {
         const def = registered(
             aura(
                 "Compiled Pacifism",

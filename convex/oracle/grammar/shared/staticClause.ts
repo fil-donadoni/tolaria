@@ -39,7 +39,7 @@
  *   "Enchanted <noun> gets +N/+N[ and <rest>]"      → layer 7c, host scope
  *   "Enchanted <noun> has <keyword>[, …, and <kw>]" → layer 6, host scope
  *   'Enchanted <noun> has "<activated ability>"'    → layer 6 `activated-grant`
- *   "Enchanted <noun> can't attack[ or block]"      → CR 508.1c / 509.1a
+ *   "Enchanted <noun> can't attack[ or block]"      → CR 508.1c / 509.1b
  *   "You control enchanted <noun>"                  → layer 2 `control-change`
  *
  * "Enchanted" names ONE object — the Aura's host (CR 303.4b) — so these
@@ -187,7 +187,7 @@ export type HostEffectIR =
     /** CR 613.1b layer 2. */
     | { readonly kind: "control-change" }
     /**
-     * CR 508.1c / 509.1a. `sentence` is the restriction ALONE ("Enchanted
+     * CR 508.1c / 509.1b. `sentence` is the restriction ALONE ("Enchanted
      * creature can't block.") — the rejection reason the engine shows, which
      * must not carry a P/T clause the same line also printed; it is the text
      * the hand-written catalogue writes (Maniacal Rage, Hobble).
@@ -840,7 +840,7 @@ const HOST_PT = /^gets ([+-]\d+)\/([+-]\d+)(?: and (.+))?$/;
 const QUOTED_GRANT = /^has "([^"]+)"$/;
 
 /**
- * CR 702.16n — the Ward rider. Anchored at the END of the sentence and only
+ * CR 702.16n — the Aura-keeping rider. Anchored at the END of the sentence and only
  * ever accepted beside a protection grant (see `enchantedHostRule`), because
  * that is the only thing it modifies.
  */
@@ -930,7 +930,7 @@ function readQuotedAbility(
             'a granted ability on "enchanted permanent" names no host type',
             text
         );
-    // The Aura's own name inside the quote would be the AURA (CR 201.5), a
+    // The Aura's own name inside the quote would be the AURA (CR 201.5a), a
     // different object from the one the ability is granted to.
     if (text.includes(ctx.selfMarker))
         return fail("a granted ability naming the Aura itself", text);
