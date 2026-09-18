@@ -274,36 +274,80 @@ clock. The one term that looks past the [horizon](#horizon).
 
 ## Measuring the Bot
 
-<a id="blade-scenario"></a>**Blade scenario** — a hand-curated position where
-the right play is beyond opinion, because the wrong one loses something
-_forced by the rules_ (a creature, the game). The correctness metric: every
-blunder seen in play becomes one. Fixed iterations and seeds ⇒ the chosen
-move is byte-identical on any machine. Code: `convex/gre/ai/blade/registry.ts`;
-admission rules ADR 0070.
+<a id="test-position"></a><a id="blade-scenario"></a>**Test position**
+(formerly _blade scenario_; the code still says `blade` until the mechanical
+rename lands) — a [Verdict](#player-verdict) frozen into a test: the position,
+a fixed seed, a fixed iteration budget and the move expected of the Bot, or
+the move it must avoid. The lineage is the chess engine's EPD test position
+(`bm` best move / `am` avoid move). The correctness FLOOR: every blunder seen
+in play becomes one. Fixed iterations and seeds ⇒ the chosen move is
+byte-identical on any machine. Code: `convex/gre/ai/blade/registry.ts`;
+admission criterion ADR 0070.
 
-<a id="must-stretch"></a>**`must` / `stretch` tier** — a `must` blade entry
-blocks the gate (`bun run test:blade`); a `stretch` entry is report-only, for
-positions the Bot is not yet expected to solve. A stretch entry that starts
-passing is promoted.
+<a id="must-stretch"></a>**`must` / `stretch` tier** — a `must` test position
+blocks the gate (`bun run test:blade`); a `stretch` one is report-only, a
+position the gate does not yet require. Both tiers are read by the weight fit
+— by rule, never by the [held-out](#held-out-agreement) hash — so the fit can
+never drift away from a position the gate demands.
 
-<a id="beyond-budget"></a>**Beyond budget** — a blade position the Bot solves
+<a id="admission"></a>**Admission** — a human's decision that a test position
+joins `must`, made against the ADR 0070 criterion: the wrong move loses
+something _forced by the rules_, never merely "worse on average". Tooling only
+proposes. An **admission candidate** is a Verdict attested by 2 distinct people
+(1 when that person is the owner), satisfied by the weight fit across 3
+consecutive promotions, never contested, and picked correctly by the whole Bot
+on 5 seeds — thresholds are configuration. A candidate whose pick is red is
+REPORTED, never auto-filed under `stretch`. Not to be confused with
+**promotion** (`verdicts:promote`), which is automatic and widens what the fit
+reads: a promoted Verdict teaches the evaluation, an admitted one binds the
+gate.
+
+<a id="player-verdict"></a>**Verdict (a player's)** — one player's answer to
+one decision the Bot faced: the position, every legal candidate, the right
+one. The unit of training data; definitions of the store, lock, attestation
+and promotion around it live in `CONTEXT.md`. Unrelated to the ladder's
+[IMPROVEMENT / REGRESSION verdict](#verdict).
+
+<a id="held-out-agreement"></a>**Held-out agreement** — the STRENGTH number,
+the one meant to climb. Verdicts outside the two tiers are split once, by a
+hash of the POSITION (so two judgements of one board fall on the same side):
+80% the weight fit may read, 20% it never sees. Agreement is counted only on
+the unseen side, because agreement on data the weights were fitted to is
+inflated by memorisation and predicts nothing about a new position (the
+held-out / test-set idea of any statistics text). Two counts: **eval
+agreement** — the share of unseen eval pairs the evaluation alone orders as
+the player did (no search, microseconds, printed by every promotion) — and
+**pick agreement** — the share of unseen Verdicts where the whole Bot, search
+included, picks the player's move (fixed iterations and seed; minutes, never
+in a PR gate). Pick agreement is the strength number; the gap between the two
+is what the search adds or costs. Always printed with `n` and per decision
+class; under n = 100 it is indicative, never a claim. The unseen side is
+immutable: a held-out Verdict never migrates to the fit side, and one the
+owner admits to `must` anyway leaves it for good and is counted as **burned**.
+
+<a id="beyond-budget"></a>**Beyond budget** — a test position the Bot solves
 only with more search than a real game grants, recorded with _why_: too many
 candidates at one decision, a payoff past the [horizon](#horizon), a
 hidden-information coincidence, or a mis-valued subtree (`valuation`, for
 which no budget passes — more search converges _away_). Each cause names a
 missing piece of knowledge, not a shortage of compute.
 
-<a id="discriminating-pair"></a>**Discriminating pair** — two blade entries
-identical but for one card, asserting opposite verdicts ("casts Dreadnought
-WITH an out" / "does NOT cast it without"). Only the pair proves the Bot reads
-the consequence rather than always or never making the play.
+<a id="minimal-pair"></a><a id="discriminating-pair"></a>**Minimal pair**
+(formerly _discriminating pair_; the linguist's term, as in BLiMP) — two test
+positions identical but for one card, asserting opposite answers ("casts
+Dreadnought WITH an out" / "does NOT cast it without"). Only the pair proves
+the Bot reads the consequence rather than always or never making the play.
 
-<a id="positive-control"></a>**Positive / negative control** — a blade entry
+<a id="positive-control"></a>**Positive / negative control** — a test position
 that must trivially pass (plays its only land) or must still do the normal
 thing after a pruning rule lands (still casts Damnation into a real board), so
 a broken harness or an over-eager rule is caught.
 
-<a id="ladder"></a>**Ladder** — the strength metric: paired bot-vs-bot games
+<a id="ladder"></a>**Ladder** — an EXPERIMENT, no longer a metric (the strength
+number is [held-out agreement](#held-out-agreement)): no change owes a run, no
+pipeline starts one; by hand, on an idle machine, for a large claim only —
+hours on the shared mutex and a noise floor as wide as a placebo bought too
+little. Paired bot-vs-bot games
 where both seats play the same decks with the same shuffles and only the Brain
 configuration differs by seat, then swapped. The decks cancel out; the
 verdict is PAIRED — a McNemar-style interval over the two orientations of
@@ -356,7 +400,7 @@ flags are mutually exclusive — any 2-or-3-way combination fails
 by how much interaction the decks carry: R0 combat and racing (6 pairings),
 R1 instant-speed interaction and repeatable abilities (8 pairings), R2 cube
 archetypes with combos (3 pairings) — 17 rows total, all shipped (issue
-#2689). Work climbs the rungs in order.
+#2689). A label for what a run exercised; no longer a sequence to climb.
 
 <a id="smoke-decision"></a>**`smoke` / `decision` tier** — ladder sizes: smoke =
 4 seeds per pairing (48 games, direction only), decision = 20 seeds (240
@@ -378,7 +422,7 @@ seeded stream (`makeRng`).
 
 <a id="self-play"></a>**Self-play** — the Bot playing both seats. Useful for a
 distribution (strength, calibration corpus), useless for explaining one bad
-pick — a decision is debugged with one blade scenario plus one unit test, never
+pick — a decision is debugged with one test position plus one unit test, never
 a 200-game run.
 
 <a id="decision-telemetry"></a>**Decision telemetry** — off-by-default
@@ -388,7 +432,7 @@ much. Code: `convex/gre/ai/decisionTelemetry.ts`; findings
 `docs/research/decision-telemetry.md`.
 
 <a id="decision-corpus"></a>**Decision corpus** — a reproducible batch of real
-decisions (self-play games + blade positions) run with telemetry on, to
+decisions (self-play games + test positions) run with telemetry on, to
 measure a distribution rather than one verdict. Runner:
 `src/lib/ai/selfplay/decisionCorpus.ts`.
 
