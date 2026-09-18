@@ -80,11 +80,14 @@ function refusedOf(card: OracleCard): string {
         : "";
 }
 
-const CREATURE_AURA = {
+const CREATURE_AURA: Pick<
+    CompiledDefinition,
+    "types" | "subtypes" | "targetRequirement"
+> = {
     types: ["Enchantment"],
     subtypes: ["Aura"],
     targetRequirement: { type: "Creature", count: 1 },
-} as const;
+};
 
 // ── 1. Golden fixtures ─────────────────────────────────────────────────────
 
