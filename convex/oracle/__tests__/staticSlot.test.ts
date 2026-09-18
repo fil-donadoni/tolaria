@@ -152,10 +152,12 @@ describe("anthem and lord (CR 613.4c)", () => {
     });
 
     it("REFUSES a singular subject — the sentence it would half-read", () => {
-        // "Enchanted creature gets +1/+1." is attached-scope (CR 303.4), which
-        // this grammar does not encode. Accepting it as a board-wide anthem
-        // would buff every creature in play.
-        expect(refusal("Enchanted creature gets +1/+1.")).toBeTruthy();
+        // "Enchanted creature gets +1/+1." is attached-scope (CR 303.4b): it
+        // is read by the HOST frame (issue #3833), never as a board-wide
+        // anthem, which would buff every creature in play.
+        expect(clause("Enchanted creature gets +1/+1.")).toMatchObject({
+            kind: "enchanted-host",
+        });
         expect(refusal("Equipped creature gets +2/+0.")).toBeTruthy();
         expect(refusal("This creature gets +1/+1.")).toBeTruthy();
     });

@@ -38,6 +38,7 @@
 
 import { matchesPermanentFilter } from "./filters";
 import type { PermanentFilter } from "./filters";
+import { AURA_AFFECTS_HOST } from "./types";
 import type {
     CardDefinition,
     CardSupertype,
@@ -48,6 +49,7 @@ import type {
     StaticCastPermission,
     StaticEffect,
     StaticEffectContext,
+    StaticKeywordGrant,
 } from "./types";
 
 /**
@@ -125,20 +127,72 @@ export interface CompiledSpellFilter {
     readonly controller?: "you" | "opponents";
 }
 
-/** The continuous static effects the compiler can emit (CR 611). Closed. */
+/**
+ * WHICH permanents a set-scoped descriptor applies to (CR 611.3a — "whatever
+ * its text indicates").
+ *
+ * Two answers, as a real XOR: a `filter` over the battlefield ("Creatures you
+ * control"), or `appliesTo: "host"` — the ONE permanent the source is attached
+ * to (CR 303.4b: "The object or player an Aura is attached to is called
+ * enchanted"). The host is not a filter over characteristics at all: it is an
+ * identity read off the source's `attachedTo`, which is why it is its own arm
+ * rather than a `PermanentFilter` field no other consumer could honour. It
+ * rebuilds into `AURA_AFFECTS_HOST`, the predicate every hand-written Aura
+ * declares, so a compiled Aura and a hand-written one are the same object.
+ */
+export type CompiledStaticScope =
+    | { readonly filter: PermanentFilter; readonly appliesTo?: never }
+    | { readonly appliesTo: "host"; readonly filter?: never };
+
+/** The continuous static effects the compiler can emit (CR 611). Closed.
+ *
+ *  Every member's `kind` is the kind of the `StaticEffect` it rebuilds into —
+ *  `cards/registry.ts`'s layer prechecks read the descriptor's `kind` as that
+ *  answer, so a descriptor whose kind named something else would drop its
+ *  card out of a layer walk silently. */
 export type CompiledStaticEffect =
-    /** CR 613.4c layer 7c — "<filter> get +N/+N". */
-    | {
+    /** CR 613.4c layer 7c — "<filter> get +N/+N" / "Enchanted creature gets
+     *  +N/+N". */
+    | ({
           readonly kind: "pt-buff";
-          readonly filter: PermanentFilter;
           readonly power: number;
           readonly toughness: number;
-      }
-    /** CR 613.1f layer 6 — "<filter> have <keyword>". */
-    | {
+      } & CompiledStaticScope)
+    /** CR 613.1f layer 6 — "<filter> have <keyword>" / "Enchanted creature
+     *  has <keyword>". */
+    | ({
           readonly kind: "keyword-grant";
-          readonly filter: PermanentFilter;
           readonly keyword: string;
+      } & CompiledStaticScope)
+    /** CR 613.1b layer 2 — "You control enchanted creature." The host only:
+     *  no printed control-change sentence names a SET this way. */
+    | { readonly kind: "control-change"; readonly appliesTo: "host" }
+    /**
+     * CR 613.1f / 113.1a layer 6 — 'Enchanted creature has "<ability>"'. The
+     * granted ability itself is JSON already (an `ActivatedAbility` on the
+     * card's own `grantTemplates[]`, read by id), so the descriptor carries
+     * only the recipient half.
+     */
+    | {
+          readonly kind: "activated-grant";
+          readonly appliesTo: "host";
+          readonly abilityId: string;
+      }
+    /**
+     * CR 508.1c — "Enchanted creature can't attack." / CR 509.1a — "…can't
+     * block." Unconditional, so the rebuilt predicate is a constant `false`.
+     *
+     * No scope field, and deliberately: the engine collects these from a
+     * creature's OWN definition and from every permanent ATTACHED to it
+     * (`collectAttackRestrictions` / `collectBlockRestrictions`,
+     * `gre/combat.ts`), so the host is the only creature an Aura's copy can
+     * ever restrict. A scope field here would be a claim the engine does not
+     * read. The compiler emits one only on an Aura (`oracle/lower.ts`).
+     */
+    | {
+          readonly kind: "attack-restriction" | "block-restriction";
+          readonly id: string;
+          readonly oracleText: string;
       }
     /** CR 601.2f — "<spells> cost {N} more/less to cast". */
     | {
@@ -244,30 +298,58 @@ function generic(amount: number): ManaCost {
     return { X: amount };
 }
 
+/** A descriptor's scope as the `applies` predicate its effect declares. */
+function scopePredicate(
+    scope: CompiledStaticScope
+): StaticKeywordGrant["applies"] {
+    if (scope.appliesTo === "host") return AURA_AFFECTS_HOST;
+    const filter = scope.filter;
+    return (target, source, ctx) => filterMatches(filter, target, source, ctx);
+}
+
 /** One descriptor → the real continuous effect. */
 export function resolveCompiledStatic(
     descriptor: CompiledStaticEffect
 ): StaticEffect {
     switch (descriptor.kind) {
-        case "pt-buff": {
-            const filter = descriptor.filter;
+        case "pt-buff":
             return {
                 kind: "pt-buff",
-                applies: (target, source, ctx) =>
-                    filterMatches(filter, target, source, ctx),
+                applies: scopePredicate(descriptor),
                 power: descriptor.power,
                 toughness: descriptor.toughness,
             };
-        }
-        case "keyword-grant": {
-            const filter = descriptor.filter;
+        case "keyword-grant":
             return {
                 kind: "keyword-grant",
-                applies: (target, source, ctx) =>
-                    filterMatches(filter, target, source, ctx),
+                applies: scopePredicate(descriptor),
                 keyword: descriptor.keyword,
             };
-        }
+        case "control-change":
+            return { kind: "control-change", applies: AURA_AFFECTS_HOST };
+        case "activated-grant":
+            return {
+                kind: "activated-grant",
+                applies: AURA_AFFECTS_HOST,
+                abilityId: descriptor.abilityId,
+            };
+        case "attack-restriction":
+            return {
+                kind: "attack-restriction",
+                id: descriptor.id,
+                predicate: () => false,
+                oracleText: descriptor.oracleText,
+            };
+        case "block-restriction":
+            return {
+                kind: "block-restriction",
+                id: descriptor.id,
+                // CR 509.1a — the restriction is on the enchanted creature AS
+                // a blocker; the attacker side restricts who may block IT.
+                side: "blocker",
+                predicate: () => false,
+                oracleText: descriptor.oracleText,
+            };
         case "cost-modifier": {
             const spells = descriptor.spells;
             return {

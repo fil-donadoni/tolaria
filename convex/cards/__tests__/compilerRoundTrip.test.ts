@@ -114,7 +114,7 @@ import {
 // Brushland, Karplusan Forest, Sulfurous Springs and Underground River
 // round-trip once the mana-ability slot reads "This land deals N damage to
 // you" on a CHOICE production and the colourless line merges into it.
-const BASELINE_CEILING = 1683;
+const BASELINE_CEILING = 1653;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that
