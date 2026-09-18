@@ -30,7 +30,11 @@ import {
     PRD_ISSUE,
     type GapFiling,
 } from "./gap-issues";
-import type { CardRow, Lockfile } from "./oracle-lockfile";
+import {
+    BOT_GAP_SEPARATOR,
+    type CardRow,
+    type Lockfile,
+} from "./oracle-lockfile";
 import {
     claimId,
     quarantineClass,
@@ -525,7 +529,7 @@ const BOT_CAUSE_TEXT: Readonly<Record<string, string>> = {
 
 /** The cause a Bot Gap key opens with (`botGapKey`: `<cause> › <form>…`). */
 function botCauseOf(key: string): string {
-    return key.split(" › ")[0] ?? "";
+    return key.split(BOT_GAP_SEPARATOR)[0] ?? "";
 }
 
 /**
