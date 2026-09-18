@@ -54,6 +54,29 @@ const PREFIX = "health-main:";
 export const DEFAULT_LIVENESS_MS = 60_000;
 
 /**
+ * The full offline gate, in series, stopping at the first red — the name of
+ * the failing entry is what the RED verdict records as `failedStep`.
+ *
+ * `check:gaps` (the derived Op census, ADR 0105 § 7.3) lives HERE and nowhere
+ * else: it is a census over the committed lockfile, so a PR gate would pay for
+ * it on every diff that cannot move it. It runs AFTER `check:all`, because
+ * `check:all` holds `check:oracle` — an un-regenerated lockfile is lockfile
+ * DRIFT, and that is the error a reader must see, not a census computed off a
+ * stale file.
+ *
+ * Exported so `check-gaps.test.ts` can assert the membership rather than
+ * re-derive it from a regex over `health-main.ts` (which carries the gate's
+ * zero-import constraint and cannot be imported by a test — it runs `main()`
+ * on load).
+ */
+export const HEALTH_SCRIPTS: readonly string[] = [
+    "worktree:init",
+    "check:all",
+    "check:gaps",
+    "test",
+];
+
+/**
  * The environment every health step runs under. The health gate must queue on
  * the machine mutex like any other heavy gate — so the hold `land`'s locked
  * shell exported is scrubbed — and it must prove every pure drift guard from

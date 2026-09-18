@@ -45,6 +45,18 @@ import type { CardRow, FragmentRow, Lockfile } from "./oracle-lockfile";
 export const NO_SLOT = "(no slot)";
 /** The frame of a card-level refusal (layout, type line, lowering). */
 export const CARD_LEVEL = "(card)";
+/**
+ * The frame of a DERIVED OP CENSUS gap (ADR 0105 § 7.3): an implemented Op no
+ * Compiled Definition emits, i.e. a missing grammar rule named by its Op
+ * rather than by a refused span. It shares this module's key space so
+ * `gaps:sync` files grammar gaps and Op gaps from ONE stable key.
+ */
+export const OP_LEVEL = "(op)";
+
+/** The stable key of the Op-census gap for `op` — {@link OP_LEVEL} framed. */
+export function opGapKey(op: string): string {
+    return `${OP_LEVEL} › ${op}`;
+}
 
 const ROUTER_REASON = "no slot consumed the line";
 
