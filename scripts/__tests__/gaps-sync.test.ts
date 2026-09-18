@@ -23,6 +23,7 @@ import {
     type UnlockSource,
 } from "../lib/gap-issues";
 import {
+    botCauseOf,
     buildBotGapFilings,
     buildHandTailFilings,
     buildMigrationFilings,
@@ -36,6 +37,7 @@ import {
     type KindInputs,
 } from "../lib/gap-kinds";
 import { staleClaims } from "../gaps-sync";
+import { botGapKey } from "../lib/oracle-bot-reach";
 import type { CardRow, FragmentRow, Lockfile } from "../lib/oracle-lockfile";
 import {
     claimId,
@@ -430,6 +432,24 @@ describe("the bot kind — one issue per Bot Gap key, scoped to the ranked Targe
         expect(body).toContain("Cards held (2): Aura of Doom, Doom Aura");
         expect(body).toContain("**A valuation gap.**");
         expect(body).toContain("Outcome: `ignored`");
+    });
+
+    it("reads the cause back out of `botGapKey`'s own output, for every cause", () => {
+        const causes = [
+            "no-legal-move",
+            "position-unmodelled",
+            "unanswerable-input",
+            "no-progress",
+            "harness-error",
+            "never-chosen",
+        ] as const;
+        for (const cause of causes) {
+            const key = botGapKey(
+                { outcome: "ignored", cause, form: "Sorcery" },
+                ["draw"]
+            )!;
+            expect(botCauseOf(key)).toBe(cause);
+        }
     });
 
     it("says what each cause MEANS — the text differs, the filing rule does not", () => {

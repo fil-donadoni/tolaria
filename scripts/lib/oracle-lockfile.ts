@@ -90,10 +90,6 @@ export interface FragmentRow {
     readonly attribution?: Attribution;
 }
 
-/** What a Bot Gap key joins its fields with — `botGapKey` writes it, the
- *  cache and the `bot` filer (`gap-kinds.ts`) split on it. One literal. */
-export const BOT_GAP_SEPARATOR = " › ";
-
 /**
  * A Bot Gap (ADR 0105 § 7.2, issue #3830): one form a card fails the Bot-play
  * sweep by, and how many cards fail it that way — ranked like

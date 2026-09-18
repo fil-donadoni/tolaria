@@ -37,12 +37,7 @@ import type {
     BotReachVerdict,
 } from "../../convex/gre/ai/botReach";
 import type { CompiledDefinition } from "../../convex/oracle/types";
-import {
-    BOT_GAP_SEPARATOR as GAP_SEPARATOR,
-    type BotGapRow,
-    type CardRow,
-    type Lockfile,
-} from "./oracle-lockfile";
+import type { BotGapRow, CardRow, Lockfile } from "./oracle-lockfile";
 
 /**
  * The sources whose edit can change a Bot-play verdict — what the Bot hash
@@ -205,6 +200,8 @@ export function carriedBotReach(previous: Lockfile | null): BotReachSource {
 }
 
 // ── Bot Gaps ──────────────────────────────────────────────────────────────
+
+const GAP_SEPARATOR = " › ";
 
 /**
  * The Bot Gap key a non-`played` verdict aggregates under: its cause and its
