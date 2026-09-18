@@ -30,11 +30,12 @@
  *
  * ── The counts ─────────────────────────────────────────────────────────────
  *
- * `blocks` — the cards the gap refuses (a card counts once however many of its
- * lines fail there). `unlocks` — the cards for which it is the ONLY gap left,
- * i.e. the cards that turn from `unparsed` into compiled the day the rule
- * lands. Ranked by the Target's `unlocks`, then its `blocks`, then the
- * corpus's `blocks` as the leverage tie-break, then the key: a total order,
+ * `refuses` — the cards the gap refuses (a card counts once however many of
+ * its lines fail there). `compiles` — the cards for which it is the ONLY gap
+ * left, i.e. the cards that turn from `unparsed` into compiled the day the
+ * rule lands; always ≤ `refuses`. Ranked by the Target's `compiles`, then its
+ * `refuses`, then the corpus's `refuses` as the leverage tie-break, then the
+ * key: a total order,
  * so two runs over one lockfile print one list.
  */
 
@@ -58,8 +59,8 @@ export interface GrammarGap {
 }
 
 export interface GapCounts {
-    readonly blocks: number;
-    readonly unlocks: number;
+    readonly refuses: number;
+    readonly compiles: number;
 }
 
 export interface RankedGap extends GrammarGap {
@@ -107,13 +108,13 @@ export function gapOf(fragment: FragmentRow): GrammarGap {
 
 interface Tally {
     readonly gap: GrammarGap;
-    target: { blocks: number; unlocks: number };
-    corpus: { blocks: number; unlocks: number };
+    target: { refuses: number; compiles: number };
+    corpus: { refuses: number; compiles: number };
     example?: { line: string; card: string; inTarget: boolean };
 }
 
 /**
- * Rank the Grammar Gaps that block at least one card of `target` — every
+ * Rank the Grammar Gaps that refuse at least one card of `target` — every
  * unparsed card of the corpus when `target` is `null`.
  */
 export function rankGrammarGaps(
@@ -131,17 +132,17 @@ export function rankGrammarGaps(
             if (tally === undefined) {
                 tally = {
                     gap,
-                    target: { blocks: 0, unlocks: 0 },
-                    corpus: { blocks: 0, unlocks: 0 },
+                    target: { refuses: 0, compiles: 0 },
+                    corpus: { refuses: 0, compiles: 0 },
                 };
                 tallies.set(key, tally);
             }
             const sole = keys.size === 1 ? 1 : 0;
-            tally.corpus.blocks += 1;
-            tally.corpus.unlocks += sole;
+            tally.corpus.refuses += 1;
+            tally.corpus.compiles += sole;
             if (inTarget) {
-                tally.target.blocks += 1;
-                tally.target.unlocks += sole;
+                tally.target.refuses += 1;
+                tally.target.compiles += sole;
             }
             // First Target card in lockfile order (oracle-id order), falling
             // back to the first corpus card — deterministic either way.
@@ -159,12 +160,12 @@ export function rankGrammarGaps(
     }
     const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
     return [...tallies.values()]
-        .filter((t) => t.target.blocks > 0)
+        .filter((t) => t.target.refuses > 0)
         .sort(
             (a, b) =>
-                b.target.unlocks - a.target.unlocks ||
-                b.target.blocks - a.target.blocks ||
-                b.corpus.blocks - a.corpus.blocks ||
+                b.target.compiles - a.target.compiles ||
+                b.target.refuses - a.target.refuses ||
+                b.corpus.refuses - a.corpus.refuses ||
                 cmp(a.gap.key, b.gap.key)
         )
         .map((t) => ({
