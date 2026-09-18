@@ -30,6 +30,7 @@
 // `convex/cards/__tests__/effectScriptSmoke.test.ts`.
 
 import type {
+    ActivatedAbility,
     CardDefinition,
     EffectCountSpec,
     EffectObjectSelector,
@@ -37,7 +38,9 @@ import type {
     EffectPlayerRef,
     EffectValue,
     TargetSelection,
+    TriggeredAbility,
 } from "../../cards/types";
+import type { CompiledTriggerHead } from "../../cards/compiledTriggers";
 import type { CardInstanceState, GameState, PlayerState } from "../state";
 import { EFFECT_OP_REGISTRY } from "../../cards/mechanicsRegistry";
 import { classLevelOf } from "../../cards/abilities/classLevels";
@@ -56,11 +59,12 @@ export const CASTER_ID = "p1";
 export const OPPONENT_ID = "p2";
 
 /** The instance id of the SOURCE permanent a scenario seeds when an ability
- *  script acts on `{ ref: "$source" }` (issue #3831). It is a filler creature
- *  on the caster's battlefield; the caller pushes the ability's stack item
- *  under this same id, which is what binds `$source` to it (CR 113.7 — an
- *  ability's source is the object that created it; `seedSourceBindings` in
- *  `interpreter.ts` snapshots `sourceInstanceId`, i.e. the stack item's id). */
+ *  script acts on `{ ref: "$source" }` (issue #3831). It carries the HOST
+ *  card's own kind (issue #3879) and sits on the caster's battlefield; the
+ *  caller pushes the ability's stack item under this same id, which is what
+ *  binds `$source` to it (CR 113.7 — an ability's source is the object that
+ *  created it; `seedSourceBindings` in `interpreter.ts` snapshots
+ *  `sourceInstanceId`, i.e. the stack item's id). */
 export const SOURCE_PERMANENT_ID = "gen-source";
 
 /** Where a script is hosted. Only an ABILITY has a source permanent for
@@ -68,6 +72,154 @@ export const SOURCE_PERMANENT_ID = "gen-source";
  *  the stack, which the canned scenario does not model — so a spell-site
  *  `$source` subject stays a card-dependent skip. */
 export type SmokeSite = "spell" | "ability";
+
+/**
+ * What the planner must know about an ability's SOURCE to seed it faithfully
+ * (issue #3879). Both halves were previously assumed rather than read, and each
+ * assumption was a fail-open:
+ *
+ * - **Kind.** The source used to be the generic filler creature whatever the
+ *   real card was, so an Op whose primitive refuses a non-creature subject
+ *   (`setExileOnDeath` / `setDamageLockThisTurn` /
+ *   `setTargetCantBeRegeneratedThisTurn` all return early on one) was proven
+ *   against a creature it would never see. The host definition's own card
+ *   types / subtypes / P/T (CR 205, CR 208.1) come in here instead.
+ * - **Zone at resolution.** The source used to be assumed on the battlefield.
+ *   A trigger head that fires on the source's OWN death or departure
+ *   (CR 603.10) resolves with the source already gone, and an effect reading
+ *   it then uses last known information (CR 608.2h): `$source` binds to
+ *   nothing and the Op does nothing. Same for an ability activated from a
+ *   graveyard or a hand (CR 113.6). `false` here makes `$source` unmodelled,
+ *   exactly as at a spell site — a card-dependent skip.
+ */
+export interface SmokeSourceSpec {
+    /** The host definition's card types — the type line the card is printed
+     *  with (CR 205.1). */
+    readonly types: readonly CardInstanceState["types"][number][];
+    readonly subtypes?: readonly string[];
+    readonly power?: number;
+    readonly toughness?: number;
+    readonly onBattlefieldAtResolution: boolean;
+}
+
+/** Where a script is hosted, and — at an ability site — what its source is and
+ *  where. Passed as ONE descriptor rather than a widening list of positional
+ *  flags, so a new fact about the host arrives without another argument. */
+export type SmokeHost =
+    | { readonly site: "spell" }
+    | { readonly site: "ability"; readonly source: SmokeSourceSpec };
+
+/** The host of a spell-site script — the fail-closed default: no source
+ *  permanent, so a `$source` subject is a card-dependent skip. */
+export const SPELL_HOST: SmokeHost = Object.freeze({ site: "spell" as const });
+
+/** CR 113.6b — an ability that states which zones it functions in functions
+ *  only from those zones, and these two flags are how a definition states it:
+ *  an ability activated from a GRAVEYARD or a HAND does not resolve with its
+ *  source on the battlefield.
+ *  Read off the two declarative flags the engine itself dispatches on, so the
+ *  planner and `activateAbility` cannot disagree. */
+export function activatedAbilitySourceOnBattlefield(
+    ability: Pick<
+        ActivatedAbility,
+        "activateFromGraveyard" | "activateFromHand"
+    >
+): boolean {
+    return (
+        ability.activateFromGraveyard !== true &&
+        ability.activateFromHand !== true
+    );
+}
+
+/** CR 603.10 / 608.2h — a HAND-AUTHORED triggered ability whose source
+ *  functions from somewhere other than the battlefield. The three declarative
+ *  zone flags on `TriggeredAbility` are the only structured statement such an
+ *  ability makes about where its source is; a self-death head carries no flag
+ *  and is not decidable here (the COMPILED twin below is, and it is the one
+ *  the Oracle gate goes through). */
+export function triggeredAbilitySourceOnBattlefield(
+    ability: Pick<
+        TriggeredAbility,
+        "zone" | "functionsFromStack" | "functionsFromOwnDiscard"
+    >
+): boolean {
+    return (
+        ability.zone === undefined &&
+        ability.functionsFromStack !== true &&
+        ability.functionsFromOwnDiscard !== true
+    );
+}
+
+/**
+ * Whether the source of a COMPILED triggered ability is still on the
+ * battlefield when that ability resolves — the mechanism that replaces the
+ * prose note the Oracle gate used to carry (issue #3879).
+ *
+ * Exhaustive over `CompiledTriggerHead["kind"]` as a `Record`, so a head the
+ * grammar learns tomorrow is a TYPE ERROR here rather than a silent
+ * "battlefield". Only a head keyed on the source's OWN departure answers
+ * `false`: CR 603.10 makes it a leaves-the-battlefield trigger that looks back
+ * in time, so the ability resolves with its source gone and `$source` reads
+ * last known information (CR 608.2h).
+ *
+ * `died` with a scope that merely INCLUDES the source among many ("whenever a
+ * creature dies", scope `any`) stays `true`: the case the card is about is
+ * another creature dying with the source still there, which is exactly what
+ * the canned scenario seeds.
+ */
+const COMPILED_TRIGGER_SOURCE_SURVIVES: Record<
+    CompiledTriggerHead["kind"],
+    (head: CompiledTriggerHead) => boolean
+> = {
+    entered: () => true,
+    // `self` is the source itself dying. `host` is an Aura's "whenever
+    // enchanted creature dies": the creature dies, the now-unattached Aura is
+    // put into its owner's graveyard by the attachment SBA (CR 704.5m), and
+    // the trigger resolves with its own source gone too.
+    died: (head) =>
+        !("scope" in head && (head.scope === "self" || head.scope === "host")),
+    attacks: () => true,
+    "combat-damage-to-player": () => true,
+    phase: () => true,
+    "spell-cast": () => true,
+};
+
+export function compiledTriggerSourceOnBattlefield(
+    head: CompiledTriggerHead
+): boolean {
+    return COMPILED_TRIGGER_SOURCE_SURVIVES[head.kind](head);
+}
+
+/** The ability-site host for a script hosted by `definition`, given where that
+ *  ability's source is at resolution. The ONE constructor both the Oracle gate
+ *  and the catalogue sweep go through, so neither can seed a source the other
+ *  would not. */
+export function abilityHost(
+    definition: {
+        types: readonly CardInstanceState["types"][number][];
+        subtypes?: readonly string[];
+        power?: number;
+        toughness?: number;
+    },
+    onBattlefieldAtResolution: boolean
+): SmokeHost {
+    return {
+        site: "ability",
+        source: {
+            types: definition.types,
+            ...(definition.subtypes === undefined
+                ? {}
+                : { subtypes: definition.subtypes }),
+            ...(definition.power === undefined
+                ? {}
+                : { power: definition.power }),
+            ...(definition.toughness === undefined
+                ? {}
+                : { toughness: definition.toughness }),
+            onBattlefieldAtResolution,
+        },
+    };
+}
 
 /** A vanilla creature used as a filler target / library card / zone occupant.
  *  Toughness is high (8) so a smoke-test damage Op leaves observable marked
@@ -128,6 +280,10 @@ export interface Scenario {
      *  script acts on `$source`; absent otherwise. The caller pushes the stack
      *  item under this id instead of placing a source of its own. */
     sourcePermanentId?: string;
+    /** The kind that seeded source was hydrated from — the host card's own
+     *  (issue #3879). Present exactly when `sourcePermanentId` is, and what
+     *  `predictAmount` reads to know whether a count set counts it. */
+    sourceSpec?: SmokeSourceSpec;
     /** True when the script targets a player in at least one slot (drives the
      *  synthetic card's `targetRequirement`). */
     targetKind: "player" | "permanent" | "none";
@@ -322,6 +478,34 @@ function countFillerId(filter: {
     return id;
 }
 
+/** Registers (idempotently) and returns the id of the card DEFINITION the
+ *  seeded SOURCE permanent is hydrated from: the host card's own types,
+ *  subtypes and P/T (issue #3879). Keyed on the kind itself, so two hosts of
+ *  the same kind share one registration and two of different kinds can never
+ *  collide — the `countFillerId` pattern, one object over. */
+function sourceCardId(source: SmokeSourceSpec): string {
+    const types = [...source.types];
+    const subtypes = [...(source.subtypes ?? [])];
+    // The two groups are separated by `|`, never by the same `-` that joins
+    // within a group: `types:["Creature"] subtypes:["Wall","X"]` and
+    // `types:["Creature","Wall"] subtypes:["X"]` are different kinds and must
+    // not mint one id (last registration would win).
+    const id = `gen-source-${types.join("-")}|${subtypes.join("-")}|${source.power ?? "x"}/${source.toughness ?? "x"}`;
+    registerTokenDefinition({
+        id,
+        name: id,
+        rarity: "common",
+        manaCost: { C: 1 },
+        types,
+        subtypes,
+        ...(source.power === undefined ? {} : { power: source.power }),
+        ...(source.toughness === undefined
+            ? {}
+            : { toughness: source.toughness }),
+    });
+    return id;
+}
+
 // --- Requirement analysis ---------------------------------------------------
 
 /** Accumulated scenario requirements gathered while walking the Ops. */
@@ -335,8 +519,10 @@ interface Requirements {
     countSets: EffectCountSpec[];
     /** Every reason the script cannot be scenario-ized; empty when it can. */
     skips: SmokeSkip[];
-    /** The site hosting the script — whether `$source` names a permanent. */
-    site: SmokeSite;
+    /** The host of the script — whether `$source` names a permanent, what that
+     *  permanent IS, and whether it is still on the battlefield at resolution
+     *  (issue #3879). */
+    host: SmokeHost;
     /** An Op acts on `$source`: seed the source permanent. */
     sourceSubject: boolean;
     /** The tap state an Op drives `$source` to. An untap seeds the source
@@ -869,19 +1055,55 @@ function isSourceRef(selector: EffectObjectSelector): boolean {
     return "ref" in selector && selector.ref === "$source";
 }
 
+/** The source spec of the script's host, when it has one that the canned
+ *  scenario can seed: an ability site whose source is still on the battlefield
+ *  at resolution. Undefined at a spell site and for a source that has left
+ *  (issue #3879). */
+function seedableSource(req: Requirements): SmokeSourceSpec | undefined {
+    if (req.host.site !== "ability") return undefined;
+    return req.host.source.onBattlefieldAtResolution
+        ? req.host.source
+        : undefined;
+}
+
 /** True when the canned scenario can seed the object `selector` names: an
- *  announced target slot, or — at an ability site — the ability's own source
- *  permanent (issue #3831). `$each` (a runtime-selected `forEach` member) and a
- *  spell-site `$source` are not modelled. */
+ *  announced target slot, or — at an ability site whose source is on the
+ *  battlefield at resolution — the ability's own source permanent (issue
+ *  #3831 / #3879). `$each` (a runtime-selected `forEach` member), a spell-site
+ *  `$source` and a `$source` that is no longer a permanent when the ability
+ *  resolves (CR 608.2h) are not modelled. */
 function subjectModelled(
     req: Requirements,
     selector: EffectObjectSelector
 ): boolean {
     return (
         "target" in selector ||
-        (isSourceRef(selector) && req.site === "ability")
+        (isSourceRef(selector) && seedableSource(req) !== undefined)
     );
 }
+
+/**
+ * Ops whose subject must be a CREATURE for the canned run to prove anything.
+ *
+ * No CR rule makes these primitives creature-only — the Oracle sentences they
+ * were written for say "that creature", and `setExileOnDeath`,
+ * `setDamageLockThisTurn` and `setTargetCantBeRegeneratedThisTurn`
+ * (`gre/state.ts`) each encode that by returning early on a permanent whose
+ * card types do not include Creature. `pump` is here for a different reason:
+ * its assertion is a power/toughness read, and only a creature card has power
+ * and toughness (CR 208.1).
+ *
+ * Against the generic filler creature every one of them looked green whatever
+ * the real host was (issue #3879). With the host's own kind seeded, a
+ * non-creature host is a card-dependent skip instead: the Op would do nothing,
+ * so there is no outcome for the canned run to prove.
+ */
+const OPS_REQUIRING_A_CREATURE_SUBJECT: ReadonlySet<string> = new Set([
+    "exileOnDeath",
+    "lockDamage",
+    "preventRegeneration",
+    "pump",
+]);
 
 /** Records the permanent subject of an Op `subjectModelled` accepted. The
  *  skip REASONS at the call sites still read "targets $source/$each" although
@@ -892,8 +1114,39 @@ function recordSubject(
     req: Requirements,
     selector: EffectObjectSelector
 ): void {
-    if ("target" in selector) recordSlot(req, selector.target, "permanent");
-    else req.sourceSubject = true;
+    if ("target" in selector) {
+        recordSlot(req, selector.target, "permanent");
+        return;
+    }
+    // The ONE funnel every accepted `$source` subject goes through, which is
+    // why the kind check lives here rather than in each Op's branch: a branch
+    // that forgot it would seed a source its Op cannot act on. A skip recorded
+    // here aborts the plan in `buildScenario`, exactly like any other.
+    const source = seedableSource(req);
+    const op = req.currentOp;
+    if (source === undefined || op === undefined) {
+        // Unreachable while every call site is gated by `subjectModelled` —
+        // and a skip rather than an acceptance, because in a fail-closed
+        // module the branch that cannot answer must be the one that withholds.
+        skipBecause(
+            req,
+            "source-or-each-subject",
+            "a $source subject reached the scenario with no seeded source"
+        );
+        return;
+    }
+    if (
+        OPS_REQUIRING_A_CREATURE_SUBJECT.has(op.op) &&
+        !source.types.includes("Creature")
+    ) {
+        skipBecause(
+            req,
+            "source-or-each-subject",
+            `Op "${op.op}" acts on a $source its host makes a non-creature (${source.types.join("/")}) — the primitive refuses it, so the canned run has no outcome to assert`
+        );
+        return;
+    }
+    req.sourceSubject = true;
 }
 
 /** The seeded permanent an Op's subject names in the built scenario, or
@@ -2480,19 +2733,35 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
     // summoning sickness (its cost is not what the smoke run proves). Tapped
     // when an Op untaps it, so the untap has an outcome to observe.
     //
-    // Two limits this seeding accepts, both recorded rather than guarded
-    // (issue #3831 review): the source is always the generic filler creature,
-    // whatever the real card is — an Op whose primitive needs a specific kind
-    // (a Class for `setLevel`, a creature for `exileOnDeath`) is proven only
-    // against a creature; and it is pushed AFTER the count-set banks, so a
-    // script pairing a `$source` subject with a controller battlefield `count`
-    // would predict one less than it counts (a false RED, not a fail-open —
-    // no card in the corpus pairs them today).
+    // It is hydrated from the HOST card's own kind (issue #3879), not from the
+    // generic filler creature: an Op whose primitive reads what the permanent
+    // IS — `setExileOnDeath` and `setDamageLockThisTurn` refuse a permanent
+    // whose type line has no Creature (CR 205.1), `setLevel` writes a class
+    // level bar (CR 716.2a) — is then
+    // proven against the permanent the card actually has. A host whose kind the
+    // Op refuses outright never reaches here: `recordSubject` skipped it.
+    //
+    // It is pushed AFTER the count-set banks, and that ordering is now
+    // invisible: `predictAmount` adds the source to a count set it really
+    // contributes to (`sourceContributesTo` below), instead of predicting the
+    // bank size and reading one more.
     let sourcePermanentId: string | undefined;
-    if (req.sourceSubject) {
+    const source = seedableSource(req);
+    if (req.sourceSubject && source !== undefined) {
+        for (const spec of req.countSets) {
+            if (sourceContributesTo(source, spec) !== "undecidable") continue;
+            return {
+                skip: [
+                    {
+                        code: "runtime-amount",
+                        reason: `count set filters on a characteristic the seeded $source does not model — the predicted count would be a guess`,
+                    },
+                ],
+            };
+        }
         sourcePermanentId = SOURCE_PERMANENT_ID;
         p1Bf.push(
-            makeInstance(FILLER_CARD_ID, {
+            makeInstance(sourceCardId(source), {
                 id: SOURCE_PERMANENT_ID,
                 controllerId: CASTER_ID,
                 ownerId: CASTER_ID,
@@ -2522,7 +2791,9 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
         state,
         targets,
         targetPermanentIds,
-        ...(sourcePermanentId === undefined ? {} : { sourcePermanentId }),
+        ...(sourcePermanentId === undefined
+            ? {}
+            : { sourcePermanentId, sourceSpec: source }),
         targetKind: sawPlayerSlot
             ? "player"
             : sawPermanentSlot
@@ -2542,9 +2813,42 @@ type Assertor = (
     pre: GameState
 ) => Assertion | null;
 
-/** Reads the fixed size of a count set in the scenario (COUNT_SET_SIZE per
- *  contributing spec — the generator seeds exactly that many). */
-function predictAmount(value: EffectValue): number | null {
+/**
+ * Whether the seeded SOURCE permanent is itself counted by `spec` (issue
+ * #3879). It sits on the CASTER's battlefield, so a count of any other zone or
+ * of the other player's side never sees it; when it does, the count the script
+ * reads is the bank PLUS the source.
+ *
+ * `"undecidable"` when the filter reads a characteristic the seeded source's
+ * definition does not model (a supertype, a colour, a mana value): predicting
+ * either way would be a guess, so `buildScenario` skips the script instead.
+ */
+function sourceContributesTo(
+    source: SmokeSourceSpec,
+    spec: EffectCountSpec
+): boolean | "undecidable" {
+    if (spec.zone !== "battlefield") return false;
+    if (spec.controller !== "controller") return false;
+    const filter = spec.filter;
+    if (filter === undefined) return true;
+    const { type, subtype, ...rest } = filter;
+    if (Object.keys(rest).length > 0) return "undecidable";
+    // issue #677 — `type` / `subtype` may be an OR-array, so ONE matching
+    // member is a match.
+    const types = type === undefined ? [] : [type].flat();
+    if (types.length > 0 && !types.some((t) => source.types.includes(t)))
+        return false;
+    const subtypes = subtype === undefined ? [] : [subtype].flat();
+    const own = source.subtypes ?? [];
+    if (subtypes.length > 0 && !subtypes.some((s) => own.includes(s)))
+        return false;
+    return true;
+}
+
+/** Reads the size of a count set in the scenario: COUNT_SET_SIZE per
+ *  contributing spec (the generator seeds exactly that many), plus the seeded
+ *  `$source` permanent when the spec really counts it (issue #3879). */
+function predictAmount(value: EffectValue, scenario: Scenario): number | null {
     if (typeof value === "number") return value;
     if ("ref" in value) return null; // skipped earlier — defensive
     if ("counters" in value) return null; // skipped earlier — defensive
@@ -2556,7 +2860,14 @@ function predictAmount(value: EffectValue): number | null {
     if ("difference" in value) return null; // skipped earlier — defensive
     if ("scaled" in value) return null; // skipped earlier — defensive
     if ("divide" in value) return null; // skipped earlier — defensive
-    return COUNT_SET_SIZE;
+    if (!("count" in value)) return null; // skipped earlier — defensive
+    const source = scenario.sourceSpec;
+    if (source === undefined) return COUNT_SET_SIZE;
+    // "undecidable" never reaches here — `buildScenario` skipped the script.
+    return (
+        COUNT_SET_SIZE +
+        (sourceContributesTo(source, value.count) === true ? 1 : 0)
+    );
 }
 
 const OP_ASSERTORS: Record<string, Assertor> = {
@@ -2564,7 +2875,7 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // marked damage (CR 120.3). The filler creature (toughness 5) survives.
     dealDamage(rawOp, scenario, pre) {
         const op = rawOp as Extract<EffectOp, { op: "dealDamage" }>;
-        const amount = predictAmount(op.amount);
+        const amount = predictAmount(op.amount, scenario);
         if (amount === null) return null;
         if ("player" in op.to) {
             const pid = assertionPlayerId(op.to.player);
@@ -2602,9 +2913,9 @@ const OP_ASSERTORS: Record<string, Assertor> = {
         };
     },
     // Draw grows the recipient's hand by the drawn count (CR 121.1).
-    draw(rawOp, _scenario, pre) {
+    draw(rawOp, scenario, pre) {
         const op = rawOp as Extract<EffectOp, { op: "draw" }>;
-        const count = predictAmount(op.count);
+        const count = predictAmount(op.count, scenario);
         if (count === null) return null;
         const pid = assertionPlayerId(op.player);
         const before = findPlayer(pre, pid).hand.length;
@@ -2620,9 +2931,9 @@ const OP_ASSERTORS: Record<string, Assertor> = {
             },
         };
     },
-    gainLife(rawOp, _scenario, pre) {
+    gainLife(rawOp, scenario, pre) {
         const op = rawOp as Extract<EffectOp, { op: "gainLife" }>;
-        const amount = predictAmount(op.amount);
+        const amount = predictAmount(op.amount, scenario);
         if (amount === null) return null;
         const pid = assertionPlayerId(op.player);
         const before = findPlayer(pre, pid).life;
@@ -2641,9 +2952,9 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // CR 122.1 — counters on a PLAYER. Reads the kind's dedicated scalar
     // through `PLAYER_COUNTER_FIELD`, so a new kind is asserted without a new
     // assertor (issue #1969).
-    addPlayerCounter(rawOp, _scenario, pre) {
+    addPlayerCounter(rawOp, scenario, pre) {
         const op = rawOp as Extract<EffectOp, { op: "addPlayerCounter" }>;
-        const amount = predictAmount(op.amount);
+        const amount = predictAmount(op.amount, scenario);
         if (amount === null) return null;
         const pid = assertionPlayerId(op.player);
         const before = readPlayerCounters(findPlayer(pre, pid), op.counter);
@@ -2662,9 +2973,9 @@ const OP_ASSERTORS: Record<string, Assertor> = {
             },
         };
     },
-    loseLife(rawOp, _scenario, pre) {
+    loseLife(rawOp, scenario, pre) {
         const op = rawOp as Extract<EffectOp, { op: "loseLife" }>;
-        const amount = predictAmount(op.amount);
+        const amount = predictAmount(op.amount, scenario);
         if (amount === null) return null;
         const pid = assertionPlayerId(op.player);
         const before = findPlayer(pre, pid).life;
@@ -4050,15 +4361,17 @@ export function opCoverageGaps(): string[] {
 
 /** Builds a full plan (scenario + assertions) for one Effect Script, or a skip
  *  with a reason. `effects` may be a spell or an ability script (the caller
- *  supplies the site-appropriate stack item); `site` says which, because only
- *  an ability has a source permanent for `$source` to name (issue #3831). It
- *  defaults to `"spell"` — fail-closed: a caller that does not say an ability
- *  is hosting the script gets no `$source` seeded, and a skip. A script with
- *  no assertable Op (every Op skipped by its assertor — e.g. all amounts are
- *  refs) is reported as a skip so it never counts as passing. */
+ *  supplies the site-appropriate stack item); `host` says which, because only
+ *  an ability has a source permanent for `$source` to name (issue #3831) —
+ *  and, at an ability site, WHAT that source is and WHERE it is at resolution
+ *  (issue #3879). It defaults to `SPELL_HOST` — fail-closed: a caller that
+ *  does not say an ability is hosting the script gets no `$source` seeded, and
+ *  a skip. A script with no assertable Op (every Op skipped by its assertor —
+ *  e.g. all amounts are refs) is reported as a skip so it never counts as
+ *  passing. */
 export function planSmokeTest(
     effects: readonly EffectOp[],
-    site: SmokeSite = "spell"
+    host: SmokeHost = SPELL_HOST
 ): Plan {
     if (effects.length === 0) {
         return skipPlan([
@@ -4066,7 +4379,7 @@ export function planSmokeTest(
         ]);
     }
 
-    const req = emptyRequirements(site);
+    const req = emptyRequirements(host);
     for (const op of effects) analyseOpFully(op, req);
 
     const built = buildScenario(req);
@@ -4086,7 +4399,7 @@ export function planSmokeTest(
         // them, and accepting a `$source` subject here would let an op-covered
         // container (`mayPay` + `if`) hide a body acting on `$source`. That is
         // the very fail-open this walk exists to close (ADR 0105 § 7.1).
-        const nested = emptyRequirements("spell");
+        const nested = emptyRequirements(SPELL_HOST);
         for (const op of nestedOps(effects)) analyseOpFully(op, nested);
         return skipPlan([...built.skip, ...nested.skips]);
     }
@@ -4117,13 +4430,13 @@ export function planSmokeTest(
     return { kind: "run", scenario: built, assertions };
 }
 
-function emptyRequirements(site: SmokeSite): Requirements {
+function emptyRequirements(host: SmokeHost): Requirements {
     return {
         targetSlots: new Map(),
         drawingPlayers: new Set(),
         countSets: [],
         skips: [],
-        site,
+        host,
         sourceSubject: false,
     };
 }

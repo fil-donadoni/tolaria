@@ -9,7 +9,10 @@ import { describe, it, expect } from "vitest";
 import type { EffectOp } from "../../../cards/types";
 import { registerTokenDefinition } from "../../../cards";
 import {
+    abilityHost,
+    activatedAbilitySourceOnBattlefield,
     ASSERTED_OP_KINDS,
+    compiledTriggerSourceOnBattlefield,
     CASTER_ID,
     FILLER_CARD_DEFINITION,
     OPPONENT_ID,
@@ -18,6 +21,8 @@ import {
     SMOKE_SKIP_CLASS,
     SMOKE_SKIP_CODES,
     SOURCE_PERMANENT_ID,
+    SPELL_HOST,
+    triggeredAbilitySourceOnBattlefield,
     type Plan,
 } from "../scenarioGenerator";
 import { EFFECT_OP_REGISTRY } from "../../../cards/mechanicsRegistry";
@@ -384,6 +389,13 @@ function failedAssertions(plan: Extract<Plan, { kind: "run" }>): string[] {
         .map(({ a, r }) => `${a.label}: ${r.detail ?? ""}`);
 }
 
+/** The ability host every pre-#3879 `"ability"` call site meant: an ordinary
+ *  creature permanent, still on the battlefield when its ability resolves. */
+const CREATURE_HOST = abilityHost(
+    { types: ["Creature"], subtypes: ["Bear"], power: 2, toughness: 2 },
+    true
+);
+
 describe("$source subjects — the seeded ability source (issue #3831, CR 113.7)", () => {
     const pumpSelf: EffectOp[] = [
         {
@@ -396,7 +408,7 @@ describe("$source subjects — the seeded ability source (issue #3831, CR 113.7)
     ];
 
     it("seeds the source on the caster's battlefield, untapped and able to act", () => {
-        const plan = planSmokeTest(pumpSelf, "ability");
+        const plan = planSmokeTest(pumpSelf, CREATURE_HOST);
         expect(plan.kind).toBe("run");
         if (plan.kind !== "run") return;
         expect(plan.scenario.sourcePermanentId).toBe(SOURCE_PERMANENT_ID);
@@ -463,7 +475,7 @@ describe("$source subjects — the seeded ability source (issue #3831, CR 113.7)
     ])(
         "a $source %s executes through resolution and its declared outcome holds",
         (name, effects) => {
-            const plan = planSmokeTest(effects, "ability");
+            const plan = planSmokeTest(effects, CREATURE_HOST);
             expect(plan.kind).toBe("run");
             if (plan.kind !== "run") return;
             expect(plan.assertions.length).toBeGreaterThan(0);
@@ -482,7 +494,7 @@ describe("$source subjects — the seeded ability source (issue #3831, CR 113.7)
     it("seeds the source TAPPED when the script untaps it, so the untap is observable", () => {
         const plan = planSmokeTest(
             [{ op: "tapUntap", action: "untap", target: { ref: "$source" } }],
-            "ability"
+            CREATURE_HOST
         );
         if (plan.kind !== "run") throw new Error(plan.reason);
         const source = plan.scenario.state.players
@@ -494,7 +506,7 @@ describe("$source subjects — the seeded ability source (issue #3831, CR 113.7)
     it("a spell-site $source is not seeded — the default site fails closed", () => {
         for (const plan of [
             planSmokeTest(pumpSelf),
-            planSmokeTest(pumpSelf, "spell"),
+            planSmokeTest(pumpSelf, SPELL_HOST),
         ]) {
             expect(plan.kind).toBe("skip");
             if (plan.kind !== "skip") continue;
@@ -507,7 +519,7 @@ describe("$source subjects — the seeded ability source (issue #3831, CR 113.7)
     it("a $each subject stays a card-dependent skip at an ability site", () => {
         const plan = planSmokeTest(
             [{ ...pumpSelf[0], target: { ref: "$each" } } as EffectOp],
-            "ability"
+            CREATURE_HOST
         );
         expect(plan.kind).toBe("skip");
         if (plan.kind !== "skip") return;
@@ -522,7 +534,7 @@ describe("$source subjects — the seeded ability source (issue #3831, CR 113.7)
                 { op: "tapUntap", action: "tap", target: { ref: "$source" } },
                 { op: "tapUntap", action: "untap", target: { ref: "$source" } },
             ],
-            "ability"
+            CREATURE_HOST
         );
         expect(plan.kind).toBe("skip");
         if (plan.kind !== "skip") return;
@@ -545,12 +557,185 @@ describe("$source subjects — the seeded ability source (issue #3831, CR 113.7)
                     duration: { phase: "end-of-turn" },
                 },
             ],
-            "ability"
+            CREATURE_HOST
         );
         expect(plan.kind).toBe("skip");
         if (plan.kind !== "skip") return;
         expect(
             plan.skips.map((s) => [s.code, SMOKE_SKIP_CLASS[s.code]])
         ).toContainEqual(["source-or-each-subject", "card-dependent"]);
+    });
+});
+
+describe("the seeded $source is the HOST card, where it really is (issue #3879)", () => {
+    const ARTIFACT_HOST = abilityHost({ types: ["Artifact"] }, true);
+    const CLASS_HOST = abilityHost(
+        { types: ["Enchantment"], subtypes: ["Class"] },
+        true
+    );
+    const tapSelf: EffectOp[] = [
+        { op: "tapUntap", action: "tap", target: { ref: "$source" } },
+    ];
+
+    it("seeds a source whose types are the host's, not the filler creature's", () => {
+        for (const [host, types, subtypes] of [
+            [ARTIFACT_HOST, ["Artifact"], []],
+            [CLASS_HOST, ["Enchantment"], ["Class"]],
+        ] as const) {
+            const plan = planSmokeTest(tapSelf, host);
+            if (plan.kind !== "run") throw new Error(plan.reason);
+            const source = plan.scenario.state.players
+                .find((p) => p.id === CASTER_ID)!
+                .battlefield.find((c) => c.id === SOURCE_PERMANENT_ID)!;
+            expect(source.types).toEqual(types);
+            expect(source.subtypes).toEqual(subtypes);
+        }
+    });
+
+    it.each(["exileOnDeath", "lockDamage", "preventRegeneration", "pump"])(
+        "%s on a non-creature $source is a card-dependent skip, not a green run",
+        (op) => {
+            const effects = [
+                {
+                    op,
+                    target: { ref: "$source" },
+                    // `pump` is the one member whose primitive does NOT gate on
+                    // Creature: its ASSERTION is a power/toughness read, and
+                    // only a creature card has those (CR 208.1).
+                    ...(op === "pump"
+                        ? {
+                              power: 1,
+                              toughness: 1,
+                              duration: { phase: "end-of-turn" },
+                          }
+                        : {}),
+                },
+            ] as unknown as EffectOp[];
+            // The same script on a CREATURE host runs — so the skip below is
+            // about the host's kind, not about the Op.
+            expect(planSmokeTest(effects, CREATURE_HOST).kind).toBe("run");
+            const plan = planSmokeTest(effects, ARTIFACT_HOST);
+            expect(plan.kind).toBe("skip");
+            if (plan.kind !== "skip") return;
+            expect(
+                plan.skips.map((s) => [s.code, SMOKE_SKIP_CLASS[s.code]])
+            ).toContainEqual(["source-or-each-subject", "card-dependent"]);
+        }
+    );
+
+    it("a source that is gone at resolution is unmodelled, exactly like a spell site", () => {
+        // CR 603.10 / 608.2h — the ability resolves with its source already
+        // out of the battlefield, so `$source` binds to nothing.
+        const departed = abilityHost(
+            { types: ["Creature"], power: 2, toughness: 2 },
+            false
+        );
+        const plan = planSmokeTest(tapSelf, departed);
+        expect(plan.kind).toBe("skip");
+        if (plan.kind !== "skip") return;
+        expect(plan.skips.map((s) => s.code)).toEqual([
+            "source-or-each-subject",
+        ]);
+        // ...and the SAME script with the source still there runs.
+        expect(planSmokeTest(tapSelf, CREATURE_HOST).kind).toBe("run");
+    });
+
+    it("seeds the host's printed power and toughness, not the filler's", () => {
+        const plan = planSmokeTest(
+            tapSelf,
+            abilityHost({ types: ["Creature"], power: 4, toughness: 7 }, true)
+        );
+        if (plan.kind !== "run") throw new Error(plan.reason);
+        const source = plan.scenario.state.players
+            .find((p) => p.id === CASTER_ID)!
+            .battlefield.find((c) => c.id === SOURCE_PERMANENT_ID)!;
+        expect([source.power, source.toughness]).toEqual([4, 7]);
+    });
+
+    it("reads the zone an ability functions in off its own flags (CR 113.6b)", () => {
+        // Activated: the two activation-zone flags the engine dispatches on.
+        expect(activatedAbilitySourceOnBattlefield({})).toBe(true);
+        expect(
+            activatedAbilitySourceOnBattlefield({ activateFromGraveyard: true })
+        ).toBe(false);
+        expect(
+            activatedAbilitySourceOnBattlefield({ activateFromHand: true })
+        ).toBe(false);
+        // Triggered: the hand-authored zone flags. This is the reader the whole
+        // catalogue sweep goes through, so it is pinned here too.
+        expect(triggeredAbilitySourceOnBattlefield({})).toBe(true);
+        for (const flag of [
+            { zone: "graveyard" } as const,
+            { functionsFromStack: true } as const,
+            { functionsFromOwnDiscard: true } as const,
+        ])
+            expect(triggeredAbilitySourceOnBattlefield(flag)).toBe(false);
+    });
+
+    it("a compiled head keyed on the source's OWN departure says it is gone (CR 603.10)", () => {
+        // `self` is the source dying; `host` is an Aura's "whenever enchanted
+        // creature dies" — the Aura follows its host to the graveyard by the
+        // attachment SBA (CR 704.5m) before the trigger resolves.
+        for (const scope of ["self", "host"] as const)
+            expect(
+                compiledTriggerSourceOnBattlefield({ kind: "died", scope })
+            ).toBe(false);
+        for (const scope of ["any", "yours", "another-yours"] as const)
+            expect(
+                compiledTriggerSourceOnBattlefield({ kind: "died", scope })
+            ).toBe(true);
+        expect(
+            compiledTriggerSourceOnBattlefield({
+                kind: "entered",
+                scope: "self",
+            })
+        ).toBe(true);
+        expect(compiledTriggerSourceOnBattlefield({ kind: "attacks" })).toBe(
+            true
+        );
+    });
+
+    it("counts the seeded source in a controller battlefield count it really appears in", () => {
+        // The count filler seeds COUNT_SET_SIZE permanents on the caster's
+        // battlefield and the source is a fourth: the script reads 4, so the
+        // prediction must be 4 (issue #3879 — it used to be 3, a false red).
+        const effects: EffectOp[] = [
+            { op: "tapUntap", action: "tap", target: { ref: "$source" } },
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: {
+                    count: { zone: "battlefield", controller: "controller" },
+                },
+            },
+        ];
+        const plan = planSmokeTest(effects, CREATURE_HOST);
+        if (plan.kind !== "run") throw new Error(plan.reason);
+        expect(failedAssertions(plan)).not.toEqual([]);
+        resolveOnSeededSource(plan, effects, "gen-3879-count");
+        expect(failedAssertions(plan)).toEqual([]);
+    });
+
+    it("skips a count filter the seeded source's kind cannot decide", () => {
+        const plan = planSmokeTest(
+            [
+                { op: "tapUntap", action: "tap", target: { ref: "$source" } },
+                {
+                    op: "gainLife",
+                    player: "controller",
+                    amount: {
+                        count: {
+                            zone: "battlefield",
+                            controller: "controller",
+                            filter: { supertype: "Legendary" },
+                        },
+                    },
+                },
+            ],
+            CREATURE_HOST
+        );
+        expect(plan.kind).toBe("skip");
+        if (plan.kind !== "skip") return;
+        expect(plan.skips.map((s) => s.code)).toEqual(["runtime-amount"]);
     });
 });
