@@ -694,7 +694,7 @@ What KIND of decision a **Verdict** holds, in the words a player would use: a la
 _Avoid_: Move type, action kind, category
 
 **Verdict Proposal**:
-A decision telemetry noticed and queued for the player to rule on later — the play they made differed from what the **Evaluation** would have picked, by more than a margin worth recording. It is a question, never an answer: confirmed, it becomes a **Verdict**; unconfirmed, it stays a position nobody has judged. The distinction is the whole point — a move a player chose in the middle of a game is not a move they would defend.
+A decision telemetry noticed and queued for the player to rule on later. Most are disagreements — the play they made differed from what the **Evaluation** would have picked, by more than a margin worth recording — but a share are ordinary decisions where player and **Brain** agreed, sampled by quota per **Decision Class** so that the kinds of decision nobody argues about are judged too: a corpus made only of disagreements cannot see a change that breaks what the **Brain** already gets right. It is a question, never an answer: confirmed, it becomes a **Verdict**; unconfirmed, it stays a position nobody has judged, whether or not the **Brain** agreed. The distinction is the whole point — a move a player chose in the middle of a game is not a move they would defend. A player reviewing their own plays after a game answers the same queue.
 _Avoid_: Implicit verdict, auto-label, inferred judgement
 
 **Eval Pair**:
