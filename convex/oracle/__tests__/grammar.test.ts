@@ -9,10 +9,8 @@ import { describe, expect, it } from "vitest";
 import { MECHANICS_REGISTRY } from "../../cards/mechanicsRegistry";
 import { conditionRule } from "../grammar/shared/condition";
 import { activatedSlot } from "../grammar/slots/activated";
-import {
-    keywordLineSlot,
-    keywordVocabulary,
-} from "../grammar/slots/keywordLine";
+import { keywordVocabulary } from "../grammar/shared/keywordVocabulary";
+import { keywordLineSlot } from "../grammar/slots/keywordLine";
 import { manaAbilitySlot } from "../grammar/slots/manaAbility";
 import { spellSlot } from "../grammar/slots/spell";
 import { staticSlot } from "../grammar/slots/staticSlot";

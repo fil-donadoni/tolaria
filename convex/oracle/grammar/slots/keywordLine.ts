@@ -15,43 +15,33 @@
  * not match, so the card is `unparsed` rather than compiled with the parameter
  * dropped. Dropping a parameter is precisely the misparse class this compiler
  * exists to refuse.
+ *
+ * The one parameterised keyword read here is Enchant (CR 702.5a), whose
+ * parameter is an object descriptor and becomes the Aura's whole restriction —
+ * see `enchantRule` below. The table itself lives in
+ * `shared/keywordVocabulary.ts`.
  */
 
-import { MECHANICS_REGISTRY } from "../../../cards/mechanicsRegistry";
+import type { TargetRequirement } from "../../../cards/types";
 import {
     atom,
     fail,
     listOf,
     map,
+    oneOf,
     ok,
     rule,
     type Rule,
     type RuleResult,
 } from "../../rule";
 import type { KeywordIR, SlotIR } from "../ir";
+import { keywordVocabulary } from "../shared/keywordVocabulary";
+import {
+    descriptorRule,
+    targetRequirementFromDescriptor,
+} from "../shared/targetFilter";
 
-/** name (lowercased) → the keyword it denotes. Built once, from the registry. */
-const KEYWORD_VOCABULARY: ReadonlyMap<string, KeywordIR> = (() => {
-    const table = new Map<string, KeywordIR>();
-    for (const row of MECHANICS_REGISTRY) {
-        if (row.kind !== "keyword-ability") continue;
-        const spelling = row.name.toLowerCase();
-        // A duplicate spelling would make the vocabulary ambiguous; the registry
-        // guard already forbids duplicate names, so this is a tripwire.
-        if (table.has(spelling)) continue;
-        table.set(spelling, {
-            registryId: row.id,
-            ability: spelling,
-            status: row.status,
-        });
-    }
-    return table;
-})();
-
-/** Exposed for the vocabulary test — the grammar's accepted keyword spellings. */
-export function keywordVocabulary(): ReadonlyMap<string, KeywordIR> {
-    return KEYWORD_VOCABULARY;
-}
+const KEYWORD_VOCABULARY = keywordVocabulary();
 
 const keyword: Rule<KeywordIR> = atom("keyword ability", KEYWORD_VOCABULARY);
 
@@ -67,7 +57,7 @@ const semicolonGroups: Rule<KeywordIR[][]> = listOf(
 
 export const KEYWORD_LINE_SLOT = "keyword-line";
 
-export const keywordLineRule: Rule<SlotIR> = map(
+const keywordRunRule: Rule<SlotIR> = map(
     semicolonGroups,
     (groups): RuleResult<SlotIR> => {
         const keywords = groups.flat();
@@ -87,6 +77,80 @@ export const keywordLineRule: Rule<SlotIR> = map(
         return ok({ kind: "keywords", keywords });
     }
 );
+
+// ── Enchant <descriptor> (CR 702.5a) ───────────────────────────────────────
+
+const ENCHANT_HEAD = "Enchant ";
+
+/**
+ * CR 702.5a — "Enchant is a static ability, written 'Enchant [object or
+ * player].' The enchant ability restricts what an Aura spell can target and
+ * what an Aura can enchant."
+ *
+ * The one PARAMETERISED keyword the keyword line reads, and the reason the
+ * header's rule still holds: the parameter is not dropped, it is the whole
+ * output. The object after the keyword is an ordinary object descriptor, read
+ * by the SAME sub-grammar as "target creature you control" — "Enchant creature
+ * you control" and "target creature you control" name one set of objects, and
+ * a second reader for it here would be a second place the trailing filter can
+ * go missing.
+ *
+ * The engine's printed enchant restriction IS the Aura's cast-time
+ * `targetRequirement` (`resolveEnchantRestriction`, `gre/state.ts`) — every
+ * hand-written Aura writes "Enchant creature" as `{ type: "Creature", count: 1
+ * }` — so this rule emits exactly that, and lowering hangs it on the card.
+ *
+ * Refused, each for a reason the filter cannot carry:
+ *
+ *  - a PLAYER ("Enchant player", "Enchant opponent") — CR 702.5d makes such an
+ *    Aura one that "can't target permanents and can't be attached to
+ *    permanents", a different attachment branch (`auraEnchantsPlayers`) that
+ *    no hand-written Aura exercises through this seam yet;
+ *  - a CARD in a zone ("Enchant creature card in a graveyard") — the Aura's
+ *    host is not a permanent at all, and what it enchants after it resolves is
+ *    the card's own text (Animate Dead), not this restriction;
+ *  - a PLURAL noun — "Enchant creatures" is not a printed shape, so reading
+ *    one means the line was misread.
+ *  - a COMBAT ROLE ("attacking creature") — likewise not a printed shape.
+ */
+export const enchantRule: Rule<SlotIR> = rule("enchant", (span, ctx) => {
+    if (!span.startsWith(ENCHANT_HEAD))
+        return fail(`an enchant line starts with "${ENCHANT_HEAD}"`, span);
+    const phrase = span.slice(ENCHANT_HEAD.length);
+    const descriptor = descriptorRule.run(phrase, ctx);
+    if (!descriptor.ok) return descriptor;
+    const d = descriptor.value;
+    if (d.player !== undefined || d.anyTarget === true)
+        return fail(
+            "an Aura that enchants a player is not a permanent filter (CR 702.5d)",
+            phrase
+        );
+    // "Enchant attacking creature" is not a printed shape: the Aura would be
+    // legal to cast only mid-combat and fall off at end of combat, which no
+    // card means. Reading one means the line was misread.
+    if (d.combatRole !== undefined)
+        return fail("an enchant filter never names a combat role", phrase);
+    if (d.card === true || d.zone !== undefined)
+        return fail(
+            "an Aura that enchants a card outside the battlefield is not a permanent filter",
+            phrase
+        );
+    const requirement: RuleResult<TargetRequirement> =
+        targetRequirementFromDescriptor(d);
+    if (!requirement.ok) return requirement;
+    return ok({ kind: "enchant" as const, requirement: requirement.value });
+});
+
+/**
+ * The keyword line: a run of registry keywords, or one `Enchant <descriptor>`.
+ * The two are disjoint by construction — no registry keyword name carries a
+ * trailing descriptor, and a bare "Enchant" names no object — and `oneOf`
+ * enforces it rather than trusting it.
+ */
+export const keywordLineRule: Rule<SlotIR> = oneOf("keyword line", [
+    keywordRunRule,
+    enchantRule,
+]);
 
 /** Guard: keyword lines are only meaningful on an object with a text box. */
 export const keywordLineSlot: Rule<SlotIR> = rule(

@@ -1321,6 +1321,39 @@
         "rarity": "common"
     },
     {
+        "name": "Emblem of the Warmind",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "oracleText": "Enchant creature you control\nCreatures you control have haste.",
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "filter": {
+                    "types": [
+                        "Creature"
+                    ],
+                    "controllerRelation": "you"
+                },
+                "keyword": "haste"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "controller": "you"
+        },
+        "id": "03ab2a41-315b-439c-b02c-f12335fc903a",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Oreskos Swiftclaw",
         "types": [
             "Creature"

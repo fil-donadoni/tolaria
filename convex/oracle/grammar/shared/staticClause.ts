@@ -52,7 +52,7 @@ import {
     type DescriptorIR,
     type StaticFilterEvaluation,
 } from "./targetFilter";
-import { keywordVocabulary } from "../slots/keywordLine";
+import { keywordVocabulary } from "./keywordVocabulary";
 import type { KeywordIR } from "../ir";
 import type { CompiledSpellFilter } from "../../../cards/compiledStatics";
 import type { EffectCardFilter, PermanentFilter } from "../../../cards/types";

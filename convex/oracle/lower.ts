@@ -71,6 +71,8 @@ interface Accumulator {
     /** CR 113.3a — the spell site: at most one per card, see `lowerLine`. */
     spellEffects?: EffectOp[];
     spellTargetRequirement?: TargetRequirement;
+    /** CR 702.5a — the Aura's printed enchant restriction, at most one. */
+    enchantRequirement?: TargetRequirement;
     spellModes?: SpellMode[];
     additionalCosts?: NonNullable<CardDefinition["additionalCosts"]>;
     flashback?: NonNullable<CardDefinition["flashback"]>;
@@ -141,6 +143,15 @@ function lowerLine(
                 if (kw.status !== "implemented")
                     acc.plannedMechanics.push(kw.ability);
             }
+            return null;
+        }
+        case "enchant": {
+            // CR 702.5c — several instances of enchant all apply, but the
+            // engine reads ONE printed restriction off `targetRequirement`;
+            // merging two into it would keep one and drop the other.
+            if (acc.enchantRequirement !== undefined)
+                return "a card declares enchant twice (CR 702.5c)";
+            acc.enchantRequirement = ir.requirement;
             return null;
         }
         case "mana-ability": {
@@ -440,6 +451,26 @@ export function lowerCard(
             reason: "a cast-time cost rider with no spell text to ride on",
             fragment: card.oracleText,
         };
+    if (acc.enchantRequirement !== undefined) {
+        // CR 702.5a / 303.4a — enchant restricts an AURA; on any other object
+        // it restricts nothing the engine would ever ask about, so a card that
+        // reads as one is a card whose type line or text we misread.
+        if (!typeLine.subtypes.includes("Aura"))
+            return {
+                ok: false,
+                reason: "enchant on an object that is not an Aura (CR 702.5a)",
+                fragment: card.typeLine,
+            };
+        // The same card-level field carries a spell's announced target; an
+        // Aura with spell text as well would have two claims on it.
+        if (acc.spellTargetRequirement !== undefined)
+            return {
+                ok: false,
+                reason: "an Aura's enchant restriction and a spell target both claim targetRequirement",
+                fragment: card.oracleText,
+            };
+        definition.targetRequirement = acc.enchantRequirement;
+    }
     if (acc.spellEffects !== undefined) definition.effects = acc.spellEffects;
     if (acc.spellTargetRequirement !== undefined)
         definition.targetRequirement = acc.spellTargetRequirement;

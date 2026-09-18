@@ -513,11 +513,9 @@ export const farmstead: CardDefinition = {
     manaCost: { W: 3 },
     types: ["Enchantment"],
     subtypes: ["Aura"],
-    targetRequirement: {
-        type: "Land",
-        count: 1,
-        subtypeFilter: "Plains",
-    },
+    // CR 702.5a — "Enchant land": any land, per the modern Oracle. The Alpha
+    // printing's "Enchant Plains" had leaked into this filter (issue #3825).
+    targetRequirement: { type: "Land", count: 1 },
     triggeredAbilities: [
         phaseTrigger({
             id: "farmstead-upkeep",
