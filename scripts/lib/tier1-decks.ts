@@ -21,6 +21,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { CompileState } from "../../convex/oracle/types";
 import type { CardRow, Lockfile } from "./oracle-lockfile";
+import { corpusNameIndex } from "./card-names";
 
 /** Path of the canonical lists, relative to the repo root. */
 export const TIER1_DECKS_PATH = "data/premodern-tier1-decks.json";
@@ -199,29 +200,6 @@ export function readTier1Decks(root: string): Tier1DeckFile {
 }
 
 /**
- * Name → lockfile row, with the ambiguous names REMOVED rather than resolved.
- *
- * 76 corpus names are carried by more than one oracle id (Un-set variants of
- * "Ineffable Blessing" and friends). Picking one arbitrarily would let a deck
- * report a state that belongs to a different card, so an ambiguous name
- * resolves to nothing and `deckReport` throws if a list actually names one —
- * a loud stop on a card no Tier 1 list contains today, rather than a silent
- * wrong answer the day one does.
- */
-export function lockfileRowsByName(
-    lock: Lockfile
-): ReadonlyMap<string, CardRow> {
-    const byName = new Map<string, CardRow>();
-    const ambiguous = new Set<string>();
-    for (const row of lock.cards) {
-        if (byName.has(row.name)) ambiguous.add(row.name);
-        else byName.set(row.name, row);
-    }
-    for (const name of ambiguous) byName.delete(name);
-    return byName;
-}
-
-/**
  * The row's own account of why it is not playable. `ours` and `ready` have
  * none — a playable card is not blocked on anything.
  */
@@ -324,7 +302,7 @@ export function tier1Reports(
     lock: Lockfile,
     poolOracleIds: ReadonlySet<string>
 ): DeckReport[] {
-    const rowsByName = lockfileRowsByName(lock);
+    const rowsByName = corpusNameIndex(lock);
     return file.decks.map((deck) =>
         deckReport(deck, rowsByName, lock.fragments, poolOracleIds)
     );

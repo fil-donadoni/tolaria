@@ -54,9 +54,16 @@ import { getAllCards } from "../catalogue";
 import { roundTripCard } from "../../oracle/gold";
 import {
     COMPILER_GAP,
+    HAND_TAIL,
+    isExempting,
+    misfiledMarkers,
     scanCardAnchors,
     scanCompilerGapMarkers,
     scanFilesForCompilerGaps,
+    staleMarkers,
+    unexemptingMarkers,
+    type CompilerGapMarker,
+    type MarkerVerdict,
 } from "../../../scripts/lib/compiler-gap-markers";
 import {
     SETS_DIR,
@@ -126,14 +133,15 @@ const VERDICTS = new Map(
 );
 
 const MARKERS = scanFilesForCompilerGaps(SET_FILES);
-const WELL_FORMED = MARKERS.filter(
-    (m) => m.fragment !== undefined && m.card !== ""
-);
+const WELL_FORMED = MARKERS.filter(isExempting);
 const MARKED = new Set(WELL_FORMED.map((m) => m.card));
 const BASELINE = new Set(COMPILER_ROUND_TRIP_BASELINE);
 
 const where = (m: { file: string; line: number }): string =>
     `${path.relative(SETS_DIR, m.file)}:${m.line}`;
+
+const verdictOf = (card: string): MarkerVerdict | undefined =>
+    VERDICTS.get(card) as MarkerVerdict | undefined;
 
 describe("Guard C — hand-written cards round-trip or declare a compiler gap (issue #2701)", () => {
     it("every card that does not round-trip carries a compiler-gap marker or a baseline row", () => {
@@ -155,23 +163,15 @@ describe("Guard C — hand-written cards round-trip or declare a compiler gap (i
         ).toEqual([]);
     });
 
-    it("every compiler-gap marker is well-formed and attached to a card", () => {
-        const offenders: string[] = [];
-        for (const marker of MARKERS) {
-            if (marker.fragment === undefined) {
-                offenders.push(`${where(marker)}: malformed — ${marker.text}`);
-                continue;
-            }
-            if (marker.card === "") {
-                offenders.push(
-                    `${where(marker)}: attached to no card — ${marker.text}`
-                );
-            }
-        }
+    it("every compiler-gap / hand-tail marker is well-formed and attached to a card", () => {
+        const offenders = unexemptingMarkers(MARKERS).map(
+            (m) => `${where(m)}: ${m.problem} — ${m.text}`
+        );
         expect(
             offenders,
-            "compiler-gap markers that exempt nothing. The accepted shape is exactly " +
-                "`// compiler-gap: <fragment> (#issue)` — a non-empty fragment and a " +
+            "compiler-gap / hand-tail markers that exempt nothing. The accepted shape is exactly " +
+                "`// compiler-gap: <fragment> (#issue)` or `// hand-tail: <fragment> (#issue)` — a " +
+                "non-empty fragment and a " +
                 "parenthesised issue ref, both on the marker's own line — and it must sit " +
                 "in the comment paragraph directly above the card's `export const … : " +
                 "CardDefinition` anchor. A marker inside the object literal, or two " +
@@ -179,15 +179,16 @@ describe("Guard C — hand-written cards round-trip or declare a compiler gap (i
         ).toEqual([]);
     });
 
-    it("no compiler-gap marker outlives the gap it names", () => {
-        const stale = WELL_FORMED.filter(
-            (m) => VERDICTS.get(m.card)?.ok === true
-        ).map((m) => `${where(m)}: ${m.card} round-trips now — ${m.text}`);
+    it("no compiler-gap / hand-tail marker outlives the gap it names", () => {
+        const stale = staleMarkers(MARKERS, verdictOf).map(
+            (m) => `${where(m)}: ${m.card} round-trips now — ${m.text}`
+        );
         expect(
             stale,
-            "compiler-gap markers on cards the compiler now reads correctly. The grammar " +
-                "caught up: delete the marker (and close its issue if that was the last " +
-                "card holding it open)."
+            "compiler-gap / hand-tail markers on cards the compiler now reads correctly. The " +
+                "grammar caught up: delete the marker (and close its issue if that was the last " +
+                "card holding it open). A hand-tail card that round-trips is migrated " +
+                "(`oracle:retire`, ADR 0114), not kept."
         ).toEqual([]);
     });
 
@@ -257,11 +258,7 @@ describe("Guard C — hand-written cards round-trip or declare a compiler gap (i
         // a `compiler-gap:` marker on a `mismatch` card is the same mislabel
         // the baseline split exists to stop — a card defect exempted by a note
         // that says the grammar is at fault.
-        const misfiled = WELL_FORMED.filter(
-            (m) =>
-                VERDICTS.get(m.card)?.ok === false &&
-                (VERDICTS.get(m.card) as { kind: string }).kind !== "unparsed"
-        ).map(
+        const misfiled = misfiledMarkers(MARKERS, verdictOf).map(
             (m) =>
                 `${where(m)}: ${m.card} — the compiler DID produce a definition ` +
                 `(${(VERDICTS.get(m.card) as { kind: string }).kind}), so there is no ` +
@@ -438,6 +435,95 @@ describe("the compiler-gap marker format", () => {
         ];
         expect(scanCardAnchors(lines).anchors.map((a) => a.name)).toEqual([
             "Lutri, the Spellchaser",
+        ]);
+    });
+});
+
+describe("the hand-tail marker — compiler-gap's terminal sibling (issue #3867)", () => {
+    const card = (name: string, marker: string): string[] => [
+        `// ${name} — a hand-written card.`,
+        marker,
+        `export const ${name.toLowerCase()}: CardDefinition = {`,
+        `    name: "${name}",`,
+        "};",
+        "",
+    ];
+    const UNPARSED: MarkerVerdict = { ok: false, kind: "unparsed" };
+    const ROUND_TRIPS: MarkerVerdict = { ok: true, kind: "structural" };
+    const MISMATCH: MarkerVerdict = { ok: false, kind: "mismatch" };
+
+    it("accepts the documented shape, attaches it, and it exempts its card", () => {
+        expect(
+            HAND_TAIL.exec("// hand-tail: Rampage N (#3900)")?.slice(1)
+        ).toEqual(["Rampage N", "3900"]);
+        const markers = scanCompilerGapMarkers(
+            card("Alpha", "// hand-tail: Rampage N (#3900)")
+        );
+        expect(markers).toHaveLength(1);
+        expect(markers[0]).toMatchObject({
+            kind: "hand-tail",
+            card: "Alpha",
+            fragment: "Rampage N",
+            issue: 3900,
+        });
+        expect(isExempting(markers[0])).toBe(true);
+        expect(unexemptingMarkers(markers)).toEqual([]);
+        expect(staleMarkers(markers, () => UNPARSED)).toEqual([]);
+        expect(misfiledMarkers(markers, () => UNPARSED)).toEqual([]);
+    });
+
+    it("reds a malformed hand-tail marker — no issue ref, or no fragment", () => {
+        for (const bad of [
+            "// hand-tail: Rampage N",
+            "// hand-tail: (#3900)",
+        ]) {
+            const markers = scanCompilerGapMarkers(card("Beta", bad));
+            expect(markers.map((m) => m.kind)).toEqual(["hand-tail"]);
+            expect(unexemptingMarkers(markers).map((m) => m.problem)).toEqual([
+                "malformed",
+            ]);
+        }
+    });
+
+    it("reds a detached hand-tail marker — inside the object literal", () => {
+        const markers = scanCompilerGapMarkers([
+            "// Gamma — a card.",
+            "export const gamma: CardDefinition = {",
+            '    name: "Gamma",',
+            "    // hand-tail: Rampage N (#3900)",
+            "};",
+        ]);
+        expect(unexemptingMarkers(markers).map((m) => m.problem)).toEqual([
+            "attached to no card",
+        ]);
+    });
+
+    it("reds a stale hand-tail marker — the card round-trips now", () => {
+        const markers = scanCompilerGapMarkers(
+            card("Delta", "// hand-tail: Rampage N (#3900)")
+        );
+        expect(
+            staleMarkers(markers, () => ROUND_TRIPS).map((m) => m.card)
+        ).toEqual(["Delta"]);
+    });
+
+    it("reds a hand-tail marker on a card the compiler read and disagreed with", () => {
+        const markers = scanCompilerGapMarkers(
+            card("Epsilon", "// hand-tail: Rampage N (#3900)")
+        );
+        expect(
+            misfiledMarkers(markers, () => MISMATCH).map((m) => m.card)
+        ).toEqual(["Epsilon"]);
+    });
+
+    it("keeps the two kinds apart: a compiler-gap line is never read as hand-tail", () => {
+        const markers: CompilerGapMarker[] = scanCompilerGapMarkers([
+            ...card("Zeta", "// compiler-gap: some fragment (#2698)"),
+            ...card("Eta", "// hand-tail: Rampage N (#3900)"),
+        ]);
+        expect(markers.map((m) => [m.card, m.kind])).toEqual([
+            ["Zeta", "compiler-gap"],
+            ["Eta", "hand-tail"],
         ]);
     });
 });

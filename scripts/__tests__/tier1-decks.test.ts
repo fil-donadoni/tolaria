@@ -26,7 +26,6 @@ import { parseLockfile, type CardRow } from "../lib/oracle-lockfile";
 import { poolOracleIdsFromIndex } from "../oracle-compile";
 import {
     deckReport,
-    lockfileRowsByName,
     parseTier1Decks,
     readTier1Decks,
     summaryLines,
@@ -35,6 +34,7 @@ import {
     type DeckReport,
     type Tier1Deck,
 } from "../lib/tier1-decks";
+import { corpusNameIndex } from "../lib/card-names";
 
 const ROOT = join(dirname(new URL(import.meta.url).pathname), "..", "..");
 
@@ -64,7 +64,7 @@ const ROWS: CardRow[] = [
     }),
 ];
 
-const rowsByName = lockfileRowsByName({ cards: ROWS } as never);
+const rowsByName = corpusNameIndex({ cards: ROWS } as never);
 
 /** 60 + 15 built from four names, so the size validation is satisfiable. */
 function fixtureDeck(overrides: Partial<Tier1Deck> = {}): Tier1Deck {
@@ -141,9 +141,9 @@ describe("parseTier1Decks — fail-closed on the canonical data", () => {
     });
 });
 
-describe("lockfileRowsByName", () => {
+describe("corpusNameIndex", () => {
     it("drops a name the corpus carries twice rather than picking one", () => {
-        const ambiguous = lockfileRowsByName({
+        const ambiguous = corpusNameIndex({
             cards: [
                 row("id-a", "Ineffable Blessing", "ready"),
                 row("id-b", "Ineffable Blessing", "unparsed"),
@@ -152,6 +152,22 @@ describe("lockfileRowsByName", () => {
         } as never);
         expect(ambiguous.has("Ineffable Blessing")).toBe(false);
         expect(ambiguous.get("Mountain")?.oracleId).toBe("id-c");
+    });
+
+    it("resolves a multi-faced card by its front face, never over a real name or an ambiguous front", () => {
+        const index = corpusNameIndex({
+            cards: [
+                row("id-dfc", "Front Face // Back Face", "ready"),
+                row("id-real", "Shadowed", "ready"),
+                row("id-dfc2", "Shadowed // Other Back", "ready"),
+                row("id-x", "Twin // One", "ready"),
+                row("id-y", "Twin // Two", "ready"),
+            ],
+        } as never);
+        expect(index.get("Front Face")?.oracleId).toBe("id-dfc");
+        expect(index.get("Front Face // Back Face")?.oracleId).toBe("id-dfc");
+        expect(index.get("Shadowed")?.oracleId).toBe("id-real");
+        expect(index.has("Twin")).toBe(false);
     });
 });
 
