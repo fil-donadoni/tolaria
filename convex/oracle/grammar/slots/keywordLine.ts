@@ -18,11 +18,17 @@
  *
  * The one parameterised keyword read here is Enchant (CR 702.5a), whose
  * parameter is an object descriptor and becomes the Aura's whole restriction —
- * see `enchantRule` below. The table itself lives in
- * `shared/keywordVocabulary.ts`.
+ * see `enchantRule` below. The other is Kicker (CR 702.33), whose parameter
+ * is a COST read by the shared cost sub-grammar — see `kickerRule`. The table
+ * itself lives in `shared/keywordVocabulary.ts`.
  */
 
-import type { TargetRequirement } from "../../../cards/types";
+import type {
+    ManaCost,
+    PermanentFilter,
+    TargetRequirement,
+} from "../../../cards/types";
+import { readManaCost } from "../../manaCost";
 import {
     atom,
     fail,
@@ -32,10 +38,12 @@ import {
     ok,
     rule,
     subGrammar,
+    terminated,
     type Rule,
     type RuleResult,
 } from "../../rule";
-import type { KeywordIR, SlotIR } from "../ir";
+import type { KeywordIR, KickerIR, SlotIR } from "../ir";
+import { activationCostRule } from "../shared/cost";
 import { keywordVocabulary } from "../shared/keywordVocabulary";
 import {
     descriptorRule,
@@ -167,15 +175,167 @@ export const enchantRule: Rule<SlotIR> = rule("enchant", (span, ctx) => {
     return ok({ kind: "enchant" as const, requirement: requirement.value });
 });
 
+// ── Kicker <cost> (CR 702.33) ──────────────────────────────────────────────
+
+const KICKER_HEAD = "Kicker ";
+const MULTIKICKER_HEAD = "Multikicker ";
+const KICKER_DASH_HEAD = "Kicker—";
+const AND_OR = " and/or ";
+
 /**
- * The keyword line: a run of registry keywords, or one `Enchant <descriptor>`.
- * The two are disjoint by construction — no registry keyword name carries a
- * trailing descriptor, and a bare "Enchant" names no object — and `oneOf`
- * enforces it rather than trusting it.
+ * A kicker's MANA cost, read by the shared mana reader.
+ *
+ * Narrower than a printed mana cost in three places, each an engine fact
+ * rather than a grammar one: the kicker payment path (`gre/kicker.ts`) pays a
+ * fixed `ManaCost` and announces no X of its own (CR 107.3 — "Kicker {X}"
+ * would need one), and neither Phyrexian nor hybrid pips are exercised on it
+ * by any hand-written kicker. A cost the path might mis-pay is refused rather
+ * than compiled into a kicker that is free, or unpayable, in play.
+ */
+function kickerMana(printed: string): RuleResult<ManaCost> {
+    if (!printed.startsWith("{"))
+        return fail("a kicker mana cost is a run of mana symbols", printed);
+    const read = readManaCost(printed);
+    if (!read.ok) return fail(read.reason, read.fragment);
+    return payableKickerMana(read.cost, printed);
+}
+
+/** The engine-side half of {@link kickerMana}, for an already-read cost. */
+function payableKickerMana(
+    cost: ManaCost,
+    fragment: string
+): RuleResult<ManaCost> {
+    if (cost.X === "X")
+        return fail(
+            "a kicker cost with {X} announces no X (CR 107.3)",
+            fragment
+        );
+    if (cost.phyrexian !== undefined || cost.hybrid !== undefined)
+        return fail(
+            "a Phyrexian or hybrid kicker cost is not exercised on the kicker payment path",
+            fragment
+        );
+    return ok(cost);
+}
+
+/**
+ * "Kicker—<cost>." — a kicker cost with a non-mana component (CR 702.33a:
+ * "an additional [cost]", of any kind). Read by the SAME cost sub-grammar an
+ * activation cost is (`shared/cost.ts`), so "Sacrifice a land" means one thing
+ * everywhere; what differs is only which atoms have a `KickerCost` leg to land
+ * in. Every other atom is REFUSED, not dropped: an unpaid kicker leg is a
+ * kicked spell for less than its printed price, the unbounded failure the cost
+ * grammar's own header describes.
+ */
+function dashKicker(body: string, ctx: unknown): RuleResult<KickerIR> {
+    const parsed = terminated(".", activationCostRule).run(body, ctx);
+    if (!parsed.ok) return parsed;
+    const legs: {
+        mana?: ManaCost;
+        life?: number;
+        sacrifice?: { filter: PermanentFilter; count: number };
+    } = {};
+    for (const atom of parsed.value.atoms) {
+        switch (atom.kind) {
+            case "mana": {
+                const mana = payableKickerMana(atom.mana, body);
+                if (!mana.ok) return mana;
+                legs.mana = mana.value;
+                break;
+            }
+            case "pay-life":
+                legs.life = atom.amount;
+                break;
+            case "sacrifice-other":
+                legs.sacrifice = { filter: atom.filter, count: atom.count };
+                break;
+            default:
+                return fail(
+                    `"${atom.kind}" is not a kicker cost leg this grammar can encode (CR 702.33a)`,
+                    body
+                );
+        }
+    }
+    return ok({
+        // Without the stop, as the catalogue writes it ("Kicker—Pay 3 life").
+        description: `${KICKER_DASH_HEAD}${body.slice(0, -1)}`,
+        ...legs,
+        multi: false,
+    });
+}
+
+/**
+ * CR 702.33a / 702.33b / 702.33c — the kicker line.
+ *
+ *   "Kicker {2}{U}"                 → one kicker
+ *   "Kicker {1}{U} and/or {B}"      → two kickers (CR 702.33b: "the same thing
+ *                                     as 'Kicker [cost 1], kicker [cost 2]'")
+ *   "Kicker—Sacrifice a land."      → one kicker with a non-mana leg
+ *   "Multikicker {2}"               → one kicker payable any number of times
+ *
+ * Why the keyword-line slot: kicker is a keyword ability (CR 702.33a) printed
+ * on its own line with its parameter, exactly as Enchant is, and a registry
+ * table lookup cannot read the parameter — which is the refusal the header
+ * describes working as designed. Printed on permanents and spells alike, so
+ * the slot guard below (none) is the right one.
+ *
+ * Refused: an "and/or" with other than two costs, a non-mana cost on either
+ * side of "and/or" (not a printed shape), a Multikicker with a non-mana cost
+ * (likewise), and every cost the helpers above refuse.
+ */
+export const kickerRule: Rule<SlotIR> = rule("kicker", (span, ctx) => {
+    if (span.startsWith(KICKER_DASH_HEAD)) {
+        const kicker = dashKicker(span.slice(KICKER_DASH_HEAD.length), ctx);
+        if (!kicker.ok) return kicker;
+        return ok({ kind: "kicker" as const, kickers: [kicker.value] });
+    }
+    if (span.startsWith(MULTIKICKER_HEAD)) {
+        const printed = span.slice(MULTIKICKER_HEAD.length);
+        const mana = kickerMana(printed);
+        if (!mana.ok) return mana;
+        return ok({
+            kind: "kicker" as const,
+            kickers: [
+                {
+                    description: `Multikicker ${printed}`,
+                    mana: mana.value,
+                    multi: true,
+                },
+            ],
+        });
+    }
+    if (!span.startsWith(KICKER_HEAD))
+        return fail(`a kicker line starts with "${KICKER_HEAD}"`, span);
+    const costs = span.slice(KICKER_HEAD.length).split(AND_OR);
+    if (costs.length > 2)
+        return fail(
+            '"and/or" joins exactly two kicker costs (CR 702.33b)',
+            span
+        );
+    const kickers: KickerIR[] = [];
+    for (const printed of costs) {
+        const mana = kickerMana(printed);
+        if (!mana.ok) return mana;
+        kickers.push({
+            description: `Kicker ${printed}`,
+            mana: mana.value,
+            multi: false,
+        });
+    }
+    return ok({ kind: "kicker" as const, kickers });
+});
+
+/**
+ * The keyword line: a run of registry keywords, one `Enchant <descriptor>`, or
+ * one kicker line. The three are disjoint by construction — no registry
+ * keyword name carries a trailing descriptor or cost, a bare "Enchant" names
+ * no object, and the kicker rule never reads a line without a cost — and
+ * `oneOf` enforces it rather than trusting it.
  */
 export const keywordLineRule: Rule<SlotIR> = oneOf("keyword line", [
     keywordRunRule,
     enchantRule,
+    kickerRule,
 ]);
 
 /** Guard: keyword lines are only meaningful on an object with a text box. */

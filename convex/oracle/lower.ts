@@ -17,6 +17,7 @@ import type {
     ActivatedAbility,
     CardDefinition,
     EffectOp,
+    KickerCost,
     ManaCost,
     SpellMode,
     TargetRequirement,
@@ -28,6 +29,7 @@ import { lowerActivatedAbility } from "./lowerActivated";
 import {
     lowerAdditionalCosts,
     lowerFlashback,
+    lowerKickers,
     lowerSpellBody,
     lowerSpellModes,
 } from "./lowerSpell";
@@ -65,7 +67,12 @@ interface Accumulator {
     compiledTriggeredAbilities: CompiledTriggeredAbility[];
     compiledStaticEffects: CompiledStaticEffect[];
     entersTapped: boolean;
-    entersWithCounters: { type: string; count: number }[];
+    entersWithCounters: { type: string; count: number | "kicker" }[];
+    /** CR 702.33e — how each kicker-counted entry rider reads the tally. */
+    kickerRiders: { per: "kicked" | "each-kick"; line: string }[];
+    /** CR 702.33a — the card's kicker costs, lowered BEFORE every other line
+     *  so a line that reads a kicker back can name it (see `lowerCard`). */
+    kickers?: KickerCost[];
     plannedMechanics: string[];
     ungrantableKeywords: string[];
     /** CR 113.3a — the spell site: at most one per card, see `lowerLine`. */
@@ -98,7 +105,13 @@ function censusGrantedKeywords(
     effects: readonly EffectSentenceIR[],
     acc: Accumulator
 ): void {
-    for (const sentence of effects) {
+    for (const outer of effects) {
+        // A WRAPPER (`optional`, `kicked`) gates its inner sentence without
+        // changing what it grants, so the census reads through it — a grant
+        // behind "If this spell was kicked," is still a grant.
+        let sentence = outer;
+        while (sentence.kind === "optional" || sentence.kind === "kicked")
+            sentence = sentence.effect;
         if (sentence.kind !== "grant-ability") continue;
         const { ability, status } = sentence.keyword;
         if (status !== "implemented") acc.plannedMechanics.push(ability);
@@ -145,6 +158,10 @@ function lowerLine(
             }
             return null;
         }
+        case "kicker":
+            // Lowered by `lowerCard`'s pre-pass, before any line that reads
+            // it back — see there.
+            return null;
         case "enchant": {
             // CR 702.5c — several instances of enchant all apply, but the
             // engine reads ONE printed restriction off `targetRequirement`;
@@ -252,6 +269,18 @@ function lowerLine(
             if (out.entersTapped === true) acc.entersTapped = true;
             if (out.entersWithCounters !== undefined)
                 acc.entersWithCounters.push(out.entersWithCounters);
+            if (out.kickerCounters !== undefined) {
+                // Same-type entries SUM, so a second kicked rider would add to
+                // the first silently. No printed card has two; reading two is
+                // a sign a line was misread, as a marker named twice is.
+                if (acc.kickerRiders.length > 0)
+                    return "a card declares a kicked entry rider twice";
+                acc.entersWithCounters.push(...out.kickerCounters.counters);
+                acc.kickerRiders.push({
+                    per: out.kickerCounters.per,
+                    line: parsed.line,
+                });
+            }
             if (out.staticAbility !== undefined) {
                 // The same duplicate check the keyword-line slot pays: a
                 // marker named twice on one card is a sign a line was misread,
@@ -278,6 +307,7 @@ function lowerLine(
                 // (`lowerEffects.ts` — `SiteOptions`).
                 allowX: hasVariableX(card.manaCost),
                 selfName: card.name,
+                ...(acc.kickers !== undefined ? { kickers: acc.kickers } : {}),
             });
             if (!body.ok) return body.reason;
             acc.spellEffects = body.value.effects;
@@ -293,7 +323,13 @@ function lowerLine(
             const modes = lowerSpellModes(
                 ir.modes,
                 { slug: slugify(card.name), name: card.name },
-                { allowX: hasVariableX(card.manaCost), selfName: card.name }
+                {
+                    allowX: hasVariableX(card.manaCost),
+                    selfName: card.name,
+                    ...(acc.kickers !== undefined
+                        ? { kickers: acc.kickers }
+                        : {}),
+                }
             );
             if (!modes.ok) return modes.reason;
             acc.spellModes = modes.value;
@@ -362,9 +398,32 @@ export function lowerCard(
         compiledStaticEffects: [],
         entersTapped: false,
         entersWithCounters: [],
+        kickerRiders: [],
         plannedMechanics: [],
         ungrantableKeywords: [],
     };
+    // CR 702.33e — a kicker's linked abilities "can refer only to those
+    // specific kicker … abilities" printed on the same object, so every line
+    // that reads one back needs the card's kicker list, ids assigned. Lowered
+    // first, in its own pass, so the answer never depends on line order.
+    const kickerLines = lines.filter((line) => line.ir.kind === "kicker");
+    if (kickerLines.length > 1)
+        return {
+            ok: false,
+            reason: "a card declares kicker on two lines (one kicker line per card, the catalogue convention)",
+            fragment: kickerLines[1]!.line,
+        };
+    const kickerLine = kickerLines[0];
+    if (kickerLine !== undefined && kickerLine.ir.kind === "kicker") {
+        const kickers = lowerKickers(kickerLine.ir.kickers);
+        if (!kickers.ok)
+            return {
+                ok: false,
+                reason: kickers.reason,
+                fragment: kickerLine.line,
+            };
+        acc.kickers = kickers.value;
+    }
     for (const line of lines) {
         const err = lowerLine(line, card, acc);
         if (err !== null)
@@ -430,6 +489,31 @@ export function lowerCard(
     // CR 614.1c / 122.1 — entry riders, applied AS the permanent enters. Never
     // a continuous effect and never a trigger (issue #1693).
     if (acc.entersTapped) definition.entersTapped = true;
+    // CR 702.33d — `count: "kicker"` reads how many times the spell was
+    // kicked. "If this creature was kicked, it enters with N counters" means
+    // 0 or N, which that tally gives only for a lone, single kicker: a second
+    // kicker or Multikicker would multiply the counters. "For each time it
+    // was kicked" is the tally itself, and needs only a kicker to count.
+    const rider = acc.kickerRiders[0];
+    if (rider !== undefined) {
+        const kickers = acc.kickers ?? [];
+        if (kickers.length === 0)
+            return {
+                ok: false,
+                reason: "a kicked entry rider on a card that prints no kicker (CR 702.33e)",
+                fragment: rider.line,
+            };
+        if (
+            rider.per === "kicked" &&
+            (kickers.length !== 1 || kickers[0]!.multi === true)
+        )
+            return {
+                ok: false,
+                reason: '"if it was kicked" counted by the kicker tally needs exactly one single kicker (CR 702.33d)',
+                fragment: rider.line,
+            };
+    }
+    if (acc.kickers !== undefined) definition.kickers = acc.kickers;
     if (acc.entersWithCounters.length > 0)
         definition.entersWith = { counters: acc.entersWithCounters };
     // CR 113.3a — the spell site. `modes` and `effects` are mutually exclusive
@@ -441,8 +525,16 @@ export function lowerCard(
     // reporting success, so it fails rather than compiling to a castable spell
     // that does nothing. (No corpus card reaches this today — it is the
     // invariant, not a fix.)
+    // A kicker (CR 702.33a) on an instant or sorcery is the same kind of
+    // rider; on a permanent it rides the permanent spell, which has no text
+    // of its own to lose.
+    const isSpellCard =
+        typeLine.types.includes("Instant") ||
+        typeLine.types.includes("Sorcery");
     if (
-        (acc.additionalCosts !== undefined || acc.flashback !== undefined) &&
+        (acc.additionalCosts !== undefined ||
+            acc.flashback !== undefined ||
+            (acc.kickers !== undefined && isSpellCard)) &&
         acc.spellEffects === undefined &&
         acc.spellModes === undefined
     )

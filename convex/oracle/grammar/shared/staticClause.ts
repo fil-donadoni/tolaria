@@ -12,6 +12,9 @@
  *   "<spells> cost {N} more/less to cast"           → CR 601.2f `cost-modifier`
  *   "<self> enters tapped[ with N <kind> counters on it]"
  *                                                   → CR 614.1c entry riders
+ *   "If <self> was kicked, it enters with N <kind> counters on it",
+ *   "<self> enters with N <kind> counters on it for each time it was kicked"
+ *                                                   → kicker-counted riders
  *   "<self> doesn't untap during your untap step"   → the `does-not-untap` marker
  *   "<grantee> may cast <class> spells [without paying
  *    their mana costs] [as though they had flash]"  → CR 601.3 `cast-permission`
@@ -111,6 +114,19 @@ export type StaticClauseIR =
     | {
           readonly kind: "enters-tapped";
           readonly counters?: { readonly type: string; readonly count: number };
+      }
+    /**
+     * CR 614.1c / 702.33e — "If this creature was kicked, it enters with N
+     * <kind> counters on it" (`per: "kicked"`) and "This creature enters with
+     * N <kind> counters on it for each time it was kicked" (`per: "each-kick"`,
+     * CR 702.33d — a multikicked spell is kicked once per payment). An entry
+     * rider like `enters-tapped`, whose COUNT is read off the kicker payment
+     * record rather than printed.
+     */
+    | {
+          readonly kind: "kicked-enters-with";
+          readonly counters: { readonly type: string; readonly count: number };
+          readonly per: "kicked" | "each-kick";
       }
     /** CR 502.3 — "doesn't untap during your untap step". */
     | { readonly kind: "does-not-untap" };
@@ -649,6 +665,64 @@ const entersTappedWithCounters: Rule<StaticClauseIR> = pattern(
     }
 );
 
+// ── Frame: kicked entry riders (CR 614.1c / 702.33e) ───────────────────────
+
+const KICKED_ENTERS_WITH =
+    /^If (.+) was kicked, it enters with (\S+) (\S+) counters? on it$/;
+const ENTERS_WITH_EACH_KICK =
+    /^(.+) enters with (\S+) (\S+) counters? on it for each time it was kicked$/;
+
+/**
+ * "If this creature was kicked, it enters with two +1/+1 counters on it."
+ *
+ * Anchored at BOTH ends, so each printed extension of the sentence fails the
+ * card rather than compiling to its counters alone:
+ *
+ *  - "… on it and with flying" / "… and with \"<ability>\"" — the kicked
+ *    permanent ALSO enters with an ability, which no compiled descriptor can
+ *    gate on the kicker yet;
+ *  - "If this creature was kicked with its {1}{U} kicker, …" (CR 702.33f) —
+ *    a per-kicker count, which `entersWith`'s kicker tally cannot read;
+ *  - "… for each nonbasic land your opponents control" — a different count.
+ *
+ * The CARD-level half — that "kicked" here means the lone, non-multi kicker,
+ * so the tally is 0 or 1 — is checked in `lower.ts`, which sees the kicker
+ * line this sentence is linked to (CR 702.33e).
+ */
+const kickedEntersWithRule: Rule<StaticClauseIR> = pattern(
+    "kicked enters with counters",
+    KICKED_ENTERS_WITH,
+    (match): RuleResult<StaticClauseIR> =>
+        kickedCounters(match[1]!, match[2]!, match[3]!, "kicked")
+);
+
+/** "This creature enters with a +1/+1 counter on it for each time it was
+ *  kicked." (CR 702.33c/d — Multikicker's usual reader). */
+const entersWithEachKickRule: Rule<StaticClauseIR> = pattern(
+    "enters with counters for each kick",
+    ENTERS_WITH_EACH_KICK,
+    (match): RuleResult<StaticClauseIR> =>
+        kickedCounters(match[1]!, match[2]!, match[3]!, "each-kick")
+);
+
+function kickedCounters(
+    subject: string,
+    countWord: string,
+    type: string,
+    per: "kicked" | "each-kick"
+): RuleResult<StaticClauseIR> {
+    if (!isSelfPhrase(uncapitalise(subject)))
+        return fail(`"${subject}" is not this permanent (CR 109.2)`, subject);
+    const count = readNumberWord(countWord);
+    if (count === null)
+        return fail(`"${countWord}" is not a number word`, countWord);
+    return ok({
+        kind: "kicked-enters-with" as const,
+        counters: { type, count },
+        per,
+    });
+}
+
 // ── Frame: the untap-step marker (CR 502.3) ────────────────────────────────
 
 const DOES_NOT_UNTAP = /^(.+) doesn't untap during your untap step$/;
@@ -681,6 +755,8 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         castPermissionRule,
         entersTappedPlain,
         entersTappedWithCounters,
+        kickedEntersWithRule,
+        entersWithEachKickRule,
         doesNotUntapRule,
     ])
 );

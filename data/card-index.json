@@ -144,6 +144,16 @@
         "source": "compiled"
     },
     {
+        "name": "Academy Drake",
+        "scryfallId": "f8bacb12-da46-4b00-804f-9ff6bff452bc",
+        "oracleId": "65f3ebeb-1ca5-4923-b681-032579991c8a",
+        "firstSet": "dom",
+        "firstPrintId": "f8bacb12-da46-4b00-804f-9ff6bff452bc",
+        "firstPrintSet": "dom",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Accorder Paladin",
         "scryfallId": "df0a4370-729d-40e7-b68b-21902648492d",
         "oracleId": "6891c8b7-7112-40dc-8b94-b84ad1885e5e",
@@ -1436,6 +1446,16 @@
         "source": "compiled"
     },
     {
+        "name": "Apex Hawks",
+        "scryfallId": "b9f038f0-6f50-4f89-855c-6bbd68d84436",
+        "oracleId": "c025d558-aae8-4146-923b-a98035025a42",
+        "firstSet": "wwk",
+        "firstPrintId": "b9f038f0-6f50-4f89-855c-6bbd68d84436",
+        "firstPrintSet": "wwk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Appetite for the Unnatural",
         "scryfallId": "b8aa8840-31f8-4263-b992-40584e31595a",
         "oracleId": "f041b37e-25af-4aff-b7e3-f07a4d5c6f9a",
@@ -2718,6 +2738,16 @@
         "firstSet": "fem",
         "firstPrintId": "7f95de4a-7fae-42bc-9660-39ea7685ca02",
         "firstPrintSet": "fem"
+    },
+    {
+        "name": "Baloth Gorger",
+        "scryfallId": "504090bb-d183-4833-aea5-d4193b5c57a1",
+        "oracleId": "7f9bc0c9-0333-4c02-bc14-e6affe848b5d",
+        "firstSet": "dom",
+        "firstPrintId": "504090bb-d183-4833-aea5-d4193b5c57a1",
+        "firstPrintSet": "dom",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Banding Sliver",
@@ -13670,6 +13700,16 @@
         "source": "compiled"
     },
     {
+        "name": "Ghastly Gloomhunter",
+        "scryfallId": "f272ac54-fea8-4044-83e2-f8fdc10f467d",
+        "oracleId": "70ab65ff-724f-4126-b472-97fa03ca3a34",
+        "firstSet": "znr",
+        "firstPrintId": "f272ac54-fea8-4044-83e2-f8fdc10f467d",
+        "firstPrintSet": "znr",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Ghazbán Ogre",
         "scryfallId": "f9d613d5-36a2-4633-b5af-64511bb29cc2",
         "oracleId": "d361bdd4-afb8-493d-9091-ebe22f215834",
@@ -14164,6 +14204,16 @@
         "firstSet": "bok",
         "firstPrintId": "5c28728d-4839-4cdf-91d4-b9fb4b5d0449",
         "firstPrintSet": "bok",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Gnarlid Pack",
+        "scryfallId": "68716387-c5ec-4967-be5f-723783722c64",
+        "oracleId": "be6e835c-822e-45ff-a992-249d4d9781dc",
+        "firstSet": "wwk",
+        "firstPrintId": "68716387-c5ec-4967-be5f-723783722c64",
+        "firstPrintSet": "wwk",
         "rarity": "common",
         "source": "compiled"
     },
@@ -17050,6 +17100,16 @@
         "firstPrintSet": "atq"
     },
     {
+        "name": "Hurloon Battle Hymn",
+        "scryfallId": "ff252e80-c155-467b-8df3-9bddc5cc45c3",
+        "oracleId": "2f541bf9-1e5b-4d16-8558-a5cfce7e93ad",
+        "firstSet": "dmu",
+        "firstPrintId": "ff252e80-c155-467b-8df3-9bddc5cc45c3",
+        "firstPrintSet": "dmu",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Hurloon Minotaur",
         "scryfallId": "78a9088f-8755-47cb-aa93-51d992ccab90",
         "oracleId": "8f1dae40-b307-446e-bbd2-86aa35813871",
@@ -18892,6 +18952,16 @@
         "firstSet": "inv",
         "firstPrintId": "ea63dfd5-d8d7-45b8-8219-1cc2b3de5666",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Kavu Primarch",
+        "scryfallId": "d19216a1-4fe2-496e-9ef4-6ac652e5b7ca",
+        "oracleId": "09537e9f-6c8e-4849-9d35-d4f3950a64d7",
+        "firstSet": "fut",
+        "firstPrintId": "d19216a1-4fe2-496e-9ef4-6ac652e5b7ca",
+        "firstPrintSet": "fut",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Kavu Recluse",
@@ -30830,6 +30900,16 @@
         "firstPrintSet": "mkm"
     },
     {
+        "name": "Shalai's Acolyte",
+        "scryfallId": "39996722-e7f2-41e4-aa1e-2b6778d7b535",
+        "oracleId": "53ec394a-5aaa-4d83-82ec-f00e99902c0d",
+        "firstSet": "dmu",
+        "firstPrintId": "39996722-e7f2-41e4-aa1e-2b6778d7b535",
+        "firstPrintSet": "dmu",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Shallow Grave",
         "scryfallId": "d5c782cc-c951-4c6f-a93f-774ae6c1c214",
         "oracleId": "9843d8a6-bcbf-40c2-8c41-316e97db9c62",
@@ -31896,6 +31976,16 @@
         "firstSet": "rna",
         "firstPrintId": "db328f03-7dae-445b-8e71-99dd88f26a9e",
         "firstPrintSet": "rna"
+    },
+    {
+        "name": "Skitter of Lizards",
+        "scryfallId": "153c1465-9cbc-424b-8147-79e95fd45b3d",
+        "oracleId": "14646c85-12ad-4b99-a2af-e4a790e034ef",
+        "firstSet": "wwk",
+        "firstPrintId": "153c1465-9cbc-424b-8147-79e95fd45b3d",
+        "firstPrintSet": "wwk",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Skittish Kavu",
@@ -34315,6 +34405,16 @@
         "firstPrintId": "cc0f043c-efb3-4392-ae25-b3ec180b0cb2",
         "firstPrintSet": "sth",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Stronghold Confessor",
+        "scryfallId": "ab3fcc43-839b-48c1-91e3-7cc80d8c7f9a",
+        "oracleId": "e7c200a9-4793-44c8-ba8d-6298dc83bbac",
+        "firstSet": "dom",
+        "firstPrintId": "ab3fcc43-839b-48c1-91e3-7cc80d8c7f9a",
+        "firstPrintSet": "dom",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -38002,6 +38102,16 @@
         "firstSet": "lea",
         "firstPrintId": "8512f2c1-6361-4b79-843f-80b6bceeeb99",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Untamed Kavu",
+        "scryfallId": "3c4cf84a-2024-45bb-9e24-8a9a6d9ad247",
+        "oracleId": "ce585b28-f22f-41ba-8858-aebc0164922d",
+        "firstSet": "dom",
+        "firstPrintId": "3c4cf84a-2024-45bb-9e24-8a9a6d9ad247",
+        "firstPrintSet": "dom",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Unyaro Bee Sting",

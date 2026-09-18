@@ -344,6 +344,29 @@ describe("gate helpers", () => {
         ).toEqual(["draw", "gainLife"]);
     });
 
+    it("collectOps does not read an if-predicate's comparator as an Op (issue #3826)", () => {
+        // `{ left, op: "ge", right }` spells its comparator in a field that is
+        // also called `op`; reading it as one quarantined every kicked spell
+        // for an "unimplemented Op ge".
+        expect(
+            collectOps({
+                name: "X",
+                types: ["Instant"],
+                effects: [
+                    {
+                        op: "if",
+                        predicate: {
+                            left: { kickerCount: true },
+                            op: "ge",
+                            right: 1,
+                        },
+                        then: [{ op: "draw", player: "controller", count: 1 }],
+                    },
+                ],
+            })
+        ).toEqual(["draw", "if"]);
+    });
+
     it("sortKeys makes a closure visible instead of dropping it", () => {
         expect(sortKeys({ b: 1, a: () => undefined })).toEqual({
             a: "[closure]",

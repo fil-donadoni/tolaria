@@ -7514,6 +7514,45 @@
         "rarity": "common"
     },
     {
+        "name": "Skitter of Lizards",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Lizard"
+        ],
+        "manaCost": {
+            "R": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Multikicker {1}{R} (You may pay an additional {1}{R} any number of times as you cast this spell.)\nHaste\nThis creature enters with a +1/+1 counter on it for each time it was kicked.",
+        "staticAbilities": [
+            "haste"
+        ],
+        "kickers": [
+            {
+                "id": "kicker",
+                "description": "Multikicker {1}{R}",
+                "mana": {
+                    "X": 1,
+                    "R": 1
+                },
+                "multi": true
+            }
+        ],
+        "entersWith": {
+            "counters": [
+                {
+                    "type": "+1/+1",
+                    "count": "kicker"
+                }
+            ]
+        },
+        "id": "153c1465-9cbc-424b-8147-79e95fd45b3d",
+        "rarity": "common"
+    },
+    {
         "name": "Voyaging Satyr",
         "types": [
             "Creature"
@@ -18715,6 +18754,49 @@
         "rarity": "common"
     },
     {
+        "name": "Shalai's Acolyte",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Angel"
+        ],
+        "manaCost": {
+            "X": 4,
+            "W": 1
+        },
+        "power": 3,
+        "toughness": 4,
+        "oracleText": "Kicker {1}{G} (You may pay an additional {1}{G} as you cast this spell.)\nFlying\nIf this creature was kicked, it enters with two +1/+1 counters on it.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "kickers": [
+            {
+                "id": "kicker",
+                "description": "Kicker {1}{G}",
+                "mana": {
+                    "X": 1,
+                    "G": 1
+                }
+            }
+        ],
+        "entersWith": {
+            "counters": [
+                {
+                    "type": "+1/+1",
+                    "count": "kicker"
+                },
+                {
+                    "type": "+1/+1",
+                    "count": "kicker"
+                }
+            ]
+        },
+        "id": "39996722-e7f2-41e4-aa1e-2b6778d7b535",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Medicine Bag",
         "types": [
             "Artifact"
@@ -19628,6 +19710,53 @@
         },
         "id": "3c216e13-3779-4734-b481-9aad7aba9925",
         "rarity": "common"
+    },
+    {
+        "name": "Untamed Kavu",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Kavu"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Kicker {3} (You may pay an additional {3} as you cast this spell.)\nVigilance, trample\nIf this creature was kicked, it enters with three +1/+1 counters on it.",
+        "staticAbilities": [
+            "vigilance",
+            "trample"
+        ],
+        "kickers": [
+            {
+                "id": "kicker",
+                "description": "Kicker {3}",
+                "mana": {
+                    "X": 3
+                }
+            }
+        ],
+        "entersWith": {
+            "counters": [
+                {
+                    "type": "+1/+1",
+                    "count": "kicker"
+                },
+                {
+                    "type": "+1/+1",
+                    "count": "kicker"
+                },
+                {
+                    "type": "+1/+1",
+                    "count": "kicker"
+                }
+            ]
+        },
+        "id": "3c4cf84a-2024-45bb-9e24-8a9a6d9ad247",
+        "rarity": "uncommon"
     },
     {
         "name": "Feral Maaka",
@@ -25270,6 +25399,49 @@
         ],
         "id": "50202288-f433-4b56-8f60-349bda7b4f6b",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Baloth Gorger",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Beast"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 2
+        },
+        "power": 4,
+        "toughness": 4,
+        "oracleText": "Kicker {4} (You may pay an additional {4} as you cast this spell.)\nIf this creature was kicked, it enters with three +1/+1 counters on it.",
+        "kickers": [
+            {
+                "id": "kicker",
+                "description": "Kicker {4}",
+                "mana": {
+                    "X": 4
+                }
+            }
+        ],
+        "entersWith": {
+            "counters": [
+                {
+                    "type": "+1/+1",
+                    "count": "kicker"
+                },
+                {
+                    "type": "+1/+1",
+                    "count": "kicker"
+                },
+                {
+                    "type": "+1/+1",
+                    "count": "kicker"
+                }
+            ]
+        },
+        "id": "504090bb-d183-4833-aea5-d4193b5c57a1",
+        "rarity": "common"
     },
     {
         "name": "Feral Krushok",
@@ -32281,6 +32453,43 @@
             "vigilance"
         ],
         "id": "6867fd5a-3bbe-416d-96a6-1db0b341260e",
+        "rarity": "common"
+    },
+    {
+        "name": "Gnarlid Pack",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Beast"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Multikicker {1}{G} (You may pay an additional {1}{G} any number of times as you cast this spell.)\nThis creature enters with a +1/+1 counter on it for each time it was kicked.",
+        "kickers": [
+            {
+                "id": "kicker",
+                "description": "Multikicker {1}{G}",
+                "mana": {
+                    "X": 1,
+                    "G": 1
+                },
+                "multi": true
+            }
+        ],
+        "entersWith": {
+            "counters": [
+                {
+                    "type": "+1/+1",
+                    "count": "kicker"
+                }
+            ]
+        },
+        "id": "68716387-c5ec-4967-be5f-723783722c64",
         "rarity": "common"
     },
     {
@@ -52399,6 +52608,48 @@
         "rarity": "common"
     },
     {
+        "name": "Stronghold Confessor",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Cleric"
+        ],
+        "manaCost": {
+            "B": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Kicker {3} (You may pay an additional {3} as you cast this spell.)\nMenace (This creature can't be blocked except by two or more creatures.)\nIf this creature was kicked, it enters with two +1/+1 counters on it.",
+        "staticAbilities": [
+            "menace"
+        ],
+        "kickers": [
+            {
+                "id": "kicker",
+                "description": "Kicker {3}",
+                "mana": {
+                    "X": 3
+                }
+            }
+        ],
+        "entersWith": {
+            "counters": [
+                {
+                    "type": "+1/+1",
+                    "count": "kicker"
+                },
+                {
+                    "type": "+1/+1",
+                    "count": "kicker"
+                }
+            ]
+        },
+        "id": "ab3fcc43-839b-48c1-91e3-7cc80d8c7f9a",
+        "rarity": "common"
+    },
+    {
         "name": "Cast Down",
         "types": [
             "Instant"
@@ -57545,6 +57796,46 @@
         ],
         "id": "b9e0912d-b4b9-497c-bce7-ed80b79bab32",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Apex Hawks",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Bird"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Multikicker {1}{W} (You may pay an additional {1}{W} any number of times as you cast this spell.)\nFlying\nThis creature enters with a +1/+1 counter on it for each time it was kicked.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "kickers": [
+            {
+                "id": "kicker",
+                "description": "Multikicker {1}{W}",
+                "mana": {
+                    "X": 1,
+                    "W": 1
+                },
+                "multi": true
+            }
+        ],
+        "entersWith": {
+            "counters": [
+                {
+                    "type": "+1/+1",
+                    "count": "kicker"
+                }
+            ]
+        },
+        "id": "b9f038f0-6f50-4f89-855c-6bbd68d84436",
+        "rarity": "common"
     },
     {
         "name": "Kemba's Skyguard",
@@ -64922,6 +65213,56 @@
         ],
         "id": "d180b660-21e5-4a92-9d1e-2e3f490fe557",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Kavu Primarch",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Kavu"
+        ],
+        "manaCost": {
+            "X": 3,
+            "G": 1
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "Kicker {4} (You may pay an additional {4} as you cast this spell.)\nConvoke (Your creatures can help cast this spell. Each creature you tap while casting this spell pays for {1} or one mana of that creature's color.)\nIf this creature was kicked, it enters with four +1/+1 counters on it.",
+        "staticAbilities": [
+            "convoke"
+        ],
+        "kickers": [
+            {
+                "id": "kicker",
+                "description": "Kicker {4}",
+                "mana": {
+                    "X": 4
+                }
+            }
+        ],
+        "entersWith": {
+            "counters": [
+                {
+                    "type": "+1/+1",
+                    "count": "kicker"
+                },
+                {
+                    "type": "+1/+1",
+                    "count": "kicker"
+                },
+                {
+                    "type": "+1/+1",
+                    "count": "kicker"
+                },
+                {
+                    "type": "+1/+1",
+                    "count": "kicker"
+                }
+            ]
+        },
+        "id": "d19216a1-4fe2-496e-9ef4-6ac652e5b7ca",
+        "rarity": "common"
     },
     {
         "name": "Pendulum of Patterns",
@@ -74766,6 +75107,51 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Ghastly Gloomhunter",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Zombie",
+            "Bat"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Kicker {3}{B} (You may pay an additional {3}{B} as you cast this spell.)\nFlying, lifelink\nIf this creature was kicked, it enters with two +1/+1 counters on it.",
+        "staticAbilities": [
+            "flying",
+            "lifelink"
+        ],
+        "kickers": [
+            {
+                "id": "kicker",
+                "description": "Kicker {3}{B}",
+                "mana": {
+                    "X": 3,
+                    "B": 1
+                }
+            }
+        ],
+        "entersWith": {
+            "counters": [
+                {
+                    "type": "+1/+1",
+                    "count": "kicker"
+                },
+                {
+                    "type": "+1/+1",
+                    "count": "kicker"
+                }
+            ]
+        },
+        "id": "f272ac54-fea8-4044-83e2-f8fdc10f467d",
+        "rarity": "common"
+    },
+    {
         "name": "Battle Rampart",
         "types": [
             "Creature"
@@ -76611,6 +76997,48 @@
         "rarity": "common"
     },
     {
+        "name": "Academy Drake",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Drake"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Kicker {4} (You may pay an additional {4} as you cast this spell.)\nFlying\nIf this creature was kicked, it enters with two +1/+1 counters on it.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "kickers": [
+            {
+                "id": "kicker",
+                "description": "Kicker {4}",
+                "mana": {
+                    "X": 4
+                }
+            }
+        ],
+        "entersWith": {
+            "counters": [
+                {
+                    "type": "+1/+1",
+                    "count": "kicker"
+                },
+                {
+                    "type": "+1/+1",
+                    "count": "kicker"
+                }
+            ]
+        },
+        "id": "f8bacb12-da46-4b00-804f-9ff6bff452bc",
+        "rarity": "common"
+    },
+    {
         "name": "Two-Headed Cerberus",
         "types": [
             "Creature"
@@ -78095,6 +78523,61 @@
             "vigilance"
         ],
         "id": "ff23b1c2-7b99-4504-8944-ada264725524",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Hurloon Battle Hymn",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "oracleText": "Kicker {W} (You may pay an additional {W} as you cast this spell.)\nHurloon Battle Hymn deals 4 damage to target creature or planeswalker. If this spell was kicked, you gain 4 life.",
+        "kickers": [
+            {
+                "id": "kicker",
+                "description": "Kicker {W}",
+                "mana": {
+                    "W": 1
+                }
+            }
+        ],
+        "effects": [
+            {
+                "op": "dealDamage",
+                "amount": 4,
+                "to": {
+                    "target": 0
+                }
+            },
+            {
+                "op": "if",
+                "predicate": {
+                    "left": {
+                        "kickerCount": true
+                    },
+                    "op": "ge",
+                    "right": 1
+                },
+                "then": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 4
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Creature",
+                "Planeswalker"
+            ],
+            "count": 1
+        },
+        "id": "ff252e80-c155-467b-8df3-9bddc5cc45c3",
         "rarity": "uncommon"
     },
     {
