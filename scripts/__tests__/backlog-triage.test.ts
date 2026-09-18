@@ -217,6 +217,29 @@ describe("backlog-triage — the rule (issue #3851 decision 3)", () => {
         ).toMatchObject({ band: "P1", source: "edge" });
     });
 
+    it("a neighbour lends the STRONGER of its seed and the board value it may lend", () => {
+        // Parent: seed P3 (a set card), board P1 → the child inherits P1.
+        expect(
+            verdictOf(
+                [
+                    issue(1, { parent: 50 }),
+                    issue(50, { cards: [CARDS.SetOnly] }),
+                ],
+                { 50: "P1" }
+            )
+        ).toMatchObject({ band: "P1", source: "parent" });
+        // Blocked issue: seed P3, hand-set P0 → the blocker is P1.
+        expect(
+            verdictOf(
+                [
+                    issue(1, { blocks: [2] }),
+                    issue(2, { cards: [CARDS.SetOnly] }),
+                ],
+                { 2: "P0" }
+            )
+        ).toMatchObject({ band: "P1", source: "edge" });
+    });
+
     it("a P0 parent lends P1, never P0", () => {
         expect(verdictOf([issue(1, { parent: 50 })], { 50: "P0" })).toEqual({
             kind: "band",
@@ -248,6 +271,13 @@ describe("backlog-triage — cards named or unlocked", () => {
         expect(
             cardsNamedByEngineTitle(
                 "[engine] Mayhem keyword — blocks Carnage, Crimson Chaos",
+                byName
+            )
+        ).toEqual([]);
+        // One resolvable name beside an unresolvable one is still NO names.
+        expect(
+            cardsNamedByEngineTitle(
+                "[engine] Mayhem keyword — blocks Meta, Not A Card",
                 byName
             )
         ).toEqual([]);
