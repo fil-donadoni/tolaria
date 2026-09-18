@@ -501,7 +501,10 @@ describe("/new-card compiles first, hand-writes last (ADR 0137, issue #3836)", (
         // `hand-tail:` markers on cards that owe a Grammar Rule.
         const text = body();
         expect(text).toMatch(/leverage/);
-        expect(text).toMatch(/oracle:report --gap/);
+        // `(?![\w-])` and not a bare substring: `--gapp` contains `--gap`, so
+        // a loose match passes on a flag the report does not accept — which is
+        // how this very guard first went green on a broken skill.
+        expect(text).toMatch(/oracle:report --gap(?![\w-])/);
         // …and it says which of the report's two figures is the one compared.
         expect(text).toMatch(/refuse\*\* is the leverage|`R` is the leverage/);
         const src = fs.readFileSync(
