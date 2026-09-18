@@ -438,5 +438,271 @@
             "issue": 3971
         }
     ],
-    "claims": []
+    "claims": [
+        {
+            "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"assist\" is not implemented in the Mechanics Registry",
+            "issue": 4005
+        },
+        {
+            "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"changeling\" is not implemented in the Mechanics Registry",
+            "issue": 3993
+        },
+        {
+            "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"cipher\" is not implemented in the Mechanics Registry",
+            "issue": 4017
+        },
+        {
+            "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"conspire\" is not implemented in the Mechanics Registry",
+            "issue": 4012
+        },
+        {
+            "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"dethrone\" is not implemented in the Mechanics Registry",
+            "issue": 4008
+        },
+        {
+            "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"devoid\" is not implemented in the Mechanics Registry",
+            "issue": 3996
+        },
+        {
+            "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"enlist\" is not implemented in the Mechanics Registry",
+            "issue": 4009
+        },
+        {
+            "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"evolve\" is not implemented in the Mechanics Registry",
+            "issue": 4001
+        },
+        {
+            "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"extort\" is not implemented in the Mechanics Registry",
+            "issue": 4002
+        },
+        {
+            "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"flanking\" is not implemented in the Mechanics Registry",
+            "issue": 3994
+        },
+        {
+            "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"horsemanship\" is not implemented in the Mechanics Registry",
+            "issue": 3995
+        },
+        {
+            "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"ingest\" is not implemented in the Mechanics Registry",
+            "issue": 4014
+        },
+        {
+            "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"intimidate\" is not implemented in the Mechanics Registry",
+            "issue": 4000
+        },
+        {
+            "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"jump-start\" is not implemented in the Mechanics Registry",
+            "issue": 4015
+        },
+        {
+            "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"melee\" is not implemented in the Mechanics Registry",
+            "issue": 4016
+        },
+        {
+            "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"mentor\" is not implemented in the Mechanics Registry",
+            "issue": 4003
+        },
+        {
+            "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"myriad\" is not implemented in the Mechanics Registry",
+            "issue": 3999
+        },
+        {
+            "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"partner\" is not implemented in the Mechanics Registry",
+            "issue": 4019
+        },
+        {
+            "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"persist\" is not implemented in the Mechanics Registry",
+            "issue": 3992
+        },
+        {
+            "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"phasing\" is not implemented in the Mechanics Registry",
+            "issue": 4006
+        },
+        {
+            "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"provoke\" is not implemented in the Mechanics Registry",
+            "issue": 4010
+        },
+        {
+            "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"riot\" is not implemented in the Mechanics Registry",
+            "issue": 4011
+        },
+        {
+            "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"skulk\" is not implemented in the Mechanics Registry",
+            "issue": 4013
+        },
+        {
+            "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"split second\" is not implemented in the Mechanics Registry",
+            "issue": 4007
+        },
+        {
+            "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"training\" is not implemented in the Mechanics Registry",
+            "issue": 4018
+        },
+        {
+            "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"umbra armor\" is not implemented in the Mechanics Registry",
+            "issue": 4004
+        },
+        {
+            "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"undying\" is not implemented in the Mechanics Registry",
+            "issue": 3997
+        },
+        {
+            "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"unleash\" is not implemented in the Mechanics Registry",
+            "issue": 3998
+        },
+        {
+            "kind": "mechanic",
+            "key": "ungrantable-keyword › keyword \"exalted\" is implemented by definition-level expansion (ADR 0054), so granting it to another permanent would produce nothing",
+            "issue": 4020
+        },
+        {
+            "kind": "migration",
+            "key": "(no slot)",
+            "issue": 4039
+        },
+        {
+            "kind": "migration",
+            "key": "activated",
+            "issue": 4027
+        },
+        {
+            "kind": "migration",
+            "key": "activated + keyword-line",
+            "issue": 4031
+        },
+        {
+            "kind": "migration",
+            "key": "activated + keyword-line + static",
+            "issue": 4042
+        },
+        {
+            "kind": "migration",
+            "key": "activated + mana-ability",
+            "issue": 4029
+        },
+        {
+            "kind": "migration",
+            "key": "activated + mana-ability + static",
+            "issue": 4033
+        },
+        {
+            "kind": "migration",
+            "key": "activated + static",
+            "issue": 4043
+        },
+        {
+            "kind": "migration",
+            "key": "activated + triggered",
+            "issue": 4044
+        },
+        {
+            "kind": "migration",
+            "key": "keyword-line",
+            "issue": 4037
+        },
+        {
+            "kind": "migration",
+            "key": "keyword-line + mana-ability",
+            "issue": 4032
+        },
+        {
+            "kind": "migration",
+            "key": "keyword-line + spell",
+            "issue": 4036
+        },
+        {
+            "kind": "migration",
+            "key": "keyword-line + static",
+            "issue": 4040
+        },
+        {
+            "kind": "migration",
+            "key": "keyword-line + static + triggered",
+            "issue": 4045
+        },
+        {
+            "kind": "migration",
+            "key": "keyword-line + triggered",
+            "issue": 4035
+        },
+        {
+            "kind": "migration",
+            "key": "mana-ability",
+            "issue": 4026
+        },
+        {
+            "kind": "migration",
+            "key": "mana-ability + static",
+            "issue": 4041
+        },
+        {
+            "kind": "migration",
+            "key": "spell",
+            "issue": 4028
+        },
+        {
+            "kind": "migration",
+            "key": "static",
+            "issue": 4030
+        },
+        {
+            "kind": "migration",
+            "key": "triggered",
+            "issue": 4034
+        },
+        {
+            "kind": "scenario",
+            "key": "smoke-scenario › Op \"counters\" targets $source/$each — covered by the card's own per-card test",
+            "issue": 4023
+        },
+        {
+            "kind": "scenario",
+            "key": "smoke-scenario › Op \"moveZone\" changes zones on an object/zone the canned generator does not model — covered by the card's own per-card test",
+            "issue": 4021
+        },
+        {
+            "kind": "scenario",
+            "key": "smoke-scenario › Op \"tapUntap\" targets $source/$each — covered by the card's own per-card test",
+            "issue": 4024
+        },
+        {
+            "kind": "scenario",
+            "key": "smoke-scenario › amount is chosen-cost X — depends on the value announced for {X} at cast time",
+            "issue": 4022
+        },
+        {
+            "kind": "scenario",
+            "key": "validate-effect-script › effects[0]: ref \"$source\" references undefined binding \"$source\" — no earlier Op binds it (bare object refs are the forEach \"$each\" of a permanents set)",
+            "issue": 4025
+        }
+    ]
 }
