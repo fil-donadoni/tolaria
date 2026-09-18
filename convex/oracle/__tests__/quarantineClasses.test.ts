@@ -282,3 +282,130 @@ describe("card-dependent smoke skips quarantine until a fixture exhibits the for
         ]);
     });
 });
+
+describe("the smoke source's KIND and ZONE are read, not assumed (issue #3879)", () => {
+    /** A self-counter clause on the card's own source — the shape that reaches
+     *  `ready` on an ordinary ability site and must NOT on one whose source is
+     *  gone when it resolves. */
+    const SELF_COUNTER: EffectOp[] = [
+        {
+            op: "counters",
+            action: "add",
+            counter: "+1/+1",
+            target: { ref: "$source" },
+            count: 1,
+        },
+    ] as unknown as EffectOp[];
+
+    const withTrigger = (
+        head: { kind: "died" | "entered"; scope: string },
+        types: string[] = ["Creature"]
+    ): CompiledDefinition =>
+        ({
+            name: `Head ${head.kind}/${head.scope}`,
+            types,
+            manaCost: { B: 1 },
+            ...(types.includes("Creature") ? { power: 1, toughness: 1 } : {}),
+            compiledTriggeredAbilities: [
+                {
+                    id: "smoke-head",
+                    oracleText: "smoke",
+                    head,
+                    effects: SELF_COUNTER,
+                },
+            ],
+        }) as unknown as CompiledDefinition;
+
+    it("a trigger head on the source's OWN death keeps the card in quarantine", () => {
+        // CR 603.10 / 608.2h — the ability resolves with its source already in
+        // the graveyard, so `$source` binds to nothing and the clause the
+        // canned run would assert never happens.
+        expect(gate(withTrigger({ kind: "died", scope: "self" }), [])).toEqual([
+            expect.objectContaining({
+                detail: expect.stringContaining(
+                    `Op "counters" targets $source/$each`
+                ),
+            }),
+        ]);
+    });
+
+    it("a head that merely INCLUDES the source among many still reaches ready", () => {
+        // "Whenever a creature dies" — the case the card is about is another
+        // creature dying with the source still on the battlefield, which is
+        // exactly what the canned scenario seeds. No ready-state is lost.
+        for (const scope of ["any", "another-yours", "any-other"])
+            expect(gate(withTrigger({ kind: "died", scope }), [])).toEqual([]);
+        expect(
+            gate(withTrigger({ kind: "entered", scope: "self" }), [])
+        ).toEqual([]);
+    });
+
+    it("an ability activated from a graveyard keeps the card in quarantine", () => {
+        // CR 113.6 / 602.5b — the source is a card in a graveyard when the
+        // ability resolves, so there is no permanent for `$source` to name.
+        const withActivation = (
+            flags: Record<string, boolean>
+        ): CompiledDefinition =>
+            ({
+                name: "Graveyard Activator",
+                types: ["Creature"],
+                manaCost: { B: 1 },
+                power: 1,
+                toughness: 1,
+                activatedAbilities: [
+                    {
+                        id: "smoke-act",
+                        oracleText: "smoke",
+                        cost: { generic: 1 },
+                        useStack: true,
+                        effects: SELF_COUNTER,
+                        ...flags,
+                    },
+                ],
+            }) as unknown as CompiledDefinition;
+        expect(gate(withActivation({}), [])).toEqual([]);
+        for (const flag of ["activateFromGraveyard", "activateFromHand"])
+            expect(gate(withActivation({ [flag]: true }), [])).toEqual([
+                expect.objectContaining({
+                    detail: expect.stringContaining(
+                        `Op "counters" targets $source/$each`
+                    ),
+                }),
+            ]);
+    });
+
+    it("an Op whose primitive needs a creature keeps a NON-creature host in quarantine", () => {
+        // `setExileOnDeath` returns early on a non-creature permanent
+        // (CR 205.1a), so the artifact host below has no outcome to prove —
+        // against the old filler bear it looked green.
+        const withExileOnDeath = (
+            types: string[],
+            pt: Record<string, number>
+        ): CompiledDefinition =>
+            ({
+                name: `Host ${types.join("/")}`,
+                types,
+                manaCost: { B: 1 },
+                ...pt,
+                activatedAbilities: [
+                    {
+                        id: "smoke-act",
+                        oracleText: "smoke",
+                        cost: { generic: 1 },
+                        useStack: true,
+                        effects: [
+                            { op: "exileOnDeath", target: { ref: "$source" } },
+                        ] as unknown as EffectOp[],
+                    },
+                ],
+            }) as unknown as CompiledDefinition;
+        expect(
+            gate(withExileOnDeath(["Creature"], { power: 1, toughness: 1 }), [])
+        ).toEqual([]);
+        expect(gate(withExileOnDeath(["Artifact"], {}), [])).toEqual([
+            expect.objectContaining({
+                detail: expect.stringContaining("non-creature"),
+            }),
+        ]);
+    });
+});
