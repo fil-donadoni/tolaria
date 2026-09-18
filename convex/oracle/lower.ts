@@ -35,6 +35,7 @@ import {
 } from "./lowerSpell";
 import { isDefinitionLevelKeyword, lowerStaticClause } from "./lowerStatic";
 import { lowerTriggeredAbility } from "./lowerTriggered";
+import { sortKeys } from "./gates";
 import { readManaCost } from "./manaCost";
 import type { CompiledDefinition, OracleCard, ParsedTypeLine } from "./types";
 import type { LineParse, SlotIR } from "./grammar/ir";
@@ -144,6 +145,48 @@ const MANA_ABILITY_UNPAYABLE_COST_LEGS: ReadonlySet<string> = new Set([
     "returnThisToHand",
 ]);
 
+/**
+ * CR 605.1a — the painland cycle prints TWO mana abilities ("{T}: Add {C}."
+ * then "{T}: Add <c1> or <c2>. This land deals 1 damage to you.", issue
+ * #3828) that the hand-written catalogue models as ONE `manaChoices` ability
+ * whose first option is the painless colourless tap and whose coloured
+ * options carry `dealsDamageToControllerOnColoredTap` (Adarkar Wastes,
+ * `cards/sets/ice/colorless.ts`). Two abilities sharing an activation cost are
+ * the same choice to a player who can pay that cost only once, so folding the
+ * colourless line into the very next coloured-choice-with-rider line that
+ * shares its cost changes no behaviour — it reproduces the shape the
+ * catalogue already ships, which is what lets those cards round-trip
+ * (Guard C).
+ *
+ * `prior` must be EXACTLY what this `case`'s own fixed-production branch
+ * constructs below — no other field, and no colour in `manaProduced` — so the
+ * merge never reaches for a hand-authored ability this compiler did not just
+ * build; a card printing "{T}: Add {C}." as its ONLY mana line is untouched.
+ */
+const FIXED_MANA_ABILITY_KEYS: ReadonlySet<string> = new Set([
+    "id",
+    "oracleText",
+    "cost",
+    "useStack",
+    "manaProduced",
+]);
+
+function isPainlessColorlessTap(ability: ActivatedAbility): boolean {
+    const mana = ability.manaProduced;
+    return (
+        mana !== undefined &&
+        Object.keys(mana).every((k) => k === "C") &&
+        Object.keys(ability).every((k) => FIXED_MANA_ABILITY_KEYS.has(k))
+    );
+}
+
+function sameCost(
+    a: ActivatedAbility["cost"],
+    b: ActivatedAbility["cost"]
+): boolean {
+    return JSON.stringify(sortKeys(a)) === JSON.stringify(sortKeys(b));
+}
+
 function lowerLine(
     parsed: LineParse,
     card: OracleCard,
@@ -200,6 +243,30 @@ function lowerLine(
             if (unpayable.length > 0) {
                 return `mana ability cost leg "${unpayable[0]}" has no payment site on the CR 605.1a stackless path`;
             }
+            // See `isPainlessColorlessTap`'s doc comment — the painland merge.
+            if (
+                ir.produces.kind === "choice" &&
+                ir.produces.dealsDamageToControllerOnColoredTap !== undefined
+            ) {
+                const prior =
+                    acc.activatedAbilities[acc.activatedAbilities.length - 1];
+                if (
+                    prior !== undefined &&
+                    isPainlessColorlessTap(prior) &&
+                    sameCost(prior.cost, cost.value)
+                ) {
+                    const colorless = prior.manaProduced!;
+                    delete prior.manaProduced;
+                    prior.manaChoices = [
+                        colorless,
+                        ...(ir.produces.options as ManaCost[]),
+                    ];
+                    prior.dealsDamageToControllerOnColoredTap =
+                        ir.produces.dealsDamageToControllerOnColoredTap;
+                    prior.oracleText = `${prior.oracleText}\n${parsed.line}`;
+                    return null;
+                }
+            }
             const ability: ActivatedAbility = {
                 id,
                 oracleText: parsed.line,
@@ -210,7 +277,15 @@ function lowerLine(
             };
             if (ir.produces.kind === "fixed")
                 ability.manaProduced = ir.produces.mana;
-            else ability.manaChoices = ir.produces.options as ManaCost[];
+            else {
+                ability.manaChoices = ir.produces.options as ManaCost[];
+                if (
+                    ir.produces.dealsDamageToControllerOnColoredTap !==
+                    undefined
+                )
+                    ability.dealsDamageToControllerOnColoredTap =
+                        ir.produces.dealsDamageToControllerOnColoredTap;
+            }
             acc.activatedAbilities.push(ability);
             return null;
         }
