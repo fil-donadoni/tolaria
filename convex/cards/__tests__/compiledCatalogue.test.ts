@@ -2,7 +2,12 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { getDefinition, tryGetDefinition, tryGetCardByName } from "../index";
-import { resolveTopOfStack, type GameState } from "../../gre/state";
+import {
+    hostMatchesEnchantRestriction,
+    resolveTopOfStack,
+    type GameState,
+} from "../../gre/state";
+import { getLegalTargets, NO_TARGETING_SOURCE } from "../../gre/rules";
 import { projectPublicState } from "../../gameProjections";
 import { excludeHandWritten } from "../compiledCatalogue";
 import type { CardDefinition } from "../types";
@@ -101,6 +106,70 @@ describe("compiled `ready` card hydration (issue #2702)", () => {
         // resolve it back through the same seam a client reads it with.
         expect(slim.card.id).toBe(COEURL_ID);
         expect(getDefinition(slim.card.id).name).toBe("Coeurl");
+    });
+});
+
+/**
+ * A compiled AURA (issue #3825): the keyword line's `Enchant <descriptor>`
+ * lowers to `targetRequirement`, and that one field is what the engine reads
+ * for BOTH halves of CR 702.5a — the Aura spell's legal targets
+ * (`getLegalTargets`) and the host the Aura may stay attached to
+ * (`hostMatchesEnchantRestriction`, the CR 704.5m SBA's predicate). Emblem of
+ * the Warmind is a real compiled `ready` row ("Enchant creature you control").
+ */
+describe("compiled Aura — Enchant <descriptor> reaches the engine (CR 702.5a, issue #3825)", () => {
+    const emblem = tryGetCardByName("Emblem of the Warmind")!;
+    const bears = tryGetCardByName("Grizzly Bears")!;
+    const forest = tryGetCardByName("Forest")!;
+
+    it("is a compiled row, not a hand-written one", () => {
+        const src = readFileSync(
+            resolve(__dirname, "../../../data/card-index.json"),
+            "utf8"
+        );
+        const entry = (
+            JSON.parse(src) as Array<{ name: string; source?: string }>
+        ).find((e) => e.name === "Emblem of the Warmind");
+        expect(entry?.source).toBe("compiled");
+    });
+
+    it("the Aura spell targets only a creature its caster controls", () => {
+        const mine = makeInstance(bears.id, { id: "mine" });
+        const theirs = makeInstance(bears.id, {
+            id: "theirs",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const land = makeInstance(forest.id, { id: "land" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [mine, land] }),
+                makePlayer("p2", { battlefield: [theirs] }),
+            ],
+        });
+        const legal = getLegalTargets(
+            state,
+            emblem.targetRequirement!,
+            NO_TARGETING_SOURCE,
+            "p1"
+        );
+        expect(legal.map((t) => t.id)).toEqual(["mine"]);
+    });
+
+    it("the attached Aura's host legality reads the same restriction", () => {
+        const aura = makeInstance(emblem.id, { id: "aura" });
+        expect(
+            hostMatchesEnchantRestriction(
+                makeInstance(bears.id, { id: "c" }),
+                aura
+            )
+        ).toBe(true);
+        expect(
+            hostMatchesEnchantRestriction(
+                makeInstance(forest.id, { id: "l" }),
+                aura
+            )
+        ).toBe(false);
     });
 });
 
