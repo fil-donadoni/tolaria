@@ -78,6 +78,7 @@ import {
     type OracleLegalityFile,
 } from "./oracle-legality";
 import { corpusIsCached, readCorpus, readPin } from "./oracle-corpus";
+import { carriedBotReach } from "./lib/oracle-bot-reach";
 import {
     compilerHash,
     LOCKFILE_INPUT_SUMMARY,
@@ -250,7 +251,12 @@ function checkLockfile(): void {
 
     // Tier 3 — full regenerate-and-diff, when the cache is here.
     if (corpusIsCached() && pin !== null) {
-        const regenerated = serializeLockfile(buildLockfile(readCorpus()));
+        // ADR 0105 § 7.2 — the gate never PLAYS: the committed Bot-play
+        // verdicts are carried forward on unchanged definitions, so this tier
+        // asks only whether the compiler still produces the file.
+        const regenerated = serializeLockfile(
+            buildLockfile(readCorpus(), { botReach: carriedBotReach(lock) })
+        );
         if (regenerated !== readFileSync(LOCKFILE_PATH, "utf8")) {
             fail(
                 "oracle lockfile",

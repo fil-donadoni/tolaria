@@ -13,6 +13,7 @@ import {
     EFFECT_OP_REGISTRY,
     MECHANICS_REGISTRY,
 } from "../../convex/cards/mechanicsRegistry";
+import type { BotReachOutcome } from "../../convex/gre/ai/botReach";
 import type {
     Attribution,
     CompiledDefinition,
@@ -56,6 +57,13 @@ export interface HeaderHashes {
 
 export interface LockfileHeader extends HeaderHashes {
     readonly grammarVersion: string;
+    /**
+     * The Bot hash the rows' `botReach` verdicts were played under (ADR 0105
+     * § 7.2, issue #3830) — the second half of the sweep's cache key, never a
+     * drift condition: see `lib/oracle-bot-reach.ts` for why it is NOT one of
+     * the {@link HeaderHashes}.
+     */
+    readonly botHash: string;
     readonly corpus: CorpusPin;
     readonly counts: Record<CompileState, number> & { readonly total: number };
 }
@@ -82,6 +90,19 @@ export interface FragmentRow {
     readonly attribution?: Attribution;
 }
 
+/**
+ * A Bot Gap (ADR 0105 § 7.2, issue #3830): one form a card fails the Bot-play
+ * sweep by, and how many cards fail it that way — ranked like
+ * {@link FragmentRow}, blast radius first.
+ */
+export interface BotGapRow {
+    /** `<cause> › <form>`, plus `› <ops>` for a `never-chosen` card. */
+    readonly key: string;
+    /** `ignored` ships the cards; `frozen` withholds them. */
+    readonly outcome: BotReachOutcome;
+    readonly cards: number;
+}
+
 export interface CardRow {
     readonly oracleId: string;
     readonly name: string;
@@ -99,6 +120,17 @@ export interface CardRow {
     readonly opsUsed?: readonly string[];
     readonly quarantineReasons?: readonly QuarantineReason[];
     readonly definition?: CompiledDefinition;
+    /**
+     * The Bot-play verdict (ADR 0105 § 7.2, issue #3830) — present iff the
+     * card compiled `ready` before the sweep. A `frozen` card is then
+     * `quarantine` with reason `bot-unreachable`; `played` and `ignored` stay
+     * `ready`. Carried forward from the previous lockfile while the
+     * definition and the Bot are unchanged (`lib/oracle-bot-reach.ts`).
+     */
+    readonly botReach?: BotReachOutcome;
+    /** The Bot Gap key the card counts toward — present iff `botReach` is
+     *  not `played`. */
+    readonly botGap?: string;
     /**
      * Present iff this card's hand-written definition has been RETIRED
      * (issue #3049, ADR 0114 §1) — this row is then the only copy of the
@@ -125,6 +157,8 @@ export interface Lockfile {
     readonly header: LockfileHeader;
     readonly formats: Record<ReportedFormat, FormatRow>;
     readonly fragments: readonly FragmentRow[];
+    /** The Bot Gap table (ADR 0105 § 7.2), ranked. */
+    readonly botGaps: readonly BotGapRow[];
     readonly cards: readonly CardRow[];
 }
 
@@ -148,6 +182,8 @@ const DRIVER_FILES = [
     "scripts/oracle-corpus.ts",
     "scripts/oracle-compile.ts",
     "scripts/lib/oracle-lockfile.ts",
+    // The Bot Gap key and table (issue #3830) — rendered into this file.
+    "scripts/lib/oracle-bot-reach.ts",
 ] as const;
 
 /**
@@ -318,6 +354,9 @@ export function serializeLockfile(lock: Lockfile): string {
     );
     lines.push(`    "fragments": [`);
     lines.push(...rowsOf(lock.fragments));
+    lines.push(`    ],`);
+    lines.push(`    "botGaps": [`);
+    lines.push(...rowsOf(lock.botGaps));
     lines.push(`    ],`);
     lines.push(`    "cards": [`);
     lines.push(...rowsOf(lock.cards));
