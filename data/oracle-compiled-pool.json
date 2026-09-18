@@ -132,6 +132,41 @@
         "rarity": "common"
     },
     {
+        "name": "Afflict",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "oracleText": "Target creature gets -1/-1 until end of turn.\nDraw a card.",
+        "effects": [
+            {
+                "op": "pump",
+                "target": {
+                    "target": 0
+                },
+                "power": -1,
+                "toughness": -1,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "0012621b-c0e1-48d6-99b9-ecca4763d748",
+        "rarity": "common"
+    },
+    {
         "name": "Flensermite",
         "types": [
             "Creature"
@@ -281,6 +316,36 @@
         "power": 5,
         "toughness": 4,
         "id": "0053bd00-90fd-48c2-8f79-952d5d1e3e74",
+        "rarity": "common"
+    },
+    {
+        "name": "Refresh",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "oracleText": "Regenerate target creature.\nDraw a card.",
+        "effects": [
+            {
+                "op": "regenerate",
+                "target": {
+                    "target": 0
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "0084ba4e-98eb-4eb4-b23e-c5ab4d7d95cb",
         "rarity": "common"
     },
     {
@@ -2924,6 +2989,37 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Playful Shove",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "oracleText": "Playful Shove deals 1 damage to any target.\nDraw a card.",
+        "effects": [
+            {
+                "op": "dealDamage",
+                "amount": 1,
+                "to": {
+                    "target": 0
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "any",
+            "count": 1
+        },
+        "id": "07956edf-34c1-4218-9784-ddbca13e380c",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Front Porch Sentries",
         "types": [
             "Creature"
@@ -3065,6 +3161,39 @@
         ],
         "entersTapped": true,
         "id": "0824a960-dd89-45c5-90f0-3ec9eb47d9ce",
+        "rarity": "common"
+    },
+    {
+        "name": "Leap",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "U": 1
+        },
+        "oracleText": "Target creature gains flying until end of turn.\nDraw a card.",
+        "effects": [
+            {
+                "op": "grantAbility",
+                "target": {
+                    "target": 0
+                },
+                "ability": "flying",
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "0841423d-7a27-4bc5-9ac2-0ba47648c6f1",
         "rarity": "common"
     },
     {
@@ -10487,6 +10616,44 @@
         "rarity": "common"
     },
     {
+        "name": "Gallantry",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "Target blocking creature gets +4/+4 until end of turn.\nDraw a card.",
+        "effects": [
+            {
+                "op": "pump",
+                "target": {
+                    "target": 0
+                },
+                "power": 4,
+                "toughness": 4,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "combatRoleFilter": [
+                "blocking"
+            ]
+        },
+        "id": "1ccdca3b-7d53-4d19-bd15-9a1b148c4aaf",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Simic Guildgate",
         "types": [
             "Land"
@@ -17068,6 +17235,40 @@
         "rarity": "common"
     },
     {
+        "name": "Lace with Moonglove",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "oracleText": "Target creature gains deathtouch until end of turn. (Any amount of damage it deals to a creature is enough to destroy that creature.)\nDraw a card.",
+        "effects": [
+            {
+                "op": "grantAbility",
+                "target": {
+                    "target": 0
+                },
+                "ability": "deathtouch",
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "32f209d6-c194-4208-864d-f8a44b88997f",
+        "rarity": "common"
+    },
+    {
         "name": "Highland Giant",
         "types": [
             "Creature"
@@ -17126,6 +17327,71 @@
         ],
         "id": "3323467c-132f-469a-90fc-9d3b0fb004aa",
         "rarity": "common"
+    },
+    {
+        "name": "Execute",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "oracleText": "Destroy target white creature. It can't be regenerated.\nDraw a card.",
+        "effects": [
+            {
+                "op": "destroy",
+                "target": {
+                    "target": 0
+                },
+                "cantBeRegenerated": true
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "colorFilter": "W"
+        },
+        "id": "333123bc-fb66-4b5a-bf55-045d2906c8c3",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Bright Reprisal",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 4,
+            "W": 1
+        },
+        "oracleText": "Destroy target attacking creature.\nDraw a card.",
+        "effects": [
+            {
+                "op": "destroy",
+                "target": {
+                    "target": 0
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "combatRoleFilter": [
+                "attacking"
+            ]
+        },
+        "id": "3340ffb9-9513-4551-ad64-821600596b2e",
+        "rarity": "uncommon"
     },
     {
         "name": "Tonic Peddler",
@@ -17732,6 +17998,37 @@
         "power": 2,
         "toughness": 1,
         "id": "35bbb10f-c118-4905-8329-3963af415178",
+        "rarity": "common"
+    },
+    {
+        "name": "Refocus",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "oracleText": "Untap target creature.\nDraw a card.",
+        "effects": [
+            {
+                "op": "tapUntap",
+                "action": "untap",
+                "target": {
+                    "target": 0
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "35c78973-f2ae-4c76-802f-793d1022fcbd",
         "rarity": "common"
     },
     {
@@ -18870,6 +19167,40 @@
             }
         ],
         "id": "39ae12ff-8039-4aac-aa50-f879376888a1",
+        "rarity": "common"
+    },
+    {
+        "name": "Defiant Strike",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "oracleText": "Target creature gets +1/+0 until end of turn.\nDraw a card.",
+        "effects": [
+            {
+                "op": "pump",
+                "target": {
+                    "target": 0
+                },
+                "power": 1,
+                "toughness": 0,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "39ec83fa-5cb4-4633-8827-36d874a2d2e7",
         "rarity": "common"
     },
     {
@@ -20090,6 +20421,40 @@
         ],
         "id": "3ddea611-856c-41e4-909a-80826f3dfca1",
         "rarity": "rare"
+    },
+    {
+        "name": "Poison the Blade",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "oracleText": "Target creature gains deathtouch until end of turn.\nDraw a card.",
+        "effects": [
+            {
+                "op": "grantAbility",
+                "target": {
+                    "target": 0
+                },
+                "ability": "deathtouch",
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "3de4bf10-a502-4748-9118-5459684542a7",
+        "rarity": "common"
     },
     {
         "name": "Guardian Lions",
@@ -23753,6 +24118,36 @@
         "rarity": "common"
     },
     {
+        "name": "Smash",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "oracleText": "Destroy target artifact.\nDraw a card.",
+        "effects": [
+            {
+                "op": "destroy",
+                "target": {
+                    "target": 0
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Artifact",
+            "count": 1
+        },
+        "id": "4a6c869c-74c2-42b6-bb23-a2f481c4b673",
+        "rarity": "common"
+    },
+    {
         "name": "Vulshok Sorcerer",
         "types": [
             "Creature"
@@ -26523,6 +26918,44 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Evasive Maneuvers",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "oracleText": "Target blocking creature you control gets +2/+2 until end of turn.\nDraw a card.",
+        "effects": [
+            {
+                "op": "pump",
+                "target": {
+                    "target": 0
+                },
+                "power": 2,
+                "toughness": 2,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "combatRoleFilter": [
+                "blocking"
+            ],
+            "controller": "you"
+        },
+        "id": "547e7238-ed01-462a-8135-08114ada7541",
+        "rarity": "common"
+    },
+    {
         "name": "Armored Griffin",
         "types": [
             "Creature"
@@ -27516,6 +27949,39 @@
         "rarity": "common"
     },
     {
+        "name": "Shadow Rift",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "U": 1
+        },
+        "oracleText": "Target creature gains shadow until end of turn. (It can block or be blocked by only creatures with shadow.)\nDraw a card.",
+        "effects": [
+            {
+                "op": "grantAbility",
+                "target": {
+                    "target": 0
+                },
+                "ability": "shadow",
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "57c11175-9feb-4801-9b46-d577d5ecef40",
+        "rarity": "common"
+    },
+    {
         "name": "Tanglepool Bridge",
         "types": [
             "Artifact",
@@ -27842,6 +28308,39 @@
         ],
         "id": "59bd1534-52d1-4946-b430-d26f039a9067",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Expedite",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "R": 1
+        },
+        "oracleText": "Target creature gains haste until end of turn.\nDraw a card.",
+        "effects": [
+            {
+                "op": "grantAbility",
+                "target": {
+                    "target": 0
+                },
+                "ability": "haste",
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "59c65eb7-4353-45ce-9c2e-1791c2804ccf",
+        "rarity": "common"
     },
     {
         "name": "Akrasan Squire",
@@ -28940,6 +29439,43 @@
         ],
         "id": "5d2a73cf-8172-46ad-af6d-ae9cad33b225",
         "rarity": "rare"
+    },
+    {
+        "name": "Captain's Defense",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "oracleText": "Target blocking creature gets +2/+2 until end of turn.\nDraw a card.",
+        "effects": [
+            {
+                "op": "pump",
+                "target": {
+                    "target": 0
+                },
+                "power": 2,
+                "toughness": 2,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "combatRoleFilter": [
+                "blocking"
+            ]
+        },
+        "id": "5d4bdbff-3284-4b5b-92b1-f24880269024",
+        "rarity": "common"
     },
     {
         "name": "Charging Badger",
@@ -30996,6 +31532,44 @@
         "rarity": "common"
     },
     {
+        "name": "Aang's Defense",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "oracleText": "Target blocking creature you control gets +2/+2 until end of turn.\nDraw a card.",
+        "effects": [
+            {
+                "op": "pump",
+                "target": {
+                    "target": 0
+                },
+                "power": 2,
+                "toughness": 2,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "combatRoleFilter": [
+                "blocking"
+            ],
+            "controller": "you"
+        },
+        "id": "642e1b90-c240-44fe-82b2-7522026224ae",
+        "rarity": "common"
+    },
+    {
         "name": "Bottle Gnomes",
         "types": [
             "Artifact",
@@ -32714,6 +33288,31 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Ritual of Rejuvenation",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "You gain 4 life.\nDraw a card.",
+        "effects": [
+            {
+                "op": "gainLife",
+                "player": "controller",
+                "amount": 4
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "id": "691c0acb-1882-482f-9513-e7d010cc1d15",
+        "rarity": "common"
+    },
+    {
         "name": "Bash to Bits",
         "types": [
             "Instant"
@@ -32834,6 +33433,40 @@
         ],
         "id": "69a5f84a-9e9b-42b6-a973-864409d6e564",
         "rarity": "rare"
+    },
+    {
+        "name": "Accelerate",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "oracleText": "Target creature gains haste until end of turn.\nDraw a card.",
+        "effects": [
+            {
+                "op": "grantAbility",
+                "target": {
+                    "target": 0
+                },
+                "ability": "haste",
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "6a28dd88-db90-4f02-8aa9-39051d2c4763",
+        "rarity": "common"
     },
     {
         "name": "Needlepeak Spider",
@@ -32968,6 +33601,37 @@
             }
         ],
         "id": "6a926f9e-ee63-4b6e-8e5b-0650b74344a5",
+        "rarity": "common"
+    },
+    {
+        "name": "Ember Shot",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 6,
+            "R": 1
+        },
+        "oracleText": "Ember Shot deals 3 damage to any target.\nDraw a card.",
+        "effects": [
+            {
+                "op": "dealDamage",
+                "amount": 3,
+                "to": {
+                    "target": 0
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "any",
+            "count": 1
+        },
+        "id": "6a9eb72b-9ae2-4b64-bbb9-187446b5fd2f",
         "rarity": "common"
     },
     {
@@ -37758,6 +38422,41 @@
         "rarity": "common"
     },
     {
+        "name": "Bewilder",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1
+        },
+        "oracleText": "Target creature gets -3/-0 until end of turn.\nDraw a card.",
+        "effects": [
+            {
+                "op": "pump",
+                "target": {
+                    "target": 0
+                },
+                "power": -3,
+                "toughness": 0,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "7be63098-6446-4e64-85b0-9af914f5e075",
+        "rarity": "common"
+    },
+    {
         "name": "Gongaga, Reactor Town",
         "types": [
             "Land"
@@ -40324,6 +41023,39 @@
         "rarity": "rare"
     },
     {
+        "name": "Instill Infection",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "oracleText": "Put a -1/-1 counter on target creature.\nDraw a card.",
+        "effects": [
+            {
+                "op": "counters",
+                "action": "add",
+                "counter": "-1/-1",
+                "target": {
+                    "target": 0
+                },
+                "count": 1
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "82ef2567-f798-4447-9735-c7c0d88aba85",
+        "rarity": "common"
+    },
+    {
         "name": "Earthblighter",
         "types": [
             "Creature"
@@ -41995,6 +42727,41 @@
         "power": 3,
         "toughness": 2,
         "id": "88583170-7b0e-4c02-b270-4859ba05d82b",
+        "rarity": "common"
+    },
+    {
+        "name": "Befuddle",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1
+        },
+        "oracleText": "Target creature gets -4/-0 until end of turn.\nDraw a card.",
+        "effects": [
+            {
+                "op": "pump",
+                "target": {
+                    "target": 0
+                },
+                "power": -4,
+                "toughness": 0,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "88858285-23ac-4d7e-b8dd-a20982d95a2d",
         "rarity": "common"
     },
     {
@@ -46397,6 +47164,39 @@
         "rarity": "common"
     },
     {
+        "name": "Cloak of Feathers",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "U": 1
+        },
+        "oracleText": "Target creature gains flying until end of turn.\nDraw a card.",
+        "effects": [
+            {
+                "op": "grantAbility",
+                "target": {
+                    "target": 0
+                },
+                "ability": "flying",
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "9746790c-a426-4135-8c9d-afb82a0c26b8",
+        "rarity": "common"
+    },
+    {
         "name": "Murmuring Phantasm",
         "types": [
             "Creature"
@@ -47352,6 +48152,37 @@
             "count": 1
         },
         "id": "9a17cbf6-3f38-4bc6-8448-881e19cffe06",
+        "rarity": "common"
+    },
+    {
+        "name": "Healing Hands",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "Target player gains 4 life.\nDraw a card.",
+        "effects": [
+            {
+                "op": "gainLife",
+                "player": {
+                    "target": 0
+                },
+                "amount": 4
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "player",
+            "count": 1
+        },
+        "id": "9a26559c-0ac5-42a7-b6ac-b39938c31026",
         "rarity": "common"
     },
     {
@@ -50953,6 +51784,41 @@
         "rarity": "common"
     },
     {
+        "name": "Sugar Rush",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Target creature gets +3/+0 until end of turn.\nDraw a card.",
+        "effects": [
+            {
+                "op": "pump",
+                "target": {
+                    "target": 0
+                },
+                "power": 3,
+                "toughness": 0,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "a638c9ba-45d6-4b50-a8ab-ef580a0a5d8e",
+        "rarity": "common"
+    },
+    {
         "name": "Crushing Canopy",
         "types": [
             "Instant"
@@ -52647,6 +53513,41 @@
             ]
         },
         "id": "ab3fcc43-839b-48c1-91e3-7cc80d8c7f9a",
+        "rarity": "common"
+    },
+    {
+        "name": "Shocking Grasp",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "oracleText": "Target creature gets -2/-0 until end of turn.\nDraw a card.",
+        "effects": [
+            {
+                "op": "pump",
+                "target": {
+                    "target": 0
+                },
+                "power": -2,
+                "toughness": 0,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "ab95fe13-c09b-4eed-aeae-fb1c5b6eb476",
         "rarity": "common"
     },
     {
@@ -55966,6 +56867,31 @@
         ],
         "id": "b522518c-1846-4e95-b77d-2aadac78684d",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Dosan's Oldest Chant",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 4,
+            "G": 1
+        },
+        "oracleText": "You gain 6 life.\nDraw a card.",
+        "effects": [
+            {
+                "op": "gainLife",
+                "player": "controller",
+                "amount": 6
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "id": "b525f824-fcce-48cc-887d-98d4058b1d31",
+        "rarity": "common"
     },
     {
         "name": "Deathmark Prelate",
@@ -62484,6 +63410,41 @@
         "rarity": "rare"
     },
     {
+        "name": "Rebellious Strike",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "Target creature gets +3/+0 until end of turn.\nDraw a card.",
+        "effects": [
+            {
+                "op": "pump",
+                "target": {
+                    "target": 0
+                },
+                "power": 3,
+                "toughness": 0,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "c9bafe19-3bd6-4da0-b3e5-e0b89262504c",
+        "rarity": "common"
+    },
+    {
         "name": "Goblin Cavaliers",
         "types": [
             "Creature"
@@ -64865,6 +65826,37 @@
         "rarity": "common"
     },
     {
+        "name": "Pressure Point",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "Tap target creature.\nDraw a card.",
+        "effects": [
+            {
+                "op": "tapUntap",
+                "action": "tap",
+                "target": {
+                    "target": 0
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "d0027360-736c-4b3e-b2cd-0d821cca587a",
+        "rarity": "common"
+    },
+    {
         "name": "Horned Sliver",
         "types": [
             "Creature"
@@ -64943,6 +65935,38 @@
             }
         ],
         "id": "d08586d4-8163-454c-b8d8-c5034c4aee6c",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Honor",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "oracleText": "Put a +1/+1 counter on target creature.\nDraw a card.",
+        "effects": [
+            {
+                "op": "counters",
+                "action": "add",
+                "counter": "+1/+1",
+                "target": {
+                    "target": 0
+                },
+                "count": 1
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "d0b4e925-1d59-41a1-bc06-9982695d778f",
         "rarity": "uncommon"
     },
     {
@@ -68879,6 +69903,38 @@
         "rarity": "common"
     },
     {
+        "name": "Bargain",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "Target opponent draws a card.\nYou gain 7 life.",
+        "effects": [
+            {
+                "op": "draw",
+                "player": {
+                    "target": 0
+                },
+                "count": 1
+            },
+            {
+                "op": "gainLife",
+                "player": "controller",
+                "amount": 7
+            }
+        ],
+        "targetRequirement": {
+            "type": "player",
+            "count": 1,
+            "controller": "opponent"
+        },
+        "id": "de7f3064-a378-4ca4-99f5-b46518ddc43d",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Ghostly Sentinel",
         "types": [
             "Creature"
@@ -68939,6 +69995,39 @@
         ],
         "id": "de8d3e36-977f-4169-8f2a-a4057b912ccb",
         "rarity": "common"
+    },
+    {
+        "name": "Slice in Twain",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 2
+        },
+        "oracleText": "Destroy target artifact or enchantment.\nDraw a card.",
+        "effects": [
+            {
+                "op": "destroy",
+                "target": {
+                    "target": 0
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Artifact",
+                "Enchantment"
+            ],
+            "count": 1
+        },
+        "id": "de9c572a-6dc0-432f-92e9-c52fb0efddb5",
+        "rarity": "uncommon"
     },
     {
         "name": "Waterfront District",
@@ -69363,6 +70452,31 @@
             }
         ],
         "id": "dfb6810b-9bc9-43c5-8cd9-817b12ee3110",
+        "rarity": "common"
+    },
+    {
+        "name": "Revitalize",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "You gain 3 life.\nDraw a card.",
+        "effects": [
+            {
+                "op": "gainLife",
+                "player": "controller",
+                "amount": 3
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "id": "dfbdd90c-1ae3-45e5-b1e5-5b8615a1511f",
         "rarity": "common"
     },
     {
@@ -70651,6 +71765,41 @@
             }
         ],
         "id": "e3c47552-afed-463d-bd24-13eb1cd724fc",
+        "rarity": "common"
+    },
+    {
+        "name": "Sudden Strength",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 3,
+            "G": 1
+        },
+        "oracleText": "Target creature gets +3/+3 until end of turn.\nDraw a card.",
+        "effects": [
+            {
+                "op": "pump",
+                "target": {
+                    "target": 0
+                },
+                "power": 3,
+                "toughness": 3,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "e3ca1108-ccf2-48ea-8ca7-986aa45d5fe8",
         "rarity": "common"
     },
     {
@@ -73583,6 +74732,64 @@
         "rarity": "common"
     },
     {
+        "name": "Resupply",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 5,
+            "W": 1
+        },
+        "oracleText": "You gain 6 life.\nDraw a card.",
+        "effects": [
+            {
+                "op": "gainLife",
+                "player": "controller",
+                "amount": 6
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "id": "ecf47c52-4065-4b81-acdc-878e74767bba",
+        "rarity": "common"
+    },
+    {
+        "name": "Charge Through",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "oracleText": "Target creature gains trample until end of turn.\nDraw a card.",
+        "effects": [
+            {
+                "op": "grantAbility",
+                "target": {
+                    "target": 0
+                },
+                "ability": "trample",
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "ed16926f-feb0-481a-8c5e-88ea119752cd",
+        "rarity": "common"
+    },
+    {
         "name": "Underdark Basilisk",
         "types": [
             "Creature"
@@ -73648,6 +74855,40 @@
         "oracleText": "This creature enters tapped.",
         "entersTapped": true,
         "id": "ed6dece3-058c-4738-a22f-8893345ddd1c",
+        "rarity": "common"
+    },
+    {
+        "name": "Fleeting Distraction",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "U": 1
+        },
+        "oracleText": "Target creature gets -1/-0 until end of turn.\nDraw a card.",
+        "effects": [
+            {
+                "op": "pump",
+                "target": {
+                    "target": 0
+                },
+                "power": -1,
+                "toughness": 0,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "ed843c4d-28b5-4a4c-8bae-8f03f329bf2b",
         "rarity": "common"
     },
     {
@@ -76701,6 +77942,40 @@
             "flying"
         ],
         "id": "f72ced22-1f2c-4fa6-a938-8ebe2c15cc8d",
+        "rarity": "common"
+    },
+    {
+        "name": "Bladebrand",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Target creature gains deathtouch until end of turn.\nDraw a card.",
+        "effects": [
+            {
+                "op": "grantAbility",
+                "target": {
+                    "target": 0
+                },
+                "ability": "deathtouch",
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "f738545d-5483-45ec-bb31-d62b0fae9ea7",
         "rarity": "common"
     },
     {
