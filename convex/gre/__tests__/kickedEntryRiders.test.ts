@@ -32,6 +32,7 @@ import {
  *  quoted ability. */
 const PER_KICKER: CardDefinition = {
     id: "test-kicked-rider-per-kicker",
+    rarity: "common",
     name: "Per-Kicker Volver",
     types: ["Creature"],
     subtypes: ["Volver"],
@@ -77,6 +78,7 @@ const PER_KICKER: CardDefinition = {
 /** Kavu Titan as compiled: one kicker, the bare "if it was kicked" gate. */
 const SINGLE_KICKER: CardDefinition = {
     id: "test-kicked-rider-single",
+    rarity: "common",
     name: "Single-Kicker Kavu",
     types: ["Creature"],
     subtypes: ["Kavu"],
@@ -106,6 +108,7 @@ const SINGLE_KICKER: CardDefinition = {
  *  must never reach. */
 const PLAIN_KICKER: CardDefinition = {
     id: "test-kicked-rider-plain",
+    rarity: "common",
     name: "Plain Kicker Bear",
     types: ["Creature"],
     subtypes: ["Bear"],
