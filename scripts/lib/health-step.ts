@@ -57,6 +57,9 @@ export const DEFAULT_LIVENESS_MS = 60_000;
  * The full offline gate, in series, stopping at the first red — the name of
  * the failing entry is what the RED verdict records as `failedStep`.
  *
+ * `check:targets` (the Coverage Invariant, issue #3868) lives here on the
+ * same terms and after `check:gaps`: it reads the same lockfile and allowlist.
+ *
  * `check:gaps` (the derived Op census, ADR 0105 § 7.3) lives HERE and nowhere
  * else: it is a census over the committed lockfile, so a PR gate would pay for
  * it on every diff that cannot move it. It runs AFTER `check:all`, because
@@ -73,6 +76,7 @@ export const HEALTH_SCRIPTS: readonly string[] = [
     "worktree:init",
     "check:all",
     "check:gaps",
+    "check:targets",
     "test",
 ];
 

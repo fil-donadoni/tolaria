@@ -282,14 +282,26 @@ export function unexemptingMarkers<M extends CompilerGapMarker>(
         }));
 }
 
-/** Exempting markers on a card that round-trips now: the gap they name is gone. */
+/**
+ * Exempting markers on a card that round-trips now: the gap they name is gone.
+ *
+ * One exception (issue #3868): a `hand-tail:` on a protocol card — a closure
+ * body the compiler now produces a definition beside, verdict `incomparable`.
+ * That verdict proves only that the text compiles, never that the definition
+ * equals the closure, so the card stays Hand Tail by construction; its exit is
+ * `oracle:report`'s "compare behaviour by hand" line, not this red. A
+ * `compiler-gap:` on the same card is still stale: its gap IS gone.
+ */
 export function staleMarkers<M extends CompilerGapMarker>(
     markers: readonly M[],
     verdictOf: (card: string) => MarkerVerdict | undefined
 ): M[] {
-    return markers.filter(
-        (m) => isExempting(m) && verdictOf(m.card)?.ok === true
-    );
+    return markers.filter((m) => {
+        if (!isExempting(m)) return false;
+        const verdict = verdictOf(m.card);
+        if (verdict?.ok !== true) return false;
+        return !(m.kind === "hand-tail" && verdict.kind === "incomparable");
+    });
 }
 
 /**

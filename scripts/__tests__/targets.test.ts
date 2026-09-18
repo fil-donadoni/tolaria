@@ -14,7 +14,9 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { parseLockfile, type CardRow } from "../lib/oracle-lockfile";
 import {
+    claimId,
     coverageState,
+    quarantineClass,
     gapIndex,
     parseNameList,
     parseTargetRegistry,
@@ -270,9 +272,10 @@ describe("coverage states — exactly one per card", () => {
         { text: "Unique ability.", reason: ROUTER, cards: 1 },
         { text: "Another unique ability.", reason: ROUTER, cards: 1 },
     ];
+    const HELD = { kind: "planned-mechanic" as const, detail: "keyword" };
     const cards: CardRow[] = [
         row("r", "Ready", "ready"),
-        row("q", "Held", "quarantine"),
+        row("q", "Held", "quarantine", { quarantineReasons: [HELD] }),
         // Four corpus cards carry the widespread gap: above the floor of 3.
         row("p1", "Pending One", "unparsed", { gaps: [0] }),
         row("p2", "Pending Two", "unparsed", { gaps: [0] }),
@@ -284,12 +287,20 @@ describe("coverage states — exactly one per card", () => {
     ];
     const lock = { cards, fragments: FRAGMENTS };
     const byOracleId = new Map(cards.map((c) => [c.oracleId, c] as const));
+    const gaps = gapIndex(lock);
+    const [WIDESPREAD] = gaps.gapKeys(byOracleId.get("p1")!);
     const ctx: CoverageContext = {
         floor: 3,
         handWritten: new Set(["h", "u"]),
         handTail: new Set(["h", "hr", "hc"]),
+        closure: new Set(),
+        // The widespread gap has its grammar issue; nothing else is claimed.
+        claims: new Set([
+            claimId("grammar", WIDESPREAD!),
+            claimId("mechanic", quarantineClass(HELD).key),
+        ]),
         byOracleId,
-        ...gapIndex(lock),
+        ...gaps,
     };
     const stateOf = (id: string): string =>
         coverageState(byOracleId.get(id)!, ctx);
@@ -308,7 +319,8 @@ describe("coverage states — exactly one per card", () => {
             ["b", "unclaimed"],
             ["h", "hand-tail"],
             ["hr", "ready"],
-            ["hc", "hand-tail"],
+            // The marker never outranks a gap (issue #3868): the gap climbed.
+            ["hc", "gap-pending"],
         ]);
     });
 
@@ -332,10 +344,7 @@ describe("coverage states — exactly one per card", () => {
         expect(coverage.total).toBe(9);
         // ready: Ready, Declared Ready; hand-written: Declared, Mixed.
         expect(coverage.playable).toBe(4);
-        expect(coverage.byState["hand-tail"]).toEqual([
-            "Declared",
-            "Declared Climbed",
-        ]);
+        expect(coverage.byState["hand-tail"]).toEqual(["Declared"]);
         expect(coverage.migrable.map((m) => m.name)).toEqual([
             "Declared Ready",
             "Declared Climbed",

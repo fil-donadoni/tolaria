@@ -923,7 +923,7 @@ A named list of cards an objective requires — a deck list, a name list (the Vi
 _Avoid_: Target alone (the row is the list, the objective is what needs it), objective, pool (reserved for **Deck Pool** and **Compiled Pool**), set (a Target List may be one; most are not)
 
 **Coverage Invariant**:
-Every card of every **Target List** is in exactly one state — `ready`; `quarantine` whose reason class is claimed by an open **Gap** issue; `gap-pending`, every residual **Grammar Gap** at or above the hand-tail floor having its issue; **Hand Tail** — and anything else is red on `health`. It is what makes closing a hand-authoring issue safe: an issue for a card may close only because the invariant proves the tooling holds that card. Playable (`ready` or hand-written) is a separate figure — the release gate, not the invariant.
+Every card of every enforced **Target List** is in exactly one state — `ready`; `quarantine` whose reason class is claimed by an open **Gap** issue; `gap-pending`, every residual **Grammar Gap** at or above the hand-tail floor having its issue; **Hand Tail** — and anything else is red on `health` (`check:targets`). Enforcement is opt-in per Target List: a list enters the invariant once its claims are filed, and only an enforced list's cards may have their hand-authoring issues closed on its word. It is what makes closing a hand-authoring issue safe: an issue for a card may close only because the invariant proves the tooling holds that card. Playable (`ready` or hand-written) is a separate figure — the release gate, not the invariant.
 _Avoid_: Coverage (the percentage; this is the guard), completeness, checklist
 
 **Hand Tail**:
