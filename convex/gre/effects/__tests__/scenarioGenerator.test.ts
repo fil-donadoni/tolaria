@@ -444,6 +444,22 @@ describe("$source subjects — the seeded ability source (issue #3831, CR 113.7)
             "tapUntap untap",
             [{ op: "tapUntap", action: "untap", target: { ref: "$source" } }],
         ],
+        [
+            "markAssignsNoCombatDamage",
+            // Its assertor reads a GAME-scoped list (`sourcePreventionShields`)
+            // rather than a field on the instance — the one subject-routed Op
+            // whose evidence is not an instance read.
+            [
+                {
+                    op: "markAssignsNoCombatDamage",
+                    target: { ref: "$source" },
+                },
+            ],
+        ],
+        [
+            "skipNextUntap",
+            [{ op: "skipNextUntap", target: { ref: "$source" } }],
+        ],
     ])(
         "a $source %s executes through resolution and its declared outcome holds",
         (name, effects) => {

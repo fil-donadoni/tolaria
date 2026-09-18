@@ -156,8 +156,9 @@ export type Plan =
  *   Op. The Op's permanent test is the evidence — the per-Op regime of
  *   ADR 0045 — so the skip does not withhold a Compiled Definition.
  * - `card-dependent`: the skip is caused by what the CARD's clause feeds the Op
- *   (a `$source`/`$each` subject, a runtime amount, a cast-time X, an object or
- *   zone the canned scenario does not seed). No Op test can speak for it; the
+ *   (a `$each` subject, a `$source` one the site does not seed — see
+ *   `SmokeSite` — a runtime amount, a cast-time X, an object or zone the
+ *   canned scenario does not seed). No Op test can speak for it; the
  *   Oracle compiler withholds the card until the emitting Grammar Rule carries
  *   a golden fixture for that form (`convex/oracle/gates.ts`).
  *
@@ -882,7 +883,11 @@ function subjectModelled(
     );
 }
 
-/** Records the permanent subject of an Op `subjectModelled` accepted. */
+/** Records the permanent subject of an Op `subjectModelled` accepted. The
+ *  skip REASONS at the call sites still read "targets $source/$each" although
+ *  only `$each` (or a spell site) can reach them: `smokeSkipForm` hashes the
+ *  reason, so rewording one invalidates every golden fixture whose form it
+ *  spells (ADR 0137). */
 function recordSubject(
     req: Requirements,
     selector: EffectObjectSelector
@@ -1567,11 +1572,13 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // (CR 716.2a). The generator can assert it on an announced
             // permanent slot (it seeds a filler permanent there — level 1 by
             // CR 716.2d, since nothing seeds a level — and reads the level
-            // after resolution). A `$each` (or spell-site `$source`) target is not modelled;
-            // that is the shape EVERY class level bar uses (CR 716.2a's ability
-            // is printed on the Class it levels), so this Op's real coverage is
-            // its interpreter test plus Stormchaser's Talent's own per-card
-            // test, and the skip below is the surfaced signal saying so.
+            // after resolution) and, since a class level bar is printed on the
+            // Class it levels (CR 716.2a), on an ability's own `$source` —
+            // against the generic filler permanent, which is what that proves
+            // and all it proves: the level lands, not that a Class card's own
+            // bar reads right (Stormchaser's Talent's per-card test and the
+            // Op's interpreter test stay the behavioural guarantors). A `$each`
+            // (or spell-site `$source`) target is not modelled.
             if (!subjectModelled(req, op.target)) {
                 skipBecause(
                     req,
@@ -1903,9 +1910,8 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             return;
         case "preventRegeneration":
             // `preventRegeneration` (CR 701.19c, issue #1283) sets an IMMEDIATE
-            // `cantBeRegeneratedThisTurn` flag on the target creature (unlike
-            // the dormant `regenerate` shield, the outcome is observable in the
-            // same resolution). The generator can assert it on an announced
+            // `cantBeRegeneratedThisTurn` flag on the target creature,
+            // observable in the same resolution. The generator can assert it on an announced
             // permanent slot (it seeds a filler creature there and reads the
             // flag after resolution). A `$each` (or spell-site `$source`) target is not
             // modelled — skip and let the card's own per-card test cover it.
@@ -1922,10 +1928,9 @@ function analyseOp(op: EffectOp, req: Requirements): void {
         case "exileOnDeath":
             // `exileOnDeath` (CR 614.1a, issue #1095) sets an IMMEDIATE
             // `exileOnDeath` flag on the target creature — like
-            // `preventRegeneration` right above (and unlike the dormant
-            // `regenerate` shield), the outcome is observable in the same
-            // resolution, so the generator asserts it on an announced permanent
-            // slot. A `$each` (or spell-site `$source`) target is not modelled — skip and let
+            // `preventRegeneration` right above, the outcome is observable in
+            // the same resolution, so the generator asserts it on an announced
+            // permanent slot or on an ability's own source. A `$each` (or spell-site `$source`) target is not modelled — skip and let
             // the card's own per-card test cover it.
             if (!subjectModelled(req, op.target)) {
                 skipBecause(
@@ -2474,6 +2479,15 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
     // whose ability it is: a permanent the caster controls, untapped and past
     // summoning sickness (its cost is not what the smoke run proves). Tapped
     // when an Op untaps it, so the untap has an outcome to observe.
+    //
+    // Two limits this seeding accepts, both recorded rather than guarded
+    // (issue #3831 review): the source is always the generic filler creature,
+    // whatever the real card is — an Op whose primitive needs a specific kind
+    // (a Class for `setLevel`, a creature for `exileOnDeath`) is proven only
+    // against a creature; and it is pushed AFTER the count-set banks, so a
+    // script pairing a `$source` subject with a controller battlefield `count`
+    // would predict one less than it counts (a false RED, not a fail-open —
+    // no card in the corpus pairs them today).
     let sourcePermanentId: string | undefined;
     if (req.sourceSubject) {
         sourcePermanentId = SOURCE_PERMANENT_ID;
@@ -3198,9 +3212,10 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     },
     // `skipNextUntap` (PRD #795, CR 302.6/502.1) — a lock on an announced
     // permanent slot is observable as the one-shot `skipNextUntap` flag
-    // flipping undefined→true on the seeded filler permanent. `$source`/`$each`
-    // targets are skipped upstream in `analyseOp` (returns null defensively
-    // here).
+    // flipping undefined→true on the seeded filler permanent. An ability's own
+    // source is seeded too (issue #3831); a `$each` / spell-site `$source`
+    // subject is skipped upstream in `analyseOp` (`subjectPermanentId` returns
+    // undefined defensively here).
     skipNextUntap(rawOp, scenario) {
         const op = rawOp as Extract<EffectOp, { op: "skipNextUntap" }>;
         const permId = subjectPermanentId(scenario, op.target);
@@ -3510,9 +3525,10 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     },
     // `preventRegeneration` (CR 701.19c, issue #1283) — a lock on an announced
     // permanent slot is observable as the `cantBeRegeneratedThisTurn` flag
-    // flipping undefined→true on the seeded filler creature. `$source`/`$each`
-    // targets are skipped upstream in `analyseOp` (returns null defensively
-    // here).
+    // flipping undefined→true on the seeded filler creature. An ability's own
+    // source is seeded too (issue #3831); a `$each` / spell-site `$source`
+    // subject is skipped upstream in `analyseOp` (`subjectPermanentId` returns
+    // undefined defensively here).
     preventRegeneration(rawOp, scenario) {
         const op = rawOp as Extract<EffectOp, { op: "preventRegeneration" }>;
         const permId = subjectPermanentId(scenario, op.target);
@@ -3601,9 +3617,10 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // `markAssignsNoCombatDamage` (CR 510.1c, issue #1283) — a source-side
     // combat-damage lock on an announced permanent slot is observable as a
     // combat-only SOURCE-scoped shield covering the permanent's id
-    // (`state.sourcePreventionShields`, issue #1955). `$source`/`$each`
-    // targets are skipped upstream in `analyseOp` (returns null defensively
-    // here).
+    // (`state.sourcePreventionShields`, issue #1955). An ability's own
+    // source is seeded too (issue #3831); a `$each` / spell-site `$source`
+    // subject is skipped upstream in `analyseOp` (`subjectPermanentId` returns
+    // undefined defensively here).
     markAssignsNoCombatDamage(rawOp, scenario) {
         const op = rawOp as Extract<
             EffectOp,

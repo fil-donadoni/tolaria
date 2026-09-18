@@ -117,7 +117,18 @@ interface ScriptSite {
      *  script — what an announced-slot Op's object actually is. */
     readonly targetRequirement?: TargetRequirement;
     /** Only an ability has a source permanent for `$source` to name
-     *  (CR 113.7) — the smoke planner seeds one there and nowhere else. */
+     *  (CR 113.7) — the smoke planner seeds one there and nowhere else.
+     *
+     *  The seeded source is on the BATTLEFIELD, which is where an ability's
+     *  source is for every trigger head the compiler emits today. A head that
+     *  looks back in time at the source's own death (CR 603.10) resolves with
+     *  the source already gone, and an effect reading it then uses last known
+     *  information (CR 608.2h): `$source` binds to nothing, the Op does
+     *  nothing, and the smoke would assert an outcome the card does not
+     *  produce. The grammar emits no such
+     *  head yet (issue #3831 review verified: zero self-death / LTB heads and
+     *  zero non-battlefield ability zones among the `$source` cards); the day
+     *  it does, that head must be tagged `"spell"` here. */
     readonly site: SmokeSite;
 }
 
