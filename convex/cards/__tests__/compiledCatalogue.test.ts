@@ -156,7 +156,7 @@ describe("compiled Aura — Enchant <descriptor> reaches the engine (CR 702.5a, 
         expect(legal.map((t) => t.id)).toEqual(["mine"]);
     });
 
-    it("the attached Aura's host legality reads the same restriction", () => {
+    it("the attached Aura's host legality reads the restriction's card types", () => {
         const aura = makeInstance(emblem.id, { id: "aura" });
         expect(
             hostMatchesEnchantRestriction(

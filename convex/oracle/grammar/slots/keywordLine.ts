@@ -111,6 +111,7 @@ const ENCHANT_HEAD = "Enchant ";
  *    the card's own text (Animate Dead), not this restriction;
  *  - a PLURAL noun — "Enchant creatures" is not a printed shape, so reading
  *    one means the line was misread.
+ *  - a COMBAT ROLE ("attacking creature") — likewise not a printed shape.
  */
 export const enchantRule: Rule<SlotIR> = rule("enchant", (span, ctx) => {
     if (!span.startsWith(ENCHANT_HEAD))
@@ -124,6 +125,11 @@ export const enchantRule: Rule<SlotIR> = rule("enchant", (span, ctx) => {
             "an Aura that enchants a player is not a permanent filter (CR 702.5d)",
             phrase
         );
+    // "Enchant attacking creature" is not a printed shape: the Aura would be
+    // legal to cast only mid-combat and fall off at end of combat, which no
+    // card means. Reading one means the line was misread.
+    if (d.combatRole !== undefined)
+        return fail("an enchant filter never names a combat role", phrase);
     if (d.card === true || d.zone !== undefined)
         return fail(
             "an Aura that enchants a card outside the battlefield is not a permanent filter",

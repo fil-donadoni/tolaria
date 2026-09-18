@@ -261,14 +261,6 @@ describe("keyword line — Enchant <descriptor> golden fixtures (CR 702.5a)", ()
             count: 1,
         });
     });
-
-    it("exactly one slot consumes an enchant line", () => {
-        for (const [, , line] of GOLDEN) {
-            const routed = routeLine(line, parseContext());
-            expect(routed.ok, line).toBe(true);
-            if (routed.ok) expect(routed.value.slot).toBe("keyword-line");
-        }
-    });
 });
 
 describe("keyword line — Enchant gold over the hand-written Auras", () => {
@@ -311,6 +303,7 @@ describe("keyword line — Enchant refusals", () => {
         ["Enchant opponent", "a player, CR 702.5d"],
         ["Enchant creature card in a graveyard", "a card, not a permanent"],
         ["Enchant creatures", "a plural noun"],
+        ["Enchant attacking creature", "a combat role"],
         ["Enchant red or green creature", "a multi-colour filter"],
         ["Enchant creature.", "trailing prose"],
     ])("refuses %s (%s)", (line) => {

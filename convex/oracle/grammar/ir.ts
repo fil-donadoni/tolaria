@@ -66,6 +66,9 @@ export type SlotIR =
      * the Aura can enchant. Kept as the `TargetRequirement` the engine reads
      * it from (`resolveEnchantRestriction`), because the descriptor's two
      * sites — cast-time target and attachment legality — are one field there.
+     * The two READ different subsets of it, though: attachment legality keeps
+     * only the card types (docs/findings/3825-aura-attachment-legality-reads-
+     * only-card-types.md).
      */
     | {
           readonly kind: "enchant";
