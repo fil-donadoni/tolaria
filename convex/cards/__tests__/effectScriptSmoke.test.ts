@@ -23,6 +23,7 @@ import {
     FILLER_CARD_DEFINITION,
     planSmokeTest,
     type Plan,
+    type SmokeSite,
 } from "../../gre/effects/scenarioGenerator";
 import { makeInstance } from "./setup";
 import { resolveTopOfStack } from "../../gre/state";
@@ -40,7 +41,7 @@ interface DslSite {
     /** Human label for a legible skip / failure line. */
     label: string;
     effects: EffectOp[];
-    site: "spell" | "ability";
+    site: SmokeSite;
 }
 
 /** Collects every DSL-only Effect Script across the catalogue, at both spell
@@ -118,7 +119,10 @@ function runSpellSite(
 /** Runs one ability-site script through resolution: registers a synthetic
  *  creature carrying the ability, drops the source permanent on the caster's
  *  battlefield (so `$source` binds — CR 608.2h), and pushes an activated-ability
- *  stack item. */
+ *  stack item. When the script acts on `$source` the generator has already
+ *  seeded that permanent (`scenario.sourcePermanentId`, issue #3831) and the
+ *  assertions were derived from it, so the stack item is pushed under ITS id —
+ *  the id `$source` binds to (CR 113.7) — instead of a second source. */
 function runAbilitySite(
     plan: Extract<Plan, { kind: "run" }>,
     effects: EffectOp[],
@@ -148,14 +152,16 @@ function runAbilitySite(
         ],
     });
     const state = plan.scenario.state;
+    const seeded = plan.scenario.sourcePermanentId;
     const source = makeInstance(id, {
-        id: `${id}-src`,
+        id: seeded ?? `${id}-src`,
         controllerId: CASTER_ID,
         ownerId: CASTER_ID,
         zone: "battlefield",
         isSummoningSick: false,
     });
-    state.players.find((p) => p.id === CASTER_ID)!.battlefield.push(source);
+    if (seeded === undefined)
+        state.players.find((p) => p.id === CASTER_ID)!.battlefield.push(source);
     state.stack.push({
         ...source,
         zone: "stack",
@@ -173,7 +179,7 @@ describe("DSL Effect Script smoke sweep (ADR 0045, issue #804)", () => {
 
     it("every DSL-only Effect Script's declared outcomes hold under canned resolution", () => {
         sites.forEach((s, i) => {
-            const plan = planSmokeTest(s.effects);
+            const plan = planSmokeTest(s.effects, s.site);
             if (plan.kind === "skip") {
                 skips.push(`SKIP ${s.label}: ${plan.reason}`);
                 return;
@@ -206,14 +212,14 @@ describe("DSL Effect Script smoke sweep (ADR 0045, issue #804)", () => {
         // Recompute independently so this assertion doesn't depend on test
         // ordering (vitest may isolate `it` state).
         const runnable = sites.filter(
-            (s) => planSmokeTest(s.effects).kind === "run"
+            (s) => planSmokeTest(s.effects, s.site).kind === "run"
         );
         expect(runnable.length).toBeGreaterThanOrEqual(1);
     });
 
     it("every skip carries a non-empty reason (never silently green)", () => {
         for (const s of sites) {
-            const plan = planSmokeTest(s.effects);
+            const plan = planSmokeTest(s.effects, s.site);
             if (plan.kind === "skip") {
                 expect(plan.reason.length, s.label).toBeGreaterThan(0);
             }

@@ -60,6 +60,7 @@ import {
     FILLER_CARD_DEFINITION,
     planSmokeTest,
     SMOKE_SKIP_CLASS,
+    type SmokeSite,
     type SmokeSkip,
 } from "../gre/effects/scenarioGenerator";
 import {
@@ -115,6 +116,9 @@ interface ScriptSite {
     /** The target requirement of the spell / mode / ability hosting the
      *  script — what an announced-slot Op's object actually is. */
     readonly targetRequirement?: TargetRequirement;
+    /** Only an ability has a source permanent for `$source` to name
+     *  (CR 113.7) — the smoke planner seeds one there and nowhere else. */
+    readonly site: SmokeSite;
 }
 
 function collectScripts(
@@ -124,34 +128,40 @@ function collectScripts(
     const scripts: ScriptSite[] = [];
     const push = (
         effects: EffectOp[] | undefined,
-        host: { targetRequirement?: TargetRequirement }
+        host: { targetRequirement?: TargetRequirement },
+        site: SmokeSite
     ): void => {
         if (effects)
             scripts.push({
                 effects,
                 targetRequirement: host.targetRequirement,
+                site,
             });
     };
-    push(definition.effects, definition);
+    push(definition.effects, definition, "spell");
     // CR 700.2 — a modal spell's body lives on its MODES; the card-level
     // `effects` is undefined by construction (see `lower.ts`), so a walk that
     // read only the card level would smoke nothing at all for every modal card
     // — the same fail-open the trigger rebuild above closes, one field over.
     // A mode's own requirement wins; one without inherits the card's.
     for (const mode of definition.modes ?? []) {
-        push(mode.effects, {
-            targetRequirement:
-                mode.targetRequirement ?? definition.targetRequirement,
-        });
+        push(
+            mode.effects,
+            {
+                targetRequirement:
+                    mode.targetRequirement ?? definition.targetRequirement,
+            },
+            "spell"
+        );
     }
     for (const ability of definition.activatedAbilities ?? []) {
-        push(ability.effects, ability);
+        push(ability.effects, ability, "ability");
     }
     for (const ability of definition.triggeredAbilities ?? []) {
-        push(ability.effects, ability);
+        push(ability.effects, ability, "ability");
     }
     for (const ability of rebuiltTriggers) {
-        push(ability.effects, ability);
+        push(ability.effects, ability, "ability");
     }
     return scripts;
 }
@@ -225,7 +235,7 @@ function cardDependentSkips(
     for (const site of collectScripts(definition, rebuiltTriggers)) {
         let plan: ReturnType<typeof planSmokeTest>;
         try {
-            plan = planSmokeTest(site.effects);
+            plan = planSmokeTest(site.effects, site.site);
         } catch (error) {
             // Per SCRIPT, so one script that throws still lets the others be
             // read: a throw is its own card-dependent reason, never clearable

@@ -17,8 +17,12 @@ import {
     planSmokeTest,
     SMOKE_SKIP_CLASS,
     SMOKE_SKIP_CODES,
+    SOURCE_PERMANENT_ID,
+    type Plan,
 } from "../scenarioGenerator";
 import { EFFECT_OP_REGISTRY } from "../../../cards/mechanicsRegistry";
+import { makeInstance } from "../../../cards/__tests__/setup";
+import { resolveTopOfStack } from "../../state";
 
 // The generator references FILLER_CARD_ID by id; register the ONE canonical
 // definition (the catalogue sweep in `effectScriptSmoke.test.ts` registers the
@@ -329,5 +333,208 @@ describe("smoke skip classes (ADR 0105 § 7.1, issue #3823)", () => {
             { op: "draw", player: "controller", count: 1 },
         ] as EffectOp[]);
         expect(plan.kind).toBe("run");
+    });
+});
+
+/** Resolves `effects` as an ACTIVATED ability of the seeded source — the same
+ *  shape the catalogue sweep (`effectScriptSmoke.test.ts`) pushes: a synthetic
+ *  host card carries the ability, and the stack item goes under the seeded
+ *  source's id, which is what `$source` binds to (CR 113.7). */
+function resolveOnSeededSource(
+    plan: Extract<Plan, { kind: "run" }>,
+    effects: EffectOp[],
+    hostId: string
+): void {
+    registerTokenDefinition({
+        id: hostId,
+        name: hostId,
+        rarity: "common",
+        manaCost: { R: 1 },
+        types: ["Creature"],
+        power: 1,
+        toughness: 1,
+        activatedAbilities: [
+            {
+                id: `${hostId}-ab`,
+                oracleText: "smoke",
+                cost: {},
+                useStack: true,
+                effects,
+            },
+        ],
+    });
+    plan.scenario.state.stack.push({
+        ...makeInstance(hostId, {
+            id: plan.scenario.sourcePermanentId!,
+            controllerId: CASTER_ID,
+            ownerId: CASTER_ID,
+            zone: "stack",
+        }),
+        castById: CASTER_ID,
+        abilityId: `${hostId}-ab`,
+        targets: [],
+    });
+    resolveTopOfStack(plan.scenario.state);
+}
+
+function failedAssertions(plan: Extract<Plan, { kind: "run" }>): string[] {
+    return plan.assertions
+        .map((a) => ({ a, r: a.check(plan.scenario.state) }))
+        .filter(({ r }) => !r.ok)
+        .map(({ a, r }) => `${a.label}: ${r.detail ?? ""}`);
+}
+
+describe("$source subjects — the seeded ability source (issue #3831, CR 113.7)", () => {
+    const pumpSelf: EffectOp[] = [
+        {
+            op: "pump",
+            target: { ref: "$source" },
+            power: 2,
+            toughness: 1,
+            duration: { phase: "end-of-turn" },
+        },
+    ];
+
+    it("seeds the source on the caster's battlefield, untapped and able to act", () => {
+        const plan = planSmokeTest(pumpSelf, "ability");
+        expect(plan.kind).toBe("run");
+        if (plan.kind !== "run") return;
+        expect(plan.scenario.sourcePermanentId).toBe(SOURCE_PERMANENT_ID);
+        const source = plan.scenario.state.players
+            .find((p) => p.id === CASTER_ID)!
+            .battlefield.find((c) => c.id === SOURCE_PERMANENT_ID);
+        expect(source).toMatchObject({
+            controllerId: CASTER_ID,
+            isTapped: false,
+            isSummoningSick: false,
+        });
+    });
+
+    it.each<[string, EffectOp[]]>([
+        ["pump", pumpSelf],
+        [
+            "counters",
+            [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "+1/+1",
+                    target: { ref: "$source" },
+                    count: 2,
+                },
+            ],
+        ],
+        ["regenerate", [{ op: "regenerate", target: { ref: "$source" } }]],
+        [
+            "grantAbility",
+            [
+                {
+                    op: "grantAbility",
+                    target: { ref: "$source" },
+                    ability: "flying",
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        ],
+        [
+            "tapUntap tap",
+            [{ op: "tapUntap", action: "tap", target: { ref: "$source" } }],
+        ],
+        [
+            "tapUntap untap",
+            [{ op: "tapUntap", action: "untap", target: { ref: "$source" } }],
+        ],
+    ])(
+        "a $source %s executes through resolution and its declared outcome holds",
+        (name, effects) => {
+            const plan = planSmokeTest(effects, "ability");
+            expect(plan.kind).toBe("run");
+            if (plan.kind !== "run") return;
+            expect(plan.assertions.length).toBeGreaterThan(0);
+            // The assertions read the seeded source — unresolved, they fail,
+            // so a green below is the Op's outcome, not a vacuous check.
+            expect(failedAssertions(plan)).not.toEqual([]);
+            resolveOnSeededSource(
+                plan,
+                effects,
+                `gen-3831-${name.replace(" ", "-")}`
+            );
+            expect(failedAssertions(plan)).toEqual([]);
+        }
+    );
+
+    it("seeds the source TAPPED when the script untaps it, so the untap is observable", () => {
+        const plan = planSmokeTest(
+            [{ op: "tapUntap", action: "untap", target: { ref: "$source" } }],
+            "ability"
+        );
+        if (plan.kind !== "run") throw new Error(plan.reason);
+        const source = plan.scenario.state.players
+            .flatMap((p) => p.battlefield)
+            .find((c) => c.id === SOURCE_PERMANENT_ID);
+        expect(source?.isTapped).toBe(true);
+    });
+
+    it("a spell-site $source is not seeded — the default site fails closed", () => {
+        for (const plan of [
+            planSmokeTest(pumpSelf),
+            planSmokeTest(pumpSelf, "spell"),
+        ]) {
+            expect(plan.kind).toBe("skip");
+            if (plan.kind !== "skip") continue;
+            expect(plan.skips.map((s) => s.code)).toEqual([
+                "source-or-each-subject",
+            ]);
+        }
+    });
+
+    it("a $each subject stays a card-dependent skip at an ability site", () => {
+        const plan = planSmokeTest(
+            [{ ...pumpSelf[0], target: { ref: "$each" } } as EffectOp],
+            "ability"
+        );
+        expect(plan.kind).toBe("skip");
+        if (plan.kind !== "skip") return;
+        expect(plan.skips.map((s) => s.code)).toEqual([
+            "source-or-each-subject",
+        ]);
+    });
+
+    it("a script that both taps and untaps its source is skipped, not mis-asserted", () => {
+        const plan = planSmokeTest(
+            [
+                { op: "tapUntap", action: "tap", target: { ref: "$source" } },
+                { op: "tapUntap", action: "untap", target: { ref: "$source" } },
+            ],
+            "ability"
+        );
+        expect(plan.kind).toBe("skip");
+        if (plan.kind !== "skip") return;
+        expect(plan.skips.map((s) => s.code)).toEqual([
+            "source-or-each-subject",
+        ]);
+    });
+
+    it("an op-covered Op still does not hide a $source subject it cannot run", () => {
+        // `preventDamage` registers a dormant shield (op-covered) — nothing is
+        // executed against the seeded source, so its `$source` subject stays
+        // card-dependent (ADR 0105 § 7.1) even at an ability site.
+        const plan = planSmokeTest(
+            [
+                {
+                    op: "preventDamage",
+                    mode: "next-n",
+                    to: { ref: "$source" },
+                    amount: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+            "ability"
+        );
+        expect(plan.kind).toBe("skip");
+        if (plan.kind !== "skip") return;
+        expect(
+            plan.skips.map((s) => [s.code, SMOKE_SKIP_CLASS[s.code]])
+        ).toContainEqual(["source-or-each-subject", "card-dependent"]);
     });
 });
