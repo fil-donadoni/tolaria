@@ -287,6 +287,13 @@ function uniqueSplit<T>(
 
 const PT_MODIFIER = /^([+-]\d+)\/([+-]\d+)$/;
 
+/** A printed signed modifier as a number. "-0" ("gets -2/-0") is zero: the
+ *  `+ 0` folds IEEE negative zero, which JSON would print as `0` anyway and
+ *  which a structural comparison would otherwise tell apart from it. */
+function modifier(printed: string): number {
+    return Number(printed) + 0;
+}
+
 export const anthemRule: Rule<StaticClauseIR> = rule(
     "anthem",
     (span): RuleResult<StaticClauseIR> =>
@@ -298,8 +305,8 @@ export const anthemRule: Rule<StaticClauseIR> = rule(
             return ok({
                 kind: "pt-buff" as const,
                 filter: filter.value,
-                power: Number(pt[1]),
-                toughness: Number(pt[2]),
+                power: modifier(pt[1]!),
+                toughness: modifier(pt[2]!),
             });
         })
 );
@@ -1023,8 +1030,8 @@ const enchantedHostRule: Rule<StaticClauseIR> = rule(
         if (pt !== null) {
             effects.push({
                 kind: "pt-buff",
-                power: Number(pt[1]),
-                toughness: Number(pt[2]),
+                power: modifier(pt[1]!),
+                toughness: modifier(pt[2]!),
             });
             if (pt[3] === undefined) rest = "";
             else rest = pt[3];
