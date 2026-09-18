@@ -124,6 +124,18 @@ describe("the committed metagame import", () => {
         ).toEqual(ARCHETYPES.map((a) => a.archetypeId).sort((a, b) => a - b));
     });
 
+    it("pins each archetype id under its OWN slug, never a transposed one", () => {
+        // The two bijection tests above only check the SETS of ids and slugs
+        // match — this pins the PAIRING, so a swap (archetype 1479 pinned
+        // under "psychatog" instead of "goblin") reds here.
+        for (const spec of ARCHETYPES) {
+            const entry = pin.decks.find(
+                (e) => e.archetypeId === spec.archetypeId
+            );
+            expect(entry?.slug).toBe(spec.slug);
+        }
+    });
+
     it("every pin entry's slug resolves to exactly one deck-file list", () => {
         // The bijection the acceptance criterion asks for: pin -> decks and
         // decks -> pin agree on the SET of slugs, one-to-one.

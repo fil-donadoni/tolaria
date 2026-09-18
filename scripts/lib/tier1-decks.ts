@@ -185,11 +185,11 @@ export function parseTier1Decks(
     } catch (err) {
         throw new Error(`${path} does not parse: ${(err as Error).message}`);
     }
+    validateDecks(doc.decks, path);
     if (!Array.isArray(doc.shippedPresets))
         throw new Error(
             `${path}: \`shippedPresets\` must be an array of { slug, name }`
         );
-    validateDecks(doc.decks, path);
     return doc;
 }
 

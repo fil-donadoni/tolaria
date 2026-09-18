@@ -1,7 +1,7 @@
 {
     "source": "mtgtop8.com",
     "format": "PREM",
-    "fetchedAt": "2026-09-18T07:36:02.104Z",
+    "fetchedAt": "2026-09-18T07:45:05.597Z",
     "decks": [
         {
             "slug": "goblin",
@@ -11,7 +11,7 @@
             "player": "SzULeR",
             "placement": "1",
             "date": "2026-09-17",
-            "fetchedAt": "2026-09-18T07:36:02.104Z"
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
         },
         {
             "slug": "psychatog",
@@ -21,7 +21,7 @@
             "player": "Claire Ackerman",
             "placement": "1",
             "date": "2026-09-12",
-            "fetchedAt": "2026-09-18T07:36:02.104Z"
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
         },
         {
             "slug": "parallax-replenish",
@@ -31,7 +31,7 @@
             "player": "Martin_Oviedo",
             "placement": "4",
             "date": "2026-09-17",
-            "fetchedAt": "2026-09-18T07:36:02.104Z"
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
         },
         {
             "slug": "landstill",
@@ -41,7 +41,7 @@
             "player": "Nicholas95",
             "placement": "1",
             "date": "2026-09-16",
-            "fetchedAt": "2026-09-18T07:36:02.104Z"
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
         },
         {
             "slug": "oath-ponza",
@@ -51,7 +51,7 @@
             "player": "Soup_Smuggler",
             "placement": "6",
             "date": "2026-09-15",
-            "fetchedAt": "2026-09-18T07:36:02.104Z"
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
         },
         {
             "slug": "aluren",
@@ -61,7 +61,7 @@
             "player": "johnyvolta",
             "placement": "6",
             "date": "2026-09-17",
-            "fetchedAt": "2026-09-18T07:36:02.104Z"
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
         },
         {
             "slug": "deck-1",
@@ -71,7 +71,7 @@
             "player": "mjsimpson24",
             "placement": "3",
             "date": "2026-09-17",
-            "fetchedAt": "2026-09-18T07:36:02.104Z"
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
         },
         {
             "slug": "burn",
@@ -81,7 +81,7 @@
             "player": "William-pit",
             "placement": "2",
             "date": "2026-09-17",
-            "fetchedAt": "2026-09-18T07:36:02.104Z"
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
         },
         {
             "slug": "enchantress",
@@ -91,7 +91,7 @@
             "player": "Boy",
             "placement": "3-4",
             "date": "2026-09-17",
-            "fetchedAt": "2026-09-18T07:36:02.104Z"
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
         },
         {
             "slug": "rg-aggro",
@@ -101,7 +101,7 @@
             "player": "BossenGames",
             "placement": "3",
             "date": "2026-09-13",
-            "fetchedAt": "2026-09-18T07:36:02.104Z"
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
         },
         {
             "slug": "mono-black-aggro",
@@ -111,7 +111,7 @@
             "player": "Adrian Mercado",
             "placement": "2",
             "date": "2026-09-13",
-            "fetchedAt": "2026-09-18T07:36:02.104Z"
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
         },
         {
             "slug": "madness-threshold",
@@ -121,7 +121,7 @@
             "player": "Jtlanderson",
             "placement": "2",
             "date": "2026-09-12",
-            "fetchedAt": "2026-09-18T07:36:02.104Z"
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
         },
         {
             "slug": "elves",
@@ -131,7 +131,7 @@
             "player": "Sryan9113",
             "placement": "5-8",
             "date": "2026-09-12",
-            "fetchedAt": "2026-09-18T07:36:02.104Z"
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
         },
         {
             "slug": "the-rock",
@@ -141,7 +141,7 @@
             "player": "Fan Minglu",
             "placement": "3-4",
             "date": "2026-09-16",
-            "fetchedAt": "2026-09-18T07:36:02.104Z"
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
         },
         {
             "slug": "survival",
@@ -151,7 +151,7 @@
             "player": "walrusmadness",
             "placement": "7",
             "date": "2026-09-14",
-            "fetchedAt": "2026-09-18T07:36:02.104Z"
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
         },
         {
             "slug": "stasis",
@@ -161,7 +161,7 @@
             "player": "Gustavobatista",
             "placement": "3-4",
             "date": "2026-09-17",
-            "fetchedAt": "2026-09-18T07:36:02.104Z"
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
         },
         {
             "slug": "full-english-breakfast",
@@ -171,7 +171,7 @@
             "player": "Emerson Araujo",
             "placement": "5-8",
             "date": "2026-09-12",
-            "fetchedAt": "2026-09-18T07:36:02.104Z"
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
         },
         {
             "slug": "grow",
@@ -181,7 +181,7 @@
             "player": "Robert Mccoy",
             "placement": "3-4",
             "date": "2026-09-12",
-            "fetchedAt": "2026-09-18T07:36:02.104Z"
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
         },
         {
             "slug": "angry-ghoul",
@@ -191,7 +191,7 @@
             "player": "James Heishman",
             "placement": "5-8",
             "date": "2026-09-06",
-            "fetchedAt": "2026-09-18T07:36:02.104Z"
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
         },
         {
             "slug": "doomsday",
@@ -201,17 +201,17 @@
             "player": "Edouard Lecocq",
             "placement": "2",
             "date": "2026-09-11",
-            "fetchedAt": "2026-09-18T07:36:02.104Z"
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
         },
         {
             "slug": "reanimator",
             "archetypeId": 1493,
             "eventId": 90859,
             "deckId": 890019,
-            "player": "Jo�o Diniz",
+            "player": "João Diniz",
             "placement": "5-8",
             "date": "2026-09-10",
-            "fetchedAt": "2026-09-18T07:36:02.104Z"
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
         },
         {
             "slug": "stompy",
@@ -221,7 +221,7 @@
             "player": "Reynaldo De Mesa",
             "placement": "3-4",
             "date": "2026-09-13",
-            "fetchedAt": "2026-09-18T07:36:02.104Z"
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
         },
         {
             "slug": "zombie-infestation-aggro",
@@ -231,7 +231,7 @@
             "player": "Sergio",
             "placement": "5-8",
             "date": "2026-07-25",
-            "fetchedAt": "2026-09-18T07:36:02.104Z"
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
         },
         {
             "slug": "terrageddon",
@@ -241,7 +241,7 @@
             "player": "Nagato_Boran",
             "placement": "2",
             "date": "2026-09-17",
-            "fetchedAt": "2026-09-18T07:36:02.104Z"
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
         },
         {
             "slug": "mono-black-control",
@@ -251,7 +251,7 @@
             "player": "IfHeDiesHeDies",
             "placement": "2",
             "date": "2026-09-15",
-            "fetchedAt": "2026-09-18T07:36:02.104Z"
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
         }
     ]
 }

@@ -235,10 +235,20 @@ function sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * mtgtop8 serves `charset=ISO-8859-1` (confirmed via `curl -I`), not UTF-8 —
+ * `Response.text()` always decodes as UTF-8 regardless of the header, which
+ * turned every non-ASCII byte (an accented player name) into an
+ * irrecoverable U+FFFD replacement character (issue #3855 review). Decode
+ * the raw bytes as `windows-1252` instead — a strict superset of ISO-8859-1
+ * for every printable character, and the one Bun's `TextDecoder` actually
+ * supports (its `utf-8` default is otherwise the only other option).
+ */
 async function politeFetch(url: string): Promise<string> {
     const res = await fetch(url, { headers: HEADERS });
     if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
-    const text = await res.text();
+    const bytes = await res.arrayBuffer();
+    const text = new TextDecoder("windows-1252").decode(bytes);
     await sleep(REQUEST_DELAY_MS);
     return text;
 }
@@ -253,10 +263,17 @@ const HTML_ENTITIES: Readonly<Record<string, string>> = {
 };
 
 function unescapeHtml(text: string): string {
-    return text.replace(
-        /&amp;|&lt;|&gt;|&quot;|&#39;|&apos;/g,
-        (m) => HTML_ENTITIES[m] ?? m
-    );
+    return text
+        .replace(
+            /&amp;|&lt;|&gt;|&quot;|&#39;|&apos;/g,
+            (m) => HTML_ENTITIES[m] ?? m
+        )
+        .replace(/&#(\d+);/g, (_, code: string) =>
+            String.fromCodePoint(Number(code))
+        )
+        .replace(/&#x([0-9a-f]+);/gi, (_, code: string) =>
+            String.fromCodePoint(parseInt(code, 16))
+        );
 }
 
 interface CandidateRow {
