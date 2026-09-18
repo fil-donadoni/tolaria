@@ -22,6 +22,7 @@ import { join } from "node:path";
 import { REPORTED_FORMATS } from "../oracle-corpus";
 import { corpusNameIndex } from "./card-names";
 import { gapOf, poolTarget } from "./grammar-gaps";
+import type { QuarantineReason } from "../../convex/oracle/types";
 import type { CardRow, Lockfile } from "./oracle-lockfile";
 import { validateDecks, type Tier1Deck } from "./tier1-decks";
 
@@ -55,6 +56,16 @@ export interface TargetRow {
     readonly kind: TargetKind;
     readonly source: string;
     readonly priority?: number;
+    /**
+     * Whether `check:targets` holds this Target to the Coverage Invariant
+     * (issue #3868). Opt-in, because an invariant over every registered card
+     * is red the day it lands — 12k corpus cards were unclaimed then — and a
+     * standing RED blocks every pick. A Target opts in once its claims are
+     * filed (`gaps:sync`, issue #3869); an un-enforced one is reported only.
+     * A hand-authoring issue may close on the invariant's word only for a
+     * card of an ENFORCED Target.
+     */
+    readonly enforced?: boolean;
 }
 
 export interface TargetRegistry {
@@ -128,6 +139,8 @@ export function parseTargetRegistry(
                 );
             priorities.set(row.priority, row.id);
         }
+        if (row.enforced !== undefined && typeof row.enforced !== "boolean")
+            fail(`${row.id}: \`enforced\` must be a boolean`);
     }
     return doc;
 }
@@ -329,19 +342,28 @@ export function resolveTarget(
 
 /**
  * Where the tooling stands on a Target card (CONTEXT.md § Coverage
- * Invariant) — exactly one per card:
+ * Invariant) — exactly one per card, computed from the lockfile, the
+ * allowlist's claims and the card markers, in this order (issue #3868):
  *
  * - `ready` — the lockfile row compiles;
- * - `quarantine` — it compiles, but is held back;
- * - `hand-tail` — not ready, and the hand-written card carries a `hand-tail:`
- *   marker: below the floor by decision;
- * - `gap-pending` — unparsed, and at least one residual Grammar Gap sits at
- *   or above the floor: the grammar owes it;
- * - `unclaimed` — unparsed, every gap below the floor (or none attributed)
- *   and no `hand-tail:` marker: nobody has decided anything.
+ * - `quarantine` — it compiles, is held back, and EVERY quarantine reason
+ *   belongs to a class with a `mechanic`/`scenario` claim: no silent
+ *   quarantine;
+ * - `gap-pending` — unparsed, at least one residual Grammar Gap sits at or
+ *   above the floor, and EVERY such gap has a `grammar` claim (or an `ops`
+ *   row): the grammar owes it, and an issue says so;
+ * - `hand-tail` — every residual gap below the floor, and the card has a
+ *   `hand-tail` claim (issue open, card not yet written) or a `hand-tail:`
+ *   marker on its hand-written definition;
+ * - `unclaimed` — anything else: nobody has decided anything, or a decision
+ *   has no issue. `check:targets` reds it on an enforced Target.
  *
- * Whether each claim has its issue is `check:targets`' question (the next
- * slice of wayfinder issue #3848), not this report's.
+ * The state is GAP-derived: a `hand-tail:` marker never outranks a gap. The
+ * one exception is a protocol card — a marked card whose hand-written body is
+ * a closure the compiler now produces a definition beside (Guard C's
+ * `incomparable`): it is Hand Tail by construction whatever its row, since no
+ * Effect Script can equal a closure and equality is unproven. Its exit route
+ * is a report line, never a red.
  */
 export const COVERAGE_STATES = [
     "ready",
@@ -352,12 +374,119 @@ export const COVERAGE_STATES = [
 ] as const;
 export type CoverageState = (typeof COVERAGE_STATES)[number];
 
+/**
+ * The allowlist claim kinds the Coverage Invariant reads, from
+ * `data/grammar-gaps.json`'s `claims` (issue #3868). The key per kind:
+ *
+ * - `grammar` — a Grammar Gap key (`gapOf(fragment).key`); the file's `ops`
+ *   rows claim their `(op) › …` keys under this kind too;
+ * - `mechanic` / `scenario` — a quarantine class key (`quarantineClass`);
+ * - `hand-tail` — a card name.
+ *
+ * `gaps:sync` (issue #3869) is the filer that writes them; this reads them.
+ */
+export const CLAIM_KINDS = [
+    "grammar",
+    "mechanic",
+    "scenario",
+    "hand-tail",
+] as const;
+export type ClaimKind = (typeof CLAIM_KINDS)[number];
+
+export interface ClaimRow {
+    readonly kind: ClaimKind;
+    readonly key: string;
+    /** The open issue that settles the claim. Liveness is the network
+     *  sweep's question, as for Guard B — never health's. */
+    readonly issue: number;
+}
+
+/** The one identity of a claim — a kind and a key. */
+export function claimId(kind: ClaimKind, key: string): string {
+    return `${kind}\t${key}`;
+}
+
+/**
+ * Every claim of the allowlist document, as `claimId`s. Fail-closed: a claim
+ * of an unknown kind, with no key or no issue, or twice, throws — a row the
+ * reader skipped would be a card red for no reason it could print, and a
+ * duplicate is two issues for one decision.
+ */
+export function parseClaims(
+    doc: {
+        readonly ops?: readonly {
+            readonly key?: unknown;
+            readonly issue?: unknown;
+        }[];
+        readonly claims?: readonly Partial<Record<keyof ClaimRow, unknown>>[];
+    },
+    path = "data/grammar-gaps.json"
+): Set<string> {
+    const fail = (message: string): never => {
+        throw new Error(`${path}: ${message}`);
+    };
+    const ids = new Set<string>();
+    const add = (kind: unknown, key: unknown, issue: unknown): void => {
+        if (!(CLAIM_KINDS as readonly unknown[]).includes(kind))
+            fail(
+                `claim ${JSON.stringify(key)}: unknown kind \`${String(kind)}\` (one of: ${CLAIM_KINDS.join(", ")})`
+            );
+        if (typeof key !== "string" || key.length === 0)
+            fail(`a \`${String(kind)}\` claim has no \`key\``);
+        if (!Number.isInteger(issue) || (issue as number) <= 0)
+            fail(
+                `claim \`${String(key)}\`: \`issue\` is ${JSON.stringify(issue)}, want a positive integer`
+            );
+        const id = claimId(kind as ClaimKind, key as string);
+        if (ids.has(id))
+            fail(`claim \`${String(key)}\` (${String(kind)}) is listed twice`);
+        ids.add(id);
+    };
+    if (doc.claims !== undefined && !Array.isArray(doc.claims))
+        fail("`claims` must be an array");
+    for (const row of doc.ops ?? []) add("grammar", row.key, row.issue);
+    for (const row of doc.claims ?? []) add(row.kind, row.key, row.issue);
+    return ids;
+}
+
+/**
+ * The class a quarantine reason belongs to — what ONE claim covers for every
+ * card that carries it. The key is the reason's kind and detail, minus the
+ * `<card> (<oracle id>): ` prefix a validator detail opens with, so two cards
+ * quarantined for the same reason share one key. `planned-op`,
+ * `planned-mechanic` and `ungrantable-keyword` are the engine missing a
+ * mechanic; the rest are the card's generated checks (ADR 0105 § 7.1).
+ */
+export function quarantineClass(reason: QuarantineReason): {
+    kind: "mechanic" | "scenario";
+    key: string;
+} {
+    const detail = reason.detail.replace(/^.+? \([0-9a-f-]{36}\): /, "");
+    return {
+        kind:
+            reason.kind === "planned-op" ||
+            reason.kind === "planned-mechanic" ||
+            reason.kind === "ungrantable-keyword"
+                ? "mechanic"
+                : "scenario",
+        key: `${reason.kind} › ${detail}`,
+    };
+}
+
 export interface CoverageContext {
     readonly floor: number;
     /** Oracle ids covered by a HAND-WRITTEN definition today. */
     readonly handWritten: ReadonlySet<string>;
     /** Oracle ids whose hand-written card carries a well-formed `hand-tail:`. */
     readonly handTail: ReadonlySet<string>;
+    /**
+     * Oracle ids of the hand-written cards whose body is a closure the
+     * compiler now produces a definition beside — Guard C's `incomparable`,
+     * read through `roundTripCard` off the committed catalogue.
+     */
+    readonly closure: ReadonlySet<string>;
+    /** The allowlist's claims, as `claimId`s (`parseClaims`). */
+    readonly claims: ReadonlySet<string>;
     readonly byOracleId: ReadonlyMap<string, CardRow>;
     /** Each unparsed card's distinct Grammar Gap keys. */
     readonly gapKeys: (row: CardRow) => readonly string[];
@@ -387,21 +516,67 @@ export function gapIndex(lock: Pick<Lockfile, "cards" | "fragments">): {
     return { gapKeys, leverage };
 }
 
+export interface CoverageVerdict {
+    readonly state: CoverageState;
+    /** Present iff `state === "unclaimed"`: the first missing claim. */
+    readonly why?: string;
+}
+
+/** THE state computation — `oracle:report --targets` and `check:targets`
+ *  both read it, so there is no second definition of the five states. */
+export function coverageVerdict(
+    row: CardRow,
+    ctx: CoverageContext
+): CoverageVerdict {
+    const marked = ctx.handTail.has(row.oracleId);
+    if (marked && ctx.closure.has(row.oracleId)) return { state: "hand-tail" };
+    if (row.state === "ready") return { state: "ready" };
+    if (row.state === "quarantine") {
+        const open = (row.quarantineReasons ?? [])
+            .map(quarantineClass)
+            .find((c) => !ctx.claims.has(claimId(c.kind, c.key)));
+        return open === undefined
+            ? { state: "quarantine" }
+            : {
+                  state: "unclaimed",
+                  why: `quarantine class \`${open.key}\` has no \`${open.kind}\` claim`,
+              };
+    }
+    // One gap at or above the floor is grammar owed: once those rules land,
+    // whatever stays below the floor makes the card Hand Tail — so a card with
+    // mixed gaps is pending, never stuck with no green state.
+    const keys = ctx.gapKeys(row);
+    const above = keys.filter(
+        (key) => (ctx.leverage.get(key) ?? 0) >= ctx.floor
+    );
+    if (above.length > 0) {
+        const open = above.find(
+            (key) => !ctx.claims.has(claimId("grammar", key))
+        );
+        return open === undefined
+            ? { state: "gap-pending" }
+            : {
+                  state: "unclaimed",
+                  why: `gap \`${open}\` (${ctx.leverage.get(open)} corpus cards, floor ${ctx.floor}) has no \`grammar\` claim`,
+              };
+    }
+    if (marked || ctx.claims.has(claimId("hand-tail", row.name)))
+        return { state: "hand-tail" };
+    return {
+        state: "unclaimed",
+        why:
+            (keys.length === 0
+                ? "no Grammar Gap attributed"
+                : `every gap below the floor (${ctx.floor})`) +
+            " and neither a `hand-tail` claim nor a `hand-tail:` marker",
+    };
+}
+
 export function coverageState(
     row: CardRow,
     ctx: CoverageContext
 ): CoverageState {
-    if (row.state === "ready") return "ready";
-    if (ctx.handTail.has(row.oracleId)) return "hand-tail";
-    if (row.state === "quarantine") return "quarantine";
-    // One gap at or above the floor is grammar owed: once those rules land,
-    // whatever stays below the floor makes the card Hand Tail — so a card with
-    // mixed gaps is pending, never stuck with no green state.
-    return ctx
-        .gapKeys(row)
-        .some((key) => (ctx.leverage.get(key) ?? 0) >= ctx.floor)
-        ? "gap-pending"
-        : "unclaimed";
+    return coverageVerdict(row, ctx).state;
 }
 
 /** A `hand-tail:` card the tooling has caught up with. */
@@ -414,12 +589,18 @@ export interface TargetCoverage {
     readonly id: string;
     readonly kind: TargetKind;
     readonly priority?: number;
+    readonly enforced: boolean;
     readonly total: number;
     /** Card names per coverage state, sorted. */
     readonly byState: Readonly<Record<CoverageState, readonly string[]>>;
     /** `ready ∪ hand-written` — the v1 gate, a figure apart from the invariant. */
     readonly playable: number;
     readonly migrable: readonly MigrableCard[];
+    /** Every `unclaimed` card with the claim it lacks, in list order. */
+    readonly unclaimed: readonly MigrableCard[];
+    /** Hand-written closure cards whose Oracle text now compiles — compare
+     *  behaviour by hand, marker or not. Reported, never red. */
+    readonly closureCompiles: readonly string[];
 }
 
 /**
@@ -432,6 +613,8 @@ export function migrableReason(
     ctx: CoverageContext
 ): string | undefined {
     if (!ctx.handTail.has(row.oracleId)) return undefined;
+    // A protocol card graduates by hand, off the `incomparable` report line.
+    if (ctx.closure.has(row.oracleId)) return undefined;
     if (row.state === "ready")
         return "row is ready — retire the hand-written definition (oracle:retire)";
     const above = ctx
@@ -455,10 +638,15 @@ export function targetCoverage(
     };
     let playable = 0;
     const migrable: MigrableCard[] = [];
+    const unclaimed: MigrableCard[] = [];
+    const closureCompiles: string[] = [];
     for (const card of target.cards) {
         const row = ctx.byOracleId.get(card.oracleId)!;
-        const state = coverageState(row, ctx);
+        const { state, why: missing } = coverageVerdict(row, ctx);
         byState[state].push(card.name);
+        if (missing !== undefined)
+            unclaimed.push({ name: card.name, why: missing });
+        if (ctx.closure.has(card.oracleId)) closureCompiles.push(card.name);
         if (state === "ready" || ctx.handWritten.has(card.oracleId))
             playable += 1;
         const why = migrableReason(row, ctx);
@@ -470,9 +658,12 @@ export function targetCoverage(
         ...(target.row.priority === undefined
             ? {}
             : { priority: target.row.priority }),
+        enforced: target.row.enforced === true,
         total: target.cards.length,
         byState,
         playable,
         migrable,
+        unclaimed,
+        closureCompiles,
     };
 }

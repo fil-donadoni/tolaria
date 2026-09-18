@@ -507,6 +507,19 @@ describe("the hand-tail marker — compiler-gap's terminal sibling (issue #3867)
         ).toEqual(["Delta"]);
     });
 
+    it("keeps a hand-tail marker on a protocol card — closure body, verdict incomparable (issue #3868)", () => {
+        const INCOMPARABLE: MarkerVerdict = { ok: true, kind: "incomparable" };
+        const markers = scanCompilerGapMarkers([
+            ...card("Theta", "// hand-tail: Rampage N (#3900)"),
+            ...card("Iota", "// compiler-gap: some fragment (#2698)"),
+        ]);
+        // Compiling proves nothing against a closure, so the hand-tail stands;
+        // the compiler-gap on the same verdict IS stale — its gap is gone.
+        expect(
+            staleMarkers(markers, () => INCOMPARABLE).map((m) => m.card)
+        ).toEqual(["Iota"]);
+    });
+
     it("reds a hand-tail marker on a card the compiler read and disagreed with", () => {
         const markers = scanCompilerGapMarkers(
             card("Epsilon", "// hand-tail: Rampage N (#3900)")

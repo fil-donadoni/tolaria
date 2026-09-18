@@ -57,19 +57,16 @@ import {
 import { readMetagameDecks } from "./premodern-metagame-import";
 import {
     COVERAGE_STATES,
-    gapIndex,
     readTargetRegistry,
     resolveContext,
     resolveTarget,
     targetCoverage,
     TARGETS_PATH,
+    type CoverageContext,
     type TargetCoverage,
 } from "./lib/targets";
-import {
-    scanFilesForCompilerGaps,
-    isExempting,
-} from "./lib/compiler-gap-markers";
-import { collectSetFiles } from "./lib/divergence-markers";
+import { buildCoverageContext, closureOracleIds } from "./lib/coverage-context";
+import { corpusNameIndex } from "./lib/card-names";
 
 const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
 const LOCKFILE_PATH = join(ROOT, "data", "oracle-compiled.json");
@@ -214,30 +211,6 @@ function vendoredSets(): SetMembership[] {
         });
 }
 
-/**
- * Oracle ids of the hand-written cards carrying a well-formed `hand-tail:`
- * marker. Fail-closed: a marked card whose name the lockfile cannot resolve
- * throws, rather than dropping out of the Hand Tail it declared.
- */
-function handTailOracleIds(
-    byName: ReadonlyMap<string, { oracleId: string }>
-): Set<string> {
-    const ids = new Set<string>();
-    const markers = scanFilesForCompilerGaps(
-        collectSetFiles(join(ROOT, "convex", "cards", "sets"))
-    );
-    for (const marker of markers) {
-        if (marker.kind !== "hand-tail" || !isExempting(marker)) continue;
-        const row = byName.get(marker.card);
-        if (row === undefined)
-            throw new Error(
-                `${marker.file}:${marker.line}: hand-tail card \`${marker.card}\` is not in the Oracle lockfile under exactly one oracle id`
-            );
-        ids.add(row.oracleId);
-    }
-    return ids;
-}
-
 /** `  gap-pending   12: Name, Name, …` */
 function coverageLines(coverage: TargetCoverage): string {
     const head =
@@ -245,6 +218,7 @@ function coverageLines(coverage: TargetCoverage): string {
         (coverage.priority === undefined
             ? ""
             : `, priority ${coverage.priority}`) +
+        (coverage.enforced ? ", enforced" : "") +
         `)  ${coverage.total} cards\n` +
         `  ${"playable".padEnd(12)}${`${coverage.playable}/${coverage.total}`.padStart(12)}  ` +
         `${pct(coverage.playable, coverage.total).trim()} — ready or hand-written, the v1 gate\n`;
@@ -259,7 +233,29 @@ function coverageLines(coverage: TargetCoverage): string {
         coverage.migrable.length === 0
             ? "none"
             : coverage.migrable.map((m) => `${m.name} (${m.why})`).join("; ");
-    return `${head}${states}\n  hand-tail cards now migrable: ${migrable}\n`;
+    // Why each card is unclaimed, by the kind of claim it lacks — the
+    // difference between "the grammar owes an issue" and "nobody decided".
+    const lacking = new Map<string, number>();
+    for (const { why } of coverage.unclaimed) {
+        const kind = /`(grammar|mechanic|scenario)` claim/.exec(why)?.[1];
+        const bucket = kind === undefined ? "hand-tail" : kind;
+        lacking.set(bucket, (lacking.get(bucket) ?? 0) + 1);
+    }
+    const unclaimedWhy =
+        lacking.size === 0
+            ? ""
+            : `  unclaimed, by the claim missing: ${[...lacking]
+                  .map(([kind, n]) => `${kind} ${n}`)
+                  .join(", ")}\n`;
+    const closure =
+        coverage.closureCompiles.length === 0
+            ? "none"
+            : coverage.closureCompiles.join(", ");
+    return (
+        `${head}${states}\n${unclaimedWhy}` +
+        `  hand-tail cards now migrable: ${migrable}\n` +
+        `  closure cards whose Oracle text now compiles — compare behaviour by hand: ${closure}\n`
+    );
 }
 
 /**
@@ -281,25 +277,19 @@ function reportTargets(lock: Lockfile, only: string | undefined): void {
         process.exit(1);
     }
     const resolve = resolveContext(ROOT, lock);
-    const gaps = gapIndex(lock);
-    const handWritten = poolOracleIds();
-    if (handWritten.size === 0) {
+    let ctx: CoverageContext;
+    try {
+        ctx = buildCoverageContext(ROOT, lock, registry, resolve);
+    } catch (err) {
         process.stderr.write(
-            "oracle:report --targets — no hand-written cards read (data/card-index.json missing?); " +
-                "the playable figure would shrink silently — run: bun run check:index\n"
+            `oracle:report --targets — ${(err as Error).message}\n`
         );
         process.exit(1);
     }
-    const ctx = {
-        floor: registry.handTailFloor,
-        handWritten,
-        handTail: handTailOracleIds(resolve.byName),
-        byOracleId: resolve.byOracleId,
-        ...gaps,
-    };
     process.stdout.write(
         `\nTarget Lists — ${TARGETS_PATH}, hand-tail floor ${registry.handTailFloor} corpus cards\n` +
-            `states: ${COVERAGE_STATES.join(", ")}; playable is a separate figure\n\n`
+            `states: ${COVERAGE_STATES.join(", ")}; playable is a separate figure; ` +
+            `check:targets reds only the enforced Targets\n\n`
     );
     for (const row of rows) {
         process.stdout.write(
@@ -527,6 +517,15 @@ function main(): void {
     process.stdout.write(
         `\n"pool" is the cards already covered by a HAND-WRITTEN definition today.\n` +
             `It is the baseline the compiler is measured against, not part of its output.\n`
+    );
+    // The protocol cards' exit route (issue #3868): a report line, never a
+    // red — equality with a closure is unproven, so a person compares.
+    const closure = [...closureOracleIds(corpusNameIndex(lock))]
+        .map((id) => lock.cards.find((c) => c.oracleId === id)!.name)
+        .sort();
+    process.stdout.write(
+        `\nclosure cards whose Oracle text now compiles — compare behaviour by hand ` +
+            `(${closure.length}): ${closure.length === 0 ? "none" : closure.join(", ")}\n`
     );
 
     reportGaps(rankGrammarGaps(lock, null), gapCount, null);
