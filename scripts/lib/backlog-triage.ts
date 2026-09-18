@@ -166,7 +166,7 @@ const TAIL_ASIDE = /\s*\([^)]*\)\s*$/;
  * or the title yields NONE. Nothing is inferred from prose — the tail, less
  * one optional `blocks`/`unblocks`/`ships` verb and one trailing parenthetical,
  * is tried whole first (a name may carry a comma: `Wan Shi Tong, Librarian`),
- * then split on `, ` / ` + ` / ` and `. A tail that is a clause
+ * then split on `, `, ` + `, ` / ` or ` and `. A tail that is a clause
  * (`— blocks DSL migration`) resolves nothing and names nothing.
  */
 export function cardsNamedByEngineTitle(
@@ -179,7 +179,7 @@ export function cardsNamedByEngineTitle(
     const bare = tail.replace(TAIL_ASIDE, "").replace(TAIL_VERB, "").trim();
     if (bare.length === 0) return [];
     if (byName(bare) !== undefined) return [bare];
-    const names = bare.split(/,\s+|\s\+\s|\sand\s/).map((n) => n.trim());
+    const names = bare.split(/,\s+|\s\+\s|\s\/\s|\sand\s/).map((n) => n.trim());
     if (names.some((n) => n.length === 0 || byName(n) === undefined)) return [];
     return names;
 }

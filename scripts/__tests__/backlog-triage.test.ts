@@ -309,6 +309,12 @@ describe("backlog-triage — cards named or unlocked", () => {
                 byName
             )
         ).toEqual(["Cube", "SetOnly"]);
+        expect(
+            cardsNamedByEngineTitle(
+                "[engine] Hand-zone access — Cube / SetOnly (#1120 gap 6b)",
+                byName
+            )
+        ).toEqual(["Cube", "SetOnly"]);
         // A clause tail names nothing.
         expect(
             cardsNamedByEngineTitle(
