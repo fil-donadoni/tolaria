@@ -119,7 +119,95 @@ export interface Scenario {
  *  surfaced by the sweep (never silently green — ADR 0045 / issue #804). */
 export type Plan =
     | { kind: "run"; scenario: Scenario; assertions: Assertion[] }
-    | { kind: "skip"; reason: string };
+    | {
+          kind: "skip";
+          /** The first skip's reason — the legible one-liner the sweep prints. */
+          reason: string;
+          /** EVERY skip the script raised, nested bodies included — see
+           *  `planSmokeTest` for why the first one alone is not enough. */
+          skips: SmokeSkip[];
+      };
+
+/**
+ * ADR 0105 § 7.1 — the two classes of smoke skip.
+ *
+ * - `op-covered`: the skip is caused by the Op's OWN mechanism (it suspends for
+ *   a decision, it registers a dormant shield, its outcome lands at a later
+ *   step, it draws a random bit, …), identical for every card that uses the
+ *   Op. The Op's permanent test is the evidence — the per-Op regime of
+ *   ADR 0045 — so the skip does not withhold a Compiled Definition.
+ * - `card-dependent`: the skip is caused by what the CARD's clause feeds the Op
+ *   (a `$source`/`$each` subject, a runtime amount, a cast-time X, an object or
+ *   zone the canned scenario does not seed). No Op test can speak for it; the
+ *   Oracle compiler withholds the card until the emitting Grammar Rule carries
+ *   a golden fixture for that form (`convex/oracle/gates.ts`).
+ *
+ * When a reason could be read either way it is `card-dependent`: a wrong
+ * `op-covered` ships an unproven card, a wrong `card-dependent` only waits for
+ * a fixture.
+ */
+export type SmokeSkipClass = "op-covered" | "card-dependent";
+
+/** Every skip reason's category. A new skip site names one of these; a new
+ *  category is added HERE, where `SMOKE_SKIP_CLASS` forces it to be classed. */
+export const SMOKE_SKIP_CODES = [
+    // ── op-covered ──
+    "suspends-for-input",
+    "dormant-shield",
+    "later-outcome",
+    "randomness",
+    "visibility-only",
+    "untapped-seed",
+    "runtime-branch",
+    "op-own-tests",
+    // ── card-dependent ──
+    "source-or-each-subject",
+    "runtime-amount",
+    "cast-time-x",
+    "target-slot-shape",
+    "choice-binding",
+    "unmodelled-object-or-zone",
+    "unanalysed",
+    "no-assertable-outcome",
+    "card-paired-mechanism",
+] as const;
+
+export type SmokeSkipCode = (typeof SMOKE_SKIP_CODES)[number];
+
+/** The exhaustive classification — a `Record`, so a code with no class is a
+ *  type error rather than a silent default. */
+export const SMOKE_SKIP_CLASS: Record<SmokeSkipCode, SmokeSkipClass> = {
+    "suspends-for-input": "op-covered",
+    "dormant-shield": "op-covered",
+    "later-outcome": "op-covered",
+    randomness: "op-covered",
+    "visibility-only": "op-covered",
+    "untapped-seed": "op-covered",
+    "runtime-branch": "op-covered",
+    "op-own-tests": "op-covered",
+    "source-or-each-subject": "card-dependent",
+    "runtime-amount": "card-dependent",
+    "cast-time-x": "card-dependent",
+    "target-slot-shape": "card-dependent",
+    "choice-binding": "card-dependent",
+    "unmodelled-object-or-zone": "card-dependent",
+    unanalysed: "card-dependent",
+    "no-assertable-outcome": "card-dependent",
+    // The Op's outcome depends on how the CARD pairs it — with an earlier
+    // arming Op (`returnExiledForSource`, `unattach`, a captured binding) or
+    // with a per-card pile protocol (`divideIntoPiles`) — so no Op test can
+    // vouch for a given card's pairing.
+    "card-paired-mechanism": "card-dependent",
+};
+
+/** One reason a script could not be scenario-ized. */
+export interface SmokeSkip {
+    readonly code: SmokeSkipCode;
+    readonly reason: string;
+    /** The Op being analysed when the skip was raised; absent for a
+     *  script-level skip (target-slot layout, no assertable outcome). */
+    readonly op?: EffectOp;
+}
 
 /** One derived declared-outcome check: a label (for a legible failure) and a
  *  predicate over the POST-resolution state. Built from a single Op before the
@@ -225,14 +313,143 @@ interface Requirements {
     drawingPlayers: Set<string>;
     /** Count sets to populate so a `count` value is non-zero. */
     countSets: EffectCountSpec[];
-    /** Present when the script cannot be scenario-ized. */
-    skip: string | null;
+    /** Every reason the script cannot be scenario-ized; empty when it can. */
+    skips: SmokeSkip[];
+    /** The Op `analyseOp` is walking — stamped on each skip it raises. */
+    currentOp?: EffectOp;
+}
+
+function skipBecause(
+    req: Requirements,
+    code: SmokeSkipCode,
+    reason: string
+): void {
+    req.skips.push(
+        req.currentOp === undefined
+            ? { code, reason }
+            : { code, reason, op: req.currentOp }
+    );
+}
+
+/** Every Op and construct name the Effect Script DSL knows — what separates a
+ *  nested Op from a comparison predicate's `op: "gt"`. */
+const EFFECT_OP_NAMES: ReadonlySet<string> = new Set(
+    EFFECT_OP_REGISTRY.map((row) => row.op)
+);
+
+function isEffectOp(node: unknown): node is EffectOp {
+    return (
+        typeof node === "object" &&
+        node !== null &&
+        !Array.isArray(node) &&
+        EFFECT_OP_NAMES.has(String((node as { op?: unknown }).op))
+    );
+}
+
+/** Fields typed `EffectValue` somewhere in the `EffectOp` union — an amount. */
+const AMOUNT_KEYS: ReadonlySet<string> = new Set([
+    "amount",
+    "count",
+    "costPerKept",
+    "look",
+    "max",
+    "min",
+    "take",
+    "energyEqualTo",
+    "genericEqualTo",
+    "left",
+    "right",
+    "negate",
+    "power",
+    "toughness",
+    "reducedBy",
+]);
+
+/**
+ * ADR 0105 § 7.1 — what an `op-covered` skip must NOT hide: the card-dependent
+ * parts of the Op's OWN arguments. An op-covered branch of `analyseOp` stops
+ * at the Op's mechanism ("registers a dormant shield") and returns before it
+ * reads the subject or the amount, so "Regenerate this creature" and
+ * "Regenerate target creature" raise the same op-covered skip — yet the first
+ * acts on `$source`, which is exactly what ADR 0105 § 7.1 names as
+ * card-dependent. This walk reads those arguments back, fail-closed: any
+ * runtime amount and any object ref is card-dependent. Nested Op arrays are
+ * left to `nestedOps`, which analyses each nested Op on its own.
+ */
+function analyseOwnArguments(op: EffectOp, req: Requirements): void {
+    const walk = (node: unknown, key: string | null): void => {
+        if (Array.isArray(node)) {
+            for (const child of node) if (!isEffectOp(child)) walk(child, key);
+            return;
+        }
+        if (node === null || typeof node !== "object") return;
+        if (key !== null && AMOUNT_KEYS.has(key)) {
+            // Fail-closed: a non-numeric amount is card-dependent whatever
+            // its shape. `analyseValue` names the reason when it knows the
+            // value; an object it does not know (it may throw on one — it is
+            // written for well-typed amount sites) gets the generic reason.
+            const before = req.skips.length;
+            try {
+                analyseValue(node as EffectValue, req);
+            } catch {
+                req.skips.length = before;
+            }
+            if (req.skips.length === before)
+                skipBecause(
+                    req,
+                    "runtime-amount",
+                    `Op "${op.op}" reads a runtime "${key}" amount — the canned generator does not size it`
+                );
+            return;
+        }
+        const record = node as Record<string, unknown>;
+        if (typeof record.ref === "string") {
+            if (record.ref === "$source" || record.ref === "$each")
+                skipBecause(
+                    req,
+                    "source-or-each-subject",
+                    `Op "${op.op}" acts on ${record.ref} — covered by the card's own per-card test`
+                );
+            else
+                skipBecause(
+                    req,
+                    "runtime-amount",
+                    `Op "${op.op}" reads ref "${record.ref}" — depends on a runtime binding`
+                );
+            return;
+        }
+        for (const [child, value] of Object.entries(record))
+            if (!isEffectOp(value)) walk(value, child);
+    };
+    for (const [key, value] of Object.entries(op)) {
+        if (key === "op" || isEffectOp(value)) continue;
+        walk(value, key);
+    }
+}
+
+/** Analyse one Op; when its own analyser raised only op-covered skips, read
+ *  its arguments back so an op-covered mechanism cannot hide them. */
+function analyseOpFully(op: EffectOp, req: Requirements): void {
+    const before = req.skips.length;
+    req.currentOp = op;
+    analyseOp(op, req);
+    const raised = req.skips.slice(before);
+    if (
+        raised.length > 0 &&
+        raised.every((skip) => SMOKE_SKIP_CLASS[skip.code] === "op-covered")
+    )
+        analyseOwnArguments(op, req);
+    req.currentOp = undefined;
 }
 
 function analyseValue(value: EffectValue, req: Requirements): void {
     if (typeof value === "number") return;
     if ("ref" in value) {
-        req.skip ??= `numeric ref "${value.ref}" — amount depends on a runtime snapshot`;
+        skipBecause(
+            req,
+            "runtime-amount",
+            `numeric ref "${value.ref}" — amount depends on a runtime snapshot`
+        );
         return;
     }
     // Chosen-cost X (issue #852): the amount is whatever was announced for {X}
@@ -241,7 +458,11 @@ function analyseValue(value: EffectValue, req: Requirements): void {
     // asserted deterministically. Skip-with-reason (the per-card test remains
     // the behavioural guarantor for X cards).
     if ("X" in value) {
-        req.skip ??= `amount is chosen-cost X — depends on the value announced for {X} at cast time`;
+        skipBecause(
+            req,
+            "cast-time-x",
+            `amount is chosen-cost X — depends on the value announced for {X} at cast time`
+        );
         return;
     }
     // counters (issue #1015, CR 122.6): the amount reads the LIVE count of a
@@ -251,7 +472,11 @@ function analyseValue(value: EffectValue, req: Requirements): void {
     // — the construct's interpreter test (across $source / $each / target) is
     // the behavioural guarantor (per DSL-first authoring, new-construct regime).
     if ("counters" in value) {
-        req.skip ??= `amount reads a permanent's "${value.counters.type}" counter count — the canned generator does not pre-seed counters`;
+        skipBecause(
+            req,
+            "runtime-amount",
+            `amount reads a permanent's "${value.counters.type}" counter count — the canned generator does not pre-seed counters`
+        );
         return;
     }
     // kickerCount (CR 702.33): the amount reads how many times the spell was
@@ -259,14 +484,22 @@ function analyseValue(value: EffectValue, req: Requirements): void {
     // can't reproduce. Skip-with-reason — the per-card / interpreter test is the
     // behavioural guarantor (per DSL-first authoring, new-construct regime).
     if ("kickerCount" in value) {
-        req.skip ??= `amount reads the spell's kicker count — the canned generator casts unkicked`;
+        skipBecause(
+            req,
+            "runtime-amount",
+            `amount reads the spell's kicker count — the canned generator casts unkicked`
+        );
         return;
     }
     // additionalCostPaid (CR 702.33, ADR 0079): the amount reads whether ONE named
     // Kicker was paid — the same cast-time decision `kickerCount` reads, so the
     // canned generator (which casts unkicked) can't reproduce it either.
     if ("additionalCostPaid" in value) {
-        req.skip ??= `amount reads whether the "${value.additionalCostPaid}" kicker was paid — the canned generator casts unkicked`;
+        skipBecause(
+            req,
+            "runtime-amount",
+            `amount reads whether the "${value.additionalCostPaid}" kicker was paid — the canned generator casts unkicked`
+        );
         return;
     }
     // manaValue (CR 202.3): the amount reads a selected object's mana value. The
@@ -274,7 +507,11 @@ function analyseValue(value: EffectValue, req: Requirements): void {
     // predictor can size a declared outcome against; skip-with-reason — the
     // per-card / interpreter test is the behavioural guarantor.
     if ("manaValue" in value) {
-        req.skip ??= `amount reads a selected object's mana value — not faithfully sizable in a canned scenario`;
+        skipBecause(
+            req,
+            "runtime-amount",
+            `amount reads a selected object's mana value — not faithfully sizable in a canned scenario`
+        );
         return;
     }
     // domain (CR 702 preamble, issue #1066): the amount reads a PLAYER's
@@ -284,7 +521,11 @@ function analyseValue(value: EffectValue, req: Requirements): void {
     // interpreter test (across the `of` player selectors) is the behavioural
     // guarantor (per DSL-first authoring, new-construct regime).
     if ("domain" in value) {
-        req.skip ??= `amount reads a player's Domain — the canned generator does not seed basic lands to size it`;
+        skipBecause(
+            req,
+            "runtime-amount",
+            `amount reads a player's Domain — the canned generator does not seed basic lands to size it`
+        );
         return;
     }
     // devotion (CR 700.5, issue #2070): the amount reads a PLAYER's devotion
@@ -294,7 +535,11 @@ function analyseValue(value: EffectValue, req: Requirements): void {
     // skip-with-reason — the value member's own interpreter test is the
     // behavioural guarantor (per DSL-first authoring, new-construct regime).
     if ("devotion" in value) {
-        req.skip ??= `amount reads a player's devotion to a colour — the canned generator does not seed costed permanents to size it`;
+        skipBecause(
+            req,
+            "runtime-amount",
+            `amount reads a player's devotion to a colour — the canned generator does not seed costed permanents to size it`
+        );
         return;
     }
     // escaped (CR 702.138b, issue #695): a 0/1 read of whether a permanent
@@ -302,7 +547,11 @@ function analyseValue(value: EffectValue, req: Requirements): void {
     // it can't set an escaped=1 outcome; skip-with-reason — the value member's
     // own interpreter test is the behavioural guarantor (new-construct regime).
     if ("escaped" in value) {
-        req.skip ??= `amount reads a permanent's escaped flag — the canned generator does not cast via escape`;
+        skipBecause(
+            req,
+            "runtime-amount",
+            `amount reads a permanent's escaped flag — the canned generator does not cast via escape`
+        );
         return;
     }
     // abilityResolutionCount (CR 122 / 603.3, issue #1189): the amount reads
@@ -314,7 +563,11 @@ function analyseValue(value: EffectValue, req: Requirements): void {
     // (across the nested if/else-if/else combo) is the behavioural guarantor
     // (new-construct regime).
     if ("abilityResolutionCount" in value) {
-        req.skip ??= `amount reads the resolving triggered ability's per-turn resolution count — not modelled by the canned single-shot generator`;
+        skipBecause(
+            req,
+            "runtime-amount",
+            `amount reads the resolving triggered ability's per-turn resolution count — not modelled by the canned single-shot generator`
+        );
         return;
     }
     // lifeGainedThisTurn (CR 119.3, issue #1457): the amount reads how much
@@ -323,7 +576,11 @@ function analyseValue(value: EffectValue, req: Requirements): void {
     // declared outcome; skip-with-reason — the value member's own interpreter
     // test is the behavioural guarantor (new-construct regime).
     if ("lifeGainedThisTurn" in value) {
-        req.skip ??= `amount reads a player's life gained this turn — the canned generator does not gain life before resolving`;
+        skipBecause(
+            req,
+            "runtime-amount",
+            `amount reads a player's life gained this turn — the canned generator does not gain life before resolving`
+        );
         return;
     }
     // cardsDrawnThisTurn (CR 121.1, issue #3240): the amount reads how many
@@ -332,7 +589,11 @@ function analyseValue(value: EffectValue, req: Requirements): void {
     // declared outcome; skip-with-reason — the value member's own interpreter
     // test is the behavioural guarantor (new-construct regime).
     if ("cardsDrawnThisTurn" in value) {
-        req.skip ??= `amount reads a player's cards drawn this turn — the canned generator does not draw before resolving`;
+        skipBecause(
+            req,
+            "runtime-amount",
+            `amount reads a player's cards drawn this turn — the canned generator does not draw before resolving`
+        );
         return;
     }
     // playerCounters (CR 122.1, issue #1969): the amount reads how many
@@ -342,7 +603,11 @@ function analyseValue(value: EffectValue, req: Requirements): void {
     // skip-with-reason — the value member's own interpreter test is the
     // behavioural guarantor (new-construct regime).
     if ("playerCounters" in value) {
-        req.skip ??= `amount reads a player's counters of one kind — the canned generator does not seed player counters`;
+        skipBecause(
+            req,
+            "runtime-amount",
+            `amount reads a player's counters of one kind — the canned generator does not seed player counters`
+        );
         return;
     }
     // difference (issue #2006): `from` minus `minus`. The filler seeds ONE
@@ -353,7 +618,11 @@ function analyseValue(value: EffectValue, req: Requirements): void {
     // member's own interpreter test is the behavioural guarantor (per
     // DSL-first authoring, new-construct regime).
     if ("difference" in value) {
-        req.skip ??= `amount is a difference of two values — the canned predictor sizes exactly one count set, not an arithmetic combination`;
+        skipBecause(
+            req,
+            "runtime-amount",
+            `amount is a difference of two values — the canned predictor sizes exactly one count set, not an arithmetic combination`
+        );
         return;
     }
     // scaled (issue #2366): a fixed multiplier times a terminal — X, a
@@ -365,7 +634,11 @@ function analyseValue(value: EffectValue, req: Requirements): void {
     // the member's own interpreter test is the behavioural guarantor
     // (new-grammar-member regime, matching `difference`'s own skip above).
     if ("scaled" in value) {
-        req.skip ??= `amount is a scaled (multiplied) terminal — the canned predictor sizes exactly one unscaled count set`;
+        skipBecause(
+            req,
+            "runtime-amount",
+            `amount is a scaled (multiplied) terminal — the canned predictor sizes exactly one unscaled count set`
+        );
         return;
     }
     // divide (issue #2385): a terminal divided by a fixed divisor. Same
@@ -374,7 +647,11 @@ function analyseValue(value: EffectValue, req: Requirements): void {
     // Skip-with-reason — the member's own interpreter test is the
     // behavioural guarantor (new-grammar-member regime).
     if ("divide" in value) {
-        req.skip ??= `amount is a divided terminal — the canned predictor sizes exactly one undivided count set`;
+        skipBecause(
+            req,
+            "runtime-amount",
+            `amount is a divided terminal — the canned predictor sizes exactly one undivided count set`
+        );
         return;
     }
     // sacrificed (issue #2375): a characteristic of the permanent sacrificed
@@ -387,7 +664,11 @@ function analyseValue(value: EffectValue, req: Requirements): void {
     // other post-`X` grammar members above; the member's own interpreter test
     // is the behavioural guarantor (new-grammar-member regime).
     if ("sacrificed" in value) {
-        req.skip ??= `amount reads the cost-sacrificed permanent's ${value.sacrificed.read} — the canned generator never pays an additional sacrifice cost, so no snapshot exists to read`;
+        skipBecause(
+            req,
+            "runtime-amount",
+            `amount reads the cost-sacrificed permanent's ${value.sacrificed.read} — the canned generator never pays an additional sacrifice cost, so no snapshot exists to read`
+        );
         return;
     }
     // sum (CR 122 / 404, issue #3243): the total of one characteristic across a
@@ -399,22 +680,33 @@ function analyseValue(value: EffectValue, req: Requirements): void {
     // above; the member's own interpreter test is the behavioural guarantor
     // (new-grammar-member regime).
     if ("sum" in value) {
-        req.skip ??= `amount sums the ${value.sum.read} of a bound card set — the canned generator never runs the Op that binds it`;
+        skipBecause(
+            req,
+            "runtime-amount",
+            `amount sums the ${value.sum.read} of a bound card set — the canned generator never runs the Op that binds it`
+        );
         return;
     }
     // setSize (CR 107.3 / 118.12, issue #3244): the SIZE of a set a preceding
     // Op bound — `sum`'s reason exactly: the canned generator never runs the
     // binding Op, so the value would resolve to its empty-set 0.
     if ("setSize" in value) {
-        req.skip ??=
-            "amount counts a bound set — the canned generator never runs the Op that binds it";
+        skipBecause(
+            req,
+            "runtime-amount",
+            "amount counts a bound set — the canned generator never runs the Op that binds it"
+        );
         return;
     }
     req.countSets.push(value.count);
     // A count set's own controller may itself be a ref — unmodelable.
     const c = value.count.controller;
     if (typeof c === "object" && c !== null && "ref" in c) {
-        req.skip ??= `count set controller is a ref "${c.ref}"`;
+        skipBecause(
+            req,
+            "runtime-amount",
+            `count set controller is a ref "${c.ref}"`
+        );
     }
     // issue #985 — the filler seeds ONE player's zone with cards matched by
     // type/subtype only. An `acrossAllPlayers` scope (every graveyard) or a
@@ -422,7 +714,11 @@ function analyseValue(value: EffectValue, req: Requirements): void {
     // be faithfully sized here; skip-with-reason so a hand-written test is the
     // behavioural guarantor (per DSL-first authoring, new-construct regime).
     if (value.count.acrossAllPlayers) {
-        req.skip ??= `count set spans all players' zones — not faithfully sizable in a canned scenario`;
+        skipBecause(
+            req,
+            "runtime-amount",
+            `count set spans all players' zones — not faithfully sizable in a canned scenario`
+        );
     }
     // issue #783 — the MIN-across-players sibling of `acrossAllPlayers`, and
     // the same reason: the filler seeds ONE player's zone, so the other
@@ -430,7 +726,11 @@ function analyseValue(value: EffectValue, req: Requirements): void {
     // predicted amount would be wrong rather than skipped. Skip-with-reason —
     // the construct's hand-written interpreter test is the guarantor.
     if (value.count.smallestAcrossPlayers) {
-        req.skip ??= `count set takes the SMALLEST count across all players' zones — not faithfully sizable in a canned scenario`;
+        skipBecause(
+            req,
+            "runtime-amount",
+            `count set takes the SMALLEST count across all players' zones — not faithfully sizable in a canned scenario`
+        );
     }
     // issue #783 — a LIBRARY count set. The library is also the zone the
     // generator seeds for DRAWING players at a fixed depth, so its size is not
@@ -438,17 +738,29 @@ function analyseValue(value: EffectValue, req: Requirements): void {
     // would be a silently wrong assertion (the generator's contract is an
     // explicit skip with a reason, never a silent pass).
     if (value.count.zone === "library") {
-        req.skip ??= `count set counts a LIBRARY — the canned generator's library depth is owned by the draw filler, not the count filler`;
+        skipBecause(
+            req,
+            "runtime-amount",
+            `count set counts a LIBRARY — the canned generator's library depth is owned by the draw filler, not the count filler`
+        );
     }
     // issue #2006 — a HAND count set, the library skip's twin. The hand is
     // seeded by the cast filler (the spell being resolved came from it), not by
     // the count filler, so predicting COUNT_SET_SIZE would be a silently wrong
     // assertion rather than an honest skip.
     if (value.count.zone === "hand") {
-        req.skip ??= `count set counts a HAND — the canned generator's hand contents are owned by the cast filler, not the count filler`;
+        skipBecause(
+            req,
+            "runtime-amount",
+            `count set counts a HAND — the canned generator's hand contents are owned by the cast filler, not the count filler`
+        );
     }
     if (value.count.filter?.name !== undefined) {
-        req.skip ??= `count set filters by card name "${value.count.filter.name}" — filler doesn't synthesize an exact name`;
+        skipBecause(
+            req,
+            "runtime-amount",
+            `count set filters by card name "${value.count.filter.name}" — filler doesn't synthesize an exact name`
+        );
     }
     // issue #999 — the filler seeds cards by type/subtype only and predicts a
     // plain cardinality. A supertype-exclusion filter ("nonbasic land") or a
@@ -456,7 +768,11 @@ function analyseValue(value: EffectValue, req: Requirements): void {
     // seeder/predictor, so skip-with-reason — the construct's hand-written
     // interpreter test is the behavioural guarantor (new-construct regime).
     if (value.count.filter?.excludeSupertype !== undefined) {
-        req.skip ??= `count set excludes supertype(s) — the filler doesn't model supertype exclusion`;
+        skipBecause(
+            req,
+            "runtime-amount",
+            `count set excludes supertype(s) — the filler doesn't model supertype exclusion`
+        );
     }
     // issue #1952 — `countFillerId` seeds a filler card by type/subtype only
     // (`gen-count-filler-<type>-<subtype>`, no `colors`); a count filter that
@@ -466,10 +782,18 @@ function analyseValue(value: EffectValue, req: Requirements): void {
     // `name`/`excludeSupertype` above — skip-with-reason, hand-written test is
     // the behavioural guarantor.
     if (value.count.filter?.color !== undefined) {
-        req.skip ??= `count set filters by color "${value.count.filter.color}" — the filler doesn't model color`;
+        skipBecause(
+            req,
+            "runtime-amount",
+            `count set filters by color "${value.count.filter.color}" — the filler doesn't model color`
+        );
     }
     if (value.count.times !== undefined) {
-        req.skip ??= `count set applies a ${value.count.times}× multiplier — not modelled by the canned predictor`;
+        skipBecause(
+            req,
+            "runtime-amount",
+            `count set applies a ${value.count.times}× multiplier — not modelled by the canned predictor`
+        );
     }
 }
 
@@ -480,7 +804,11 @@ function analysePlayer(
 ): void {
     const resolved = resolveScenarioPlayer(ref);
     if (resolved === "ref") {
-        slotUse.skip ??= `player parameter is a ref — recipient depends on a runtime snapshot`;
+        skipBecause(
+            slotUse,
+            "runtime-amount",
+            `player parameter is a ref — recipient depends on a runtime snapshot`
+        );
         return;
     }
     if (resolved === "target") {
@@ -500,7 +828,11 @@ function recordSlot(
 ): void {
     const existing = req.targetSlots.get(slot);
     if (existing && existing !== kind) {
-        req.skip ??= `target slot ${slot} is read as both ${existing} and ${kind}`;
+        skipBecause(
+            req,
+            "target-slot-shape",
+            `target slot ${slot} is read as both ${existing} and ${kind}`
+        );
         return;
     }
     req.targetSlots.set(slot, kind);
@@ -520,12 +852,19 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 // CR 506.2 (issue #3244) — the recipient is whatever the
                 // creature is attacking, and the canned generator declares no
                 // combat.
-                req.skip ??=
-                    "recipient is the player or planeswalker a creature is attacking — the canned generator declares no combat";
+                skipBecause(
+                    req,
+                    "unmodelled-object-or-zone",
+                    "recipient is the player or planeswalker a creature is attacking — the canned generator declares no combat"
+                );
             } else {
                 // `{ ref: "$each" }` — only reachable inside a forEach body,
                 // and forEach scripts are skipped wholesale below.
-                req.skip ??= `object ref "${op.to.ref}" — recipient depends on a forEach iteration`;
+                skipBecause(
+                    req,
+                    "source-or-each-subject",
+                    `object ref "${op.to.ref}" — recipient depends on a forEach iteration`
+                );
             }
             return;
         case "dealDamageDividedAsChosen":
@@ -534,8 +873,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // scenario has no way to populate that multi-target division, so it
             // cannot faithfully assert the per-target outcome. Covered by the
             // hand-written interpreter test instead (skip-only, like exile).
-            req.skip ??=
-                "dealDamageDividedAsChosen — announced multi-target division cannot be scenario-ized";
+            skipBecause(
+                req,
+                "target-slot-shape",
+                "dealDamageDividedAsChosen — announced multi-target division cannot be scenario-ized"
+            );
             return;
         case "draw":
             analysePlayer(op.player, req, true);
@@ -555,7 +897,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // deterministic assertion against. Covered instead by the Op's
             // own hand-written interpreter test plus Time Warp's card test
             // (tmp/__tests__/blue.test.ts).
-            req.skip ??= `Op "extraTurn" mutates a turn-boundary queue, not a same-step outcome — covered by hand-written tests`;
+            skipBecause(
+                req,
+                "later-outcome",
+                `Op "extraTurn" mutates a turn-boundary queue, not a same-step outcome — covered by hand-written tests`
+            );
             return;
         case "extraCombat":
             // CR 500.8 (issue #2886) — queueing an extra combat phase mutates
@@ -566,7 +912,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // `extraTurn` takes; covered instead by the Op's own hand-written
             // interpreter + wire-format tests and the extra-phase seam tests
             // (`gre/__tests__/extraPhases.test.ts`).
-            req.skip ??= `Op "extraCombat" mutates a turn-structure queue, not a same-step outcome — covered by hand-written tests`;
+            skipBecause(
+                req,
+                "later-outcome",
+                `Op "extraCombat" mutates a turn-structure queue, not a same-step outcome — covered by hand-written tests`
+            );
             return;
         case "skipNextTurn":
             // CR 614.10 (issue #1957) — skipping a turn mutates the target
@@ -576,7 +926,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // generator can size a deterministic assertion against. Covered
             // instead by the Op's own hand-written interpreter test plus
             // Waterspout Elemental's card test (pls/__tests__/blue.test.ts).
-            req.skip ??= `Op "skipNextTurn" mutates a turn-boundary count, not a same-step outcome — covered by hand-written tests`;
+            skipBecause(
+                req,
+                "later-outcome",
+                `Op "skipNextTurn" mutates a turn-boundary count, not a same-step outcome — covered by hand-written tests`
+            );
             return;
         case "restrictCasting":
             // CR 601.3a (issue #1057) — a turn-scoped cast lock on a player; the
@@ -649,7 +1003,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             } else {
                 // `{ ref: "$each" }` — forEach-body only; see the forEach
                 // skip below.
-                req.skip ??= `object ref "${op.target.ref}" — target depends on a forEach iteration`;
+                skipBecause(
+                    req,
+                    "source-or-each-subject",
+                    `object ref "${op.target.ref}" — target depends on a forEach iteration`
+                );
             }
             return;
         case "exileWithAttachments":
@@ -662,7 +1020,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // step the canned single-resolution generator does not sequence.
             // Explicit skip — the exile/return round-trip is covered by the
             // Op's own hand-written interpreter + card tests (per-Op regime).
-            req.skip ??= `Op "exileWithAttachments" arms an exile-and-return bundle whose observable outcome needs a later source-leaves/untaps return — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "later-outcome",
+                `Op "exileWithAttachments" arms an exile-and-return bundle whose observable outcome needs a later source-leaves/untaps return — covered by the Op's interpreter tests`
+            );
             return;
         case "exileSelf":
             // CR 608.2 (issue #1097) — redirects the RESOLVING spell's own
@@ -672,7 +1034,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // land" — same rationale as `shuffleSelfIntoLibrary` below, just a
             // different destination zone. Explicit skip — covered by the Op's
             // own interpreter tests (per-Op regime).
-            req.skip ??= `Op "exileSelf" redirects the resolving spell's own destination to exile — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "op-own-tests",
+                `Op "exileSelf" redirects the resolving spell's own destination to exile — covered by the Op's interpreter tests`
+            );
             return;
         case "returnExiledForSource":
             // CR 603.7a / ADR 0028 — the return half only has an observable
@@ -680,7 +1046,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // for the SAME source, which the canned generator doesn't
             // sequence (same rationale as `unattach` after `attach`). Explicit
             // skip — covered by the Op's own hand-written interpreter tests.
-            req.skip ??= `Op "returnExiledForSource" only has an observable outcome after a prior exileWithAttachments armed a bundle — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "card-paired-mechanism",
+                `Op "returnExiledForSource" only has an observable outcome after a prior exileWithAttachments armed a bundle — covered by the Op's interpreter tests`
+            );
             return;
         case "captureBinding":
         case "recallCapturedBinding":
@@ -691,7 +1061,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // the earlier ability nor observe a later one — there is no
             // same-resolution outcome to assert. Explicit skip; covered by the
             // Ops' own hand-written interpreter tests (per-Op regime).
-            req.skip ??= `Op "${op.op}" spans two separate resolutions of the same source's abilities — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "card-paired-mechanism",
+                `Op "${op.op}" spans two separate resolutions of the same source's abilities — covered by the Op's interpreter tests`
+            );
             return;
         case "attach":
             // CR 701.3a (ADR 0065, issue #1311) — Reconfigure's attach Op
@@ -701,7 +1075,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // can't satisfy a controller-scoped target requirement. Explicit
             // skip — a genuinely NEW Op earns the full per-Op interpreter +
             // card test regime instead (`.claude/rules/gre-development.md`).
-            req.skip ??= `Op "attach" targets a creature the CONTROLLER controls — not modelable by the generator's opponent-battlefield target placement`;
+            skipBecause(
+                req,
+                "unmodelled-object-or-zone",
+                `Op "attach" targets a creature the CONTROLLER controls — not modelable by the generator's opponent-battlefield target placement`
+            );
             return;
         case "unattach":
             // CR 701.3d (ADR 0065, issue #1311) — no target, but its outcome
@@ -709,7 +1087,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // type) is only observable if a PRIOR attach already ran in the
             // same script, which the generator doesn't sequence. Explicit
             // skip alongside "attach" — same per-Op test regime applies.
-            req.skip ??= `Op "unattach" only has an observable outcome after a prior attach — covered by hand-written interpreter/card tests`;
+            skipBecause(
+                req,
+                "card-paired-mechanism",
+                `Op "unattach" only has an observable outcome after a prior attach — covered by hand-written interpreter/card tests`
+            );
             return;
         case "choice":
             // A `choice` Op suspends resolution for a live player decision
@@ -717,7 +1099,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // script is reported as an explicit skip and execution coverage
             // comes from the card's own tests (per the DSL testing regime,
             // choice-carrying cards keep full per-card coverage).
-            req.skip ??= `Op "choice" suspends for player input — covered by the card's own suspension/resume tests`;
+            skipBecause(
+                req,
+                "suspends-for-input",
+                `Op "choice" suspends for player input — covered by the Op's own suspension/resume tests`
+            );
             return;
         case "discard":
             // `discard` either consumes a `choice` Op's picks binding (without
@@ -731,7 +1117,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // Issue #2713 added a THIRD shape (a `filter` over the hand,
             // Cabal Therapy) — skipped for the same reason as the whole-hand
             // one: no seeded hand to assert a delta against.
-            req.skip ??= `Op "discard" consumes a choice binding, a hand filter, or discards the whole hand — covered by the card's own suspension/resume or per-card test`;
+            skipBecause(
+                req,
+                "choice-binding",
+                `Op "discard" consumes a choice binding, a hand filter, or discards the whole hand — covered by the card's own suspension/resume or per-card test`
+            );
             return;
         case "grantCastFromExile":
             // `grantCastFromExile` (issue #1156, Dauthi Voidwalker) consumes
@@ -739,7 +1129,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // chosen) — without the choice's submitted picks the outcome is
             // undefined in a canned scenario, same skip rationale as
             // `discard`/`sacrifice`.
-            req.skip ??= `Op "grantCastFromExile" consumes a choice binding — covered by the card's own suspension/resume tests`;
+            skipBecause(
+                req,
+                "choice-binding",
+                `Op "grantCastFromExile" consumes a choice binding — covered by the card's own suspension/resume tests`
+            );
             return;
         case "grantCastFromGraveyard":
             // `grantCastFromGraveyard` (issue #1344, Malcolm; issue #1650,
@@ -749,7 +1143,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // PERMISSION stamped on a graveyard card — not a
             // battlefield/life/hand-count delta the canned generator asserts.
             // Same skip rationale as `grantCastFromExile`/`discard`.
-            req.skip ??= `Op "grantCastFromGraveyard" grants a cast permission off a choice binding or a graveyard target — covered by the card's own tests`;
+            skipBecause(
+                req,
+                "choice-binding",
+                `Op "grantCastFromGraveyard" grants a cast permission off a choice binding or a graveyard target — covered by the card's own tests`
+            );
             return;
         case "reveal":
             // `reveal` (issue #920 / #682) stamps `knownTo` on hidden cards —
@@ -759,7 +1157,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // which already forces a skip on its own — so this case never
             // needs to carry the skip alone in practice, but is explicit for
             // exhaustiveness (a reveal-only script would hit this branch).
-            req.skip ??= `Op "reveal" changes card visibility (knownTo) — not a state change the canned generator asserts`;
+            skipBecause(
+                req,
+                "visibility-only",
+                `Op "reveal" changes card visibility (knownTo) — not a state change the canned generator asserts`
+            );
             return;
         case "lookRandomHand":
             // `lookRandomHand` (Urza's Bauble) grants PRIVATE knowledge of a
@@ -767,7 +1169,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // (like `reveal`), not a battlefield/life/hand-count outcome the
             // canned generator's assertions model. Explicit skip for
             // exhaustiveness; execution coverage is the Op's interpreter tests.
-            req.skip ??= `Op "lookRandomHand" changes card visibility (knownTo) — not a state change the canned generator asserts`;
+            skipBecause(
+                req,
+                "visibility-only",
+                `Op "lookRandomHand" changes card visibility (knownTo) — not a state change the canned generator asserts`
+            );
             return;
         case "lookHand":
             // `lookHand` (issue #2383, Elite Spellbinder) grants PRIVATE
@@ -776,7 +1182,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // `reveal` before it, not a battlefield/life/hand-count outcome the
             // canned generator's assertions model. Explicit skip for
             // exhaustiveness; execution coverage is the Op's interpreter tests.
-            req.skip ??= `Op "lookHand" changes card visibility (knownTo) — not a state change the canned generator asserts`;
+            skipBecause(
+                req,
+                "visibility-only",
+                `Op "lookHand" changes card visibility (knownTo) — not a state change the canned generator asserts`
+            );
             return;
         case "payVariableMana":
             // CR 107.3f (issue #1701) — a `payVariableMana` Op suspends
@@ -785,7 +1195,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // below. Explicit skip; execution coverage is the Op's own
             // interpreter tests, which drive the nominate → pay → bound-value
             // round trip and the amount-0 decline.
-            req.skip ??= `Op "payVariableMana" suspends for a variable mana-payment nomination — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "suspends-for-input",
+                `Op "payVariableMana" suspends for a variable mana-payment nomination — covered by the Op's interpreter tests`
+            );
             return;
         case "chooseNumber":
             // CR 107.1c (issue #1421) — the bare nomination suspends for the
@@ -794,14 +1208,22 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // skip; execution coverage is the Op's own interpreter tests,
             // which drive the nominate → bound-value round trip, the
             // authored-range clamp and the open-ended shape.
-            req.skip ??= `Op "chooseNumber" suspends for a numeric nomination — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "suspends-for-input",
+                `Op "chooseNumber" suspends for a numeric nomination — covered by the Op's interpreter tests`
+            );
             return;
         case "mayPay":
             // A `mayPay` Op suspends resolution for a live Pay/Skip decision
             // (issue #806) — a canned scenario cannot submit an answer, so the
             // script is reported as an explicit skip; execution coverage comes
             // from the card's own suspension/resume tests.
-            req.skip ??= `Op "mayPay" suspends for a Pay/Skip decision — covered by the card's own suspension/resume tests`;
+            skipBecause(
+                req,
+                "suspends-for-input",
+                `Op "mayPay" suspends for a Pay/Skip decision — covered by the Op's own suspension/resume tests`
+            );
             return;
         case "scryReorder":
             // A `scryReorder` Op suspends resolution for a live order-top drag
@@ -809,7 +1231,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // ordering, so the script is reported as an explicit skip;
             // execution coverage comes from the Op's own interpreter tests and
             // the migrated cards' suspension/resume tests (per-Op regime).
-            req.skip ??= `Op "scryReorder" suspends for a look/reorder-top choice — covered by the Op's interpreter tests and the card's suspension/resume tests`;
+            skipBecause(
+                req,
+                "suspends-for-input",
+                `Op "scryReorder" suspends for a look/reorder-top choice — covered by the Op's interpreter tests and the card's suspension/resume tests`
+            );
             return;
         case "exileTopOfLibrary":
             // CR 701.13 (issue #3235) — exiles the top N library cards. Same
@@ -818,7 +1244,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // meaningful before/after library→exile delta to assert without
             // inventing a deck. A DELIBERATE, surfaced skip; execution coverage
             // is the Op's own interpreter tests.
-            req.skip ??= `Op "exileTopOfLibrary" moves top-of-library cards to exile — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "op-own-tests",
+                `Op "exileTopOfLibrary" moves top-of-library cards to exile — covered by the Op's interpreter tests`
+            );
             return;
         case "mill":
             // `mill` (issue #885) moves the top N library cards to a graveyard.
@@ -826,7 +1256,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // not model milling a TARGET player's deck, so rather than
             // mis-assert a graveyard delta it reports an explicit skip;
             // execution coverage is the Op's own interpreter tests.
-            req.skip ??= `Op "mill" moves top-of-library cards to the graveyard — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "op-own-tests",
+                `Op "mill" moves top-of-library cards to the graveyard — covered by the Op's interpreter tests`
+            );
             return;
         case "revealTopAndRoute":
             // `revealTopAndRoute` routes the revealed top card(s) by their own
@@ -837,7 +1271,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // Reported as an explicit skip; execution coverage is the Op's own
             // interpreter tests, which drive both the matching and the
             // fallback branch.
-            req.skip ??= `Op "revealTopAndRoute" routes the revealed top card by its characteristics — the canned generator cannot provision a known top card; covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "op-own-tests",
+                `Op "revealTopAndRoute" routes the revealed top card by its characteristics — the canned generator cannot provision a known top card; covered by the Op's interpreter tests`
+            );
             return;
         case "revealUntilMatch":
             // `revealUntilMatch` reveals from the top UNTIL a card matching the
@@ -850,7 +1288,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // explicit skip; execution coverage is the Op's own interpreter
             // tests, which drive the match, the no-match and the empty-library
             // branches.
-            req.skip ??= `Op "revealUntilMatch" reveals a prefix whose size depends on the library composition — the canned generator cannot provision a known library; covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "op-own-tests",
+                `Op "revealUntilMatch" reveals a prefix whose size depends on the library composition — the canned generator cannot provision a known library; covered by the Op's interpreter tests`
+            );
             return;
         case "discardAtRandom":
             // `discardAtRandom` (CR 701.9a) removes `count` RANDOM cards from a
@@ -859,7 +1301,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // known count, so rather than mis-assert a hand-size delta it
             // reports an explicit skip; execution coverage is the Op's own
             // interpreter tests plus the migrated cards' per-card tests.
-            req.skip ??= `Op "discardAtRandom" removes random cards from a target player's hand — the canned generator does not provision the target's hand contents; covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "randomness",
+                `Op "discardAtRandom" picks the discarded cards at random (seeded PRNG) — covered by the Op's interpreter tests`
+            );
             return;
         case "randomExileToHand":
             // `randomExileToHand` (CR 400.7, issue #1947) picks a RANDOM
@@ -868,7 +1314,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // so which card (if any) gets picked is unpredictable from
             // here — reported as an explicit skip; execution coverage is
             // the Op's own interpreter tests.
-            req.skip ??= `Op "randomExileToHand" picks a random card from a source-linked exile pile — the canned generator does not provision the pile; covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "randomness",
+                `Op "randomExileToHand" picks a random card from a source-linked exile pile — the canned generator does not provision the pile; covered by the Op's interpreter tests`
+            );
             return;
         case "lookDistribute":
             // A `lookDistribute` Op suspends resolution for a live look-distribute
@@ -876,7 +1326,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // hand/bottom choice, so the script is reported as an explicit skip;
             // execution coverage comes from the Op's own interpreter tests and
             // the migrated cards' suspension/resume tests (per-Op regime).
-            req.skip ??= `Op "lookDistribute" suspends for a look-distribute pick — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "suspends-for-input",
+                `Op "lookDistribute" suspends for a look-distribute pick — covered by the Op's interpreter tests`
+            );
             return;
         case "hideaway":
             // CR 702.75a (issue #783) — same shape as `lookDistribute`: the Op
@@ -885,14 +1339,22 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // is per-viewer) is not a state delta the generator asserts.
             // Explicit skip; execution coverage is the Op's own interpreter
             // tests plus the wire-format both-viewpoints assertion.
-            req.skip ??= `Op "hideaway" suspends for a look-distribute pick and exiles face down — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "suspends-for-input",
+                `Op "hideaway" suspends for a look-distribute pick and exiles face down — covered by the Op's interpreter tests`
+            );
             return;
         case "revealAndCategorize":
             // Same shape as `lookDistribute` (issue #1364): the Op suspends on a
             // live categorized look-distribute pick, which a canned scenario
             // cannot submit. Explicit skip; execution coverage is the Op's own
             // interpreter tests plus the categorizedPick matching unit tests.
-            req.skip ??= `Op "revealAndCategorize" suspends for a categorized look-distribute pick — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "suspends-for-input",
+                `Op "revealAndCategorize" suspends for a categorized look-distribute pick — covered by the Op's interpreter tests`
+            );
             return;
         case "chooseCategorized":
             // Same shape (issue #1945): the Op suspends on a live
@@ -903,14 +1365,22 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // canned scenario does not model). Explicit skip; execution
             // coverage is the Op's own interpreter tests plus the
             // categorizedPick matching unit tests.
-            req.skip ??= `Op "chooseCategorized" suspends for a choose-categorized pick — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "suspends-for-input",
+                `Op "chooseCategorized" suspends for a choose-categorized pick — covered by the Op's interpreter tests`
+            );
             return;
         case "counter":
             // `counter` targets a SPELL on the stack (issue #806); the canned
             // generator seeds only players and battlefield permanents, not a
             // spell to counter, so it is reported as an explicit skip. Counter
             // execution is proved by the card's own resolution test.
-            req.skip ??= `Op "counter" targets a spell on the stack — covered by the card's own resolution test`;
+            skipBecause(
+                req,
+                "unmodelled-object-or-zone",
+                `Op "counter" targets a spell on the stack — covered by the card's own resolution test`
+            );
             return;
         case "moveSpellFromStack":
             // `moveSpellFromStack` (issue #2605) targets a SPELL on the stack,
@@ -918,7 +1388,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // battlefield permanents, never a second spell to move, so it is
             // reported as an explicit skip rather than silently unhandled.
             // Execution is proved by the Op's own interpreter tests.
-            req.skip ??= `Op "moveSpellFromStack" targets a spell on the stack — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "op-own-tests",
+                `Op "moveSpellFromStack" targets a spell on the stack — covered by the Op's interpreter tests`
+            );
             return;
         case "if":
             // The `if` construct branches on a runtime predicate (issue #806).
@@ -926,12 +1400,20 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // a live may-pay outcome or a runtime snapshot the generator does
             // not model, so it is reported as an explicit skip; branch
             // execution is proved by the card's own tests.
-            req.skip ??= `construct "if" branches on a runtime predicate — covered by the card's own tests`;
+            skipBecause(
+                req,
+                "runtime-branch",
+                `construct "if" branches on a runtime predicate — covered by the construct's interpreter tests`
+            );
             return;
         case "sacrifice":
             // `sacrifice` (issue #807) consumes a `choice` Op's picks binding
             // — same skip rationale as `discard`.
-            req.skip ??= `Op "sacrifice" consumes a choice binding — covered by the card's own suspension/resume tests`;
+            skipBecause(
+                req,
+                "choice-binding",
+                `Op "sacrifice" consumes a choice binding — covered by the card's own suspension/resume tests`
+            );
             return;
         case "moveZone":
             // `moveZone` (issue #839) changes an object's zone. The canned
@@ -947,7 +1429,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // every shape; execution coverage is the card's own per-card test
             // (the migrated resolve()-cards keep their full behavioural
             // tests — Timetwister, Echo of Eons).
-            req.skip ??= `Op "moveZone" changes zones on an object/zone the canned generator does not model — covered by the card's own per-card test`;
+            skipBecause(
+                req,
+                "unmodelled-object-or-zone",
+                `Op "moveZone" changes zones on an object/zone the canned generator does not model — covered by the card's own per-card test`
+            );
             return;
         case "pump":
             // `pump` (issue #840) adds a temporary P/T buff (CR 613.4c). The
@@ -957,14 +1443,22 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // target or a `ref`/`count` amount is not modelled — skip and let
             // the card's own per-card test cover it.
             if (!("target" in op.target)) {
-                req.skip ??= `Op "pump" targets $source/$each — covered by the card's own per-card test`;
+                skipBecause(
+                    req,
+                    "source-or-each-subject",
+                    `Op "pump" targets $source/$each — covered by the card's own per-card test`
+                );
                 return;
             }
             if (
                 typeof op.power !== "number" ||
                 typeof op.toughness !== "number"
             ) {
-                req.skip ??= `Op "pump" uses a ref/count P/T amount the canned generator does not model — covered by the card's own per-card test`;
+                skipBecause(
+                    req,
+                    "runtime-amount",
+                    `Op "pump" uses a ref/count P/T amount the canned generator does not model — covered by the card's own per-card test`
+                );
                 return;
             }
             recordSlot(req, op.target.target, "permanent");
@@ -978,15 +1472,27 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // counters the canned generator does not place) is not modelled —
             // skip and let the card's own per-card test cover it.
             if (op.action !== "add") {
-                req.skip ??= `Op "counters" removes counters the canned generator does not pre-seed — covered by the card's own per-card test`;
+                skipBecause(
+                    req,
+                    "unmodelled-object-or-zone",
+                    `Op "counters" removes counters the canned generator does not pre-seed — covered by the card's own per-card test`
+                );
                 return;
             }
             if (!("target" in op.target)) {
-                req.skip ??= `Op "counters" targets $source/$each — covered by the card's own per-card test`;
+                skipBecause(
+                    req,
+                    "source-or-each-subject",
+                    `Op "counters" targets $source/$each — covered by the card's own per-card test`
+                );
                 return;
             }
             if (typeof op.count !== "number") {
-                req.skip ??= `Op "counters" uses a ref/count amount the canned generator does not model — covered by the card's own per-card test`;
+                skipBecause(
+                    req,
+                    "runtime-amount",
+                    `Op "counters" uses a ref/count amount the canned generator does not model — covered by the card's own per-card test`
+                );
                 return;
             }
             recordSlot(req, op.target.target, "permanent");
@@ -1002,7 +1508,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // its interpreter test plus Stormchaser's Talent's own per-card
             // test, and the skip below is the surfaced signal saying so.
             if (!("target" in op.target)) {
-                req.skip ??= `Op "setLevel" targets $source/$each — covered by the Op's interpreter test and the card's own per-card test`;
+                skipBecause(
+                    req,
+                    "source-or-each-subject",
+                    `Op "setLevel" targets $source/$each — covered by the Op's interpreter test and the card's own per-card test`
+                );
                 return;
             }
             recordSlot(req, op.target.target, "permanent");
@@ -1016,11 +1526,19 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // `$source` / `$each` target is not modelled — skip and let the
             // card's own per-card test cover it.
             if (op.action !== "tap") {
-                req.skip ??= `Op "tapUntap" untaps a permanent the canned generator already seeds untapped — covered by the card's own per-card test`;
+                skipBecause(
+                    req,
+                    "untapped-seed",
+                    `Op "tapUntap" untaps a permanent the canned generator already seeds untapped — covered by the Op's interpreter tests`
+                );
                 return;
             }
             if (!("target" in op.target)) {
-                req.skip ??= `Op "tapUntap" targets $source/$each — covered by the card's own per-card test`;
+                skipBecause(
+                    req,
+                    "source-or-each-subject",
+                    `Op "tapUntap" targets $source/$each — covered by the card's own per-card test`
+                );
                 return;
             }
             recordSlot(req, op.target.target, "permanent");
@@ -1033,7 +1551,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // resolution). A `$source` / `$each` target is not modelled — skip
             // and let the card's own per-card test cover it.
             if (!("target" in op.target)) {
-                req.skip ??= `Op "skipNextUntap" targets $source/$each — covered by the card's own per-card test`;
+                skipBecause(
+                    req,
+                    "source-or-each-subject",
+                    `Op "skipNextUntap" targets $source/$each — covered by the card's own per-card test`
+                );
                 return;
             }
             recordSlot(req, op.target.target, "permanent");
@@ -1046,7 +1568,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // A `$source` / `$each` target is not modelled — skip and let the
             // card's own per-card test cover it.
             if (!("target" in op.target)) {
-                req.skip ??= `Op "grantAbility" targets $source/$each — covered by the card's own per-card test`;
+                skipBecause(
+                    req,
+                    "source-or-each-subject",
+                    `Op "grantAbility" targets $source/$each — covered by the card's own per-card test`
+                );
                 return;
             }
             recordSlot(req, op.target.target, "permanent");
@@ -1062,7 +1588,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // Op is new (per-Op regime, `.claude/rules/gre-development.md`)
             // and earns its own hand-written interpreter + wire-format test
             // instead of relying on the canned smoke sweep.
-            req.skip ??= `Op "animate" changes a permanent's basic kind (CR 208.2/611.1) — covered by the Op's own interpreter + wire-format tests`;
+            skipBecause(
+                req,
+                "op-own-tests",
+                `Op "animate" changes a permanent's basic kind (CR 205.1a/611.1) — covered by the Op's own interpreter + wire-format tests`
+            );
             return;
         case "setBasePT":
             // `setBasePT` (issue #1318) sets a permanent's base P/T (CR 613.4b
@@ -1073,7 +1603,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // effective-P/T READ that the smoke sweep's outcome vocabulary does
             // not assert. Explicit skip — the Op is new (per-Op regime) and
             // earns its own hand-written interpreter + wire-format test.
-            req.skip ??= `Op "setBasePT" sets base P/T (CR 613.4b) — covered by the Op's own interpreter + wire-format tests`;
+            skipBecause(
+                req,
+                "op-own-tests",
+                `Op "setBasePT" sets base P/T (CR 613.4b) — covered by the Op's own interpreter + wire-format tests`
+            );
             return;
         case "addSubtype":
             // `addSubtype` (issue #1194) adds a subtype to a permanent
@@ -1083,7 +1617,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // `$each` target is not modelled — skip and let the card's own
             // per-card test cover it.
             if (!("target" in op.target)) {
-                req.skip ??= `Op "addSubtype" targets $source/$each — covered by the card's own per-card test`;
+                skipBecause(
+                    req,
+                    "source-or-each-subject",
+                    `Op "addSubtype" targets $source/$each — covered by the card's own per-card test`
+                );
                 return;
             }
             // CR 303.4 / 704.5m — a grant that makes the target an AURA is not
@@ -1092,7 +1630,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // its subtypes. The observable outcome there is the attachment
             // itself, which needs the effect's own `attach` leg.
             if (op.subtype === "Aura" || op.enchantRestriction) {
-                req.skip ??= `Op "addSubtype" grants the Aura subtype (CR 303.4) — attachment is not modelled by the canned scenario`;
+                skipBecause(
+                    req,
+                    "unmodelled-object-or-zone",
+                    `Op "addSubtype" grants the Aura subtype (CR 303.4) — attachment is not modelled by the canned scenario`
+                );
                 return;
             }
             recordSlot(req, op.target.target, "permanent");
@@ -1109,7 +1651,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // regime, `.claude/rules/gre-development.md`) and earns its own
             // hand-written interpreter + wire-format test instead of relying
             // on the canned smoke sweep.
-            req.skip ??= `Op "setColor" is new — covered by the Op's own interpreter + wire-format tests`;
+            skipBecause(
+                req,
+                "op-own-tests",
+                `Op "setColor" is new — covered by the Op's own interpreter + wire-format tests`
+            );
             return;
         case "setCardTypes":
             // `setCardTypes` (issue #2361) REPLACES a permanent's card types
@@ -1121,7 +1667,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // after. Explicit skip — the Op is new (per-Op regime,
             // `.claude/rules/gre-development.md`) and earns its own
             // hand-written interpreter + wire-format tests.
-            req.skip ??= `Op "setCardTypes" changes a permanent's card types (CR 205.1a) — covered by the Op's own interpreter + wire-format tests`;
+            skipBecause(
+                req,
+                "op-own-tests",
+                `Op "setCardTypes" changes a permanent's card types (CR 205.1a) — covered by the Op's own interpreter + wire-format tests`
+            );
             return;
         case "loseAllAbilities":
             // `loseAllAbilities` (issue #2361) strips a permanent's abilities
@@ -1132,7 +1682,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // Explicit skip — the Op is new (per-Op regime) and earns its own
             // hand-written interpreter + wire-format tests, run against a
             // permanent that actually HAS abilities to lose.
-            req.skip ??= `Op "loseAllAbilities" strips abilities (CR 613.1f) — the canned filler has none, so it is covered by the Op's own interpreter + wire-format tests`;
+            skipBecause(
+                req,
+                "op-own-tests",
+                `Op "loseAllAbilities" strips abilities (CR 613.1f) — the canned filler has none, so it is covered by the Op's own interpreter + wire-format tests`
+            );
             return;
         case "loseAllAbilitiesWhileSourceRemains":
             // `loseAllAbilitiesWhileSourceRemains` (issue #1562) strips a
@@ -1146,7 +1700,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // the Op is new (per-Op regime) and earns its own hand-written
             // interpreter + wire-format tests, run against a permanent that
             // actually has abilities to lose.
-            req.skip ??= `Op "loseAllAbilitiesWhileSourceRemains" strips abilities (CR 613.1f) for a source-tied duration — covered by the Op's own interpreter + wire-format tests`;
+            skipBecause(
+                req,
+                "op-own-tests",
+                `Op "loseAllAbilitiesWhileSourceRemains" strips abilities (CR 613.1f) for a source-tied duration — covered by the Op's own interpreter + wire-format tests`
+            );
             return;
         case "setSubtype":
             // `setSubtype` (issue #1083) replaces a target land's subtypes
@@ -1155,14 +1713,22 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // Thrush) composes it inside a suspending `optionChoice`, which
             // already skips before descending. Explicit skip — the Op is new
             // and earns its own hand-written interpreter + wire-format test.
-            req.skip ??= `Op "setSubtype" is new — covered by the Op's own interpreter + wire-format tests`;
+            skipBecause(
+                req,
+                "op-own-tests",
+                `Op "setSubtype" is new — covered by the Op's own interpreter + wire-format tests`
+            );
             return;
         case "forEach":
             // The forEach construct (issue #807) iterates a runtime-selected
             // set; the generator cannot predict per-member outcomes (and a
             // body `choice` would suspend for live input). Explicit skip —
             // forEach cards keep their own full per-card tests.
-            req.skip ??= `construct "forEach" iterates a runtime-selected set — covered by the card's own tests`;
+            skipBecause(
+                req,
+                "source-or-each-subject",
+                `construct "forEach" iterates a runtime-selected set — covered by the card's own tests`
+            );
             return;
         case "delayedTrigger":
             // CR 603.7 (ADR 0048) — the Op schedules a FUTURE trigger whose
@@ -1171,7 +1737,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // instance. Explicit skip — scheduling, payload capture and
             // fire-time body execution are covered by the Op's own
             // interpreter tests (per-Op regime, issue #838).
-            req.skip ??= `Op "delayedTrigger" fires at a future phase boundary — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "later-outcome",
+                `Op "delayedTrigger" fires at a future phase boundary — covered by the Op's interpreter tests`
+            );
             return;
         case "reflexiveTrigger":
             // CR 603.12 — the Op's only same-resolution outcome is a QUEUED
@@ -1181,7 +1751,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // canned single-resolution scenario reaches. Explicit skip:
             // queueing, capture round-trip and body execution are covered by
             // the Op's own interpreter tests (per-Op regime).
-            req.skip ??= `Op "reflexiveTrigger" resolves on a separate stack object after a priority round — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "later-outcome",
+                `Op "reflexiveTrigger" resolves on a separate stack object after a priority round — covered by the Op's interpreter tests`
+            );
             return;
         case "libraryLook":
             // CR 701.24 (issue #844) — a shuffle is a seeded-PRNG
@@ -1190,7 +1764,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // order is unwitnessed, and knowledge-clearing is not projected).
             // Explicit skip — the shuffle primitive is covered by the Op's own
             // interpreter tests (per-Op regime).
-            req.skip ??= `Op "libraryLook" shuffles a library (seeded-PRNG randomization) — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "randomness",
+                `Op "libraryLook" shuffles a library (seeded-PRNG randomization) — covered by the Op's interpreter tests`
+            );
             return;
         case "shuffleSelfIntoLibrary":
             // CR 608.2 / 701.24 (issue #898) — redirects the RESOLVING
@@ -1200,7 +1778,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // canned generator can assert (which library slot the card lands
             // in is unwitnessed). Explicit skip — covered by the Op's own
             // interpreter tests (per-Op regime).
-            req.skip ??= `Op "shuffleSelfIntoLibrary" shuffles the resolving spell into a library (seeded-PRNG randomization) — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "randomness",
+                `Op "shuffleSelfIntoLibrary" shuffles the resolving spell into a library (seeded-PRNG randomization) — covered by the Op's interpreter tests`
+            );
             return;
         case "preventDamage":
             // CR 615 (issue #845) — a prevention shield sits DORMANT until a
@@ -1209,7 +1791,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // effect has no same-resolution outcome the generator can assert.
             // Explicit skip — shield registration and consumption are covered
             // by the Op's own interpreter tests (per-Op regime).
-            req.skip ??= `Op "preventDamage" registers a dormant shield (no same-resolution damage event) — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "dormant-shield",
+                `Op "preventDamage" registers a dormant shield (no same-resolution damage event) — covered by the Op's interpreter tests`
+            );
             return;
         case "regenerate":
             // CR 701.19 (issue #846) — a regeneration shield sits DORMANT until
@@ -1219,7 +1805,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // generator can assert. Explicit skip — shield registration and
             // consumption are covered by the Op's own interpreter tests (per-Op
             // regime).
-            req.skip ??= `Op "regenerate" registers a dormant regeneration shield (no same-resolution destroy event) — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "dormant-shield",
+                `Op "regenerate" registers a dormant regeneration shield (no same-resolution destroy event) — covered by the Op's interpreter tests`
+            );
             return;
         case "preventRegeneration":
             // `preventRegeneration` (CR 701.19c, issue #1283) sets an IMMEDIATE
@@ -1230,7 +1820,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // flag after resolution). A `$source` / `$each` target is not
             // modelled — skip and let the card's own per-card test cover it.
             if (!("target" in op.target)) {
-                req.skip ??= `Op "preventRegeneration" targets $source/$each — covered by the card's own per-card test`;
+                skipBecause(
+                    req,
+                    "source-or-each-subject",
+                    `Op "preventRegeneration" targets $source/$each — covered by the card's own per-card test`
+                );
                 return;
             }
             recordSlot(req, op.target.target, "permanent");
@@ -1244,7 +1838,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // slot. A `$source` / `$each` target is not modelled — skip and let
             // the card's own per-card test cover it.
             if (!("target" in op.target)) {
-                req.skip ??= `Op "exileOnDeath" targets $source/$each — covered by the card's own per-card test`;
+                skipBecause(
+                    req,
+                    "source-or-each-subject",
+                    `Op "exileOnDeath" targets $source/$each — covered by the card's own per-card test`
+                );
                 return;
             }
             recordSlot(req, op.target.target, "permanent");
@@ -1256,7 +1854,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // A `$source` / `$each` target is not modelled — skip and let the
             // card's own per-card test cover it.
             if (!("target" in op.target)) {
-                req.skip ??= `Op "lockDamage" targets $source/$each — covered by the card's own per-card test`;
+                skipBecause(
+                    req,
+                    "source-or-each-subject",
+                    `Op "lockDamage" targets $source/$each — covered by the card's own per-card test`
+                );
                 return;
             }
             recordSlot(req, op.target.target, "permanent");
@@ -1279,7 +1881,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // reads the array after resolution). A `$source` / `$each` target is
             // not modelled — skip and let the card's own per-card test cover it.
             if (!("target" in op.target)) {
-                req.skip ??= `Op "markAssignsNoCombatDamage" targets $source/$each — covered by the card's own per-card test`;
+                skipBecause(
+                    req,
+                    "source-or-each-subject",
+                    `Op "markAssignsNoCombatDamage" targets $source/$each — covered by the card's own per-card test`
+                );
                 return;
             }
             recordSlot(req, op.target.target, "permanent");
@@ -1293,7 +1899,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // no same-resolution outcome it can assert generically. Explicit
             // skip — covered by the Op's own interpreter tests (per-Op
             // regime).
-            req.skip ??= `Op "transform" swaps a permanent's printed characteristic set (front/back) — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "op-own-tests",
+                `Op "transform" swaps a permanent's printed characteristic set (front/back) — covered by the Op's interpreter tests`
+            );
             return;
         case "exileAndReturnTransformed":
             // CR 712 / 400.7 / 306.5b (issue #2380) — exiles a permanent and
@@ -1304,7 +1914,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // have nothing to flip INTO and the run would assert nothing.
             // Explicit skip — covered by the Op's own interpreter tests
             // (per-Op regime).
-            req.skip ??= `Op "exileAndReturnTransformed" swaps a permanent's printed characteristic set across a CR 400.7 zone change — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "op-own-tests",
+                `Op "exileAndReturnTransformed" swaps a permanent's printed characteristic set across a CR 400.7 zone change — covered by the Op's interpreter tests`
+            );
             return;
         case "createToken":
             // createToken (issue #847) creates token permanents on the
@@ -1314,14 +1928,22 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // `count` (runtime value) or a targeted / ref controller is not
             // modelled — skip and let the card's own per-card test cover it.
             if (op.count !== undefined && typeof op.count !== "number") {
-                req.skip ??= `Op "createToken" uses a ref/count token count the canned generator does not model — covered by the card's own per-card test`;
+                skipBecause(
+                    req,
+                    "runtime-amount",
+                    `Op "createToken" uses a ref/count token count the canned generator does not model — covered by the card's own per-card test`
+                );
                 return;
             }
             if (
                 op.controller !== "controller" &&
                 op.controller !== "opponent"
             ) {
-                req.skip ??= `Op "createToken" controller is a targeted/ref player the canned generator does not model — covered by the card's own per-card test`;
+                skipBecause(
+                    req,
+                    "runtime-amount",
+                    `Op "createToken" controller is a targeted/ref player the canned generator does not model — covered by the card's own per-card test`
+                );
                 return;
             }
             return;
@@ -1335,7 +1957,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // Explicit skip — covered by the Op's own interpreter + wire-format
             // tests (both source shapes + count; per-Op regime,
             // `.claude/rules/gre-development.md`).
-            req.skip ??= `Op "createTokenCopy" copies a runtime source permanent (announced target / ref) the canned generator does not model — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "op-own-tests",
+                `Op "createTokenCopy" copies a runtime source permanent (announced target / ref) the canned generator does not model — covered by the Op's interpreter tests`
+            );
             return;
         case "becomeCopy":
             // CR 707.2 / 611.2a (issue #3236) — an existing permanent becomes a
@@ -1345,7 +1971,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // reverts only at a phase boundary the canned run never reaches.
             // Explicit skip — covered by the Op's own interpreter + wire-format
             // tests (per-Op regime, `.claude/rules/gre-development.md`).
-            req.skip ??= `Op "becomeCopy" copies one runtime permanent onto another (identical canned fillers, phase-boundary revert) — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "op-own-tests",
+                `Op "becomeCopy" copies one runtime permanent onto another (identical canned fillers, phase-boundary revert) — covered by the Op's interpreter tests`
+            );
             return;
         case "emblem":
             // CR 114 (issue #1221) — creating an emblem appends one command-zone
@@ -1358,7 +1988,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 op.controller !== "controller" &&
                 op.controller !== "opponent"
             ) {
-                req.skip ??= `Op "emblem" controller is a targeted/ref player the canned generator does not model — covered by the card's own per-card test`;
+                skipBecause(
+                    req,
+                    "runtime-amount",
+                    `Op "emblem" controller is a targeted/ref player the canned generator does not model — covered by the card's own per-card test`
+                );
                 return;
             }
             return;
@@ -1369,7 +2003,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // vocabulary models (battlefield/graveyard/life/counter deltas).
             // Explicit skip — covered by the Op's own interpreter tests
             // (per-Op regime).
-            req.skip ??= `Op "becomeMonarch" sets the global monarch designation — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "op-own-tests",
+                `Op "becomeMonarch" sets the global monarch designation — covered by the Op's interpreter tests`
+            );
             return;
         case "gainControl":
             // CR 613.1b (issue #848) — a control change flips a permanent to a
@@ -1381,7 +2019,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // faithfully assert. Explicit skip — the control change and its
             // conditional revert are covered by the Op's own interpreter tests
             // (per-Op regime).
-            req.skip ??= `Op "gainControl" changes control of a permanent (and installs a conditional-control SBA) — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "op-own-tests",
+                `Op "gainControl" changes control of a permanent (and installs a conditional-control SBA) — covered by the Op's interpreter tests`
+            );
             return;
         case "optionChoice":
             // CR 700.2 / 601.2b (issue #849) — a modal "choose one" enqueues an
@@ -1391,7 +2033,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // branch's execution are covered by the Op's own interpreter tests
             // (per-Op regime). (Mirrors the `choice` / `mayPay` suspending-Op
             // skip.)
-            req.skip ??= `Op "optionChoice" suspends on a live mode pick (CR 700.2) — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "suspends-for-input",
+                `Op "optionChoice" suspends on a live mode pick (CR 700.2) — covered by the Op's interpreter tests`
+            );
             return;
         case "coinFlip":
             // CR 705 (issue #851) — a coin flip draws a RANDOM bit from the
@@ -1402,7 +2048,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // resume are covered by the Op's own interpreter tests (per-Op
             // regime; mirrors the seeded-PRNG `libraryLook` skip and the
             // suspending `optionChoice` skip).
-            req.skip ??= `Op "coinFlip" draws a random bit and suspends for the reveal (CR 705) — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "suspends-for-input",
+                `Op "coinFlip" draws a random bit and suspends for the reveal (CR 705) — covered by the Op's interpreter tests`
+            );
             return;
         case "coinFlipSync":
             // CR 705 (issue #1281) — a synchronous coin flip draws a RANDOM
@@ -1412,7 +2062,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // branch against. Explicit skip — the flip and both branches are
             // covered by the Op's own interpreter tests (per-Op regime;
             // mirrors the `coinFlip` skip above, minus the suspend reasoning).
-            req.skip ??= `Op "coinFlipSync" draws a random bit (CR 705) — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "randomness",
+                `Op "coinFlipSync" draws a random bit (CR 705) — covered by the Op's interpreter tests`
+            );
             return;
         case "winGame":
             // CR 104.2a (issue #1066) — sets `state.gameOver` directly. The
@@ -1424,7 +2078,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // guarantor. Coalition Victory's script is ALSO wrapped in `if`,
             // which already skips unconditionally (see the `"if"` case
             // above), so this arm is defensive/for-completeness.
-            req.skip ??= `Op "winGame" sets state.gameOver — covered by the Op's own interpreter test`;
+            skipBecause(
+                req,
+                "op-own-tests",
+                `Op "winGame" sets state.gameOver — covered by the Op's own interpreter test`
+            );
             return;
         case "divideIntoPiles":
             // ADR 0053 (pile division, issue #1067) — a TWO-PLAYER divide-
@@ -1435,7 +2093,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // skip — each of the six pile cards has its own hand-written
             // interpreter + wire-format test (the Op's per-Op test regime,
             // `.claude/rules/gre-development.md`).
-            req.skip ??= `Op "divideIntoPiles" suspends for two DIFFERENT players' picks (ADR 0053) — covered by hand-written per-card tests`;
+            skipBecause(
+                req,
+                "card-paired-mechanism",
+                `Op "divideIntoPiles" suspends for two DIFFERENT players' picks (ADR 0053) — covered by hand-written per-card tests`
+            );
             return;
         case "restrictCombat":
             // CR 508.1a / 509.1b (ADR 0053) — sets a turn-scoped can't-attack/
@@ -1445,7 +2107,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // deltas immediately after resolution, not a later combat step).
             // Explicit skip — covered by the Op's own interpreter test plus
             // Fight or Flight / Stand or Fall's hand-written combat tests.
-            req.skip ??= `Op "restrictCombat" only manifests at a later combat step — covered by hand-written tests`;
+            skipBecause(
+                req,
+                "later-outcome",
+                `Op "restrictCombat" only manifests at a later combat step — covered by hand-written tests`
+            );
             return;
         case "putBack":
             // CR 401.4 (issue #1046) — a suspending `choose-hand-card` pick
@@ -1457,7 +2123,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // resume) and wire-format assertions are covered by the Op's own
             // interpreter tests (per-Op regime; mirrors the suspending
             // `choice` / `scryReorder` / `lookDistribute` skips).
-            req.skip ??= `Op "putBack" suspends for a live hand pick (CR 401.4) — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "suspends-for-input",
+                `Op "putBack" suspends for a live hand pick (CR 401.4) — covered by the Op's interpreter tests`
+            );
             return;
         case "nameCard":
             // CR 201.3 / 202.3 (issue #1085) — a `nameCard` Op suspends
@@ -1466,7 +2136,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // explicit skip; execution coverage comes from the Op's own
             // interpreter tests (mirrors the suspending `choice` / `mayPay`
             // skips).
-            req.skip ??= `Op "nameCard" suspends for a live card-name choice (CR 201.3) — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "suspends-for-input",
+                `Op "nameCard" suspends for a live card-name choice (CR 201.4) — covered by the Op's interpreter tests`
+            );
             return;
         case "digMatchingToHand":
             // CR 701.20a / 401.4 (issue #1085) — a filter-driven library
@@ -1478,7 +2152,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // the `mill` skip rationale — "moves top-of-library cards
             // somewhere, not modelable against the generator's filler
             // library"). Explicit skip for exhaustiveness.
-            req.skip ??= `Op "digMatchingToHand" depends on a filter match against library contents — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "op-own-tests",
+                `Op "digMatchingToHand" depends on a filter match against library contents — covered by the Op's interpreter tests`
+            );
             return;
         case "cascade":
             // CR 702.85a (issue #3216) — the cascade keyword's whole triggered
@@ -1491,7 +2169,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // literally the Op it runs for the middle clause). Explicit skip;
             // execution coverage is the Op's own interpreter tests (hit / no
             // hit / decline / land skipped / random bottom / empty library).
-            req.skip ??= `Op "cascade" needs its own spell on the stack for the CR 702.85a threshold and suspends for a live Cast/Decline — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "suspends-for-input",
+                `Op "cascade" needs its own spell on the stack for the CR 702.85a threshold and suspends for a live Cast/Decline — covered by the Op's interpreter tests`
+            );
             return;
         case "castDuringResolution":
             // CR 608.2g (issues #1477 / #1961) — offers the controller a live
@@ -1506,7 +2188,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // silent-pass) — mirrors the suspending `choice` / `optionChoice` /
             // `nameCard` skips (per-Op regime,
             // `.claude/rules/gre-development.md`).
-            req.skip ??= `Op "castDuringResolution" suspends for a live Cast/Decline + the played card's own picks (CR 608.2g) — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "suspends-for-input",
+                `Op "castDuringResolution" suspends for a live Cast/Decline + the played card's own picks (CR 608.2g) — covered by the Op's interpreter tests`
+            );
             return;
         case "setIslandSanctuaryProtection":
             // CR 508.1c (issue #1283) — a turn-scoped player-wide "can't be
@@ -1517,7 +2203,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // mode, which already forces a skip on its own. Explicit skip for
             // exhaustiveness — covered by the Op's own interpreter test plus
             // Island Sanctuary's hand-written combat test.
-            req.skip ??= `Op "setIslandSanctuaryProtection" only manifests at a later declare-attackers step — covered by hand-written tests`;
+            skipBecause(
+                req,
+                "later-outcome",
+                `Op "setIslandSanctuaryProtection" only manifests at a later declare-attackers step — covered by hand-written tests`
+            );
             return;
         case "setProtectionFromEverything":
             // CR 702.16b/e/i (issue #674) — protection from everything is a
@@ -1529,7 +2219,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // damage — only manifest against a LATER spell or damage event.
             // Explicit skip, mirroring `becomeMonarch`; covered by the Op's
             // own interpreter tests plus The One Ring's hand-written tests.
-            req.skip ??= `Op "setProtectionFromEverything" sets a global player-scoped protection designation — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "op-own-tests",
+                `Op "setProtectionFromEverything" sets a global player-scoped protection designation — covered by the Op's interpreter tests`
+            );
             return;
         case "rangedTopdeck":
             // CR 119.4 / 121.1 (issue #1283) — a suspending ranged `choose-
@@ -1540,7 +2234,11 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // on its own. Explicit skip for exhaustiveness — covered by the
             // Op's own interpreter tests (per-Op regime) plus Sylvan
             // Library's hand-written per-card tests.
-            req.skip ??= `Op "rangedTopdeck" suspends for a live ranged hand pick (CR 119.4) — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "suspends-for-input",
+                `Op "rangedTopdeck" suspends for a live ranged hand pick (CR 119.4) — covered by the Op's interpreter tests`
+            );
             return;
         case "explore":
             // CR 701.44 (issue #2376) — Explore reveals the top card of the
@@ -1554,24 +2252,32 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // `scryReorder` skips). Explicit skip; execution coverage is the
             // Op's own interpreter tests, which drive both branches and the
             // empty-library no-op.
-            req.skip ??= `Op "explore" reveals an unprovisionable top card and suspends on the nonland branch's keep-or-bin choice — covered by the Op's interpreter tests`;
+            skipBecause(
+                req,
+                "suspends-for-input",
+                `Op "explore" reveals an unprovisionable top card and suspends on the nonland branch's keep-or-bin choice — covered by the Op's interpreter tests`
+            );
             return;
         default: {
             // Exhaustiveness guard: a registered Op with no analyser branch is
             // a skip, not a silent pass.
             const _never: never = op;
             void _never;
-            req.skip ??= `no scenario analyser for Op "${(op as EffectOp).op}"`;
+            skipBecause(
+                req,
+                "unanalysed",
+                `no scenario analyser for Op "${(op as EffectOp).op}"`
+            );
         }
     }
 }
 
 // --- Scenario construction --------------------------------------------------
 
-/** Builds the canned GameState + announced targets satisfying `req`, or a skip
- *  string when a requirement cannot be met. */
-function buildScenario(req: Requirements): Scenario | { skip: string } {
-    if (req.skip) return { skip: req.skip };
+/** Builds the canned GameState + announced targets satisfying `req`, or the
+ *  skips that say why a requirement cannot be met. */
+function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
+    if (req.skips.length > 0) return { skip: req.skips };
 
     // A permanent target lives on the OPPONENT's battlefield (so destroy/exile
     // outcomes are observable on p2 and never hit the caster's own board).
@@ -1589,7 +2295,12 @@ function buildScenario(req: Requirements): Scenario | { skip: string } {
         const kind = req.targetSlots.get(slot);
         if (!kind) {
             return {
-                skip: `target slots are not contiguous (missing ${slot})`,
+                skip: [
+                    {
+                        code: "target-slot-shape",
+                        reason: `target slots are not contiguous (missing ${slot})`,
+                    },
+                ],
             };
         }
         if (kind === "player") {
@@ -1611,7 +2322,14 @@ function buildScenario(req: Requirements): Scenario | { skip: string } {
         }
     }
     if (sawPlayerSlot && sawPermanentSlot) {
-        return { skip: "script mixes player and permanent target slots" };
+        return {
+            skip: [
+                {
+                    code: "target-slot-shape",
+                    reason: "script mixes player and permanent target slots",
+                },
+            ],
+        };
     }
 
     // Libraries for drawing players.
@@ -3186,37 +3904,84 @@ export function opCoverageGaps(): string[] {
  *  is reported as a skip so it never counts as passing. */
 export function planSmokeTest(effects: readonly EffectOp[]): Plan {
     if (effects.length === 0) {
-        return { kind: "skip", reason: "empty effect script" };
+        return skipPlan([
+            { code: "no-assertable-outcome", reason: "empty effect script" },
+        ]);
     }
 
     const req: Requirements = {
         targetSlots: new Map(),
         drawingPlayers: new Set(),
         countSets: [],
-        skip: null,
+        skips: [],
     };
-    for (const op of effects) analyseOp(op, req);
+    for (const op of effects) analyseOpFully(op, req);
 
     const built = buildScenario(req);
-    if ("skip" in built) return { kind: "skip", reason: built.skip };
+    if ("skip" in built) {
+        // ADR 0105 § 7.1 — a skipped script's NESTED Ops are analysed too.
+        // `analyseOp` stops at a container (`if`, `forEach`, `mayPay`'s
+        // `if`-guarded body, a delayed trigger's payload), so without this the
+        // container's skip is the only one recorded — and an `op-covered`
+        // container (`if` branches on a runtime predicate) would hide a
+        // `card-dependent` clause in its body (`moveZone` of an unmodelled
+        // object). Only a skipped script is walked: a script that RUNS is
+        // asserted as it is, and walking it could only invent reasons.
+        const nested: Requirements = {
+            targetSlots: new Map(),
+            drawingPlayers: new Set(),
+            countSets: [],
+            skips: [],
+        };
+        for (const op of nestedOps(effects)) analyseOpFully(op, nested);
+        return skipPlan([...built.skip, ...nested.skips]);
+    }
 
     const assertions: Assertion[] = [];
     for (const op of effects) {
         const assertor = OP_ASSERTORS[op.op];
         if (!assertor) {
-            return {
-                kind: "skip",
-                reason: `Op "${op.op}" has no assertor`,
-            };
+            return skipPlan([
+                {
+                    code: "unanalysed",
+                    reason: `Op "${op.op}" has no assertor`,
+                    op,
+                },
+            ]);
         }
         const a = assertor(op, built, built.state);
         if (a) assertions.push(a);
     }
     if (assertions.length === 0) {
-        return {
-            kind: "skip",
-            reason: "no assertable outcome — every Op's outcome depends on a runtime ref",
-        };
+        return skipPlan([
+            {
+                code: "no-assertable-outcome",
+                reason: "no assertable outcome — every Op's outcome depends on a runtime ref",
+            },
+        ]);
     }
     return { kind: "run", scenario: built, assertions };
+}
+
+function skipPlan(skips: SmokeSkip[]): Plan {
+    return { kind: "skip", reason: skips[0]!.reason, skips };
+}
+
+/** Every Effect Script Op held INSIDE `effects`' Ops (a branch, a loop body, a
+ *  payload), at any depth — the top-level Ops themselves excluded. */
+function nestedOps(effects: readonly EffectOp[]): EffectOp[] {
+    const found: EffectOp[] = [];
+    const walk = (node: unknown): void => {
+        if (Array.isArray(node)) {
+            for (const child of node) walk(child);
+            return;
+        }
+        if (node === null || typeof node !== "object") return;
+        if (isEffectOp(node)) found.push(node);
+        for (const value of Object.values(node)) walk(value);
+    };
+    for (const op of effects) {
+        for (const value of Object.values(op)) walk(value);
+    }
+    return found;
 }

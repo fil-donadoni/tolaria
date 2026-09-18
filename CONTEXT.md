@@ -870,6 +870,10 @@ _Avoid_: Generated card, parsed card, auto-card
 What the **Oracle Compiler** concluded about one **Card Corpus** entry, as one of three: **ready** (the whole text compiled, and the result may be played), **quarantine** (it compiled but the result is not trusted), **unparsed** (some clause had no grammar). The states are exhaustive and fail closed — an entry the compiler cannot fully account for never reaches `ready`, so partial understanding is never mistaken for coverage.
 _Avoid_: Supported/unsupported, coverage, implemented (that word belongs to the **Mechanics Registry**)
 
+**Quarantine Class**:
+Which of two kinds a reason is when the generated smoke scenario cannot run a **Compiled Definition**'s script. **Op-covered**: the Op's own mechanism stops the scenario (it waits for a decision, sets up a shield for later, draws a random bit), the same for every card that uses it, so the Op's own permanent test is the evidence and the card is not withheld. **Card-dependent**: what the card's clause gives the Op stops it (the card itself as subject, an amount read at runtime, an object in a zone the scenario does not set up), so the card stays in **quarantine** until a golden fixture of the **Grammar Rule** shows that same form compiling correctly. Every reason has exactly one class, and a doubtful one is card-dependent.
+_Avoid_: Skip type, soft quarantine, whitelist
+
 **Compiled Pool**:
 The `ready` slice of the **Oracle Lockfile**, in the shape the runtime consumes, minus every card that already has a hand-written **Card Definition**. It is what is actually delivered to a running client or server — the lockfile is the record, the pool is the payload.
 _Avoid_: Compiled cards, the JSON, ready set

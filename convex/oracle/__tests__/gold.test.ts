@@ -45,19 +45,10 @@ const KNOWN_DIVERGENCES: readonly string[] = [
     // of CR 605.1a, so `useStack: false`. The hand-written ability puts it on
     // the stack. docs/findings/2697-gold-catalogue-divergences.md
     "Ashnod's Altar (activated)",
-    // Oracle: "Sacrifice a Swamp: Regenerate target black creature." The
-    // hand-written `sacrificeFilter` restates `types: "Land"` beside
-    // `subtypes: "Swamp"`; three other cards with the same phrase shape
-    // (Dark Heart of the Wood, Orcish Lumberjack, Deadapult) omit it. An
-    // encoding tie, not a reading difference — see `readNoun`.
-    "Horror of Horrors (activated)",
     // Oracle: "Destroy target black permanent." The hand-written
     // `targetRequirement` is `type: "Creature"` — narrower than the card
     // (CR 109.1 / 300.1). Same finding.
     "Northern Paladin (activated)",
-    // Oracle prints "{G}: Regenerate this creature." and the hand-written
-    // definition has no activated ability at all. Same finding.
-    "Wall of Brambles (keyword-only)",
     // ── #2699: the spell slot's first pass over gold ──────────────────────
     //
     // Oracle: "Choose one — • Destroy target blue permanent. • Return target
@@ -77,10 +68,6 @@ const KNOWN_DIVERGENCES: readonly string[] = [
     // emits the six permanent card types (CR 110.4).
     "Active Volcano (spell)",
     "Flash Flood (spell)",
-    // Oracle: "Flashback—Sacrifice a Mountain." The hand-written flashback
-    // cost restates `types: "Land"` beside `subtypes: "Mountain"` — the
-    // Horror of Horrors encoding tie above, at the flashback cost site.
-    "Lava Dart (spell)",
     // Oracle: "Destroy target permanent." — `type: "any"` again, the FIFTH
     // instance of the Northern Paladin defect, and the reason `gold.ts`
     // exempts a closure body per KEY rather than per card: this one authors
@@ -98,17 +85,20 @@ describe("gold round-trip — precision", () => {
     });
 
     it("the two closed grammar-v0 buckets round-trip at 100%", () => {
-        // `keyword-only` was here until #2697. It left not because the keyword
+        // `keyword-only` left this list in #2697 — not because the keyword
         // grammar changed but because Wall of Brambles is classified from the
-        // HAND-WRITTEN side (`goldBucket`), and the hand-written side is
-        // missing the regenerate ability its own Oracle text prints — so the
-        // card is keyword-only there and keyword-line+activated here. It is in
-        // `KNOWN_DIVERGENCES` above, which is a stricter statement than the
-        // percentage this loop used to make about it.
+        // HAND-WRITTEN side (`goldBucket`), and that side was missing the
+        // regenerate ability its own Oracle text prints. Issue #3823 gave the
+        // card its ability back, so the bucket rejoined.
         // `static` joined them in #2700: 11 accepted, 11 equal, 0 incomparable
         // — a closed shape with no divergence of its own, so the honest gate
         // is the same 100% the other two pay, not a ratio floor.
-        for (const bucket of ["vanilla", "mana-ability", "static"] as const) {
+        for (const bucket of [
+            "vanilla",
+            "keyword-only",
+            "mana-ability",
+            "static",
+        ] as const) {
             const stats = REPORT.buckets[bucket];
             expect(`${bucket}: ${stats.equal}/${stats.accepted}`).toBe(
                 `${bucket}: ${stats.accepted}/${stats.accepted}`

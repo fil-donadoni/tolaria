@@ -70,19 +70,6 @@ export const CATALOGUE_DIVERGENCE_BASELINE: readonly DivergenceBaselineRow[] = [
             "permanent card types (CR 110.4). The compiler is right.",
     },
     {
-        card: "Lava Dart",
-        field: "flashback",
-        direction: "undetermined",
-        why:
-            'Oracle: "Flashback—Sacrifice a Mountain." The hand-written flashback cost ' +
-            'restates `types: ["Land"]` beside `subtypes: ["Mountain"]`; the compiled ' +
-            "row writes the subtype alone. Both select the same permanents — no card " +
-            "with the Mountain subtype is anything but a land — so this is an encoding " +
-            "tie, the same one `KNOWN_DIVERGENCES` records for Horror of Horrors at " +
-            "the activated-cost site. It sits here rather than in the comparator " +
-            "because `cost` is a field ADR 0114 §4 forbids folding.",
-    },
-    {
         card: "Ancient Spider",
         field: "staticAbilities",
         direction: "undetermined",
@@ -119,7 +106,7 @@ export const CATALOGUE_DIVERGENCE_BASELINE: readonly DivergenceBaselineRow[] = [
  * the stale-row check forces a fixed card out, and this stops a new one being
  * parked in.
  */
-export const BASELINE_CEILING = 5;
+export const BASELINE_CEILING = 4;
 
 /** `card|field` — the key a divergence is matched on. */
 export const baselineKey = (row: {

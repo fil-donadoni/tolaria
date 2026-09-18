@@ -593,7 +593,8 @@ export const horrorOfHorrors: CardDefinition = {
         {
             id: "horror-of-horrors-regenerate",
             oracleText: "Sacrifice a Swamp: Regenerate target black creature.",
-            cost: { sacrificeFilter: { types: "Land", subtypes: "Swamp" } },
+            // CR 205.3i — Swamp is a land type, so the subtype alone names it.
+            cost: { sacrificeFilter: { subtypes: "Swamp" } },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1, colorFilter: "B" },
             // Migrated resolve()→effects[] (ADR 0045, #846): regenerate the

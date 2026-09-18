@@ -32,7 +32,8 @@ export const lavaDart: CardDefinition = {
     manaCost: { R: 1 },
     types: ["Instant"],
     // Purely non-mana flashback (no `mana` key) — "Sacrifice a Mountain" only.
-    flashback: { sacrifice: { types: "Land", subtypes: "Mountain" } },
+    // CR 205.3i — Mountain is a land type, so the subtype alone names it.
+    flashback: { sacrifice: { subtypes: "Mountain" } },
     targetRequirement: { type: "any", count: 1 },
     effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
 };

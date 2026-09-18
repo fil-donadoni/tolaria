@@ -182,6 +182,49 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Initiate's Companion",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Cat"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "power": 3,
+        "toughness": 1,
+        "oracleText": "Whenever this creature deals combat damage to a player, untap target creature or land.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "initiate-s-companion-trigger",
+                "oracleText": "Whenever this creature deals combat damage to a player, untap target creature or land.",
+                "head": {
+                    "kind": "combat-damage-to-player"
+                },
+                "targetRequirement": {
+                    "type": [
+                        "Creature",
+                        "Land"
+                    ],
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "0046b802-bc71-44af-8925-666684d5fc87",
+        "rarity": "common"
+    },
+    {
         "name": "Slinking Skirge",
         "types": [
             "Creature"
@@ -778,6 +821,51 @@
         "power": 1,
         "toughness": 2,
         "id": "01deb3cc-91e8-4ef3-964f-f36c6a21207c",
+        "rarity": "common"
+    },
+    {
+        "name": "Dauntless Aven",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Bird",
+            "Warrior"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "Flying\nWhenever this creature attacks, untap target creature you control.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "dauntless-aven-trigger",
+                "oracleText": "Whenever this creature attacks, untap target creature you control.",
+                "head": {
+                    "kind": "attacks"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "01e6320c-6f8b-4582-ad11-9b868bff08a1",
         "rarity": "common"
     },
     {
@@ -3025,6 +3113,110 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Suture Spirit",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Spirit"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Flying\n{W/B}{W/B}{W/B}: Regenerate target creature.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "suture-spirit-ability",
+                "oracleText": "{W/B}{W/B}{W/B}: Regenerate target creature.",
+                "cost": {
+                    "mana": {
+                        "hybrid": [
+                            [
+                                "W",
+                                "B"
+                            ],
+                            [
+                                "W",
+                                "B"
+                            ],
+                            [
+                                "W",
+                                "B"
+                            ]
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "08520f97-e7f5-45fc-9423-fa6a3a507671",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Filigree Sages",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Vedalken",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 1
+        },
+        "power": 2,
+        "toughness": 3,
+        "oracleText": "{2}{U}: Untap target artifact.",
+        "activatedAbilities": [
+            {
+                "id": "filigree-sages-ability",
+                "oracleText": "{2}{U}: Untap target artifact.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "U": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Artifact",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "08790aaf-0142-4b20-89cf-cdaffeea4582",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Tyrant's Machine",
         "types": [
             "Artifact"
@@ -3108,6 +3300,64 @@
             }
         ],
         "id": "08a47828-a79a-4189-9eef-2a5fc5125b61",
+        "rarity": "common"
+    },
+    {
+        "name": "Niblis of the Mist",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Spirit"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "Flying\nWhen this creature enters, you may tap target creature.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "niblis-of-the-mist-trigger",
+                "oracleText": "When this creature enters, you may tap target creature.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Tap target creature?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "tapUntap",
+                                "action": "tap",
+                                "target": {
+                                    "target": 0
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "08aea6e3-c8a8-4964-b95d-4c639da55de1",
         "rarity": "common"
     },
     {
@@ -5542,6 +5792,64 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Serpent Assassin",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Snake",
+            "Assassin"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 2
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "When this creature enters, you may destroy target nonblack creature.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "serpent-assassin-trigger",
+                "oracleText": "When this creature enters, you may destroy target nonblack creature.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "excludeColors": [
+                        "B"
+                    ]
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Destroy target nonblack creature?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "destroy",
+                                "target": {
+                                    "target": 0
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "1018f6ff-5eaa-4fe1-ba20-544df799f5b2",
+        "rarity": "rare"
+    },
+    {
         "name": "Uktabi Orangutan",
         "types": [
             "Creature"
@@ -5709,6 +6017,43 @@
         ],
         "id": "10aeac19-6892-448e-9e5f-302051a089fc",
         "rarity": "common"
+    },
+    {
+        "name": "Reknit",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "hybrid": [
+                [
+                    "G",
+                    "W"
+                ]
+            ]
+        },
+        "oracleText": "Regenerate target permanent.",
+        "effects": [
+            {
+                "op": "regenerate",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Artifact",
+                "Battle",
+                "Creature",
+                "Enchantment",
+                "Land",
+                "Planeswalker"
+            ],
+            "count": 1
+        },
+        "id": "10bde9be-0ad8-4f42-a9a9-838bc476c7a6",
+        "rarity": "uncommon"
     },
     {
         "name": "Toucan-Puffin",
@@ -5979,6 +6324,53 @@
         "rarity": "common"
     },
     {
+        "name": "Black Poplar Shaman",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Treefolk",
+            "Shaman"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "power": 1,
+        "toughness": 3,
+        "oracleText": "{2}{B}: Regenerate target Treefolk.",
+        "activatedAbilities": [
+            {
+                "id": "black-poplar-shaman-ability",
+                "oracleText": "{2}{B}: Regenerate target Treefolk.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "B": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "subtypeFilter": [
+                        "Treefolk"
+                    ]
+                }
+            }
+        ],
+        "id": "11a1fc03-5719-49ed-9d53-d8ea5693373e",
+        "rarity": "common"
+    },
+    {
         "name": "Searing Spear",
         "types": [
             "Instant"
@@ -6003,6 +6395,63 @@
         },
         "id": "11a94b7c-0216-473c-87a6-71e5a64d7799",
         "rarity": "common"
+    },
+    {
+        "name": "Niblis of the Urn",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Spirit"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Flying\nWhenever this creature attacks, you may tap target creature.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "niblis-of-the-urn-trigger",
+                "oracleText": "Whenever this creature attacks, you may tap target creature.",
+                "head": {
+                    "kind": "attacks"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Tap target creature?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "tapUntap",
+                                "action": "tap",
+                                "target": {
+                                    "target": 0
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "11bf2ff7-0f8d-47ea-adfd-af299e793a37",
+        "rarity": "uncommon"
     },
     {
         "name": "Lightning Elemental",
@@ -6728,6 +7177,52 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Zephyr Winder",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elemental"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "Flying\nWhenever this creature deals combat damage to a player, untap up to one target creature.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "zephyr-winder-trigger",
+                "oracleText": "Whenever this creature deals combat damage to a player, untap up to one target creature.",
+                "head": {
+                    "kind": "combat-damage-to-player"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": {
+                        "min": 0,
+                        "max": 1
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "14456a8e-016c-4407-8410-c490db3f5ea9",
+        "rarity": "common"
+    },
+    {
         "name": "Happy Hogan, Dauntless Driver",
         "types": [
             "Creature"
@@ -7016,6 +7511,48 @@
             "vigilance"
         ],
         "id": "153b7197-57a7-4e38-bd4a-4550b9d22dd8",
+        "rarity": "common"
+    },
+    {
+        "name": "Voyaging Satyr",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Satyr",
+            "Druid"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "{T}: Untap target land.",
+        "activatedAbilities": [
+            {
+                "id": "voyaging-satyr-ability",
+                "oracleText": "{T}: Untap target land.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Land",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "155ae6c0-5085-45f1-ba9f-508d501fee2c",
         "rarity": "common"
     },
     {
@@ -7710,6 +8247,118 @@
         ],
         "id": "17a3f95c-5a05-46ea-8dc6-b77b59324035",
         "rarity": "common"
+    },
+    {
+        "name": "Shoreline Salvager",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Surrakar"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "Whenever this creature deals combat damage to a player, if you control an Island, you may draw a card.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "shoreline-salvager-trigger",
+                "oracleText": "Whenever this creature deals combat damage to a player, if you control an Island, you may draw a card.",
+                "head": {
+                    "kind": "combat-damage-to-player"
+                },
+                "condition": {
+                    "kind": "controls",
+                    "filter": {
+                        "subtypes": [
+                            "Island"
+                        ]
+                    },
+                    "atLeast": 1
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Draw a card?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "draw",
+                                "player": "controller",
+                                "count": 1
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "17d87345-9f89-4b65-ae9c-a0f46b1e9f31",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Seasoned Marshal",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 2
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Whenever this creature attacks, you may tap target creature.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "seasoned-marshal-trigger",
+                "oracleText": "Whenever this creature attacks, you may tap target creature.",
+                "head": {
+                    "kind": "attacks"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Tap target creature?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "tapUntap",
+                                "action": "tap",
+                                "target": {
+                                    "target": 0
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "17db0060-3667-4c8c-ae9b-d62dceac64e3",
+        "rarity": "uncommon"
     },
     {
         "name": "Sphere of Resistance",
@@ -8478,6 +9127,44 @@
         "rarity": "common"
     },
     {
+        "name": "Voltaic Key",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 1
+        },
+        "oracleText": "{1}, {T}: Untap target artifact.",
+        "activatedAbilities": [
+            {
+                "id": "voltaic-key-ability",
+                "oracleText": "{1}, {T}: Untap target artifact.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Artifact",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "1aa4baf7-4693-4c55-af04-2fa5d901d701",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Sundering Vitae",
         "types": [
             "Instant"
@@ -8687,6 +9374,50 @@
             }
         ],
         "id": "1afc1033-0004-43c1-9341-c5ed0b0048f2",
+        "rarity": "common"
+    },
+    {
+        "name": "Pteron Ghost",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dinosaur",
+            "Spirit"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Flying\nSacrifice this creature: Regenerate target artifact.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "pteron-ghost-ability",
+                "oracleText": "Sacrifice this creature: Regenerate target artifact.",
+                "cost": {
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Artifact",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "1aff26fc-e6d3-4135-96b9-0da7cb8b6dae",
         "rarity": "common"
     },
     {
@@ -9391,6 +10122,66 @@
         "rarity": "common"
     },
     {
+        "name": "Slayer of the Wicked",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "power": 3,
+        "toughness": 2,
+        "oracleText": "When this creature enters, you may destroy target Vampire, Werewolf, or Zombie.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "slayer-of-the-wicked-trigger",
+                "oracleText": "When this creature enters, you may destroy target Vampire, Werewolf, or Zombie.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "subtypeFilter": [
+                        "Vampire",
+                        "Werewolf",
+                        "Zombie"
+                    ]
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Destroy target Vampire, Werewolf, or Zombie?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "destroy",
+                                "target": {
+                                    "target": 0
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "1c2cd68e-ff4c-49c7-ba0d-f2299d9c21f4",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Boiling Rock Prison",
         "types": [
             "Land"
@@ -9971,6 +10762,65 @@
         "toughness": 3,
         "id": "1e3c5a64-453b-4477-853a-9514ba326f16",
         "rarity": "common"
+    },
+    {
+        "name": "Vedalken Infuser",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Vedalken",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 4,
+        "oracleText": "At the beginning of your upkeep, you may put a charge counter on target artifact.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "vedalken-infuser-trigger",
+                "oracleText": "At the beginning of your upkeep, you may put a charge counter on target artifact.",
+                "head": {
+                    "kind": "phase",
+                    "phase": "UPKEEP",
+                    "scope": "your"
+                },
+                "targetRequirement": {
+                    "type": "Artifact",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Put a charge counter on target artifact?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "counters",
+                                "action": "add",
+                                "counter": "charge",
+                                "target": {
+                                    "target": 0
+                                },
+                                "count": 1
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "1e4f4db7-913c-4dd2-931e-630d90eb98ab",
+        "rarity": "uncommon"
     },
     {
         "name": "Rhox Bodyguard",
@@ -11663,6 +12513,54 @@
         "rarity": "rare"
     },
     {
+        "name": "Village Elder",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Druid"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{G}, {T}, Sacrifice a Forest: Regenerate target creature.",
+        "activatedAbilities": [
+            {
+                "id": "village-elder-ability",
+                "oracleText": "{G}, {T}, Sacrifice a Forest: Regenerate target creature.",
+                "cost": {
+                    "mana": {
+                        "G": 1
+                    },
+                    "tap": true,
+                    "sacrificeFilter": {
+                        "subtypes": [
+                            "Forest"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "253a1d97-ec45-41c9-ba81-bbb6ab584b2b",
+        "rarity": "common"
+    },
+    {
         "name": "Ebon Drake",
         "types": [
             "Creature"
@@ -11840,6 +12738,54 @@
         ],
         "id": "25b4aec5-0a7d-4b1c-8819-ea675d415eac",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Swarmyard",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {C}.\n{T}: Regenerate target Insect, Rat, Spider, or Squirrel. (The next time it would be destroyed this turn, instead tap it, remove it from combat, and heal all damage on it.)",
+        "activatedAbilities": [
+            {
+                "id": "swarmyard-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "swarmyard-ability-2",
+                "oracleText": "{T}: Regenerate target Insect, Rat, Spider, or Squirrel.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "subtypeFilter": [
+                        "Insect",
+                        "Rat",
+                        "Spider",
+                        "Squirrel"
+                    ]
+                }
+            }
+        ],
+        "id": "25bfe849-a508-4fa8-8999-909fe8ec34fa",
+        "rarity": "rare"
     },
     {
         "name": "Font of Fortunes",
@@ -12667,6 +13613,48 @@
             }
         ],
         "id": "281f04d5-af45-4494-ac11-a605d3a06643",
+        "rarity": "common"
+    },
+    {
+        "name": "Voltaic Servant",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Construct"
+        ],
+        "manaCost": {
+            "X": 2
+        },
+        "power": 1,
+        "toughness": 3,
+        "oracleText": "At the beginning of your end step, untap target artifact.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "voltaic-servant-trigger",
+                "oracleText": "At the beginning of your end step, untap target artifact.",
+                "head": {
+                    "kind": "phase",
+                    "phase": "END_STEP",
+                    "scope": "your"
+                },
+                "targetRequirement": {
+                    "type": "Artifact",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "28564ac6-8b9b-4b99-9630-8fb3158d354c",
         "rarity": "common"
     },
     {
@@ -17047,6 +18035,63 @@
         "rarity": "common"
     },
     {
+        "name": "Conclave Naturalists",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dryad"
+        ],
+        "manaCost": {
+            "X": 4,
+            "G": 1
+        },
+        "power": 4,
+        "toughness": 4,
+        "oracleText": "When this creature enters, you may destroy target artifact or enchantment.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "conclave-naturalists-trigger",
+                "oracleText": "When this creature enters, you may destroy target artifact or enchantment.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": [
+                        "Artifact",
+                        "Enchantment"
+                    ],
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Destroy target artifact or enchantment?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "destroy",
+                                "target": {
+                                    "target": 0
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "3759fc28-9adb-41ed-851c-566a3a424e09",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Stone Golem",
         "types": [
             "Artifact",
@@ -17670,6 +18715,47 @@
         "rarity": "common"
     },
     {
+        "name": "Medicine Bag",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 3
+        },
+        "oracleText": "{1}, {T}, Discard a card: Regenerate target creature.",
+        "activatedAbilities": [
+            {
+                "id": "medicine-bag-ability",
+                "oracleText": "{1}, {T}, Discard a card: Regenerate target creature.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true,
+                    "discardFilter": {
+                        "filter": {},
+                        "count": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "399c06d5-af2a-47a1-9239-ff14224a026b",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Courier's Capsule",
         "types": [
             "Artifact"
@@ -18204,6 +19290,64 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Stingerfling Spider",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Spider"
+        ],
+        "manaCost": {
+            "X": 4,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 5,
+        "oracleText": "Reach\nWhen this creature enters, you may destroy target creature with flying.",
+        "staticAbilities": [
+            "reach"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "stingerfling-spider-trigger",
+                "oracleText": "When this creature enters, you may destroy target creature with flying.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "requireAbility": "flying"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Destroy target creature with flying?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "destroy",
+                                "target": {
+                                    "target": 0
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "3b781626-f4ce-4d00-aa7c-0e07f58f688f",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Defiant Elf",
         "types": [
             "Creature"
@@ -18661,6 +19805,55 @@
         ],
         "id": "3d1a3fec-39de-4223-9da2-22749a58cd62",
         "rarity": "common"
+    },
+    {
+        "name": "Wirewood Lodge",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {C}.\n{G}, {T}: Untap target Elf.",
+        "activatedAbilities": [
+            {
+                "id": "wirewood-lodge-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "wirewood-lodge-ability-2",
+                "oracleText": "{G}, {T}: Untap target Elf.",
+                "cost": {
+                    "mana": {
+                        "G": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "subtypeFilter": [
+                        "Elf"
+                    ]
+                }
+            }
+        ],
+        "id": "3d251490-41bb-4ad3-bfd0-a5e66ee42598",
+        "rarity": "uncommon"
     },
     {
         "name": "Manakin",
@@ -20034,6 +21227,38 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Welding Jar",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {},
+        "oracleText": "Sacrifice this artifact: Regenerate target artifact.",
+        "activatedAbilities": [
+            {
+                "id": "welding-jar-ability",
+                "oracleText": "Sacrifice this artifact: Regenerate target artifact.",
+                "cost": {
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Artifact",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "42b7b73b-4800-4fc7-9a5c-93e00ea88498",
+        "rarity": "common"
+    },
+    {
         "name": "Skeletal Snake",
         "types": [
             "Creature"
@@ -20204,6 +21429,64 @@
         "rarity": "rare"
     },
     {
+        "name": "Krosan Warchief",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Beast"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Beast spells you cast cost {1} less to cast.\n{1}{G}: Regenerate target Beast.",
+        "activatedAbilities": [
+            {
+                "id": "krosan-warchief-ability",
+                "oracleText": "{1}{G}: Regenerate target Beast.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "G": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "subtypeFilter": [
+                        "Beast"
+                    ]
+                }
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "cost-modifier",
+                "spells": {
+                    "subtypes": [
+                        "Beast"
+                    ],
+                    "controller": "you"
+                },
+                "reduction": 1
+            }
+        ],
+        "id": "435b700b-2072-47c0-9725-ad04414d2474",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Gallant Citizen",
         "types": [
             "Creature"
@@ -20353,6 +21636,38 @@
         ],
         "id": "43c6db4e-cc37-4473-b0f5-48d8a0b82f33",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Burst of Energy",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "oracleText": "Untap target permanent.",
+        "effects": [
+            {
+                "op": "tapUntap",
+                "action": "untap",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Artifact",
+                "Battle",
+                "Creature",
+                "Enchantment",
+                "Land",
+                "Planeswalker"
+            ],
+            "count": 1
+        },
+        "id": "43d590d2-cfa3-43d1-9e65-bc68b5a2a3ee",
+        "rarity": "common"
     },
     {
         "name": "Shard Volley",
@@ -21561,6 +22876,54 @@
         "rarity": "common"
     },
     {
+        "name": "Yavimaya Hollow",
+        "types": [
+            "Land"
+        ],
+        "supertypes": [
+            "Legendary"
+        ],
+        "oracleText": "{T}: Add {C}.\n{G}, {T}: Regenerate target creature.",
+        "activatedAbilities": [
+            {
+                "id": "yavimaya-hollow-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "yavimaya-hollow-ability-2",
+                "oracleText": "{G}, {T}: Regenerate target creature.",
+                "cost": {
+                    "mana": {
+                        "G": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "47dd5c4b-5972-43e1-ae2a-ebf275006458",
+        "rarity": "rare"
+    },
+    {
         "name": "Executioner's Capsule",
         "types": [
             "Artifact"
@@ -22454,6 +23817,108 @@
         ],
         "id": "4ab1601c-634c-4f21-8926-ba3cb92008c1",
         "rarity": "common"
+    },
+    {
+        "name": "Bala Ged Scorpion",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Scorpion"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "power": 2,
+        "toughness": 3,
+        "oracleText": "When this creature enters, you may destroy target creature with power 1 or less.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "bala-ged-scorpion-trigger",
+                "oracleText": "When this creature enters, you may destroy target creature with power 1 or less.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "powerFilter": {
+                        "max": 1
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Destroy target creature with power 1 or less?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "destroy",
+                                "target": {
+                                    "target": 0
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "4acb66bd-6abd-46dd-a272-09bea66e2917",
+        "rarity": "common"
+    },
+    {
+        "name": "Metallurgeon",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Artificer"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "{W}, {T}: Regenerate target artifact.",
+        "activatedAbilities": [
+            {
+                "id": "metallurgeon-ability",
+                "oracleText": "{W}, {T}: Regenerate target artifact.",
+                "cost": {
+                    "mana": {
+                        "W": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Artifact",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "4ad9f9d5-62c1-4dae-a2c8-5552210a70a4",
+        "rarity": "uncommon"
     },
     {
         "name": "Syphon Fuel",
@@ -24840,6 +26305,52 @@
         "rarity": "common"
     },
     {
+        "name": "Vagrant Plowbeasts",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Beast"
+        ],
+        "manaCost": {
+            "X": 5,
+            "W": 1,
+            "G": 1
+        },
+        "power": 6,
+        "toughness": 6,
+        "oracleText": "{1}: Regenerate target creature with power 5 or greater.",
+        "activatedAbilities": [
+            {
+                "id": "vagrant-plowbeasts-ability",
+                "oracleText": "{1}: Regenerate target creature with power 5 or greater.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "powerFilter": {
+                        "min": 5
+                    }
+                }
+            }
+        ],
+        "id": "546b0a74-ebef-4596-b730-2190e20b2e66",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Armored Griffin",
         "types": [
             "Creature"
@@ -26545,6 +28056,59 @@
             "first strike"
         ],
         "id": "5af01330-05c2-4c5b-9830-2886711b2b5d",
+        "rarity": "common"
+    },
+    {
+        "name": "Aven Fisher",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Bird",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Flying (This creature can't be blocked except by creatures with flying or reach.)\nWhen this creature dies, you may draw a card.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "aven-fisher-trigger",
+                "oracleText": "When this creature dies, you may draw a card.",
+                "head": {
+                    "kind": "died",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Draw a card?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "draw",
+                                "player": "controller",
+                                "count": 1
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "5b27130d-2296-4076-9829-15ab63081896",
         "rarity": "common"
     },
     {
@@ -29460,6 +31024,51 @@
         "rarity": "rare"
     },
     {
+        "name": "Trolls of Tel-Jilad",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Troll",
+            "Shaman"
+        ],
+        "manaCost": {
+            "X": 5,
+            "G": 2
+        },
+        "power": 5,
+        "toughness": 6,
+        "oracleText": "{1}{G}: Regenerate target green creature.",
+        "activatedAbilities": [
+            {
+                "id": "trolls-of-tel-jilad-ability",
+                "oracleText": "{1}{G}: Regenerate target green creature.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "G": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "colorFilter": "G"
+                }
+            }
+        ],
+        "id": "6535f2ad-6cda-4be9-8e4f-6f062b63be31",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Needleverge Pathway",
         "types": [
             "Land"
@@ -29848,6 +31457,47 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Blossom Dryad",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dryad"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{T}: Untap target land.",
+        "activatedAbilities": [
+            {
+                "id": "blossom-dryad-ability",
+                "oracleText": "{T}: Untap target land.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Land",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "66a3645f-2b71-4816-a1f2-6cd4e987882f",
+        "rarity": "common"
+    },
+    {
         "name": "Take Vengeance",
         "types": [
             "Sorcery"
@@ -30012,6 +31662,56 @@
         "power": 2,
         "toughness": 1,
         "id": "67380a35-1a15-4c45-8a24-3c6077af85db",
+        "rarity": "common"
+    },
+    {
+        "name": "Oculus",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Phyrexian",
+            "Homunculus"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "When this creature dies, you may draw a card.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "oculus-trigger",
+                "oracleText": "When this creature dies, you may draw a card.",
+                "head": {
+                    "kind": "died",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Draw a card?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "draw",
+                                "player": "controller",
+                                "count": 1
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "673bebb4-9c82-40ca-8552-b9030e961005",
         "rarity": "common"
     },
     {
@@ -31601,6 +33301,50 @@
         ],
         "id": "6d00b68b-8b6a-48c9-8911-2a3270897091",
         "rarity": "rare"
+    },
+    {
+        "name": "Arbor Elf",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elf",
+            "Druid"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{T}: Untap target Forest.",
+        "activatedAbilities": [
+            {
+                "id": "arbor-elf-ability",
+                "oracleText": "{T}: Untap target Forest.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Land",
+                    "count": 1,
+                    "subtypeFilter": [
+                        "Forest"
+                    ]
+                }
+            }
+        ],
+        "id": "6d32a4ed-6b43-4473-91ec-08cd5414f2f0",
+        "rarity": "common"
     },
     {
         "name": "Nobilis of War",
@@ -33558,6 +35302,65 @@
         "rarity": "common"
     },
     {
+        "name": "Minamo, School at Water's Edge",
+        "types": [
+            "Land"
+        ],
+        "supertypes": [
+            "Legendary"
+        ],
+        "oracleText": "{T}: Add {U}.\n{U}, {T}: Untap target legendary permanent.",
+        "activatedAbilities": [
+            {
+                "id": "minamo-school-at-water-s-edge-mana",
+                "oracleText": "{T}: Add {U}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "U": 1
+                }
+            },
+            {
+                "id": "minamo-school-at-water-s-edge-ability-2",
+                "oracleText": "{U}, {T}: Untap target legendary permanent.",
+                "cost": {
+                    "mana": {
+                        "U": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": [
+                        "Artifact",
+                        "Battle",
+                        "Creature",
+                        "Enchantment",
+                        "Land",
+                        "Planeswalker"
+                    ],
+                    "count": 1,
+                    "supertypeFilter": [
+                        "Legendary"
+                    ]
+                }
+            }
+        ],
+        "id": "7536292c-da25-41c8-ba28-1e35758a7f3d",
+        "rarity": "rare"
+    },
+    {
         "name": "Annoyed Altisaur",
         "types": [
             "Creature"
@@ -34114,6 +35917,61 @@
             }
         ],
         "id": "764bd86e-4156-4c58-9ce0-ca3dffbc7298",
+        "rarity": "common"
+    },
+    {
+        "name": "Enlightened Ascetic",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Cat",
+            "Monk"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "When this creature enters, you may destroy target enchantment.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "enlightened-ascetic-trigger",
+                "oracleText": "When this creature enters, you may destroy target enchantment.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Enchantment",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Destroy target enchantment?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "destroy",
+                                "target": {
+                                    "target": 0
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "76549fc3-5798-4c70-bb70-802b6f597eb7",
         "rarity": "common"
     },
     {
@@ -34730,6 +36588,52 @@
             "deathtouch"
         ],
         "id": "783a50a0-9394-4d97-856f-21eb126a0018",
+        "rarity": "common"
+    },
+    {
+        "name": "Urborg Mindsucker",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Horror"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{B}, Sacrifice this creature: Target opponent discards a card at random. Activate only as a sorcery.",
+        "activatedAbilities": [
+            {
+                "id": "urborg-mindsucker-ability",
+                "oracleText": "{B}, Sacrifice this creature: Target opponent discards a card at random. Activate only as a sorcery.",
+                "cost": {
+                    "mana": {
+                        "B": 1
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "discardAtRandom",
+                        "player": {
+                            "target": 0
+                        },
+                        "count": 1
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1,
+                    "controller": "opponent"
+                },
+                "sorcerySpeedOnly": true
+            }
+        ],
+        "id": "78405864-fc83-47ab-9238-8e0464a700ec",
         "rarity": "common"
     },
     {
@@ -41300,6 +43204,67 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Necropede",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Phyrexian",
+            "Insect"
+        ],
+        "manaCost": {
+            "X": 2
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Infect (This creature deals damage to creatures in the form of -1/-1 counters and to players in the form of poison counters.)\nWhen this creature dies, you may put a -1/-1 counter on target creature.",
+        "staticAbilities": [
+            "infect"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "necropede-trigger",
+                "oracleText": "When this creature dies, you may put a -1/-1 counter on target creature.",
+                "head": {
+                    "kind": "died",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Put a -1/-1 counter on target creature?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "counters",
+                                "action": "add",
+                                "counter": "-1/-1",
+                                "target": {
+                                    "target": 0
+                                },
+                                "count": 1
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "8d2e522b-e6f8-4fae-8c08-ce2bb8bed04f",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Zookeeper Mechan",
         "types": [
             "Artifact",
@@ -41811,6 +43776,61 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Alaborn Cavalier",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Knight"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 2
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Whenever this creature attacks, you may tap target creature.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "alaborn-cavalier-trigger",
+                "oracleText": "Whenever this creature attacks, you may tap target creature.",
+                "head": {
+                    "kind": "attacks"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Tap target creature?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "tapUntap",
+                                "action": "tap",
+                                "target": {
+                                    "target": 0
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "8e865658-67c8-43b2-8d3a-909fb1c17e8a",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Shining Aerosaur",
         "types": [
             "Creature"
@@ -42292,6 +44312,62 @@
         ],
         "id": "90488074-730c-47a3-9a4b-9fec1da775ad",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Festering Mummy",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Zombie"
+        ],
+        "manaCost": {
+            "B": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "When this creature dies, you may put a -1/-1 counter on target creature.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "festering-mummy-trigger",
+                "oracleText": "When this creature dies, you may put a -1/-1 counter on target creature.",
+                "head": {
+                    "kind": "died",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Put a -1/-1 counter on target creature?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "counters",
+                                "action": "add",
+                                "counter": "-1/-1",
+                                "target": {
+                                    "target": 0
+                                },
+                                "count": 1
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "906c4c95-5815-44c8-8d3c-b0fda9db55a1",
+        "rarity": "common"
     },
     {
         "name": "Ticked Off",
@@ -42800,6 +44876,59 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Shadowmage Infiltrator",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1,
+            "B": 1
+        },
+        "power": 1,
+        "toughness": 3,
+        "oracleText": "Fear (This creature can't be blocked except by artifact creatures and/or black creatures.)\nWhenever this creature deals combat damage to a player, you may draw a card.",
+        "staticAbilities": [
+            "fear"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "shadowmage-infiltrator-trigger",
+                "oracleText": "Whenever this creature deals combat damage to a player, you may draw a card.",
+                "head": {
+                    "kind": "combat-damage-to-player"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Draw a card?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "draw",
+                                "player": "controller",
+                                "count": 1
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "932ce702-565f-4d8c-b9fc-2d7c939ef7d7",
+        "rarity": "rare"
+    },
+    {
         "name": "Gather Courage",
         "types": [
             "Instant"
@@ -42829,6 +44958,93 @@
             "count": 1
         },
         "id": "93311f80-0d0e-4005-ba43-5dbfe438d127",
+        "rarity": "common"
+    },
+    {
+        "name": "Corridor Monitor",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Construct"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 4,
+        "oracleText": "When this creature enters, untap target artifact or creature you control.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "corridor-monitor-trigger",
+                "oracleText": "When this creature enters, untap target artifact or creature you control.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": [
+                        "Artifact",
+                        "Creature"
+                    ],
+                    "count": 1,
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "9347802a-0971-443c-867a-cb9400f18d5c",
+        "rarity": "common"
+    },
+    {
+        "name": "Galvanic Key",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 2
+        },
+        "oracleText": "Flash\n{3}, {T}: Untap target artifact.",
+        "staticAbilities": [
+            "flash"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "galvanic-key-ability",
+                "oracleText": "{3}, {T}: Untap target artifact.",
+                "cost": {
+                    "mana": {
+                        "X": 3
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Artifact",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "934936d1-f470-47fa-ac28-344020c9fc76",
         "rarity": "common"
     },
     {
@@ -45270,6 +47486,54 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Rushwood Herbalist",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Spellshaper"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{G}, {T}, Discard a card: Regenerate target creature.",
+        "activatedAbilities": [
+            {
+                "id": "rushwood-herbalist-ability",
+                "oracleText": "{G}, {T}, Discard a card: Regenerate target creature.",
+                "cost": {
+                    "mana": {
+                        "G": 1
+                    },
+                    "tap": true,
+                    "discardFilter": {
+                        "filter": {},
+                        "count": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "9afde98f-a429-4eff-9d06-8582267ac74b",
+        "rarity": "common"
+    },
+    {
         "name": "Canyon Minotaur",
         "types": [
             "Creature"
@@ -46070,6 +48334,54 @@
             "menace"
         ],
         "id": "9d735ebf-61a4-4507-9399-6d32c8903ded",
+        "rarity": "common"
+    },
+    {
+        "name": "Sculptor of Winter",
+        "types": [
+            "Creature"
+        ],
+        "supertypes": [
+            "Snow"
+        ],
+        "subtypes": [
+            "Elf",
+            "Rogue"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{T}: Untap target snow land.",
+        "activatedAbilities": [
+            {
+                "id": "sculptor-of-winter-ability",
+                "oracleText": "{T}: Untap target snow land.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Land",
+                    "count": 1,
+                    "supertypeFilter": [
+                        "Snow"
+                    ]
+                }
+            }
+        ],
+        "id": "9dab2ca2-0039-4eac-a7dc-68756362737d",
         "rarity": "common"
     },
     {
@@ -47060,6 +49372,61 @@
         ],
         "id": "a20aaa6c-7032-43c1-9e7c-57cf8c8ecfd4",
         "rarity": "common"
+    },
+    {
+        "name": "Flanking Troops",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 2
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Whenever this creature attacks, you may tap target creature.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "flanking-troops-trigger",
+                "oracleText": "Whenever this creature attacks, you may tap target creature.",
+                "head": {
+                    "kind": "attacks"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Tap target creature?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "tapUntap",
+                                "action": "tap",
+                                "target": {
+                                    "target": 0
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "a219a031-2466-4850-b646-79a09e30cf18",
+        "rarity": "uncommon"
     },
     {
         "name": "Moon Heron",
@@ -48767,6 +51134,60 @@
         "rarity": "common"
     },
     {
+        "name": "Batterhorn",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Beast"
+        ],
+        "manaCost": {
+            "X": 4,
+            "R": 1
+        },
+        "power": 4,
+        "toughness": 3,
+        "oracleText": "When this creature enters, you may destroy target artifact.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "batterhorn-trigger",
+                "oracleText": "When this creature enters, you may destroy target artifact.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Artifact",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Destroy target artifact?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "destroy",
+                                "target": {
+                                    "target": 0
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "a7b40f74-893f-4bfc-87b2-7f8df4c912d8",
+        "rarity": "common"
+    },
+    {
         "name": "Frenzied Raptor",
         "types": [
             "Creature"
@@ -49719,6 +52140,58 @@
         ],
         "id": "aa5341b9-06e4-4360-a75d-f405d468276e",
         "rarity": "common"
+    },
+    {
+        "name": "Neurok Commando",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Rogue"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 2
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "Shroud (This creature can't be the target of spells or abilities.)\nWhenever this creature deals combat damage to a player, you may draw a card.",
+        "staticAbilities": [
+            "shroud"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "neurok-commando-trigger",
+                "oracleText": "Whenever this creature deals combat damage to a player, you may draw a card.",
+                "head": {
+                    "kind": "combat-damage-to-player"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Draw a card?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "draw",
+                                "player": "controller",
+                                "count": 1
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "aa7084f3-9335-401f-9a62-6f131351338d",
+        "rarity": "uncommon"
     },
     {
         "name": "Fiery Conclusion",
@@ -50747,6 +53220,62 @@
         "rarity": "common"
     },
     {
+        "name": "Leonin Snarecaster",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Cat",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "When this creature enters, you may tap target creature.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "leonin-snarecaster-trigger",
+                "oracleText": "When this creature enters, you may tap target creature.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Tap target creature?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "tapUntap",
+                                "action": "tap",
+                                "target": {
+                                    "target": 0
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "ade9b739-122c-4659-b1b2-ea0510d96dbc",
+        "rarity": "common"
+    },
+    {
         "name": "Sun-Blessed Peak",
         "types": [
             "Land"
@@ -51074,6 +53603,59 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Surveilling Sprite",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Faerie",
+            "Rogue"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Flying\nWhen this creature dies, you may draw a card.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "surveilling-sprite-trigger",
+                "oracleText": "When this creature dies, you may draw a card.",
+                "head": {
+                    "kind": "died",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Draw a card?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "draw",
+                                "player": "controller",
+                                "count": 1
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "aec114de-bee9-4a4a-826c-82a836b4bda1",
+        "rarity": "common"
+    },
+    {
         "name": "Faithbearer Paladin",
         "types": [
             "Creature"
@@ -51335,6 +53917,57 @@
             "count": 1
         },
         "id": "af6b3bf7-bd09-4f0d-a670-2efc1c6d416f",
+        "rarity": "common"
+    },
+    {
+        "name": "Thistledown Players",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Mouse",
+            "Bard"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "Whenever this creature attacks, untap target nonland permanent.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "thistledown-players-trigger",
+                "oracleText": "Whenever this creature attacks, untap target nonland permanent.",
+                "head": {
+                    "kind": "attacks"
+                },
+                "targetRequirement": {
+                    "type": [
+                        "Artifact",
+                        "Battle",
+                        "Creature",
+                        "Enchantment",
+                        "Land",
+                        "Planeswalker"
+                    ],
+                    "count": 1,
+                    "excludeTypes": [
+                        "Land"
+                    ]
+                },
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "afa8d83f-8586-4127-8b55-9715e9547488",
         "rarity": "common"
     },
     {
@@ -51885,6 +54518,41 @@
         ],
         "id": "b1f00799-80ce-431e-97bb-8bb4e0e8ba49",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Herbal Poultice",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {},
+        "oracleText": "{3}, Sacrifice this artifact: Regenerate target creature.",
+        "activatedAbilities": [
+            {
+                "id": "herbal-poultice-ability",
+                "oracleText": "{3}, Sacrifice this artifact: Regenerate target creature.",
+                "cost": {
+                    "mana": {
+                        "X": 3
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "b20925a3-dd4f-477c-806a-a3ec0fd2e00d",
+        "rarity": "common"
     },
     {
         "name": "Winter's Grasp",
@@ -52846,6 +55514,47 @@
         },
         "id": "b4b99ebb-0d54-4fe5-a495-979aaa564aa8",
         "rarity": "rare"
+    },
+    {
+        "name": "Seeker of Skybreak",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elf"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "{T}: Untap target creature.",
+        "activatedAbilities": [
+            {
+                "id": "seeker-of-skybreak-ability",
+                "oracleText": "{T}: Untap target creature.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "b4bb98ba-d599-4597-911c-2b472fa8817c",
+        "rarity": "common"
     },
     {
         "name": "Lazotep Behemoth",
@@ -55254,6 +57963,49 @@
         "rarity": "common"
     },
     {
+        "name": "Black Cat",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Zombie",
+            "Cat"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "When this creature dies, target opponent discards a card at random.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "black-cat-trigger",
+                "oracleText": "When this creature dies, target opponent discards a card at random.",
+                "head": {
+                    "kind": "died",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1,
+                    "controller": "opponent"
+                },
+                "effects": [
+                    {
+                        "op": "discardAtRandom",
+                        "player": {
+                            "target": 0
+                        },
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "bb1c6379-69d5-48aa-8d06-257c0592794e",
+        "rarity": "common"
+    },
+    {
         "name": "Rakdos Ragemutt",
         "types": [
             "Creature"
@@ -55334,6 +58086,48 @@
         ],
         "id": "bb7c3ae2-6b01-4472-8bd1-9a7456401ddc",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Hyrax Tower Scout",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Scout"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "When this creature enters, untap target creature.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "hyrax-tower-scout-trigger",
+                "oracleText": "When this creature enters, untap target creature.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "bb7f2638-d757-4df6-90b0-b616534dd3a0",
+        "rarity": "common"
     },
     {
         "name": "Bull Cerodon",
@@ -55966,6 +58760,60 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Accursed Duneyard",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {C}.\n{2}, {T}: Regenerate target Shade, Skeleton, Specter, Spirit, Vampire, Wraith, or Zombie. (The next time it would be destroyed this turn, instead tap it, remove it from combat, and heal all damage on it.)",
+        "activatedAbilities": [
+            {
+                "id": "accursed-duneyard-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "accursed-duneyard-ability-2",
+                "oracleText": "{2}, {T}: Regenerate target Shade, Skeleton, Specter, Spirit, Vampire, Wraith, or Zombie.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "subtypeFilter": [
+                        "Shade",
+                        "Skeleton",
+                        "Specter",
+                        "Spirit",
+                        "Vampire",
+                        "Wraith",
+                        "Zombie"
+                    ]
+                }
+            }
+        ],
+        "id": "bd9e6ba8-1c5e-4416-8bff-90db3b3b1f41",
+        "rarity": "rare"
+    },
+    {
         "name": "Krovikan Scoundrel",
         "types": [
             "Creature"
@@ -56105,6 +58953,45 @@
             "deathtouch"
         ],
         "id": "be08d2b0-375b-434f-9e6d-060809e0ed34",
+        "rarity": "common"
+    },
+    {
+        "name": "Fanatical Devotion",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "Sacrifice a creature: Regenerate target creature.",
+        "activatedAbilities": [
+            {
+                "id": "fanatical-devotion-ability",
+                "oracleText": "Sacrifice a creature: Regenerate target creature.",
+                "cost": {
+                    "sacrificeFilter": {
+                        "types": [
+                            "Creature"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "be0ed1fb-d380-4e3e-a43f-c39660a996e9",
         "rarity": "common"
     },
     {
@@ -56533,6 +59420,30 @@
         "rarity": "common"
     },
     {
+        "name": "Mending Touch",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "oracleText": "Regenerate target creature.",
+        "effects": [
+            {
+                "op": "regenerate",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "c042c7ee-0e74-4ca5-bbb9-2898b0576f0a",
+        "rarity": "common"
+    },
+    {
         "name": "Iroas's Champion",
         "types": [
             "Creature"
@@ -56600,6 +59511,48 @@
         ],
         "id": "c06cc03f-da73-4ba5-96c9-618b497a7ea3",
         "rarity": "common"
+    },
+    {
+        "name": "Sanity Gnawers",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Rat"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1,
+            "R": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "When this creature enters, target player discards a card at random.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "sanity-gnawers-trigger",
+                "oracleText": "When this creature enters, target player discards a card at random.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "discardAtRandom",
+                        "player": {
+                            "target": 0
+                        },
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "c088d28d-16c2-4dd2-b036-946dfdb8ec98",
+        "rarity": "uncommon"
     },
     {
         "name": "Shell Skulkin",
@@ -56922,6 +59875,50 @@
         ],
         "entersTapped": true,
         "id": "c16f96f5-a2a6-4ac4-bdae-326cee92bf2e",
+        "rarity": "common"
+    },
+    {
+        "name": "Loxodon Mender",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elephant",
+            "Cleric"
+        ],
+        "manaCost": {
+            "X": 5,
+            "W": 1
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "{W}, {T}: Regenerate target artifact.",
+        "activatedAbilities": [
+            {
+                "id": "loxodon-mender-ability",
+                "oracleText": "{W}, {T}: Regenerate target artifact.",
+                "cost": {
+                    "mana": {
+                        "W": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Artifact",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "c17ac7c1-6d53-40b4-921f-4e23e4026041",
         "rarity": "common"
     },
     {
@@ -59549,6 +62546,64 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Reclamation Sage",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elf",
+            "Shaman"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "When this creature enters, you may destroy target artifact or enchantment.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "reclamation-sage-trigger",
+                "oracleText": "When this creature enters, you may destroy target artifact or enchantment.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": [
+                        "Artifact",
+                        "Enchantment"
+                    ],
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Destroy target artifact or enchantment?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "destroy",
+                                "target": {
+                                    "target": 0
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "cac912bb-f18a-4501-a5c0-aed8cb0a9e43",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Marisi's Twinclaws",
         "types": [
             "Creature"
@@ -61203,6 +64258,66 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Noxious Dragon",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dragon"
+        ],
+        "manaCost": {
+            "X": 4,
+            "B": 2
+        },
+        "power": 4,
+        "toughness": 4,
+        "oracleText": "Flying\nWhen this creature dies, you may destroy target creature with mana value 3 or less.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "noxious-dragon-trigger",
+                "oracleText": "When this creature dies, you may destroy target creature with mana value 3 or less.",
+                "head": {
+                    "kind": "died",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "mvFilter": {
+                        "max": 3
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Destroy target creature with mana value 3 or less?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "destroy",
+                                "target": {
+                                    "target": 0
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "cece7235-604c-49b6-b80f-3229a20b154f",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Worf, Chief Tactical Officer",
         "types": [
             "Creature"
@@ -61709,6 +64824,59 @@
         "rarity": "common"
     },
     {
+        "name": "Specter's Wail",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Target player discards a card at random.",
+        "effects": [
+            {
+                "op": "discardAtRandom",
+                "player": {
+                    "target": 0
+                },
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "player",
+            "count": 1
+        },
+        "id": "d1637b62-e364-4250-aad5-841c6a47a11e",
+        "rarity": "common"
+    },
+    {
+        "name": "Mind Knives",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Target opponent discards a card at random.",
+        "effects": [
+            {
+                "op": "discardAtRandom",
+                "player": {
+                    "target": 0
+                },
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "player",
+            "count": 1,
+            "controller": "opponent"
+        },
+        "id": "d17e23a6-6313-416d-b826-5df5833371dc",
+        "rarity": "common"
+    },
+    {
         "name": "Fear of Fear Itself",
         "types": [
             "Enchantment",
@@ -61955,6 +65123,52 @@
         ],
         "id": "d1f95b64-858b-4344-84a2-3afa5c7b9ee9",
         "rarity": "common"
+    },
+    {
+        "name": "Deserted Temple",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {C}.\n{1}, {T}: Untap target land.",
+        "activatedAbilities": [
+            {
+                "id": "deserted-temple-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "deserted-temple-ability-2",
+                "oracleText": "{1}, {T}: Untap target land.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Land",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "d1fa74b2-f9bd-4617-8b65-878781f3a2fd",
+        "rarity": "rare"
     },
     {
         "name": "Cabal Evangel",
@@ -62596,6 +65810,41 @@
             "deathtouch"
         ],
         "id": "d4343cb0-6490-496c-9d58-ac1f7d3a91c6",
+        "rarity": "common"
+    },
+    {
+        "name": "Broken Fall",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "oracleText": "Return this enchantment to its owner's hand: Regenerate target creature.",
+        "activatedAbilities": [
+            {
+                "id": "broken-fall-ability",
+                "oracleText": "Return this enchantment to its owner's hand: Regenerate target creature.",
+                "cost": {
+                    "returnThisToHand": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "d43f5349-a3f8-492d-a835-24a9f948741c",
         "rarity": "common"
     },
     {
@@ -63478,6 +66727,58 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Cat-Owl",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Cat",
+            "Bird"
+        ],
+        "manaCost": {
+            "X": 3,
+            "hybrid": [
+                [
+                    "W",
+                    "U"
+                ]
+            ]
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "Flying\nWhenever this creature attacks, untap target artifact or creature.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "cat-owl-trigger",
+                "oracleText": "Whenever this creature attacks, untap target artifact or creature.",
+                "head": {
+                    "kind": "attacks"
+                },
+                "targetRequirement": {
+                    "type": [
+                        "Artifact",
+                        "Creature"
+                    ],
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "d7df3391-dbe5-4eb4-85c1-037c5f3ea971",
+        "rarity": "common"
+    },
+    {
         "name": "Golden Bear",
         "types": [
             "Creature"
@@ -64238,6 +67539,61 @@
         ],
         "id": "da698c63-f167-4129-a650-b50c080a24b5",
         "rarity": "common"
+    },
+    {
+        "name": "War Priest of Thune",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Cleric"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "When this creature enters, you may destroy target enchantment.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "war-priest-of-thune-trigger",
+                "oracleText": "When this creature enters, you may destroy target enchantment.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Enchantment",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Destroy target enchantment?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "destroy",
+                                "target": {
+                                    "target": 0
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "da7d96db-109d-498e-ae10-1430718c33da",
+        "rarity": "uncommon"
     },
     {
         "name": "Rustrazor Butcher",
@@ -67239,6 +70595,47 @@
         "rarity": "common"
     },
     {
+        "name": "Sparring Mummy",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Zombie"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "When this creature enters, untap target creature.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "sparring-mummy-trigger",
+                "oracleText": "When this creature enters, untap target creature.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "e4ec1587-0405-4b4d-96b5-1ac2c5a7c9dc",
+        "rarity": "common"
+    },
+    {
         "name": "Jungle Shrine",
         "types": [
             "Land"
@@ -68044,6 +71441,60 @@
         "rarity": "common"
     },
     {
+        "name": "Wild Celebrants",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Satyr"
+        ],
+        "manaCost": {
+            "X": 3,
+            "R": 2
+        },
+        "power": 5,
+        "toughness": 3,
+        "oracleText": "When this creature enters, you may destroy target artifact.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "wild-celebrants-trigger",
+                "oracleText": "When this creature enters, you may destroy target artifact.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Artifact",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Destroy target artifact?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "destroy",
+                                "target": {
+                                    "target": 0
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "e7ab4e29-44c7-431a-ba11-b2f4f9c75ab1",
+        "rarity": "common"
+    },
+    {
         "name": "Python",
         "types": [
             "Creature"
@@ -68170,6 +71621,51 @@
             }
         ],
         "id": "e81565a4-cbbe-4820-8473-15ceda42d553",
+        "rarity": "common"
+    },
+    {
+        "name": "Greenside Watcher",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elf",
+            "Druid"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "{T}: Untap target Gate.",
+        "activatedAbilities": [
+            {
+                "id": "greenside-watcher-ability",
+                "oracleText": "{T}: Untap target Gate.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Land",
+                    "count": 1,
+                    "subtypeFilter": [
+                        "Gate"
+                    ]
+                }
+            }
+        ],
+        "id": "e825cb2d-98d7-423d-9ba1-b4d04027027e",
         "rarity": "common"
     },
     {
@@ -69143,6 +72639,67 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Somnomancer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Kithkin",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 1,
+            "hybrid": [
+                [
+                    "W",
+                    "U"
+                ]
+            ]
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "When this creature enters, you may tap target creature.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "somnomancer-trigger",
+                "oracleText": "When this creature enters, you may tap target creature.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Tap target creature?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "tapUntap",
+                                "action": "tap",
+                                "target": {
+                                    "target": 0
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "eaf51122-fd7c-40b5-b759-65e21c28e3d6",
+        "rarity": "common"
+    },
+    {
         "name": "Custodian of the Trove",
         "types": [
             "Artifact",
@@ -69488,6 +73045,56 @@
         ],
         "id": "ebf8ccb8-57fb-491c-b07d-93348b33a765",
         "rarity": "common"
+    },
+    {
+        "name": "Asceticism",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 3,
+            "G": 2
+        },
+        "oracleText": "Creatures you control have hexproof.\n{1}{G}: Regenerate target creature. (The next time it would be destroyed this turn, instead tap it, remove it from combat, and heal all damage on it.)",
+        "activatedAbilities": [
+            {
+                "id": "asceticism-ability",
+                "oracleText": "{1}{G}: Regenerate target creature.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "G": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "filter": {
+                    "types": [
+                        "Creature"
+                    ],
+                    "controllerRelation": "you"
+                },
+                "keyword": "hexproof"
+            }
+        ],
+        "id": "ec2b56b0-126c-411b-8c43-b690fc8c194b",
+        "rarity": "rare"
     },
     {
         "name": "Aerial Predation",
@@ -69900,6 +73507,55 @@
             }
         },
         "id": "ee526306-6959-421c-9969-3c19b666d6da",
+        "rarity": "common"
+    },
+    {
+        "name": "Tel-Jilad Lifebreather",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Troll",
+            "Shaman"
+        ],
+        "manaCost": {
+            "X": 4,
+            "G": 1
+        },
+        "power": 3,
+        "toughness": 2,
+        "oracleText": "{G}, {T}, Sacrifice a Forest: Regenerate target creature.",
+        "activatedAbilities": [
+            {
+                "id": "tel-jilad-lifebreather-ability",
+                "oracleText": "{G}, {T}, Sacrifice a Forest: Regenerate target creature.",
+                "cost": {
+                    "mana": {
+                        "G": 1
+                    },
+                    "tap": true,
+                    "sacrificeFilter": {
+                        "subtypes": [
+                            "Forest"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "ee58a5ef-68ec-48cf-bb7e-73bcbe86cc3c",
         "rarity": "common"
     },
     {
@@ -70546,6 +74202,41 @@
         "rarity": "rare"
     },
     {
+        "name": "Molting Skin",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "oracleText": "Return this enchantment to its owner's hand: Regenerate target creature.",
+        "activatedAbilities": [
+            {
+                "id": "molting-skin-ability",
+                "oracleText": "Return this enchantment to its owner's hand: Regenerate target creature.",
+                "cost": {
+                    "returnThisToHand": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "f0797186-01ae-4de0-b188-7fc3079b2800",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Messenger Falcons",
         "types": [
             "Creature"
@@ -71016,6 +74707,63 @@
         ],
         "id": "f271969e-1529-42d1-878b-011f80ab0f05",
         "rarity": "common"
+    },
+    {
+        "name": "Fleshpulper Giant",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Giant"
+        ],
+        "manaCost": {
+            "X": 5,
+            "R": 2
+        },
+        "power": 4,
+        "toughness": 4,
+        "oracleText": "When this creature enters, you may destroy target creature with toughness 2 or less.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "fleshpulper-giant-trigger",
+                "oracleText": "When this creature enters, you may destroy target creature with toughness 2 or less.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "toughnessFilter": {
+                        "max": 2
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Destroy target creature with toughness 2 or less?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "destroy",
+                                "target": {
+                                    "target": 0
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "f2726d3c-c182-4d8a-a723-0de2c5c4b152",
+        "rarity": "uncommon"
     },
     {
         "name": "Battle Rampart",
@@ -71736,6 +75484,50 @@
         ],
         "id": "f55d43d4-5f63-45c3-b8f8-0aebd23750a5",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Civic Gardener",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Citizen"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Whenever this creature attacks, untap target creature or land.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "civic-gardener-trigger",
+                "oracleText": "Whenever this creature attacks, untap target creature or land.",
+                "head": {
+                    "kind": "attacks"
+                },
+                "targetRequirement": {
+                    "type": [
+                        "Creature",
+                        "Land"
+                    ],
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "f58d39d7-62bf-43c8-97b3-0f9069af0e29",
+        "rarity": "common"
     },
     {
         "name": "Stoke the Flames",
