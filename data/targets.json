@@ -1,0 +1,138 @@
+{
+    "handTailFloor": 3,
+    "handTailFiling": false,
+    "targets": [
+        {
+            "id": "premodern-metagame",
+            "kind": "deck-list",
+            "source": "data/premodern-metagame-decks.json",
+            "priority": 1
+        },
+        {
+            "id": "vintage-cube",
+            "kind": "name-list",
+            "source": "data/worklists/vintage-cube.txt",
+            "priority": 2
+        },
+        {
+            "id": "tier1-goblin",
+            "kind": "deck-list",
+            "source": "data/premodern-tier1-decks.json#goblin"
+        },
+        {
+            "id": "tier1-psychatog",
+            "kind": "deck-list",
+            "source": "data/premodern-tier1-decks.json#psychatog"
+        },
+        {
+            "id": "tier1-parallax-replenish",
+            "kind": "deck-list",
+            "source": "data/premodern-tier1-decks.json#parallax-replenish"
+        },
+        {
+            "id": "tier1-landstill",
+            "kind": "deck-list",
+            "source": "data/premodern-tier1-decks.json#landstill"
+        },
+        {
+            "id": "tier1-oath-ponza",
+            "kind": "deck-list",
+            "source": "data/premodern-tier1-decks.json#oath-ponza"
+        },
+        {
+            "id": "tier1-aluren",
+            "kind": "deck-list",
+            "source": "data/premodern-tier1-decks.json#aluren"
+        },
+        {
+            "id": "set-2ed",
+            "kind": "set",
+            "source": "data/json/2ED.json"
+        },
+        {
+            "id": "set-3ed",
+            "kind": "set",
+            "source": "data/json/3ED.json"
+        },
+        {
+            "id": "set-4ed",
+            "kind": "set",
+            "source": "data/json/4ED.json"
+        },
+        {
+            "id": "set-apc",
+            "kind": "set",
+            "source": "data/json/APC.json"
+        },
+        {
+            "id": "set-arn",
+            "kind": "set",
+            "source": "data/json/ARN.json"
+        },
+        {
+            "id": "set-atq",
+            "kind": "set",
+            "source": "data/json/ATQ.json"
+        },
+        {
+            "id": "set-drk",
+            "kind": "set",
+            "source": "data/json/DRK.json"
+        },
+        {
+            "id": "set-ice",
+            "kind": "set",
+            "source": "data/json/ICE.json"
+        },
+        {
+            "id": "set-inv",
+            "kind": "set",
+            "source": "data/json/INV.json"
+        },
+        {
+            "id": "set-lea",
+            "kind": "set",
+            "source": "data/json/LEA.json"
+        },
+        {
+            "id": "set-leg",
+            "kind": "set",
+            "source": "data/json/LEG.json"
+        },
+        {
+            "id": "set-pls",
+            "kind": "set",
+            "source": "data/json/PLS.json"
+        },
+        {
+            "id": "format-premodern",
+            "kind": "format",
+            "source": "premodern"
+        },
+        {
+            "id": "format-pauper",
+            "kind": "format",
+            "source": "pauper"
+        },
+        {
+            "id": "format-modern",
+            "kind": "format",
+            "source": "modern"
+        },
+        {
+            "id": "format-legacy",
+            "kind": "format",
+            "source": "legacy"
+        },
+        {
+            "id": "format-vintage",
+            "kind": "format",
+            "source": "vintage"
+        },
+        {
+            "id": "format-commander",
+            "kind": "format",
+            "source": "commander"
+        }
+    ]
+}
