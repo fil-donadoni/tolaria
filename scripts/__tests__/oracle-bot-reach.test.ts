@@ -17,6 +17,7 @@ import { buildLockfile } from "../oracle-compile";
 import type { CorpusCard } from "../oracle-corpus";
 import {
     botGapKey,
+    botSourceFiles,
     carriedBotReach,
     playingBotReach,
     rankBotGaps,
@@ -157,6 +158,26 @@ describe("carriedBotReach — the drift guard's source never plays", () => {
     });
 });
 
+describe("the Bot hash covers what decides a verdict", () => {
+    it("hashes every DIRECT import of the verdict function", () => {
+        const files = botSourceFiles(ROOT);
+        for (const file of [
+            // `getLegalActions` — the frozen / position-unmodelled
+            // discriminator itself.
+            "convex/gre/rules.ts",
+            "convex/gre/search.ts",
+            "convex/gre/moves.ts",
+            "convex/gre/applyMove.ts",
+            "convex/cards/colors.ts",
+            "convex/gre/ai/botReach.ts",
+        ])
+            expect(files, file).toContain(file);
+        // Label-only, and excluded on purpose: changing a gap key must not
+        // replay 3,400 cards.
+        expect(files).not.toContain("convex/gre/ai/botReachForm.ts");
+    });
+});
+
 describe("Bot Gaps", () => {
     it("aggregate by form — never-chosen also by the card's Ops", () => {
         expect(
@@ -176,6 +197,50 @@ describe("Bot Gaps", () => {
             )
         ).toBe("unanswerable-input › choice:discard");
         expect(botGapKey({ outcome: "played" }, ["draw"])).toBeUndefined();
+    });
+
+    it("a recomputed cast shape overrides a cast-shape form — and NOTHING else", () => {
+        expect(
+            botGapKey(
+                { outcome: "ignored", cause: "never-chosen", form: "stale" },
+                [],
+                "Creature [flash]"
+            )
+        ).toBe("never-chosen › Creature [flash] › (no Ops)");
+        // The choice kind is the only actionable field on a follow-through
+        // row; the cast shape may not eat it.
+        expect(
+            botGapKey(
+                {
+                    outcome: "frozen",
+                    cause: "unanswerable-input",
+                    form: "choice:divide-piles",
+                },
+                [],
+                "Creature [flash]"
+            )
+        ).toBe("unanswerable-input › choice:divide-piles");
+    });
+
+    it("a row whose cause this tree does not produce is a cache MISS", () => {
+        const spy = spyPlayer();
+        const source = playingBotReach(
+            lockWith(
+                [
+                    row({
+                        botReach: "ignored",
+                        botGap: "retired-cause › Sorcery",
+                    }),
+                ],
+                "sha256:bot"
+            ),
+            "sha256:bot",
+            spy.play
+        );
+        expect(source.verdictFor(BEAR_ID, BEAR_DEF)).toEqual({
+            outcome: "played",
+        });
+        expect(spy.calls).toEqual([BEAR_ID]);
     });
 
     it("rank by blast radius, then key — a total order", () => {
@@ -329,10 +394,28 @@ describe("the sweep never runs inside a gate (ADR 0105 § 7.2)", () => {
             "utf8"
         );
         expect(form).not.toMatch(/^import (?!type)/m);
+        // The two `scripts/lib` modules the GATE imports: a value import of
+        // the sweep in either one puts the whole search in the gate's module
+        // graph, and the guard's own text assertions would stay green.
+        for (const lib of ["oracle-bot-reach.ts", "oracle-lockfile.ts"]) {
+            const text = readFileSync(
+                join(ROOT, "scripts", "lib", lib),
+                "utf8"
+            );
+            expect(text, lib).not.toMatch(
+                /^import (?!type)[^;]*from "[^"]*gre\/ai\/botReach"/m
+            );
+        }
     });
 
     it("the gate scripts never name the write path", () => {
-        for (const file of ["land.ts", "check-lane.ts", "gate.ts"]) {
+        for (const file of [
+            "land.ts",
+            "check-lane.ts",
+            "gate.ts",
+            "health-main.ts",
+            "release.ts",
+        ]) {
             const text = readFileSync(join(ROOT, "scripts", file), "utf8");
             expect(text, file).not.toMatch(
                 /oracle:compile(?! --check)|oracle-compile\.ts(?! --check)/

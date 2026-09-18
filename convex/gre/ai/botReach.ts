@@ -49,8 +49,23 @@ import { allocInstanceId, type GameState } from "../state";
 import { manaValue } from "../constants";
 import { basicLandsForColors, getCardColors } from "../../cards/colors";
 import type { CardDefinition } from "../../cards/types";
-import { castShape, needsStackTarget } from "./botReachForm";
+import { castShape } from "./botReachForm";
 export { castShape } from "./botReachForm";
+
+/** CR 115.1 — a spell that targets a SPELL needs one on the stack. Lives
+ *  HERE, not beside `castShape`: it decides what the generated position
+ *  CONTAINS, so it is a verdict input and must be inside the Bot hash. */
+function needsStackTarget(def: CardDefinition): boolean {
+    const reqs = [
+        ...(def.targetRequirement ? [def.targetRequirement] : []),
+        ...(def.modes ?? []).flatMap((m) =>
+            m.targetRequirement ? [m.targetRequirement] : []
+        ),
+    ];
+    return reqs
+        .flatMap((r) => (Array.isArray(r.type) ? r.type : [r.type]))
+        .some((t) => t === "spell" || t === "spell-or-permanent");
+}
 import type { ScenarioCard, ScenarioSpec } from "../../debugScenarioSpec";
 
 export type BotReachOutcome = "played" | "ignored" | "frozen";
@@ -71,8 +86,19 @@ export type BotReachCause =
     | "position-unmodelled"
     /** The follow-through owes an input no legal move answers. */
     | "unanswerable-input"
-    /** The follow-through did not settle inside the step bound. */
+    /**
+     * The follow-through did not settle inside {@link
+     * MAX_FOLLOW_THROUGH_STEPS}. A bound of THIS harness, not a claim about
+     * the Bot — every decision in it was answered — so it ships the card,
+     * exactly like `position-unmodelled` (review of PR #4057, finding 3).
+     */
     | "no-progress"
+    /**
+     * The play threw. A generated definition can reach a GRE path that
+     * refuses it; that is the sweep failing, never the card, so it ships and
+     * the shape is ranked (review of PR #4057, finding 7).
+     */
+    | "harness-error"
     /** Legal and affordable, never chosen. */
     | "never-chosen";
 
@@ -313,7 +339,7 @@ function followThrough(
         state = applyMoveForSearch(state, decider, next);
     }
     return unsettled(state, instanceId)
-        ? { outcome: "frozen", cause: "no-progress", form: "follow-through" }
+        ? { outcome: "ignored", cause: "no-progress", form: "follow-through" }
         : null;
 }
 
@@ -376,6 +402,12 @@ function playFrom(
     );
     if (legal.length === 0)
         return classifyNoMove(state, holderId, instanceId, def);
+    // EVERY seed, even after one of them chose the card: a follow-through
+    // that stalls on the line one seed picked says nothing about the line
+    // another picks, and the losing verdict here WITHHOLDS the card (review
+    // of PR #4057, finding 1). The first non-played follow-through is
+    // remembered and only reported if no seed ever settles.
+    let stalled: SeatVerdict | null = null;
     for (const seed of budget.seeds) {
         const move = searchWithTrace(
             state,
@@ -384,12 +416,18 @@ function playFrom(
             seed
         ).move;
         if (move === null || !usesCard(move, instanceId)) continue;
-        return (
-            followThrough(state, holderId, instanceId, move, budget, seed) ?? {
-                outcome: "played",
-            }
+        const followed = followThrough(
+            state,
+            holderId,
+            instanceId,
+            move,
+            budget,
+            seed
         );
+        if (followed === null) return { outcome: "played" };
+        stalled ??= followed;
     }
+    if (stalled !== null) return stalled;
     return {
         outcome: "ignored",
         cause: "never-chosen",
@@ -416,10 +454,22 @@ export function playBotReach(
     budget: BotReachBudget = BOT_REACH_BUDGET
 ): BotReachVerdict {
     const seats = playBotReachSeats(def, budget).map((s) => s.verdict);
-    const frozen = seats.find((s) => s.outcome === "frozen");
-    // A freeze at ONE seat still stalls every game that seats the Bot there.
-    if (frozen) return frozen;
+    // A `no-legal-move` freeze is SEARCH-FREE (`enumerateMoves` +
+    // `getLegalActions`), so one seat refusing the card while the other plays
+    // it is a real seat-orientation defect and withholds the card.
+    const unreachable = seats.find(
+        (s) => s.outcome === "frozen" && s.cause === "no-legal-move"
+    );
+    if (unreachable) return unreachable;
+    // Every other freeze is an outcome of the SEARCH's own chosen line, and
+    // the search is measurably noisier from the second-built seat
+    // (docs/findings/3830-bot-reach-seat-asymmetric-search-noise.md). A seat
+    // that played the card has PROVEN it reachable; a noisier seat stalling
+    // on a different line may not overturn that (review of PR #4057,
+    // finding 2).
     if (seats.some((s) => s.outcome === "played")) return { outcome: "played" };
+    const frozen = seats.find((s) => s.outcome === "frozen");
+    if (frozen) return frozen;
     // Neither seat played. `never-chosen` outranks `position-unmodelled`: a
     // seat that could pose the card and did not choose it has measured the
     // Bot, which is the stronger claim of the two.

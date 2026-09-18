@@ -21,6 +21,12 @@
  * (`convex/gre/ai/botReach.ts`), incrementally — a verdict is reused while its
  * definition and the Bot hash are unchanged (`lib/oracle-bot-reach.ts`).
  * `--check` never plays; it carries the committed verdicts forward.
+ *
+ * A card the sweep turns `frozen` moves out of `ready`, and the `ready` set is
+ * what `data/oracle-compiled-pool.json` and `data/card-index.json` are built
+ * from — so a run whose `frozen` count CHANGES owes `bun run oracle:pool` and
+ * a green `bun run check:index` before it lands (review of PR #4057,
+ * finding 10).
  */
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -454,7 +460,23 @@ async function sweepingBotReach(
                 rarity: "common",
             } as CardDefinition;
             preloadDefinitions([def]);
-            return playBotReach(def);
+            try {
+                return playBotReach(def);
+            } catch (error) {
+                // A throw here is the SWEEP failing, never the card: without
+                // this catch it unwinds through `buildLockfile` to `main`,
+                // nothing is written, and the whole 21-minute run is lost
+                // with every verdict it had already earned (review of
+                // PR #4057, finding 7). Ship the card, rank the shape.
+                return {
+                    outcome: "ignored",
+                    cause: "harness-error",
+                    form:
+                        error instanceof Error
+                            ? error.message.slice(0, 120)
+                            : String(error).slice(0, 120),
+                };
+            }
         },
         {
             replay,

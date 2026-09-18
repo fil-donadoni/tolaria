@@ -8,6 +8,7 @@ import { getCardByName } from "../../../cards";
 import { withTemporaryDefinition } from "../../../cards/registry";
 import type { CardDefinition } from "../../../cards/types";
 import { decidingPlayer } from "../../search";
+import { enumerateMoves } from "../../moves";
 import {
     buildBotReachState,
     castShape,
@@ -45,6 +46,17 @@ const UNTARGETABLE_INSTANT: CardDefinition = {
     types: ["Instant"],
     targetRequirement: { type: "Planeswalker", count: 1 },
     effects: [],
+};
+
+/** CR 115.1 — targets a SPELL, so its position needs one on the stack. */
+const COUNTER_INSTANT: CardDefinition = {
+    id: "bot-reach-test:counter",
+    name: "Bot Reach Counter",
+    rarity: "common",
+    manaCost: { U: 1, generic: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "spell", count: 1 },
+    effects: [{ op: "counter", target: { target: 0 } }],
 };
 
 describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
@@ -140,6 +152,37 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         // `played` means SOME seat chose the card — `ignored` is "never".
         expect(seats[0]!.verdict.outcome).toBe("played");
         expect(seats[1]!.verdict.outcome).not.toBe("frozen");
+    });
+
+    it("a spell-targeting card gets a spell on the stack to target", () => {
+        // CR 115.1 — the one branch that VARIES the generated position. No
+        // `ready` card declares a spell target today, so without this fixture
+        // the branch decides nothing anywhere (review of PR #4057,
+        // finding 11).
+        withTemporaryDefinition(COUNTER_INSTANT, () => {
+            const { state, holderId, instanceId } = buildBotReachState(
+                COUNTER_INSTANT,
+                0
+            );
+            expect(state.stack).toHaveLength(1);
+            expect(state.stack[0]!.castById).not.toBe(holderId);
+            const moves = enumerateMoves(state, holderId).filter(
+                (m) => "cardInstanceId" in m && m.cardInstanceId === instanceId
+            );
+            expect(moves.length).toBeGreaterThan(0);
+            expect(playBotReach(COUNTER_INSTANT).outcome).not.toBe("frozen");
+        });
+    });
+
+    it("a verdict does not depend on the order cards are swept in", () => {
+        // The sweep registers 3,400 definitions into one long-running
+        // process; a verdict that moved with registration order would make
+        // the lockfile non-reproducible.
+        const bears = getCardByName("Grizzly Bears");
+        const bolt = getCardByName("Lightning Bolt");
+        const forward = [playBotReach(bears), playBotReach(bolt)];
+        const backward = [playBotReach(bolt), playBotReach(bears)];
+        expect(forward).toEqual([backward[1], backward[0]]);
     });
 
     it("the form is the cast shape, never the card", () => {

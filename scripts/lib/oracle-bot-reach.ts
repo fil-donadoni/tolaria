@@ -64,6 +64,15 @@ const BOT_SOURCE_FILES = [
     "convex/gre/applyMove.ts",
     "convex/gre/expectedInput.ts",
     "convex/gre/scenarioBuilder.ts",
+    // DIRECT imports of the verdict function, not transitive engine (review
+    // of PR #4057, finding 5). `rules.ts` carries `getLegalActions`, the sole
+    // discriminator between a `frozen` card (withheld) and a
+    // `position-unmodelled` one (shipped); the other three decide what the
+    // generated position contains.
+    "convex/gre/rules.ts",
+    "convex/gre/constants.ts",
+    "convex/gre/state.ts",
+    "convex/cards/colors.ts",
 ] as const;
 
 /**
@@ -138,10 +147,9 @@ function cachedVerdict(
         return undefined;
     if (JSON.stringify(row.definition) !== JSON.stringify(definition))
         return undefined;
-    return {
-        outcome: row.botReach,
-        ...(row.botGap !== undefined ? splitGapKey(row.botGap) : {}),
-    };
+    if (row.botGap === undefined) return { outcome: row.botReach };
+    const split = splitGapKey(row.botGap);
+    return split === null ? undefined : { outcome: row.botReach, ...split };
 }
 
 function rowsById(lock: Lockfile | null): Map<string, CardRow> {
@@ -201,26 +209,62 @@ const GAP_SEPARATOR = " › ";
  * card the Bot ignores is ignored for what it DOES, and two cards of the same
  * cast shape doing different things are different valuation gaps.
  */
+/** The causes whose FORM is the card's cast shape — the ones a recomputed
+ *  shape may override. A follow-through cause names the pending choice's
+ *  kind instead, which is the only actionable field on its row and which the
+ *  cast shape would destroy (review of PR #4057, finding 6). */
+const CAST_SHAPE_CAUSES: ReadonlySet<string> = new Set([
+    "no-legal-move",
+    "position-unmodelled",
+    "never-chosen",
+]);
+
 export function botGapKey(
     verdict: BotReachVerdict,
     opsUsed: readonly string[],
     /** The card's cast shape, recomputed from the definition — a cached
      *  verdict's own `form` is whatever the shape looked like when it was
-     *  played, so the key is derived here and never read back from the row. */
-    form: string = verdict.form ?? ""
+     *  played, so a cast-shape key is derived here and never read back from
+     *  the row. Ignored for a follow-through cause. */
+    castShape?: string
 ): string | undefined {
     if (verdict.outcome === "played" || verdict.cause === undefined)
         return undefined;
+    const form =
+        castShape !== undefined && CAST_SHAPE_CAUSES.has(verdict.cause)
+            ? castShape
+            : (verdict.form ?? "");
     const parts: string[] = [verdict.cause, form];
     if (verdict.cause === "never-chosen")
         parts.push(opsUsed.length > 0 ? opsUsed.join("+") : "(no Ops)");
     return parts.join(GAP_SEPARATOR);
 }
 
+/**
+ * Every cause a row may carry. A committed row whose cause is not one of
+ * these was written by a vocabulary this tree no longer has (this very issue
+ * renamed one mid-development), and carrying it forward would re-emit a
+ * verdict no run ever produced — into `botGap` and, for a frozen row, into
+ * the quarantine detail. So it is a cache MISS and the card is replayed
+ * (review of PR #4057, finding 9).
+ */
+const BOT_REACH_CAUSES: ReadonlySet<string> = new Set([
+    "no-legal-move",
+    "position-unmodelled",
+    "unanswerable-input",
+    "no-progress",
+    "harness-error",
+    "never-chosen",
+] satisfies BotReachCause[]);
+
 /** The inverse of {@link botGapKey}'s first two fields — enough to rebuild a
- *  cached verdict's cause and form from its row. */
-function splitGapKey(key: string): { cause: BotReachCause; form: string } {
+ *  cached verdict's cause and form from its row. `null` when the row's cause
+ *  is not one this tree produces. */
+function splitGapKey(
+    key: string
+): { cause: BotReachCause; form: string } | null {
     const [cause, form] = key.split(GAP_SEPARATOR);
+    if (cause === undefined || !BOT_REACH_CAUSES.has(cause)) return null;
     return { cause: cause as BotReachCause, form: form ?? "" };
 }
 

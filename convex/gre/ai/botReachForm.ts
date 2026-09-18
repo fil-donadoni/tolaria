@@ -7,7 +7,8 @@
  *  - the lockfile driver (`scripts/lib/oracle-bot-reach.ts`, reached from the
  *    drift guard) needs it, and must not pull the search into the gate's
  *    module graph;
- *  - it decides the Bot GAP KEY, never a verdict, and the key is recomputed
+ *  - everything here decides the Bot GAP KEY, never a verdict, and the key is
+ *    recomputed
  *    from the definition on every `oracle:compile`. So editing it must NOT
  *    invalidate the sweep's cache — which is why `botSourceFiles` excludes
  *    this one file by name.
@@ -23,13 +24,6 @@ function targetTypes(def: CardDefinition): string[] {
         if (mode.targetRequirement) reqs.push(mode.targetRequirement);
     }
     return reqs.flatMap((r) => (Array.isArray(r.type) ? r.type : [r.type]));
-}
-
-/** CR 115.1 — a spell that targets a SPELL needs one on the stack. */
-export function needsStackTarget(def: CardDefinition): boolean {
-    return targetTypes(def).some(
-        (t) => t === "spell" || t === "spell-or-permanent"
-    );
 }
 
 /**
