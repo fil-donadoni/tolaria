@@ -18,6 +18,7 @@ import {
     manaActivationRequiresTap,
     hasFixedSacrificeManaAbility,
     hasFixedMultiColorTapManaAbility,
+    hasFilteredGiveUpManaAbility,
     canAffordManaAbilityCost,
     getLandManaColor,
     getActivatedManaColor,
@@ -587,6 +588,14 @@ export function useBattlefieldVisualState(
                       // single `Color`, so `getActivatedManaColor` answers null
                       // for a source the server's payment path now accepts.
                       hasFixedMultiColorTapManaAbility(card) ||
+                      // CR 605.1a / 605.3a (issue #3047) — and again for a
+                      // FILTERED give-up cost ("Sacrifice a creature: Add
+                      // {C}{C}"): no {T}, no self-sacrifice, one fixed output,
+                      // so all three probes above answer null while
+                      // `tapSourceIntoPayment` accepts the source. Without it
+                      // the mid-cast activation CR 605.3a grants is
+                      // unreachable by a click.
+                      hasFilteredGiveUpManaAbility(card, manaGateView) ||
                       getManaChoices(card) !== null;
         }
         // CR 605.3b: mana abilities require priority (outside payment).

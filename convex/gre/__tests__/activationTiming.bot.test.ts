@@ -1211,7 +1211,9 @@ describe("spendsStandingPermanent — a sacrifice-for-MANA outlet is excluded (C
     // mana. Deferring one to the opponent's end step produces mana that empties
     // unused at the end of that step (CR 500.5). The catalogue's own members of
     // the shape (Ashnod's Altar, Phyrexian Altar) became `useStack: false` mana
-    // abilities in issue #3047, so no card carries it verbatim any more.
+    // abilities in issue #3047, so no card carries it verbatim any more. The
+    // permanent below is only the CARRIER the predicate reads the board off —
+    // the ability under test is the hand-built one, not the card's own.
     const ALTAR = getCardByName("Ashnod's Altar").id;
     const SAC_FOR_MANA: ActivatedAbility = {
         id: "sac-for-mana",
