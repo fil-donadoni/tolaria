@@ -106,12 +106,8 @@ describe("gold — the Ice Age painland cycle round-trips through its own text",
         sulfurousSprings,
         undergroundRiver,
     ])("$name", (card) => {
-        const compiled = compiledOf(land(card.name, card.oracleText!, card.id));
-        const verdict = roundTripCard(card, compiled).verdict;
-        expect(verdict, JSON.stringify(sortKeys(verdict), null, 2)).toEqual({
-            ok: true,
-            kind: "equal",
-        });
+        const verdict = roundTripCard(card).verdict;
+        expect(sortKeys(verdict)).toEqual({ ok: true, kind: "equal" });
     });
 });
 
