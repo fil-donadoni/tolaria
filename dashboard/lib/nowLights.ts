@@ -1,6 +1,6 @@
 import type { Tone } from "./tones";
 import { plural } from "./format";
-import type { NowPayload } from "./nowPayload";
+import type { NowPayload, QueueDepth } from "./nowPayload";
 
 /**
  * The four traffic lights of the Now view (PRD #3148 S2), ported from
@@ -161,13 +161,20 @@ export function queueLight(data: NowPayload): Light {
             prose: `${data.queueDepthError} — cannot tell how deep the queue is, which is not the same as "queue empty".`,
         };
     }
-    const qd = data.queueDepth ?? {
-        P0: 0,
-        P1: 0,
-        P2: 0,
-        unprioritized: 0,
-        total: 0,
-    };
+    // `satisfies` is load-bearing: as the RHS of `??` this literal is NOT
+    // contextually typed, so a band missing from it widens `qd` to a union
+    // and the band's own property goes unreachable with `tsc` silent. The
+    // annotation is what makes the NEXT band addition red here (issue #4051).
+    const qd =
+        data.queueDepth ??
+        ({
+            P0: 0,
+            P1: 0,
+            P2: 0,
+            P3: 0,
+            unprioritized: 0,
+            total: 0,
+        } satisfies QueueDepth);
     return {
         ...base,
         tone: "good",
@@ -177,7 +184,7 @@ export function queueLight(data: NowPayload): Light {
         prose:
             qd.total === 0
                 ? "Nothing is waiting — no unclaimed ready-for-agent issues."
-                : `P0 ${qd.P0} · P1 ${qd.P1} · P2 ${qd.P2} · unprioritized ${qd.unprioritized}, waiting to be claimed.`,
+                : `P0 ${qd.P0} · P1 ${qd.P1} · P2 ${qd.P2} · P3 ${qd.P3} · unprioritized ${qd.unprioritized}, waiting to be claimed.`,
     };
 }
 

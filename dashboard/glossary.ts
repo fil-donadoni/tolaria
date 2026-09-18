@@ -318,7 +318,7 @@ export const GLOSSARY = {
     },
     pri: {
         label: "priority",
-        tip: "The issue's Priority field on the project board — P0, P1, P2. The queue sorts on the BAND first (the stronger of this and the parent PRD's), then on this. An em dash means the board has no priority set.",
+        tip: "The issue's Priority field on the project board — P0, P1, P2, P3. The queue sorts on the BAND first (the stronger of this and the parent PRD's), then on this. An em dash means the board has no priority set.",
     },
     queue: {
         label: "queue depth",

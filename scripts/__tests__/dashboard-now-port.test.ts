@@ -71,7 +71,7 @@ const payload = (over: Partial<NowPayload> = {}): NowPayload => ({
     },
     claims: [],
     claimsError: null,
-    queueDepth: { P0: 0, P1: 0, P2: 0, unprioritized: 0, total: 0 },
+    queueDepth: { P0: 0, P1: 0, P2: 0, P3: 0, unprioritized: 0, total: 0 },
     queueDepthError: null,
     receiptsSummary: { total: 0, counts: [], interesting: [] },
     batch: null,

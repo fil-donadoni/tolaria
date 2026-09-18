@@ -336,24 +336,46 @@ describe("priority axis — the rank table and its sentinel (issue #4051)", () =
 describe("priority axis — band inheritance over four values (issue #3212, issue #4051)", () => {
     const P3_CHILD = { number: 20, parent: { number: 100 } };
 
+    /**
+     * The band, AND that every value the case names is a RANKED one.
+     *
+     * The label alone does not discriminate (PR #4059 review, finding 4).
+     * With `P3` absent from `PRIORITY_RANK`, `priorityRank("P3")` is
+     * `undefined`, every `<=` against it is false, and `effectivePriority`
+     * falls through to the branch that happens to return the expected label
+     * anyway — four of these five cases passed against the pre-change table.
+     * Asserting the rank puts the table and its sentinel back inside the
+     * assertion: `undefined < 4` is red before the change, and `3 < 3` is red
+     * under the collision the sentinel guards against.
+     */
+    function expectBand(
+        priority: Record<number, BoardPriority>,
+        expected: BoardPriority
+    ): void {
+        expect(effectivePriority(P3_CHILD, priority)).toBe(expected);
+        for (const p of Object.values(priority)) {
+            expect(priorityRank(p)).toBeLessThan(UNPRIORITIZED);
+        }
+    }
+
     it("lifts a P3 child of a P1 parent into the P1 band", () => {
-        expect(effectivePriority(P3_CHILD, { 100: "P1", 20: "P3" })).toBe("P1");
+        expectBand({ 100: "P1", 20: "P3" }, "P1");
     });
 
     it("never demotes a P1 child of a P3 parent — the stronger wins, not the parent", () => {
-        expect(effectivePriority(P3_CHILD, { 100: "P3", 20: "P1" })).toBe("P1");
+        expectBand({ 100: "P3", 20: "P1" }, "P1");
     });
 
     it("keeps a P3 child of a P3 parent in the P3 band, NOT unprioritized", () => {
-        expect(effectivePriority(P3_CHILD, { 100: "P3", 20: "P3" })).toBe("P3");
+        expectBand({ 100: "P3", 20: "P3" }, "P3");
     });
 
     it("degrades to the child's own P3 when the parent is not on the board", () => {
-        expect(effectivePriority(P3_CHILD, { 20: "P3" })).toBe("P3");
+        expectBand({ 20: "P3" }, "P3");
     });
 
     it("inherits P3 from the parent when the child itself has no value", () => {
-        expect(effectivePriority(P3_CHILD, { 100: "P3" })).toBe("P3");
+        expectBand({ 100: "P3" }, "P3");
     });
 });
 
