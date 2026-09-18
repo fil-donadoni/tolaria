@@ -1,12 +1,16 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import * as os from "node:os";
+import { spawnSync } from "node:child_process";
 import { HEALTH_SCRIPTS } from "../lib/health-step";
 import { opGapKey } from "../lib/grammar-gaps";
 import {
     auditOpCensus,
+    baselineAllowlist,
     emittedOps,
     parseAllowlist,
+    render,
     type Allowlist,
     type Violation,
 } from "../check-gaps";
@@ -57,13 +61,18 @@ describe("check:gaps runs in health, and nowhere else", () => {
 
     // The census is offline but reads a 17 MB lockfile and answers a question
     // no PR diff can change on its own. It stays out of every PR-phase gate.
-    it.each([
-        "check:all:inner",
-        "check:pr",
-        "check:guards",
-        "check:docs:inner",
-    ])("%s does not run it", (script) => {
-        expect(pkg.scripts[script]).not.toContain("check:gaps");
+    //
+    // Scanned rather than enumerated: an enumeration covers `check:all:inner`
+    // and misses the `check:all` that wraps it, and stops covering anything
+    // renamed or newly composed (review of PR #3878).
+    it("no other package script invokes it", () => {
+        const callers = Object.entries(pkg.scripts)
+            .filter(
+                ([name, body]) =>
+                    name !== "check:gaps" && body.includes("check:gaps")
+            )
+            .map(([name]) => name);
+        expect(callers).toEqual([]);
     });
 });
 
@@ -73,9 +82,17 @@ describe("emittedOps", () => {
             { state: "ready", opsUsed: ["draw"] },
             { state: "quarantine", opsUsed: ["mill", "draw"] },
             { state: "unparsed", opsUsed: ["exile"] },
-            { state: "ready" },
+            { state: "unparsed" },
         ]);
         expect([...emitted].sort()).toEqual(["draw", "mill"]);
+    });
+
+    // Reading it as "emits nothing" would be a false `missing`, and a
+    // `missing` has no legal exit — a row may not be added.
+    it("refuses a compiled row with no opsUsed rather than reading it as empty", () => {
+        expect(() =>
+            emittedOps([{ name: "Black Lotus", state: "ready" }])
+        ).toThrow(/Black Lotus is `ready` with no `opsUsed`/);
     });
 });
 
@@ -160,7 +177,7 @@ describe("auditOpCensus", () => {
 
     // A new Op is DOUBLY refused: it has no row (missing) and may not gain one
     // (grown). ADR 0137's single exit is the grammar rule that emits it.
-    it("reds a row added since the merge-base — the allowlist only shrinks", () => {
+    it("reds a row the previous revision did not have — the allowlist only shrinks", () => {
         const result = auditOpCensus({
             implemented: ["draw", "explore"],
             emitted: new Set(["draw"]),
@@ -170,7 +187,7 @@ describe("auditOpCensus", () => {
         expect(kinds(result.violations)).toEqual(["grown:explore"]);
     });
 
-    it("leaves the shrink check unrun when the merge-base has no allowlist", () => {
+    it("leaves the shrink check unrun when there is no previous revision", () => {
         const result = auditOpCensus({
             implemented: ["draw", "explore"],
             emitted: new Set(["draw"]),
@@ -216,5 +233,113 @@ describe("the committed allowlist", () => {
         const ops = allowlist.ops.map((r) => r.op);
         expect(new Set(ops).size).toBe(ops.length);
         expect(ops).toEqual([...ops].sort());
+    });
+});
+
+describe("baselineAllowlist", () => {
+    /**
+     * A throwaway repo whose `data/grammar-gaps.json` has the given revisions,
+     * oldest first. Returns its path with HEAD at the last one.
+     */
+    function repoWith(...revisions: Allowlist[]): string {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gaps-baseline-"));
+        const git = (...args: string[]) => {
+            const r = spawnSync("git", args, { cwd: dir, encoding: "utf8" });
+            if (r.status !== 0)
+                throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
+            return r.stdout.trim();
+        };
+        git("init", "-q", "-b", "staging");
+        git("config", "user.email", "t@t");
+        git("config", "user.name", "t");
+        fs.mkdirSync(path.join(dir, "data"));
+        for (const [i, rev] of revisions.entries()) {
+            fs.writeFileSync(
+                path.join(dir, "data/grammar-gaps.json"),
+                JSON.stringify(rev, null, 4) + "\n"
+            );
+            git("add", "-A");
+            git("commit", "-q", "-m", `rev ${i}`);
+        }
+        return dir;
+    }
+
+    it("is the file's own previous revision", () => {
+        const dir = repoWith(list("mill", "exile"), list("mill"));
+        expect(baselineAllowlist(dir)?.ops.map((r) => r.op)).toEqual([
+            "mill",
+            "exile",
+        ]);
+    });
+
+    /**
+     * The regression this test exists for. `check:gaps` runs ONLY in `health`,
+     * and `health` gates a `git worktree add --detach <base tip>`. The first
+     * implementation read the allowlist at `merge-base(HEAD, origin/<base>)`,
+     * which in that worktree IS HEAD — so the baseline was the very file being
+     * audited, `grown` could never fire, and shrink-only was unenforced
+     * everywhere it ran (review of PR #3878).
+     */
+    it("survives a detached HEAD sitting exactly on the base branch tip", () => {
+        const dir = repoWith(list("mill"), list("mill", "explore"));
+        const git = (...args: string[]) =>
+            spawnSync("git", args, { cwd: dir, encoding: "utf8" });
+        git("update-ref", "refs/remotes/origin/staging", "HEAD");
+        git("checkout", "-q", "--detach", "HEAD");
+        expect(git("merge-base", "HEAD", "origin/staging").stdout.trim()).toBe(
+            git("rev-parse", "HEAD").stdout.trim()
+        );
+
+        const baseline = baselineAllowlist(dir);
+        expect(baseline?.ops.map((r) => r.op)).toEqual(["mill"]);
+        const result = auditOpCensus({
+            implemented: ["mill", "explore"],
+            emitted: new Set(),
+            allowlist: list("mill", "explore"),
+            baseline,
+        });
+        expect(kinds(result.violations)).toEqual(["grown:explore"]);
+    });
+
+    it("has none at the commit that introduces the file", () => {
+        expect(baselineAllowlist(repoWith(list("mill")))).toBeNull();
+    });
+
+    it("has none outside a git repository", () => {
+        expect(
+            baselineAllowlist(fs.mkdtempSync(path.join(os.tmpdir(), "nogit-")))
+        ).toBeNull();
+    });
+});
+
+describe("render", () => {
+    const green = (baseline: Allowlist | null) =>
+        render(
+            auditOpCensus({
+                implemented: ["draw"],
+                emitted: new Set(["draw"]),
+                allowlist: { ops: [] },
+                baseline,
+            })
+        );
+
+    it("says so when the shrink check did not run", () => {
+        expect(green(null)).toContain("shrink check SKIPPED");
+        expect(green({ ops: [] })).toContain("shrink verified");
+    });
+
+    // A red that omits it would let a reader assume `grown` was evaluated.
+    it("says so on the violation path too", () => {
+        const red = render(
+            auditOpCensus({
+                implemented: ["draw", "mill"],
+                emitted: new Set(["draw"]),
+                allowlist: { ops: [] },
+                baseline: null,
+            })
+        );
+        expect(red).toContain("shrink check SKIPPED");
+        expect(red).toContain("do not add a row");
+        expect(red).toContain("/new-op");
     });
 });

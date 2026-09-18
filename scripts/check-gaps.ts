@@ -21,11 +21,11 @@
  *     forbidding its addition is the same demand stated twice, deliberately:
  *     it is what stops the allowlist from becoming a parking lot.
  *
- * Shrink is proven against the allowlist as it stands at the MERGE-BASE with
- * the base branch, not against a hand-kept count: a row added on a branch is
- * one the merge-base does not have. When the merge-base carries no allowlist
- * at all (the commit that seeds it) there is no baseline and the shrink check
- * is announced as skipped rather than passed silently.
+ * Shrink is proven against the allowlist's PREVIOUS REVISION in HEAD's own
+ * history, not against a hand-kept count: a row this commit has and its
+ * predecessor did not is a row that was added. Only the commit that introduces
+ * the file has no predecessor, and there the shrink check is announced as
+ * skipped rather than passed silently.
  *
  * Offline and ~1s: the committed lockfile plus the registry, no network, no
  * corpus. It runs in `health` ONLY — added to `scripts/lib/health-step.ts`'s
@@ -38,14 +38,13 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { EFFECT_OP_REGISTRY } from "../convex/cards/mechanicsRegistry";
-import { ORIGIN_BASE } from "./lib/branches";
 import { opGapKey } from "./lib/grammar-gaps";
 import { parseLockfile } from "./lib/oracle-lockfile";
 
 export const ALLOWLIST_PATH = "data/grammar-gaps.json";
 export const LOCKFILE_PATH = "data/oracle-compiled.json";
 
-/** A row of the allowlist, as committed. Unknown keys are a violation. */
+/** A row of the allowlist, as committed. */
 export interface GapRow {
     /** The gap's stable key — `opGapKey(op)`, shared with `gaps:sync`. */
     readonly key: string;
@@ -73,7 +72,7 @@ export interface CensusInput {
     /** Ops emitted by at least one `ready`/`quarantine` Compiled Definition. */
     readonly emitted: ReadonlySet<string>;
     readonly allowlist: Allowlist;
-    /** The allowlist at the merge-base, or null when there is none yet. */
+    /** The allowlist's previous revision, or null when there is none. */
     readonly baseline: Allowlist | null;
 }
 
@@ -94,15 +93,18 @@ export function auditOpCensus(input: CensusInput): CensusResult {
     const violations: Violation[] = [];
     const implementedSet = new Set(implemented);
     const seen = new Set<string>();
-    const rowFor = new Map<string, GapRow>();
 
-    for (const row of [...allowlist.ops].sort((a, b) =>
-        a.op < b.op ? -1 : a.op > b.op ? 1 : 0
-    )) {
-        if (typeof row.op !== "string" || row.op === "") {
+    const opOf = (row: GapRow | null): string =>
+        row !== null && typeof row.op === "string" ? row.op : "";
+
+    for (const row of [...allowlist.ops].sort((a, b) => {
+        const [x, y] = [opOf(a), opOf(b)];
+        return x < y ? -1 : x > y ? 1 : 0;
+    })) {
+        if (opOf(row) === "") {
             violations.push({
                 kind: "malformed",
-                op: String(row.op),
+                op: JSON.stringify(row?.op ?? null),
                 detail: "row has no `op`",
             });
             continue;
@@ -112,7 +114,6 @@ export function auditOpCensus(input: CensusInput): CensusResult {
             continue;
         }
         seen.add(row.op);
-        rowFor.set(row.op, row);
 
         if (!Number.isInteger(row.issue) || row.issue <= 0) {
             violations.push({
@@ -157,9 +158,18 @@ export function auditOpCensus(input: CensusInput): CensusResult {
     };
 }
 
-/** Ops emitted by at least one `ready` or `quarantine` Compiled Definition. */
+/**
+ * Ops emitted by at least one `ready` or `quarantine` Compiled Definition.
+ *
+ * `opsUsed` is optional on `CardRow` because an `unparsed` row has none.
+ * Absent on a COMPILED row it would read as "emits nothing", which is a silent
+ * false `missing` for whatever that card's definition really emits — and a
+ * `missing` has no legal exit, since a row may not be added. So it throws: a
+ * census that cannot see a compiled definition's Ops has not been taken.
+ */
 export function emittedOps(
     cards: readonly {
+        readonly name?: string;
         readonly state: string;
         readonly opsUsed?: readonly string[];
     }[]
@@ -167,7 +177,12 @@ export function emittedOps(
     const emitted = new Set<string>();
     for (const card of cards) {
         if (card.state !== "ready" && card.state !== "quarantine") continue;
-        for (const op of card.opsUsed ?? []) emitted.add(op);
+        if (card.opsUsed === undefined) {
+            throw new Error(
+                `${LOCKFILE_PATH}: ${card.name ?? "a card"} is \`${card.state}\` with no \`opsUsed\` — regenerate with \`bun run oracle:compile\``
+            );
+        }
+        for (const op of card.opsUsed) emitted.add(op);
     }
     return emitted;
 }
@@ -181,17 +196,37 @@ export function parseAllowlist(text: string): Allowlist {
 }
 
 /**
- * The allowlist at the merge-base with the base branch — the tree this one
- * must not have grown against. `null` when the merge-base is unreachable (a
- * detached checkout with no base ref) or carries no allowlist yet (the commit
- * that seeds it).
+ * The allowlist's PREVIOUS REVISION in HEAD's own history — the tree this one
+ * must not have grown against. `null` when there is none, i.e. the commit that
+ * introduced the file (or a history too shallow to reach its parent).
+ *
+ * NOT the merge-base with the base branch, which is what shipped first and was
+ * structurally vacuous where it mattered: `check:gaps` runs ONLY in `health`,
+ * and `health` gates a `git worktree add --detach <base tip>`. There
+ * `merge-base(HEAD, origin/<base>)` IS `HEAD`, so the baseline was the very
+ * file being audited, `grown` could never fire, and a branch that implemented
+ * an Op and allowlisted it in the same commit landed green — the parking lot
+ * this guard exists to prevent (review of PR #3878).
+ *
+ * Shrink-only is a PER-COMMIT invariant, so the file's own previous revision is
+ * the right baseline and is well-defined on a branch, on the base tip, and in a
+ * detached worktree alike.
  */
 export function baselineAllowlist(root: string): Allowlist | null {
     const git = (args: string[]) =>
         spawnSync("git", args, { cwd: root, encoding: "utf8" });
-    const base = git(["merge-base", "HEAD", ORIGIN_BASE]);
-    if (base.status !== 0) return null;
-    const at = base.stdout.trim();
+    const prev = git([
+        "log",
+        "--format=%H",
+        "--skip=1",
+        "-1",
+        "HEAD",
+        "--",
+        ALLOWLIST_PATH,
+    ]);
+    if (prev.status !== 0) return null;
+    const at = prev.stdout.trim();
+    if (at === "") return null;
     const show = git(["show", `${at}:${ALLOWLIST_PATH}`]);
     if (show.status !== 0) return null;
     return parseAllowlist(show.stdout);
@@ -201,7 +236,8 @@ const EXITS: Record<Violation["kind"], string> = {
     missing:
         "implemented, emitted by no Compiled Definition, and NOT allowlisted.\n" +
         "    The allowlist is shrink-only — do not add a row. Land the grammar\n" +
-        "    rule that emits the Op (ADR 0137), or retire the Op.",
+        "    rule that emits the Op (ADR 0137, `/new-op` ends with it), or\n" +
+        "    retire the Op.",
     covered:
         "now emitted by a Compiled Definition — its rule landed.\n" +
         "    Delete the row: the allowlist only shrinks.",
@@ -215,15 +251,20 @@ const EXITS: Record<Violation["kind"], string> = {
         "    The allowlist only shrinks (ADR 0105 § 7.3): a new Op never enters it.",
 };
 
+/** Whether `grown` was evaluated at all — printed on BOTH verdicts, so a green
+ *  never hides an unrun check and a red says which checks ran. */
+function baselineLine(result: CensusResult): string {
+    return result.baselineChecked
+        ? "shrink verified against the allowlist's previous revision"
+        : "no previous revision of the allowlist — shrink check SKIPPED";
+}
+
 export function render(result: CensusResult): string {
     if (result.violations.length === 0) {
-        const base = result.baselineChecked
-            ? "shrink verified against the merge-base"
-            : "no allowlist at the merge-base — shrink check SKIPPED (seeding commit)";
         return (
             `✓ gaps: ${result.implementedCount} implemented Ops — ` +
             `${result.emittedCount} grammar-covered, ` +
-            `${result.allowlistedCount} allowlisted; ${base}`
+            `${result.allowlistedCount} allowlisted; ${baselineLine(result)}`
         );
     }
     const lines = [
@@ -236,7 +277,8 @@ export function render(result: CensusResult): string {
     lines.push(
         `\n  Coverage is DERIVED from \`opsUsed\` in ${LOCKFILE_PATH} ` +
             `(\`ready\` + \`quarantine\`);\n` +
-            `  the allowlist is ${ALLOWLIST_PATH}. See ADR 0105 § 7.3.`
+            `  the allowlist is ${ALLOWLIST_PATH}; ${baselineLine(result)}.\n` +
+            `  See ADR 0105 § 7.3.`
     );
     return lines.join("\n");
 }
