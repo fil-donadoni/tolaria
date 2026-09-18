@@ -65,7 +65,8 @@ const OBJECT_END = /^\}\)?;/;
 const SPLIT_NAME_SEPARATOR = " // ";
 
 /**
- * Any line claiming to be a compiler-gap marker, well-formed or not.
+ * Any line claiming to be a compiler-gap or hand-tail marker, well-formed or
+ * not; group 1 names which.
  *
  * Matches a `//` line AND a block-comment line (`/*`, or a ` * ` continuation).
  * Only `//` can ever ATTACH — `isParagraphBreak` ends a comment paragraph at
@@ -75,7 +76,8 @@ const SPLIT_NAME_SEPARATOR = " // ";
  * is strict to avoid: the author believes the card is exempted and the guard
  * never mentions the marker at all.
  */
-export const COMPILER_GAP_CLAIM = /(?:\/\/|\/\*|^\s*\*).*\bcompiler-gap:/i;
+export const COMPILER_GAP_CLAIM =
+    /(?:\/\/|\/\*|^\s*\*).*?(?<![\w-])(compiler-gap|hand-tail):/i;
 
 /**
  * The one accepted marker shape: `compiler-gap: <fragment> (#issue)`.
@@ -85,6 +87,27 @@ export const COMPILER_GAP_CLAIM = /(?:\/\/|\/\*|^\s*\*).*\bcompiler-gap:/i;
  * and so contributes nothing to the backlog the marker exists to feed.
  */
 export const COMPILER_GAP = /\bcompiler-gap:\s*(\S.*?)\s*\(#(\d+)\)\s*$/i;
+
+/**
+ * The TERMINAL sibling of {@link COMPILER_GAP}: `hand-tail: <fragment> (#issue)`
+ * (issue #3867, wayfinder issue #3848). Same shape, same attachment, same
+ * stale check — a card that round-trips carries neither.
+ *
+ * Where `compiler-gap:` is temporary (the grammar owes the rule), `hand-tail:`
+ * is a decision: the fragment's rule would unlock fewer corpus cards than
+ * `handTailFloor` in `data/targets.json`, so the card is hand-written for good
+ * and the issue is its closed hand-tail issue. A protocol (`resolve()`) card is
+ * hand tail by construction and carries the same marker.
+ */
+export const HAND_TAIL = /\bhand-tail:\s*(\S.*?)\s*\(#(\d+)\)\s*$/i;
+
+/** Which of the two Guard C markers a claim is. */
+export type GapMarkerKind = "compiler-gap" | "hand-tail";
+
+const MARKER_SHAPE: Readonly<Record<GapMarkerKind, RegExp>> = {
+    "compiler-gap": COMPILER_GAP,
+    "hand-tail": HAND_TAIL,
+};
 
 /** One `export const … : CardDefinition` site, with its doc paragraph. */
 export interface CardAnchor {
@@ -161,8 +184,9 @@ function docParagraph(
     return paragraphBounds(lines, i - 1);
 }
 
-/** One `compiler-gap:` claim found attached to a card. */
+/** One `compiler-gap:` / `hand-tail:` claim found attached to a card. */
 export interface CompilerGapMarker {
+    readonly kind: GapMarkerKind;
     /** The card the marker's paragraph vouches for. */
     readonly card: string;
     /** 1-based line of the marker. */
@@ -177,7 +201,7 @@ export interface CompilerGapMarker {
 }
 
 /**
- * Every `compiler-gap:` claim in `lines`, attached to the card whose doc
+ * Every `compiler-gap:` / `hand-tail:` claim in `lines`, attached to the card whose doc
  * paragraph it sits in.
  *
  * A claim in a paragraph that is NOT a card's doc paragraph is returned with
@@ -196,9 +220,12 @@ export function scanCompilerGapMarkers(lines: string[]): CompilerGapMarker[] {
     }
     const markers: CompilerGapMarker[] = [];
     for (let i = 0; i < lines.length; i++) {
-        if (!COMPILER_GAP_CLAIM.test(lines[i])) continue;
-        const m = COMPILER_GAP.exec(lines[i]);
+        const claim = COMPILER_GAP_CLAIM.exec(lines[i]);
+        if (claim === null) continue;
+        const kind = claim[1]!.toLowerCase() as GapMarkerKind;
+        const m = MARKER_SHAPE[kind].exec(lines[i]);
         markers.push({
+            kind,
             card: owner.get(i) ?? "",
             line: i + 1,
             text: lines[i].trim(),
@@ -223,4 +250,65 @@ export function scanFilesForCompilerGaps(
         }
     }
     return out;
+}
+
+/** The part of a round-trip verdict the marker checks read. */
+export interface MarkerVerdict {
+    readonly ok: boolean;
+    readonly kind: string;
+}
+
+/** A marker is well-formed AND attached — the only kind that exempts a card. */
+export function isExempting(marker: CompilerGapMarker): boolean {
+    return marker.fragment !== undefined && marker.card !== "";
+}
+
+/**
+ * Markers that exempt nothing: malformed (no fragment or no issue ref on the
+ * marker's own line) or attached to no card. Both kinds, one rule — a
+ * `hand-tail:` typo must red exactly as loudly as a `compiler-gap:` one.
+ */
+export function unexemptingMarkers<M extends CompilerGapMarker>(
+    markers: readonly M[]
+): Array<M & { problem: "malformed" | "attached to no card" }> {
+    return markers
+        .filter((m) => !isExempting(m))
+        .map((m) => ({
+            ...m,
+            problem:
+                m.fragment === undefined
+                    ? ("malformed" as const)
+                    : ("attached to no card" as const),
+        }));
+}
+
+/** Exempting markers on a card that round-trips now: the gap they name is gone. */
+export function staleMarkers<M extends CompilerGapMarker>(
+    markers: readonly M[],
+    verdictOf: (card: string) => MarkerVerdict | undefined
+): M[] {
+    return markers.filter(
+        (m) => isExempting(m) && verdictOf(m.card)?.ok === true
+    );
+}
+
+/**
+ * Exempting markers on a card the compiler READ and disagreed with (issue
+ * #3050): a marker's deliverable is the fragment the grammar could not
+ * consume, and a card that compiled has none — for a `hand-tail:` exactly as
+ * for a `compiler-gap:`.
+ */
+export function misfiledMarkers<M extends CompilerGapMarker>(
+    markers: readonly M[],
+    verdictOf: (card: string) => MarkerVerdict | undefined
+): M[] {
+    return markers.filter((m) => {
+        const verdict = verdictOf(m.card);
+        return (
+            isExempting(m) &&
+            verdict !== undefined &&
+            !verdict.ok &&
+            verdict.kind !== "unparsed"
+        );
+    });
 }

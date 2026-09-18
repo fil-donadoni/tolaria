@@ -381,7 +381,7 @@ function foldDiacritics(name: string): string {
  * Resolves a plain-ASCII mtgtop8 export name to the lockfile's own oracle
  * `name` when they differ only by diacritics mtgtop8 drops — "Lim-Dul's
  * Vault" for Scryfall's "Lim-Dûl's Vault" — same fail-CLOSED discipline as
- * `lockfileRowsByName`: a fold that resolves to more than one distinct
+ * `corpusNameIndex`: a fold that resolves to more than one distinct
  * lockfile name is left alone, not guessed.
  */
 function buildDiacriticsResolver(lock: Lockfile): (raw: string) => string {

@@ -14,6 +14,9 @@
  *   bun scripts/oracle-report.ts --pool premodern  # … for one format pool
  *   bun scripts/oracle-report.ts --decks       # per-deck, per-card state (M1),
  *                                  # Tier 1 lists + the pinned metagame import
+ *   bun scripts/oracle-report.ts --targets [<id>]
+ *                                  # every registered Target List (data/targets.json),
+ *                                  # card by card in its coverage state, + playable
  *   bun scripts/oracle-report.ts --delta [<ref>]
  *                                  # ready delta per set + corpus against
  *                                  # <ref>'s lockfile (default: origin/<base>)
@@ -52,6 +55,21 @@ import {
     PLAYABLE_STATES,
 } from "./lib/tier1-decks";
 import { readMetagameDecks } from "./premodern-metagame-import";
+import {
+    COVERAGE_STATES,
+    gapIndex,
+    readTargetRegistry,
+    resolveContext,
+    resolveTarget,
+    targetCoverage,
+    TARGETS_PATH,
+    type TargetCoverage,
+} from "./lib/targets";
+import {
+    scanFilesForCompilerGaps,
+    isExempting,
+} from "./lib/compiler-gap-markers";
+import { collectSetFiles } from "./lib/divergence-markers";
 
 const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
 const LOCKFILE_PATH = join(ROOT, "data", "oracle-compiled.json");
@@ -194,6 +212,100 @@ function vendoredSets(): SetMembership[] {
             }
             return { code: set.data.code, oracleIds };
         });
+}
+
+/**
+ * Oracle ids of the hand-written cards carrying a well-formed `hand-tail:`
+ * marker. Fail-closed: a marked card whose name the lockfile cannot resolve
+ * throws, rather than dropping out of the Hand Tail it declared.
+ */
+function handTailOracleIds(
+    byName: ReadonlyMap<string, { oracleId: string }>
+): Set<string> {
+    const ids = new Set<string>();
+    const markers = scanFilesForCompilerGaps(
+        collectSetFiles(join(ROOT, "convex", "cards", "sets"))
+    );
+    for (const marker of markers) {
+        if (marker.kind !== "hand-tail" || !isExempting(marker)) continue;
+        const row = byName.get(marker.card);
+        if (row === undefined)
+            throw new Error(
+                `${marker.file}:${marker.line}: hand-tail card \`${marker.card}\` is not in the Oracle lockfile under exactly one oracle id`
+            );
+        ids.add(row.oracleId);
+    }
+    return ids;
+}
+
+/** `  gap-pending   12: Name, Name, …` */
+function coverageLines(coverage: TargetCoverage): string {
+    const head =
+        `${coverage.id}  (${coverage.kind}` +
+        (coverage.priority === undefined
+            ? ""
+            : `, priority ${coverage.priority}`) +
+        `)  ${coverage.total} cards\n` +
+        `  ${"playable".padEnd(12)}${`${coverage.playable}/${coverage.total}`.padStart(12)}  ` +
+        `${pct(coverage.playable, coverage.total).trim()} — ready or hand-written, the v1 gate\n`;
+    const states = COVERAGE_STATES.map((state) => {
+        const names = coverage.byState[state];
+        return (
+            `  ${state.padEnd(12)}${String(names.length).padStart(12)}` +
+            (names.length === 0 ? "" : `: ${names.join(", ")}`)
+        );
+    }).join("\n");
+    const migrable =
+        coverage.migrable.length === 0
+            ? "none"
+            : coverage.migrable.map((m) => `${m.name} (${m.why})`).join("; ");
+    return `${head}${states}\n  hand-tail cards now migrable: ${migrable}\n`;
+}
+
+/**
+ * The Target List section (issue #3867): every registered Target, every card
+ * in exactly one coverage state, by name — reporting only; `check:targets`
+ * turns `unclaimed` red.
+ */
+function reportTargets(lock: Lockfile, only: string | undefined): void {
+    const registry = readTargetRegistry(ROOT);
+    const rows =
+        only === undefined
+            ? registry.targets
+            : registry.targets.filter((row) => row.id === only);
+    if (rows.length === 0) {
+        process.stderr.write(
+            `oracle:report — no Target \`${only}\` in ${TARGETS_PATH} (one of: ` +
+                `${registry.targets.map((row) => row.id).join(", ")})\n`
+        );
+        process.exit(1);
+    }
+    const resolve = resolveContext(ROOT, lock);
+    const gaps = gapIndex(lock);
+    const handWritten = poolOracleIds();
+    if (handWritten.size === 0) {
+        process.stderr.write(
+            "oracle:report --targets — no hand-written cards read (data/card-index.json missing?); " +
+                "the playable figure would shrink silently — run: bun run check:index\n"
+        );
+        process.exit(1);
+    }
+    const ctx = {
+        floor: registry.handTailFloor,
+        handWritten,
+        handTail: handTailOracleIds(resolve.byName),
+        byOracleId: resolve.byOracleId,
+        ...gaps,
+    };
+    process.stdout.write(
+        `\nTarget Lists — ${TARGETS_PATH}, hand-tail floor ${registry.handTailFloor} corpus cards\n` +
+            `states: ${COVERAGE_STATES.join(", ")}; playable is a separate figure\n\n`
+    );
+    for (const row of rows) {
+        process.stdout.write(
+            `${coverageLines(targetCoverage(resolveTarget(row, resolve), ctx))}\n`
+        );
+    }
 }
 
 function reportDelta(
@@ -352,6 +464,15 @@ function main(): void {
     if (process.argv.includes("--decks")) {
         reportDecks(lock);
         reportMetagame(lock);
+        return;
+    }
+    const targetsAt = process.argv.indexOf("--targets");
+    if (targetsAt !== -1) {
+        const only = process.argv[targetsAt + 1];
+        reportTargets(
+            lock,
+            only === undefined || only.startsWith("--") ? undefined : only
+        );
         return;
     }
     const deltaAt = process.argv.indexOf("--delta");

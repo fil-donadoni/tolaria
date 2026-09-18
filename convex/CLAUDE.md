@@ -77,7 +77,8 @@ the Op vocabulary.
   deliverable — it ranks the next grammar rule (user story 9) — so quote the
   Oracle span, never "the compiler can't do this card". A marker inside the
   object literal, two paragraphs up, or with no issue ref exempts NOTHING and
-  reds. (3) Sits in the one-time **baseline**
+  reds. Sibling `// hand-tail: <fragment> (#issue)` (issue #3867): same checks, a card
+  hand-written by decision. (3) Sits in the one-time **baseline**
   (`convex/cards/__tests__/compilerRoundTrip.baseline.ts`, 1,719 cards), which
   cannot be APPENDED to and drains as cards graduate. Enforced by
   `compilerRoundTrip.test.ts`; scanner in
