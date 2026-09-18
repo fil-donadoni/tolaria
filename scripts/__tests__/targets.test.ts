@@ -268,6 +268,7 @@ describe("coverage states — exactly one per card", () => {
     const FRAGMENTS = [
         { text: "Widespread ability.", reason: ROUTER, cards: 3 },
         { text: "Unique ability.", reason: ROUTER, cards: 1 },
+        { text: "Another unique ability.", reason: ROUTER, cards: 1 },
     ];
     const cards: CardRow[] = [
         row("r", "Ready", "ready"),
@@ -277,6 +278,7 @@ describe("coverage states — exactly one per card", () => {
         row("p2", "Pending Two", "unparsed", { gaps: [0] }),
         row("u", "Mixed", "unparsed", { gaps: [0, 1] }),
         row("h", "Declared", "unparsed", { gaps: [1] }),
+        row("b", "Below", "unparsed", { gaps: [2] }),
         row("hr", "Declared Ready", "ready"),
         row("hc", "Declared Climbed", "unparsed", { gaps: [0] }),
     ];
@@ -294,7 +296,7 @@ describe("coverage states — exactly one per card", () => {
 
     it("sorts each card into its state", () => {
         expect(
-            ["r", "q", "p1", "u", "h", "hr", "hc"].map((id) => [
+            ["r", "q", "p1", "u", "b", "h", "hr", "hc"].map((id) => [
                 id,
                 stateOf(id),
             ])
@@ -302,7 +304,8 @@ describe("coverage states — exactly one per card", () => {
             ["r", "ready"],
             ["q", "quarantine"],
             ["p1", "gap-pending"],
-            ["u", "unclaimed"],
+            ["u", "gap-pending"],
+            ["b", "unclaimed"],
             ["h", "hand-tail"],
             ["hr", "ready"],
             ["hc", "hand-tail"],
@@ -326,7 +329,7 @@ describe("coverage states — exactly one per card", () => {
             },
             ctx
         );
-        expect(coverage.total).toBe(8);
+        expect(coverage.total).toBe(9);
         // ready: Ready, Declared Ready; hand-written: Declared, Mixed.
         expect(coverage.playable).toBe(4);
         expect(coverage.byState["hand-tail"]).toEqual([

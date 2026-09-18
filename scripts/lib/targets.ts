@@ -335,10 +335,10 @@ export function resolveTarget(
  * - `quarantine` — it compiles, but is held back;
  * - `hand-tail` — not ready, and the hand-written card carries a `hand-tail:`
  *   marker: below the floor by decision;
- * - `gap-pending` — unparsed, and every residual Grammar Gap sits at or above
- *   the floor: the grammar owes it;
- * - `unclaimed` — unparsed with a gap below the floor and no `hand-tail:`
- *   marker: nobody has decided anything.
+ * - `gap-pending` — unparsed, and at least one residual Grammar Gap sits at
+ *   or above the floor: the grammar owes it;
+ * - `unclaimed` — unparsed, every gap below the floor (or none attributed)
+ *   and no `hand-tail:` marker: nobody has decided anything.
  *
  * Whether each claim has its issue is `check:targets`' question (the next
  * slice of wayfinder issue #3848), not this report's.
@@ -394,9 +394,12 @@ export function coverageState(
     if (row.state === "ready") return "ready";
     if (ctx.handTail.has(row.oracleId)) return "hand-tail";
     if (row.state === "quarantine") return "quarantine";
-    const keys = ctx.gapKeys(row);
-    return keys.length > 0 &&
-        keys.every((key) => (ctx.leverage.get(key) ?? 0) >= ctx.floor)
+    // One gap at or above the floor is grammar owed: once those rules land,
+    // whatever stays below the floor makes the card Hand Tail — so a card with
+    // mixed gaps is pending, never stuck with no green state.
+    return ctx
+        .gapKeys(row)
+        .some((key) => (ctx.leverage.get(key) ?? 0) >= ctx.floor)
         ? "gap-pending"
         : "unclaimed";
 }

@@ -77,7 +77,7 @@ const SPLIT_NAME_SEPARATOR = " // ";
  * never mentions the marker at all.
  */
 export const COMPILER_GAP_CLAIM =
-    /(?:\/\/|\/\*|^\s*\*).*\b(compiler-gap|hand-tail):/i;
+    /(?:\/\/|\/\*|^\s*\*).*?(?<![\w-])(compiler-gap|hand-tail):/i;
 
 /**
  * The one accepted marker shape: `compiler-gap: <fragment> (#issue)`.

@@ -282,9 +282,17 @@ function reportTargets(lock: Lockfile, only: string | undefined): void {
     }
     const resolve = resolveContext(ROOT, lock);
     const gaps = gapIndex(lock);
+    const handWritten = poolOracleIds();
+    if (handWritten.size === 0) {
+        process.stderr.write(
+            "oracle:report --targets — no hand-written cards read (data/card-index.json missing?); " +
+                "the playable figure would shrink silently — run: bun run check:index\n"
+        );
+        process.exit(1);
+    }
     const ctx = {
         floor: registry.handTailFloor,
-        handWritten: poolOracleIds(),
+        handWritten,
         handTail: handTailOracleIds(resolve.byName),
         byOracleId: resolve.byOracleId,
         ...gaps,
