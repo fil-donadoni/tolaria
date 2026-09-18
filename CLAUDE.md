@@ -255,12 +255,12 @@ silently loads as `"me"`). Sweep: `bun run seed:backlog`.
 
 Rationale, lane contents and measurements: `docs/agents/quality-gates.md`.
 
-| When      | Run                                                                                                                                        |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Iterating | targeted only — `bunx vitest run <path>`. Formatting is automatic.                                                                         |
-| Pre-PR    | `bunx vitest run <paths touched>` + review — **no lane gate** (ADR 0136)                                                                   |
-| Merge     | `bun run land <PR#>` — rebase, **`check:lane`**, merge into the base branch, all under the machine mutex (ADR 0136)                        |
-| Release   | **`bun run release`** — full gate (`check:all` + `check:gaps` + 3 suites) on the base tip, then fast-forward the release branch (ADR 0116) |
+| When      | Run                                                                                                                         |
+| --------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Iterating | targeted only — `bunx vitest run <path>`. Formatting is automatic.                                                          |
+| Pre-PR    | `bunx vitest run <paths touched>` + review — **no lane gate** (ADR 0136)                                                    |
+| Merge     | `bun run land <PR#>` — rebase, **`check:lane`**, merge into the base branch, all under the machine mutex (ADR 0136)         |
+| Release   | **`bun run release`** — full gate (`check:all` + 3 suites) on the base tip, then fast-forward the release branch (ADR 0116) |
 
 - **`check:lane` is paid ONCE, by `land`, on the rebased tip** (ADR 0136;
   skipped when that tip and base were already gated green). It classifies the
