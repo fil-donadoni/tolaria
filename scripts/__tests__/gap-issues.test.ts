@@ -12,6 +12,11 @@ import {
     buildBotGapFilings,
     buildGrammarGapFilings,
     grammarGapTitle,
+    parseUnlocks,
+    planUnlockEdges,
+    renderUnlockBlockedBy,
+    syncUnlockEdges,
+    withUnlockBlockers,
     OP_GAP_UMBRELLA,
     PRD_ISSUE,
     renderOpGapBody,
@@ -21,8 +26,10 @@ import {
     type GapTracker,
     type TrackedIssue,
     type TrackedIssueSummary,
+    type UnlockSource,
 } from "../lib/gap-issues";
 import { claimId } from "../lib/targets";
+import { parseDependencies } from "../lib/queue-plan";
 import { gapOf, OP_LEVEL } from "../lib/grammar-gaps";
 import { parseLockfile } from "../lib/oracle-lockfile";
 import { isIssueNotFound } from "../gaps-sync";
@@ -137,6 +144,29 @@ class StubTracker implements GapTracker {
     addLabel(): void {}
 
     comment(): void {}
+
+    listUnlockSources(): readonly UnlockSource[] {
+        return this.unlockSources;
+    }
+
+    unlockSources: UnlockSource[] = [];
+    readonly edges = new Map<number, number[]>();
+
+    blockedBy(issue: number): readonly number[] {
+        return this.edges.get(issue) ?? [];
+    }
+
+    addBlockedBy(issue: number, blocker: number): void {
+        const existing = this.edges.get(issue) ?? [];
+        // The real tracker reads the edge back and throws when the write did
+        // not take; a stub that silently accepted a duplicate would hide the
+        // very double-write `syncUnlockEdges` exists to avoid.
+        if (existing.includes(blocker))
+            throw new Error(
+                `issue #${issue} is already blocked by #${blocker}`
+            );
+        this.edges.set(issue, [...existing, blocker]);
+    }
 }
 
 function filing(over: Partial<GapFiling> = {}): GapFiling {
@@ -324,5 +354,283 @@ describe("isIssueNotFound — only a missing issue reads as gone", () => {
                 )
             ).toBe(false);
         }
+    });
+});
+
+// ── `## Unlocks` — the engine issue a gap is blocked by (issue #4052) ─────
+
+const CHANGELING_KEY =
+    'planned-mechanic › keyword "changeling" is not implemented in the Mechanics Registry';
+
+/** An engine issue body in the shape the template writes it. */
+function engineBody(lines: readonly string[]): string {
+    return [
+        "## What to build",
+        "",
+        "Teach the compiler the clause form that lowers to `addMana`.",
+        "",
+        "## Unlocks",
+        "",
+        ...lines,
+        "",
+        "## Target files",
+        "",
+        "- `scripts/lib/oracle-grammar.ts`",
+    ].join("\n");
+}
+
+/** The gap filings the declarations below resolve against. */
+function gapFilings(): GapFiling[] {
+    return [
+        filing({ key: ADD_MANA_KEY, currentIssue: 4001 }),
+        filing({
+            kind: "mechanic",
+            key: CHANGELING_KEY,
+            currentIssue: 4002,
+            title: `Quarantine (mechanic): ${CHANGELING_KEY}`,
+            body: () => "quarantine body",
+        }),
+    ];
+}
+
+const KNOWN = new Set(gapFilings().map((f) => claimId(f.kind, f.key)));
+
+describe("parseUnlocks", () => {
+    it("reads nothing at all from a body with no section — absent, not empty", () => {
+        expect(parseUnlocks("## What to build\n\n- a thing\n")).toBeNull();
+    });
+
+    it("auto-fills a bare Op name to its `(op) › …` grammar key", () => {
+        const parsed = parseUnlocks(engineBody(["- addMana"]))!;
+        expect(parsed.lines.map((l) => l.candidates)).toEqual([
+            [claimId("grammar", ADD_MANA_KEY)],
+        ]);
+    });
+
+    it("reads the `<kind>: <key>` form for a kind that is not grammar", () => {
+        const parsed = parseUnlocks(
+            engineBody([`- mechanic: ${CHANGELING_KEY}`])
+        )!;
+        expect(parsed.lines[0]!.candidates).toEqual([
+            claimId("mechanic", CHANGELING_KEY),
+        ]);
+    });
+
+    it("reads a bare Grammar Gap key, backticked as a body usually writes it", () => {
+        const parsed = parseUnlocks(engineBody([`- \`${ADD_MANA_KEY}\``]))!;
+        expect(parsed.lines[0]!.candidates).toEqual([
+            claimId("grammar", ADD_MANA_KEY),
+        ]);
+    });
+
+    it("offers the whole line BEFORE its `— why` truncation, so an em dash inside a key survives", () => {
+        const withDash = "planned-mechanic › a detail — with an em dash";
+        const parsed = parseUnlocks(
+            engineBody([`- mechanic: ${withDash} — because the rule lands`])
+        )!;
+        expect(parsed.lines[0]!.candidates).toEqual([
+            claimId("mechanic", `${withDash} — because the rule lands`),
+            claimId("mechanic", withDash),
+        ]);
+    });
+
+    it("refuses a prose line rather than guessing a key from it", () => {
+        const parsed = parseUnlocks(
+            engineBody([
+                "- the Op the new rule emits",
+                "This section unlocks addMana once the rule lands.",
+            ])
+        )!;
+        expect(parsed.lines.map((l) => [l.raw, l.candidates.length])).toEqual([
+            ["- the Op the new rule emits", 0],
+            ["This section unlocks addMana once the rule lands.", 0],
+        ]);
+    });
+
+    it("reads `None.` as declaring nothing, never as a key", () => {
+        expect(parseUnlocks(engineBody(["None."]))!.lines).toEqual([]);
+        expect(parseUnlocks(engineBody(["- None"]))!.lines).toEqual([]);
+    });
+
+    it("stops at the next heading — a `## Target files` list is not a declaration", () => {
+        const parsed = parseUnlocks(engineBody(["- addMana"]))!;
+        expect(parsed.lines).toHaveLength(1);
+    });
+});
+
+describe("planUnlockEdges", () => {
+    it("resolves a declared key to the gap it names, keyed by the engine issue", () => {
+        const { blockers, residue } = planUnlockEdges(
+            [{ number: 4052, body: engineBody(["- addMana"]) }],
+            KNOWN
+        );
+        expect([...blockers]).toEqual([
+            [claimId("grammar", ADD_MANA_KEY), [4052]],
+        ]);
+        expect(residue).toEqual([]);
+    });
+
+    it("reports a key matching no filed gap as residue and wires nothing", () => {
+        const { blockers, residue } = planUnlockEdges(
+            [{ number: 4052, body: engineBody(["- addMaan"]) }],
+            KNOWN
+        );
+        expect(blockers.size).toBe(0);
+        expect(residue).toEqual([
+            { issue: 4052, line: "- addMaan", reason: "no-such-gap" },
+        ]);
+    });
+
+    it("reports an unreadable line as residue under its own reason", () => {
+        const { residue } = planUnlockEdges(
+            [{ number: 4052, body: engineBody(["- the Op the rule emits"]) }],
+            KNOWN
+        );
+        expect(residue).toEqual([
+            {
+                issue: 4052,
+                line: "- the Op the rule emits",
+                reason: "unreadable",
+            },
+        ]);
+    });
+
+    it("an auto-filled Op name and the hand-written key plan the SAME edge", () => {
+        const auto = planUnlockEdges(
+            [{ number: 4052, body: engineBody(["- addMana"]) }],
+            KNOWN
+        );
+        const byHand = planUnlockEdges(
+            [
+                {
+                    number: 4052,
+                    body: engineBody([`- grammar: ${ADD_MANA_KEY}`]),
+                },
+            ],
+            KNOWN
+        );
+        expect([...byHand.blockers]).toEqual([...auto.blockers]);
+    });
+
+    it("merges two engine issues unlocking one gap, sorted and deduplicated", () => {
+        const { blockers } = planUnlockEdges(
+            [
+                { number: 4060, body: engineBody(["- addMana", "- addMana"]) },
+                { number: 4052, body: engineBody(["- addMana"]) },
+            ],
+            KNOWN
+        );
+        expect(blockers.get(claimId("grammar", ADD_MANA_KEY))).toEqual([
+            4052, 4060,
+        ]);
+    });
+});
+
+describe("withUnlockBlockers", () => {
+    it("leaves a filing nothing unlocks untouched, by reference", () => {
+        const filings = gapFilings();
+        const out = withUnlockBlockers(filings, new Map());
+        expect(out[0]).toBe(filings[0]);
+    });
+
+    it("composes the section into the body, keeping the issue-number argument live", () => {
+        const [out] = withUnlockBlockers(
+            [filing({ body: (issue) => `filed as #${issue}` })],
+            new Map([[claimId("grammar", ADD_MANA_KEY), [4052]]])
+        );
+        expect(out!.body(4001)).toBe(
+            `filed as #4001\n\n${renderUnlockBlockedBy([4052])}`
+        );
+    });
+});
+
+describe("the two halves of the edge stay in parity", () => {
+    it("the body section reads back as the dependency `queue:plan` defers on", () => {
+        const [out] = withUnlockBlockers(
+            [filing({ currentIssue: 4001 })],
+            new Map([[claimId("grammar", ADD_MANA_KEY), [4052, 4060]]])
+        );
+        // `parseDependencies` is the planner's own reader, not a copy of it:
+        // a section it cannot parse is a native-only edge, which gets picked
+        // by the loop and bounced.
+        expect(parseDependencies(out!.body(4001), 4001)).toEqual([4052, 4060]);
+    });
+
+    it("the native edge carries exactly what the body says", () => {
+        const tracker = new StubTracker();
+        const blockers = new Map([
+            [claimId("grammar", ADD_MANA_KEY), [4052, 4060]],
+        ]);
+        const [out] = withUnlockBlockers(
+            [filing({ currentIssue: 4001 })],
+            blockers
+        );
+        syncUnlockEdges(
+            blockers,
+            new Map([[claimId("grammar", ADD_MANA_KEY), 4001]]),
+            tracker
+        );
+        expect([...tracker.blockedBy(4001)].sort()).toEqual(
+            parseDependencies(out!.body(4001), 4001)
+        );
+    });
+});
+
+describe("syncUnlockEdges", () => {
+    const blockers = new Map([[claimId("grammar", ADD_MANA_KEY), [4052]]]);
+    const issueOf = new Map([[claimId("grammar", ADD_MANA_KEY), 4001]]);
+
+    it("wires exactly one native edge, and a second run wires none", () => {
+        const tracker = new StubTracker();
+        expect(syncUnlockEdges(blockers, issueOf, tracker)).toEqual([
+            {
+                action: "link",
+                blocked: 4001,
+                blocker: 4052,
+                claim: claimId("grammar", ADD_MANA_KEY),
+            },
+        ]);
+        expect(tracker.blockedBy(4001)).toEqual([4052]);
+        // The stub THROWS on a duplicate write, so a second `link` here would
+        // be an error, not a silently doubled edge.
+        expect(syncUnlockEdges(blockers, issueOf, tracker)).toEqual([
+            {
+                action: "noop",
+                blocked: 4001,
+                blocker: 4052,
+                claim: claimId("grammar", ADD_MANA_KEY),
+            },
+        ]);
+        expect(tracker.blockedBy(4001)).toEqual([4052]);
+    });
+
+    it("skips a gap this run filed no issue for — a closed one, say", () => {
+        const tracker = new StubTracker();
+        expect(syncUnlockEdges(blockers, new Map(), tracker)).toEqual([]);
+        expect(tracker.edges.size).toBe(0);
+    });
+
+    it("never wires an issue to itself — GitHub refuses the edge", () => {
+        const tracker = new StubTracker();
+        const self = new Map([[claimId("grammar", ADD_MANA_KEY), 4052]]);
+        expect(syncUnlockEdges(blockers, self, tracker)).toEqual([]);
+        expect(tracker.edges.size).toBe(0);
+    });
+});
+
+describe("the unlocked body is idempotent under syncGaps", () => {
+    it("writes the section once and leaves it alone on the next run", () => {
+        const tracker = new StubTracker();
+        const blockers = new Map([[claimId("grammar", ADD_MANA_KEY), [4052]]]);
+        const first = withUnlockBlockers([filing()], blockers);
+        const created = syncGaps(first, tracker);
+        const issue = created.updatedRows.get(ADD_MANA_ROW)!;
+        expect(tracker.issues.get(issue)!.body).toContain("## Blocked by");
+        tracker.updateCalls = 0;
+        syncGaps(
+            withUnlockBlockers([filing({ currentIssue: issue })], blockers),
+            tracker
+        );
+        expect(tracker.updateCalls).toBe(0);
     });
 });

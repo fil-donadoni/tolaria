@@ -29,6 +29,10 @@
  * Bot Gaps: no Bot-play sweep exists yet (ADR 0105 § 7.2), so
  * `buildBotGapFilings` returns nothing until it does.
  *
+ * The `## Unlocks` pass — an engine issue declaring the gap keys it unblocks,
+ * and the native `blocked by` edge this writes from it (issue #4052) — is the
+ * last section of this file, with its own header.
+ *
  * ── Parent, and the cap ────────────────────────────────────────────────
  *
  * Every Op-gap issue is a child of `OP_GAP_UMBRELLA`, never of PRD #3820
@@ -57,7 +61,13 @@
  */
 
 import type { Allowlist } from "../check-gaps";
-import { claimId, splitClaimId, type ClaimRow, type GapKind } from "./targets";
+import {
+    claimId,
+    GAP_KINDS,
+    splitClaimId,
+    type ClaimRow,
+    type GapKind,
+} from "./targets";
 
 /** The placeholder every allowlist row was seeded with: "not filed yet". */
 export const PRD_ISSUE = 3820;
@@ -189,6 +199,15 @@ export interface GapTracker {
     listOpen(label: string): readonly TrackedIssueSummary[];
     addLabel(number: number, label: string): void;
     comment(number: number, body: string): void;
+    /** Every OPEN issue whose body may carry an `## Unlocks` section — the
+     *  candidates {@link parseUnlocks} reads (issue #4052). */
+    listUnlockSources(): readonly UnlockSource[];
+    /** The issues `issue` is NATIVELY blocked by, right now. */
+    blockedBy(issue: number): readonly number[];
+    /** Wire the native `blocked by` edge, and confirm it by reading back —
+     *  `gh issue edit --add-blocked-by` exits non-zero when SOME of the
+     *  listed edges already exist, so its status says nothing either way. */
+    addBlockedBy(issue: number, blocker: number): void;
 }
 
 export type GapSyncAction = {
@@ -342,4 +361,261 @@ export function applyUpdatedIssues(
     return sorted.length === 0
         ? { ...allowlist, ops }
         : { ...allowlist, ops, claims: sorted };
+}
+
+// ── `## Unlocks` — the engine issue a gap is blocked by (issue #4052) ─────
+//
+// The dependency between an engine capability and the Grammar Gap it unblocks
+// used to be body prose, and prose is not an edge: `queue:plan` defers a pick
+// on the body's `## Blocked by` refs and the board draws the native
+// relationship, so a gap whose rule cannot be written yet was picked, worked
+// on, and found unbuildable after the worktree existed.
+//
+// So an ENGINE issue declares what it unlocks, in its own body, and the SCRIPT
+// writes the edge — issue #3851 decision 2, "parents and blockers are written
+// by the script, never by hand; 470 hand-maintained edges rot in a week". The
+// declaration is a key, never a number: the gap's issue does not exist yet when
+// the engine issue is filed, and the key does.
+//
+// Both forms of the edge are written, because they feed different readers and
+// neither substitutes for the other (`/to-tickets`' own rule):
+//
+//   - the NATIVE edge, wired here, is what the board and the dependency graph
+//     show — a body-only dependency reads as ready work to a human scanning it;
+//   - the body's `## Blocked by` section, which is what `queue:plan` parses.
+//
+// The body section is composed INTO the filing's body (`withUnlockBlockers`)
+// rather than patched on afterwards. `syncGaps` rewrites a body whenever it
+// differs from the computed one, so a section appended after the fact would be
+// stripped by the next run and re-appended by the one after it — a body edit
+// per run, forever.
+
+/** One issue whose body may declare an `## Unlocks` section. */
+export interface UnlockSource {
+    readonly number: number;
+    readonly body: string;
+}
+
+/** A declared line that wired no edge — always REPORTED, never dropped: a
+ *  typo in a gap key is only visible if the run says the key matched nothing. */
+export interface UnlockResidue {
+    readonly issue: number;
+    /** The line as the body carries it. */
+    readonly line: string;
+    readonly reason: "unreadable" | "no-such-gap";
+}
+
+export type UnlockEdgeAction = {
+    readonly action: "link" | "noop";
+    /** The gap issue — the blocked side. */
+    readonly blocked: number;
+    /** The engine issue — the blocker. */
+    readonly blocker: number;
+    readonly claim: string;
+};
+
+const UNLOCKS_HEADING = /^#{1,6}\s+unlocks\s*$/i;
+const ANY_HEADING = /^#{1,6}\s+/;
+const LIST_ITEM = /^[-*]\s+(.*)$/;
+/** "nothing declared", the shape `## Blocked by` already uses. */
+const DECLARES_NOTHING = /^none\.?$/i;
+/** A bare Op name — an identifier, which is exactly what prose is not. */
+const OP_NAME = /^[A-Za-z][A-Za-z0-9]*$/;
+/** The separator a grammar gap key joins its slot and shape with. */
+const GAP_KEY_SEPARATOR = " › ";
+/** The `- #N — why` suffix this repo writes on every other ref list. */
+const WHY_SUFFIX = " — ";
+
+/**
+ * The claim ids one `## Unlocks` line could mean, in resolution order.
+ *
+ * Three accepted forms, and NOTHING is inferred from prose — a line matching
+ * none of them is refused by the caller rather than guessed at:
+ *
+ *   - `<kind>: <key>` — the general form, for any of the six kinds;
+ *   - `<slot> › <shape>` — a bare Grammar Gap key, the kind being implied;
+ *   - `<opName>` — a bare Op name, AUTO-FILLED to the `(op) › <name>` grammar
+ *     key. This is the common case (an issue that adds an Op unblocks that
+ *     Op's census gap) and it costs the author no lookup.
+ *
+ * A trailing ` — <why>` is tried as a second candidate, never as the first:
+ * a quarantine key is a free-text compiler diagnostic and may contain an em
+ * dash of its own, so the whole line is offered to the gap index before its
+ * truncation is. Resolution is against FILED gaps, so neither candidate is a
+ * guess — an unmatched line is residue.
+ */
+export function unlockCandidates(item: string): string[] {
+    const forms = (text: string): string[] => {
+        const t = text
+            .trim()
+            .replace(/^`(.*)`$/s, "$1")
+            .trim();
+        if (t === "") return [];
+        const kinded = /^([a-z][a-z-]*):\s*(.+)$/.exec(t);
+        if (
+            kinded !== null &&
+            (GAP_KINDS as readonly string[]).includes(kinded[1]!)
+        ) {
+            return [claimId(kinded[1] as GapKind, kinded[2]!.trim())];
+        }
+        if (t.includes(GAP_KEY_SEPARATOR)) return [claimId("grammar", t)];
+        if (OP_NAME.test(t))
+            return [claimId("grammar", `(op)${GAP_KEY_SEPARATOR}${t}`)];
+        return [];
+    };
+    const whole = forms(item);
+    // The LAST separator, not the first: the `— why` is a suffix, so splitting
+    // at the first one truncates a key that carries an em dash of its own into
+    // a prefix that matches nothing and loses the candidate that would have.
+    const at = item.lastIndexOf(WHY_SUFFIX);
+    const truncated = at === -1 ? [] : forms(item.slice(0, at));
+    return [...whole, ...truncated.filter((c) => !whole.includes(c))];
+}
+
+/**
+ * Read one body's `## Unlocks` section. Returns the candidate claim ids per
+ * declared line plus the lines no form could read — `null` when the body has
+ * no such section at all, which is not the same as one declaring nothing.
+ */
+export function parseUnlocks(
+    body: string
+): { lines: { raw: string; candidates: string[] }[] } | null {
+    const all = body.split("\n");
+    const start = all.findIndex((l) => UNLOCKS_HEADING.test(l.trim()));
+    if (start === -1) return null;
+    const lines: { raw: string; candidates: string[] }[] = [];
+    for (const line of all.slice(start + 1)) {
+        const trimmed = line.trim();
+        if (ANY_HEADING.test(trimmed)) break;
+        if (trimmed === "") continue;
+        if (DECLARES_NOTHING.test(trimmed)) continue;
+        const item = LIST_ITEM.exec(trimmed);
+        if (item === null) {
+            // Prose. The section's own preamble is the only prose a reader
+            // could excuse, and excusing it is what "guess a key from a
+            // sentence" starts as — so every non-item line is refused.
+            lines.push({ raw: trimmed, candidates: [] });
+            continue;
+        }
+        if (DECLARES_NOTHING.test(item[1]!.trim())) continue;
+        lines.push({ raw: trimmed, candidates: unlockCandidates(item[1]!) });
+    }
+    return { lines };
+}
+
+/**
+ * Resolve every declaration against the gaps this run actually knows —
+ * `known` is the claim id of every FILING, not only of every filed issue, so
+ * a gap created by this same run is matched too.
+ *
+ * `blockers` maps a claim id to the engine issues that unlock it, sorted and
+ * deduplicated so two runs over one tree compose one body.
+ */
+export function planUnlockEdges(
+    sources: readonly UnlockSource[],
+    known: ReadonlySet<string>
+): {
+    blockers: Map<string, number[]>;
+    residue: UnlockResidue[];
+} {
+    const blockers = new Map<string, Set<number>>();
+    const residue: UnlockResidue[] = [];
+    for (const source of sources) {
+        const parsed = parseUnlocks(source.body);
+        if (parsed === null) continue;
+        for (const line of parsed.lines) {
+            if (line.candidates.length === 0) {
+                residue.push({
+                    issue: source.number,
+                    line: line.raw,
+                    reason: "unreadable",
+                });
+                continue;
+            }
+            const hit = line.candidates.find((c) => known.has(c));
+            if (hit === undefined) {
+                residue.push({
+                    issue: source.number,
+                    line: line.raw,
+                    reason: "no-such-gap",
+                });
+                continue;
+            }
+            let set = blockers.get(hit);
+            if (set === undefined) blockers.set(hit, (set = new Set()));
+            set.add(source.number);
+        }
+    }
+    return {
+        blockers: new Map(
+            [...blockers].map(([claim, set]) => [
+                claim,
+                [...set].sort((a, b) => a - b),
+            ])
+        ),
+        residue,
+    };
+}
+
+/** The body section `queue:plan` parses — the prose half of the edge. */
+export function renderUnlockBlockedBy(issues: readonly number[]): string {
+    return [
+        "## Blocked by",
+        "",
+        ...issues.map(
+            (n) => `- #${n} — declares this gap in its \`## Unlocks\` section.`
+        ),
+    ].join("\n");
+}
+
+/**
+ * Compose each filing's `## Blocked by` section into its body. A filing
+ * nothing unlocks is returned UNCHANGED (reference equality), so the
+ * idempotent-noop decision of `syncGaps` is untouched for every other gap.
+ */
+export function withUnlockBlockers(
+    filings: readonly GapFiling[],
+    blockers: ReadonlyMap<string, readonly number[]>
+): GapFiling[] {
+    return filings.map((filing) => {
+        const issues = blockers.get(claimId(filing.kind, filing.key));
+        if (issues === undefined || issues.length === 0) return filing;
+        const section = renderUnlockBlockedBy(issues);
+        const inner = filing.body;
+        return { ...filing, body: (issue) => `${inner(issue)}\n\n${section}` };
+    });
+}
+
+/**
+ * Wire the native edge for every resolved declaration, once. `issueOf` is the
+ * gap issue per claim id AFTER `syncGaps` — a gap created this run included.
+ *
+ * Reads the existing edges back before writing: the tracker's `addBlockedBy`
+ * is the only write, and an edge already there is a `noop`, which is what
+ * makes a second run against unchanged inputs write nothing.
+ */
+export function syncUnlockEdges(
+    blockers: ReadonlyMap<string, readonly number[]>,
+    issueOf: ReadonlyMap<string, number>,
+    tracker: GapTracker
+): UnlockEdgeAction[] {
+    const actions: UnlockEdgeAction[] = [];
+    for (const [claim, engineIssues] of blockers) {
+        const blocked = issueOf.get(claim);
+        if (blocked === undefined) continue;
+        const existing = new Set(tracker.blockedBy(blocked));
+        for (const blocker of engineIssues) {
+            // An issue cannot block itself, and GitHub refuses the edge — but
+            // it is reachable: an engine issue may declare a gap whose own
+            // issue is itself after a key is reused.
+            if (blocker === blocked) continue;
+            if (existing.has(blocker)) {
+                actions.push({ action: "noop", blocked, blocker, claim });
+                continue;
+            }
+            tracker.addBlockedBy(blocked, blocker);
+            actions.push({ action: "link", blocked, blocker, claim });
+        }
+    }
+    return actions;
 }

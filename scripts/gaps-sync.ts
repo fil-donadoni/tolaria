@@ -18,6 +18,14 @@
  * contract, the scope and the umbrella, and `lib/gap-kinds.ts`'s for the two
  * measures and the rank. It closes nothing: an issue closes through its PR.
  *
+ * It also wires the ONE dependency a gap can have that is not computed from the
+ * corpus: an engine issue declares, in a `## Unlocks` section of its own body,
+ * the gap keys it unblocks, and this writes both halves of that edge — the
+ * native `blocked by` relationship the board draws, and the `## Blocked by`
+ * body section `queue:plan` defers a pick on (issue #4052,
+ * `lib/gap-issues.ts` § `## Unlocks`). A declared key matching no filed gap is
+ * reported as residue, never dropped.
+ *
  * An open `area:cards` issue naming only cards no registered Target requires
  * is never touched: it is labelled `ready-for-human` with one templated
  * comment, the two exits the owner chose (add a Target row, or `wontfix`).
@@ -66,11 +74,15 @@ import {
     buildBotGapFilings,
     buildGrammarGapFilings,
     GAP_TITLE_PREFIX,
+    planUnlockEdges,
     syncGaps,
+    syncUnlockEdges,
+    withUnlockBlockers,
     type GapFiling,
     type GapTracker,
     type TrackedIssue,
     type TrackedIssueSummary,
+    type UnlockSource,
 } from "./lib/gap-issues";
 import {
     buildGraduates,
@@ -268,6 +280,66 @@ export class GhGapTracker implements GapTracker {
         gh(["issue", "comment", String(number), "--body", body]);
     }
 
+    /** One search call, not one read per open issue: the `## Unlocks` section
+     *  is rare and the queue is hundreds of issues deep. Search tokenizes, so
+     *  this over-fetches (any body saying "unlocks") and `parseUnlocks`
+     *  decides — the other direction, a missed declaration, would silently
+     *  drop an edge. */
+    listUnlockSources(): readonly UnlockSource[] {
+        const out = gh([
+            "issue",
+            "list",
+            "--search",
+            '"## Unlocks" in:body',
+            "--state",
+            "open",
+            "--limit",
+            "500",
+            "--json",
+            "number,body",
+        ]);
+        return JSON.parse(out) as UnlockSource[];
+    }
+
+    blockedBy(issue: number): readonly number[] {
+        const out = gh([
+            "api",
+            `repos/{owner}/{repo}/issues/${issue}/dependencies/blocked_by`,
+            "--jq",
+            "[.[].number]",
+        ]);
+        return JSON.parse(out.trim() === "" ? "[]" : out) as number[];
+    }
+
+    /**
+     * `gh issue edit --add-blocked-by` exits non-zero with `failed to update 1
+     * issue` when SOME of the listed edges already exist, and the REST layer
+     * answers `Target issue has already been taken` — so the exit code says
+     * nothing in either direction and the read-back is the only check
+     * (`/to-tickets`' own rule).
+     *
+     * A native edge cannot target a PR (`Could not resolve to an Issue`); every
+     * blocker here comes from `gh issue list`, which never returns one.
+     */
+    addBlockedBy(issue: number, blocker: number): void {
+        try {
+            gh([
+                "issue",
+                "edit",
+                String(issue),
+                "--add-blocked-by",
+                String(blocker),
+            ]);
+        } catch {
+            // Read-back below is the real check either way.
+        }
+        if (!this.blockedBy(issue).includes(blocker)) {
+            throw new Error(
+                `gaps:sync: could not wire issue #${issue} blocked by issue #${blocker}`
+            );
+        }
+    }
+
     subIssueCount(parent: number): number {
         // Fail closed: a missing field read as 0 would let the cap check pass.
         try {
@@ -455,6 +527,9 @@ function main(): void {
             console.log(`${filing.kind.padEnd(10)} ${at}: ${filing.title}`);
         }
         console.log(
+            "unlocks    skipped — reading the `## Unlocks` declarations is a network call, and --dry-run makes none"
+        );
+        console.log(
             `gaps:sync --dry-run: ${filings.length} filing(s), 0 writes`
         );
         return;
@@ -462,7 +537,27 @@ function main(): void {
 
     const prefixes = [...new Set(filings.map((f) => GAP_TITLE_PREFIX[f.kind]))];
     const tracker = new GhGapTracker(prefixes);
-    const result = syncGaps(filings, tracker);
+
+    // The `## Unlocks` pass reads BEFORE anything is written, and a failed read
+    // throws rather than degrading to "nothing unlocks anything": the blockers
+    // compose the `## Blocked by` section INTO each body, so an empty map read
+    // as authoritative would have `syncGaps` strip every section it wrote last
+    // run — one body edit per run, forever (`lib/gap-issues.ts` § `## Unlocks`).
+    const { blockers, residue } = planUnlockEdges(
+        tracker.listUnlockSources(),
+        new Set(filings.map((f) => claimId(f.kind, f.key)))
+    );
+    for (const row of residue) {
+        const why =
+            row.reason === "unreadable"
+                ? "no gap key could be read from it — a declaration is a key, never prose"
+                : "matches no filed gap — check the key against `data/grammar-gaps.json`";
+        console.log(
+            `unlocks    residue issue #${row.issue}: \`${row.line}\` — ${why}`
+        );
+    }
+
+    const result = syncGaps(withUnlockBlockers(filings, blockers), tracker);
 
     const counts = new Map<string, number>();
     for (const action of result.actions) {
@@ -491,6 +586,32 @@ function main(): void {
             `gaps:sync: ${result.updatedRows.size} allowlist row(s) updated in ${ALLOWLIST_PATH}`
         );
         commitAndPushAllowlist(root);
+    }
+
+    // The NATIVE half of every `## Unlocks` edge, after the write-back: the
+    // body half rode in on the filing above, and a gap created moments ago has
+    // its number only now. Its own try/catch, like the orphan pass — every
+    // filing is already recorded, and an unwired edge is re-tried next run.
+    try {
+        const issueOf = new Map(
+            result.actions
+                .filter((a) => a.action !== "skip-closed")
+                .map((a) => [claimId(a.kind, a.key), a.issue] as const)
+        );
+        const edges = syncUnlockEdges(blockers, issueOf, tracker);
+        for (const edge of edges.filter((e) => e.action === "link")) {
+            console.log(
+                `unlocks    link        issue #${edge.blocked} blocked by issue #${edge.blocker}`
+            );
+        }
+        console.log(
+            `gaps:sync: unlocks pass — ${edges.filter((e) => e.action === "link").length} edge(s) wired, ` +
+                `${edges.filter((e) => e.action === "noop").length} already there, ${residue.length} residue`
+        );
+    } catch (err) {
+        console.error(
+            `gaps:sync: the \`## Unlocks\` edge pass failed (${(err as Error).message}) — every filing above is already recorded`
+        );
     }
 
     // Orphan card issues — the two exits the owner chose (issue #3869). Its

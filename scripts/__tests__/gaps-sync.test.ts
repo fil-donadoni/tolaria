@@ -16,6 +16,7 @@ import {
     type GapTracker,
     type TrackedIssue,
     type TrackedIssueSummary,
+    type UnlockSource,
 } from "../lib/gap-issues";
 import {
     buildHandTailFilings,
@@ -207,6 +208,18 @@ class StubTracker implements GapTracker {
     comment(number: number, body: string): void {
         this.comments.push({ issue: number, body });
     }
+
+    /** The `## Unlocks` pass has its own file (`gap-issues.test.ts`); here the
+     *  tracker only has to satisfy the seam. */
+    listUnlockSources(): readonly UnlockSource[] {
+        return [];
+    }
+
+    blockedBy(): readonly number[] {
+        return [];
+    }
+
+    addBlockedBy(): void {}
 }
 
 /** Sync `filings`, then sync the SAME filings with their new issue numbers —
