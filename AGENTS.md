@@ -198,7 +198,7 @@ comes FROM:
 | Skill                | Trigger                         | Does                                                                         |
 | -------------------- | ------------------------------- | ---------------------------------------------------------------------------- |
 | `/next-issue`        | Draining the queue              | ONE issue end-to-end: pick → worktree → implement → one routed review → land |
-| `/new-card`          | One new card                    | Scryfall oracle → Ops mapping / gap flags → PRD + tickets                    |
+| `/new-card`          | One new card                    | Compile state decides: artefacts (`ready`) / mechanic / rule / hand tail     |
 | `/new-set`           | Whole set rollout               | Compile-first scope, ranked Grammar Gap tickets, residue queue, umbrella PRD |
 | `/new-qa-issue`      | Observed bug/enhancement        | Explores, drafts one agent-readable issue, posts after confirmation          |
 | `/audit-tracker <N>` | Stale roll-up issue             | Re-verifies gaps vs HEAD, slices survivors, retires the tracker              |

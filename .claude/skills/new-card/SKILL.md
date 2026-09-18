@@ -1,301 +1,381 @@
 ---
 name: new-card
-description: Generate a CardDefinition for a new MTG card in convex/cards/sets/. Fetches oracle data from Scryfall, maps to the CardDefinition interface, and validates against CR.
+description: Bring ONE card into the catalogue the grammar-first way (ADR 0137) — ask the Oracle compiler what it already does with the card, and let its compile state decide the work: `ready` owes only the artefact refresh and the Bot read-back, `quarantine` owes the engine a mechanic, an unparsed card whose gap pays for itself owes a Grammar Rule (`/grammar-rule`), and only a card whose every residual gap sits below `handTailFloor` is written by hand, under Guard C with a `hand-tail:` marker. Use when a user names one card, when a Target List needs one card covered, or when a hand-tail issue is picked off the queue.
 argument-hint: "<card name>"
-allowed-tools: Bash(curl:*) WebFetch(domain:api.scryfall.com) WebFetch(domain:scryfall.com) Bash(bun run cr:*)
+allowed-tools: Bash(curl:*) WebFetch(domain:api.scryfall.com) WebFetch(domain:scryfall.com) Bash(bun run cr:*) Bash(bun run oracle:*) Bash(bun run check:*) Bash(jq:*)
 ---
 
-# New Card Definition Generator
+# /new-card — compile first, hand-write last
 
-Generate a `CardDefinition` for a new card in the Tolaria engine.
+**The compiler is how a card enters the catalogue** (ADR 0137). A card is
+hand-written only where the grammar does not reach it, and then under Guard C
+with a marker naming its issue — hand-writing is the fallback, never the plan.
 
-## Workflow
+So this skill's first job is not to author anything. It is to ASK: what does
+the compiler already do with this card, and what does that answer make owed?
+The answer is a state in a committed artefact, not a judgement — §2 reads it,
+§3–§6 are the four branches, and only §6 writes a `CardDefinition`.
 
-### Step 1 — Fetch oracle data
+It runs inside `/next-issue` (claim, worktree, review, `land` are that skill's);
+everything below is §3 of it.
 
-Scryfall blocks WebFetch (HTTP 403). Use curl with a User-Agent header:
+## The three anti-Forge guards (ADR 0137) still apply here
+
+A catalogue that grows card by card, each with its own hand-written script, is
+Forge. Nothing in this skill may:
+
+1. **Add a structural construct.** The Effect Script's structure is frozen at
+   ADR 0045's four (`bind`, `ref`, `if`, `forEach`).
+2. **Name an Op after a card.** An Op is named and shaped for the MECHANIC
+   (issue #1917). A missing Op is `/new-op`, never a `resolve()` that routes
+   around it.
+3. **Buy coverage with leniency.** The parser is fail-closed (ADR 0105 § 2).
+   A card that will not compile is a card the grammar has not earned — it is
+   never made to compile by widening a rule.
+
+## 1. The card — Oracle text and identity
+
+Scryfall blocks WebFetch (HTTP 403); use curl with a User-Agent:
 
 ```sh
-curl -s -A "Mozilla/5.0" "https://api.scryfall.com/cards/named?exact={card_name_plus_separated}"
+curl -s -A "Mozilla/5.0" "https://api.scryfall.com/cards/named?exact={card+name}"
 ```
 
-Prefer `exact=` over `fuzzy=` to avoid ambiguity. Replace spaces with `+`.
+`exact=` over `fuzzy=`. Keep `name`, `oracle_id`, `oracle_text`, `mana_cost`,
+`type_line`, `power`, `toughness`, `loyalty`.
 
-Extract: name, mana_cost, type_line, oracle_text, power, toughness, loyalty.
+- **`oracle_id`** is the join key for everything in §2 — the compiler works on
+  oracle cards, not printings (CR text is a property of the oracle card).
+- **A print `id`** is needed ONLY on the hand-written branch (§6). It is the
+  card's `identifiers.scryfallId` from `data/json/<SET>.json`, the EARLIEST
+  paper printing (ADR 0041) — never a fresh UUID, which silently breaks the
+  art and reds `check:index`:
+    ```sh
+    jq -r '.data.cards[] | select(.name=="<Card Name>") | .identifiers.scryfallId' data/json/<SET>.json
+    ```
+    On the compiled branches the id is resolved for you by `oracle:index`
+    (ADR 0108) — do not pick one by hand.
 
-**Card `id` (mandatory):** the `id` is NOT a fresh UUID. It is the card's
-`identifiers.scryfallId` from the set's MTGJSON file under `data/json/<SET>.json`
-(the Scryfall card object's own `id` field equals this value). The id is what
-maps a card to its art, so an invented UUID silently breaks the image. Pull it
-with:
+## 2. Ask the lockfile — the branch point
 
-```sh
-jq -r '.data.cards[] | select(.name=="<Card Name>") | .identifiers.scryfallId' data/json/<SET>.json
+`data/oracle-compiled.json` is the committed compile of the pinned corpus. It
+answers offline, in a quarter of a second, and it is the same artefact
+`oracle:report`, `check:targets` and `catalogue:pack` read — so this reading and
+the gates cannot disagree:
+
+```bash
+jq -r --arg n "<Card Name>" '. as $l | $l.cards[] | select(.name==$n)
+  | "state=\(.state)  ops=\(.opsUsed // [])  quarantine=\(.quarantineReasons // [])",
+    ((.gaps // [])[] as $i | $l.fragments[$i]
+      | "  fragment: \(.text)\n    reason: \(.reason)  attribution: \(.attribution // "—")  fragment-cards: \(.cards)")' \
+  data/oracle-compiled.json
 ```
 
-The gate's `check:index` (`scripts/check-card-index.ts`) fails if any card `id`
-is not in the lockfile `data/card-index.json`, or is not the card's EARLIEST
-paper printing (ADR 0041) — so an invented UUID and a reprint's id both fail it.
-Do not work around it, fix the id.
+Nothing printed → the card is not in the pinned corpus (§2b). Otherwise the
+`state` picks the branch, and **the branch is the whole decision — never write
+a definition because the card "looks simple"**:
 
-### Step 2 — Map to CardDefinition
+| `state`                                  | What the card needs               | §   |
+| ---------------------------------------- | --------------------------------- | --- |
+| `ready`                                  | nothing authored — artefacts only | §3  |
+| `quarantine`                             | the engine owes a mechanic        | §4  |
+| `unparsed`, any gap's leverage ≥ floor   | a Grammar Rule                    | §5  |
+| `unparsed`, every gap's leverage < floor | the hand tail — write it          | §6  |
 
-Use the interface from `convex/cards/types.ts`:
+### 2a. The floor comparison runs on the GAP, never on the fragment
 
-```typescript
-export interface CardDefinition {
-    id: CardId; // = the card's `identifiers.scryfallId` from the set's MTGJSON file — NEVER generate a fresh UUID
-    name: string;
-    manaCost?: ManaCost; // { X?, W?, U?, B?, R?, G?, C? }
-    types: CardType[];
-    subtypes?: string[];
-    supertypes?: CardSupertype[];
-    power?: number;
-    toughness?: number;
-    loyalty?: number;
-    targetRequirement?: TargetRequirement;
-    effects?: EffectOp[]; // Effect Script (ADR 0045) — the DSL-first default
-    resolve?: (ctx: SpellContext) => void; // escape hatch, needs justification
-    entersTapped?: boolean;
-    staticAbilities?: string[];
-    activatedAbilities?: ActivatedAbility[];
-    triggeredAbilities?: string[];
-    sbaMods?: string[];
-}
+`fragments[].cards` above is **not** the number the floor is compared against,
+and using it is the one way to land in §6 a card that belongs in §5. It counts
+the cards printing that fragment's EXACT literal text; the floor is compared
+against a gap's **leverage** — the cards carrying the GAP, whose key folds
+mana amounts to `{…}` and numbers to `N` and counts each card once across all
+its lines (`gapIndex` in `scripts/lib/targets.ts`, the same measure
+`coverageVerdict`, `check:targets` and `buildHandTailFilings` use;
+`scripts/lib/gap-kinds.ts`'s header states it outright). 11,436 fragments in
+today's lockfile sit below the floor on `.cards` while their gap is at or above
+it — Greta, Sweettooth Scourge prints two fragments of one card each, and their
+gap `activated › activation cost › object descriptor › Food` refuses 19.
+
+So take the attribution from the jq, build the key (`slot › path › span`,
+folded), and read the leverage off the report — its header is the authority:
+
+```bash
+L="$SCRATCHPAD/gap.log"
+bun run oracle:report --gap "<key or a unique substring of the span>" >"$L" 2>&1; echo "exit=$?"; head -5 "$L"
 ```
 
-`ActivatedAbility` and the triggered-ability shape carry their own `effects?:
-EffectOp[]` site alongside `resolve?`/`resolveSteps?` — same DSL-first rule,
-same mutual exclusivity.
+`corpus: <C> compile / <R> refuse` — **`R` is the leverage**, the figure the
+floor is compared against (`C` is the subset this gap is the card's ONLY gap
+for, i.e. the cards the rule alone graduates). An ambiguous substring exits 1
+and lists the candidates; pick one, never the first.
 
-### Step 3 — Classify complexity
+`handTailFloor` is `data/targets.json`'s (3 today). A rule that pays for fewer
+than the floor is a per-card script in grammar's clothing (wayfinder issue
+#3848), which is why the floor, not the card's urgency, decides §5 vs §6.
 
-1. **Pure data** — Vanilla creature/land: stats only, no resolve/abilities/effects.
-2. **Declarative** — Keywords (flying, trample) go in `staticAbilities[]`. Mana
-   abilities use `ActivatedAbility` with `useStack: false`. Spells and
-   triggered/activated abilities WITH an effect are written as an **Effect
-   Script** (`effects: EffectOp[]`) — see Steps 4–5 below. This is the
-   DSL-first default (ADR 0045) and covers the large majority of new cards.
-3. **Imperative escape hatch** — `resolve()` (or `resolveSteps`) is for
-   **protocol-like cards** whose effect the Op vocabulary genuinely cannot
-   express (Word of Command, Camouflage — ~10–15% of the pool). Using it
-   requires an explicit recorded justification, see Step 5b.
+Read the card's coverage state back the same way the gate does, when the card
+belongs to a registered Target:
 
-### Step 4 — Consult the Mechanics Registry (mandatory before writing effects)
+```bash
+bun run oracle:report --targets >"$SCRATCHPAD/targets.log" 2>&1; echo "exit=$?"
+awk -v c="<Card Name>" '/^[a-z0-9-]+ +\(/{t=$1} /^ {2}[a-z-]+ +[0-9]+:/{if (index($0,c)>0){split($0,f,":"); print t"  "f[1]}}' "$SCRATCHPAD/targets.log"
+```
 
-`convex/cards/mechanicsRegistry.ts` is the single authority on mechanic names.
-Before writing a single Op or `staticAbilities` string, map every clause of
-the oracle text against it:
+(Extract, never `grep` the log for the name: a state line lists every card in
+that state — one of them is 28k names long, and it lands in the transcript
+whole.)
 
-> **Inside a `/new-set` rollout:** Phase 0's sub-agent **C** already produced a
-> registry snapshot (implemented keywords + `bindingPattern`s, `planned`/absent
-> keywords, the full `EFFECT_OP_REGISTRY` Op list) for the whole set. Reuse it
-> instead of re-reading the registry per card — it's the same file N times
-> otherwise. Re-read only if the rollout has since flipped a row to
-> `implemented` (a cluster shipping its mechanic does exactly that).
+States are `ready` / `quarantine` / `gap-pending` / `hand-tail` / `unclaimed`
+(`scripts/lib/targets.ts` § `coverageVerdict`). `check:targets` reds on two of
+them: **`unclaimed`** — no issue stands behind the card's state, and closing
+that is part of whichever branch you take — and a **migrable `hand-tail:`
+marker**, one on a card whose row is now `ready` (retire the twin, ADR 0114) or
+whose gap has climbed back to the floor (flip it to `compiler-gap:`).
 
-- **Keyword abilities** (CR 702 — flying, trample, protection, rampage N,
-  landwalk, …): the `staticAbilities[]` string must case-insensitively match
-  a registry row's `name`, or its `bindingPattern` for a parametrized keyword.
-  Grep the registry for the keyword name to confirm `status: "implemented"`.
-- **Keyword actions / effect verbs** (CR 701 — destroy, exile, draw, sacrifice,
-  counter, …): the Op you'd use (`EffectOp.op`) must be a row in
-  `EFFECT_OP_REGISTRY` in the same file (`isRegisteredEffectOp`). Grep the
-  registry for the current, authoritative Op list — it grows over time —
-  rather than trusting a stale list in this doc.
+### 2b. Not in the corpus
 
-**If a clause needs a keyword or Op that is `planned` or absent from the
-registry: STOP.** Do not invent a mechanic name, and do not silently reach for
-a `resolve()` closure to route around the gap — that is exactly the failure
-mode the registry exists to prevent (an agent inventing vocabulary). Instead:
+The corpus is pinned (`data/oracle-corpus.pin.json`), so a card printed after
+the pin is absent. Refresh it, recompile, and re-ask §2:
 
-1. Report the gap clearly (which clause, which mechanic is missing).
-2. Open a GitHub issue flagging it (or ask the user if mid-session), and
-3. Land the card as a commented-out stub (per the existing reprint/stub
-   convention) rather than a half-implemented `CardDefinition` — full
-   end-to-end implementation or an explicit deferral, never a silent partial.
+```bash
+bun run oracle:corpus  >"$SCRATCHPAD/corpus.log"  2>&1; echo "exit=$?"
+bun run oracle:compile >"$SCRATCHPAD/compile.log" 2>&1; echo "exit=$?"
+```
 
-### Step 5 — Generate the Effect Script
+A corpus bump moves every state in the lockfile, so it is its own PR, on its
+own issue — never a side effect of one card. If the card is absent and the pin
+is current, the name is wrong: check it against the Scryfall response of §1.
 
-Map each remaining oracle-text clause onto an ordered `effects: EffectOp[]`
-list, reusing the four structural constructs where the clause needs them:
+## 3. `ready` — nothing to author
 
-- **bind** — name a step's result for a later step to read (`bind: "$target"`)
-- **ref** — read a bound object's runtime property (`{ ref: "$target.power" }`)
-  or a declaratively-counted set (`{ count: { zone, filter } }`)
-- **if** — a predefined predicate (boolean-binding test or numeric comparison),
-  never an arbitrary expression
-- **forEach** — iterate a declaratively-selected set (`players` in APNAP
-  order, or `battlefield` permanents, optionally filtered)
+The compiler already produces this card's definition; a hand-written twin
+would be a second authority over one card (ADR 0114). **Do not write one.**
+What is owed is that the definition reaches the two renderings of the
+catalogue, and that the Bot can play it.
 
-Place `effects[]` at the site the ability actually resolves from:
-`CardDefinition.effects` (spell), `ActivatedAbility.effects` (`useStack: true`
-abilities), the triggered-ability `effects`. It is mutually exclusive with
-`resolve()` / `resolveSteps` / `effect` (the shorthand) on the same site —
-combining them fails the catalogue-wide validation sweep
-(`convex/cards/__tests__/effectScripts.test.ts`).
+```bash
+bun run check:index && bun run catalogue:check
+```
 
-#### Step 5b — Falling back to `resolve()` (justification required)
+Both green → the card is already served, and the issue closes with a read-back,
+no diff. `catalogue:check` reds with `compiled ready row(s) have no card-index
+id/rarity` → the row never joined an id; regenerate, never hand-edit:
 
-Only when Step 5's mapping genuinely fails to fit the frozen grammar (not
-merely because an Op is missing — that's the stop-and-issue case in Step 4)
-may the card use `resolve()`. Record why, in two places:
+```bash
+bun run oracle:index   >"$SCRATCHPAD/index.log" 2>&1; echo "exit=$?"   # Scryfall; retry on 503
+bun run catalogue:pack >"$SCRATCHPAD/pack.log"  2>&1; echo "exit=$?"
+bun run check:oracle && bun run catalogue:check && bun run check:index
+```
 
-- A code comment on the ability: `// protocol card: <what makes this
-structurally imperative>`.
-- A line in the PR description restating the same justification.
+**Bot read-back.** ADR 0137 says reachability is computed, but the Bot-play
+sweep is issue #3830, open — nothing writes `botReach` today. So walk the three
+seams by hand over the card's `opsUsed` from §2
+(`.claude/rules/gre-development.md` § Bot reachability): `enumerateMoves`
+(reachable?), the choice surface (can it answer?), `OP_VALUERS` +
+`OP_BENEFICENCE` (does it want to? — the sign fails open to neutral). Declare
+the outcome in the PR.
 
-A `resolve()` closure with no recorded justification is a review blocker.
-When falling back, use `SpellContext` primitives: `dealDamage`, `destroy`,
-`destroyAll`, `gainLife`, `loseLife`, `exile`, `modifyPower`,
-`modifyToughness`, etc. — the same primitive-reuse discipline
-(`.claude/rules/gre-development.md` § Primitive reuse) applies before adding a
-new one.
+The diff here is `data/**` artefacts only: no `convex/cards/sets/**`, no
+`convex/gre/**`, so **no preset scenario is owed** — say "none owed" under the
+heading, which is what `land` reads.
 
-### Step 6 — Mana cost conversion
+**Already hand-written AND `ready`?** That is a `migration` gap, not this
+skill: the hand-written twin is retired under ADR 0114 through the issue
+`gaps:sync` files (`Migration:` prefix). Say so and stop.
 
-Scryfall format `{3}{W}{W}` → `{ X: 3, W: 2 }`:
+## 4. `quarantine` — the compiler read it, the engine owes something
 
-- `{N}` → `X: N` (generic/colorless)
-- `{W}` → `W: count`, same for U, B, R, G
-- `{C}` → `C: count` (true colorless)
+The card parsed; a `QuarantineReason` withholds it (`planned-op`,
+`planned-mechanic`, `ungrantable-keyword`, `validate-effect-script`,
+`smoke-scenario`, `wire-projection`, `not-json`). The work is that class, for
+every card carrying it — never this one card:
 
-### Step 7 — Generate code
+- `planned-op` → `/new-op`, which ends at the rule that emits it.
+- `planned-mechanic` / `ungrantable-keyword` → the mechanic, implemented WHOLE
+  (`.claude/rules/gre-development.md`), on its `Quarantine (mechanic):` issue.
+- `smoke-scenario` → a card-dependent form owed a `GOLDEN_FIXTURES` row
+  (ADR 0105 § 7.1), on its `Quarantine (scenario):` issue.
+- `validate-effect-script` / `wire-projection` / `not-json` → the compiled
+  definition is well-formed to the grammar and wrong to the ENGINE: it fails
+  validation, does not survive `projectPublicState`, or is not plain JSON.
+  `quarantineClass` buckets all three under the same `scenario` claim kind, so
+  they share the `Quarantine (scenario):` issue shape — but the fix is in the
+  lowering or the engine surface, not in a fixture.
 
-Present the complete `CardDefinition` export for `convex/cards/sets/{set}.ts`.
+Find the issue that already stands behind the class before opening anything —
+`gaps:sync` files these idempotently and writes the number back:
 
-Follow existing patterns in the file (read it first to match style).
+```bash
+jq -r --arg k "<reason text>" '.claims[] | select(.key|contains($k))' data/grammar-gaps.json
+```
 
-### Step 7b — Uncomment matching reprints (mandatory)
+**Hand-writing around a quarantine is not an exit.** A definition built on a
+`planned` keyword reds Guard A, and one built on a missing Op cannot be written
+at all — that is the point of the state.
 
-After the new `CardDefinition` is in place, search every other set file in
-`convex/cards/sets/` for `CardPrint` stubs whose `definitionId` matches the
-new card's `id`. Reprints are stored as commented blocks like:
+## 5. `unparsed`, gap at or above the floor — the work is the RULE
+
+This is the case ADR 0137 exists for: the card is one of N the same rule
+unlocks, and writing it by hand buys one card and leaves the other N-1.
+
+1. **Attribute the fragment** — §2 printed it, §2a turned it into a gap key
+   and read its leverage off `oracle:report --gap`.
+2. **Find or lodge the gap issue.** `data/grammar-gaps.json` holds the filed
+   claims (`ops` rows for the Op census, `claims` rows for the other kinds).
+   Nothing there → run `bun run gaps:sync --dry-run` and read the computed
+   plan. `--dry-run` writes nothing, but run it **from the primary checkout**
+   anyway, never a worktree: drop the flag by accident there and it commits the
+   allowlist and pushes `HEAD` onto the base branch from its cwd. Still nothing
+   → open the issue by hand, titled
+   `Grammar Gap: <key>`, labelled `ready-for-agent` + `area:mechanics`,
+   parented on the Op-gap umbrella issue #3972 for an Op gap or PRD issue #3820
+   otherwise, with a `## Target files` section — the queue planner runs an
+   issue without one SOLO.
+3. **Hand the card to `/grammar-rule`** on that issue. The card graduates as
+   one of the rule's `ready` delta, and the rule is what the PR is measured by.
+
+**`compiler-gap:` is not a shortcut past this.** The marker means "the grammar
+still owes this rule", and it is legitimate only for a card a Target needs
+BEFORE its scheduled rule lands — an exception argued in the PR, not a default.
+Its shape is strict (`scripts/lib/compiler-gap-markers.ts`), it sits in the
+comment paragraph directly above the card's `export const … : CardDefinition`
+anchor, and it names the OPEN gap issue:
 
 ```ts
-// export const animateWallLeb: CardPrint = {
-//     printId: "5c5b4738-20bb-465d-b67e-c6146dce9d0b",
-//     definitionId: "d5c83259-9b90-47c2-b48e-c7d78519e792", // animateWall (stub)
-//     setCode: "leb",
-// };
+// compiler-gap: <the exact Oracle fragment> (#<grammar gap issue>)
 ```
 
-For every match:
+`check:targets` keeps it honest in both directions: the marker goes stale when
+the card compiles, and a `hand-tail:` marker whose gap climbs back to the floor
+must be flipped to this one.
 
-1. Uncomment the entire block (remove the leading `// ` from each line).
-2. Drop the trailing ` (stub)` annotation on the `definitionId` line.
+## 6. Every residual gap below the floor — the hand tail
 
-Quick locator:
+The grammar will never pay for this card, so it is hand-written for good. A
+protocol (`resolve()`) card is hand tail by construction.
 
-```sh
-grep -rn "definitionId: \"<NEW_CARD_ID>\"" convex/cards/sets/
+### 6a. The marker and its issue
+
+`handTailFiling` in `data/targets.json` is `false` (issue #3837), so `gaps:sync`
+COMPUTES the hand-tail filings and reports them without filing. Read the plan
+from the primary checkout, then open the issue yourself with the same shape —
+`Hand Tail: <Card Name>`, labels `ready-for-agent` + `area:cards` + `hand-tail`,
+body naming the fragment, each residual gap's leverage and the floor:
+
+```bash
+bun run gaps:sync --dry-run >"$SCRATCHPAD/gaps.log" 2>&1; echo "exit=$?"; grep -n "hand-tail" "$SCRATCHPAD/gaps.log"
 ```
 
-This keeps reprint coverage in sync with implementation: as soon as a
-`CardDefinition` becomes real, every print that references it goes live in
-the registry without a separate follow-up.
+The marker goes in the comment paragraph directly above the anchor and names
+that issue, which the card's own PR closes:
 
-### Step 7c — Frontend wiring analysis (mandatory)
-
-A card correct in the GRE can still be dead in the UI: the client never sees
-`GameState`, only the output of **view reducers** that can silently drop a
-field the card's affordance depends on. This is a recurring bug class — the
-card passes every server-side test (GRE unit, wire format, DSL smoke) while no
-affordance appears on the board. Walk the reducers before considering the card
-done (`.claude/rules/gre-development.md` § Frontend wiring analysis has the
-full table):
-
-1. **Activation-cost affordability.** If the card has an `activatedAbility`
-   whose `cost` gates on player/board state (`exileFromGraveyard`, `life`,
-   `removeCounter`, or a `canActivate` predicate), confirm
-   `buildTriggerStateView` (`src/lib/card-utils.ts`) carries the field the gate
-   reads and that `getStackAbilities` has a matching gate. The catalogue sweep
-   `src/lib/__tests__/activation-affordability.catalogue.test.ts` covers the
-   `exileFromGraveyard`/`life`/`removeCounter` shapes automatically — reusing
-   one needs no new frontend test. A **brand-new cost shape** must be added to
-   that sweep's `Shape` union AND gated in `getStackAbilities`.
-2. **New card-instance field or `TargetRequirement.type`.** Confirm
-   `projectPublicState` preserves it (add a wire-format test) and, for a new
-   target type, run the full target-type table in the rule file.
-3. Any SURFACE test you add MUST drive the assertion **through the reducer**
-   (`buildTriggerStateView` / `projectPublicState`) — a hand-built view/state
-   masks a dropped field and does not count.
-
-### Step 8 — Refresh the card-index lockfile (mandatory)
-
-`data/card-index.json` (ADR 0041) is the committed index of every implemented
-card and the only thing the worklist importer (`list-to-cards.mjs`) dedups
-against. It does **not** auto-update — adding a card leaves it stale until you
-regenerate it from the registry:
-
-```sh
-bun run scripts/backfill-card-index.ts
+```ts
+// hand-tail: <the exact Oracle fragment> (#<hand-tail issue>)
 ```
 
-(Incremental and idempotent: existing entries are preserved, only missing
-scryfallIds are fetched — adding one card costs one Scryfall request, not a
-full-catalogue refetch. To purge **pollution** (indexed-but-not-implemented
-entries), which the additive backfill can't remove, add `--prune`.)
+A well-formed marker is also what keeps the filing idempotent the day
+`handTailFiling` flips on — a marked card is settled and is never filed again.
+**`compiler-gap:` here would claim a debt the grammar does not have**, which
+below the floor is false, and `check:targets` reds on it.
 
-**Never reset the lockfile to `[]` first.** It clears pollution, but it also
-destroys the ~1400 `source: "compiled"` rows — written by
-`oracle-index-backfill.ts`, not by this script, which therefore cannot rebuild
-them. `--prune` removes exactly the rows the guard flagged and nothing else
-(it shares the guard's own `isPollutionEntry`).
+### 6b. Write the definition
 
-The drift guard `bun run check:index` (part of `check:all`) fails when the
-lockfile is out of sync — both directions: implemented-but-not-indexed
-(stale → incremental backfill above) and indexed-but-not-implemented
-(pollution → `--prune`). It prints the right command for whichever fired.
-Never hand-edit the lockfile.
+Types from `convex/cards/types.ts`. Everything below is the pre-existing card
+discipline, unchanged:
 
-### Step 8b — Token / emblem art (mandatory when the card makes one)
+- **Effect Script by default** (ADR 0045): `effects: EffectOp[]` at the site
+  the ability resolves from (`CardDefinition.effects`,
+  `ActivatedAbility.effects`, the triggered ability's `effects`), mutually
+  exclusive with `resolve()` / `resolveSteps` / `effect` on that site.
+- **The Mechanics Registry is the name authority**
+  (`convex/cards/mechanicsRegistry.ts`): every `staticAbilities[]` string
+  resolves to a row with `status: "implemented"` (or its `bindingPattern` for
+  a parametrized keyword), every Op is a row in `EFFECT_OP_REGISTRY`. A
+  `planned` or absent one is stop-and-open-an-issue (`/new-op`), never an
+  invented name and never a `resolve()` routing around it.
+- **`resolve()` needs `// protocol card: <why>`** on the ability and the same
+  justification in the PR. A missing Op is not a justification.
+- **Mana cost**: `{3}{W}{W}` → `{ X: 3, W: 2 }`; `{C}` → `C`.
+- **CR**: print the rule, never recall it — `bun run cr <id>` — and every `CR`
+  line owes `bun run cr:ledger confirm <file>:<line>`, one per call.
+- **One Oracle line = ONE `TriggeredAbility`** with `event: GameEventType[]`
+  (CR 603.2).
+- **Token / emblem art is setup, not polish**: a shared spec from
+  `convex/cards/sharedTokens.ts`, else `node scripts/fetch-token-prints.mjs`,
+  else an explicit `imagePrintId`; an emblem's goes on its `EmblemDefinition`.
+  `tokenPrintLookup.test.ts` / `emblemArt.test.ts` red without it.
+- **Uncomment every matching reprint stub** — `grep -rn "definitionId:
+\"<NEW_CARD_ID>\"" convex/cards/sets/`, uncomment the whole `CardPrint` block,
+  drop the trailing ` (stub)`.
+- **Frontend wiring walk** (mandatory, `.claude/rules/gre-development.md`): a
+  new activation-cost shape goes into
+  `src/lib/__tests__/activation-affordability.catalogue.test.ts`'s `Shape`
+  union AND is gated in `getStackAbilities`; a new instance field or
+  `TargetRequirement.type` is proven through `projectPublicState` /
+  `buildTriggerStateView`, never a hand-built view.
+- **Bot reachability walk**, as in §3.
 
-If the card creates a **token** (`createToken`) or an **emblem**
-(`{ op: "emblem" }`), wire its art — a missing image renders a bare
-placeholder (and an emblem trigger once crashed the stack row):
+### 6c. Artefacts and gates
 
-- **Token.** Reuse a `convex/cards/sharedTokens.ts` spec if one fits (it
-  already carries `imagePrintId`). Otherwise regenerate the print lockfile so
-  the reverse-link resolves the art:
-    ```sh
-    node scripts/fetch-token-prints.mjs --all   # or the specific set file
-    ```
-    or pin `imagePrintId` on the spec. A token made from a `resolve()` closure
-    is invisible to the DSL art guard — pin `imagePrintId` by hand. The guard
-    `convex/cards/__tests__/tokenPrintLookup.test.ts` (#1305) fails CI on any
-    DSL `createToken` with no art.
-- **Emblem.** Set `imagePrintId` on the `EmblemDefinition` in
-  `convex/cards/emblems.ts` — the Scryfall emblem print (`t:emblem`, layout
-  `emblem`; the card's own set where present, else a same-characteristics
-  substitute). `convex/cards/__tests__/emblemArt.test.ts` fails CI on a
-  registered/created emblem with no `imagePrintId`, an unregistered id, or a
-  triggered ability missing `oracleText`.
+```bash
+bun scripts/backfill-card-index.ts   # incremental; --prune only for pollution
+bun run catalogue:pack
+bun run check:index && bun run catalogue:check && bun run check:oracle && bun run cr:lint
+bunx vitest run convex/cards/__tests__/compilerRoundTrip.test.ts convex/cards/__tests__/effectScripts.test.ts
+```
 
-## Validation checklist
+Never reset `data/card-index.json` to `[]` — it destroys the ~1400
+`source: "compiled"` rows this script cannot rebuild. Never hand-edit a
+generated file; regenerate it.
 
-- [ ] ManaCost matches Scryfall oracle
-- [ ] Types and subtypes match type_line
-- [ ] Power/toughness match (creatures only)
-- [ ] Keywords mapped to `staticAbilities[]`, cross-checked against the Mechanics Registry
-- [ ] TargetRequirement set for targeted spells
-- [ ] Effect written as `effects: EffectOp[]` (DSL-first); every Op/keyword used is `status: "implemented"` in `EFFECT_OP_REGISTRY` / the Mechanics Registry
-- [ ] `resolve()` used ONLY with a recorded justification comment (`// protocol card: …`) — otherwise absent
-- [ ] **Guard C (issue #2701): the card round-trips through the Oracle compiler, or its doc comment names the gap.** Run `bunx vitest run convex/cards/__tests__/compilerRoundTrip.test.ts`. If it reds on the new card, the failure message quotes the exact Oracle fragment grammar v0 could not consume — put that fragment in a `// compiler-gap: <fragment> (#issue)` line in the comment paragraph **directly above** the card's `export const … : CardDefinition` anchor, referencing the open PRD #2693 slot issue that would close it (the trigger slot, the static slot, …; open one if none fits). The fragment is what ranks the next grammar rule, so quote the Oracle span, never "the compiler can't do this card". The baseline is closed to new entries — a new card is never parked there.
-- [ ] `bun run test convex/cards/__tests__/effectScripts.test.ts convex/cards/__tests__/effectScriptSmoke.test.ts convex/cards/__tests__/mechanicsRegistry.test.ts` passes with no hand-edits to those files (the catalogue-wide sweeps pick the new card up automatically)
-- [ ] `id` == the card's `identifiers.scryfallId` from `data/json/<SET>.json` (NOT a generated UUID)
-- [ ] All matching `CardPrint` stubs in `convex/cards/sets/<code>/<colour>.ts` uncommented (Step 7b)
-- [ ] Frontend wiring walked (Step 7c): any affordability/target/instance-field the card adds is preserved through `buildTriggerStateView` / `projectPublicState`, and a new cost shape (if any) is added to the affordability catalogue sweep + gated in `getStackAbilities`
-- [ ] `data/card-index.json` refreshed via incremental `backfill-card-index.ts` (Step 8) — `bun run check:index` passes
-- [ ] If the card makes a token/emblem (Step 8b): `imagePrintId` wired (shared spec, lockfile refresh, or explicit) — `tokenPrintLookup.test.ts` / `emblemArt.test.ts` pass
-- [ ] **Any issue this skill opens carries a `## Target files` section** — a plain bullet list of the module/glob paths the work touches (for a card: its `convex/cards/sets/<code>/<colour>.ts`, plus any engine file a capability gap forces). It is scheduling metadata the queue planner parses (`scripts/lib/queue-plan.ts`), not spec: without it the planner refuses to guess the blast radius and runs the issue SOLO, closing the batch around it — measured at 162 issues deferred behind one such ticket. Omit append-only registration points (`convex/cards/index.ts`, `data/card-index.json`); `land`'s rebase absorbs those by design. A WRONG path is worse than a missing one, so widen rather than guess.
-- [ ] **Every issue cut from a `prd`-labelled umbrella carries the native sub-issue edge** — `gh issue edit <child> --parent <umbrella>`. Applies whenever this skill publishes a PRD and splits work out of it (capability gap → mechanic slice + card slice), and whenever an issue is turned INTO a PRD: the children get wired in the same pass, never left for later. The queue planner (`bun run queue:plan`, which `/next-issue` consumes) sorts by `parent.number ?? number` (oldest **lineage** first) off its cheap Stage-1 list call, so a child with no edge sorts on its own number — a slice cut today from a PRD opened months ago lands at the BACK of the queue and its umbrella never converges. The edge is also what `subIssuesSummary` reads, the only signal that closes the PRD when its last slice lands; a prose `Parent: #N` line is for humans and is NOT the sort key. Verify with `gh issue view <umbrella> --json subIssuesSummary` — `total` must equal the number of children just cut. Only wire `--parent` to a genuine umbrella (carries `prd`, holds no implementation work of its own); for a slice split out of an ordinary WORK ticket use `--add-blocked-by` / `--add-blocking` and leave `parent` unset.
-- [ ] **Every dependency between the issues cut (card slice blocked by its mechanic slice, …) exists twice** — native `gh issue edit <n> --add-blocked-by <m>` AND a `## Blocked by` body line — and the parity read-back of `/new-qa-issue` Step 8b′ shows no `DRIFT`. Body-only edges look like ready work on the board; native-only edges get picked and bounced by the planner.
+Guard C reds without the §6a marker, and the baseline is **closed to new
+entries** — a new card is never parked in
+`convex/cards/__tests__/compilerRoundTrip.baseline.ts`.
 
-The deck builder's card list is DERIVED in the client from the hydrated card
-registry — the colour-split set modules `convex/cards/sets/<code>/<colour>.ts`
-plus the compiled catalogue artifact (see `convex/cards/searchIndex.ts`, issue
-#3054). So a new card appears in the builder as soon as the client loads a
-bundle that carries its module — a reload, not a Convex deploy — and there is
-no sync step. The **lockfile** is the one artifact that needs the explicit
-refresh in Step 8.
+A `convex/cards/sets/**` diff owes a **`## Preset scenario`** ```json fence
+(ADR 0044) — `land` refuses the merge without one and seeds it post-merge.
+
+## 7. The PR body
+
+````markdown
+Closes #<issue>
+
+## Compile state
+
+`<Card>` — lockfile `<state>`, gaps: `<fragment>` (attribution `<slot › path › span>`, corpus <N>, floor <F>).
+Branch taken: <§3 ready | §4 quarantine | §5 grammar rule | §6 hand tail> — <why that branch and no other>.
+
+## What changed
+
+<artefacts regenerated | the rule's ticket | the hand-written definition + its `hand-tail:` marker>
+
+## Census read-back
+
+`check:index` · `catalogue:check` · `check:oracle` · `cr:lint` — <each: green / what it said>.
+Coverage state (`oracle:report --targets`): <before> → <after>.
+
+## Bot reachability
+
+<three-seam walk over the card's Ops — `enumerateMoves`, the choice surface, `OP_VALUERS` + `OP_BENEFICENCE`>.
+
+## Preset scenario
+
+```json
+{ "label": "<card> — <what it shows>", "spec": { "cards": [ … ] } }
+```
+````
+
+"none owed" in that last section for an artefact-only diff (§3) — it is what
+`land` reads, and the reason must be there, not implied.
+
+## Checklist
+
+- [ ] §2 run, its output quoted in the PR — the branch is the lockfile's, not a judgement
+- [ ] `ready` → no `CardDefinition` written; artefacts green; migration named if a twin exists
+- [ ] `quarantine` → the class's issue found or filed; no card hand-written around it
+- [ ] Gap ≥ floor → `/grammar-rule` on the gap issue; a `compiler-gap:` card, if any, argued in the PR
+- [ ] Gap < floor → `hand-tail: <fragment> (#issue)` above the anchor, issue opened with the `gaps:sync` shape
+- [ ] Hand-written: id = earliest paper printing; registry consulted; `resolve()` justified; reprints uncommented; token/emblem art wired
+- [ ] Frontend wiring and Bot seams walked, both declared in the PR
+- [ ] `check:index` · `catalogue:check` · `check:oracle` · `cr:lint` green; no generated file hand-edited
+- [ ] Any issue this skill opens carries `## Target files` and its native parent/blocked-by edge (a body line alone is not the sort key)
