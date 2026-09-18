@@ -72,9 +72,17 @@ interface Accumulator {
     compiledTriggeredAbilities: CompiledTriggeredAbility[];
     compiledStaticEffects: CompiledStaticEffect[];
     entersTapped: boolean;
-    entersWithCounters: { type: string; count: number | "kicker" }[];
-    /** CR 702.33e — how each kicker-counted entry rider reads the tally. */
-    kickerRiders: { per: "kicked" | "each-kick"; line: string }[];
+    entersWithCounters: {
+        type: string;
+        count: number | "kicker" | { additionalCostPaid: string };
+    }[];
+    /** CR 702.33e — how each kicker-counted entry rider reads the tally, and
+     *  (CR 702.33f) which one kicker a "with its {A} kicker" rider names. */
+    kickerRiders: {
+        per: "kicked" | "each-kick";
+        line: string;
+        kickerId?: string;
+    }[];
     /** CR 702.33a — the card's kicker costs, lowered BEFORE every other line
      *  so a line that reads a kicker back can name it (see `lowerCard`). */
     kickers?: KickerCost[];
@@ -344,7 +352,8 @@ function lowerLine(
             const lowered = lowerStaticClause(
                 ir.clause,
                 parsed.line,
-                (suffix) => mintId(acc, `${slug}-${suffix}`)
+                (suffix) => mintId(acc, `${slug}-${suffix}`),
+                acc.kickers
             );
             if (!lowered.ok) return lowered.reason;
             const out = lowered.lowered;
@@ -375,15 +384,28 @@ function lowerLine(
             if (out.entersWithCounters !== undefined)
                 acc.entersWithCounters.push(out.entersWithCounters);
             if (out.kickerCounters !== undefined) {
-                // Same-type entries SUM, so a second kicked rider would add to
-                // the first silently. No printed card has two; reading two is
-                // a sign a line was misread, as a marker named twice is.
-                if (acc.kickerRiders.length > 0)
+                // Same-type entries SUM, so a second rider reading the SAME
+                // payment would add to the first silently — a sign a line was
+                // misread, as a marker named twice is. The one printed shape
+                // with two is CR 702.33f's: each rider names a DIFFERENT one
+                // of the card's kickers ("with its {1}{U} kicker" / "with its
+                // {B} kicker", the Apocalypse Volvers), so each reads its own
+                // payment record and the sums are the printed ones.
+                const kickerId = out.kickerCounters.kickerId;
+                if (
+                    acc.kickerRiders.some(
+                        (r) =>
+                            r.kickerId === undefined ||
+                            kickerId === undefined ||
+                            r.kickerId === kickerId
+                    )
+                )
                     return "a card declares a kicked entry rider twice";
                 acc.entersWithCounters.push(...out.kickerCounters.counters);
                 acc.kickerRiders.push({
                     per: out.kickerCounters.per,
                     line: parsed.line,
+                    ...(kickerId !== undefined ? { kickerId } : {}),
                 });
             }
             if (out.staticAbility !== undefined) {
@@ -612,7 +634,9 @@ export function lowerCard(
     // 0 or N, which that tally gives only for a lone, single kicker: a second
     // kicker or Multikicker would multiply the counters. "For each time it
     // was kicked" is the tally itself, and needs only a kicker to count.
-    const rider = acc.kickerRiders[0];
+    // A rider naming its kicker (CR 702.33f) reads that kicker's own payment
+    // record, already resolved against this card's kicker line in lowering.
+    const rider = acc.kickerRiders.find((r) => r.kickerId === undefined);
     if (rider !== undefined) {
         const kickers = acc.kickers ?? [];
         if (kickers.length === 0)

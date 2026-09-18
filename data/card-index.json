@@ -1156,6 +1156,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Anavolver",
+        "scryfallId": "5e685a8c-fba6-495f-ac0f-1ff5456b22d0",
+        "oracleId": "03a4cbe2-cf35-4c2c-b035-666f994ffd09",
+        "firstSet": "apc",
+        "firstPrintId": "5e685a8c-fba6-495f-ac0f-1ff5456b22d0",
+        "firstPrintSet": "apc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Ancestral Recall",
         "scryfallId": "70e7ddf2-5604-41e7-bb9d-ddd03d3e9d0b",
         "oracleId": "550c74d4-1fcb-406a-b02a-639a760a4380",
@@ -6432,6 +6442,16 @@
         "source": "compiled"
     },
     {
+        "name": "Cetavolver",
+        "scryfallId": "69063cc2-4f6e-4cce-bb09-ccd57b69b993",
+        "oracleId": "3ae86510-f828-48f8-adab-759df4b5544e",
+        "firstSet": "apc",
+        "firstPrintId": "69063cc2-4f6e-4cce-bb09-ccd57b69b993",
+        "firstPrintSet": "apc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Chain Lightning",
         "scryfallId": "b5883762-ca0a-4932-8d2a-41a45796a5f8",
         "oracleId": "8785f42f-87b9-4a0a-89ce-ea423649ba9c",
@@ -9699,6 +9719,16 @@
         "firstPrintId": "fb9cd7d9-8aad-4607-890c-9c8efe016a92",
         "firstPrintSet": "apc",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Degavolver",
+        "scryfallId": "36a52c3a-2f58-4b4d-b3c6-f9a08e25c7de",
+        "oracleId": "9431c81f-7b71-4c5d-a63c-1b5aba03601b",
+        "firstSet": "apc",
+        "firstPrintId": "36a52c3a-2f58-4b4d-b3c6-f9a08e25c7de",
+        "firstPrintSet": "apc",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -30292,6 +30322,16 @@
         "firstSet": "inv",
         "firstPrintId": "7e6e2e49-7bde-43c1-8caf-43d237dfc052",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Pouncing Wurm",
+        "scryfallId": "8e48a2f3-9c30-4187-868e-33dbf5e279fc",
+        "oracleId": "3e299484-32e9-4646-9032-062d08a70bb9",
+        "firstSet": "plc",
+        "firstPrintId": "8e48a2f3-9c30-4187-868e-33dbf5e279fc",
+        "firstPrintSet": "plc",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Powder Keg",

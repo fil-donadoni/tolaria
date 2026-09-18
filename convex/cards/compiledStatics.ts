@@ -142,7 +142,38 @@ export interface CompiledSpellFilter {
  */
 export type CompiledStaticScope =
     | { readonly filter: PermanentFilter; readonly appliesTo?: never }
-    | { readonly appliesTo: "host"; readonly filter?: never };
+    | { readonly appliesTo: "host"; readonly filter?: never }
+    | CompiledKickedSelfScope;
+
+/**
+ * The permanent ITSELF, gated on its own kicker (CR 702.33e/f, issue #3864) —
+ * "If this creature was kicked[ with its {A} kicker], it enters with … and with
+ * <keyword>" (Duskwalker, the Apocalypse Volvers).
+ *
+ * CR 614.1c: the ability the permanent "enters with" is part of how it enters,
+ * so from that instant it is simply one of the permanent's own abilities —
+ * which is what a self-scoped continuous grant models. The gate reads a fact
+ * FIXED as the spell was cast (CR 601.2b) and snapshotted onto the permanent
+ * the instant it entered (`wasKicked` / `kickerPayments`, `finalizeSpellResolution`),
+ * and cleared on every CR 400.7 zone change, so it answers the same at every
+ * re-derivation and a reanimated copy reads unkicked. It is the predicate the
+ * hand-written catalogue writes as a closure (`target.id === source.id &&
+ * target.wasKicked === true`), made JSON.
+ *
+ * Modelled as the permanent's OWN static grant, exactly as the hand-written
+ * closure is — not as an effect timestamped at entry. The two part only where
+ * a layer-6 ability-loss effect (Humility) is already on the battlefield, or
+ * the permanent later becomes a copy of something else: there the grant goes
+ * with the permanent's abilities, where a CR 613.7 timestamp would keep it.
+ *
+ * `kickerId` absent: any kicker paid ("if this creature was kicked"). Present:
+ * that ONE kicker's payment record (CR 702.33f — "with its {1}{U} kicker").
+ */
+export interface CompiledKickedSelfScope {
+    readonly appliesTo: "self-if-kicked";
+    readonly kickerId?: string;
+    readonly filter?: never;
+}
 
 /** The continuous static effects the compiler can emit (CR 611). Closed.
  *
@@ -173,11 +204,13 @@ export type CompiledStaticEffect =
      * card's own `grantTemplates[]`, read by id), so the descriptor carries
      * only the recipient half.
      */
-    | {
+    | ({
           readonly kind: "activated-grant";
-          readonly appliesTo: "host";
           readonly abilityId: string;
-      }
+      } & (
+          | { readonly appliesTo: "host"; readonly filter?: never }
+          | CompiledKickedSelfScope
+      ))
     /**
      * CR 508.1c — "Enchanted creature can't attack." / CR 509.1b — "…can't
      * block." Unconditional, so the rebuilt predicate is a constant `false`.
@@ -303,6 +336,14 @@ function scopePredicate(
     scope: CompiledStaticScope
 ): StaticKeywordGrant["applies"] {
     if (scope.appliesTo === "host") return AURA_AFFECTS_HOST;
+    if (scope.appliesTo === "self-if-kicked") {
+        const kickerId = scope.kickerId;
+        return (target, source) =>
+            target.id === source.id &&
+            (kickerId === undefined
+                ? target.wasKicked === true
+                : (target.kickerPayments?.[kickerId] ?? 0) >= 1);
+    }
     const filter = scope.filter;
     return (target, source, ctx) => filterMatches(filter, target, source, ctx);
 }
@@ -330,7 +371,7 @@ export function resolveCompiledStatic(
         case "activated-grant":
             return {
                 kind: "activated-grant",
-                applies: AURA_AFFECTS_HOST,
+                applies: scopePredicate(descriptor),
                 abilityId: descriptor.abilityId,
             };
         case "attack-restriction":

@@ -63,8 +63,19 @@ import type { PermanentView, StaticEffectStateView } from "./types";
  *  `CardDefinition` type graph in (mirrors `resolveEntersTapped`'s
  *  parameter). */
 export interface EntersWithDeclaration {
-    counters?: { type: string; count: number | "X" | "kicker" | "sunburst" }[];
+    counters?: { type: string; count: EntersWithCount }[];
 }
+
+/** The count vocabulary of one entry-counter declaration. See
+ *  `CardDefinition.entersWith` for each member; `{ additionalCostPaid }` is
+ *  the PER-KICKER twin of `"kicker"` (CR 702.33f), named after the Effect
+ *  Script value that reads the same payment record. */
+export type EntersWithCount =
+    | number
+    | "X"
+    | "kicker"
+    | "sunburst"
+    | { readonly additionalCostPaid: string };
 
 /** Cast-time values the count vocabulary may read off the entering object.
  *
@@ -88,6 +99,11 @@ export interface EntersWithCastValues {
     /** CR 702.33e — how many times the spell was kicked (0/1 for a plain
      *  Kicker, 0..N for Multikicker — Everflowing Chalice). */
     kickerCount?: number;
+    /** CR 702.33f — the per-kicker-id payment record (`KickerPayments`), for a
+     *  card with two or more Kicker costs whose entry counters differ by WHICH
+     *  kicker was paid (the Apocalypse Volvers). The tally above cannot say
+     *  that. Absent on the same uncast paths `kickerCount` is. */
+    kickerPayments?: Readonly<Record<string, number>>;
     /** CR 702.44b — the per-colour mana ACTUALLY spent to cast the spell whose
      *  resolution is putting this permanent onto the battlefield, as captured
      *  by `manaSpentDelta` (CR 106.10) at the cast-commit step and carried on
@@ -137,17 +153,29 @@ export function resolveEntersWithCounters(
                 ? Math.max(0, cast.chosenX ?? 0)
                 : entry.count === "kicker"
                   ? Math.max(0, cast.kickerCount ?? 0)
-                  : // CR 702.44a — Sunburst: "it enters with a charge counter
-                    // on it for each color of mana spent to cast it" (a +1/+1
-                    // counter instead if the object is entering as a creature,
-                    // ignoring type-changing effects — which is why the counter
-                    // TYPE is declared per card and this vocabulary word only
-                    // supplies the COUNT). CR 702.44b restricts it to a
-                    // resolving spell, which is exactly the one entry site that
-                    // can pass a non-empty `manaSpentToCast`.
-                    entry.count === "sunburst"
-                    ? distinctColorsSpent(cast.manaSpentToCast)
-                    : entry.count;
+                  : typeof entry.count === "object"
+                    ? // CR 702.33f — "if this creature was kicked with its
+                      // {1}{U} kicker": how many times THAT kicker was paid,
+                      // read by id. An unknown id reads 0 (fail-closed, the
+                      // `kickerPaidCount` rule in `gre/kicker.ts`, not
+                      // imported here to keep this module frontend-light).
+                      Math.max(
+                          0,
+                          cast.kickerPayments?.[
+                              entry.count.additionalCostPaid
+                          ] ?? 0
+                      )
+                    : // CR 702.44a — Sunburst: "it enters with a charge counter
+                      // on it for each color of mana spent to cast it" (a +1/+1
+                      // counter instead if the object is entering as a creature,
+                      // ignoring type-changing effects — which is why the counter
+                      // TYPE is declared per card and this vocabulary word only
+                      // supplies the COUNT). CR 702.44b restricts it to a
+                      // resolving spell, which is exactly the one entry site that
+                      // can pass a non-empty `manaSpentToCast`.
+                      entry.count === "sunburst"
+                      ? distinctColorsSpent(cast.manaSpentToCast)
+                      : entry.count;
         if (n <= 0) continue;
         delta[entry.type] = (delta[entry.type] ?? 0) + n;
     }

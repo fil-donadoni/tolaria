@@ -30,7 +30,8 @@ import { expandFadingVanishing } from "../cards/abilities/fadingVanishing";
 import { expandHideaway } from "../cards/abilities/hideaway";
 import { expandKeywordTriggers } from "../cards/abilities/keywordTriggers";
 import type { CompiledStaticEffect } from "../cards/compiledStatics";
-import type { CardDefinition } from "../cards/types";
+import type { CardDefinition, KickerCost } from "../cards/types";
+import { kickedValue } from "./lowerEffects";
 import { deriveCastPermissionId } from "./castPermissionId";
 import type {
     HostNoun,
@@ -81,9 +82,12 @@ export interface LoweredStatic {
     readonly kickerCounters?: {
         readonly counters: readonly {
             readonly type: string;
-            readonly count: "kicker";
+            readonly count: "kicker" | { readonly additionalCostPaid: string };
         }[];
         readonly per: "kicked" | "each-kick";
+        /** CR 702.33f — the one kicker a "with its {A} kicker" rider reads;
+         *  absent when the rider reads the tally. */
+        readonly kickerId?: string;
     };
     readonly staticAbility?: string;
     /** CR 702.1 — granted, but only ever implemented for a PRINTED keyword. */
@@ -160,7 +164,10 @@ export function isDefinitionLevelKeyword(keyword: string): boolean {
 export function lowerStaticClause(
     clause: StaticClauseIR,
     oracleText: string,
-    nextId: (suffix: string) => string
+    nextId: (suffix: string) => string,
+    /** CR 702.33a — the card's kicker costs, ids assigned (`lowerKickers`),
+     *  for a line that reads one back. Empty on a card with no kicker. */
+    kickers: readonly KickerCost[] = []
 ): LowerStaticResult {
     switch (clause.kind) {
         case "pt-buff":
@@ -251,28 +258,7 @@ export function lowerStaticClause(
                 },
             };
         case "kicked-enters-with":
-            // CR 122.1 — "a +1/+1 counter" is one; zero is not a printed count
-            // and would lower to a rider that places nothing.
-            if (clause.counters.count < 1)
-                return {
-                    ok: false,
-                    reason: "an entry rider that places no counters",
-                };
-            return {
-                ok: true,
-                lowered: {
-                    kickerCounters: {
-                        counters: Array.from(
-                            { length: clause.counters.count },
-                            () => ({
-                                type: clause.counters.type,
-                                count: "kicker" as const,
-                            })
-                        ),
-                        per: clause.per,
-                    },
-                },
-            };
+            return lowerKickedRider(clause, kickers, nextId);
         case "does-not-untap":
             return {
                 ok: true,
@@ -288,6 +274,121 @@ export function lowerStaticClause(
             };
         }
     }
+}
+
+/**
+ * CR 614.1c / 702.33e — a kicked entry rider: its counters, and whatever the
+ * "and with …" tail grants the permanent itself.
+ *
+ * The counters are one entry per printed counter, because `entersWith` SUMS
+ * same-type entries (the catalogue's own encoding — Duskwalker, Llanowar
+ * Elite): `"kicker"` reads the times-kicked tally, `{ additionalCostPaid }`
+ * the one named kicker's payment record (CR 702.33f — the Apocalypse Volvers).
+ * The grants are self-scoped descriptors gated on the SAME kicker
+ * (`self-if-kicked`, `cards/compiledStatics.ts`), so a Volver kicked with only
+ * its {R} kicker gets first strike and not the {1}{B} kicker's ability.
+ */
+function lowerKickedRider(
+    clause: Extract<StaticClauseIR, { kind: "kicked-enters-with" }>,
+    kickers: readonly KickerCost[],
+    nextId: (suffix: string) => string
+): LowerStaticResult {
+    // CR 122.1 — "a +1/+1 counter" is one; zero is not a printed count and
+    // would lower to a rider that places nothing.
+    if (clause.counters.count < 1)
+        return {
+            ok: false,
+            reason: "an entry rider that places no counters",
+        };
+    let kickerId: string | undefined;
+    if (clause.kickedWith !== undefined) {
+        const named = kickedValue(
+            { kind: "named", mana: clause.kickedWith },
+            kickers
+        );
+        if (!named.ok) return named;
+        const value = named.value;
+        if (
+            typeof value !== "object" ||
+            value === null ||
+            !("additionalCostPaid" in value) ||
+            typeof value.additionalCostPaid !== "string"
+        )
+            return {
+                ok: false,
+                reason: '"with its [A] kicker" resolved to no single kicker (CR 702.33f)',
+            };
+        kickerId = value.additionalCostPaid;
+        // CR 702.33c — a multikicker is paid any number of times, so its
+        // payment count is not the 0-or-1 this rider's counters multiply.
+        if (kickers.find((k) => k.id === kickerId)?.multi === true)
+            return {
+                ok: false,
+                reason: '"with its [A] kicker" naming a multikicker (CR 702.33c)',
+            };
+    }
+    const count: "kicker" | { additionalCostPaid: string } =
+        kickerId === undefined ? "kicker" : { additionalCostPaid: kickerId };
+    const effects: CompiledStaticEffect[] = [];
+    const keywords: { ability: string; status: string }[] = [];
+    const quotedAbilities: {
+        id: string;
+        text: string;
+        ability: QuotedAbilityIR;
+    }[] = [];
+    const gate = {
+        appliesTo: "self-if-kicked" as const,
+        ...(kickerId !== undefined ? { kickerId } : {}),
+    };
+    for (const grant of clause.grants ?? []) {
+        switch (grant.kind) {
+            case "keyword-grant":
+                keywords.push(grant.keyword);
+                effects.push({
+                    kind: "keyword-grant",
+                    keyword: grant.keyword.ability,
+                    ...gate,
+                });
+                break;
+            case "activated-grant": {
+                const id = nextId("kicked");
+                quotedAbilities.push({
+                    id,
+                    text: grant.text,
+                    ability: grant.ability,
+                });
+                effects.push({
+                    kind: "activated-grant",
+                    abilityId: id,
+                    ...gate,
+                });
+                break;
+            }
+            default: {
+                const never: never = grant;
+                return {
+                    ok: false,
+                    reason: `no lowering for kicked grant ${JSON.stringify(never)}`,
+                };
+            }
+        }
+    }
+    return {
+        ok: true,
+        lowered: {
+            kickerCounters: {
+                counters: Array.from({ length: clause.counters.count }, () => ({
+                    type: clause.counters.type,
+                    count,
+                })),
+                per: clause.per,
+                ...(kickerId !== undefined ? { kickerId } : {}),
+            },
+            ...(effects.length > 0 ? { effects } : {}),
+            ...(keywords.length > 0 ? grantCensus(keywords) : {}),
+            ...(quotedAbilities.length > 0 ? { quotedAbilities } : {}),
+        },
+    };
 }
 
 /**

@@ -114,7 +114,12 @@ import {
 // Brushland, Karplusan Forest, Sulfurous Springs and Underground River
 // round-trip once the mana-ability slot reads "This land deals N damage to
 // you" on a CHOICE production and the colourless line merges into it.
-const BASELINE_CEILING = 1653;
+//
+// Lowered 1653 -> 1648 by issue #3864 (kicked entry riders that also grant an
+// ability): Benalish Lancer, Duskwalker, Faerie Squadron, Kavu Titan and
+// Pouncing Kavu round-trip once "… and with <keyword>" lowers to a
+// `self-if-kicked` keyword grant.
+const BASELINE_CEILING = 1648;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that
