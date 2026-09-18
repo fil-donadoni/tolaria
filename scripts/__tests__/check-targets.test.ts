@@ -313,7 +313,7 @@ describe("parseClaims — the allowlist's claims, fail-closed", () => {
         );
     });
 
-    it("validates a `bot` / `migration` row but never returns it — those two settle no card's state (issue #3869)", () => {
+    it("validates a `migration` row but never returns it — it settles no card's state (issue #3869); a `bot` row IS returned (issue #4061)", () => {
         const ids = parseClaims({
             claims: [
                 { kind: "migration", key: "activated", issue: 4100 },
@@ -321,7 +321,9 @@ describe("parseClaims — the allowlist's claims, fail-closed", () => {
                 { kind: "hand-tail", key: "Onulet", issue: 3900 },
             ],
         });
-        expect([...ids]).toEqual([claimId("hand-tail", "Onulet")]);
+        expect([...ids].sort()).toEqual(
+            [claimId("bot", "some-form"), claimId("hand-tail", "Onulet")].sort()
+        );
         expect(() =>
             parseClaims({ claims: [{ kind: "migration", key: "x", issue: 0 }] })
         ).toThrow(/positive integer/);
@@ -367,6 +369,48 @@ describe("parseClaims — the allowlist's claims, fail-closed", () => {
             readFileSync(join(ROOT, "data/grammar-gaps.json"), "utf8")
         );
         expect(parseClaims(doc).size).toBeGreaterThan(0);
+    });
+});
+
+describe("a frozen card — quarantine `bot-unreachable`, settled by a `bot` claim (issue #4061)", () => {
+    const KEY = "no-legal-move › Artifact";
+    const frozen = row("fz", "Frozen Card", "quarantine", {
+        botReach: "frozen",
+        botGap: KEY,
+        quarantineReasons: [{ kind: "bot-unreachable", detail: KEY }],
+    });
+    const ctx = (claims: Set<string>): CoverageContext => ({
+        ...GREEN,
+        claims,
+        byOracleId: new Map([...byOracleId, ["fz", frozen] as const]),
+    });
+
+    it("maps to kind `bot`, keyed verbatim on the card's Bot Gap key", () => {
+        expect(
+            quarantineClass({ kind: "bot-unreachable", detail: KEY })
+        ).toEqual({ kind: "bot", key: KEY });
+    });
+
+    it("is `quarantine` (claimed) with the `bot` claim the Bot Gap filer writes", () => {
+        expect(
+            coverageVerdict(frozen, ctx(new Set([claimId("bot", KEY)])))
+        ).toEqual({ state: "quarantine" });
+        // Read back through the allowlist parser, not a hand-built set.
+        const claims = parseClaims({
+            claims: [{ kind: "bot", key: KEY, issue: 4300 }],
+        });
+        expect(coverageVerdict(frozen, ctx(claims)).state).toBe("quarantine");
+    });
+
+    it("is `unclaimed` without it — and a `scenario` claim on the same key does not settle it", () => {
+        expect(coverageVerdict(frozen, ctx(new Set()))).toEqual({
+            state: "unclaimed",
+            why: `quarantine class \`${KEY}\` has no \`bot\` claim`,
+        });
+        expect(
+            coverageVerdict(frozen, ctx(new Set([claimId("scenario", KEY)])))
+                .state
+        ).toBe("unclaimed");
     });
 });
 

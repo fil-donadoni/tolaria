@@ -11,7 +11,11 @@
 
 import { describe, expect, it } from "vitest";
 import {
+    applyUpdatedIssues,
+    planUnlockEdges,
     syncGaps,
+    syncUnlockEdges,
+    withUnlockBlockers,
     type GapFiling,
     type GapTracker,
     type TrackedIssue,
@@ -19,10 +23,12 @@ import {
     type UnlockSource,
 } from "../lib/gap-issues";
 import {
+    buildBotGapFilings,
     buildHandTailFilings,
     buildMigrationFilings,
     buildQuarantineFilings,
     cardsNamedByTitle,
+    inScopeBotGapKeys,
     orphanCardActions,
     prioritySlices,
     unlockingRule,
@@ -344,6 +350,209 @@ describe("the mechanic and scenario kinds — one issue per quarantine class", (
             state: "OPEN",
             body: expect.stringContaining("changeling"),
         });
+    });
+});
+
+// ── bot ─────────────────────────────────────────────────────────────────
+
+/** A `ready` card the sweep saw the Bot not play, under `key`. */
+function botRow(
+    oracleId: string,
+    name: string,
+    key: string,
+    poolIn?: CardRow["poolIn"],
+    botReach: "ignored" | "frozen" = "ignored"
+): CardRow {
+    return {
+        oracleId,
+        name,
+        state: botReach === "frozen" ? "quarantine" : "ready",
+        opsUsed: [],
+        botReach,
+        botGap: key,
+        ...(botReach === "frozen"
+            ? {
+                  quarantineReasons: [
+                      { kind: "bot-unreachable", detail: key },
+                  ] as CardRow["quarantineReasons"],
+              }
+            : {}),
+        ...(poolIn === undefined ? {} : { poolIn }),
+    };
+}
+
+const NEVER_CHOSEN = "never-chosen › Enchantment › destroy";
+const UNMODELLED = "position-unmodelled › Instant target:spell";
+const UNRANKED = "never-chosen › Creature › (no Ops)";
+
+describe("the bot kind — one issue per Bot Gap key, scoped to the ranked Targets (issue #4061)", () => {
+    const lock = {
+        fragments: [],
+        cards: [
+            botRow("b-1", "Aura of Doom", NEVER_CHOSEN, ["premodern"]),
+            botRow("b-2", "Doom Aura", NEVER_CHOSEN),
+            botRow("b-3", "Counterspell Variant", UNMODELLED, ["vintage"]),
+            // Carried by NO ranked card: measured, not filed.
+            botRow("b-4", "Grizzly Unranked", UNRANKED),
+            // `played` rows carry no key; a stale one must not file a gap.
+            {
+                oracleId: "b-5",
+                name: "Played Card",
+                state: "ready" as const,
+                opsUsed: [],
+                botReach: "played" as const,
+                botGap: UNRANKED,
+                poolIn: ["premodern" as const],
+            },
+            ...FILLER,
+        ],
+    };
+
+    it("files an in-scope key with the Bot Gap title, GAP_LABELS.bot, a rank line and a per-Target block", () => {
+        const filings = buildBotGapFilings(inputs(lock));
+        expect(filings.map((f) => f.key)).toEqual([NEVER_CHOSEN, UNMODELLED]);
+        const filing = filings[0]!;
+        expect(filing.kind).toBe("bot");
+        expect(filing.title).toBe(`Bot Gap: ${NEVER_CHOSEN}`);
+        expect(filing.labels).toEqual(["ready-for-agent", "area:game-bot"]);
+        expect(filing.fallbackParent).toBe(3820);
+        const body = filing.body(7001);
+        expect(body.split("\n")[0]).toBe(
+            "Rank 1 of 2 in kind `bot` — lexicographic on the priority Targets, corpus as tie-break (issue #3869)."
+        );
+        // Two cards carry the key; only one is in the premodern pool.
+        expect(body).toContain(
+            "Per registered Target, priority order (measure: cards the Bot does not play):"
+        );
+        expect(body).toContain("- format-premodern (format, priority 1): 1");
+        expect(body).toContain("- format-vintage (format, priority 2): 0");
+        expect(body).toContain("- corpus: 2");
+        expect(body).toContain("Cards held (2): Aura of Doom, Doom Aura");
+        expect(body).toContain("**A valuation gap.**");
+        expect(body).toContain("Outcome: `ignored`");
+    });
+
+    it("says what each cause MEANS — the text differs, the filing rule does not", () => {
+        const [, unmodelled] = buildBotGapFilings(inputs(lock));
+        expect(unmodelled!.body(1)).toContain(
+            "**A gap in the sweep's harness, not in the Bot's judgement.**"
+        );
+    });
+
+    it("never files a key no ranked card carries, nor a `played` row's stale key", () => {
+        const keys = buildBotGapFilings(inputs(lock)).map((f) => f.key);
+        expect(keys).not.toContain(UNRANKED);
+        expect(inScopeBotGapKeys(lock.cards, inputs(lock).ranked)).toEqual([
+            NEVER_CHOSEN,
+            UNMODELLED,
+        ]);
+    });
+
+    it("files once — a second run against the tracker it wrote to creates and edits nothing", () => {
+        const { tracker, second } = syncTwice(buildBotGapFilings(inputs(lock)));
+        expect(tracker.created.map((c) => c.title)).toEqual([
+            `Bot Gap: ${NEVER_CHOSEN}`,
+            `Bot Gap: ${UNMODELLED}`,
+        ]);
+        expect(second.actions.map((a) => a.action)).toEqual(["noop", "noop"]);
+        expect(second.updatedRows.size).toBe(0);
+        expect(tracker.updateCalls).toBe(0);
+    });
+
+    it("writes the issue number back as a `claims` row of kind `bot`", () => {
+        const tracker = new StubTracker();
+        const result = syncGaps(buildBotGapFilings(inputs(lock)), tracker);
+        const doc = applyUpdatedIssues({ ops: [] }, result.updatedRows);
+        expect(doc.claims).toEqual([
+            { kind: "bot", key: NEVER_CHOSEN, issue: 5000 },
+            { kind: "bot", key: UNMODELLED, issue: 5001 },
+        ]);
+    });
+
+    it("a claimed key reconciles its issue, and is rewritten only when its body differs", () => {
+        const tracker = new StubTracker();
+        const first = syncGaps(buildBotGapFilings(inputs(lock)), tracker);
+        const filed = new Map(
+            [...first.updatedRows].map(([id, n]) => [id, n] as const)
+        );
+        const again = buildBotGapFilings(inputs(lock, { filed }));
+        expect(again[0]!.currentIssue).toBe(5000);
+        expect(syncGaps(again, tracker).actions.map((a) => a.action)).toEqual([
+            "noop",
+            "noop",
+        ]);
+        // A third card joins the key: its body changes, so it is rewritten.
+        const grown = {
+            ...lock,
+            cards: [
+                ...lock.cards,
+                botRow("b-6", "Third Aura", NEVER_CHOSEN, ["premodern"]),
+            ],
+        };
+        const actions = syncGaps(
+            buildBotGapFilings(inputs(grown, { filed })),
+            tracker
+        ).actions;
+        expect(actions.map((a) => `${a.action}:${a.issue}`)).toEqual([
+            "update:5000",
+            "noop:5001",
+        ]);
+    });
+
+    it("a frozen key says the cards are withheld — its claim is the Coverage Invariant's", () => {
+        const frozen = {
+            fragments: [],
+            cards: [
+                botRow(
+                    "z-1",
+                    "Frozen Card",
+                    "no-legal-move › Artifact",
+                    ["premodern"],
+                    "frozen"
+                ),
+                ...FILLER,
+            ],
+        };
+        const [filing] = buildBotGapFilings(inputs(frozen));
+        expect(filing!.key).toBe("no-legal-move › Artifact");
+        expect(filing!.body(1)).toContain("Outcome: `frozen`");
+        // …and the scenario filer no longer claims it: one kind, one filer.
+        expect(buildQuarantineFilings(inputs(frozen), "scenario")).toEqual([]);
+    });
+
+    it("an engine issue declaring `bot: <key>` in `## Unlocks` gets the native blocked-by edge", () => {
+        const filings = buildBotGapFilings(inputs(lock));
+        const known = new Set(filings.map((f) => claimId(f.kind, f.key)));
+        const { blockers, residue } = planUnlockEdges(
+            [
+                {
+                    number: 4200,
+                    body: `## Unlocks\n\n- bot: ${NEVER_CHOSEN} — values destroy on enchantments`,
+                },
+            ],
+            known
+        );
+        expect(residue).toEqual([]);
+        const tracker = new StubTracker();
+        const edges = new Map<number, number[]>();
+        tracker.blockedBy = (issue: number) => edges.get(issue) ?? [];
+        tracker.addBlockedBy = (issue: number, blocker: number) => {
+            edges.set(issue, [...(edges.get(issue) ?? []), blocker]);
+        };
+        const synced = syncGaps(withUnlockBlockers(filings, blockers), tracker);
+        const issue = synced.updatedRows.get(claimId("bot", NEVER_CHOSEN))!;
+        expect(tracker.issues.get(issue)!.body).toContain(
+            "## Blocked by\n\n- #4200"
+        );
+        expect(syncUnlockEdges(blockers, synced.updatedRows, tracker)).toEqual([
+            {
+                action: "link",
+                blocked: issue,
+                blocker: 4200,
+                claim: claimId("bot", NEVER_CHOSEN),
+            },
+        ]);
+        expect(edges.get(issue)).toEqual([4200]);
     });
 });
 

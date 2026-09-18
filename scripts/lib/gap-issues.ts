@@ -4,9 +4,9 @@
  * the I/O (the `gh`-backed tracker, the write-back).
  *
  * This module holds the SHAPE of a filing, the tracker seam and the sync
- * decision; the four COMPUTED kinds live in `gap-kinds.ts`. `grammar` is here,
+ * decision; the five COMPUTED kinds live in `gap-kinds.ts`. `grammar` is here,
  * because it is the one kind whose issue number is written back into an `ops`
- * row rather than into `claims`, and `bot` because it files nothing yet.
+ * row rather than into `claims`.
  *
  * ── Scope of the `grammar` kind ─────────────────────────────────────────
  *
@@ -22,12 +22,9 @@
  * this was measured, issue #3974). The first version read those counts anyway
  * and filed 87 bodies all saying "0 cards, no Target"; the body says what the
  * gap is instead of printing a number that is zero by construction. **The
- * other four kinds are counted per Target for real** — their keys come from
- * quarantine reasons, card names and slot signatures, which every Target
- * card's own lockfile row carries.
- *
- * Bot Gaps: no Bot-play sweep exists yet (ADR 0105 § 7.2), so
- * `buildBotGapFilings` returns nothing until it does.
+ * other five kinds are counted per Target for real** — their keys come from
+ * quarantine reasons, Bot Gap keys, card names and slot signatures, which
+ * every Target card's own lockfile row carries.
  *
  * The `## Unlocks` pass — an engine issue declaring the gap keys it unblocks,
  * and the native `blocked by` edge this writes from it (issue #4052) — is the
@@ -158,11 +155,6 @@ export function buildGrammarGapFilings(allowlist: Allowlist): GapFiling[] {
             body: () => body,
         };
     });
-}
-
-/** The Bot Gap sweep does not exist yet (module header). */
-export function buildBotGapFilings(): GapFiling[] {
-    return [];
 }
 
 // ── Tracker ──────────────────────────────────────────────────────────────

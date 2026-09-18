@@ -27,8 +27,17 @@
  * the file has no predecessor, and there the shrink check is announced as
  * skipped rather than passed silently.
  *
- * Offline and ~1s: the committed lockfile plus the registry, no network, no
- * corpus. It runs in `health` ONLY — added to `scripts/lib/health-step.ts`'s
+ * ── Bot Gaps are filed (issue #4061, PRD issue #3820 story 12) ─────────
+ *
+ * Every Bot Gap key a RANKED Target card carries (`inScopeBotGapKeys` —
+ * priority ∪ enforced, the same scope `gaps:sync` files by) must have its
+ * `bot` claim row with an issue number. Not shrink-only — the sweep's verdicts
+ * move with the Bot — just filed: the lockfile says a ranked card is not
+ * played, and the allowlist must say which issue owns that. A key no ranked
+ * card carries is reported in the lockfile's table and owed nothing here.
+ *
+ * Offline and ~1s: the committed lockfile, the registry and the Target
+ * Lists, no network, no corpus. It runs in `health` ONLY — added to `scripts/lib/health-step.ts`'s
  * step list, never to `check:all` or `check:pr`, so a PR and `land` pay
  * nothing for it (ADR 0105 § 7.3, asserted by `check-gaps.test.ts`).
  *
@@ -38,8 +47,14 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { EFFECT_OP_REGISTRY } from "../convex/cards/mechanicsRegistry";
+import { inScopeBotGapKeys, rankedCardIds } from "./lib/gap-kinds";
 import { opGapKey } from "./lib/grammar-gaps";
-import type { ClaimRow } from "./lib/targets";
+import {
+    parseClaimRows,
+    readTargetRegistry,
+    resolveContext,
+    type ClaimRow,
+} from "./lib/targets";
 import { parseLockfile } from "./lib/oracle-lockfile";
 
 export const ALLOWLIST_PATH = "data/grammar-gaps.json";
@@ -241,6 +256,36 @@ export function baselineAllowlist(root: string): Allowlist | null {
     return parseAllowlist(show.stdout);
 }
 
+/**
+ * The in-scope Bot Gap keys with no `bot` claim row, sorted — the whole
+ * verdict of the Bot Gap half (module header). Pure over its two inputs.
+ */
+export function unclaimedBotGaps(
+    inScope: readonly string[],
+    claims: readonly ClaimRow[]
+): string[] {
+    const claimed = new Set(
+        claims.filter((row) => row.kind === "bot").map((row) => row.key)
+    );
+    return inScope.filter((key) => !claimed.has(key)).sort();
+}
+
+export function renderBotGaps(
+    inScope: number,
+    unclaimed: readonly string[]
+): string {
+    if (unclaimed.length === 0)
+        return `✓ gaps: ${inScope} Bot Gap key(s) a ranked Target card carries — every one filed`;
+    return [
+        `✗ gaps: ${unclaimed.length} of ${inScope} in-scope Bot Gap key(s) have no \`bot\` claim row:\n`,
+        ...unclaimed.map((key) => `  - ${key}`),
+        "",
+        `  A ranked Target card carries each key (${LOCKFILE_PATH} \`botGap\`), and`,
+        `  ${ALLOWLIST_PATH} records no issue for it. Run \`bun run gaps:sync\` —`,
+        "  it files the issue and writes the `bot` claim row (issue #4061).",
+    ].join("\n");
+}
+
 const EXITS: Record<Violation["kind"], string> = {
     missing:
         "implemented, emitted by no Compiled Definition, and NOT allowlisted.\n" +
@@ -295,19 +340,30 @@ export function render(result: CensusResult): string {
 function main(): void {
     const root = resolve(".");
     const lock = parseLockfile(readFileSync(LOCKFILE_PATH, "utf8"));
+    const allowlist = parseAllowlist(readFileSync(ALLOWLIST_PATH, "utf8"));
     const result = auditOpCensus({
         implemented: EFFECT_OP_REGISTRY.filter(
             (r) => r.status === "implemented"
         ).map((r) => r.op),
         emitted: emittedOps(lock.cards),
-        allowlist: parseAllowlist(readFileSync(ALLOWLIST_PATH, "utf8")),
+        allowlist,
         baseline: baselineAllowlist(root),
     });
-    if (result.violations.length === 0) {
-        console.log(render(result));
+    const inScope = inScopeBotGapKeys(
+        lock.cards,
+        rankedCardIds(readTargetRegistry(root), resolveContext(root, lock))
+    );
+    const unclaimed = unclaimedBotGaps(
+        inScope,
+        parseClaimRows(allowlist, ALLOWLIST_PATH)
+    );
+    const ok = result.violations.length === 0 && unclaimed.length === 0;
+    const out = `${render(result)}\n${renderBotGaps(inScope.length, unclaimed)}`;
+    if (ok) {
+        console.log(out);
         return;
     }
-    console.error(render(result));
+    console.error(out);
     process.exit(1);
 }
 

@@ -9,7 +9,6 @@ import { describe, expect, it } from "vitest";
 import type { Allowlist } from "../check-gaps";
 import {
     applyUpdatedIssues,
-    buildBotGapFilings,
     buildGrammarGapFilings,
     grammarGapTitle,
     parseUnlocks,
@@ -90,12 +89,6 @@ describe("an Op gap has no corpus attribution — the premise the body states", 
         );
         expect(lock.fragments.length).toBeGreaterThan(0);
         expect(onOpKeys.map((f) => f.text)).toEqual([]);
-    });
-});
-
-describe("buildBotGapFilings", () => {
-    it("files nothing — the Bot-play sweep it would read from is not built", () => {
-        expect(buildBotGapFilings()).toEqual([]);
     });
 });
 
