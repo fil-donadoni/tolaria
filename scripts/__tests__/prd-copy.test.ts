@@ -137,6 +137,28 @@ describe("planCopy — refuses a PRD with no closed children", () => {
         expect(plan.parent).toBe(1);
         expect(plan.labels).toEqual(["prd", "area:workflow"]);
     });
+
+    it("refuses when the body already points at a copy — never a second copy for the same PRD", () => {
+        const issue = prd({
+            body: appendCopyPointer("Original content.", 5001),
+            children: [child(1, "OPEN"), child(2, "CLOSED")],
+        });
+        const plan = planCopy(issue);
+        expect(isRefusal(plan)).toBe(true);
+        if (!isRefusal(plan)) throw new Error("expected a refusal");
+        expect(plan.refused).toMatch(/already points at issue #5001/);
+    });
+
+    it("refuses an already-closed PRD", () => {
+        const issue = prd({
+            state: "CLOSED",
+            children: [child(1, "OPEN"), child(2, "CLOSED")],
+        });
+        const plan = planCopy(issue);
+        expect(isRefusal(plan)).toBe(true);
+        if (!isRefusal(plan)) throw new Error("expected a refusal");
+        expect(plan.refused).toMatch(/already closed/);
+    });
 });
 
 describe("body pointers — bidirectional, original never rewritten beyond the pointer", () => {
@@ -230,7 +252,7 @@ describe("runCopy — against the stubbed tracker", () => {
         expect(tracker.parents.has(result.copy)).toBe(false);
     });
 
-    it("throws and does not close the original when the copy's parent edge cannot be confirmed", () => {
+    it("throws and does not close the original when the copy's parent edge cannot be confirmed — but the pointer is already written", () => {
         const tracker = new StubTracker();
         const original = prd({
             number: 100,
@@ -250,24 +272,50 @@ describe("runCopy — against the stubbed tracker", () => {
             /could not confirm/
         );
         expect(tracker.closed.has(100)).toBe(false);
+        // The pointer is written BEFORE any re-parenting (issue #4053 review,
+        // finding 1) — a re-run must see it and refuse rather than create a
+        // second copy for the work this attempt never finished moving.
+        expect(tracker.issues.get(100)?.body).toContain(
+            `Continued in issue #${nextCopyNumber}`
+        );
+        const rerun = planCopy(tracker.getIssue(100)!);
+        expect(isRefusal(rerun)).toBe(true);
     });
 
-    it("throws and does not close the original when a child's re-parent cannot be confirmed", () => {
+    it("throws and does not close the original when a child's re-parent cannot be confirmed — re-running refuses instead of creating a second copy", () => {
         const tracker = new StubTracker();
         const original = prd({
             number: 100,
             parent: 1,
-            children: [child(50, "OPEN"), child(51, "CLOSED")],
+            children: [
+                child(50, "OPEN"),
+                child(52, "OPEN"),
+                child(51, "CLOSED"),
+            ],
         });
         tracker.seed(original);
-        tracker.failParentFor.add(50);
+        // 50 confirms, 52 does not — the exact partial-failure shape the
+        // review found: one child really moved, the throw fires on the next.
+        tracker.failParentFor.add(52);
 
         const plan = planCopy(original);
         if (isRefusal(plan)) throw new Error("expected a plan");
+        const copyNumber = 5000;
         expect(() => runCopy(tracker, plan, original.body)).toThrow(
             /could not confirm/
         );
         expect(tracker.closed.has(100)).toBe(false);
+        expect(tracker.parents.get(50)).toBe(copyNumber);
+        expect(tracker.parents.has(52)).toBe(false);
+
+        // Re-running against the tracker's now-updated original must refuse
+        // — not create a second copy issue for child #52.
+        const createCallsBefore = tracker.createCalls;
+        const rerun = planCopy(tracker.getIssue(100)!);
+        expect(isRefusal(rerun)).toBe(true);
+        if (!isRefusal(rerun)) throw new Error("expected a refusal");
+        expect(rerun.refused).toMatch(new RegExp(`issue #${copyNumber}`));
+        expect(tracker.createCalls).toBe(createCallsBefore);
     });
 
     it("throws and does not close the original when the copy's sub-issue count does not match the children moved", () => {

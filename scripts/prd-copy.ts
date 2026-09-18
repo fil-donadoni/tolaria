@@ -82,9 +82,28 @@ export interface PrdCopyRefusal {
     readonly refused: string;
 }
 
+/** Matches the forward pointer `appendCopyPointer` writes onto the original —
+ *  the one durable signal that a copy already exists for this PRD. Written
+ *  onto the original's body BEFORE any re-parenting (see `runCopy`), so a
+ *  re-run after a partial failure sees it even when nothing finished. */
+const COPY_POINTER_RE = /Continued in issue #(\d+)/;
+
 /** The pure decision: which children move, and whether there is anything to
  *  clean at all. No network — `getIssue`'s shape is the whole input. */
 export function planCopy(issue: PrdIssue): PrdCopyPlan | PrdCopyRefusal {
+    const pointer = COPY_POINTER_RE.exec(issue.body);
+    if (pointer !== null) {
+        return {
+            refused:
+                `issue #${issue.number} already points at issue #${pointer[1]} — a copy exists; ` +
+                "finish or reconcile that one by hand instead of creating a second",
+        };
+    }
+    if (issue.state === "CLOSED") {
+        return {
+            refused: `issue #${issue.number} is already closed — nothing to copy from`,
+        };
+    }
     const openChildren = issue.children
         .filter((c) => c.state === "OPEN")
         .map((c) => c.number);
@@ -143,22 +162,27 @@ export interface PrdCopyResult {
  *
  * 1. create the copy (body already points back — the original's number is
  *    known before anything is written)
- * 2. re-parent the copy onto the original's own parent (a SIBLING of the
+ * 2. point the ORIGINAL at the copy — before any re-parenting, deliberately.
+ *    This is the durable "a copy exists" signal `planCopy` checks
+ *    (`COPY_POINTER_RE`): a throw anywhere after this line leaves the
+ *    original open but marked, so a re-run refuses instead of creating a
+ *    SECOND copy issue for whatever didn't finish moving (issue #4053 review,
+ *    finding 1 — a partial multi-child re-parent failure used to do exactly
+ *    that, because the pointer was written only at the very end).
+ * 3. re-parent the copy onto the original's own parent (a SIBLING of the
  *    original, never its child)
- * 3. carry the board `Priority` over, when the original had one
- * 4. re-parent every open child onto the copy
- * 5. verify the copy's sub-issue count equals the number moved — a mismatch
+ * 4. carry the board `Priority` over, when the original had one
+ * 5. re-parent every open child onto the copy
+ * 6. verify the copy's sub-issue count equals the number moved — a mismatch
  *    means an edge silently failed to confirm, and closing the original
  *    would orphan a child that never actually moved
- * 6. point the original at the copy, then close it
+ * 7. close the original
  *
- * The original is only closed once every re-parent is confirmed — a throw
- * before that leaves the original open with the copy sitting beside it,
- * which is a safe, re-runnable state (the closed-children refusal in
- * `planCopy` will not fire again since the original still holds its closed
- * children either way, but a human re-running `prd:copy` sees a PRD with a
- * copy already pointing at it and stops there instead of the tool creating a
- * second one).
+ * The original is only CLOSED once every re-parent is confirmed — a throw
+ * before that leaves it open, pointed at the copy, and not yet closed: a
+ * human reads the pointer, finishes moving whatever is still under the
+ * original by hand (or fixes the edge and re-runs the rest manually), and
+ * closes it themselves. `prd:copy` will not touch that PRD again on its own.
  */
 export function runCopy(
     tracker: PrdTracker,
@@ -170,6 +194,8 @@ export function runCopy(
         body: buildCopyBody(originalBody, plan.original),
         labels: plan.labels,
     });
+
+    tracker.updateBody(plan.original, appendCopyPointer(originalBody, copy));
 
     if (plan.parent !== null) {
         if (!tracker.setParent(copy, plan.parent)) {
@@ -200,7 +226,6 @@ export function runCopy(
         );
     }
 
-    tracker.updateBody(plan.original, appendCopyPointer(originalBody, copy));
     tracker.closeIssue(
         plan.original,
         `PRD hygiene by copy — open work continues at issue #${copy}.`
