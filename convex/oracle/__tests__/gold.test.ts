@@ -48,7 +48,7 @@ const KNOWN_DIVERGENCES: readonly string[] = [
     // Northern Paladin, Active Volcano, Flash Flood and Desert Twister left
     // this list in issues #3046 / #3073: each encoded "target … permanent" as
     // `type: "Creature"` or CR 115.4's `"any"`, and each now carries the
-    // permanent-type list the compiler emits (CR 109.1 / 110.4).
+    // permanent-type list the compiler emits (CR 110.1 / 110.4).
 ];
 
 describe("gold round-trip — precision", () => {

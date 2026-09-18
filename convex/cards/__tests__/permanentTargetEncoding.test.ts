@@ -3,8 +3,8 @@
 //
 // CR 115.4 "any target" is a creature, player, planeswalker or battle — the
 // engine's `"any"` admits the DAMAGEABLE permanent types plus, when no colour
-// filter closes it, PLAYERS (`getLegalTargets`, gre/rules.ts). CR 109.1 "a
-// permanent" is a card or token on the battlefield of any permanent type. So a
+// filter closes it, PLAYERS (`getLegalTargets`, gre/rules.ts). CR 110.1 "a
+// permanent" is a card or token on the battlefield, of any of CR 110.4's six types. So a
 // "destroy target permanent" written as `type: "any"` misses artifacts,
 // enchantments and lands, and — with no colour filter — can target a player.
 
@@ -141,7 +141,7 @@ function legalIds(
     );
 }
 
-describe("Desert Twister — destroy target permanent (CR 109.1, 701.8)", () => {
+describe("Desert Twister — destroy target permanent (CR 110.4, 701.8)", () => {
     it("a land is a legal target; a player is not", () => {
         const legal = legalIds(requirementOf("Desert Twister"), [
             { id: "land", cardId: ID.island },
@@ -161,7 +161,7 @@ describe.each([
     ["Blue Elemental Blast", { mode: "destroy" }, "red", "blue"],
     ["Hydroblast", { mode: "destroy" }, "red", "blue"],
 ] as const)(
-    "%s — destroy target coloured permanent (CR 109.1, 105.2)",
+    "%s — destroy target coloured permanent (CR 110.4, 105.2)",
     (name, where, legalColour, illegalColour) => {
         it(`a ${legalColour} enchantment is a legal target; a ${illegalColour} one and a player are not`, () => {
             const cardOf = { blue: ID.controlMagic, red: ID.firebreathing };
@@ -177,7 +177,7 @@ describe.each([
     }
 );
 
-describe("Northern Paladin — destroy target black permanent (CR 109.1, 105.2)", () => {
+describe("Northern Paladin — destroy target black permanent (CR 110.4, 105.2)", () => {
     it("the ability's text matches the card's", () => {
         const def = byName("Northern Paladin");
         expect(def.oracleText).toContain(
@@ -198,7 +198,7 @@ describe("Northern Paladin — destroy target black permanent (CR 109.1, 105.2)"
     });
 });
 
-describe("Alchor's Tomb — target permanent you control (CR 109.1)", () => {
+describe("Alchor's Tomb — target permanent you control (CR 110.4)", () => {
     it("a land you control is a legal target; an opponent's land and a player are not", () => {
         const legal = legalIds(requirementOf("Alchor's Tomb", { ability: 0 }), [
             { id: "mine", cardId: ID.island, controllerId: "p1" },
@@ -211,7 +211,7 @@ describe("Alchor's Tomb — target permanent you control (CR 109.1)", () => {
     });
 });
 
-describe("Empress Galina — target legendary permanent (CR 109.1, 205.4a)", () => {
+describe("Empress Galina — target legendary permanent (CR 110.4, 205.4a)", () => {
     it("a legendary land is a legal target; a non-legendary one and a player are not", () => {
         const legal = legalIds(
             requirementOf("Empress Galina", { ability: 0 }),

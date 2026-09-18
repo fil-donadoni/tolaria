@@ -137,7 +137,7 @@ export const desertTwister: CardDefinition = {
     oracleText: "Destroy target permanent.",
     manaCost: { X: 4, G: 2 },
     types: ["Sorcery"],
-    // "Target permanent" is every permanent type (CR 109.1 / 110.4), never
+    // "Target permanent" is every permanent type (CR 110.1 / 110.4), never
     // "any" — CR 115.4 any target admits players and misses lands (#3073).
     targetRequirement: { type: [...PERMANENT_TYPES], count: 1 },
     effects: [{ op: "destroy", target: { target: 0 } }],

@@ -130,7 +130,7 @@ export function makeElementalBlast(args: {
                 label: `Destroy target ${args.oracleColor} permanent`,
                 oracleText: `Destroy target ${args.oracleColor} permanent.`,
                 // "Target <colour> permanent" is every permanent type (CR
-                // 109.1 / 110.4), not CR 115.4 "any" — which admits only the
+                // 110.1 / 110.4), not CR 115.4 "any" — which admits only the
                 // damageable types and so missed coloured artifacts,
                 // enchantments and lands (issue #3073).
                 targetRequirement: {

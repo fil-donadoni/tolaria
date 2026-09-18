@@ -123,7 +123,7 @@ import {
 // Lowered 1648 -> 1644 by issue #3073 / #3046 ("target permanent" encoded as
 // CR 115.4 "any", or narrowed to one card type): Active Volcano, Desert
 // Twister, Flash Flood and Northern Paladin round-trip once their
-// `targetRequirement.type` is the permanent-type list (CR 109.1).
+// `targetRequirement.type` is the permanent-type list (CR 110.4).
 const BASELINE_CEILING = 1644;
 
 /**
