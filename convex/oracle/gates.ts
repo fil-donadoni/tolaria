@@ -56,11 +56,17 @@
 import { isRegisteredEffectOp } from "../cards/mechanicsRegistry";
 import { registerTokenDefinition } from "../cards/registry";
 import { resolveCompiledTrigger } from "../cards/compiledTriggers";
+import type { CompiledTriggerHead } from "../cards/compiledTriggers";
 import {
+    abilityHost,
+    activatedAbilitySourceOnBattlefield,
+    compiledTriggerSourceOnBattlefield,
     FILLER_CARD_DEFINITION,
     planSmokeTest,
     SMOKE_SKIP_CLASS,
-    type SmokeSite,
+    SPELL_HOST,
+    triggeredAbilitySourceOnBattlefield,
+    type SmokeHost,
     type SmokeSkip,
 } from "../gre/effects/scenarioGenerator";
 import {
@@ -116,40 +122,53 @@ interface ScriptSite {
     /** The target requirement of the spell / mode / ability hosting the
      *  script — what an announced-slot Op's object actually is. */
     readonly targetRequirement?: TargetRequirement;
-    /** Only an ability has a source permanent for `$source` to name
-     *  (CR 113.7) — the smoke planner seeds one there and nowhere else.
+    /** Who hosts the script, and — at an ability site — what its source IS and
+     *  WHERE it is when the ability resolves (issue #3879).
      *
-     *  The seeded source is on the BATTLEFIELD, which is where an ability's
-     *  source is for every trigger head the compiler emits today. A head that
-     *  looks back in time at the source's own death (CR 603.10) resolves with
-     *  the source already gone, and an effect reading it then uses last known
-     *  information (CR 608.2h): `$source` binds to nothing, the Op does
-     *  nothing, and the smoke would assert an outcome the card does not
-     *  produce. The grammar emits no such
-     *  head yet (issue #3831 review verified: zero self-death / LTB heads and
-     *  zero non-battlefield ability zones among the `$source` cards); the day
-     *  it does, that head must be tagged `"spell"` here. */
-    readonly site: SmokeSite;
+     *  Both facts used to be assumed: the smoke planner seeded the generic
+     *  filler creature, on the battlefield, for every ability whatever the
+     *  card was, and a prose note here recorded the two fail-opens that let a
+     *  Compiled Definition reach `ready` on evidence that did not apply to it.
+     *  The note is now the mechanism: `abilityHost` carries the definition's
+     *  own kind, and `compiledTriggerSourceOnBattlefield` —
+     *  exhaustive over the closed head vocabulary, so a new head is a type
+     *  error — says whether the source survived its own trigger (CR 603.10 /
+     *  608.2h). */
+    readonly host: SmokeHost;
+}
+
+/** A compiled trigger as the gates read it: the rebuilt ability plus the JSON
+ *  HEAD it came from, which is what says whether the source is still on the
+ *  battlefield when the ability resolves. `resolveCompiledTrigger` turns the
+ *  head into a `matches` closure, so an ability alone can no longer answer
+ *  that question. */
+export interface RebuiltTrigger {
+    readonly ability: TriggeredAbility;
+    readonly head: CompiledTriggerHead;
 }
 
 function collectScripts(
     definition: CompiledDefinition,
-    rebuiltTriggers: readonly TriggeredAbility[]
+    rebuiltTriggers: readonly RebuiltTrigger[]
 ): ScriptSite[] {
     const scripts: ScriptSite[] = [];
     const push = (
         effects: EffectOp[] | undefined,
-        host: { targetRequirement?: TargetRequirement },
-        site: SmokeSite
+        target: { targetRequirement?: TargetRequirement },
+        host: SmokeHost
     ): void => {
         if (effects)
             scripts.push({
                 effects,
-                targetRequirement: host.targetRequirement,
-                site,
+                targetRequirement: target.targetRequirement,
+                host,
             });
     };
-    push(definition.effects, definition, "spell");
+    /** CR 113.7 — the source of any of this definition's abilities is the
+     *  permanent this definition makes, so its kind is the definition's own. */
+    const sourceOf = (onBattlefieldAtResolution: boolean): SmokeHost =>
+        abilityHost(definition, onBattlefieldAtResolution);
+    push(definition.effects, definition, SPELL_HOST);
     // CR 700.2 — a modal spell's body lives on its MODES; the card-level
     // `effects` is undefined by construction (see `lower.ts`), so a walk that
     // read only the card level would smoke nothing at all for every modal card
@@ -162,17 +181,29 @@ function collectScripts(
                 targetRequirement:
                     mode.targetRequirement ?? definition.targetRequirement,
             },
-            "spell"
+            SPELL_HOST
         );
     }
     for (const ability of definition.activatedAbilities ?? []) {
-        push(ability.effects, ability, "ability");
+        push(
+            ability.effects,
+            ability,
+            sourceOf(activatedAbilitySourceOnBattlefield(ability))
+        );
     }
     for (const ability of definition.triggeredAbilities ?? []) {
-        push(ability.effects, ability, "ability");
+        push(
+            ability.effects,
+            ability,
+            sourceOf(triggeredAbilitySourceOnBattlefield(ability))
+        );
     }
-    for (const ability of rebuiltTriggers) {
-        push(ability.effects, ability, "ability");
+    for (const { ability, head } of rebuiltTriggers) {
+        push(
+            ability.effects,
+            ability,
+            sourceOf(compiledTriggerSourceOnBattlefield(head))
+        );
     }
     return scripts;
 }
@@ -240,13 +271,13 @@ export function smokeSkipForm(
 /** The card-dependent skips of every script in a definition, with forms. */
 function cardDependentSkips(
     definition: CompiledDefinition,
-    rebuiltTriggers: readonly TriggeredAbility[]
+    rebuiltTriggers: readonly RebuiltTrigger[]
 ): { skip: SmokeSkip; form: string }[] {
     const found: { skip: SmokeSkip; form: string }[] = [];
     for (const site of collectScripts(definition, rebuiltTriggers)) {
         let plan: ReturnType<typeof planSmokeTest>;
         try {
-            plan = planSmokeTest(site.effects, site.site);
+            plan = planSmokeTest(site.effects, site.host);
         } catch (error) {
             // Per SCRIPT, so one script that throws still lets the others be
             // read: a throw is its own card-dependent reason, never clearable
@@ -289,10 +320,13 @@ export function fixtureForms(
     registerTokenDefinition(FILLER_CARD_DEFINITION);
     const forms = new Set<string>();
     for (const fixture of fixtures) {
-        let rebuilt: TriggeredAbility[];
+        let rebuilt: RebuiltTrigger[];
         try {
             rebuilt = (fixture.expected.compiledTriggeredAbilities ?? []).map(
-                resolveCompiledTrigger
+                (descriptor) => ({
+                    ability: resolveCompiledTrigger(descriptor),
+                    head: descriptor.head,
+                })
             );
         } catch {
             // A fixture whose trigger cannot be rebuilt is evidence of
@@ -352,10 +386,13 @@ export function runGates(input: GateInput): GateResult {
     // for a fixture limitation in a hand-written engine script, with an
     // `opsUsed: []` row contradicting its own quarantine reason. A gate may
     // only judge what the compiler emitted.
-    const rebuiltTriggers: TriggeredAbility[] = [];
+    const rebuiltTriggers: RebuiltTrigger[] = [];
     for (const descriptor of definition.compiledTriggeredAbilities ?? []) {
         try {
-            rebuiltTriggers.push(resolveCompiledTrigger(descriptor));
+            rebuiltTriggers.push({
+                ability: resolveCompiledTrigger(descriptor),
+                head: descriptor.head,
+            });
         } catch (error) {
             // Same no-throw discipline the smoke gate below states: a gate that
             // throws does not fail one card, it aborts a 35,000-card run.
@@ -432,7 +469,7 @@ export function runGates(input: GateInput): GateResult {
         ...(definition.activatedAbilities ?? []).flatMap((ability) =>
             validateAbilityEffectScript(ability, definition.name)
         ),
-        ...rebuiltTriggers.flatMap((ability) =>
+        ...rebuiltTriggers.flatMap(({ ability }) =>
             validateAbilityEffectScript(
                 ability,
                 definition.name,

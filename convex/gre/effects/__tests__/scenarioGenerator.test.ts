@@ -9,6 +9,7 @@ import { describe, it, expect } from "vitest";
 import type { EffectOp } from "../../../cards/types";
 import { registerTokenDefinition } from "../../../cards";
 import {
+    abilityHost,
     ASSERTED_OP_KINDS,
     CASTER_ID,
     FILLER_CARD_DEFINITION,
@@ -18,6 +19,7 @@ import {
     SMOKE_SKIP_CLASS,
     SMOKE_SKIP_CODES,
     SOURCE_PERMANENT_ID,
+    SPELL_HOST,
     type Plan,
 } from "../scenarioGenerator";
 import { EFFECT_OP_REGISTRY } from "../../../cards/mechanicsRegistry";
@@ -384,6 +386,13 @@ function failedAssertions(plan: Extract<Plan, { kind: "run" }>): string[] {
         .map(({ a, r }) => `${a.label}: ${r.detail ?? ""}`);
 }
 
+/** The ability host every pre-#3879 `"ability"` call site meant: an ordinary
+ *  creature permanent, still on the battlefield when its ability resolves. */
+const CREATURE_HOST = abilityHost(
+    { types: ["Creature"], subtypes: ["Bear"], power: 2, toughness: 2 },
+    true
+);
+
 describe("$source subjects — the seeded ability source (issue #3831, CR 113.7)", () => {
     const pumpSelf: EffectOp[] = [
         {
@@ -396,7 +405,7 @@ describe("$source subjects — the seeded ability source (issue #3831, CR 113.7)
     ];
 
     it("seeds the source on the caster's battlefield, untapped and able to act", () => {
-        const plan = planSmokeTest(pumpSelf, "ability");
+        const plan = planSmokeTest(pumpSelf, CREATURE_HOST);
         expect(plan.kind).toBe("run");
         if (plan.kind !== "run") return;
         expect(plan.scenario.sourcePermanentId).toBe(SOURCE_PERMANENT_ID);
@@ -463,7 +472,7 @@ describe("$source subjects — the seeded ability source (issue #3831, CR 113.7)
     ])(
         "a $source %s executes through resolution and its declared outcome holds",
         (name, effects) => {
-            const plan = planSmokeTest(effects, "ability");
+            const plan = planSmokeTest(effects, CREATURE_HOST);
             expect(plan.kind).toBe("run");
             if (plan.kind !== "run") return;
             expect(plan.assertions.length).toBeGreaterThan(0);
@@ -482,7 +491,7 @@ describe("$source subjects — the seeded ability source (issue #3831, CR 113.7)
     it("seeds the source TAPPED when the script untaps it, so the untap is observable", () => {
         const plan = planSmokeTest(
             [{ op: "tapUntap", action: "untap", target: { ref: "$source" } }],
-            "ability"
+            CREATURE_HOST
         );
         if (plan.kind !== "run") throw new Error(plan.reason);
         const source = plan.scenario.state.players
@@ -494,7 +503,7 @@ describe("$source subjects — the seeded ability source (issue #3831, CR 113.7)
     it("a spell-site $source is not seeded — the default site fails closed", () => {
         for (const plan of [
             planSmokeTest(pumpSelf),
-            planSmokeTest(pumpSelf, "spell"),
+            planSmokeTest(pumpSelf, SPELL_HOST),
         ]) {
             expect(plan.kind).toBe("skip");
             if (plan.kind !== "skip") continue;
@@ -507,7 +516,7 @@ describe("$source subjects — the seeded ability source (issue #3831, CR 113.7)
     it("a $each subject stays a card-dependent skip at an ability site", () => {
         const plan = planSmokeTest(
             [{ ...pumpSelf[0], target: { ref: "$each" } } as EffectOp],
-            "ability"
+            CREATURE_HOST
         );
         expect(plan.kind).toBe("skip");
         if (plan.kind !== "skip") return;
@@ -522,7 +531,7 @@ describe("$source subjects — the seeded ability source (issue #3831, CR 113.7)
                 { op: "tapUntap", action: "tap", target: { ref: "$source" } },
                 { op: "tapUntap", action: "untap", target: { ref: "$source" } },
             ],
-            "ability"
+            CREATURE_HOST
         );
         expect(plan.kind).toBe("skip");
         if (plan.kind !== "skip") return;
@@ -545,7 +554,7 @@ describe("$source subjects — the seeded ability source (issue #3831, CR 113.7)
                     duration: { phase: "end-of-turn" },
                 },
             ],
-            "ability"
+            CREATURE_HOST
         );
         expect(plan.kind).toBe("skip");
         if (plan.kind !== "skip") return;

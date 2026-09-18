@@ -19,11 +19,15 @@ import { describe, it, expect } from "vitest";
 import { getAllCards, registerTokenDefinition } from "..";
 import type { EffectOp, TargetRequirement } from "../types";
 import {
+    abilityHost,
+    activatedAbilitySourceOnBattlefield,
     CASTER_ID,
     FILLER_CARD_DEFINITION,
     planSmokeTest,
+    SPELL_HOST,
+    triggeredAbilitySourceOnBattlefield,
     type Plan,
-    type SmokeSite,
+    type SmokeHost,
 } from "../../gre/effects/scenarioGenerator";
 import { makeInstance } from "./setup";
 import { resolveTopOfStack } from "../../gre/state";
@@ -35,13 +39,14 @@ import { resolveTopOfStack } from "../../gre/state";
 // project's `isolate: false`, last-registration-wins).
 registerTokenDefinition(FILLER_CARD_DEFINITION);
 
-/** A DSL Effect Script found in the catalogue, tagged by site so the harness
- *  can push the right stack item. */
+/** A DSL Effect Script found in the catalogue, tagged by host so the harness
+ *  can push the right stack item — and so the planner seeds a source of the
+ *  card's OWN kind, where that source really is (issue #3879). */
 interface DslSite {
     /** Human label for a legible skip / failure line. */
     label: string;
     effects: EffectOp[];
-    site: SmokeSite;
+    host: SmokeHost;
 }
 
 /** Collects every DSL-only Effect Script across the catalogue, at both spell
@@ -53,20 +58,48 @@ function collectDslSites(): DslSite[] {
     for (const card of getAllCards()) {
         const label = `${card.name} (${card.id})`;
         if (card.effects !== undefined) {
-            sites.push({ label, effects: card.effects, site: "spell" });
+            sites.push({ label, effects: card.effects, host: SPELL_HOST });
         }
-        const abilities = [
-            ...(card.activatedAbilities ?? []),
-            ...(card.grantTemplates ?? []),
-            ...(card.triggeredAbilities ?? []),
-            ...(card.triggeredGrantTemplates ?? []),
+        // CR 113.7 — the source of one of the card's OWN abilities is the
+        // permanent this card makes, so its kind is the card's own.
+        const own: {
+            ability: { id: string; effects?: EffectOp[] };
+            host: SmokeHost;
+        }[] = [
+            ...(card.activatedAbilities ?? []).map((ability) => ({
+                ability,
+                host: abilityHost(
+                    card,
+                    activatedAbilitySourceOnBattlefield(ability)
+                ),
+            })),
+            ...(card.triggeredAbilities ?? []).map((ability) => ({
+                ability,
+                host: abilityHost(
+                    card,
+                    triggeredAbilitySourceOnBattlefield(ability)
+                ),
+            })),
+            // A GRANT template's source is whatever permanent received the
+            // grant (CR 113.7 again), which this definition does not know —
+            // so there is no kind to seed and `$source` stays unmodelled,
+            // exactly as at a spell site. Fail-closed by construction rather
+            // than by assuming the grantee is a creature (issue #3879).
+            ...(card.grantTemplates ?? []).map((ability) => ({
+                ability,
+                host: SPELL_HOST,
+            })),
+            ...(card.triggeredGrantTemplates ?? []).map((ability) => ({
+                ability,
+                host: SPELL_HOST,
+            })),
         ];
-        for (const ability of abilities) {
+        for (const { ability, host } of own) {
             if (ability.effects !== undefined) {
                 sites.push({
                     label: `${label} ability "${ability.id}"`,
                     effects: ability.effects,
-                    site: "ability",
+                    host,
                 });
             }
         }
@@ -179,13 +212,13 @@ describe("DSL Effect Script smoke sweep (ADR 0045, issue #804)", () => {
 
     it("every DSL-only Effect Script's declared outcomes hold under canned resolution", () => {
         sites.forEach((s, i) => {
-            const plan = planSmokeTest(s.effects, s.site);
+            const plan = planSmokeTest(s.effects, s.host);
             if (plan.kind === "skip") {
                 skips.push(`SKIP ${s.label}: ${plan.reason}`);
                 return;
             }
-            const id = `smoke-${s.site}-${i}`;
-            if (s.site === "spell") {
+            const id = `smoke-${s.host.site}-${i}`;
+            if (s.host.site === "spell") {
                 runSpellSite(plan, s.effects, id);
             } else {
                 runAbilitySite(plan, s.effects, id);
@@ -212,14 +245,14 @@ describe("DSL Effect Script smoke sweep (ADR 0045, issue #804)", () => {
         // Recompute independently so this assertion doesn't depend on test
         // ordering (vitest may isolate `it` state).
         const runnable = sites.filter(
-            (s) => planSmokeTest(s.effects, s.site).kind === "run"
+            (s) => planSmokeTest(s.effects, s.host).kind === "run"
         );
         expect(runnable.length).toBeGreaterThanOrEqual(1);
     });
 
     it("every skip carries a non-empty reason (never silently green)", () => {
         for (const s of sites) {
-            const plan = planSmokeTest(s.effects, s.site);
+            const plan = planSmokeTest(s.effects, s.host);
             if (plan.kind === "skip") {
                 expect(plan.reason.length, s.label).toBeGreaterThan(0);
             }
