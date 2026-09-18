@@ -37783,6 +37783,7 @@
         {"id":"702.33","line":"// 702.33 Kicker, CR 122.1/614.1c ETB counter, CR 702.3b defender.)","sites":1,"status":"baseline"},
         {"id":"702.33","line":"// 702.33 Kicker, CR 603.6a ETB trigger with a CR 603.3d target announcement.)","sites":1,"status":"baseline"},
         {"id":"702.33","line":"// 702.33) and not mutated by anything else while this permanent","sites":2,"status":"baseline"},
+        {"id":"702.33","line":"// A kicked requirement shares its owner's Oracle text (CR 702.33).","sites":1,"status":"confirmed","ruleHash":"9acd847a13fdeab2"},
         {"id":"702.33","line":"// BOTH paid → both clauses fire (CR 702.33 — the two are independent).","sites":1,"status":"baseline"},
         {"id":"702.33","line":"// Bloodchief's Thirst exercises the Kicker capability (CR 702.33): the kick","sites":1,"status":"baseline"},
         {"id":"702.33","line":"// Burst Lightning exercises the Kicker capability (CR 702.33) + the","sites":1,"status":"baseline"},

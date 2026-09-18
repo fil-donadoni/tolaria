@@ -48,6 +48,17 @@ function requirementSites(): RequirementSite[] {
             | undefined;
         if (requirement)
             out.push({ card: card.name, path, oracleText, requirement });
+        // A kicked requirement shares its owner's Oracle text (CR 702.33).
+        const kicked = node.kickedTargetRequirement as
+            | TargetRequirement
+            | undefined;
+        if (kicked)
+            out.push({
+                card: card.name,
+                path: `${path}.kickedTargetRequirement`,
+                oracleText,
+                requirement: kicked,
+            });
         for (const key of [
             "modes",
             "activatedAbilities",
