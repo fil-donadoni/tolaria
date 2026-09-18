@@ -341,7 +341,8 @@ describe("the smoke source's KIND and ZONE are read, not assumed (issue #3879)",
     });
 
     it("an ability activated from a graveyard keeps the card in quarantine", () => {
-        // CR 113.6 / 602.5b — the source is a card in a graveyard when the
+        // CR 113.6b — the ability states which zone it functions in, and the
+        // source is a card in a graveyard when the
         // ability resolves, so there is no permanent for `$source` to name.
         const withActivation = (
             flags: Record<string, boolean>
@@ -375,8 +376,8 @@ describe("the smoke source's KIND and ZONE are read, not assumed (issue #3879)",
     });
 
     it("an Op whose primitive needs a creature keeps a NON-creature host in quarantine", () => {
-        // `setExileOnDeath` returns early on a non-creature permanent
-        // (CR 205.1a), so the artifact host below has no outcome to prove —
+        // `setExileOnDeath` returns early on a permanent whose type line has
+        // no Creature (CR 205.1), so the artifact host below has no outcome to prove —
         // against the old filler bear it looked green.
         const withExileOnDeath = (
             types: string[],

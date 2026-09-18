@@ -47,6 +47,14 @@ interface DslSite {
     label: string;
     effects: EffectOp[];
     host: SmokeHost;
+    /** Which stack item the harness pushes. This is NOT `host.site`: a GRANT
+     *  template is hosted by an ability (so the harness pushes an ability
+     *  item, and a body reading the implicit source still resolves against a
+     *  permanent) while its `host` stays `SPELL_HOST`, because the KIND of the
+     *  permanent that received the grant is not on this definition
+     *  (issue #3879). Keeping the two apart is what stops the fail-closed
+     *  planner decision from also downgrading the harness. */
+    pushes: "spell" | "ability";
 }
 
 /** Collects every DSL-only Effect Script across the catalogue, at both spell
@@ -58,7 +66,12 @@ function collectDslSites(): DslSite[] {
     for (const card of getAllCards()) {
         const label = `${card.name} (${card.id})`;
         if (card.effects !== undefined) {
-            sites.push({ label, effects: card.effects, host: SPELL_HOST });
+            sites.push({
+                label,
+                effects: card.effects,
+                host: SPELL_HOST,
+                pushes: "spell",
+            });
         }
         // CR 113.7 — the source of one of the card's OWN abilities is the
         // permanent this card makes, so its kind is the card's own.
@@ -100,6 +113,7 @@ function collectDslSites(): DslSite[] {
                     label: `${label} ability "${ability.id}"`,
                     effects: ability.effects,
                     host,
+                    pushes: "ability",
                 });
             }
         }
@@ -217,8 +231,8 @@ describe("DSL Effect Script smoke sweep (ADR 0045, issue #804)", () => {
                 skips.push(`SKIP ${s.label}: ${plan.reason}`);
                 return;
             }
-            const id = `smoke-${s.host.site}-${i}`;
-            if (s.host.site === "spell") {
+            const id = `smoke-${s.pushes}-${i}`;
+            if (s.pushes === "spell") {
                 runSpellSite(plan, s.effects, id);
             } else {
                 runAbilitySite(plan, s.effects, id);

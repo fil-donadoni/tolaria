@@ -12,6 +12,7 @@ import {
     abilityHost,
     activatedAbilitySourceOnBattlefield,
     ASSERTED_OP_KINDS,
+    compiledTriggerSourceOnBattlefield,
     CASTER_ID,
     FILLER_CARD_DEFINITION,
     OPPONENT_ID,
@@ -21,6 +22,7 @@ import {
     SMOKE_SKIP_CODES,
     SOURCE_PERMANENT_ID,
     SPELL_HOST,
+    triggeredAbilitySourceOnBattlefield,
     type Plan,
 } from "../scenarioGenerator";
 import { EFFECT_OP_REGISTRY } from "../../../cards/mechanicsRegistry";
@@ -590,11 +592,24 @@ describe("the seeded $source is the HOST card, where it really is (issue #3879)"
         }
     });
 
-    it.each(["exileOnDeath", "lockDamage", "preventRegeneration"])(
+    it.each(["exileOnDeath", "lockDamage", "preventRegeneration", "pump"])(
         "%s on a non-creature $source is a card-dependent skip, not a green run",
         (op) => {
             const effects = [
-                { op, target: { ref: "$source" } },
+                {
+                    op,
+                    target: { ref: "$source" },
+                    // `pump` is the one member whose primitive does NOT gate on
+                    // Creature: its ASSERTION is a power/toughness read, and
+                    // only a creature card has those (CR 208.1).
+                    ...(op === "pump"
+                        ? {
+                              power: 1,
+                              toughness: 1,
+                              duration: { phase: "end-of-turn" },
+                          }
+                        : {}),
+                },
             ] as unknown as EffectOp[];
             // The same script on a CREATURE host runs — so the skip below is
             // about the host's kind, not about the Op.
@@ -625,7 +640,20 @@ describe("the seeded $source is the HOST card, where it really is (issue #3879)"
         expect(planSmokeTest(tapSelf, CREATURE_HOST).kind).toBe("run");
     });
 
-    it("reads a graveyard / hand activation off the ability's own flags (CR 113.6)", () => {
+    it("seeds the host's printed power and toughness, not the filler's", () => {
+        const plan = planSmokeTest(
+            tapSelf,
+            abilityHost({ types: ["Creature"], power: 4, toughness: 7 }, true)
+        );
+        if (plan.kind !== "run") throw new Error(plan.reason);
+        const source = plan.scenario.state.players
+            .find((p) => p.id === CASTER_ID)!
+            .battlefield.find((c) => c.id === SOURCE_PERMANENT_ID)!;
+        expect([source.power, source.toughness]).toEqual([4, 7]);
+    });
+
+    it("reads the zone an ability functions in off its own flags (CR 113.6b)", () => {
+        // Activated: the two activation-zone flags the engine dispatches on.
         expect(activatedAbilitySourceOnBattlefield({})).toBe(true);
         expect(
             activatedAbilitySourceOnBattlefield({ activateFromGraveyard: true })
@@ -633,6 +661,38 @@ describe("the seeded $source is the HOST card, where it really is (issue #3879)"
         expect(
             activatedAbilitySourceOnBattlefield({ activateFromHand: true })
         ).toBe(false);
+        // Triggered: the hand-authored zone flags. This is the reader the whole
+        // catalogue sweep goes through, so it is pinned here too.
+        expect(triggeredAbilitySourceOnBattlefield({})).toBe(true);
+        for (const flag of [
+            { zone: "graveyard" } as const,
+            { functionsFromStack: true } as const,
+            { functionsFromOwnDiscard: true } as const,
+        ])
+            expect(triggeredAbilitySourceOnBattlefield(flag)).toBe(false);
+    });
+
+    it("a compiled head keyed on the source's OWN departure says it is gone (CR 603.10)", () => {
+        // `self` is the source dying; `host` is an Aura's "whenever enchanted
+        // creature dies" — the Aura follows its host to the graveyard by the
+        // attachment SBA (CR 704.5m) before the trigger resolves.
+        for (const scope of ["self", "host"] as const)
+            expect(
+                compiledTriggerSourceOnBattlefield({ kind: "died", scope })
+            ).toBe(false);
+        for (const scope of ["any", "yours", "another-yours"] as const)
+            expect(
+                compiledTriggerSourceOnBattlefield({ kind: "died", scope })
+            ).toBe(true);
+        expect(
+            compiledTriggerSourceOnBattlefield({
+                kind: "entered",
+                scope: "self",
+            })
+        ).toBe(true);
+        expect(compiledTriggerSourceOnBattlefield({ kind: "attacks" })).toBe(
+            true
+        );
     });
 
     it("counts the seeded source in a controller battlefield count it really appears in", () => {

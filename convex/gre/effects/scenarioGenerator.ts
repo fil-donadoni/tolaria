@@ -30,6 +30,7 @@
 // `convex/cards/__tests__/effectScriptSmoke.test.ts`.
 
 import type {
+    ActivatedAbility,
     CardDefinition,
     EffectCountSpec,
     EffectObjectSelector,
@@ -37,6 +38,7 @@ import type {
     EffectPlayerRef,
     EffectValue,
     TargetSelection,
+    TriggeredAbility,
 } from "../../cards/types";
 import type { CompiledTriggerHead } from "../../cards/compiledTriggers";
 import type { CardInstanceState, GameState, PlayerState } from "../state";
@@ -91,7 +93,8 @@ export type SmokeSite = "spell" | "ability";
  *   exactly as at a spell site — a card-dependent skip.
  */
 export interface SmokeSourceSpec {
-    /** The host definition's card types (CR 205.1a). */
+    /** The host definition's card types — the type line the card is printed
+     *  with (CR 205.1). */
     readonly types: readonly CardInstanceState["types"][number][];
     readonly subtypes?: readonly string[];
     readonly power?: number;
@@ -110,14 +113,18 @@ export type SmokeHost =
  *  permanent, so a `$source` subject is a card-dependent skip. */
 export const SPELL_HOST: SmokeHost = Object.freeze({ site: "spell" as const });
 
-/** CR 113.6 / 602.5b — an activated ability whose source is activated from a
- *  GRAVEYARD or a HAND does not resolve with its source on the battlefield.
+/** CR 113.6b — an ability that states which zones it functions in functions
+ *  only from those zones, and these two flags are how a definition states it:
+ *  an ability activated from a GRAVEYARD or a HAND does not resolve with its
+ *  source on the battlefield.
  *  Read off the two declarative flags the engine itself dispatches on, so the
  *  planner and `activateAbility` cannot disagree. */
-export function activatedAbilitySourceOnBattlefield(ability: {
-    activateFromGraveyard?: boolean;
-    activateFromHand?: boolean;
-}): boolean {
+export function activatedAbilitySourceOnBattlefield(
+    ability: Pick<
+        ActivatedAbility,
+        "activateFromGraveyard" | "activateFromHand"
+    >
+): boolean {
     return (
         ability.activateFromGraveyard !== true &&
         ability.activateFromHand !== true
@@ -130,11 +137,12 @@ export function activatedAbilitySourceOnBattlefield(ability: {
  *  ability makes about where its source is; a self-death head carries no flag
  *  and is not decidable here (the COMPILED twin below is, and it is the one
  *  the Oracle gate goes through). */
-export function triggeredAbilitySourceOnBattlefield(ability: {
-    zone?: "graveyard";
-    functionsFromStack?: true;
-    functionsFromOwnDiscard?: true;
-}): boolean {
+export function triggeredAbilitySourceOnBattlefield(
+    ability: Pick<
+        TriggeredAbility,
+        "zone" | "functionsFromStack" | "functionsFromOwnDiscard"
+    >
+): boolean {
     return (
         ability.zone === undefined &&
         ability.functionsFromStack !== true &&
@@ -164,7 +172,12 @@ const COMPILED_TRIGGER_SOURCE_SURVIVES: Record<
     (head: CompiledTriggerHead) => boolean
 > = {
     entered: () => true,
-    died: (head) => !("scope" in head && head.scope === "self"),
+    // `self` is the source itself dying. `host` is an Aura's "whenever
+    // enchanted creature dies": the creature dies, the now-unattached Aura is
+    // put into its owner's graveyard by the attachment SBA (CR 704.5m), and
+    // the trigger resolves with its own source gone too.
+    died: (head) =>
+        !("scope" in head && (head.scope === "self" || head.scope === "host")),
     attacks: () => true,
     "combat-damage-to-player": () => true,
     phase: () => true,
@@ -473,7 +486,11 @@ function countFillerId(filter: {
 function sourceCardId(source: SmokeSourceSpec): string {
     const types = [...source.types];
     const subtypes = [...(source.subtypes ?? [])];
-    const id = `gen-source-${types.join("-")}-${subtypes.join("-")}-${source.power ?? "x"}-${source.toughness ?? "x"}`;
+    // The two groups are separated by `|`, never by the same `-` that joins
+    // within a group: `types:["Creature"] subtypes:["Wall","X"]` and
+    // `types:["Creature","Wall"] subtypes:["X"]` are different kinds and must
+    // not mint one id (last registration would win).
+    const id = `gen-source-${types.join("-")}|${subtypes.join("-")}|${source.power ?? "x"}/${source.toughness ?? "x"}`;
     registerTokenDefinition({
         id,
         name: id,
@@ -1066,11 +1083,15 @@ function subjectModelled(
 }
 
 /**
- * Ops whose PRIMITIVE refuses a subject that is not a creature (CR 205.1a):
- * `setExileOnDeath`, `setDamageLockThisTurn` and
- * `setTargetCantBeRegeneratedThisTurn` each return early on a non-creature
- * permanent, and `addTemporaryPTBuff`'s outcome is a P/T read, which only a
- * creature has (CR 208.1).
+ * Ops whose subject must be a CREATURE for the canned run to prove anything.
+ *
+ * No CR rule makes these primitives creature-only — the Oracle sentences they
+ * were written for say "that creature", and `setExileOnDeath`,
+ * `setDamageLockThisTurn` and `setTargetCantBeRegeneratedThisTurn`
+ * (`gre/state.ts`) each encode that by returning early on a permanent whose
+ * card types do not include Creature. `pump` is here for a different reason:
+ * its assertion is a power/toughness read, and only a creature card has power
+ * and toughness (CR 208.1).
  *
  * Against the generic filler creature every one of them looked green whatever
  * the real host was (issue #3879). With the host's own kind seeded, a
@@ -1103,16 +1124,25 @@ function recordSubject(
     // here aborts the plan in `buildScenario`, exactly like any other.
     const source = seedableSource(req);
     const op = req.currentOp;
+    if (source === undefined || op === undefined) {
+        // Unreachable while every call site is gated by `subjectModelled` —
+        // and a skip rather than an acceptance, because in a fail-closed
+        // module the branch that cannot answer must be the one that withholds.
+        skipBecause(
+            req,
+            "source-or-each-subject",
+            "a $source subject reached the scenario with no seeded source"
+        );
+        return;
+    }
     if (
-        source !== undefined &&
-        op !== undefined &&
         OPS_REQUIRING_A_CREATURE_SUBJECT.has(op.op) &&
         !source.types.includes("Creature")
     ) {
         skipBecause(
             req,
             "source-or-each-subject",
-            `Op "${op.op}" acts on a $source its host makes a non-creature (${source.types.join("/")}) — the primitive refuses it (CR 205.1a), so the canned run has no outcome to assert`
+            `Op "${op.op}" acts on a $source its host makes a non-creature (${source.types.join("/")}) — the primitive refuses it, so the canned run has no outcome to assert`
         );
         return;
     }
@@ -2705,8 +2735,9 @@ function buildScenario(req: Requirements): Scenario | { skip: SmokeSkip[] } {
     //
     // It is hydrated from the HOST card's own kind (issue #3879), not from the
     // generic filler creature: an Op whose primitive reads what the permanent
-    // IS — `setExileOnDeath` and `setDamageLockThisTurn` refuse a non-creature
-    // (CR 205.1a), `setLevel` writes a class level bar (CR 716.2a) — is then
+    // IS — `setExileOnDeath` and `setDamageLockThisTurn` refuse a permanent
+    // whose type line has no Creature (CR 205.1), `setLevel` writes a class
+    // level bar (CR 716.2a) — is then
     // proven against the permanent the card actually has. A host whose kind the
     // Op refuses outright never reaches here: `recordSubject` skipped it.
     //
@@ -2802,8 +2833,8 @@ function sourceContributesTo(
     if (filter === undefined) return true;
     const { type, subtype, ...rest } = filter;
     if (Object.keys(rest).length > 0) return "undecidable";
-    // issue #677 — `type` / `subtype` may be an OR-array (CR 122 counting over
-    // a union), so ONE matching member is a match.
+    // issue #677 — `type` / `subtype` may be an OR-array, so ONE matching
+    // member is a match.
     const types = type === undefined ? [] : [type].flat();
     if (types.length > 0 && !types.some((t) => source.types.includes(t)))
         return false;
