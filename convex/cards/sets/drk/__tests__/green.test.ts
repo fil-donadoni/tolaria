@@ -738,7 +738,7 @@ describe("Scavenger Folk — sacrifice to destroy an artifact (CR 118.5 / 701.8)
                 makePlayer("p2", { battlefield: [artifact] }),
             ],
         });
-        resolveActivated(state, folk, "scavenger-folk-destroy-artifact", [
+        resolveActivated(state, folk, "scavenger-folk-ability", [
             { type: "permanent", id: "art" },
         ]);
         expect(
@@ -767,7 +767,7 @@ describe("Niall Silvain — regenerate target creature (CR 605 / 701.19)", () =>
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, niall, "niall-silvain-regenerate", [
+        resolveActivated(state, niall, "niall-silvain-ability", [
             { type: "permanent", id: "friend" },
         ]);
         const shielded = state.players[0].battlefield.find(

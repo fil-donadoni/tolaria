@@ -1852,7 +1852,7 @@ describe("Teferi's Response (issue #2708)", () => {
         // re-wrote that shape by hand would prove nothing about it.
         const item = buildActivatedAbilityStackItem(source, {
             castById: "p2",
-            abilityId: "icy-manipulator-tap",
+            abilityId: "icy-manipulator-ability",
             targets: [{ type: "permanent", id: targetLandId }],
         });
         state.stack.push(item);
@@ -2065,7 +2065,7 @@ describe("Teferi's Response (issue #2708)", () => {
         )!;
         const item = buildActivatedAbilityStackItem(source, {
             castById: "p2",
-            abilityId: "icy-manipulator-tap",
+            abilityId: "icy-manipulator-ability",
             targets: [{ type: "permanent", id: "myLand" }],
         });
         // The blink: the source left (LKI stamped) and an object with the same

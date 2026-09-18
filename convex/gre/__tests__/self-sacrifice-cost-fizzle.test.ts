@@ -27,7 +27,7 @@ import {
     makeState,
 } from "../../cards/__tests__/setup";
 
-const ABILITY_ID = "seal-of-cleansing-sac";
+const ABILITY_ID = "seal-of-cleansing-ability";
 
 /** p1 holds the Seal; p2 holds an artifact the Seal could legally have hit. */
 function board(): GameState {

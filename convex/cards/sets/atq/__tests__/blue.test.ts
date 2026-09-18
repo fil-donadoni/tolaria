@@ -412,7 +412,7 @@ describe("Sage of Lat-Nam (CR 602.1 — {T}, sac artifact: draw)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, sage, "sage-of-lat-nam-draw");
+        resolveActivated(state, sage, "sage-of-lat-nam-ability");
         expect(state.players[0].hand.map((c) => c.id)).toContain("lib-1");
     });
 });
@@ -470,21 +470,21 @@ describe("Power Artifact (enchanted artifact's abilities cost {2} less, min 1 ma
         const { state, engine } = enchantedDragonEngine();
         // {2} - {2} = {0}, clamped up to the one-mana floor → {1}.
         expect(
-            effectiveAbilityCost(state, engine, "dragon-engine-pump")
+            effectiveAbilityCost(state, engine, "dragon-engine-ability")
         ).toEqual({ X: 1 });
     });
 
     it("does not affect an unenchanted artifact's ability cost", () => {
         const { state, engine } = enchantedDragonEngine(false);
         expect(
-            effectiveAbilityCost(state, engine, "dragon-engine-pump")
+            effectiveAbilityCost(state, engine, "dragon-engine-ability")
         ).toEqual({ X: 2 });
     });
 
     it("reverts the moment the aura detaches (CR 704.5n)", () => {
         const { state, engine, aura } = enchantedDragonEngine();
         expect(
-            effectiveAbilityCost(state, engine, "dragon-engine-pump")
+            effectiveAbilityCost(state, engine, "dragon-engine-ability")
         ).toEqual({ X: 1 });
         // SBA-style detach: clear the link; the reduction is read live, so the
         // very next calculation reverts to the printed {2}.
@@ -493,7 +493,7 @@ describe("Power Artifact (enchanted artifact's abilities cost {2} less, min 1 ma
         )!;
         delete liveAura.attachedTo;
         expect(
-            effectiveAbilityCost(state, engine, "dragon-engine-pump")
+            effectiveAbilityCost(state, engine, "dragon-engine-ability")
         ).toEqual({ X: 2 });
     });
 
@@ -506,7 +506,7 @@ describe("Power Artifact (enchanted artifact's abilities cost {2} less, min 1 ma
         state.players[0].battlefield.push(other);
         expect(aura.attachedTo).toBe("engine");
         expect(
-            effectiveAbilityCost(state, other, "dragon-engine-pump")
+            effectiveAbilityCost(state, other, "dragon-engine-ability")
         ).toEqual({ X: 2 });
     });
 
@@ -574,7 +574,11 @@ describe("Power Artifact (enchanted artifact's abilities cost {2} less, min 1 ma
 
     it("an enchanted artifact's {2} ability becomes payable with a single mana", () => {
         const { state, engine } = enchantedDragonEngine();
-        const cost = effectiveAbilityCost(state, engine, "dragon-engine-pump");
+        const cost = effectiveAbilityCost(
+            state,
+            engine,
+            "dragon-engine-ability"
+        );
         // One generic mana now covers it (it did not before the aura).
         expect(isManaCostCovered({ C: 1 }, cost)).toBe(true);
         expect(isManaCostCovered({}, cost)).toBe(false);
@@ -596,7 +600,7 @@ describe("Power Artifact (enchanted artifact's abilities cost {2} less, min 1 ma
             effectiveAbilityCost(
                 projected as unknown as GameState,
                 slimEngine as unknown as CardInstanceState,
-                "dragon-engine-pump"
+                "dragon-engine-ability"
             )
         ).toEqual({ X: 1 });
     });

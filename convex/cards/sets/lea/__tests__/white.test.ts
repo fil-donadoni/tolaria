@@ -2324,7 +2324,7 @@ describe("Northern Paladin ({W}{W}, {T}: destroy target black creature)", () => 
             ...paladin,
             zone: "stack",
             castById: "p1",
-            abilityId: "northern-paladin-destroy",
+            abilityId: "northern-paladin-ability",
             targets: [{ type: "permanent", id: "victim" }],
         });
         resolveTopOfStack(state);

@@ -1189,7 +1189,7 @@ describe("Ley Druid ({T}: untap target land)", () => {
             ...druid,
             zone: "stack",
             castById: "p1",
-            abilityId: "ley-druid-untap",
+            abilityId: "ley-druid-ability",
             targets: [{ type: "permanent", id: "p1-plains" }],
         });
         resolveTopOfStack(state);

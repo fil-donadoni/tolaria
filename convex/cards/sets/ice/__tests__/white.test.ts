@@ -355,7 +355,7 @@ describe("Kelsinko Ranger (grant first strike to green, CR 611.2a)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, ranger, "kelsinko-ranger-first-strike", [
+        resolveActivated(state, ranger, "kelsinko-ranger-ability", [
             { type: "permanent", id: "grn" },
         ]);
         const target = state.players[0].battlefield.find(
@@ -364,7 +364,7 @@ describe("Kelsinko Ranger (grant first strike to green, CR 611.2a)", () => {
         expect(getEffectivePower(state, target)).toBe(2);
         // The grant routes through the layer system; assert no crash + filter.
         const ability = kelsinkoRanger.activatedAbilities!.find(
-            (a) => a.id === "kelsinko-ranger-first-strike"
+            (a) => a.id === "kelsinko-ranger-ability"
         )!;
         expect(ability.targetRequirement).toMatchObject({ colorFilter: "G" });
     });

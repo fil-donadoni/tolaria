@@ -1394,7 +1394,7 @@ describe("CR 702.16e — damage from a coloured spell is prevented, from an abil
             ...tim,
             zone: "stack",
             castById: "p2",
-            abilityId: "prodigal-sorcerer-zap",
+            abilityId: "prodigal-sorcerer-ability",
             targets: [{ type: "permanent", id: "warded" }],
         });
         resolveTopOfStack(state);

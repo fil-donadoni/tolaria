@@ -703,7 +703,7 @@ describe("Stalking Assassin (two tap-cost activated abilities, CR 605 / 701.26 /
             ...assassin,
             zone: "stack",
             castById: "p1",
-            abilityId: "stalking-assassin-tap",
+            abilityId: "stalking-assassin-ability",
             targets: [{ type: "permanent", id: "foe" }],
         });
         resolveTopOfStack(state);
@@ -719,7 +719,7 @@ describe("Stalking Assassin (two tap-cost activated abilities, CR 605 / 701.26 /
             ...assassin,
             zone: "stack",
             castById: "p1",
-            abilityId: "stalking-assassin-destroy",
+            abilityId: "stalking-assassin-ability-2",
             targets: [{ type: "permanent", id: "foe" }],
         });
         resolveTopOfStack(state);
@@ -1062,7 +1062,7 @@ describe("Firescreamer (CR 613.4c firebreathing pump, issue #1077)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, creature, "firescreamer-pump");
+        resolveActivated(state, creature, "firescreamer-ability");
         const live = state.players[0].battlefield.find((c) => c.id === "fs")!;
         expect(getEffectivePower(state, live)).toBe(3);
         expect(getEffectiveToughness(state, live)).toBe(2);
@@ -1081,7 +1081,7 @@ describe("Hooded Kavu (CR 702.14b fear temporary grant, issue #1077)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, creature, "hooded-kavu-fear");
+        resolveActivated(state, creature, "hooded-kavu-ability");
         const live = state.players[0].battlefield.find((c) => c.id === "hk")!;
         expect(live.staticAbilities).toContain("fear");
     });
@@ -1130,7 +1130,7 @@ describe("Reckless Assault (CR 602.1/118.5 mana+life activation cost, issue #107
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, ench, "reckless-assault-ping", [
+        resolveActivated(state, ench, "reckless-assault-ability", [
             { type: "player", id: "p2" },
         ]);
         expect(state.players[1].life).toBe(19);
@@ -1251,7 +1251,7 @@ describe("Trench Wurm (CR 605 activated ability, 701.8 destroy nonbasic land, is
                 makePlayer("p2", { battlefield: [nonbasic] }),
             ],
         });
-        resolveActivated(state, wurm, "trench-wurm-destroy-land", [
+        resolveActivated(state, wurm, "trench-wurm-ability", [
             { type: "permanent", id: "vol" },
         ]);
         expect(state.players[1].battlefield.some((c) => c.id === "vol")).toBe(
@@ -1479,7 +1479,7 @@ describe("Meteor Storm (CR 118.3/701.8 random-discard activation cost + 120.1 da
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, ench, "meteor-storm-blast", [
+        resolveActivated(state, ench, "meteor-storm-ability", [
             { type: "player", id: "p2" },
         ]);
         expect(state.players[1].life).toBe(16);
@@ -1730,7 +1730,7 @@ describe("Viashino Grappler (CR 613.4c temporary trample grant, issue #1078)", (
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, creature, "viashino-grappler-trample");
+        resolveActivated(state, creature, "viashino-grappler-ability");
         const live = state.players[0].battlefield.find((c) => c.id === "vg")!;
         expect(live.staticAbilities).toContain("trample");
     });
@@ -2047,7 +2047,7 @@ describe("Noble Panther (CR 611.2a temporary first strike grant, GW issue #1079)
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, panther, "noble-panther-first-strike");
+        resolveActivated(state, panther, "noble-panther-ability");
         const live = state.players[0].battlefield.find((c) => c.id === "np")!;
         expect(live.staticAbilities).toContain("first strike");
     });
@@ -2246,14 +2246,14 @@ describe("Stormscape Apprentice (CR 602.1 tap-cost activated abilities, issue #1
                 makePlayer("p2", { battlefield: [foe], life: 20 }),
             ],
         });
-        resolveActivated(state, apprentice, "stormscape-apprentice-tap", [
+        resolveActivated(state, apprentice, "stormscape-apprentice-ability", [
             { type: "permanent", id: "foe" },
         ]);
         expect(
             state.players[1].battlefield.find((c) => c.id === "foe")?.isTapped
         ).toBe(true);
 
-        resolveActivated(state, apprentice, "stormscape-apprentice-drain", [
+        resolveActivated(state, apprentice, "stormscape-apprentice-ability-2", [
             { type: "player", id: "p2" },
         ]);
         expect(state.players[1].life).toBe(19);
@@ -2370,7 +2370,7 @@ describe("Thunderscape Apprentice (CR 119.3 life loss + 613.4c temporary pump, i
                 makePlayer("p2", { life: 20 }),
             ],
         });
-        resolveActivated(state, apprentice, "thunderscape-apprentice-drain", [
+        resolveActivated(state, apprentice, "thunderscape-apprentice-ability", [
             { type: "player", id: "p2" },
         ]);
         expect(state.players[1].life).toBe(19);
@@ -2394,9 +2394,12 @@ describe("Thunderscape Apprentice (CR 119.3 life loss + 613.4c temporary pump, i
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, apprentice, "thunderscape-apprentice-pump", [
-            { type: "permanent", id: "bear" },
-        ]);
+        resolveActivated(
+            state,
+            apprentice,
+            "thunderscape-apprentice-ability-2",
+            [{ type: "permanent", id: "bear" }]
+        );
         const live = state.players[0].battlefield.find((c) => c.id === "bear")!;
         expect(getEffectivePower(state, live)).toBe(3);
         expect(getEffectiveToughness(state, live)).toBe(3);

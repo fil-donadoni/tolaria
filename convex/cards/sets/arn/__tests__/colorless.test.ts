@@ -97,7 +97,7 @@ describe("Jandor's Saddlebags ({3},{T}: untap target creature)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, bags, "jandors-saddlebags-untap", [
+        resolveActivated(state, bags, "jandor-s-saddlebags-ability", [
             { type: "permanent", id: "bear" },
         ]);
         expect(
@@ -118,7 +118,7 @@ describe("Flying Carpet ({2},{T}: target creature gains flying EOT)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, carpet, "flying-carpet-grant", [
+        resolveActivated(state, carpet, "flying-carpet-ability", [
             { type: "permanent", id: "bear" },
         ]);
         expect(
@@ -140,7 +140,7 @@ describe("Aladdin's Ring ({8},{T}: 4 damage to any target)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, ring, "aladdins-ring-bolt", [
+        resolveActivated(state, ring, "aladdin-s-ring-ability", [
             { type: "player", id: "p2" },
         ]);
         expect(state.players[1].life).toBe(16);
@@ -376,7 +376,7 @@ describe("Oasis ({T}: prevent next 1 damage to target creature, CR 615.1)", () =
             { type: "permanent", id: "bear" },
         ]);
         // Tim zaps the shielded bear for 1 — fully prevented.
-        resolveActivated(state, tim, "prodigal-sorcerer-zap", [
+        resolveActivated(state, tim, "prodigal-sorcerer-ability", [
             { type: "permanent", id: "bear" },
         ]);
         const survivor = state.players[0].battlefield.find(

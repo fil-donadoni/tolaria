@@ -1037,7 +1037,7 @@ describe("enumerateAbilityMoves affordability parity with the server (#1920 revi
             activateAbilityOnState(cloneGameState(state), {
                 playerId: BOT,
                 cardInstanceId: "storm",
-                abilityId: "meteor-storm-blast",
+                abilityId: "meteor-storm-ability",
             })
         ).not.toThrow();
     });

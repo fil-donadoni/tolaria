@@ -419,7 +419,7 @@ describe("Flame Spirit firebreathing (CR 611.1)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, spirit, "flame-spirit-firebreathing");
+        resolveActivated(state, spirit, "flame-spirit-ability");
         const after = state.players[0].battlefield[0];
         expect(getEffectivePower(state, after)).toBe(3);
         // wire format: the pump survives projectPublicState.

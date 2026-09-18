@@ -1951,7 +1951,7 @@ describe("Prodigal Sorcerer ({T}: 1 dmg to any target — original Tim)", () => 
             ...tim,
             zone: "stack",
             castById: "p1",
-            abilityId: "prodigal-sorcerer-zap",
+            abilityId: "prodigal-sorcerer-ability",
             targets: [{ type: "player", id: "p2" }],
         });
         resolveTopOfStack(state);
@@ -1971,7 +1971,7 @@ describe("Prodigal Sorcerer ({T}: 1 dmg to any target — original Tim)", () => 
             ...tim,
             zone: "stack",
             castById: "p1",
-            abilityId: "prodigal-sorcerer-zap",
+            abilityId: "prodigal-sorcerer-ability",
             targets: [{ type: "permanent", id: "lion" }],
         });
         resolveTopOfStack(state);

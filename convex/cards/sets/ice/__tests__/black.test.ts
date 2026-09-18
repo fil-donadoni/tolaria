@@ -317,7 +317,7 @@ describe("Hoar Shade ({B}: +1/+1, CR 611.2a)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, shade, "hoar-shade-pump");
+        resolveActivated(state, shade, "hoar-shade-ability");
         const live = state.players[0].battlefield.find((c) => c.id === "hs")!;
         expect(getEffectivePower(state, live)).toBe(2);
         expect(getEffectiveToughness(state, live)).toBe(3);

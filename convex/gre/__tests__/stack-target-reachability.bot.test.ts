@@ -106,7 +106,7 @@ function board(opts: { abilityTarget: "myLand" | "myBear" | "theirLand" }): {
     state.stack.push(
         buildActivatedAbilityStackItem(source, {
             castById: "p2",
-            abilityId: "icy-manipulator-tap",
+            abilityId: "icy-manipulator-ability",
             targets: [{ type: "permanent", id: opts.abilityTarget }],
         })
     );

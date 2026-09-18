@@ -363,7 +363,7 @@ describe("Teferi's Response — conjunctive targeted-permanent clause (issue #27
         const icy = state.players[1].battlefield.find((c) => c.id === "icy")!;
         const abilityOnMyLand = buildActivatedAbilityStackItem(icy, {
             castById: "p2",
-            abilityId: "icy-manipulator-tap",
+            abilityId: "icy-manipulator-ability",
             targets: [{ type: "permanent", id: "myLand" }],
         });
         state.stack.push(abilityOnMyLand);

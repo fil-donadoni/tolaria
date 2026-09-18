@@ -246,7 +246,7 @@ describe("Spinal Villain ({T}: destroy target blue creature, CR 701.8)", () => {
             ...villain,
             zone: "stack",
             castById: "p1",
-            abilityId: "spinal-villain-destroy",
+            abilityId: "spinal-villain-ability",
             targets: [{ type: "permanent", id: "drake" }],
         } as StackItem);
         resolveTopOfStack(state);

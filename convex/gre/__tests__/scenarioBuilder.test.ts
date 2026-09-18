@@ -4555,7 +4555,7 @@ describe("a declared stack loads into a live game (issue #3515)", () => {
                 kind: "ability",
                 name: prodigalSorcerer.name,
                 controller: "me",
-                abilityId: "prodigal-sorcerer-zap",
+                abilityId: "prodigal-sorcerer-ability",
                 targets: [{ kind: "player", seat: "opp" }],
             },
         ],
@@ -4578,7 +4578,7 @@ describe("a declared stack loads into a live game (issue #3515)", () => {
         expect(bolt.castById).toBe(p2.id);
         expect(bolt.abilityId).toBeUndefined();
         expect(bolt.targets).toEqual([{ type: "permanent", id: bears.id }]);
-        expect(zap.abilityId).toBe("prodigal-sorcerer-zap");
+        expect(zap.abilityId).toBe("prodigal-sorcerer-ability");
         expect(zap.castById).toBe(p1.id);
         expect(zap.targets).toEqual([{ type: "player", id: p2.id }]);
 

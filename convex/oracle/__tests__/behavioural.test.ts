@@ -60,7 +60,7 @@ describe("behavioural swap — every failure is loud (issue #2703)", () => {
         // The anti-vacuity assertion, exercised without performing the swap:
         // a twin that was compiled but never registered must not read as a
         // successful swap just because the definitions look alike.
-        const card = getCardByName("Royal Assassin");
+        const card = getCardByName("Drowned");
         const twin = compiledTwin(card);
         expect(twin.ok).toBe(true);
         if (!twin.ok) return;
@@ -79,7 +79,7 @@ describe("behavioural swap — every failure is loud (issue #2703)", () => {
     it("passes once the twin IS what the registry serves", () => {
         // The same assertion's positive half, restored afterwards so no later
         // file in this worker (node runs `isolate: false`) sees the twin.
-        const card = getCardByName("Royal Assassin");
+        const card = getCardByName("Drowned");
         const twin = compiledTwin(card);
         expect(twin.ok).toBe(true);
         if (!twin.ok) return;
@@ -101,11 +101,13 @@ describe("behavioural swap — every failure is loud (issue #2703)", () => {
 
 describe("compiled twin — ability ids are grafted, not invented (issue #2703)", () => {
     it("keeps the hand-written ACTIVATED ability id", () => {
-        // Royal Assassin's own test pushes `abilityId: "royal-assassin-destroy"`
-        // onto the stack. The compiler would name it `royal-assassin-ability`,
-        // and the ability would never be found — a spurious red on a card whose
-        // compiled body is exactly right.
-        const card = getCardByName("Royal Assassin");
+        // Drowned's own test pushes `abilityId: "drowned-regenerate"` onto the
+        // stack. The compiler would name it `drowned-ability`, and the
+        // ability would never be found — a spurious red on a card whose
+        // compiled body is exactly right. (Royal Assassin, the original
+        // fixture, retired in issue #4027 — ADR 0114 — and is no longer
+        // hand-written.)
+        const card = getCardByName("Drowned");
         const twin = compiledTwin(card);
         expect(twin.ok).toBe(true);
         if (!twin.ok) return;
@@ -134,7 +136,7 @@ describe("compiled twin — ability ids are grafted, not invented (issue #2703)"
         // A count difference is a real behavioural difference — the twin must
         // keep it so the behavioural run reds on it, rather than have it
         // papered over by a positional graft.
-        const card = getCardByName("Royal Assassin");
+        const card = getCardByName("Drowned");
         const twin = compiledTwin(card);
         expect(twin.ok).toBe(true);
         if (!twin.ok) return;

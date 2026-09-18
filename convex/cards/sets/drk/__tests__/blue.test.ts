@@ -212,7 +212,7 @@ describe("Flood — {U}{U}: tap target creature without flying (CR 701.26a / 702
                 makePlayer("p2", { battlefield: [ground] }),
             ],
         });
-        resolveActivated(state, fl, "flood-tap", [
+        resolveActivated(state, fl, "flood-ability", [
             { type: "permanent", id: "ground" },
         ]);
         expect(

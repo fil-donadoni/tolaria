@@ -100,7 +100,7 @@ describe("ability-copy grant on the client (CR 607.2a, issue #2943)", () => {
         expect(card.grantedActivatedAbilities).toEqual([
             expect.objectContaining({
                 sourceCardId: SORCERER,
-                abilityId: "prodigal-sorcerer-zap",
+                abilityId: "prodigal-sorcerer-ability",
                 origin: "card-abilities",
                 auraId: "cauldron",
             }),
@@ -112,9 +112,8 @@ describe("ability-copy grant on the client (CR 607.2a, issue #2943)", () => {
         const shown = getDisplayAbilities(BEARS, card).activated;
         expect(shown).toEqual([
             {
-                id: "prodigal-sorcerer-zap",
-                oracleText:
-                    "{T}: Prodigal Sorcerer deals 1 damage to any target.",
+                id: "prodigal-sorcerer-ability",
+                oracleText: "{T}: This creature deals 1 damage to any target.",
                 state: "granted",
             },
         ]);
@@ -125,10 +124,10 @@ describe("ability-copy grant on the client (CR 607.2a, issue #2943)", () => {
         expect(
             getAbilityOracleText(
                 BEARS,
-                "prodigal-sorcerer-zap",
+                "prodigal-sorcerer-ability",
                 card.grantedActivatedAbilities
             )
-        ).toBe("{T}: Prodigal Sorcerer deals 1 damage to any target.");
+        ).toBe("{T}: This creature deals 1 damage to any target.");
     });
 
     it("resolves NOTHING for a grant whose origin names the other list", () => {
@@ -142,7 +141,7 @@ describe("ability-copy grant on the client (CR 607.2a, issue #2943)", () => {
             origin: undefined,
         }));
         expect(
-            getAbilityOracleText(BEARS, "prodigal-sorcerer-zap", asTemplate)
+            getAbilityOracleText(BEARS, "prodigal-sorcerer-ability", asTemplate)
         ).toBeNull();
         expect(
             getDisplayAbilities(BEARS, {

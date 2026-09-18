@@ -495,7 +495,7 @@ describe("Relic Barrier ({T}: Tap target artifact, CR 701.26)", () => {
             ],
         });
         expect(otherArtifact.isTapped).toBe(false);
-        resolveActivated(state, barrier, "relic-barrier-tap", [
+        resolveActivated(state, barrier, "relic-barrier-ability", [
             { type: "permanent", id: "other" },
         ]);
         const target = state.players[0].battlefield.find(

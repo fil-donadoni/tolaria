@@ -50,7 +50,12 @@ import {
     normalizeManaCost,
     resolveTopOfStack,
 } from "../../../../gre/state";
-import { getAllCards, getDefinition, getCardByName } from "../../../index";
+import {
+    getAllCards,
+    getAllCatalogueCards,
+    getDefinition,
+    getCardByName,
+} from "../../../index";
 
 const barlsCage = getDefinition("6768a307-da2e-435e-8efd-72d82b4d4a2b");
 const boneFlute = getDefinition("63a31de0-d764-4ff6-a85f-027e1e58d86c");
@@ -148,7 +153,7 @@ describe("DRK Artifacts/Lands registry parity (#417)", () => {
         safeHaven,
     ];
     it("registers every implemented card by id, name and in the index", () => {
-        const all = getAllCards();
+        const all = getAllCatalogueCards();
         for (const c of cards) {
             expect(getDefinition(c.id)).toBe(c);
             expect(getCardByName(c.name)).toBe(c);
@@ -275,7 +280,7 @@ describe("Book of Rass — {2}, Pay 2 life: Draw a card (CR 119.4/121.1)", () =>
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, book, "book-of-rass-draw");
+        resolveActivated(state, book, "book-of-rass-ability");
         expect(state.players[0].hand.some((c) => c.id === "top")).toBe(true);
         expect(bookOfRass.activatedAbilities![0].cost.life).toBe(2);
     });
@@ -293,7 +298,7 @@ describe("Diabolic Machine — {3}: Regenerate this creature (CR 701.19a)", () =
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, machine, "diabolic-machine-regenerate");
+        resolveActivated(state, machine, "diabolic-machine-ability");
         const after = state.players[0].battlefield.find(
             (c) => c.id === "machine"
         )!;
@@ -316,7 +321,7 @@ describe("Fountain of Youth — {2},{T}: gain 1 life (CR 119.3)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, fountain, "fountain-of-youth-gain");
+        resolveActivated(state, fountain, "fountain-of-youth-ability");
         expect(state.players[0].life).toBe(21);
     });
 });

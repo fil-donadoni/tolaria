@@ -261,14 +261,14 @@ describe("Zirda, the Dawnwaker (Companion, activated-ability cost reduction excl
         const { state, engine } = boardWithZirda("p1");
         // Dragon Engine's {2} pump ability: {2} - {2} = {0}, floored to {1}.
         expect(
-            effectiveAbilityCost(state, engine, "dragon-engine-pump")
+            effectiveAbilityCost(state, engine, "dragon-engine-ability")
         ).toEqual({ X: 1 });
     });
 
     it("does NOT reduce an ability its controller doesn't control ('abilities YOU activate')", () => {
         const { state, engine } = boardWithZirda("p2");
         expect(
-            effectiveAbilityCost(state, engine, "dragon-engine-pump")
+            effectiveAbilityCost(state, engine, "dragon-engine-ability")
         ).toEqual({ X: 2 });
     });
 
@@ -348,7 +348,7 @@ describe("Zirda, the Dawnwaker (Companion, activated-ability cost reduction excl
             effectiveAbilityCost(
                 projected as unknown as GameState,
                 slimEngine as unknown as CardInstanceState,
-                "dragon-engine-pump"
+                "dragon-engine-ability"
             )
         ).toEqual({ X: 1 });
     });

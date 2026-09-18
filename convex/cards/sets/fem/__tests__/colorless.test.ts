@@ -471,7 +471,7 @@ describe("FEM C6 sacrifice / tap-effect artifacts (reuse-only)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, lyre, "elven-lyre", [
+        resolveActivated(state, lyre, "elven-lyre-ability", [
             { type: "permanent", id: "bear" },
         ]);
         const buffed = state.players[0].battlefield.find(
@@ -496,7 +496,7 @@ describe("FEM C6 sacrifice / tap-effect artifacts (reuse-only)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, cylix, "draconian-cylix", [
+        resolveActivated(state, cylix, "draconian-cylix-ability", [
             { type: "permanent", id: "bear" },
         ]);
         const shielded = state.players[0].battlefield.find(

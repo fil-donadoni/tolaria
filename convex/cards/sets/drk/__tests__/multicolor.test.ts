@@ -54,7 +54,7 @@ describe("Dark Heart of the Wood — Sacrifice a Forest: gain 3 life (CR 118.5 /
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, dh, "dark-heart-of-the-wood-gain", []);
+        resolveActivated(state, dh, "dark-heart-of-the-wood-ability", []);
         expect(state.players[0].life).toBe(23); // 20 + 3
     });
 });

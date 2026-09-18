@@ -627,7 +627,7 @@ describe("Jayemdae Tome ({4}, {T}: Draw a card, CR 602.1 + 121.1)", () => {
             ...tome,
             zone: "stack",
             castById: "p1",
-            abilityId: "jayemdae-tome-draw",
+            abilityId: "jayemdae-tome-ability",
             targets: [],
         });
         resolveTopOfStack(state);
@@ -656,7 +656,7 @@ describe("Jayemdae Tome ({4}, {T}: Draw a card, CR 602.1 + 121.1)", () => {
         // registry via the card id.
         const def = jayemdaeTome;
         expect(slimTome.card.id).toBe(def.id);
-        expect(def.activatedAbilities?.[0].id).toBe("jayemdae-tome-draw");
+        expect(def.activatedAbilities?.[0].id).toBe("jayemdae-tome-ability");
     });
 });
 
@@ -784,7 +784,7 @@ describe("Icy Manipulator ({1}, {T}: tap target artifact/creature/land, CR 701.2
             ...icy,
             zone: "stack",
             castById: "p1",
-            abilityId: "icy-manipulator-tap",
+            abilityId: "icy-manipulator-ability",
             targets: [target],
         });
         resolveTopOfStack(state);
@@ -1063,7 +1063,7 @@ describe("Rod of Ruin ({3}, {T}: 1 damage to any target)", () => {
             ...rod,
             zone: "stack",
             castById: "p1",
-            abilityId: "rod-of-ruin-shoot",
+            abilityId: "rod-of-ruin-ability",
             targets: [{ type: "player", id: "p2" }],
         });
         resolveTopOfStack(state);
@@ -4144,7 +4144,7 @@ describe("Helm of Chatzuk (CR 611.2a temporary keyword grant)", () => {
             ...helm,
             zone: "stack",
             castById: "p1",
-            abilityId: "helm-of-chatzuk-grant-banding",
+            abilityId: "helm-of-chatzuk-ability",
             targets: [{ type: "permanent", id: "lion" }],
         });
         resolveTopOfStack(state);

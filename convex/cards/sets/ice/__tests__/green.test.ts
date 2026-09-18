@@ -214,7 +214,7 @@ describe("Fyndhorn Brownie / Juniper Order Druid (CR 701.26a untap)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, brownie, "fyndhorn-brownie-untap", [
+        resolveActivated(state, brownie, "fyndhorn-brownie-ability", [
             { type: "permanent", id: "ally" },
         ]);
         const after = state.players[0].battlefield.find(
@@ -363,7 +363,7 @@ describe("Shambling Strider (CR 611.1 +1/-1 self-pump)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, strider, "shambling-strider-pump");
+        resolveActivated(state, strider, "shambling-strider-ability");
         const after = state.players[0].battlefield[0];
         expect(getEffectivePower(state, after)).toBe(6); // 5 → 6
         expect(getEffectiveToughness(state, after)).toBe(4); // 5 → 4
@@ -971,7 +971,7 @@ describe("Folk of the Pines (CR 611.2a firebreathing +1/+0)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, folk, "folk-of-the-pines-pump");
+        resolveActivated(state, folk, "folk-of-the-pines-ability");
         const live = state.players[0].battlefield.find((c) => c.id === "folk")!;
         expect(getEffectivePower(state, live)).toBe(3); // 2 → 3
         expect(getEffectiveToughness(state, live)).toBe(5);

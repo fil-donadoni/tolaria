@@ -37,7 +37,7 @@ const CAULDRON = "019b51b0-e5c6-4208-922b-7736686dddcd"; // Agatha's Soul Cauldr
 const BEARS = "ce2d603a-3231-4a8c-bf39-1617586ea870";
 /** Frozen Shade — `{B}: This creature gets +1/+1 until end of turn.` */
 const SHADE = "d0bd76c8-4cff-4c15-9686-7a299b589814";
-const SHADE_PUMP = "frozen-shade-pump";
+const SHADE_PUMP = "frozen-shade-ability";
 
 /** p1: the Cauldron, a Bear carrying a `+1/+1` counter, a Frozen Shade card in
  *  exile linked to the Cauldron (as its own `{T}` ability would have left it),

@@ -9,12 +9,14 @@ import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-    buildLockfile,
+    buildLockfile as buildLockfileRaw,
     poolOracleIds,
     poolOracleIdsFromIndex,
+    type BuildLockfileOptions,
 } from "../oracle-compile";
 import { headerHashDrift } from "../check-oracle-lockfile";
 import type { CorpusCard } from "../oracle-corpus";
+import { emptyRetirementLedger } from "../lib/oracle-retirements";
 import {
     compilerHash,
     compilerSourceFiles,
@@ -28,6 +30,21 @@ import {
 } from "../lib/oracle-lockfile";
 
 const ROOT = join(import.meta.dirname, "..", "..");
+
+// This file builds SYNTHETIC corpora ("Test Bear" and friends), never the
+// real vendored one — so it must not stamp against the real, committed
+// `data/oracle-retirements.json` (issue #4027): a globally-retired card's
+// oracle id is absent from these fixtures by construction, and
+// `stampRetirements`'s own unguarded-row refusal would fire on every build.
+function buildLockfile(
+    corpus: readonly CorpusCard[],
+    options: BuildLockfileOptions = {}
+) {
+    return buildLockfileRaw(corpus, {
+        retirements: emptyRetirementLedger(),
+        ...options,
+    });
+}
 const LOCKFILE_PATH = join(ROOT, "data", "oracle-compiled.json");
 
 function corpusCard(overrides: Partial<CorpusCard> = {}): CorpusCard {

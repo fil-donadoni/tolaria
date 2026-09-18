@@ -23,7 +23,11 @@ import {
     orcishVeteranFemC,
     orcishVeteranFemD,
 } from "..";
-import { getDefinition, getCardByName, getAllCards } from "../../../index";
+import {
+    getDefinition,
+    getCardByName,
+    getAllCatalogueCards,
+} from "../../../index";
 import {
     resolveTopOfStack,
     beginApplyingStaticEffects,
@@ -95,7 +99,7 @@ describe("FEM red registry parity + multi-art prints (ADR 0014)", () => {
         for (const def of RED_DEFS) {
             expect(getDefinition(def.id)).toBe(def);
             expect(getCardByName(def.name)).toBe(def);
-            expect(getAllCards()).toContain(def);
+            expect(getAllCatalogueCards()).toContain(def);
         }
     });
 
@@ -247,7 +251,7 @@ describe("Goblin Chirurgeon — sacrifice a Goblin, regenerate (CR 701.19a)", ()
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, chirurgeon, "goblin-chirurgeon-regen", [
+        resolveActivated(state, chirurgeon, "goblin-chirurgeon-ability", [
             { type: "permanent", id: "ally" },
         ]);
         const allyLive = state.players[0].battlefield.find(
@@ -445,7 +449,7 @@ describe("Dwarven Lieutenant — pump a Dwarf (CR 611.2)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, lt, "dwarven-lieutenant-pump", [
+        resolveActivated(state, lt, "dwarven-lieutenant-ability", [
             { type: "permanent", id: "dwarf" },
         ]);
         const dwarfLive = state.players[0].battlefield.find(

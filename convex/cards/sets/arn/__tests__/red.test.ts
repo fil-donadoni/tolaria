@@ -73,7 +73,7 @@ describe("Ali Baba ({R}: tap target Wall)", () => {
                 makePlayer("p2", { battlefield: [wall] }),
             ],
         });
-        resolveActivated(state, ali, "ali-baba-tap-wall", [
+        resolveActivated(state, ali, "ali-baba-ability", [
             { type: "permanent", id: "wall" },
         ]);
         expect(
@@ -164,11 +164,11 @@ describe("Ali from Cairo (clamp life >= 1, CR 614)", () => {
                 makePlayer("p2", { battlefield: [tim, tim2] }),
             ],
         });
-        resolveActivated(state, tim, "prodigal-sorcerer-zap", [
+        resolveActivated(state, tim, "prodigal-sorcerer-ability", [
             { type: "player", id: "p1" },
         ]);
         expect(state.players[0].life).toBe(1);
-        resolveActivated(state, tim2, "prodigal-sorcerer-zap", [
+        resolveActivated(state, tim2, "prodigal-sorcerer-ability", [
             { type: "player", id: "p1" },
         ]);
         expect(state.players[0].life).toBe(1);
@@ -316,7 +316,7 @@ describe("Desert Nomads (desertwalk + prevent damage from Deserts)", () => {
                 ?.damageMarked ?? 0
         ).toBe(0);
         // A non-Desert source still hits it.
-        resolveActivated(state, tim, "prodigal-sorcerer-zap", [
+        resolveActivated(state, tim, "prodigal-sorcerer-ability", [
             { type: "permanent", id: "nomads" },
         ]);
         expect(

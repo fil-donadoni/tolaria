@@ -536,7 +536,7 @@ describe("Goblin Balloon Brigade ({R}: gain flying until end of turn)", () => {
             ...source,
             zone: "stack",
             castById: "p1",
-            abilityId: "goblin-balloon-brigade-fly",
+            abilityId: "goblin-balloon-brigade-ability",
             targets: [],
         });
         resolveTopOfStack(state);
@@ -766,7 +766,7 @@ describe("Uthden Troll ({R}: regenerate self)", () => {
             ...troll,
             zone: "stack",
             castById: "p1",
-            abilityId: "uthden-troll-regenerate",
+            abilityId: "uthden-troll-ability",
             targets: [],
         });
         resolveTopOfStack(state);
@@ -1825,7 +1825,7 @@ describe("Dwarven Demolition Team ({T}: destroy target Wall)", () => {
             id: "stack-ddt",
             zone: "stack",
             castById: "p1",
-            abilityId: "dwarven-demolition-team-destroy",
+            abilityId: "dwarven-demolition-team-ability",
             targets: [{ type: "permanent", id: "wall" }],
         });
         resolveTopOfStack(state);

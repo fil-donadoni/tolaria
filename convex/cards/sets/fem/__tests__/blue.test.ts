@@ -934,7 +934,7 @@ describe("Homarid Shaman — tap a green creature (CR 701.21 sacrifice cost / 70
                 makePlayer("p2", { battlefield: [green] }),
             ],
         });
-        resolveActivated(state, shaman, "homarid-shaman-tap", [
+        resolveActivated(state, shaman, "homarid-shaman-ability", [
             { type: "permanent", id: "green" },
         ]);
         expect(

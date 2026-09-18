@@ -199,7 +199,7 @@ describe("Fungal Bloom — feed the spore engine (CR 122.1)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, bloom, "fungal-bloom-feed", [
+        resolveActivated(state, bloom, "fungal-bloom-ability", [
             { type: "permanent", id: thallidInst.id },
         ]);
         const fed = state.players[0].battlefield.find(
@@ -240,7 +240,7 @@ describe("Elven Fortress — pump a blocking creature (CR 611.2)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, fortress, "elven-fortress-pump", [
+        resolveActivated(state, fortress, "elven-fortress-ability", [
             { type: "permanent", id: blocker.id },
         ]);
         const b = state.players[0].battlefield.find(

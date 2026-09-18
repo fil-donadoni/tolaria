@@ -44,7 +44,7 @@ function activateCoralHelm(
     if (!card) throw new Error("Source not on battlefield");
     const def = getDefinition((card.card as { id: string }).id);
     const ability = def.activatedAbilities!.find(
-        (a) => a.id === "coral-helm-pump"
+        (a) => a.id === "coral-helm-ability"
     )!;
 
     // CR 118.3 — illegal with an empty hand (validated up-front in game.ts).
@@ -66,7 +66,7 @@ function activateCoralHelm(
         ...structuredClone(card),
         zone: "stack" as const,
         castById: playerId,
-        abilityId: "coral-helm-pump",
+        abilityId: "coral-helm-ability",
         targets: [{ type: "permanent", id: targetId }],
     };
     state.stack.push(stackItem);

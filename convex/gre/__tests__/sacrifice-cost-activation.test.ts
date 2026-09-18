@@ -228,7 +228,7 @@ describe("sacrifice-as-cost activation flow (CR 602.1 / 118.5)", () => {
         });
         // Atog needs an artifact to sacrifice; only Atog (a Creature) is here.
         expect(() =>
-            activateWithSacrificeCost(state, "p1", "atog-1", "atog-pump")
+            activateWithSacrificeCost(state, "p1", "atog-1", "atog-ability")
         ).toThrow(/sacrifice cost/i);
     });
 
@@ -247,10 +247,10 @@ describe("sacrifice-as-cost activation flow (CR 602.1 / 118.5)", () => {
             state,
             "p1",
             "atog-1",
-            "atog-pump"
+            "atog-ability"
         );
         expect(pa.sacrificeSelection?.requirements).toEqual([
-            { filter: { types: "Artifact" }, count: 1, snapshot: true },
+            { filter: { types: ["Artifact"] }, count: 1, snapshot: true },
         ]);
         expect(pa.sacrificeSelection?.picked).toEqual([]);
         // Mana already covered, but commit is BLOCKED until the pick.
@@ -274,7 +274,7 @@ describe("sacrifice-as-cost activation flow (CR 602.1 / 118.5)", () => {
                 makePlayer("p2"),
             ],
         });
-        activateWithSacrificeCost(state, "p1", "atog-1", "atog-pump");
+        activateWithSacrificeCost(state, "p1", "atog-1", "atog-ability");
         // A plain (non-artifact) creature does not satisfy "sacrifice an artifact".
         expect(() => selectActivationCost(state, "p1", "lion-1")).toThrow(
             /filter/i
@@ -292,7 +292,7 @@ describe("sacrifice-as-cost activation flow (CR 602.1 / 118.5)", () => {
                 makePlayer("p2"),
             ],
         });
-        activateWithSacrificeCost(state, "p1", "atog-1", "atog-pump");
+        activateWithSacrificeCost(state, "p1", "atog-1", "atog-ability");
         selectActivationCost(state, "p1", "orn-1");
         // The chosen artifact is sacrificed; the ability resolved.
         expect(state.players[0].battlefield.some((c) => c.id === "orn-1")).toBe(
@@ -347,7 +347,7 @@ describe("sacrifice-as-cost activation flow (CR 602.1 / 118.5)", () => {
             state,
             "p1",
             "mech-1",
-            "orcish-mechanics-bolt",
+            "orcish-mechanics-ability",
             [{ type: "player", id: "p2" }]
         );
         selectActivationCost(state, "p1", "orn-1");
@@ -383,7 +383,7 @@ describe("sacrifice-as-cost activation flow (CR 602.1 / 118.5)", () => {
             state,
             "p1",
             "sage-1",
-            "sage-of-lat-nam-draw"
+            "sage-of-lat-nam-ability"
         );
         selectActivationCost(state, "p1", "orn-1");
         expect(state.players[0].hand.map((c) => c.id)).toContain("lib-1");
@@ -408,7 +408,7 @@ describe("sacrifice-as-cost activation flow (CR 602.1 / 118.5)", () => {
             state,
             "p1",
             "smith-1",
-            "dwarven-weaponsmith-counter",
+            "dwarven-weaponsmith-ability",
             [{ type: "permanent", id: "lion-1" }]
         );
         selectActivationCost(state, "p1", "orn-1");

@@ -81,7 +81,7 @@ describe("Carrion Ants ({1}: +1/+1 EOT, CR 611.1)", () => {
                 ...ants,
                 zone: "stack",
                 castById: "p1",
-                abilityId: "carrion-ants-pump",
+                abilityId: "carrion-ants-ability",
                 targets: [],
             } as StackItem);
             resolveTopOfStack(state);
@@ -115,7 +115,7 @@ describe("Walking Dead ({B}: Regenerate this, CR 701.19a)", () => {
             ...wd,
             zone: "stack",
             castById: "p1",
-            abilityId: "walking-dead-regenerate",
+            abilityId: "walking-dead-ability",
             targets: [],
         } as StackItem);
         resolveTopOfStack(state);
@@ -145,7 +145,7 @@ describe("Ghosts of the Damned ({T}: target -1/-0 EOT, CR 611.1)", () => {
             ...ghosts,
             zone: "stack",
             castById: "p1",
-            abilityId: "ghosts-of-the-damned-debuff",
+            abilityId: "ghosts-of-the-damned-ability",
             targets: [{ type: "permanent", id: "bear" }],
         } as StackItem);
         resolveTopOfStack(state);
@@ -363,7 +363,7 @@ describe("Horror of Horrors (Sac a Swamp: regenerate target black creature)", ()
             ...horror,
             zone: "stack",
             castById: "p1",
-            abilityId: "horror-of-horrors-regenerate",
+            abilityId: "horror-of-horrors-ability",
             sacrificedPermanentId: "swamp",
             targets: [{ type: "permanent", id: "zombie" }],
         } as StackItem);
@@ -434,7 +434,7 @@ describe("Greed ({B}, Pay 2 life: Draw a card, CR 119.4 / 121.1)", () => {
             ...greedInst,
             zone: "stack",
             castById: "p1",
-            abilityId: "greed-draw",
+            abilityId: "greed-ability",
             targets: [],
         } as StackItem);
         resolveTopOfStack(state);

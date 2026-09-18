@@ -463,7 +463,7 @@ describe("Gwendlyn Di Corci ({T}: random discard, your turn, CR 701.9a)", () => 
             ],
         });
         expect(state.players[1].hand.length).toBe(1);
-        resolveActivated(state, gwen, "gwendlyn-di-corci-discard", [
+        resolveActivated(state, gwen, "gwendlyn-di-corci-ability", [
             { type: "player", id: "p2" },
         ]);
         expect(state.players[1].hand.length).toBe(0);
@@ -506,7 +506,7 @@ describe("Pavel Maliki ({B}{R}: +1/+0 EOT, CR 611.1)", () => {
             ],
         });
         expect(getEffectivePower(state, pavel)).toBe(5);
-        resolveActivated(state, pavel, "pavel-maliki-pump");
+        resolveActivated(state, pavel, "pavel-maliki-ability");
         const live = state.players[0].battlefield.find(
             (c) => c.id === "pavel"
         )!;
@@ -533,7 +533,7 @@ describe("Ragnar ({G}{W}{U},{T}: regenerate target creature, CR 701.19a)", () =>
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, ragnarInst, "ragnar-regenerate", [
+        resolveActivated(state, ragnarInst, "ragnar-ability", [
             { type: "permanent", id: "bear" },
         ]);
         const live = state.players[0].battlefield.find((c) => c.id === "bear")!;

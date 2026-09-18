@@ -31,6 +31,7 @@ import {
     getDefinition,
     getCardByName,
     getAllCards,
+    getAllCatalogueCards,
     getAllSetCodes,
     FACE_DOWN_CARD_ID,
 } from "../../../index";
@@ -319,7 +320,7 @@ describe("Adarkar Sentinel ({1}: +0/+1 self-pump, CR 605 / 613)", () => {
     }
     it("pumps +0/+1 until end of turn", () => {
         const { state, sentinel } = setup();
-        resolveActivated(state, sentinel, "adarkar-sentinel-pump");
+        resolveActivated(state, sentinel, "adarkar-sentinel-ability");
         const s = state.players[0].battlefield.find(
             (c) => c.id === "sentinel"
         )!;
@@ -328,7 +329,7 @@ describe("Adarkar Sentinel ({1}: +0/+1 self-pump, CR 605 / 613)", () => {
     });
     it("wire format: the +0/+1 survives projectPublicState", () => {
         const { state, sentinel } = setup();
-        resolveActivated(state, sentinel, "adarkar-sentinel-pump");
+        resolveActivated(state, sentinel, "adarkar-sentinel-ability");
         const projected = projectPublicState(state, 1, "p1");
         const slim = projected.players[0].battlefield.find(
             (c) => c.id === "sentinel"
@@ -446,7 +447,7 @@ describe("Fyndhorn Bow ({3},{T}: grant first strike, CR 605 / 702.7)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, bow, "fyndhorn-bow-first-strike", [
+        resolveActivated(state, bow, "fyndhorn-bow-ability", [
             { type: "permanent", id: "dude" },
         ]);
         const t = state.players[0].battlefield.find((c) => c.id === "dude")!;
@@ -474,7 +475,7 @@ describe("Icy Manipulator ({1},{T}: tap any of three types, CR 605 / 701.20a)", 
                 makePlayer("p2", { battlefield: [dude] }),
             ],
         });
-        resolveActivated(state, icy, "icy-manipulator-tap", [
+        resolveActivated(state, icy, "icy-manipulator-ability", [
             { type: "permanent", id: "dude" },
         ]);
         const t = state.players[1].battlefield.find((c) => c.id === "dude")!;
@@ -549,7 +550,7 @@ describe("Pit Trap ({2},{T},Sac: destroy an attacker, CR 605 / 508.1)", () => {
                 makePlayer("p2", { battlefield: [attacker] }),
             ],
         });
-        resolveActivated(state, trap, "pit-trap-destroy", [
+        resolveActivated(state, trap, "pit-trap-ability", [
             { type: "permanent", id: "atk" },
         ]);
         expect(state.players[1].battlefield.some((c) => c.id === "atk")).toBe(
@@ -594,7 +595,7 @@ describe("Skull Catapult ({1},{T},Sac a creature: 2 dmg, CR 605 / 120.1)", () =>
             ],
         });
         const before = state.players[1].life;
-        resolveActivated(state, cat, "skull-catapult-fling", [
+        resolveActivated(state, cat, "skull-catapult-ability", [
             { type: "player", id: "p2" },
         ]);
         expect(state.players[1].life).toBe(before - 2);
@@ -682,7 +683,7 @@ describe("War Chariot ({3},{T}: grant trample, CR 605 / 702.19)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, chariot, "war-chariot-trample", [
+        resolveActivated(state, chariot, "war-chariot-ability", [
             { type: "permanent", id: "dude" },
         ]);
         const t = state.players[0].battlefield.find((c) => c.id === "dude")!;
@@ -707,7 +708,7 @@ describe("Whalebone Glider ({2},{T}: grant flying to power<=3, CR 605 / 702.9)",
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, glider, "whalebone-glider-flying", [
+        resolveActivated(state, glider, "whalebone-glider-ability", [
             { type: "permanent", id: "dude" },
         ]);
         const t = state.players[0].battlefield.find((c) => c.id === "dude")!;
@@ -729,7 +730,7 @@ describe("Zuran Orb (Sac a land: gain 2 life, CR 605 / 119.3)", () => {
             ],
         });
         const before = state.players[0].life;
-        resolveActivated(state, orb, "zuran-orb-gain-life");
+        resolveActivated(state, orb, "zuran-orb-ability");
         expect(state.players[0].life).toBe(before + 2);
     });
 });
@@ -759,8 +760,8 @@ describe("ICE Artifacts tranche registry parity (#636)", () => {
             expect(getCardByName(name).name).toBe(name);
         }
     });
-    it("includes each in getAllCards (deck-builder index)", () => {
-        const all = getAllCards();
+    it("includes each in getAllCatalogueCards (deck-builder index)", () => {
+        const all = getAllCatalogueCards();
         for (const name of expected) {
             expect(all.some((c) => c.name === name)).toBe(true);
         }
@@ -1113,7 +1114,7 @@ describe("Baton of Morale ({2}: grant banding, CR 702.22 / 611 layer 6)", () => 
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, baton, "baton-of-morale-banding", [
+        resolveActivated(state, baton, "baton-of-morale-ability", [
             { type: "permanent", id: "tgt" },
         ]);
         const t = state.players[0].battlefield.find((c) => c.id === "tgt")!;

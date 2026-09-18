@@ -691,7 +691,7 @@ describe("Icatian Infantry (self-granted activated keywords, grantAbility target
         });
         expect(inf.staticAbilities).not.toContain("first strike");
 
-        resolveActivated(state, inf, "icatian-infantry-first-strike");
+        resolveActivated(state, inf, "icatian-infantry-ability");
 
         const after = state.players[0].battlefield.find((c) => c.id === "inf")!;
         expect(after.staticAbilities).toContain("first strike");
@@ -709,7 +709,7 @@ describe("Icatian Infantry (self-granted activated keywords, grantAbility target
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, inf, "icatian-infantry-first-strike");
+        resolveActivated(state, inf, "icatian-infantry-ability");
 
         const projected = projectPublicState(state, 0, "p1");
         const slim = projected.players[0].battlefield.find(
@@ -833,7 +833,7 @@ describe("Icatian Priest / Lieutenant — temporary pumps (CR 611 layer 7c)", ()
             ],
         });
         expect(getEffectivePower(state, target)).toBe(2);
-        resolveActivated(state, priest, "icatian-priest-pump", [
+        resolveActivated(state, priest, "icatian-priest-ability", [
             { type: "permanent", id: "tgt" },
         ]);
         expect(getEffectivePower(state, target)).toBe(3);

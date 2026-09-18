@@ -356,7 +356,7 @@ describe("Atog (CR 602.1 — sacrifice an artifact: +2/+2)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, at, "atog-pump");
+        resolveActivated(state, at, "atog-ability");
         const after = state.players[0].battlefield.find(
             (c) => c.id === "atog-1"
         )!;
@@ -374,7 +374,7 @@ describe("Atog (CR 602.1 — sacrifice an artifact: +2/+2)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, at, "atog-pump");
+        resolveActivated(state, at, "atog-ability");
         const projected = projectPublicState(state, 1, "p1");
         const slim = projected.players[0].battlefield.find(
             (c) => c.id === "atog-1"
@@ -395,7 +395,7 @@ describe("Orcish Mechanics (CR 602.1 — {T}, sac artifact: 2 dmg any target)", 
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, mech, "orcish-mechanics-bolt", [
+        resolveActivated(state, mech, "orcish-mechanics-ability", [
             { type: "player", id: "p2" },
         ]);
         expect(state.players[1].life).toBe(18);
@@ -415,7 +415,7 @@ describe("Dwarven Weaponsmith (CR 602.5b — upkeep-only +1/+1 counter)", () => 
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, smith, "dwarven-weaponsmith-counter", [
+        resolveActivated(state, smith, "dwarven-weaponsmith-ability", [
             { type: "permanent", id: "orn-tgt" },
         ]);
         const after = state.players[0].battlefield.find(

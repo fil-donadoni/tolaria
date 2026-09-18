@@ -327,7 +327,7 @@ describe("Centaur Archer ({T}: 1 damage to a flyer, CR 605 / 120.1)", () => {
                 makePlayer("p2", { battlefield: [flyer] }),
             ],
         });
-        resolveActivated(state, archer, "centaur-archer-ping", [
+        resolveActivated(state, archer, "centaur-archer-ability", [
             { type: "permanent", id: "flyer" },
         ]);
         const live = state.players[1].battlefield.find(
@@ -352,7 +352,7 @@ describe("Centaur Archer ({T}: 1 damage to a flyer, CR 605 / 120.1)", () => {
                 makePlayer("p2", { battlefield: [flyer] }),
             ],
         });
-        resolveActivated(state, archer, "centaur-archer-ping", [
+        resolveActivated(state, archer, "centaur-archer-ability", [
             { type: "permanent", id: "flyer" },
         ]);
         const projected = projectPublicState(state, 2, "p2");

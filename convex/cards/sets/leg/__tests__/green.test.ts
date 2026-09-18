@@ -293,7 +293,7 @@ describe("Pradesh Gypsies ({1}{G}, {T}: target gets -2/-0 EOT, CR 611.1)", () =>
                 makePlayer("p2", { battlefield: [victim] }),
             ],
         });
-        resolveActivated(state, gypsies, "pradesh-gypsies-debuff", [
+        resolveActivated(state, gypsies, "pradesh-gypsies-ability", [
             { type: "permanent", id: "boar" },
         ]);
         const live = state.players[1].battlefield.find((c) => c.id === "boar")!;

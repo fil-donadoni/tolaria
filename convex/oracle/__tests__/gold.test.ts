@@ -83,7 +83,13 @@ describe("gold round-trip — precision", () => {
         // dozen matches for a dozen new accepts and calls it progress.
         const stats = REPORT.buckets.activated;
         const comparable = stats.accepted - stats.incomparable;
-        expect(comparable).toBeGreaterThan(100);
+        // Floor lowered from 100 (issue #4027): retiring a hand-written card
+        // removes it from `getAllCards()` (ADR 0114 §2), so a wave of
+        // migrations that retires exactly the `equal` cards this bucket
+        // measures shrinks the bucket on every landing, not just this one —
+        // 108 landed here at 100% precision. The ratio assertion below is
+        // still the real gate; this is only the vacuity floor.
+        expect(comparable).toBeGreaterThan(5);
         expect(stats.equal / comparable).toBeGreaterThanOrEqual(0.97);
     });
 
@@ -123,8 +129,11 @@ describe("gold round-trip — the harness is not vacuous", () => {
         expect(REPORT.buckets["keyword-only"].accepted).toBeGreaterThan(30);
         expect(REPORT.buckets["mana-ability"].accepted).toBeGreaterThan(10);
         // #2697 — without this the activated slot could be switched off
-        // entirely and every assertion above would still pass.
-        expect(REPORT.buckets.activated.accepted).toBeGreaterThan(80);
+        // entirely and every assertion above would still pass. Floor lowered
+        // from 80 (issue #4027): retirement moves `equal` hand-written cards
+        // out of `getAllCards()` (ADR 0114 §2), so this shrinks with every
+        // retirement wave — the point is non-zero, not population size.
+        expect(REPORT.buckets.activated.accepted).toBeGreaterThan(5);
         // #2700 — without this the static slot could be switched off entirely
         // and every assertion above would still pass.
         expect(REPORT.buckets.static.accepted).toBeGreaterThan(5);
@@ -224,8 +233,11 @@ describe("gold fixtures reconstruct a faithful Oracle card", () => {
         expect(goldBucket(sprites)).toBe("keyword-only");
         const elves = CARDS.find((c) => c.name === "Llanowar Elves")!;
         expect(goldBucket(elves)).toBe("mana-ability");
-        const sorcerer = CARDS.find((c) => c.name === "Prodigal Sorcerer")!;
-        expect(goldBucket(sorcerer)).toBe("activated");
+        // Prodigal Sorcerer retired in issue #4027 (ADR 0114) — out of
+        // `getAllCards()`. Drowned is one of the 14 hand-written activated
+        // cards still `equal` after that wave.
+        const drowned = CARDS.find((c) => c.name === "Drowned")!;
+        expect(goldBucket(drowned)).toBe("activated");
     });
 
     it("compiles a known keyword card to exactly the hand-written behaviour", () => {
@@ -240,15 +252,17 @@ describe("gold fixtures reconstruct a faithful Oracle card", () => {
     });
 
     it("compiles a known activated ability to exactly the hand-written behaviour", () => {
-        const sorcerer = CARDS.find((c) => c.name === "Prodigal Sorcerer")!;
-        const outcome = compileCard(goldOracleCard(sorcerer));
+        // Prodigal Sorcerer retired in issue #4027 (ADR 0114) — see the note
+        // above.
+        const drowned = CARDS.find((c) => c.name === "Drowned")!;
+        const outcome = compileCard(goldOracleCard(drowned));
         expect(outcome.state).not.toBe("unparsed");
         if (outcome.state !== "unparsed") {
             expect(behaviouralProjection(outcome.definition)).toEqual(
-                behaviouralProjection(sorcerer)
+                behaviouralProjection(drowned)
             );
             expect(outcome.definition.activatedAbilities?.[0]?.id).toBe(
-                "prodigal-sorcerer-ability"
+                "drowned-ability"
             );
             expect(outcome.definition.activatedAbilities?.[0]?.useStack).toBe(
                 true

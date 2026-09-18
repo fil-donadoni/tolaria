@@ -23,7 +23,11 @@ import {
     orderOfTheEbonHandFemB,
     orderOfTheEbonHandFemC,
 } from "..";
-import { getDefinition, getCardByName, getAllCards } from "../../../index";
+import {
+    getDefinition,
+    getCardByName,
+    getAllCatalogueCards,
+} from "../../../index";
 import { resolveTopOfStack, getCostModifiers } from "../../../../gre/state";
 import type {
     CardInstanceState,
@@ -163,7 +167,7 @@ describe("FEM black registry parity + multi-art prints (ADR 0014)", () => {
         for (const def of C5_DEFS) {
             expect(getDefinition(def.id)).toBe(def);
             expect(getCardByName(def.name)).toBe(def);
-            expect(getAllCards()).toContain(def);
+            expect(getAllCatalogueCards()).toContain(def);
         }
     });
 
@@ -257,7 +261,7 @@ describe("Armor Thrull — sac-self +1/+2 counter (CR 602.1, 122.1)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, armorer, "armor-thrull-counter", [
+        resolveActivated(state, armorer, "armor-thrull-ability", [
             { type: "permanent", id: "target" },
         ]);
         const buffed = state.players[0].battlefield.find(

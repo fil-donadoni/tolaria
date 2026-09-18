@@ -124,7 +124,7 @@ describe("Wyluli Wolf ({T}: target creature +1/+1 EOT)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, wolf, "wyluli-wolf-pump", [
+        resolveActivated(state, wolf, "wyluli-wolf-ability", [
             { type: "permanent", id: "bear" },
         ]);
         expect(getEffectivePower(state, target)).toBe(3);

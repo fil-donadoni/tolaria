@@ -525,7 +525,7 @@ describe("Goblin Digging Team — {T}, Sac this: destroy target Wall (CR 701.8)"
                 makePlayer("p2", { battlefield: [wall] }),
             ],
         });
-        resolveActivated(state, team, "goblin-digging-team-destroy-wall", [
+        resolveActivated(state, team, "goblin-digging-team-ability", [
             { type: "permanent", id: wall.id },
         ]);
         expect(

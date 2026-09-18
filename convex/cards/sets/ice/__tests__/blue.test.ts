@@ -281,7 +281,7 @@ describe("Sea Spirit ({U}: +1/+0, CR 611.2a)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, spirit, "sea-spirit-pump");
+        resolveActivated(state, spirit, "sea-spirit-ability");
         const live = state.players[0].battlefield.find((c) => c.id === "sea")!;
         expect(getEffectivePower(state, live)).toBe(3);
         expect(getEffectiveToughness(state, live)).toBe(3);
@@ -327,7 +327,7 @@ describe("Zuran Spellcaster ({T}: 1 damage any target, CR 120.1)", () => {
                 makePlayer("p2", { battlefield: [victim] }),
             ],
         });
-        resolveActivated(state, tim, "zuran-spellcaster-zap", [
+        resolveActivated(state, tim, "zuran-spellcaster-ability", [
             { type: "permanent", id: "victim" },
         ]);
         const live = state.players[1].battlefield.find(
@@ -3227,7 +3227,7 @@ describe("Soldevi Machinist — '{T}: Add {C}{C}. Spend only on artifact abiliti
         activateAbilityOnState(state, {
             playerId: "p1",
             cardInstanceId: "tome",
-            abilityId: "jayemdae-tome-draw",
+            abilityId: "jayemdae-tome-ability",
         });
         // {4} covered: 2 restricted + 2 fungible — no pendingActivation, the
         // ability went straight onto the stack.

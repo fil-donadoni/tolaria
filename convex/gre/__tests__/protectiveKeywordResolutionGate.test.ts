@@ -322,7 +322,7 @@ describe("CR 608.2b — abilities are covered on the same terms as spells", () =
             "p1",
             [{ type: "permanent", id: "bear" }]
         );
-        item.abilityId = "royal-assassin-destroy";
+        item.abilityId = "royal-assassin-ability";
         grantKeyword(state, "bear", "shroud");
         resolveTopOfStack(state);
         expect(bearOf(state)).toBeDefined();
@@ -336,7 +336,7 @@ describe("CR 608.2b — abilities are covered on the same terms as spells", () =
             "p1",
             [{ type: "permanent", id: "bear" }]
         );
-        controlItem.abilityId = "royal-assassin-destroy";
+        controlItem.abilityId = "royal-assassin-ability";
         resolveTopOfStack(control);
         expect(bearOf(control)).toBeUndefined();
     });
@@ -346,7 +346,7 @@ describe("CR 608.2b — abilities are covered on the same terms as spells", () =
         pushSpell(state, "59590768-fa96-4869-8763-9d5ab6ac22ad", "p1", [
             { type: "permanent", id: "bear" },
         ]);
-        state.stack[0].abilityId = "royal-assassin-destroy";
+        state.stack[0].abilityId = "royal-assassin-ability";
         // Royal Assassin is black; CR 109.5 — the ability's source is the
         // permanent, so its characteristics are what protection keys on.
         grantKeyword(state, "bear", "protection from black");
@@ -398,7 +398,7 @@ describe("CR 608.2b — abilities are covered on the same terms as spells", () =
                 "p1",
                 [{ type: "permanent", id: "bear" }]
             );
-            item.abilityId = "royal-assassin-destroy";
+            item.abilityId = "royal-assassin-ability";
             resolveTopOfStack(state);
             expect(bearOf(state)).toBeUndefined();
         });

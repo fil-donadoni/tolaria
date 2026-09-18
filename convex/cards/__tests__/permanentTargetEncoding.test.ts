@@ -9,12 +9,15 @@
 // enchantments and lands, and — with no colour filter — can target a player.
 
 import { describe, expect, it } from "vitest";
-import { getAllCards } from "../catalogue";
+import { getAllCatalogueCards } from "../catalogue";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../gre/rules";
 import type { CardDefinition, TargetRequirement } from "../types";
 import { makeInstance, makePlayer, makeState } from "./setup";
 
-const CARDS = getAllCards();
+// Northern Paladin retired in issue #4027 (ADR 0114) — it is no longer in
+// `getAllCards()` (hand-written only), but the catalogue-wide sweep below
+// wants every card, compiled twin included.
+const CARDS = getAllCatalogueCards();
 const byName = (name: string): CardDefinition => {
     const def = CARDS.find((c) => c.name === name);
     if (!def) throw new Error(`no card named ${name}`);

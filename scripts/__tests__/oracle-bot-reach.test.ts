@@ -13,7 +13,10 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { BotReachVerdict } from "../../convex/gre/ai/botReach";
 import type { CompiledDefinition } from "../../convex/oracle/types";
-import { buildLockfile } from "../oracle-compile";
+import {
+    buildLockfile as buildLockfileRaw,
+    type BuildLockfileOptions,
+} from "../oracle-compile";
 import type { CorpusCard } from "../oracle-corpus";
 import {
     botGapKey,
@@ -25,8 +28,23 @@ import {
 } from "../lib/oracle-bot-reach";
 import type { CardRow, Lockfile } from "../lib/oracle-lockfile";
 import { REGENERATED_ARTIFACTS } from "../lib/generated-artifacts";
+import { emptyRetirementLedger } from "../lib/oracle-retirements";
 
 const ROOT = join(import.meta.dirname, "..", "..");
+
+// SYNTHETIC corpora only — must not stamp against the real, committed
+// `data/oracle-retirements.json` (issue #4027): a globally-retired card's
+// oracle id is absent from these fixtures by construction, and
+// `stampRetirements`'s own unguarded-row refusal would fire on every build.
+function buildLockfile(
+    corpus: readonly CorpusCard[],
+    options: BuildLockfileOptions = {}
+) {
+    return buildLockfileRaw(corpus, {
+        retirements: emptyRetirementLedger(),
+        ...options,
+    });
+}
 
 const BEAR_ID = "00000000-0000-0000-0000-00000000b0a1";
 const BOLT_ID = "00000000-0000-0000-0000-00000000b0a2";

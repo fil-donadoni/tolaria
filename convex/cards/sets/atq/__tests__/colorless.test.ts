@@ -351,7 +351,7 @@ describe("Dragon Engine ({2}: +1/+0 EOT, CR 611.1)", () => {
         const target = { type: "permanent" as const, id: "engine" };
         expect(getEffectivePower(state, engine)).toBe(1);
 
-        resolveActivated(state, engine, "dragon-engine-pump", [target]);
+        resolveActivated(state, engine, "dragon-engine-ability", [target]);
         const live = state.players[0].battlefield.find(
             (c) => c.id === "engine"
         )!;
@@ -369,7 +369,7 @@ describe("Dragon Engine ({2}: +1/+0 EOT, CR 611.1)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, engine, "dragon-engine-pump", [
+        resolveActivated(state, engine, "dragon-engine-ability", [
             { type: "permanent", id: "engine" },
         ]);
 
@@ -397,7 +397,7 @@ describe("Clay Statue ({2}: regenerate, CR 701.19)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, statue, "clay-statue-regen", [
+        resolveActivated(state, statue, "clay-statue-ability", [
             { type: "permanent", id: "statue" },
         ]);
         expect(
@@ -429,7 +429,7 @@ describe("Grapeshot Catapult ({T}: 1 dmg to flyer, CR 120.3 / 702.9)", () => {
             ],
         });
         const req = grapeshotCatapult.activatedAbilities!.find(
-            (a) => a.id === "grapeshot-catapult-bolt"
+            (a) => a.id === "grapeshot-catapult-ability"
         )!.targetRequirement!;
         const legal = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1");
         const ids = legal.map((t) => t.id);
@@ -452,7 +452,7 @@ describe("Grapeshot Catapult ({T}: 1 dmg to flyer, CR 120.3 / 702.9)", () => {
                 makePlayer("p2", { battlefield: [flyer] }),
             ],
         });
-        resolveActivated(state, cat, "grapeshot-catapult-bolt", [
+        resolveActivated(state, cat, "grapeshot-catapult-ability", [
             { type: "permanent", id: "flyer" },
         ]);
         const live = state.players[1].battlefield.find(
@@ -1556,7 +1556,7 @@ describe("Staff of Zegon ({3},{T}: target -2/-0 EOT, CR 611.1)", () => {
         const state = makeState({
             players: [makePlayer("p1", { battlefield: [staff, bear] })],
         });
-        resolveActivated(state, staff, "staff-of-zegon-weaken", [
+        resolveActivated(state, staff, "staff-of-zegon-ability", [
             { type: "permanent", id: "bear" },
         ]);
         const live = state.players[0].battlefield.find((c) => c.id === "bear")!;
@@ -3486,7 +3486,7 @@ describe("Coral Helm ({3}, discard at random: target +2/+2 EOT)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, helm, "coral-helm-pump", [
+        resolveActivated(state, helm, "coral-helm-ability", [
             { type: "permanent", id: "bear" },
         ]);
         const live = state.players[0].battlefield.find((c) => c.id === "bear")!;

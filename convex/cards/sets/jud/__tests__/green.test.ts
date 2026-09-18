@@ -61,7 +61,7 @@ describe("Sylvan Safekeeper (CR 118.5 sacrifice-a-land cost; CR 702.18 shroud gr
 
     it("grants the target creature you control shroud until end of turn", () => {
         const { state, safekeeper } = setup();
-        resolveActivated(state, safekeeper, "sylvan-safekeeper-shroud", [
+        resolveActivated(state, safekeeper, "sylvan-safekeeper-ability", [
             { type: "permanent", id: "safekeeper" },
         ]);
         const live = state.players[0].battlefield.find(

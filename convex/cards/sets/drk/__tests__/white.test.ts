@@ -168,7 +168,7 @@ describe("Exorcist — destroy target black creature (CR 605 / 701.7)", () => {
                 makePlayer("p2", { battlefield: [black] }),
             ],
         });
-        resolveActivated(state, ex, "exorcist-destroy-black", [
+        resolveActivated(state, ex, "exorcist-ability", [
             { type: "permanent", id: "black" },
         ]);
         expect(

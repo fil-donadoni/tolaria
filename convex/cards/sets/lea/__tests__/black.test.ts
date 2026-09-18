@@ -417,7 +417,7 @@ describe("Royal Assassin ({T}: destroy target tapped creature, CR 701.26 + 701.8
             ...source,
             zone: "stack",
             castById: "p1",
-            abilityId: "royal-assassin-destroy",
+            abilityId: "royal-assassin-ability",
             targets: [{ type: "permanent", id: targetId }],
         });
         resolveTopOfStack(state);
@@ -438,7 +438,7 @@ describe("Royal Assassin ({T}: destroy target tapped creature, CR 701.26 + 701.8
             ...assassin,
             zone: "stack",
             castById: "p1",
-            abilityId: "royal-assassin-destroy",
+            abilityId: "royal-assassin-ability",
             targets: [{ type: "permanent", id: "victim" }],
         });
         // Opponent untaps the target in response.
@@ -1106,7 +1106,7 @@ describe("Drudge Skeletons ({B}: regenerate self, CR 701.19a)", () => {
             ...source,
             zone: "stack",
             castById: "p1",
-            abilityId: "drudge-skeletons-regenerate",
+            abilityId: "drudge-skeletons-ability",
             targets: [],
         });
         resolveTopOfStack(state);
@@ -1564,7 +1564,7 @@ describe("Frozen Shade ({B}: this creature gets +1/+1 until end of turn)", () =>
         )!;
         expect(getEffectivePower(state, shade)).toBe(0);
         expect(getEffectiveToughness(state, shade)).toBe(1);
-        activatePump(state, shade, "frozen-shade-pump");
+        activatePump(state, shade, "frozen-shade-ability");
         const after = state.players[0].battlefield.find(
             (c) => c.id === shadeId
         )!;
@@ -1578,7 +1578,7 @@ describe("Frozen Shade ({B}: this creature gets +1/+1 until end of turn)", () =>
             const shade = state.players[0].battlefield.find(
                 (c) => c.id === shadeId
             )!;
-            activatePump(state, shade, "frozen-shade-pump");
+            activatePump(state, shade, "frozen-shade-ability");
         }
         const after = state.players[0].battlefield.find(
             (c) => c.id === shadeId
@@ -1592,7 +1592,7 @@ describe("Frozen Shade ({B}: this creature gets +1/+1 until end of turn)", () =>
         const shade = state.players[0].battlefield.find(
             (c) => c.id === shadeId
         )!;
-        activatePump(state, shade, "frozen-shade-pump");
+        activatePump(state, shade, "frozen-shade-ability");
         // Jump to END_STEP so the next advancePhase lands on CLEANUP, where
         // tickAllDurations runs.
         state.phase = "END_STEP";
@@ -1610,7 +1610,7 @@ describe("Frozen Shade ({B}: this creature gets +1/+1 until end of turn)", () =>
         const shade = state.players[0].battlefield.find(
             (c) => c.id === shadeId
         )!;
-        activatePump(state, shade, "frozen-shade-pump");
+        activatePump(state, shade, "frozen-shade-ability");
         const projected = projectPublicState(state, 1, "p1");
         const slim = projected.players[0].battlefield.find(
             (c) => c.id === shadeId

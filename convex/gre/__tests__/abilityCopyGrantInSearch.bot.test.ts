@@ -34,7 +34,7 @@ import type { CardInstanceState, GameState } from "../state";
 
 const BEAR = getCardByName("Grizzly Bears").id;
 const SORCERER = getCardByName("Prodigal Sorcerer").id;
-const ZAP = "prodigal-sorcerer-zap";
+const ZAP = "prodigal-sorcerer-ability";
 
 function grantedBearState(origin: "card-abilities" | undefined): GameState {
     const bear: CardInstanceState = makeInstance(BEAR, {

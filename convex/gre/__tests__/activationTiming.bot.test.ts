@@ -67,10 +67,10 @@ const BOLT = getCardByName("Lightning Bolt").id;
 const GIANT = getCardByName("Hill Giant").id;
 
 const MOTHER_ABILITY = "mother-of-runes-protect";
-const SORCERER_ZAP = "prodigal-sorcerer-zap";
+const SORCERER_ZAP = "prodigal-sorcerer-ability";
 const FACTORY_ANIMATE = "mishras-factory-animate";
 const FACTORY_MANA = "mishras-factory-mana";
-const ORB_GAIN = "zuran-orb-gain-life";
+const ORB_GAIN = "zuran-orb-ability";
 
 function perm(cardId: string, id: string, extra = {}): CardInstanceState {
     return makeInstance(cardId, {

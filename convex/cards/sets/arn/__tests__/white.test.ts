@@ -109,7 +109,7 @@ describe("King Suleiman ({T}: destroy target Djinn or Efreet)", () => {
                 makePlayer("p2", { battlefield: [djinn] }),
             ],
         });
-        resolveActivated(state, king, "king-suleiman-destroy", [
+        resolveActivated(state, king, "king-suleiman-ability", [
             { type: "permanent", id: "djinn" },
         ]);
         expect(state.players[1].battlefield).toHaveLength(0);
@@ -288,7 +288,7 @@ describe("Eye for an Eye (reflect damage to source's controller, CR 614)", () =>
             { type: "permanent", id: "tim" },
         ]);
         resolveTopOfStack(state);
-        resolveActivated(state, tim, "prodigal-sorcerer-zap", [
+        resolveActivated(state, tim, "prodigal-sorcerer-ability", [
             { type: "player", id: "p1" },
         ]);
         expect(state.players[0].life).toBe(19); // damage to you unchanged
@@ -316,11 +316,11 @@ describe("Eye for an Eye (reflect damage to source's controller, CR 614)", () =>
             { type: "permanent", id: "tim" },
         ]);
         resolveTopOfStack(state);
-        resolveActivated(state, tim, "prodigal-sorcerer-zap", [
+        resolveActivated(state, tim, "prodigal-sorcerer-ability", [
             { type: "player", id: "p1" },
         ]);
         // Second zap from the same source: shield consumed, no reflect.
-        resolveActivated(state, tim2, "prodigal-sorcerer-zap", [
+        resolveActivated(state, tim2, "prodigal-sorcerer-ability", [
             { type: "player", id: "p1" },
         ]);
         expect(state.players[0].life).toBe(18); // took both hits
