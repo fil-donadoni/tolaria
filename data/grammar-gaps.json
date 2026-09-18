@@ -440,6 +440,36 @@
     ],
     "claims": [
         {
+            "kind": "bot",
+            "key": "never-chosen › Creature [flash] › destroy",
+            "issue": 4073
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Creature › (no Ops)",
+            "issue": 4069
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Enchantment › dealDamage",
+            "issue": 4071
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Enchantment › destroy",
+            "issue": 4070
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Sorcery [delve] › draw",
+            "issue": 4074
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Sorcery target:player › discardAtRandom",
+            "issue": 4072
+        },
+        {
             "kind": "mechanic",
             "key": "planned-mechanic › keyword \"assist\" is not implemented in the Mechanics Registry",
             "issue": 4005
