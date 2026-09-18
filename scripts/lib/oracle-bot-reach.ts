@@ -64,8 +64,14 @@ const BOT_SOURCE_FILES = [
     "convex/gre/applyMove.ts",
     "convex/gre/expectedInput.ts",
     "convex/gre/scenarioBuilder.ts",
-    "scripts/lib/oracle-bot-reach.ts",
 ] as const;
+
+/**
+ * Inside {@link BOT_SOURCE_DIR} and still NOT hashed: it decides the Bot Gap
+ * KEY, which `buildLockfile` recomputes from the definition on every run, and
+ * never a verdict. Hashing it would replay 3,400 cards to change a label.
+ */
+const BOT_SOURCE_EXCLUDED_FILES = new Set(["botReachForm.ts"]);
 const BOT_SOURCE_DIR = "convex/gre/ai";
 const BOT_SOURCE_EXCLUDED_DIRS = new Set(["__tests__", "verdicts"]);
 const BOT_BLADE_INCLUDED = new Set(["baseState.ts"]);
@@ -81,6 +87,7 @@ export function botSourceFiles(root: string): string[] {
                 walk(rel);
             } else if (
                 entry.endsWith(".ts") &&
+                !BOT_SOURCE_EXCLUDED_FILES.has(entry) &&
                 (!dir.endsWith("/blade") || BOT_BLADE_INCLUDED.has(entry))
             ) {
                 out.push(rel);
@@ -196,11 +203,15 @@ const GAP_SEPARATOR = " › ";
  */
 export function botGapKey(
     verdict: BotReachVerdict,
-    opsUsed: readonly string[]
+    opsUsed: readonly string[],
+    /** The card's cast shape, recomputed from the definition — a cached
+     *  verdict's own `form` is whatever the shape looked like when it was
+     *  played, so the key is derived here and never read back from the row. */
+    form: string = verdict.form ?? ""
 ): string | undefined {
     if (verdict.outcome === "played" || verdict.cause === undefined)
         return undefined;
-    const parts: string[] = [verdict.cause, verdict.form ?? ""];
+    const parts: string[] = [verdict.cause, form];
     if (verdict.cause === "never-chosen")
         parts.push(opsUsed.length > 0 ? opsUsed.join("+") : "(no Ops)");
     return parts.join(GAP_SEPARATOR);

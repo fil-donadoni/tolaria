@@ -317,10 +317,18 @@ describe("the sweep never runs inside a gate (ADR 0105 § 7.2)", () => {
             join(ROOT, "scripts", "oracle-compile.ts"),
             "utf8"
         );
+        // `botReachForm` is the one allowed static import: pure over a
+        // definition, no search in its graph (asserted below), and the gate
+        // needs it to recompute a Bot Gap key.
         expect(driver).not.toMatch(
-            /^import (?!type)[^;]*from "\.\.\/convex\/gre\/ai\//m
+            /^import (?!type)[^;]*from "\.\.\/convex\/gre\/ai\/(?!botReachForm)/m
         );
         expect(driver).toContain('await import("../convex/gre/ai/botReach")');
+        const form = readFileSync(
+            join(ROOT, "convex", "gre", "ai", "botReachForm.ts"),
+            "utf8"
+        );
+        expect(form).not.toMatch(/^import (?!type)/m);
     });
 
     it("the gate scripts never name the write path", () => {

@@ -35,6 +35,9 @@ import type {
 } from "../convex/oracle/types";
 import { GRAMMAR_VERSION } from "../convex/oracle/version";
 import type { CardDefinition } from "../convex/cards/types";
+// PURE over a definition, and free of the search — see its header for why the
+// gate may import it and why the Bot hash excludes it.
+import { castShape } from "../convex/gre/ai/botReachForm";
 import {
     readCorpus,
     readPin,
@@ -294,7 +297,15 @@ export function buildLockfile(
                 : undefined;
         const gap =
             verdict !== undefined && outcome.state !== "unparsed"
-                ? botGapKey(verdict, outcome.opsUsed)
+                ? botGapKey(
+                      verdict,
+                      outcome.opsUsed,
+                      castShape({
+                          ...outcome.definition,
+                          id: card.oracleId,
+                          rarity: "common",
+                      } as CardDefinition)
+                  )
                 : undefined;
         const state: CompileState =
             verdict?.outcome === "frozen" ? "quarantine" : outcome.state;

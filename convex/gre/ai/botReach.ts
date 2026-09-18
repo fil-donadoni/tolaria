@@ -48,7 +48,9 @@ import { getLegalActions } from "../rules";
 import { allocInstanceId, type GameState } from "../state";
 import { manaValue } from "../constants";
 import { basicLandsForColors, getCardColors } from "../../cards/colors";
-import type { CardDefinition, TargetRequirement } from "../../cards/types";
+import type { CardDefinition } from "../../cards/types";
+import { castShape, needsStackTarget } from "./botReachForm";
+export { castShape } from "./botReachForm";
 import type { ScenarioCard, ScenarioSpec } from "../../debugScenarioSpec";
 
 export type BotReachOutcome = "played" | "ignored" | "frozen";
@@ -121,39 +123,6 @@ const FILLER_CREATURE = "Grizzly Bears";
 const FILLER_ARTIFACT = "Ornithopter";
 /** A global enchantment, for enchantment targets. */
 const FILLER_ENCHANTMENT = "Castle";
-
-/** Every target TYPE a definition announces, at the card and mode levels. */
-function targetTypes(def: CardDefinition): string[] {
-    const reqs: TargetRequirement[] = [];
-    if (def.targetRequirement) reqs.push(def.targetRequirement);
-    for (const mode of def.modes ?? []) {
-        if (mode.targetRequirement) reqs.push(mode.targetRequirement);
-    }
-    return reqs.flatMap((r) => (Array.isArray(r.type) ? r.type : [r.type]));
-}
-
-/** CR 115.1 — a spell that targets a SPELL needs one on the stack. */
-function needsStackTarget(def: CardDefinition): boolean {
-    return targetTypes(def).some(
-        (t) => t === "spell" || t === "spell-or-permanent"
-    );
-}
-
-/**
- * The card's cast shape — the form a `no-legal-move` is aggregated by. Its
- * primary card type, the target types it announces, and whether its cost
- * carries X: the three things that decide whether the generated position
- * offers it a legal move at all.
- */
-export function castShape(def: CardDefinition): string {
-    const primary = def.types[0] ?? "Card";
-    const targets = [...new Set(targetTypes(def))].sort();
-    const parts: string[] = [primary];
-    if (targets.length > 0) parts.push(`target:${targets.join("|")}`);
-    // CR 107.3 — a VARIABLE X is the string marker; a number is generic.
-    if (def.manaCost?.X === "X") parts.push("X");
-    return parts.join(" ");
-}
 
 /**
  * The generated position, as a `ScenarioSpec` for the HOLDER seat (`me`): its
