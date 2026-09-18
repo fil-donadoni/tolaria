@@ -13,7 +13,11 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { auditCoverage } from "../check-targets";
-import { compilerGapCards } from "../lib/coverage-context";
+import {
+    cardTestFiles,
+    compilerGapCards,
+    perCardTests,
+} from "../lib/coverage-context";
 import { HEALTH_SCRIPTS } from "../lib/health-step";
 import type { CardRow } from "../lib/oracle-lockfile";
 import {
@@ -434,5 +438,31 @@ describe("compilerGapCards — the markers `gaps:sync` reports against the floor
         // A reader that silently returned nothing would report no fallen
         // marker ever, which is the failure this assertion exists to catch.
         expect(compilerGapCards(ROOT).size).toBeGreaterThan(0);
+    });
+});
+
+describe("cardTestFiles — card tests are colour-split PER SET (ADR 0043)", () => {
+    const files = cardTestFiles(ROOT);
+
+    it("reaches the per-set directories, not just `convex/cards/__tests__`", () => {
+        // A non-recursive read of the flat directory sees a ninth of them and
+        // reports "no test" for every card a per-set file names — 58 of 383
+        // graduates when this was measured (review of PR #3978).
+        const perSet = files.filter((f) =>
+            /^convex\/cards\/sets\/[^/]+\/__tests__\//.test(f)
+        );
+        expect(perSet.length).toBeGreaterThan(0);
+        expect(files.length).toBeGreaterThan(perSet.length);
+    });
+
+    it("finds a card named only by its per-set file, and indexes nothing else", () => {
+        // Death Ward's only test is `sets/ice/__tests__/white.test.ts`.
+        const index = perCardTests(ROOT, new Set(["Death Ward"]));
+        expect(index.get("Death Ward") ?? []).toContain(
+            "convex/cards/sets/ice/__tests__/white.test.ts"
+        );
+        // Only the names asked for: indexing every literal matched "Island"
+        // in files about neither card (review of PR #3978).
+        expect([...index.keys()]).toEqual(["Death Ward"]);
     });
 });
