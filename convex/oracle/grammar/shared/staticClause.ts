@@ -857,6 +857,9 @@ const COLOUR_WORDS: ReadonlySet<string> = new Set([
 
 const PROTECTION_FROM = "protection from ";
 
+/** "this Aura" / "this enchantment" — the granting Aura, never the host. */
+const SELF_AURA_PHRASE = /\bthis (aura|enchantment)\b/i;
+
 /**
  * "flying", "flying and first strike", "flying, first strike, and trample",
  * "protection from green and from blue" — a list of keywords a host is
@@ -871,6 +874,13 @@ const PROTECTION_FROM = "protection from ";
  * strings, never one. Anything else fails the list, never drops an item.
  */
 function readGrantedKeywords(span: string): RuleResult<readonly KeywordIR[]> {
+    // A serial list ends in "and" ("flying, first strike, and trample");
+    // a bare comma list ("shroud, flying") is not an Oracle keyword list.
+    if (span.includes(", ") && !/(, | )and [^,]+$/.test(span))
+        return fail(
+            'a keyword list whose last item is not joined by "and"',
+            span
+        );
     const items = span.split(/, and |, | and /);
     const out: KeywordIR[] = [];
     let previousWasProtection = false;
@@ -931,8 +941,12 @@ function readQuotedAbility(
             text
         );
     // The Aura's own name inside the quote would be the AURA (CR 201.5a), a
-    // different object from the one the ability is granted to.
-    if (text.includes(ctx.selfMarker))
+    // different object from the one the ability is granted to — and so is
+    // "this Aura" / "this enchantment", which modern Oracle text prints in
+    // place of the name and `normalize` leaves alone. Lowered, either would
+    // bind to `$source`, which for a granted ability is the HOST: "Return
+    // this Aura to its owner's hand" would bounce the creature.
+    if (text.includes(ctx.selfMarker) || SELF_AURA_PHRASE.test(text))
         return fail("a granted ability naming the Aura itself", text);
     const hostCtx: ParseContext = {
         ...ctx,

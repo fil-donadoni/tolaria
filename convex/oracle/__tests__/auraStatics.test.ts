@@ -403,6 +403,10 @@ describe("Aura statics — refusals", () => {
         'Enchanted creature has "At the beginning of your upkeep, you lose 1 life."',
         // "enchanted permanent" names no host type for a quoted ability.
         'Enchanted permanent has "{T}: Draw a card."',
+        // "this Aura" inside a quote is the AURA, not the host (CR 201.5a).
+        'Enchanted creature has "{0}: Return this Aura to its owner\'s hand."',
+        // A bare comma list is not an Oracle keyword list.
+        "Enchanted creature has shroud, flying.",
         // Equipment is not an Aura, and no Equip line parses yet.
         "Equipped creature gets +2/+0.",
     ])("refuses %s", (line) => {
