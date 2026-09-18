@@ -69,12 +69,12 @@ function unparsed(
     };
 }
 
-// a: only Equip {2}            → Equip unlocks a
-// b: Equip {3} + trigger head  → blocks both, unlocks neither
-// c: only trigger head         → head unlocks c
-// d: Equip {2} + head          → blocks both
-// e: transform                 → card-level gap unlocks e
-// f: unentered line            → (no slot) gap unlocks f
+// a: only Equip {2}            → Equip compiles a
+// b: Equip {3} + trigger head  → refuses both, compiles neither
+// c: only trigger head         → head compiles c
+// d: Equip {2} + head          → refuses both
+// e: transform                 → card-level gap compiles e
+// f: unentered line            → (no slot) gap compiles f
 // g: ready, never counted
 const CARDS: CardRow[] = [
     unparsed("a", [0], ["premodern"]),
@@ -126,12 +126,12 @@ describe("gapOf attributes every fragment kind", () => {
 });
 
 describe("rankGrammarGaps", () => {
-    it("ranks the corpus by unlocks, then blocks, with every count", () => {
+    it("ranks the corpus by compiles, then refuses, with every count", () => {
         const ranked = rankGrammarGaps(LOCK, null);
         expect(
-            ranked.map((g) => [g.shape, g.target.unlocks, g.target.blocks])
+            ranked.map((g) => [g.shape, g.target.compiles, g.target.refuses])
         ).toEqual([
-            // Equip and the head both unlock one card and block three; the
+            // Equip and the head both compile one card and refuse three; the
             // corpus count ties too, so the KEY decides — a total order.
             ["Equip {…}", 1, 3],
             ["Whenever you gain life", 1, 3],
@@ -147,10 +147,10 @@ describe("rankGrammarGaps", () => {
         expect(
             ranked.map((g) => [
                 g.shape,
-                g.target.unlocks,
-                g.target.blocks,
-                g.corpus.unlocks,
-                g.corpus.blocks,
+                g.target.compiles,
+                g.target.refuses,
+                g.corpus.compiles,
+                g.corpus.refuses,
             ])
         ).toEqual([
             ["Equip {…}", 1, 2, 1, 3],
@@ -158,9 +158,9 @@ describe("rankGrammarGaps", () => {
         ]);
     });
 
-    it("puts the gap that UNLOCKS more before the one that merely blocks more", () => {
-        // Equip blocks three cards and is the last gap of none of them; the
-        // trigger head blocks two and is the last gap of one. Landing the head
+    it("puts the gap that COMPILES more before the one that merely refuses more", () => {
+        // Equip refuses three cards and is the last gap of none of them; the
+        // trigger head refuses two and is the last gap of one. Landing the head
         // rule compiles a card, landing Equip compiles nothing.
         const ranked = rankGrammarGaps(
             {
@@ -177,7 +177,7 @@ describe("rankGrammarGaps", () => {
         expect(
             ranked
                 .slice(0, 2)
-                .map((g) => [g.shape, g.target.unlocks, g.target.blocks])
+                .map((g) => [g.shape, g.target.compiles, g.target.refuses])
         ).toEqual([
             ["Whenever you gain life", 1, 2],
             ["Equip {…}", 0, 3],
@@ -185,7 +185,7 @@ describe("rankGrammarGaps", () => {
     });
 
     it("breaks a Target tie on the corpus count (the leverage tie-break)", () => {
-        // Target {b}: both gaps block b and unlock nothing; Equip blocks 3 in
+        // Target {b}: both gaps refuse b and compile nothing; Equip refuses 3 in
         // the corpus, the head 3 too — make the head's corpus count larger.
         const extra = unparsed("h", [2]);
         const ranked = rankGrammarGaps(
@@ -205,8 +205,8 @@ describe("rankGrammarGaps", () => {
             null
         );
         expect(ranked).toHaveLength(1);
-        // One gap, one card — and it is the card's ONLY gap, so it unlocks it.
-        expect(ranked[0]!.target).toEqual({ blocks: 1, unlocks: 1 });
+        // One gap, one card — and it is the card's ONLY gap, so it compiles it.
+        expect(ranked[0]!.target).toEqual({ refuses: 1, compiles: 1 });
     });
 
     it("takes the example from a Target card when there is one", () => {

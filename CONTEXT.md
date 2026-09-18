@@ -903,12 +903,20 @@ One clause form the **Oracle Compiler** accepts in a slot or a shared sub-gramma
 _Avoid_: Parser, template, pattern, line match
 
 **Grammar Gap**:
-A **Grammar Rule** the corpus needs and the grammar does not have, attributed from **Fragments** and ranked by the cards it would unlock — in a **Ranking Target** and across the corpus. The attribution is mechanical: for every refused line the compiler records the deepest failing path — the slot, the shared sub-grammar, and the span that sub-grammar could not consume — and two Fragments failing on the same path at the same span (amounts folded) are the same gap. The backlog unit of grammar-first work, and the reason an Op may exist without the grammar that emits it: every such Op names its gap, and the list of them only shrinks.
+A **Grammar Rule** the corpus needs and the grammar does not have, attributed from **Fragments** and ranked by the cards it **Compiles**, then the cards it **Refuses** — in a **Ranking Target** and across the corpus. The attribution is mechanical: for every refused line the compiler records the deepest failing path — the slot, the shared sub-grammar, and the span that sub-grammar could not consume — and two Fragments failing on the same path at the same span (amounts folded) are the same gap. The backlog unit of grammar-first work, and the reason an Op may exist without the grammar that emits it: every such Op names its gap, and the list of them only shrinks.
 _Avoid_: Missing feature, TODO, unparsed (that is a **Compile State**)
 
 **Ranking Target**:
 The set of cards a **Grammar Gap** ranking counts against — a set's printings, a format pool, or a named list (Vintage Cube, a metagame's decks) — reduced to a set of oracle ids so the ranking never learns which kind it is. The corpus count is printed beside every Target count as the leverage tie-break.
 _Avoid_: Target (that is the gameplay term — an object an effect is aimed at), scope, filter
+
+**Compiles** (of a **Grammar Gap**):
+The cards for which the gap is the ONLY one left — the cards that turn from `unparsed` into compiled the day its **Grammar Rule** lands. The first ranking key: the rule's immediate, measurable yield. Always at most the gap's **Refuses**.
+_Avoid_: Unlocks, sole-gap count, unblocks
+
+**Refuses** (of a **Grammar Gap**):
+The cards the gap refuses — every card with at least one line failing there, counted once however many of its lines do. The gap's potential: those cards compile only once their other gaps fall too. The second ranking key, and — over the corpus — the leverage tie-break.
+_Avoid_: Blocks, blast radius, affected cards
 
 **Card Retirement**:
 Deleting a hand-written **Card Definition** once its compiled twin is proven to behave identically, leaving the **Oracle Lockfile** as the only copy. The card's own test does not go with it — it moves onto the registry lookup, because it is the only standing proof that the compilation was ever right. A retired card's lockfile row is marked as such, so a later change to it is reviewed rather than merely diffed.

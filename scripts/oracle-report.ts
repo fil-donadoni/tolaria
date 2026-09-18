@@ -257,22 +257,22 @@ function reportGaps(
                 ? " across the corpus"
                 : ` for the ${targetLabel}, corpus count beside each`) +
             ` (the grammar backlog)\n` +
-            `unlocks = cards for which this is the only gap left; blocks = cards it refuses\n\n`
+            `compiles = cards that compile the day this rule lands (it is their only gap); refuses = cards it refuses\n\n`
     );
     const head =
         targetLabel === null
-            ? `${"rank".padStart(4)}  ${"unlocks".padStart(7)} ${"blocks".padStart(6)}  slot › sub-grammar\n`
-            : `${"rank".padStart(4)}  ${"unlocks".padStart(7)} ${"blocks".padStart(6)}  ` +
-              `${"corpus u/b".padStart(11)}  slot › sub-grammar\n`;
+            ? `${"rank".padStart(4)}  ${"compiles".padStart(8)} ${"refuses".padStart(7)}  slot › sub-grammar\n`
+            : `${"rank".padStart(4)}  ${"compiles".padStart(8)} ${"refuses".padStart(7)}  ` +
+              `${"corpus c/r".padStart(11)}  slot › sub-grammar\n`;
     process.stdout.write(head);
     shown.forEach((gap, i) => {
         const where = [gap.slot, ...gap.path].join(" › ");
         const counts =
-            `${String(i + 1).padStart(4)}  ${String(gap.target.unlocks).padStart(7)} ` +
-            `${String(gap.target.blocks).padStart(6)}  ` +
+            `${String(i + 1).padStart(4)}  ${String(gap.target.compiles).padStart(8)} ` +
+            `${String(gap.target.refuses).padStart(7)}  ` +
             (targetLabel === null
                 ? ""
-                : `${`${gap.corpus.unlocks}/${gap.corpus.blocks}`.padStart(11)}  `);
+                : `${`${gap.corpus.compiles}/${gap.corpus.refuses}`.padStart(11)}  `);
         // A card-level gap has no span: its "shape" is the refusal's reason.
         const shapeLabel = gap.slot === CARD_LEVEL ? "why:" : "span:";
         process.stdout.write(
