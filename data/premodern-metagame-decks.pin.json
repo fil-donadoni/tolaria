@@ -1,0 +1,257 @@
+{
+    "source": "mtgtop8.com",
+    "format": "PREM",
+    "fetchedAt": "2026-09-18T07:45:05.597Z",
+    "decks": [
+        {
+            "slug": "goblin",
+            "archetypeId": 1479,
+            "eventId": 90960,
+            "deckId": 890783,
+            "player": "SzULeR",
+            "placement": "1",
+            "date": "2026-09-17",
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
+        },
+        {
+            "slug": "psychatog",
+            "archetypeId": 1485,
+            "eventId": 90739,
+            "deckId": 888970,
+            "player": "Claire Ackerman",
+            "placement": "1",
+            "date": "2026-09-12",
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
+        },
+        {
+            "slug": "parallax-replenish",
+            "archetypeId": 1476,
+            "eventId": 90960,
+            "deckId": 890786,
+            "player": "Martin_Oviedo",
+            "placement": "4",
+            "date": "2026-09-17",
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
+        },
+        {
+            "slug": "landstill",
+            "archetypeId": 1473,
+            "eventId": 90941,
+            "deckId": 890656,
+            "player": "Nicholas95",
+            "placement": "1",
+            "date": "2026-09-16",
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
+        },
+        {
+            "slug": "oath-ponza",
+            "archetypeId": 1486,
+            "eventId": 90880,
+            "deckId": 890236,
+            "player": "Soup_Smuggler",
+            "placement": "6",
+            "date": "2026-09-15",
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
+        },
+        {
+            "slug": "aluren",
+            "archetypeId": 1489,
+            "eventId": 90960,
+            "deckId": 890788,
+            "player": "johnyvolta",
+            "placement": "6",
+            "date": "2026-09-17",
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
+        },
+        {
+            "slug": "deck-1",
+            "archetypeId": 1495,
+            "eventId": 90960,
+            "deckId": 890785,
+            "player": "mjsimpson24",
+            "placement": "3",
+            "date": "2026-09-17",
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
+        },
+        {
+            "slug": "burn",
+            "archetypeId": 1472,
+            "eventId": 90942,
+            "deckId": 890658,
+            "player": "William-pit",
+            "placement": "2",
+            "date": "2026-09-17",
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
+        },
+        {
+            "slug": "enchantress",
+            "archetypeId": 1481,
+            "eventId": 90942,
+            "deckId": 890660,
+            "player": "Boy",
+            "placement": "3-4",
+            "date": "2026-09-17",
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
+        },
+        {
+            "slug": "rg-aggro",
+            "archetypeId": 1694,
+            "eventId": 90748,
+            "deckId": 889044,
+            "player": "BossenGames",
+            "placement": "3",
+            "date": "2026-09-13",
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
+        },
+        {
+            "slug": "mono-black-aggro",
+            "archetypeId": 1500,
+            "eventId": 90827,
+            "deckId": 889742,
+            "player": "Adrian Mercado",
+            "placement": "2",
+            "date": "2026-09-13",
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
+        },
+        {
+            "slug": "madness-threshold",
+            "archetypeId": 1477,
+            "eventId": 90777,
+            "deckId": 889325,
+            "player": "Jtlanderson",
+            "placement": "2",
+            "date": "2026-09-12",
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
+        },
+        {
+            "slug": "elves",
+            "archetypeId": 1475,
+            "eventId": 90776,
+            "deckId": 889298,
+            "player": "Sryan9113",
+            "placement": "5-8",
+            "date": "2026-09-12",
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
+        },
+        {
+            "slug": "the-rock",
+            "archetypeId": 1478,
+            "eventId": 90935,
+            "deckId": 890630,
+            "player": "Fan Minglu",
+            "placement": "3-4",
+            "date": "2026-09-16",
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
+        },
+        {
+            "slug": "survival",
+            "archetypeId": 1483,
+            "eventId": 90861,
+            "deckId": 890039,
+            "player": "walrusmadness",
+            "placement": "7",
+            "date": "2026-09-14",
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
+        },
+        {
+            "slug": "stasis",
+            "archetypeId": 1491,
+            "eventId": 90942,
+            "deckId": 890659,
+            "player": "Gustavobatista",
+            "placement": "3-4",
+            "date": "2026-09-17",
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
+        },
+        {
+            "slug": "full-english-breakfast",
+            "archetypeId": 1484,
+            "eventId": 90907,
+            "deckId": 890424,
+            "player": "Emerson Araujo",
+            "placement": "5-8",
+            "date": "2026-09-12",
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
+        },
+        {
+            "slug": "grow",
+            "archetypeId": 1515,
+            "eventId": 90739,
+            "deckId": 888973,
+            "player": "Robert Mccoy",
+            "placement": "3-4",
+            "date": "2026-09-12",
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
+        },
+        {
+            "slug": "angry-ghoul",
+            "archetypeId": 1516,
+            "eventId": 90560,
+            "deckId": 887416,
+            "player": "James Heishman",
+            "placement": "5-8",
+            "date": "2026-09-06",
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
+        },
+        {
+            "slug": "doomsday",
+            "archetypeId": 1492,
+            "eventId": 90735,
+            "deckId": 888939,
+            "player": "Edouard Lecocq",
+            "placement": "2",
+            "date": "2026-09-11",
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
+        },
+        {
+            "slug": "reanimator",
+            "archetypeId": 1493,
+            "eventId": 90859,
+            "deckId": 890019,
+            "player": "João Diniz",
+            "placement": "5-8",
+            "date": "2026-09-10",
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
+        },
+        {
+            "slug": "stompy",
+            "archetypeId": 1498,
+            "eventId": 90827,
+            "deckId": 889743,
+            "player": "Reynaldo De Mesa",
+            "placement": "3-4",
+            "date": "2026-09-13",
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
+        },
+        {
+            "slug": "zombie-infestation-aggro",
+            "archetypeId": 2811,
+            "eventId": 88962,
+            "deckId": 875293,
+            "player": "Sergio",
+            "placement": "5-8",
+            "date": "2026-07-25",
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
+        },
+        {
+            "slug": "terrageddon",
+            "archetypeId": 1487,
+            "eventId": 90960,
+            "deckId": 890784,
+            "player": "Nagato_Boran",
+            "placement": "2",
+            "date": "2026-09-17",
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
+        },
+        {
+            "slug": "mono-black-control",
+            "archetypeId": 1496,
+            "eventId": 90880,
+            "deckId": 890233,
+            "player": "IfHeDiesHeDies",
+            "placement": "2",
+            "date": "2026-09-15",
+            "fetchedAt": "2026-09-18T07:45:05.597Z"
+        }
+    ]
+}
