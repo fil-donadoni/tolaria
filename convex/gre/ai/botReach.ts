@@ -240,7 +240,7 @@ export function buildBotReachState(
     return { state, holderId, instanceId };
 }
 
-type SeatVerdict =
+export type SeatVerdict =
     | { outcome: "played" }
     | { outcome: "ignored" }
     | { outcome: "frozen"; cause: BotReachCause; form: string };
@@ -295,12 +295,31 @@ function followThrough(
         : null;
 }
 
+/** One seat's play, tagged with the seat that held the card. */
+export interface SeatPlay {
+    readonly holderId: string;
+    readonly verdict: SeatVerdict;
+}
+
 function playSeat(
     def: CardDefinition,
     holderSeat: 0 | 1,
     budget: BotReachBudget
-): SeatVerdict {
+): SeatPlay {
     const { state, holderId, instanceId } = buildBotReachState(def, holderSeat);
+    return {
+        holderId,
+        verdict: playFrom(def, state, holderId, instanceId, budget),
+    };
+}
+
+function playFrom(
+    def: CardDefinition,
+    state: GameState,
+    holderId: string,
+    instanceId: string,
+    budget: BotReachBudget
+): SeatVerdict {
     if (decidingPlayer(state) !== holderId) {
         // The generated position is ours, not the card's: a holder that does
         // not hold the decision is a defect of this module, never a verdict.
@@ -341,11 +360,19 @@ function playSeat(
  * still stalls every game that seats the Bot there; otherwise a seat that
  * played makes it `played`; otherwise it is `ignored`.
  */
+/** The card played from each seat in turn — first-built, then second-built. */
+export function playBotReachSeats(
+    def: CardDefinition,
+    budget: BotReachBudget = BOT_REACH_BUDGET
+): readonly SeatPlay[] {
+    return [playSeat(def, 0, budget), playSeat(def, 1, budget)];
+}
+
 export function playBotReach(
     def: CardDefinition,
     budget: BotReachBudget = BOT_REACH_BUDGET
 ): BotReachVerdict {
-    const seats = [playSeat(def, 0, budget), playSeat(def, 1, budget)];
+    const seats = playBotReachSeats(def, budget).map((s) => s.verdict);
     const frozen = seats.find(
         (s): s is Extract<SeatVerdict, { outcome: "frozen" }> =>
             s.outcome === "frozen"

@@ -12,6 +12,7 @@ import {
     buildBotReachState,
     castShape,
     playBotReach,
+    playBotReachSeats,
     type BotReachVerdict,
 } from "../botReach";
 
@@ -90,6 +91,19 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
             const holder = state.players[seat]!;
             expect(holder.hand.some((c) => c.id === instanceId)).toBe(true);
         }
+    });
+
+    it("both seats — the card is actually played from each seat", () => {
+        const seats = playBotReachSeats(getCardByName("Grizzly Bears"));
+        const base = buildBotReachState(
+            getCardByName("Grizzly Bears"),
+            0
+        ).state.players.map((p) => p.id);
+        expect(seats.map((s) => s.holderId)).toEqual(base);
+        expect(seats.map((s) => s.verdict.outcome)).toEqual([
+            "played",
+            "played",
+        ]);
     });
 
     it("the form is the cast shape, never the card", () => {
