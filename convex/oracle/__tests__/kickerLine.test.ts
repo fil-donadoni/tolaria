@@ -22,6 +22,7 @@ import { getAllRawCards } from "../../cards/catalogue";
 import type { KickerCost } from "../../cards/types";
 import { compileCard } from "../compile";
 import { canonicaliseShorthands, sortKeys } from "../gates";
+import { GOLDEN_FIXTURES } from "../grammar/fixtures";
 import { routeLine } from "../grammar/router";
 import { kickerRule, keywordLineSlot } from "../grammar/slots/keywordLine";
 import { lowerCard } from "../lower";
@@ -169,6 +170,16 @@ describe("If this spell was kicked, … (CR 702.33d–f)", () => {
             type: ["Artifact", "Enchantment"],
             count: 1,
         });
+    });
+
+    it("the Dismantling Blow golden fixture takes a kicked spell to ready", () => {
+        // The smoke scenario casts unkicked, so the kicker-count gate is a
+        // card-dependent skip; the registered fixture is what clears it.
+        const fixture = GOLDEN_FIXTURES.find(
+            (f) => f.card.name === "Dismantling Blow"
+        );
+        expect(fixture?.rule).toBe("kicker");
+        expect(compileCard(fixture!.card).state).toBe("ready");
     });
 
     it("per-kicker (CR 702.33f): 'with its {2}{R} kicker' reads THAT kicker's payment", () => {

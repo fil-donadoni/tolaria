@@ -37924,6 +37924,7 @@
         {"id":"702.33d","line":"// CR 702.33d defines \"kicked\" over KICKER costs alone, so a squad payment","sites":1,"status":"baseline"},
         {"id":"702.33d","line":"// CR 702.33d defines \"kicked\" over KICKER costs alone, so every","sites":1,"status":"confirmed","ruleHash":"3d62a61221230aed"},
         {"id":"702.33d","line":"// CR 702.33d defines \"kicked\" over KICKER costs alone.","sites":3,"status":"confirmed","ruleHash":"3d62a61221230aed"},
+        {"id":"702.33d","line":"// CR 702.33d — \"If this spell was kicked, <effect>\" gates the effect on","sites":1,"status":"confirmed","ruleHash":"3d62a61221230aed"},
         {"id":"702.33d","line":"// CR 702.33d — \"kicked\" is defined over KICKER costs alone — so the entry","sites":1,"status":"baseline"},
         {"id":"702.33d","line":"// CR 702.33d — `count: \"kicker\"` reads how many times the spell was","sites":1,"status":"confirmed","ruleHash":"3d62a61221230aed"},
         {"id":"702.33d","line":"// CR 702.33d — a Kicker was paid.","sites":1,"status":"baseline"},

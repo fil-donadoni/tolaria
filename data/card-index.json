@@ -17100,6 +17100,16 @@
         "firstPrintSet": "atq"
     },
     {
+        "name": "Hurloon Battle Hymn",
+        "scryfallId": "ff252e80-c155-467b-8df3-9bddc5cc45c3",
+        "oracleId": "2f541bf9-1e5b-4d16-8558-a5cfce7e93ad",
+        "firstSet": "dmu",
+        "firstPrintId": "ff252e80-c155-467b-8df3-9bddc5cc45c3",
+        "firstPrintSet": "dmu",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Hurloon Minotaur",
         "scryfallId": "78a9088f-8755-47cb-aa93-51d992ccab90",
         "oracleId": "8f1dae40-b307-446e-bbd2-86aa35813871",
