@@ -1896,7 +1896,7 @@ describe("Death Ward (instant — regenerate target creature, CR 701.19a)", () =
     });
 });
 
-describe("Farmstead (Aura on a land — host controller may pay {W}{W} to gain 1 life at upkeep, CR 603.6a/117.3a)", () => {
+describe("Farmstead (Aura on Plains — host controller may pay {W}{W} to gain 1 life at upkeep, CR 603.6a/117.3a)", () => {
     function setup(activePlayerId: string = "p1") {
         const land = makeInstance(plains.id, {
             id: "host-plains",

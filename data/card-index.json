@@ -10376,6 +10376,16 @@
         "source": "compiled"
     },
     {
+        "name": "Emblem of the Warmind",
+        "scryfallId": "03ab2a41-315b-439c-b02c-f12335fc903a",
+        "oracleId": "86e88219-0f8e-405d-8439-c3b4acf11330",
+        "firstSet": "fut",
+        "firstPrintId": "03ab2a41-315b-439c-b02c-f12335fc903a",
+        "firstPrintSet": "fut",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Emerald Dragonfly",
         "scryfallId": "a3e81250-52c3-49f6-be43-17c34339e177",
         "oracleId": "b067aa04-5977-4371-85d1-78d2884df03f",
