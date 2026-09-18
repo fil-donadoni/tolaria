@@ -73,6 +73,7 @@ import { activationCostRule, type CostAtomIR } from "../shared/cost";
 import {
     assembleSentences,
     assemblyTrace,
+    kickedSentenceRule,
     sentenceRule,
     type SentenceIR,
 } from "../shared/effectClause";
@@ -101,10 +102,19 @@ function readSentences(
         : { ok: false, reason: assembled.reason };
 }
 
+/**
+ * CR 702.33e — a spell sentence may be gated on the spell having been kicked
+ * ("If this spell was kicked, draw two cards."). Composed HERE and not into
+ * the shared sentence rule: "this spell" names an object only a spell site
+ * has, and the kicker a gate reads is lowered from the card's own kicker line
+ * (`lower.ts`), which no ability site sees.
+ */
+const spellSentence: Rule<SentenceIR> = kickedSentenceRule(sentenceRule);
+
 const plainSpell: Rule<SlotIR> = terminated(
     ".",
     rule<SlotIR>("spell text", (span, ctx) => {
-        const parsed = listOf("effect sentences", ". ", sentenceRule).run(
+        const parsed = listOf("effect sentences", ". ", spellSentence).run(
             span,
             ctx
         );

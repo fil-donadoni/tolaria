@@ -47,6 +47,21 @@ export interface LoweredStatic {
         readonly type: string;
         readonly count: number;
     };
+    /**
+     * CR 614.1c / 702.33e — kicker-counted entry counters, one `"kicker"`
+     * entry per printed counter: `entersWith` SUMS same-type entries, and
+     * `count: "kicker"` reads the times-kicked tally, so N entries is N
+     * counters per kick (the catalogue's own encoding — Duskwalker, Llanowar
+     * Elite). `per` is kept for `lower.ts`, which owns the card-level check
+     * that a "kicked" rider reads a lone single kicker.
+     */
+    readonly kickerCounters?: {
+        readonly counters: readonly {
+            readonly type: string;
+            readonly count: "kicker";
+        }[];
+        readonly per: "kicked" | "each-kick";
+    };
     readonly staticAbility?: string;
     /** CR 702.1 — granted, but only ever implemented for a PRINTED keyword. */
     readonly ungrantableKeyword?: string;
@@ -215,6 +230,29 @@ export function lowerStaticClause(
                     ...(clause.counters !== undefined
                         ? { entersWithCounters: clause.counters }
                         : {}),
+                },
+            };
+        case "kicked-enters-with":
+            // CR 122.1 — "a +1/+1 counter" is one; zero is not a printed count
+            // and would lower to a rider that places nothing.
+            if (clause.counters.count < 1)
+                return {
+                    ok: false,
+                    reason: "an entry rider that places no counters",
+                };
+            return {
+                ok: true,
+                lowered: {
+                    kickerCounters: {
+                        counters: Array.from(
+                            { length: clause.counters.count },
+                            () => ({
+                                type: clause.counters.type,
+                                count: "kicker" as const,
+                            })
+                        ),
+                        per: clause.per,
+                    },
                 },
             };
         case "does-not-untap":

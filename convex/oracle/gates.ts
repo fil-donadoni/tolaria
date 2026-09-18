@@ -74,7 +74,16 @@ import type {
 import type { CompiledDefinition, QuarantineReason } from "./types";
 import { GOLDEN_FIXTURES, type GoldenFixture } from "./grammar/fixtures";
 
-/** Every `op` name anywhere in the definition, sorted and deduplicated. */
+/**
+ * Every `op` name anywhere in the definition, sorted and deduplicated.
+ *
+ * An `if` construct's `predicate` is NOT walked: a comparison predicate spells
+ * its comparator in a field that is also called `op` (`{ left, op: "ge",
+ * right }`, `EffectComparisonPredicate`), and a predicate holds values, never
+ * Effect Ops. Walking it recorded `"ge"` as an Op the Mechanics Registry does
+ * not implement, quarantining every kicked spell for a reason that was not
+ * about the card (issue #3826).
+ */
 export function collectOps(definition: CompiledDefinition): string[] {
     const found = new Set<string>();
     const walk = (node: unknown): void => {
@@ -85,7 +94,10 @@ export function collectOps(definition: CompiledDefinition): string[] {
         if (node === null || typeof node !== "object") return;
         const record = node as Record<string, unknown>;
         if (typeof record.op === "string") found.add(record.op);
-        for (const value of Object.values(record)) walk(value);
+        for (const [key, value] of Object.entries(record)) {
+            if (record.op === "if" && key === "predicate") continue;
+            walk(value);
+        }
     };
     walk(definition);
     return [...found].sort();

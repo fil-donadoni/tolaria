@@ -41,6 +41,7 @@ import { durationRule, type DurationIR } from "./duration";
 import { playerRefRule, type PlayerRefIR } from "./playerRef";
 import { readNumberWord } from "./quantity";
 import { isSelfPhrase } from "./cost";
+import { kickedConditionRule, type KickedRefIR } from "./condition";
 import { targetFilterRule } from "./targetFilter";
 import { zoneRefRule, type ZoneRefIR } from "./zoneRef";
 
@@ -185,6 +186,23 @@ export type EffectSentenceIR =
            * `lowerSpell.ts` makes for a mode's picker label).
            */
           readonly clause: string;
+          readonly effect: EffectSentenceIR;
+      }
+    | {
+          /**
+           * CR 702.33e — "If this spell was kicked[ with its {A} kicker],
+           * <effect>." A linked ability that does its work only if the kicker
+           * cost it reads was paid as the spell was cast.
+           *
+           * A WRAPPER for the reason `optional` is one: every effect sentence
+           * the grammar already reads becomes kicker-gated at once, and the
+           * inner sentence is lowered by the SAME walk, which is how lowering
+           * sees — and refuses — a target announced inside the gate
+           * (CR 702.33g: such a target is chosen "only if that spell was
+           * kicked", which a single card-level `targetRequirement` cannot say).
+           */
+          readonly kind: "kicked";
+          readonly kicked: KickedRefIR;
           readonly effect: EffectSentenceIR;
       };
 
@@ -393,6 +411,45 @@ export function optionalSentenceRule(
             effect: {
                 kind: "optional" as const,
                 clause,
+                effect: parsed.value.effect,
+            },
+        });
+    });
+}
+
+/**
+ * Wrap a sentence rule so it also reads CR 702.33e's "If this spell was
+ * kicked, <effect>".
+ *
+ * A combinator for the reason `optionalSentenceRule` is one: only the spell
+ * site prints this shape (the permanent's "If this creature was kicked, it
+ * enters with …" is an ENTRY rider, read by the static slot), so composing it
+ * there keeps every other site unable to read a gate it has no kicker for.
+ *
+ * Fail-closed like its sibling: a head that reads as a kicked condition with a
+ * tail the effect grammar cannot parse fails the whole span, and a restriction
+ * or modifier behind the gate is a line we have misread. A span that does not
+ * open on the condition is the inner rule's to read or refuse.
+ */
+export function kickedSentenceRule(inner: Rule<SentenceIR>): Rule<SentenceIR> {
+    return rule(`kicked ${inner.label}`, (span, ctx) => {
+        const comma = span.indexOf(", ");
+        const head = comma === -1 ? null : uncapitalise(span.slice(0, comma));
+        const condition =
+            head === null ? null : kickedConditionRule.run(head, ctx);
+        if (condition === null || !condition.ok) return inner.run(span, ctx);
+        const parsed = inner.run(capitalise(span.slice(comma + 2)), ctx);
+        if (!parsed.ok) return parsed;
+        if (parsed.value.role !== "effect")
+            return fail(
+                `a kicked condition gates an effect, not a ${parsed.value.role}`,
+                span
+            );
+        return ok({
+            role: "effect" as const,
+            effect: {
+                kind: "kicked" as const,
+                kicked: condition.value,
                 effect: parsed.value.effect,
             },
         });

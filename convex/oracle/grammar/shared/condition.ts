@@ -22,8 +22,11 @@
  */
 
 import { fail, ok, rule, type Rule, subGrammar } from "../../rule";
+import { readManaCost } from "../../manaCost";
+import { SELF_MARKER } from "../../normalize";
 import { descriptorRule, permanentFilterFromDescriptor } from "./targetFilter";
 import type { PermanentFilter } from "../../../cards/filters";
+import type { ManaCost } from "../../../cards/types";
 
 export const CONDITION = "condition";
 
@@ -107,4 +110,63 @@ export const conditionRule: Rule<ConditionIR> = subGrammar(
     }),
     // CR 603.4 — an intervening "if" clause opens with the word itself.
     (span) => /^if /i.test(span)
+);
+
+// ── "if this spell was kicked" (CR 702.33d / 702.33f) ──────────────────────
+
+export const KICKED_CONDITION = "kicked condition";
+
+/**
+ * CR 702.33d — which "kicked" a later clause reads back.
+ *
+ * `any` is "if this spell was kicked": at least one of the spell's kicker
+ * costs was paid. `named` is "if this spell was kicked with its {1}{U} kicker"
+ * (CR 702.33f), kept as the PRINTED cost — the kicker id it names is a fact
+ * about the card's kicker line, not about this clause, so it is resolved in
+ * lowering, where a cost that names no kicker the card has fails the card.
+ */
+export type KickedRefIR =
+    | { readonly kind: "any" }
+    | { readonly kind: "named"; readonly mana: ManaCost };
+
+/** Nouns naming the kicked object — the spell itself (CR 702.33e). */
+const KICKED_SUBJECTS: ReadonlySet<string> = new Set([
+    "this spell",
+    SELF_MARKER,
+]);
+
+const KICKED = /^if (.+?) was kicked(?: with its (\{[^ ]+\}) kicker)?$/;
+
+/**
+ * `"if this spell was kicked"` / `"if this spell was kicked with its {2}{R}
+ * kicker"` — the intervening clause of CR 702.33e's linked abilities.
+ *
+ * A separate rule from `conditionRule` rather than a second member of its
+ * union, because the two gate different things at different times: a
+ * `controls` condition is a CR 603.4 intervening-if re-read off the board as a
+ * trigger resolves, while "kicked" is a fact FIXED as the spell was cast
+ * (CR 601.2b) and read off the spell's own payment record. One IR for both
+ * would let a lowering site accept a condition it has no reader for.
+ *
+ * The subject must be the spell (CR 702.33e: the abilities "can refer only to
+ * those specific kicker … abilities" printed on the same object) — "this
+ * creature" is the PERMANENT form, read by the static slot's entry rider, and
+ * anything else is a phrase we have misread.
+ */
+export const kickedConditionRule: Rule<KickedRefIR> = rule<KickedRefIR>(
+    KICKED_CONDITION,
+    (span) => {
+        const match = span.match(KICKED);
+        if (match === null)
+            return fail("not a kicked condition this grammar knows", span);
+        if (!KICKED_SUBJECTS.has(match[1]!))
+            return fail(
+                `"${match[1]}" is not the kicked spell (CR 702.33e)`,
+                span
+            );
+        if (match[2] === undefined) return ok({ kind: "any" as const });
+        const mana = readManaCost(match[2]);
+        if (!mana.ok) return fail(mana.reason, mana.fragment);
+        return ok({ kind: "named" as const, mana: mana.cost });
+    }
 );

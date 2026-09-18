@@ -25,12 +25,13 @@
 import type {
     CardDefinition,
     EffectOp,
+    KickerCost,
     SpellMode,
     TargetRequirement,
 } from "../cards/types";
 import type { CostAtomIR } from "./grammar/shared/cost";
 import { SELF_MARKER } from "./normalize";
-import type { FlashbackCostIR, SpellModeIR } from "./grammar/ir";
+import type { FlashbackCostIR, KickerIR, SpellModeIR } from "./grammar/ir";
 import type { EffectSentenceIR } from "./grammar/shared/effectClause";
 import {
     declareTargets,
@@ -206,4 +207,56 @@ export function lowerFlashback(
         { sacrifice: cost.sacrifice };
     if (cost.mana !== undefined) full.mana = cost.mana;
     return { ok: true, value: full };
+}
+
+/** CR 105.1 — the five colours, in WUBRG order, as a kicker id names them. */
+const KICKER_ID_COLORS = ["W", "U", "B", "R", "G"] as const;
+
+/**
+ * CR 702.33a / 702.33b — the kicker line's costs onto `CardDefinition.kickers`.
+ *
+ * The one thing lowering adds is the `id`, the key of the per-kicker payment
+ * record (`StackItem.kickerPayments`) and of `{ additionalCostPaid }`. It is
+ * the catalogue's own convention, so a compiled row reads like the cards
+ * beside it: a lone kicker is `"kicker"`; each of an "and/or" pair is named
+ * for the COLOURS of its cost (`"kicker-u"` for {2}{U}, Nightscape
+ * Battlemage). Two costs that share a colour set — or a colourless one —
+ * would collide on that name, so the card fails rather than inventing a
+ * second naming scheme no hand-written card uses.
+ */
+export function lowerKickers(
+    kickers: readonly KickerIR[]
+): LowerSpellResult<KickerCost[]> {
+    const out: KickerCost[] = [];
+    for (const kicker of kickers) {
+        let id = "kicker";
+        if (kickers.length > 1) {
+            const colors = KICKER_ID_COLORS.filter(
+                (c) => kicker.mana?.[c] !== undefined
+            );
+            if (colors.length === 0)
+                return {
+                    ok: false,
+                    reason: "a colourless cost in a kicker pair has no id (CR 702.33b)",
+                };
+            id = `kicker-${colors.join("").toLowerCase()}`;
+            if (out.some((k) => k.id === id))
+                return {
+                    ok: false,
+                    reason: `two kicker costs both named "${id}" (CR 702.33b)`,
+                };
+        }
+        const cost: KickerCost = { id, description: kicker.description };
+        if (kicker.mana !== undefined) cost.mana = kicker.mana;
+        if (kicker.life !== undefined) cost.life = kicker.life;
+        if (kicker.sacrifice !== undefined)
+            cost.permanent = {
+                action: "sacrifice",
+                filter: kicker.sacrifice.filter,
+                count: kicker.sacrifice.count,
+            };
+        if (kicker.multi) cost.multi = true;
+        out.push(cost);
+    }
+    return { ok: true, value: out };
 }

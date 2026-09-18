@@ -54,6 +54,32 @@ export interface FlashbackCostIR {
     readonly sacrifice?: PermanentFilter;
 }
 
+/**
+ * CR 702.33a — ONE Kicker cost, as printed on a "Kicker …" line.
+ *
+ * Carries the cost in the engine's own leg vocabulary (`CostLegs`, ADR 0079)
+ * rather than as cost atoms: every leg below is a field a `KickerCost` already
+ * declares, and an atom with no such field was refused by the grammar, so
+ * there is nothing left for lowering to narrow. The `id` is NOT here — it is a
+ * fact about the card's whole kicker list (a lone Kicker is `"kicker"`, an
+ * "and/or" pair names each one by its colour), assigned in `lower.ts`.
+ */
+export interface KickerIR {
+    /** The cast-dialog text, as the catalogue writes it ("Kicker {2}{U}",
+     *  "Kicker—Sacrifice a land") — the printed cost without its stop. */
+    readonly description: string;
+    readonly mana?: ManaCost;
+    /** CR 119.4 — "Pay N life". */
+    readonly life?: number;
+    /** CR 701.21a — "Sacrifice <N> <permanents>". */
+    readonly sacrifice?: {
+        readonly filter: PermanentFilter;
+        readonly count: number;
+    };
+    /** CR 702.33c — Multikicker: payable any number of times. */
+    readonly multi: boolean;
+}
+
 /** What a mana ability adds (CR 605.1a). */
 export type ManaProductionIR =
     | { readonly kind: "fixed"; readonly mana: ManaCost }
@@ -74,6 +100,12 @@ export type SlotIR =
           readonly kind: "enchant";
           readonly requirement: TargetRequirement;
       }
+    /**
+     * CR 702.33a / 702.33c / 702.33f — a "Kicker [cost]", "Kicker [cost 1]
+     * and/or [cost 2]" or "Multikicker [cost]" line: one or two independently
+     * payable additional costs, lowered onto `CardDefinition.kickers`.
+     */
+    | { readonly kind: "kicker"; readonly kickers: readonly KickerIR[] }
     | {
           readonly kind: "mana-ability";
           readonly cost: ActivationCostIR;

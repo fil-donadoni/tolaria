@@ -18,8 +18,11 @@ import type {
     EffectOp,
     EffectPlayerRef,
     EffectValue,
+    KickerCost,
+    ManaCost,
     TargetRequirement,
 } from "../cards/types";
+import type { KickedRefIR } from "./grammar/shared/condition";
 import { durationSpec } from "./grammar/shared/duration";
 import {
     capitalise,
@@ -81,6 +84,17 @@ export interface SiteOptions {
      * by a player exactly as that label is.
      */
     readonly selfName: string;
+    /**
+     * CR 702.33e — the kicker costs this site's card prints, with their ids.
+     *
+     * A site fact for the reason `allowX` is one: "If this spell was kicked"
+     * is a fact about the sentence, but whether the card HAS a kicker to have
+     * been kicked with, and which id "its {1}{U} kicker" names, are facts about
+     * the card's kicker line. Absent = the site reads no kicker at all, and a
+     * kicked sentence there is refused rather than lowered into a gate that
+     * can never open.
+     */
+    readonly kickers?: readonly KickerCost[];
 }
 
 /** CR 107.3 — an effect magnitude to an `EffectValue`, X gated by the site. */
@@ -355,6 +369,28 @@ export function lowerSentence(
                 },
             ]);
         }
+        case "kicked": {
+            // CR 702.33g — a target inside the gate is chosen only if the
+            // spell was kicked; a card-level `targetRequirement` would demand
+            // it on every cast. Measured on the walk, so a target allocated
+            // by the inner sentence is seen however it was reached.
+            const before = walk.targets.requirements().length;
+            const inner = lowerSentence(sentence.effect, walk, site);
+            if (!inner.ok) return inner;
+            if (walk.targets.requirements().length !== before)
+                return unlowerable(
+                    "a target announced only if the spell was kicked has no encoding (CR 702.33g)"
+                );
+            const left = kickedValue(sentence.kicked, site.kickers ?? []);
+            if (!left.ok) return left;
+            return lowered([
+                {
+                    op: "if",
+                    predicate: { left: left.value, op: "ge", right: 1 },
+                    then: inner.value,
+                },
+            ]);
+        }
         default: {
             const never: never = sentence;
             return unlowerable(
@@ -362,6 +398,47 @@ export function lowerSentence(
             );
         }
     }
+}
+
+/**
+ * CR 702.33d / 702.33f — the value a kicked gate reads.
+ *
+ * "Kicked" (CR 702.33d) is "any of that spell's kicker costs" paid, which is
+ * the stack item's whole kicker tally — `{ kickerCount: true }`, the reading
+ * the hand-written catalogue uses for the phrase. "Kicked with its {A}
+ * kicker" (CR 702.33f) names ONE of two or more kicker costs by its printed
+ * cost, and reads that kicker's own payment record. A cost that matches no
+ * kicker, or more than one, is a sentence linked to nothing we can name.
+ */
+function kickedValue(
+    kicked: KickedRefIR,
+    kickers: readonly KickerCost[]
+): Lowered<EffectValue> {
+    if (kickers.length === 0)
+        return unlowerable(
+            "a kicked condition on a card that prints no kicker (CR 702.33e)"
+        );
+    if (kicked.kind === "any") return lowered({ kickerCount: true });
+    if (kickers.length < 2)
+        return unlowerable(
+            'only a card with two or more kicker costs names "its [A] kicker" (CR 702.33f)'
+        );
+    const printed = manaKey(kicked.mana);
+    const named = kickers.filter(
+        (k) => k.mana !== undefined && manaKey(k.mana) === printed
+    );
+    if (named.length !== 1)
+        return unlowerable(
+            `"its kicker" names ${named.length} of this card's kicker costs (CR 702.33f)`
+        );
+    return lowered({ additionalCostPaid: named[0]!.id });
+}
+
+/** A key-order-insensitive identity for a fixed `ManaCost` (no nested pips). */
+function manaKey(mana: ManaCost): string {
+    return JSON.stringify(
+        Object.entries(mana).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    );
 }
 
 /**
