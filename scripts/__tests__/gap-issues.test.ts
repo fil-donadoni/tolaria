@@ -365,7 +365,7 @@ describe("syncGaps", () => {
             key: "(op) › other",
             topTargetSetCode: "ZZZ",
         });
-        let capturedParents: number[] = [];
+        const capturedParents: number[] = [];
         const capturing: GapTracker = {
             ...tracker,
             createIssue(input) {
