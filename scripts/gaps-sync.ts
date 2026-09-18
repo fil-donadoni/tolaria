@@ -56,7 +56,11 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { ALLOWLIST_PATH, parseAllowlist } from "./check-gaps";
 import { BASE_BRANCH } from "./lib/branches";
-import { gh } from "./lib/gh";
+import {
+    gh,
+    setIssueParent,
+    subIssueCount as sharedSubIssueCount,
+} from "./lib/gh";
 import {
     applyUpdatedIssues,
     buildBotGapFilings,
@@ -265,54 +269,20 @@ export class GhGapTracker implements GapTracker {
     }
 
     subIssueCount(parent: number): number {
-        const out = gh([
-            "api",
-            `repos/{owner}/{repo}/issues/${parent}`,
-            "--jq",
-            ".sub_issues_summary.total",
-        ]);
-        const total = Number(out.trim());
         // Fail closed: a missing field read as 0 would let the cap check pass.
-        if (out.trim() === "" || !Number.isInteger(total)) {
-            throw new Error(
-                `gaps:sync: could not read issue #${parent}'s sub-issue count (got ${JSON.stringify(out.trim())})`
-            );
+        try {
+            return sharedSubIssueCount(parent);
+        } catch (err) {
+            throw new Error(`gaps:sync: ${(err as Error).message}`);
         }
-        return total;
     }
 
-    /**
-     * `gh issue edit --parent` is unreliable under rapid fire (issue-tracker
-     * doc): it can exit non-zero on success or no-op silently. Read the edge
-     * back and retry rather than trust the exit code.
-     */
     private setParent(child: number, parent: number): void {
-        for (let attempt = 0; attempt < 3; attempt++) {
-            try {
-                gh([
-                    "issue",
-                    "edit",
-                    String(child),
-                    "--parent",
-                    String(parent),
-                ]);
-            } catch {
-                // Read-back below is the real check either way.
-            }
-            const out = gh([
-                "issue",
-                "view",
-                String(child),
-                "--json",
-                "parent",
-            ]);
-            const got = (JSON.parse(out) as { parent?: { number?: number } })
-                .parent?.number;
-            if (got === parent) return;
+        if (!setIssueParent(child, parent)) {
+            console.error(
+                `gaps:sync: could not confirm issue #${child}'s parent is #${parent} after 3 attempts`
+            );
         }
-        console.error(
-            `gaps:sync: could not confirm issue #${child}'s parent is #${parent} after 3 attempts`
-        );
     }
 }
 
