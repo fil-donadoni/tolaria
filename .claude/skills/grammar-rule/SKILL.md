@@ -36,8 +36,9 @@ them is not a rule this skill ships:
 
 `data/oracle-corpus.json.gz` is gitignored, so a fresh worktree has none and
 `oracle:compile` throws `oracle corpus cache missing`. Copy the primary
-checkout's — the committed pin (`data/oracle-corpus.pin.json`, sha256) is what
-certifies it, and `oracle:compile --check` refuses a cache that disagrees:
+checkout's — `oracle:compile --check` then diffs the lockfile the cache
+regenerates against the committed one, and `check:oracle` (step 6) compares the
+cache's sha256 against the committed pin (`data/oracle-corpus.pin.json`):
 
 ```bash
 cp "$(git worktree list | head -1 | cut -d' ' -f1)/data/oracle-corpus.json.gz" data/
@@ -150,7 +151,7 @@ differently reds it. Adjudicate — do not relax:
 ## 6. Recompile, regenerate the artefacts, read the census back
 
 ```bash
-bun run oracle:compile >"$SCRATCHPAD/compile.log" 2>&1; echo "exit=$?"      # lockfile + botReach sweep
+bun run oracle:compile >"$SCRATCHPAD/compile.log" 2>&1; echo "exit=$?"      # the lockfile
 bun run oracle:index   >"$SCRATCHPAD/index.log"   2>&1; echo "exit=$?"      # card-index rows for newly ready cards (Scryfall; retry on 503)
 bun run catalogue:pack >"$SCRATCHPAD/pack.log"    2>&1; echo "exit=$?"      # data/catalogue/* + oracle-compiled-pool.json
 bun run check:oracle && bun run catalogue:check && bun run check:index && bun run check:gaps && bun run cr:lint
@@ -173,9 +174,12 @@ Per set and corpus, `before / after / delta / lost` against `origin/<base>`.
 and `check:oracle` refuses it unless `data/oracle-state-regressions.json`
 acknowledges it with a human-written reason. Fix the rule rather than writing
 that entry. A `delta` far below the gap's `compile` count means the graduates
-stopped in `quarantine` — read their reasons in the lockfile (`bot-unreachable`
-= the Bot-play sweep found them `frozen`, ADR 0105 § 7.2) before calling the
-rule done.
+stopped in `quarantine` — read their `reason.kind` in the lockfile
+(`planned-op`, `planned-mechanic`, `ungrantable-keyword`,
+`validate-effect-script`, `smoke-scenario`, `wire-projection`, `not-json`)
+before calling the rule done. A `smoke-scenario` skip that a golden fixture
+should have cleared means the fixture's form and the card's are not the same
+form (step 4).
 
 ## 8. Graduate the baseline
 
@@ -200,6 +204,15 @@ counts after.
 L="$SCRATCHPAD/oracle-tests.log"
 bunx vitest run convex/oracle convex/cards/__tests__ scripts/__tests__/grammar-gaps.test.ts >"$L" 2>&1; echo "exit=$?"; grep -E 'Test Files|Tests |FAIL' "$L"
 ```
+
+**Bot reachability is still a WALK, not a computation.** ADR 0137 says it is
+computed, but the Bot-play sweep that would record `botReach` is issue #3830,
+open — nothing in `convex/` writes that field today, and `bot-unreachable` is
+not a `QuarantineReason` yet. So a graduated card owes the manual three-seam
+walk of `.claude/rules/gre-development.md` § Bot reachability over the Ops the
+rule emits: `enumerateMoves` (reachable?), the choice surface (can it answer?),
+`OP_VALUERS` + `OP_BENEFICENCE` (does it want to?). Replace this step with the
+sweep's read-back the day #3830 lands.
 
 **Never run `bun run gaps:sync` from the worktree.** It commits the allowlist
 and pushes `HEAD:<base>` from its cwd — from a feature branch that pushes the
@@ -247,7 +260,7 @@ Gold: <no new divergence | adjudication>.
 
 ## Bot reachability
 
-Computed (ADR 0105 § 7.2): graduates' `botReach` — <n played / n ignored / n frozen>.
+<seam walk over the graduates' Ops — `enumerateMoves`, the choice surface, `OP_VALUERS` + `OP_BENEFICENCE`>.
 
 ## Preset scenario
 
