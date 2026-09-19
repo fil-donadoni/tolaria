@@ -510,8 +510,11 @@ function recordActedOn(
 /**
  * CR 111.1 — create creature tokens, lowered to `createToken` in the shape
  * every hand-written producer writes: the controller creates them (CR 111.2),
- * the name is the subtypes (the catalogue's convention for CR 111.4's
- * unnamed token), and the art is NOT pinned on the spec — the runtime resolves
+ * the name is the subtypes — a DEVIATION from CR 111.4, which appends the
+ * word "Token", kept because it is the catalogue's convention for every
+ * unnamed token and the key `token-prints.json` art is looked up by (a name
+ * is never read to decide anything here: no card in this form names its own
+ * token) — and the art is NOT pinned on the spec: the runtime resolves
  * it per producer from `token-prints.json` (`tokenPrintIdFor`), and the
  * compiled pool's art-completeness guard (`tokenPrintLookup.test.ts`) holds
  * every compiled producer to it.

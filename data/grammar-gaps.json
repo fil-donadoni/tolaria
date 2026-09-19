@@ -88,11 +88,6 @@
             "issue": 3899
         },
         {
-            "key": "(op) › createToken",
-            "op": "createToken",
-            "issue": 3900
-        },
-        {
             "key": "(op) › createTokenCopy",
             "op": "createTokenCopy",
             "issue": 3901
