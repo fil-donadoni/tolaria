@@ -1,6 +1,6 @@
 # ADR 0014 — Set files carry both reprints (CardPrint) and new cards (CardDefinition)
 
-**Status:** Accepted (2026-06-15)
+**Status:** Superseded by ADR 0140 (2026-09-19) — Card Prints moved to a Scryfall-sourced database table; set files no longer carry them. Accepted (2026-06-15)
 
 ## Context
 

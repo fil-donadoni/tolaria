@@ -4,7 +4,8 @@
 
 accepted (settles the "separate grill" PRD #2693 deferred; supersedes that
 PRD's "loaded lazily by id" contract line and the interim shape of ADR 0108 /
-issue #2702)
+issue #2702). Amended by ADR 0140: Card Prints are not part of the resident
+corpus — they live in a Convex table.
 
 ## Context
 
