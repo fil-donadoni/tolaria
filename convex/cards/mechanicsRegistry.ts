@@ -3983,7 +3983,11 @@ export function getKeywordCounterGrant(
 // row per migrated card. `TriggeredAbility.event` is statically known, so
 // validation is exact per trigger.
 
-export type EventFieldFamily = "object" | "player" | "stack-object";
+export type EventFieldFamily =
+    | "object"
+    | "player"
+    | "stack-object"
+    | "graveyard-card";
 
 export interface EventFieldRow {
     /** Value family — which decides the ref POSITION the field is legal in, and
@@ -4001,6 +4005,13 @@ export interface EventFieldRow {
      *     lives in `SpellContext.counter` (`gre/state.ts`), which already
      *     fizzles silently on a spell that has left (CR 608.2b, the same skip
      *     an announced target that departed gets). One authority, not two.
+     *   - `"graveyard-card"` — the CARD a zone change put into a graveyard
+     *     (issue #4127). CR 400.7e lets an ability that triggers on an object
+     *     moving zones find the new object it became in the public zone it
+     *     moved to, so the presence question is "is it still IN A
+     *     GRAVEYARD", rechecked by `resolveObjectRef`. Legal ONLY in
+     *     `moveZone`'s `target` position — the one Op with a graveyard-card
+     *     executor — which the validator enforces.
      *
      *  The validator checks the family against the ref's POSITION (a destroy
      *  target vs a player selector vs a `counter` target); a mismatch is a
@@ -4253,6 +4264,22 @@ export const EVENT_FIELD_REGISTRY: Record<
             family: "player",
             resolve: (e) =>
                 e.type === "SPELL_KICKED" ? e.casterId : undefined,
+        },
+    },
+    // CR 700.4 / 400.7e / issue #4127 — "When enchanted creature dies, return
+    // THAT CARD to its owner's hand" (Squee's Embrace). The dying creature is
+    // a new object in its owner's graveyard by the time the trigger resolves
+    // (CR 400.7), and CR 400.7e is the exception that lets a trigger on the
+    // zone change find it there. The instance id survives the move to the
+    // graveyard, so the row flattens `creatureInstanceId`; the family is
+    // `graveyard-card`, NOT `object`, because `object` rechecks the
+    // BATTLEFIELD — where the card never is again. A token that died has
+    // ceased to exist (CR 704.5d) and is simply not found: the Op skips.
+    CREATURE_DIED: {
+        card: {
+            family: "graveyard-card",
+            resolve: (e) =>
+                e.type === "CREATURE_DIED" ? e.creatureInstanceId : undefined,
         },
     },
     // CR 601.2i — a spell was cast. Two rows, both flattening the event that

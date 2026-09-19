@@ -22,10 +22,15 @@ import type {
     CompiledTriggeredAbility,
 } from "../cards/compiledTriggers";
 import type { EffectOp, TargetRequirement } from "../cards/types";
-import type { ConditionIR } from "./grammar/shared/condition";
+import type { TriggerConditionIR } from "./grammar/shared/condition";
 import type { EffectSentenceIR } from "./grammar/shared/effectClause";
 import type { TriggerHeadIR } from "./grammar/shared/triggerHead";
-import { declareTargets, lowerSentence, SentenceWalk } from "./lowerEffects";
+import {
+    declareTargets,
+    lowerSentence,
+    SentenceWalk,
+    type SiteAntecedents,
+} from "./lowerEffects";
 
 export type LowerTriggerResult =
     | { readonly ok: true; readonly ability: CompiledTriggeredAbility }
@@ -61,13 +66,61 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
     }
 }
 
-/** CR 603.4 — the condition IR is already the engine's shape. */
-function lowerCondition(condition: ConditionIR): CompiledTriggerCondition {
+/**
+ * CR 603.6a / 608.2h — the `$event` player field naming the player a head
+ * NAMES ("each PLAYER'S upkeep" → the player whose upkeep it is,
+ * `PHASE_BEGIN.activePlayerId`), or null when the head names no player. The
+ * one source of "that player" for both the body and an intervening-if, so the
+ * two can never disagree about who it is.
+ */
+function namedPlayerField(head: TriggerHeadIR): string | null {
+    return head.kind === "phase" && head.namesPlayer === true
+        ? "activePlayerId"
+        : null;
+}
+
+/**
+ * CR 608.2h — the referents this head gives the body's anaphora.
+ *
+ * "that card" after a dies head is the card the creature became in its
+ * owner's graveyard (CR 400.7e), whatever the head's scope — the event is the
+ * same `CREATURE_DIED`, and so is the card it names.
+ */
+function headAntecedents(head: TriggerHeadIR): SiteAntecedents {
+    const playerField = namedPlayerField(head);
     return {
-        kind: "controls",
-        filter: condition.filter,
-        atLeast: condition.atLeast,
+        ...(playerField !== null
+            ? { player: { ref: `$event.${playerField}` } }
+            : {}),
+        ...(head.kind === "dies" ? { card: { ref: "$event.card" } } : {}),
     };
+}
+
+/** CR 603.4 — the condition IR to the engine's shape. */
+function lowerCondition(
+    condition: TriggerConditionIR,
+    head: TriggerHeadIR
+): CompiledTriggerCondition | string {
+    switch (condition.kind) {
+        case "controls":
+            return {
+                kind: "controls",
+                filter: condition.filter,
+                atLeast: condition.atLeast,
+            };
+        case "basic-land-types": {
+            // CR 305.6 — "among lands THAT PLAYER controls": the head must
+            // name the player, or the condition counts nobody's lands.
+            const eventField = namedPlayerField(head);
+            if (eventField === null)
+                return '"that player" in the condition names no player the head introduced';
+            return {
+                kind: "basic-land-types",
+                player: { eventField },
+                atLeast: condition.atLeast,
+            };
+        }
+    }
 }
 
 export function lowerTriggeredAbility(input: {
@@ -76,9 +129,15 @@ export function lowerTriggeredAbility(input: {
     /** CR 201.5 — the card's printed name, for the prompts a body emits. */
     readonly cardName: string;
     readonly head: TriggerHeadIR;
-    readonly condition?: ConditionIR;
+    readonly condition?: TriggerConditionIR;
     readonly effects: readonly EffectSentenceIR[];
 }): LowerTriggerResult {
+    const condition =
+        input.condition !== undefined
+            ? lowerCondition(input.condition, input.head)
+            : undefined;
+    if (typeof condition === "string") return { ok: false, reason: condition };
+    const antecedents = headAntecedents(input.head);
     const walk = new SentenceWalk();
     const ops: EffectOp[] = [];
     for (const sentence of input.effects) {
@@ -87,6 +146,7 @@ export function lowerTriggeredAbility(input: {
         const result = lowerSentence(sentence, walk, {
             allowX: false,
             selfName: input.cardName,
+            antecedents,
         });
         if (!result.ok) return { ok: false, reason: result.reason };
         ops.push(...result.value);
@@ -105,9 +165,7 @@ export function lowerTriggeredAbility(input: {
             id: input.id,
             oracleText: input.oracleText,
             head: lowerHead(input.head),
-            ...(input.condition !== undefined
-                ? { condition: lowerCondition(input.condition) }
-                : {}),
+            ...(condition !== undefined ? { condition } : {}),
             ...(declared.targetRequirement !== undefined
                 ? { targetRequirement: declared.targetRequirement }
                 : {}),

@@ -52,7 +52,7 @@ import type {
     StaticEffectStateView,
     StaticKeywordGrant,
 } from "./types";
-import type { CompiledTriggerCondition } from "./compiledTriggers";
+import type { CompiledControlsCondition } from "./compiledTriggers";
 
 /**
  * `PermanentFilter` fields a descriptor may carry.
@@ -195,8 +195,8 @@ export type CompiledStaticEffect =
           /** CR 611.3a — "… as long as you control a <descriptor>": the buff
            *  exists only while the SOURCE's controller controls a match. The
            *  same JSON condition a compiled trigger's intervening-if carries
-           *  (`CompiledTriggerCondition`), read here off the layer view. */
-          readonly condition?: CompiledTriggerCondition;
+           *  (`CompiledControlsCondition`), read here off the layer view. */
+          readonly condition?: CompiledControlsCondition;
       } & CompiledStaticScope)
     /** CR 613.1f layer 6 — "<filter> have <keyword>" / "Enchanted creature
      *  has <keyword>". */
@@ -277,7 +277,7 @@ export type CompiledStaticEffect =
  * `ctx.getColors`) every compiled static predicate uses.
  */
 function controlsHolds(
-    condition: CompiledTriggerCondition,
+    condition: CompiledControlsCondition,
     source: PermanentView,
     state: StaticEffectStateView,
     ctx: StaticEffectContext

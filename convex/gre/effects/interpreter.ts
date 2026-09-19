@@ -1617,7 +1617,19 @@ function resolveObjectRef(
     // like a snapshot. Legal only at a trigger site (validator-enforced).
     if (isEventRef(ref.ref)) {
         const ev = resolveEventRef(ctx, ref.ref);
-        if (!ev || ev.family !== "object") return undefined;
+        if (!ev) return undefined;
+        // CR 400.7e (issue #4127) — a `graveyard-card` field names the card a
+        // zone change put into a graveyard ("return THAT CARD to its owner's
+        // hand"), so its presence recheck is the graveyard, not the
+        // battlefield. The validator admits this family only in `moveZone`'s
+        // `target`, the one Op with a graveyard-card executor.
+        if (ev.family === "graveyard-card") {
+            const owner = ctx.getGraveyardCardOwner(ev.id);
+            return owner === undefined
+                ? undefined
+                : { type: "graveyard-card", id: ev.id, playerId: owner };
+        }
+        if (ev.family !== "object") return undefined;
         if (ctx.getOwnerId(ev.id) === undefined) return undefined;
         return { type: "permanent", id: ev.id };
     }

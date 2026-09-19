@@ -18,7 +18,7 @@ import type {
     TargetRequirement,
 } from "../../cards/types";
 import type { ActivationCostIR } from "./shared/cost";
-import type { ConditionIR } from "./shared/condition";
+import type { TriggerConditionIR } from "./shared/condition";
 import type { EffectSentenceIR, RestrictionIR } from "./shared/effectClause";
 import type { StaticClauseIR } from "./shared/staticClause";
 import type { TriggerHeadIR } from "./shared/triggerHead";
@@ -147,7 +147,7 @@ export type SlotIR =
     | {
           readonly kind: "triggered";
           readonly head: TriggerHeadIR;
-          readonly condition?: ConditionIR;
+          readonly condition?: TriggerConditionIR;
           readonly effects: readonly EffectSentenceIR[];
       }
     /**

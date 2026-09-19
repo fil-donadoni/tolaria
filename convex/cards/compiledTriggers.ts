@@ -34,12 +34,15 @@ import { matchesPermanentFilter } from "./filters";
 import type { PermanentFilter } from "./filters";
 import type {
     EffectOp,
+    GameEvent,
     PermanentView,
     TargetRequirement,
     TriggeredAbility,
     TriggerStateView,
 } from "./types";
 import type { CardDefinition } from "./types";
+import { countDomain } from "./types";
+import { getEventFieldRow } from "./mechanicsRegistry";
 import type { Phase } from "../gre/types";
 import { attacksTrigger } from "./abilities/triggers/attacksTrigger";
 import { damageDealtTrigger } from "./abilities/triggers/damageDealtTrigger";
@@ -59,11 +62,34 @@ import type { PermanentScope, TriggerScope } from "./abilities/triggers/shared";
  * rule. `controls` is that rule ("if you control a Goblin"), and the next
  * member is earned by a fragment count, not by anticipation.
  */
-export type CompiledTriggerCondition = {
+export type CompiledControlsCondition = {
     readonly kind: "controls";
     readonly filter: PermanentFilter;
     readonly atLeast: number;
 };
+
+/**
+ * The trigger-site conditions: `controls`, shared with the static slot's "as
+ * long as you control …" (`compiledStatics.ts`), plus the members only an
+ * intervening-if reads — they name the FIRING EVENT's player, and a static
+ * ability has no firing event.
+ */
+export type CompiledTriggerCondition =
+    | CompiledControlsCondition
+    /**
+     * CR 305.6 / 603.4 — "if there are four or more basic land types among
+     * lands THAT PLAYER controls" (Mask of Intolerance, issue #4127). The
+     * player is a censused `$event` player field of the firing event
+     * (`PHASE_BEGIN.activePlayerId` — the player whose upkeep it is), read
+     * through `EVENT_FIELD_REGISTRY` so the condition and the body name "that
+     * player" through ONE authority. The count is `countDomain`, the scan
+     * every Domain reader in the engine already uses.
+     */
+    | {
+          readonly kind: "basic-land-types";
+          readonly player: { readonly eventField: string };
+          readonly atLeast: number;
+      };
 
 /** The trigger heads the compiler can emit (CR 603.2 / 603.6a). Closed. */
 export type CompiledTriggerHead =
@@ -123,10 +149,19 @@ export interface CompiledTriggeredAbility {
  */
 function conditionHolds(
     condition: CompiledTriggerCondition,
+    event: GameEvent,
     self: PermanentView,
     state: TriggerStateView | undefined
 ): boolean {
     if (state === undefined) return false;
+    if (condition.kind === "basic-land-types") {
+        // CR 305.6 — fail CLOSED on a field the event does not carry, like
+        // the absent state view above.
+        const row = getEventFieldRow(event.type, condition.player.eventField);
+        const playerId = row?.family === "player" ? row.resolve(event) : null;
+        if (playerId === undefined || playerId === null) return false;
+        return countDomain(state as never, playerId) >= condition.atLeast;
+    }
     const player = state.players.find((p) => p.id === self.controllerId);
     if (player === undefined) return false;
     let matched = 0;
@@ -181,8 +216,10 @@ export function resolveCompiledTrigger(
     // CR 603.4 — the SAME predicate is passed as both the check-time
     // `condition` and the resolution-time `interveningIf`, which is what an
     // intervening-if clause means: checked when the ability would trigger and
-    // re-checked as it resolves. A predicate over `unknown` is assignable to
-    // each factory's event-narrowed slot (contravariance), so one closure
+    // re-checked as it resolves. A predicate over the whole `GameEvent` union
+    // is assignable to each factory's event-narrowed slot (contravariance),
+    // and a `basic-land-types` condition reads "that player" off it, so one
+    // closure
     // serves every head without a per-factory copy that could drift.
     const gating =
         descriptor.condition === undefined
@@ -190,10 +227,10 @@ export function resolveCompiledTrigger(
             : (() => {
                   const condition = descriptor.condition;
                   const gate = (
-                      _event: unknown,
+                      event: GameEvent,
                       self: PermanentView,
                       state?: TriggerStateView
-                  ): boolean => conditionHolds(condition, self, state);
+                  ): boolean => conditionHolds(condition, event, self, state);
                   return { condition: gate, interveningIf: gate };
               })();
     const common = {

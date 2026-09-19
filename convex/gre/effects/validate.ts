@@ -5661,6 +5661,13 @@ interface RefUse {
          *  ordinary `target` position — would resolve to nothing at runtime
          *  and silently skip its Op. */
         | "stack-object";
+    /** CR 400.7e (issue #4127) — set on the refs under `moveZone`'s `target`,
+     *  the one position whose Op has a graveyard-card executor, and therefore
+     *  the only one that may read a `graveyard-card` `$event` field. A flag
+     *  rather than a new `kind`: every OTHER ref in that position (an
+     *  announced slot, a snapshot, `$source`) is an ordinary object ref and
+     *  must keep every object-position check. */
+    graveyardCardPosition?: true;
 }
 
 /** Walks an Op's parameters collecting every `{ ref }` use, tagged by
@@ -6115,6 +6122,15 @@ function checkEventRef(
         );
         return;
     }
+    // CR 400.7e (issue #4127) — a graveyard-card field reads a card in a
+    // graveyard, legal only where the Op can move one (`moveZone.target`).
+    if (row.family === "graveyard-card") {
+        if (positionFamily !== "object" || use.graveyardCardPosition !== true)
+            errors.push(
+                `${at}: "$event" ref "${use.ref}" is a graveyard-card field — it is legal only as moveZone's target, the one Op that acts on a card in a graveyard (CR 400.7e)`
+            );
+        return;
+    }
     if (row.family !== positionFamily) {
         errors.push(
             `${at}: "$event" ref "${use.ref}" is a ${row.family} field in a ${positionFamily} position — the EVENT_FIELD_REGISTRY family must match the ref position`
@@ -6376,6 +6392,12 @@ function checkCaptureSource(
             );
             return;
         }
+        if (row.family === "graveyard-card") {
+            errors.push(
+                `${at}: capture "${name}" "$event" ref "${ref}" is a graveyard-card field — no delayed body reads a graveyard card through a capture yet (CR 400.7e), so it is refused rather than re-bound unexercised. Act on the card in the trigger's own body instead`
+            );
+            return;
+        }
         if (row.family === "stack-object") {
             errors.push(
                 `${at}: capture "${name}" "$event" ref "${ref}" is a stack-object field — a capture is re-bound at FIRE time by looking the id up on the battlefield/graveyard/exile, where a stack item is never found (and a spell that resolved is a different object, CR 400.7). Capture a permanent or player field instead`
@@ -6616,6 +6638,19 @@ function checkOpListRefs(
             // function with a different presence recheck.
             if (entry.op === "counter" && k === "target") {
                 collectRefUses(v, "counterTarget", uses);
+                continue;
+            }
+            // CR 400.7e (issue #4127) — `moveZone.target` may name the card a
+            // zone change put into a graveyard (`$event.card`); tag the object
+            // refs collected there so `checkEventRef` admits that family HERE
+            // and nowhere else.
+            if (entry.op === "moveZone" && k === "target") {
+                const from = uses.length;
+                collectRefUses(v, k, uses);
+                for (let i = from; i < uses.length; i++) {
+                    if (uses[i]!.kind === "object")
+                        uses[i] = { ...uses[i]!, graveyardCardPosition: true };
+                }
                 continue;
             }
             collectRefUses(v, k, uses);
