@@ -445,6 +445,11 @@
             "issue": 4072
         },
         {
+            "kind": "bot",
+            "key": "never-chosen › Sorcery › destroy+forEach",
+            "issue": 4157
+        },
+        {
             "kind": "mechanic",
             "key": "planned-mechanic › keyword \"assist\" is not implemented in the Mechanics Registry",
             "issue": 4005
@@ -576,6 +581,11 @@
         },
         {
             "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"undaunted\" is not implemented in the Mechanics Registry",
+            "issue": 4155
+        },
+        {
+            "kind": "mechanic",
             "key": "planned-mechanic › keyword \"undying\" is not implemented in the Mechanics Registry",
             "issue": 3997
         },
@@ -703,6 +713,11 @@
             "kind": "scenario",
             "key": "smoke-scenario › amount is chosen-cost X — depends on the value announced for {X} at cast time",
             "issue": 4022
+        },
+        {
+            "kind": "scenario",
+            "key": "smoke-scenario › construct \"forEach\" iterates a runtime-selected set — covered by the card's own tests",
+            "issue": 4156
         },
         {
             "kind": "scenario",
