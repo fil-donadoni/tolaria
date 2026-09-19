@@ -1294,6 +1294,29 @@ describe("umbrellas partition by band — the triage's cards source picks the pa
         expect(tracker.moves).toHaveLength(2);
     });
 
+    it("an open gap with NO parent at all — a create whose parent write failed — moves to its fallback", () => {
+        const [oddity] = banded(
+            buildGrammarGapFilings({
+                ops: [{ key: "(op) › oddity", op: "oddity", issue: 4603 }],
+            }),
+            { cards: [] },
+            OP_USERS
+        ).map((f) => ({ ...f, body: () => "x" }));
+        const tracker = new StubTracker();
+        tracker.issues.set(4603, { state: "OPEN", body: "x" });
+        const result = syncGaps([oddity!], tracker);
+        expect(result.moves).toEqual([
+            {
+                kind: "grammar",
+                key: "(op) › oddity",
+                issue: 4603,
+                from: null,
+                to: GRAMMAR.P3,
+            },
+        ]);
+        expect(syncGaps([oddity!], tracker).moves).toEqual([]);
+    });
+
     it("an unpartitioned kind hand-placed under any other parent keeps it", () => {
         const lock = {
             fragments: [],

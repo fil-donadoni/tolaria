@@ -118,7 +118,8 @@ bounded, ordered slice of the backlog, so the cap stops being reachable.
   wins at create). The table is `KIND_FALLBACK`.
 - **PRD #3820 is not a parent of computed gaps** — it is closing, and a child
   inherits its P0 band (issue #3212). Like issue #3972 it is in
-  `RETIRED_UMBRELLAS`: a gap under either moves to its band or its fallback.
+  `RETIRED_UMBRELLAS`: a gap under either — or under no parent at all, a
+  create whose parent write failed — moves to its band or its fallback.
 - **Each umbrella's board `Priority` is its band**, set once by hand; its
   children inherit it (issue #3212).
 - **A hand-filed `[Grammar]` ticket** goes under the Grammar Rules umbrella of

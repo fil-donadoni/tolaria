@@ -218,6 +218,7 @@ describe("syncGaps", () => {
     it("rewrites an open issue whose body changed, keeping its number", () => {
         const tracker = new StubTracker();
         tracker.issues.set(4001, { state: "OPEN", body: "stale" });
+        tracker.parents.set(4001, KIND_FALLBACK.grammar);
         const result = syncGaps(
             [filing({ currentIssue: 4001, body: () => "fresh" })],
             tracker
