@@ -6864,3 +6864,52 @@ describe("validateEffectScript — chooseNumber bounds (CR 107.1c, issue #1421)"
         );
     });
 });
+
+// --- graveyard-card $event family (CR 400.7e, issue #4127) ------------------
+//
+// `CREATURE_DIED.card` names the card the dying creature became in its owner's
+// graveyard. Only `moveZone` can act on a card there, so the family is legal in
+// `moveZone.target` and NOWHERE else: in any other object position the
+// interpreter resolves it to nothing and the Op silently skips.
+describe("validateEffectScript — graveyard-card $event family (CR 400.7e, issue #4127)", () => {
+    const abilityHost = (effects: EffectOp[]) => ({ id: "trig", effects });
+
+    it("accepts $event.card as moveZone's target at a CREATURE_DIED site", () => {
+        const errors = validateAbilityEffectScript(
+            abilityHost([
+                { op: "moveZone", target: { ref: "$event.card" }, to: "hand" },
+            ]),
+            "Test (id)",
+            "CREATURE_DIED"
+        );
+        expect(errors).toEqual([]);
+    });
+
+    it("rejects $event.card in any other object position", () => {
+        const errors = validateAbilityEffectScript(
+            abilityHost([{ op: "destroy", target: { ref: "$event.card" } }]),
+            "Test (id)",
+            "CREATURE_DIED"
+        );
+        expect(errors.some((e) => /graveyard-card field/.test(e))).toBe(true);
+    });
+
+    it("rejects $event.card as a delayedTrigger CAPTURE source", () => {
+        const errors = validateAbilityEffectScript(
+            abilityHost([
+                {
+                    op: "delayedTrigger",
+                    timing: "next-end-step",
+                    oracleText: "…",
+                    capture: { $c: { ref: "$event.card" } },
+                    effects: [
+                        { op: "moveZone", target: { ref: "$c" }, to: "hand" },
+                    ],
+                },
+            ]),
+            "Test (id)",
+            "CREATURE_DIED"
+        );
+        expect(errors.some((e) => /graveyard-card field/.test(e))).toBe(true);
+    });
+});

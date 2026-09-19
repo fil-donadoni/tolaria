@@ -400,8 +400,13 @@ describe("player reference sub-grammar (CR 102.1, CR 109.5)", () => {
         });
     });
 
-    it("refuses anaphora rather than resolving it by proximity", () => {
-        expect(refuses(playerRefRule, "that player")).toBe(true);
+    it("reads 'that player' as anaphora, never as a resolved player", () => {
+        // Issue #4127 — the WORDS are read; the referent is the lowering
+        // site's to supply, and a site with none refuses the line
+        // (`triggerAnaphora.test.ts`). Proximity still resolves nothing.
+        expect(accept(playerRefRule, "that player")).toEqual({
+            kind: "that-player",
+        });
         expect(refuses(playerRefRule, "its controller")).toBe(true);
     });
 });

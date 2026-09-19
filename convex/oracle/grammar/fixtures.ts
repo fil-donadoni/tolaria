@@ -638,4 +638,167 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 700.4 + CR 400.7e — "When enchanted creature dies, return that card
+    // to its owner's hand": the aura's host dying (`died` scope `host`) and the
+    // `$event.card` graveyard-card ref naming the card it became. Exhibits the
+    // `moveZone` of a card in a graveyard, which the canned smoke scenario
+    // cannot stage (issue #4127).
+    {
+        rule: "trigger head",
+        card: {
+            oracleId: "095f8dac-15b8-4c28-ae33-6dc71152bcc7",
+            name: "Squee's Embrace",
+            manaCost: "{R}{W}",
+            typeLine: "Enchantment \u2014 Aura",
+            oracleText:
+                "Enchant creature\nEnchanted creature gets +2/+2.\nWhen enchanted creature dies, return that card to its owner's hand.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Squee's Embrace",
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+            manaCost: {
+                W: 1,
+                R: 1,
+            },
+            oracleText:
+                "Enchant creature\nEnchanted creature gets +2/+2.\nWhen enchanted creature dies, return that card to its owner's hand.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "squee-s-embrace-trigger",
+                    oracleText:
+                        "When enchanted creature dies, return that card to its owner's hand.",
+                    head: {
+                        kind: "died",
+                        scope: "host",
+                    },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: {
+                                ref: "$event.card",
+                            },
+                            to: "hand",
+                        },
+                    ],
+                },
+            ],
+            compiledStaticEffects: [
+                {
+                    kind: "pt-buff",
+                    appliesTo: "host",
+                    power: 2,
+                    toughness: 2,
+                },
+            ],
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+            },
+        },
+    },
+    // CR 603.2b + CR 305.6 — "At the beginning of each player's upkeep, if
+    // there are four or more basic land types among lands that player
+    // controls, …deals 3 damage to that player": "that player" is
+    // `PHASE_BEGIN.activePlayerId` in both the intervening-if and the body.
+    // Exhibits damage to an `$event` player, a recipient the canned smoke
+    // scenario cannot pick (issue #4127).
+    {
+        rule: "trigger head",
+        card: {
+            oracleId: "990d4798-3f59-462d-952c-777da5af1c41",
+            name: "Mask of Intolerance",
+            manaCost: "{2}",
+            typeLine: "Artifact",
+            oracleText:
+                "At the beginning of each player's upkeep, if there are four or more basic land types among lands that player controls, this artifact deals 3 damage to that player.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Mask of Intolerance",
+            types: ["Artifact"],
+            manaCost: {
+                X: 2,
+            },
+            oracleText:
+                "At the beginning of each player's upkeep, if there are four or more basic land types among lands that player controls, this artifact deals 3 damage to that player.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "mask-of-intolerance-trigger",
+                    oracleText:
+                        "At the beginning of each player's upkeep, if there are four or more basic land types among lands that player controls, this artifact deals 3 damage to that player.",
+                    head: {
+                        kind: "phase",
+                        phase: "UPKEEP",
+                        scope: "each",
+                    },
+                    condition: {
+                        kind: "basic-land-types",
+                        player: {
+                            eventField: "activePlayerId",
+                        },
+                        atLeast: 4,
+                    },
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: 3,
+                            to: {
+                                player: {
+                                    ref: "$event.activePlayerId",
+                                },
+                            },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 603.2b — "At the beginning of each player's upkeep, that player
+    // discards a card at random": exhibits `discardAtRandom` read off the
+    // `$event` player the head names (issue #4127).
+    {
+        rule: "trigger head",
+        card: {
+            oracleId: "91e6fb47-59e4-4616-b8dd-3a7e30070074",
+            name: "Bottomless Pit",
+            manaCost: "{1}{B}{B}",
+            typeLine: "Enchantment",
+            oracleText:
+                "At the beginning of each player's upkeep, that player discards a card at random.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Bottomless Pit",
+            types: ["Enchantment"],
+            manaCost: {
+                X: 1,
+                B: 2,
+            },
+            oracleText:
+                "At the beginning of each player's upkeep, that player discards a card at random.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "bottomless-pit-trigger",
+                    oracleText:
+                        "At the beginning of each player's upkeep, that player discards a card at random.",
+                    head: {
+                        kind: "phase",
+                        phase: "UPKEEP",
+                        scope: "each",
+                    },
+                    effects: [
+                        {
+                            op: "discardAtRandom",
+                            player: {
+                                ref: "$event.activePlayerId",
+                            },
+                            count: 1,
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);

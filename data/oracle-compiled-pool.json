@@ -5685,6 +5685,52 @@
         "rarity": "common"
     },
     {
+        "name": "Demonic Vigor",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "B": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +1/+1.\nWhen enchanted creature dies, return that card to its owner's hand.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "demonic-vigor-trigger",
+                "oracleText": "When enchanted creature dies, return that card to its owner's hand.",
+                "head": {
+                    "kind": "died",
+                    "scope": "host"
+                },
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "ref": "$event.card"
+                        },
+                        "to": "hand"
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 1,
+                "toughness": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "09950456-09d6-4675-9995-0dc540ddb6e4",
+        "rarity": "common"
+    },
+    {
         "name": "Sarpadian Simulacrum",
         "types": [
             "Artifact",
@@ -65106,6 +65152,64 @@
         "rarity": "common"
     },
     {
+        "name": "Elephant Guide",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +3/+3.\nWhen enchanted creature dies, create a 3/3 green Elephant creature token.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "elephant-guide-trigger",
+                "oracleText": "When enchanted creature dies, create a 3/3 green Elephant creature token.",
+                "head": {
+                    "kind": "died",
+                    "scope": "host"
+                },
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Elephant",
+                            "types": [
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Elephant"
+                            ],
+                            "power": 3,
+                            "toughness": 3,
+                            "colors": [
+                                "G"
+                            ]
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 3,
+                "toughness": 3
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "7d3a7226-f574-430e-9b8f-4e531a21540f",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Woolly Thoctar",
         "types": [
             "Creature"
@@ -76391,6 +76495,39 @@
         "toughness": 1,
         "id": "91df110f-85d2-41cb-96b6-6c79cebfada7",
         "rarity": "common"
+    },
+    {
+        "name": "Bottomless Pit",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 2
+        },
+        "oracleText": "At the beginning of each player's upkeep, that player discards a card at random.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "bottomless-pit-trigger",
+                "oracleText": "At the beginning of each player's upkeep, that player discards a card at random.",
+                "head": {
+                    "kind": "phase",
+                    "phase": "UPKEEP",
+                    "scope": "each"
+                },
+                "effects": [
+                    {
+                        "op": "discardAtRandom",
+                        "player": {
+                            "ref": "$event.activePlayerId"
+                        },
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "91f05fc3-da6e-45d4-8566-f4e7bdce1fe5",
+        "rarity": "uncommon"
     },
     {
         "name": "Dune Beetle",
@@ -116037,6 +116174,72 @@
         "rarity": "common"
     },
     {
+        "name": "Griffin Guide",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +2/+2 and has flying.\nWhen enchanted creature dies, create a 2/2 white Griffin creature token with flying.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "griffin-guide-trigger",
+                "oracleText": "When enchanted creature dies, create a 2/2 white Griffin creature token with flying.",
+                "head": {
+                    "kind": "died",
+                    "scope": "host"
+                },
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Griffin",
+                            "types": [
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Griffin"
+                            ],
+                            "power": 2,
+                            "toughness": 2,
+                            "colors": [
+                                "W"
+                            ],
+                            "staticAbilities": [
+                                "flying"
+                            ]
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 2
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "flying"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "e19a15d9-5899-4b84-9c00-345b19df53ae",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Primordial Pachyderm",
         "types": [
             "Creature"
@@ -118682,6 +118885,53 @@
             }
         ],
         "id": "e672a05c-5f1a-4aa6-9398-e33df01c7c96",
+        "rarity": "common"
+    },
+    {
+        "name": "Squee's Embrace",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "W": 1,
+            "R": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +2/+2.\nWhen enchanted creature dies, return that card to its owner's hand.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "squee-s-embrace-trigger",
+                "oracleText": "When enchanted creature dies, return that card to its owner's hand.",
+                "head": {
+                    "kind": "died",
+                    "scope": "host"
+                },
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "ref": "$event.card"
+                        },
+                        "to": "hand"
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 2
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "e682a705-9341-4d1e-a9c5-d428e50b9a03",
         "rarity": "common"
     },
     {
@@ -125660,6 +125910,47 @@
         ],
         "id": "f5e6dc5f-fd83-4166-a5da-cd953722642a",
         "rarity": "mythic"
+    },
+    {
+        "name": "Mask of Intolerance",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 2
+        },
+        "oracleText": "At the beginning of each player's upkeep, if there are four or more basic land types among lands that player controls, this artifact deals 3 damage to that player.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "mask-of-intolerance-trigger",
+                "oracleText": "At the beginning of each player's upkeep, if there are four or more basic land types among lands that player controls, this artifact deals 3 damage to that player.",
+                "head": {
+                    "kind": "phase",
+                    "phase": "UPKEEP",
+                    "scope": "each"
+                },
+                "condition": {
+                    "kind": "basic-land-types",
+                    "player": {
+                        "eventField": "activePlayerId"
+                    },
+                    "atLeast": 4
+                },
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 3,
+                        "to": {
+                            "player": {
+                                "ref": "$event.activePlayerId"
+                            }
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "f623ae51-5f15-4153-b2ed-d03b57b7db54",
+        "rarity": "rare"
     },
     {
         "name": "Simic Sky Swallower",

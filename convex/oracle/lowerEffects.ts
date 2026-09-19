@@ -101,6 +101,23 @@ export interface SiteOptions {
      * can never open.
      */
     readonly kickers?: readonly KickerCost[];
+    /**
+     * What this site's anaphora NAME. "that player" and "that
+     * card" are read by the grammar as words; their referent is printed
+     * outside the sentence (a trigger head: "each PLAYER'S upkeep", "enchanted
+     * creature DIES", issue #4127), so only the site can supply it. Absent =
+     * the site introduced no such referent, and a sentence using the word is
+     * refused rather than bound to a guess.
+     */
+    readonly antecedents?: SiteAntecedents;
+}
+
+/** The referents a site's anaphora may name (see `SiteOptions.antecedents`). */
+export interface SiteAntecedents {
+    /** "that player". */
+    readonly player?: EffectPlayerRef;
+    /** "that card" — a card a zone change put into a graveyard (CR 400.7e). */
+    readonly card?: EffectObjectSelector;
 }
 
 /** CR 107.3 — an effect magnitude to an `EffectValue`, X gated by the site. */
@@ -241,6 +258,10 @@ function objectSelector(
     if (subject.kind === "self") return lowered({ ref: "$source" });
     if (subject.kind === "player")
         return unlowerable("a player is not an object (CR 109.1)");
+    // CR 400.7e — "that card" is a card in a graveyard, which only a zone
+    // change can act on; `lowerMoveZone` binds it, every other verb refuses.
+    if (subject.kind === "that-card")
+        return unlowerable('"that card" is read only as a returned card');
     if (subject.requirement.type === "player")
         return unlowerable("a player is not an object (CR 109.1)");
     const index = slots.allocate(subject.requirement);
@@ -249,11 +270,24 @@ function objectSelector(
 
 function playerRef(
     ref: PlayerRefIR,
-    slots: TargetSlots
+    slots: TargetSlots,
+    site: SiteOptions
 ): Lowered<EffectPlayerRef> {
     switch (ref.kind) {
         case "you":
             return lowered("controller");
+        // The player the site's head named; none, no binding.
+        case "that-player":
+            // A player the body itself introduced ("target opponent … That
+            // player …") is the nearer antecedent; binding the head's would
+            // name the wrong player, so the line is refused instead.
+            if (slots.requirements().some((r) => r.type === "player"))
+                return unlowerable(
+                    '"that player" may name the announced target, not the head\'s player'
+                );
+            return site.antecedents?.player !== undefined
+                ? lowered(site.antecedents.player)
+                : unlowerable('"that player" names no player at this site');
         case "target": {
             const requirement: TargetRequirement = ref.opponent
                 ? { type: "player", count: 1, controller: "opponent" }
@@ -276,10 +310,11 @@ function playerRef(
  */
 function damageTarget(
     subject: SubjectIR,
-    slots: TargetSlots
+    slots: TargetSlots,
+    site: SiteOptions
 ): Lowered<EffectObjectSelector | { player: EffectPlayerRef }> {
     if (subject.kind === "player") {
-        const player = playerRef(subject.player, slots);
+        const player = playerRef(subject.player, slots, site);
         return player.ok ? lowered({ player: player.value }) : player;
     }
     return objectSelector(subject, slots);
@@ -338,7 +373,7 @@ function lowerSentenceBody(
             ]);
         }
         case "deal-damage": {
-            const to = damageTarget(sentence.to, slots);
+            const to = damageTarget(sentence.to, slots, site);
             if (!to.ok) return to;
             const amount = lowerAmount(sentence.amount, site);
             if (!amount.ok) return amount;
@@ -353,7 +388,7 @@ function lowerSentenceBody(
         case "suppress-damage-prevention":
             return lowered([{ op: "suppressDamagePrevention" }]);
         case "draw": {
-            const player = playerRef(sentence.player, slots);
+            const player = playerRef(sentence.player, slots, site);
             if (!player.ok) return player;
             const count = lowerAmount(sentence.count, site);
             if (!count.ok) return count;
@@ -394,7 +429,7 @@ function lowerSentenceBody(
             return lowered([{ op: "regenerate", target: target.value }]);
         }
         case "life": {
-            const player = playerRef(sentence.player, slots);
+            const player = playerRef(sentence.player, slots, site);
             if (!player.ok) return player;
             const amount = lowerAmount(sentence.amount, site);
             if (!amount.ok) return amount;
@@ -428,7 +463,23 @@ function lowerSentenceBody(
             ]);
         }
         case "move-zone": {
-            const moved = lowerMoveZone(sentence.subject, sentence.to, slots);
+            // "that card" names the head's card only while no earlier
+            // sentence introduced an object of its own.
+            if (
+                sentence.subject.kind === "that-card" &&
+                (walk.actedOn !== null ||
+                    walk.libraryLookedAt !== null ||
+                    slots.requirements().length > 0)
+            )
+                return unlowerable(
+                    '"that card" may name an object an earlier sentence introduced'
+                );
+            const moved = lowerMoveZone(
+                sentence.subject,
+                sentence.to,
+                slots,
+                site
+            );
             if (moved.ok)
                 recordActedOn(walk, sentence.subject, moved.value[0]!);
             return moved;
@@ -493,7 +544,7 @@ function lowerSentenceBody(
         case "upgrade-if-controls":
             return lowerUpgrade(sentence, walk, site);
         case "discard-at-random": {
-            const player = playerRef(sentence.player, slots);
+            const player = playerRef(sentence.player, slots, site);
             if (!player.ok) return player;
             const count = lowerAmount(sentence.count, site);
             if (!count.ok) return count;
@@ -518,7 +569,7 @@ function lowerSentenceBody(
                     return unlowerable(
                         '"that player" names no player announced before it'
                     );
-                const player = playerRef(sentence.library, slots);
+                const player = playerRef(sentence.library, slots, site);
                 if (!player.ok) return player;
                 return lowered([
                     {
@@ -530,7 +581,7 @@ function lowerSentenceBody(
                     },
                 ]);
             }
-            const player = playerRef(sentence.library, slots);
+            const player = playerRef(sentence.library, slots, site);
             if (!player.ok) return player;
             if (player.value === "controller")
                 return lowered([
@@ -867,8 +918,22 @@ function lowerLookDistribute(
 function lowerMoveZone(
     subject: SubjectIR,
     zone: ZoneRefIR,
-    slots: TargetSlots
+    slots: TargetSlots,
+    site: SiteOptions
 ): Lowered<EffectOp[]> {
+    // CR 400.7e — "return that card to its owner's hand": the card the site's
+    // zone change put into a graveyard. Only the hand is read — the one
+    // destination a printed line asks for — so no other zone pair is claimed.
+    if (subject.kind === "that-card") {
+        const card = site.antecedents?.card;
+        if (card === undefined)
+            return unlowerable('"that card" names no card at this site');
+        if (zone.zone !== "hand" || zone.owner !== "its-owner")
+            return unlowerable(
+                '"that card" is returned only to its owner\'s hand in grammar v0'
+            );
+        return lowered([{ op: "moveZone", target: card, to: "hand" }]);
+    }
     const target = objectSelector(subject, slots);
     if (!target.ok) return target;
     if (zone.zone === "hand" && zone.owner === "its-owner")

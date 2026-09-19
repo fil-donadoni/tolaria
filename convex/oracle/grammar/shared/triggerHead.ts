@@ -50,7 +50,9 @@ export type TriggerSubjectScope =
     | "opponents"
     | "any"
     | "another-yours"
-    | "any-other";
+    | "any-other"
+    /** CR 303.4b — the Aura's host: "when ENCHANTED creature dies". */
+    | "host";
 
 export type TriggerHeadIR =
     /** CR 603.6a — "when [this / a creature] enters the battlefield". */
@@ -71,6 +73,15 @@ export type TriggerHeadIR =
           readonly kind: "phase";
           readonly phase: Phase;
           readonly scope: "your" | "each";
+          /**
+           * CR 603.2b — the head NAMES the player whose step it is ("each
+           * PLAYER'S upkeep"), which is what gives a later "that player" its
+           * antecedent. "At the beginning of each upkeep" fires on exactly
+           * the same events but names no one, so it binds nothing: the flag
+           * is a fact about the WORDS, and lowering reads it, never the
+           * event.
+           */
+          readonly namesPlayer?: true;
       }
     /** CR 603.2 — "whenever [you / an opponent / a player] casts a spell". */
     | {
@@ -126,6 +137,10 @@ export const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
         "whenever a creature an opponent controls dies",
         { kind: "dies", scope: "opponents" },
     ],
+    // CR 303.4b / 603.10a — the Aura's host dying. A leaves-the-battlefield
+    // trigger looks back in time, so the Aura (put into the graveyard by the
+    // SBA only afterwards, CR 704.5m) still sees what it enchanted.
+    ["when enchanted creature dies", { kind: "dies", scope: "host" }],
     // CR 603.6a — step boundaries (CR 500.1).
     [
         "at the beginning of your upkeep",
@@ -134,6 +149,10 @@ export const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
     [
         "at the beginning of each upkeep",
         { kind: "phase", phase: "UPKEEP", scope: "each" },
+    ],
+    [
+        "at the beginning of each player's upkeep",
+        { kind: "phase", phase: "UPKEEP", scope: "each", namesPlayer: true },
     ],
     [
         "at the beginning of your draw step",

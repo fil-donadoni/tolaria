@@ -3,10 +3,10 @@
  * player", "that player" (CR 102.1, CR 109.5).
  *
  * Anaphora ("that player") lowers to an explicit reference, never to a
- * proximity guess — but grammar v0 refuses it outright rather than binding it,
- * because a binding needs the sentence that introduced the referent and that
- * sentence lives in a different slot (#2698). Refusing is the fail-closed half
- * of the same rule.
+ * proximity guess. The phrase is READ here, but the referent is not: the
+ * sentence that introduced it may live in a different part of the line (a
+ * trigger head, #2698), so the lowering site supplies it — and a site that
+ * supplies none refuses the line, the fail-closed half of the same rule.
  */
 
 import { fail, ok, rule, type Rule, subGrammar } from "../../rule";
@@ -22,7 +22,13 @@ export type PlayerRefIR =
     /** CR 101.4 — every player, in APNAP order. */
     | { readonly kind: "each-player" }
     /** CR 115.1 — an announced target. `opponent` narrows the legal set. */
-    | { readonly kind: "target"; readonly opponent: boolean };
+    | { readonly kind: "target"; readonly opponent: boolean }
+    /**
+     * "that player": anaphora. The grammar reads the words; WHO
+     * they name is the lowering site's to say (a trigger head that names a
+     * player, issue #4127), and a site that names no one refuses the line.
+     */
+    | { readonly kind: "that-player" };
 
 const PHRASES: ReadonlyMap<string, PlayerRefIR> = new Map<string, PlayerRefIR>([
     ["you", { kind: "you" }],
@@ -31,6 +37,7 @@ const PHRASES: ReadonlyMap<string, PlayerRefIR> = new Map<string, PlayerRefIR>([
     ["each player", { kind: "each-player" }],
     ["target player", { kind: "target", opponent: false }],
     ["target opponent", { kind: "target", opponent: true }],
+    ["that player", { kind: "that-player" }],
 ]);
 
 export const playerRefRule: Rule<PlayerRefIR> = subGrammar(

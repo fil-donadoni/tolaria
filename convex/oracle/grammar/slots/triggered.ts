@@ -55,7 +55,7 @@ import {
     terminated,
     type Rule,
 } from "../../rule";
-import { conditionRule, type ConditionIR } from "../shared/condition";
+import { conditionRule, type TriggerConditionIR } from "../shared/condition";
 import {
     assembleSentences,
     assemblyTrace,
@@ -86,7 +86,7 @@ const plainSentence: Rule<SentenceIR> = rule(
 const triggerSentence: Rule<SentenceIR> = optionalSentenceRule(plainSentence);
 
 interface TailIR {
-    readonly condition?: ConditionIR;
+    readonly condition?: TriggerConditionIR;
     readonly sentences: readonly SentenceIR[];
     /** The first sentence opened on "it", read as the source (CR 608.2h). */
     readonly boundPronoun: boolean;

@@ -21,9 +21,17 @@
  * (ADR 0045).
  */
 
-import { fail, ok, rule, type Rule, subGrammar } from "../../rule";
+import {
+    fail,
+    ok,
+    rule,
+    type Rule,
+    type RuleResult,
+    subGrammar,
+} from "../../rule";
 import { readManaCost } from "../../manaCost";
 import { SELF_MARKER } from "../../normalize";
+import { readNumberWord } from "./quantity";
 import { descriptorRule, permanentFilterFromDescriptor } from "./targetFilter";
 import type { PermanentFilter } from "../../../cards/filters";
 import type { ManaCost } from "../../../cards/types";
@@ -43,6 +51,26 @@ export type ConditionIR = {
     readonly filter: PermanentFilter;
     readonly atLeast: number;
 };
+
+/**
+ * The conditions an intervening "if" reads (CR 603.4): `controls`, shared with
+ * the resolution-time and static sites, plus the members that only make sense
+ * on a trigger because they name the TRIGGERING player ("that player") — a
+ * referent a static ability has no event to take from.
+ */
+export type TriggerConditionIR =
+    | ConditionIR
+    /**
+     * CR 305.6 — "if there are four or more basic land types among lands
+     * that player controls" (Mask of Intolerance, issue #4127). "that
+     * player" is anaphora: lowering binds it to the head's named player, or
+     * refuses the line.
+     */
+    | {
+          readonly kind: "basic-land-types";
+          readonly player: "that-player";
+          readonly atLeast: number;
+      };
 
 const ARTICLES: readonly string[] = ["a ", "an "];
 
@@ -75,17 +103,44 @@ const UNEVALUABLE_FILTER_KEYS = [
  * `controller` field outright, which is exactly that check and is not repeated
  * here.
  */
-export const conditionRule: Rule<ConditionIR> = subGrammar(
+export const conditionRule: Rule<TriggerConditionIR> = subGrammar(
     CONDITION,
-    rule(CONDITION, (span, ctx) => {
+    rule<TriggerConditionIR>(CONDITION, (span, ctx) => {
         const opener = "if ";
         if (!span.startsWith(opener))
             return fail("not a condition this grammar knows", span);
-        return controlsRule.run(span.slice(opener.length), ctx);
+        const clause = span.slice(opener.length);
+        const domain = clause.match(BASIC_LAND_TYPES);
+        if (domain !== null) return readBasicLandTypes(domain[1]!, span);
+        return controlsRule.run(clause, ctx);
     }),
     // CR 603.4 — an intervening "if" clause opens with the word itself.
     (span) => /^if /i.test(span)
 );
+
+/** CR 305.6 — the domain count, over the triggering player's lands. */
+const BASIC_LAND_TYPES =
+    /^there are (\S+) or more basic land types among lands that player controls$/;
+
+/**
+ * CR 305.6 — five basic land types exist, so a threshold is a number word from
+ * two to five: "one or more" is not how the corpus prints "a basic land type",
+ * and anything past five is a threshold no board can meet — both a phrase we
+ * have misread.
+ */
+function readBasicLandTypes(
+    word: string,
+    span: string
+): RuleResult<TriggerConditionIR> {
+    const atLeast = /^[a-z]+$/.test(word) ? readNumberWord(word) : null;
+    if (atLeast === null || atLeast < 2 || atLeast > 5)
+        return fail(`"${word}" is not a basic-land-type threshold`, span);
+    return ok({
+        kind: "basic-land-types" as const,
+        player: "that-player" as const,
+        atLeast,
+    });
+}
 
 /**
  * `"you control a Goblin"` — the controls clause itself, without the word that

@@ -883,6 +883,12 @@
             "name": "Spider"
         }
     ],
+    "7d3a7226-f574-430e-9b8f-4e531a21540f": [
+        {
+            "scryfallId": "e96f22c0-b9c8-418a-8224-e7d0b2841bd2",
+            "name": "Elephant"
+        }
+    ],
     "7df3cd89-02c9-4a1c-9a8a-d17a0b1030c9": [
         {
             "scryfallId": "8031f333-c818-4793-8cf8-232bf9088a96",
@@ -1531,6 +1537,12 @@
         {
             "scryfallId": "9f5ddcda-dcf0-468d-a5db-011e1b6ccab1",
             "name": "Worm"
+        }
+    ],
+    "e19a15d9-5899-4b84-9c00-345b19df53ae": [
+        {
+            "scryfallId": "f20992a9-7ea7-454d-aac6-ff6928eb80b5",
+            "name": "Griffin"
         }
     ],
     "e1d2c774-aab9-4747-af91-da792ed7cfe1": [

@@ -85,7 +85,13 @@ export type SubjectIR =
     /** An announced target (CR 115.1) — object OR player. */
     | { readonly kind: "target"; readonly requirement: TargetRequirement }
     /** A player named without targeting (CR 109.5 — "you"). */
-    | { readonly kind: "player"; readonly player: PlayerRefIR };
+    | { readonly kind: "player"; readonly player: PlayerRefIR }
+    /**
+     * CR 400.7e — "that card": anaphora for the card a zone change
+     * put somewhere. Read here, bound by the lowering SITE (a dies trigger,
+     * issue #4127); a site that names no card refuses the line.
+     */
+    | { readonly kind: "that-card" };
 
 export type EffectSentenceIR =
     | {
@@ -530,6 +536,7 @@ export const subjectRule: Rule<SubjectIR> = rule<SubjectIR>(
         // CR 205.3 subtype) sits later in the phrase and is left alone.
         const probe = uncapitalise(span);
         if (isSelfPhrase(probe)) return ok({ kind: "self" as const });
+        if (probe === "that card") return ok({ kind: "that-card" as const });
         if (
             probe === "any target" ||
             probe.startsWith("target ") ||
