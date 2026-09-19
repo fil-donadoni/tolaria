@@ -41818,6 +41818,7 @@
         {"id":"709.4a","line":"// CR 709.4a/709.4b/709.4c — the top-level `name`, `manaCost` and `types`","sites":1,"status":"baseline"},
         {"id":"709.4a","line":"// CR 715.5 / 709.4a — the same half-name keys the hand-written loop","sites":1,"status":"baseline"},
         {"id":"709.4a","line":"// back face adds the second. Unlike CR 709.4a's split card, nothing is","sites":1,"status":"baseline"},
+        {"id":"709.4a","line":"// obeys CR 709.4a exactly as a hand-written one does.","sites":1,"status":"confirmed","ruleHash":"7104fbcf48b0e946"},
         {"id":"709.4a","line":"describe(\"two names, and not both (CR 709.4a)\", () => {","sites":1,"status":"baseline"},
         {"id":"709.4a","line":"it(\"naming the COMBINED string locks nothing (CR 709.4a)\", () => {","sites":1,"status":"baseline"},
         {"id":"709.4b","line":"\"combineSplitManaCosts: both halves declare a variable {X} — CR 709.4b has no reading for two announced values\"","sites":1,"status":"baseline"},
