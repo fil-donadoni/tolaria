@@ -1307,45 +1307,6 @@ export const justice: CardDefinition = {
         }),
     ],
 };
-// Kelsinko Ranger — {1}{W}: Target green creature gains first strike until end
-// of turn (CR 611.2a temporary keyword grant). Targeting is scoped to green
-// creatures via the color filter.
-export const kelsinkoRanger: CardDefinition = {
-    id: "8402543e-5406-404f-95c4-800a1dce35f1",
-    name: "Kelsinko Ranger",
-    rarity: "common",
-    oracleText:
-        "{1}{W}: Target green creature gains first strike until end of turn.",
-    manaCost: { W: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Ranger"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "kelsinko-ranger-first-strike",
-            oracleText:
-                "{1}{W}: Target green creature gains first strike until end of turn.",
-            cost: { mana: { X: 1, W: 1 } },
-            useStack: true,
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                colorFilter: "G",
-            },
-            // Migrated resolve()→effects[] (ADR 0045, #843): grant first strike
-            // to the announced target creature until end of turn (CR 611.2a).
-            effects: [
-                {
-                    op: "grantAbility",
-                    ability: "first strike",
-                    target: { target: 0 },
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-};
 // Kjeldoran Elite Guard — instance leave-watch (CR 603.7a / 603.10, issue
 // #731). "{T}: Target creature gets +2/+2 until end of turn. When that creature
 // leaves the battlefield this turn, sacrifice this creature. Activate only

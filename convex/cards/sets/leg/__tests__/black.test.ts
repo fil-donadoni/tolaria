@@ -38,24 +38,19 @@ import { getDefinition } from "../../../index";
 
 const acidRain = getDefinition("ba93c50a-2440-4e92-9cba-d97e20b1d29c");
 const blight = getDefinition("9ca19b39-4201-463c-bd40-fbffa31c9eda");
-const carrionAnts = getDefinition("cbc0b009-3951-4aa3-985a-97139882da7e");
 const cosmicHorror = getDefinition("18bc6ac2-19e0-4765-852b-e303a5bb4040");
 const cyclopeanMummy = getDefinition("479ccc50-2d72-4adc-901e-fbd4eef2cf92");
 const darkness = getDefinition("53b04dab-45b7-418b-a0f0-bcf35145fc53");
 const fallenAngel = getDefinition("0f4174e4-0be8-49b5-8c52-22001790f6eb");
-const ghostsOfTheDamned = getDefinition("20275678-3488-43d8-a93b-993e2267ab07");
-const greed = getDefinition("111a16a2-e875-4756-80db-290f9e8606db");
 const headlessHorseman = getDefinition("d1aa37c8-98fa-4984-b09b-cf65ad84e97b");
 const hellSwarm = getDefinition("64164d1b-75f4-456e-a717-90ce554dc16c");
 const hellfire = getDefinition("362f1fe9-20af-434c-9957-7a1a564d89e6");
 const hellsCaretaker = getDefinition("336b3b8f-d104-4f06-ad4f-c92b8a9038ca");
-const horrorOfHorrors = getDefinition("b9f68dc2-c048-41ec-b237-c36fdd99c27d");
 const moldDemon = getDefinition("649a33aa-7eac-4161-ae1a-fcbc758abccf");
 const netherVoid = getDefinition("2e72f8cb-5bc3-4711-9b7c-a6eea9a0beaf");
 const spiritShackle = getDefinition("a30bb266-5bd1-4998-ae94-56f0f3354167");
 const syphonSoul = getDefinition("f3020304-7a39-411e-b055-3ade72b4bff8");
 const theAbyss = getDefinition("86a27d68-3e58-4ade-976d-36381beed451");
-const walkingDead = getDefinition("d7533a72-77d1-40cd-b3a1-7597d566c428");
 const wallOfTombstones = getDefinition("55da1e86-fe18-486a-b510-f941e6f6e378");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
@@ -63,7 +58,7 @@ const swamp = getDefinition("6176936d-72e2-4205-8871-4c5a4f1cb2d8");
 
 describe("Carrion Ants ({1}: +1/+1 EOT, CR 611.1)", () => {
     it("pumps itself by +1/+1 until end of turn (repeatable)", () => {
-        const ants = makeInstance(carrionAnts.id, {
+        const ants = makeInstance("cbc0b009-3951-4aa3-985a-97139882da7e", {
             id: "ants",
             controllerId: "p1",
         });
@@ -81,7 +76,7 @@ describe("Carrion Ants ({1}: +1/+1 EOT, CR 611.1)", () => {
                 ...ants,
                 zone: "stack",
                 castById: "p1",
-                abilityId: "carrion-ants-pump",
+                abilityId: "carrion-ants-ability",
                 targets: [],
             } as StackItem);
             resolveTopOfStack(state);
@@ -101,7 +96,7 @@ describe("Carrion Ants ({1}: +1/+1 EOT, CR 611.1)", () => {
 
 describe("Walking Dead ({B}: Regenerate this, CR 701.19a)", () => {
     it("arms a regeneration shield on itself", () => {
-        const wd = makeInstance(walkingDead.id, {
+        const wd = makeInstance("d7533a72-77d1-40cd-b3a1-7597d566c428", {
             id: "wd",
             controllerId: "p1",
         });
@@ -115,7 +110,7 @@ describe("Walking Dead ({B}: Regenerate this, CR 701.19a)", () => {
             ...wd,
             zone: "stack",
             castById: "p1",
-            abilityId: "walking-dead-regenerate",
+            abilityId: "walking-dead-ability",
             targets: [],
         } as StackItem);
         resolveTopOfStack(state);
@@ -126,7 +121,7 @@ describe("Walking Dead ({B}: Regenerate this, CR 701.19a)", () => {
 
 describe("Ghosts of the Damned ({T}: target -1/-0 EOT, CR 611.1)", () => {
     it("debuffs the target's power by 1 until end of turn", () => {
-        const ghosts = makeInstance(ghostsOfTheDamned.id, {
+        const ghosts = makeInstance("20275678-3488-43d8-a93b-993e2267ab07", {
             id: "ghosts",
             controllerId: "p1",
         });
@@ -145,7 +140,7 @@ describe("Ghosts of the Damned ({T}: target -1/-0 EOT, CR 611.1)", () => {
             ...ghosts,
             zone: "stack",
             castById: "p1",
-            abilityId: "ghosts-of-the-damned-debuff",
+            abilityId: "ghosts-of-the-damned-ability",
             targets: [{ type: "permanent", id: "bear" }],
         } as StackItem);
         resolveTopOfStack(state);
@@ -202,7 +197,7 @@ describe("Hell's Caretaker (reanimate from GY, upkeep only, CR 400.7)", () => {
             controllerId: "p1",
             ownerId: "p1",
         });
-        const deadInst = makeInstance(carrionAnts.id, {
+        const deadInst = makeInstance("cbc0b009-3951-4aa3-985a-97139882da7e", {
             id: "dead",
             controllerId: "p1",
             ownerId: "p1",
@@ -337,7 +332,7 @@ describe("Syphon Soul (2 to each opponent, gain that much, CR 120.1)", () => {
 
 describe("Horror of Horrors (Sac a Swamp: regenerate target black creature)", () => {
     it("arms a regeneration shield on a black creature", () => {
-        const horror = makeInstance(horrorOfHorrors.id, {
+        const horror = makeInstance("b9f68dc2-c048-41ec-b237-c36fdd99c27d", {
             id: "hh",
             controllerId: "p1",
             ownerId: "p1",
@@ -363,7 +358,7 @@ describe("Horror of Horrors (Sac a Swamp: regenerate target black creature)", ()
             ...horror,
             zone: "stack",
             castById: "p1",
-            abilityId: "horror-of-horrors-regenerate",
+            abilityId: "horror-of-horrors-ability",
             sacrificedPermanentId: "swamp",
             targets: [{ type: "permanent", id: "zombie" }],
         } as StackItem);
@@ -409,7 +404,7 @@ describe("Cyclopean Mummy (dies → exile, CR 603.2 / 406)", () => {
 
 describe("Greed ({B}, Pay 2 life: Draw a card, CR 119.4 / 121.1)", () => {
     it("draws a card and costs 2 life", () => {
-        const greedInst = makeInstance(greed.id, {
+        const greedInst = makeInstance("111a16a2-e875-4756-80db-290f9e8606db", {
             id: "greed",
             controllerId: "p1",
             ownerId: "p1",
@@ -434,7 +429,7 @@ describe("Greed ({B}, Pay 2 life: Draw a card, CR 119.4 / 121.1)", () => {
             ...greedInst,
             zone: "stack",
             castById: "p1",
-            abilityId: "greed-draw",
+            abilityId: "greed-ability",
             targets: [],
         } as StackItem);
         resolveTopOfStack(state);

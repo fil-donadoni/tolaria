@@ -358,30 +358,6 @@ export const beastsOfBogardan: CardDefinition = {
 
 // --- Activated-ability creatures (CR 605) ----------------------------------
 
-// Spinal Villain — "{T}: Destroy target blue creature." (CR 701.8 destroy on a
-// colour-restricted target, CR 202.2.)
-export const spinalVillain: CardDefinition = {
-    id: "d6d5e36f-0049-4be8-bf85-8dc0186339a4",
-    rarity: "rare",
-    name: "Spinal Villain",
-    oracleText: "{T}: Destroy target blue creature.",
-    manaCost: { X: 2, R: 1 },
-    types: ["Creature"],
-    subtypes: ["Beast"],
-    power: 1,
-    toughness: 2,
-    activatedAbilities: [
-        {
-            id: "spinal-villain-destroy",
-            oracleText: "{T}: Destroy target blue creature.",
-            cost: { tap: true },
-            useStack: true,
-            targetRequirement: { type: "Creature", count: 1, colorFilter: "U" },
-            effects: [{ op: "destroy", target: { target: 0 } }],
-        },
-    ],
-};
-
 // Hyperion Blacksmith — "{T}: You may tap or untap target artifact an opponent
 // controls." (CR 701.26 tap/untap; the optional + the tap-or-untap pick are a
 // single option choice — choose tap, untap, or decline.)

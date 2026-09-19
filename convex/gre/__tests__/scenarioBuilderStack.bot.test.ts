@@ -25,8 +25,10 @@ import {
 import { counterspell } from "../../cards/sets/lea/blue";
 import { grizzlyBears } from "../../cards/sets/lea/green";
 import { lightningBolt } from "../../cards/sets/lea/red";
-import { prodigalSorcerer } from "../../cards/sets/lea/blue";
+import { getDefinition } from "../../cards";
 import { gristTheHungerTide } from "../../cards/sets/mh2/multicolor";
+
+const prodigalSorcerer = getDefinition("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a");
 import type { BladeSetupStep } from "../ai/blade/types";
 import type { GameState, StackItem } from "../state";
 import type { ScenarioSpec } from "../../debugScenarioSpec";

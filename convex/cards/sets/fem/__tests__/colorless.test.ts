@@ -40,10 +40,8 @@ const bottomlessVault = getDefinition("639ae988-d1d1-4ead-b0f8-47fc39eb64a0");
 const conchHorn = getDefinition("860a9ba3-e4c4-4af9-bdfe-1ada39289fd5");
 const delifsCone = getDefinition("262b8788-c5a0-4c8e-9d58-b769b1b0a2ff");
 const delifsCube = getDefinition("14749600-9eca-4122-b04f-30ddda091b74");
-const draconianCylix = getDefinition("a419c9e3-5615-44f9-9256-94a3022bb69f");
 const dwarvenHold = getDefinition("a3142ded-ff62-4817-aa54-75a7ea4498a6");
 const ebonStronghold = getDefinition("3fb2a11f-a8e4-4acf-871a-11171e3304ef");
-const elvenLyre = getDefinition("c3a8cd72-04c0-46f7-a249-f1cecddfdc26");
 const hollowTrees = getDefinition("90845410-e09a-4753-ad4c-bf2b2f3c95ac");
 const icatianStore = getDefinition("d7cd8d8c-52c7-402f-92e1-5e5866f2555a");
 const implementsOfSacrifice = getDefinition(
@@ -457,7 +455,7 @@ describe("FEM C6 sacrifice / tap-effect artifacts (reuse-only)", () => {
     });
 
     it("Elven Lyre gives +2/+2 until end of turn (CR 611.2c)", () => {
-        const lyre = makeInstance(elvenLyre.id, {
+        const lyre = makeInstance("c3a8cd72-04c0-46f7-a249-f1cecddfdc26", {
             id: "lyre",
             controllerId: "p1",
         });
@@ -471,7 +469,7 @@ describe("FEM C6 sacrifice / tap-effect artifacts (reuse-only)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, lyre, "elven-lyre", [
+        resolveActivated(state, lyre, "elven-lyre-ability", [
             { type: "permanent", id: "bear" },
         ]);
         const buffed = state.players[0].battlefield.find(
@@ -482,7 +480,7 @@ describe("FEM C6 sacrifice / tap-effect artifacts (reuse-only)", () => {
     });
 
     it("Draconian Cylix applies a regeneration shield to target creature (CR 701.19)", () => {
-        const cylix = makeInstance(draconianCylix.id, {
+        const cylix = makeInstance("a419c9e3-5615-44f9-9256-94a3022bb69f", {
             id: "cylix",
             controllerId: "p1",
         });
@@ -496,7 +494,7 @@ describe("FEM C6 sacrifice / tap-effect artifacts (reuse-only)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, cylix, "draconian-cylix", [
+        resolveActivated(state, cylix, "draconian-cylix-ability", [
             { type: "permanent", id: "bear" },
         ]);
         const shielded = state.players[0].battlefield.find(

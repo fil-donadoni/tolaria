@@ -63,12 +63,10 @@ const deathgrip = getDefinition("2371c126-f19a-472a-ba5f-3b1366274ea0");
 const demonicHordes = getDefinition("6c9bb8b1-fb79-4b99-ba09-c6e6c860de50");
 const demonicTutor = getDefinition("711d4d54-5520-4de8-9b93-79902ed8e562");
 const drainLife = getDefinition("5d077a49-73d4-4958-b42a-31b814e110e8");
-const drudgeSkeletons = getDefinition("23614289-0d73-4747-a849-5cb67cc97d6a");
 const evilPresence = getDefinition("0551d66e-8cd4-48f0-aa17-15f26be9d85f");
 const fear = getDefinition("0cd927be-e63f-4371-a1d8-7a0489cb187e");
 const fireball = getDefinition("b7623c00-144b-4a8f-9c6c-f5e9e4f65ece");
 const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
-const frozenShade = getDefinition("d0bd76c8-4cff-4c15-9686-7a299b589814");
 const gloom = getDefinition("a8d10bc7-daeb-4c0d-9e4a-8eae8d11699f");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 const howlFromBeyond = getDefinition("67ec17e1-174b-4d07-a27f-91a333c4b2fb");
@@ -108,7 +106,6 @@ const swordsToPlowshares = getDefinition(
 );
 const terror = getDefinition("21004958-2c7e-4a55-bc80-411c4d780106");
 const unholyStrength = getDefinition("90563f90-0127-4164-b43b-f0321dc63a1d");
-const uthdenTroll = getDefinition("2ff21a6f-83a7-4bf3-a078-294e303232cc");
 const wallOfBone = getDefinition("ae20d442-a544-4a03-9ebf-5ecb137c67dd");
 const warpArtifact = getDefinition("9e5e07a2-fbdf-4c4c-996a-fce40bab5de5");
 const weakness = getDefinition("36ca06a1-9b9a-49a2-9c47-9b72228621bc");
@@ -390,7 +387,7 @@ describe("Drain Life (X damage to any target, gain X life, CR 107.3 + 120.1)", (
 
 describe("Royal Assassin ({T}: destroy target tapped creature, CR 701.26 + 701.8)", () => {
     function setup() {
-        const assassin = makeInstance(royalAssassin.id, {
+        const assassin = makeInstance("59590768-fa96-4869-8763-9d5ab6ac22ad", {
             id: "assassin",
             isSummoningSick: false,
         });
@@ -417,7 +414,7 @@ describe("Royal Assassin ({T}: destroy target tapped creature, CR 701.26 + 701.8
             ...source,
             zone: "stack",
             castById: "p1",
-            abilityId: "royal-assassin-destroy",
+            abilityId: "royal-assassin-ability",
             targets: [{ type: "permanent", id: targetId }],
         });
         resolveTopOfStack(state);
@@ -438,7 +435,7 @@ describe("Royal Assassin ({T}: destroy target tapped creature, CR 701.26 + 701.8
             ...assassin,
             zone: "stack",
             castById: "p1",
-            abilityId: "royal-assassin-destroy",
+            abilityId: "royal-assassin-ability",
             targets: [{ type: "permanent", id: "victim" }],
         });
         // Opponent untaps the target in response.
@@ -1088,7 +1085,7 @@ describe("Cursed Land (Aura on Land — 1 dmg to host's controller at upkeep)", 
 
 describe("Drudge Skeletons ({B}: regenerate self, CR 701.19a)", () => {
     function setup() {
-        const skel = makeInstance(drudgeSkeletons.id, {
+        const skel = makeInstance("23614289-0d73-4747-a849-5cb67cc97d6a", {
             id: "skel",
             controllerId: "p1",
             ownerId: "p1",
@@ -1106,7 +1103,7 @@ describe("Drudge Skeletons ({B}: regenerate self, CR 701.19a)", () => {
             ...source,
             zone: "stack",
             castById: "p1",
-            abilityId: "drudge-skeletons-regenerate",
+            abilityId: "drudge-skeletons-ability",
             targets: [],
         });
         resolveTopOfStack(state);
@@ -1541,7 +1538,7 @@ describe("Zombie Master (lord swampwalk + granted regen, no pt-buff)", () => {
 
 describe("Frozen Shade ({B}: this creature gets +1/+1 until end of turn)", () => {
     function setup() {
-        const shade = makeInstance(frozenShade.id, {
+        const shade = makeInstance("d0bd76c8-4cff-4c15-9686-7a299b589814", {
             id: "shade",
             controllerId: "p1",
             ownerId: "p1",
@@ -1564,7 +1561,7 @@ describe("Frozen Shade ({B}: this creature gets +1/+1 until end of turn)", () =>
         )!;
         expect(getEffectivePower(state, shade)).toBe(0);
         expect(getEffectiveToughness(state, shade)).toBe(1);
-        activatePump(state, shade, "frozen-shade-pump");
+        activatePump(state, shade, "frozen-shade-ability");
         const after = state.players[0].battlefield.find(
             (c) => c.id === shadeId
         )!;
@@ -1578,7 +1575,7 @@ describe("Frozen Shade ({B}: this creature gets +1/+1 until end of turn)", () =>
             const shade = state.players[0].battlefield.find(
                 (c) => c.id === shadeId
             )!;
-            activatePump(state, shade, "frozen-shade-pump");
+            activatePump(state, shade, "frozen-shade-ability");
         }
         const after = state.players[0].battlefield.find(
             (c) => c.id === shadeId
@@ -1592,7 +1589,7 @@ describe("Frozen Shade ({B}: this creature gets +1/+1 until end of turn)", () =>
         const shade = state.players[0].battlefield.find(
             (c) => c.id === shadeId
         )!;
-        activatePump(state, shade, "frozen-shade-pump");
+        activatePump(state, shade, "frozen-shade-ability");
         // Jump to END_STEP so the next advancePhase lands on CLEANUP, where
         // tickAllDurations runs.
         state.phase = "END_STEP";
@@ -1610,7 +1607,7 @@ describe("Frozen Shade ({B}: this creature gets +1/+1 until end of turn)", () =>
         const shade = state.players[0].battlefield.find(
             (c) => c.id === shadeId
         )!;
-        activatePump(state, shade, "frozen-shade-pump");
+        activatePump(state, shade, "frozen-shade-ability");
         const projected = projectPublicState(state, 1, "p1");
         const slim = projected.players[0].battlefield.find(
             (c) => c.id === shadeId
@@ -2777,7 +2774,7 @@ describe("Terror (destroy target nonartifact, nonblack creature, CR 701.8)", () 
     });
 
     it("destroyed creature can't be regenerated (cantBeRegenerated)", () => {
-        const troll = makeInstance(uthdenTroll.id, {
+        const troll = makeInstance("2ff21a6f-83a7-4bf3-a078-294e303232cc", {
             id: "troll",
             controllerId: "p2",
             ownerId: "p2",

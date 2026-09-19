@@ -11,36 +11,6 @@ import { PERMANENT_TYPES } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { stateTrigger } from "../../abilities/triggers/stateTrigger";
 
-export const wyluliWolf: CardDefinition = {
-    id: "15ccebe1-ef08-4805-a65f-a1c57abed9f2",
-    rarity: "common",
-    name: "Wyluli Wolf",
-    oracleText: "{T}: Target creature gets +1/+1 until end of turn.",
-    manaCost: { X: 1, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Wolf"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "wyluli-wolf-pump",
-            oracleText: "{T}: Target creature gets +1/+1 until end of turn.",
-            cost: { tap: true },
-            useStack: true,
-            targetRequirement: { type: "Creature", count: 1 },
-            effects: [
-                {
-                    op: "pump",
-                    target: { target: 0 },
-                    power: 1,
-                    toughness: 1,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-};
-
 // Erhnam Djinn — "At the beginning of your upkeep, target non-Wall creature an
 // opponent controls gains forestwalk until your next upkeep." (CR 603.6a upkeep
 // trigger, CR 702.14 forestwalk evasion, CR 611.2a layer-6 keyword grant.)

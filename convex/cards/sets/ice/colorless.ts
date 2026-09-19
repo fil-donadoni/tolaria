@@ -49,39 +49,6 @@ function nextUpkeepDrawTrigger(): DelayedTriggerDef {
         effects: [{ op: "draw", player: "controller", count: 1 }],
     };
 }
-// Adarkar Sentinel — {1}: This creature gets +0/+1 until end of turn (CR 605
-// self-pump activated ability; CR 613 layer 7c temporary buff). A colourless
-// artifact creature.
-export const adarkarSentinel: CardDefinition = {
-    id: "ff62754b-f4f0-4731-8dd7-327a820f60a8",
-    name: "Adarkar Sentinel",
-    rarity: "uncommon",
-    oracleText: "{1}: This creature gets +0/+1 until end of turn.",
-    manaCost: { X: 5 },
-    types: ["Artifact", "Creature"],
-    subtypes: ["Soldier"],
-    power: 3,
-    toughness: 3,
-    activatedAbilities: [
-        {
-            id: "adarkar-sentinel-pump",
-            oracleText: "{1}: This creature gets +0/+1 until end of turn.",
-            cost: { mana: { X: 1 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, issue #840): +0/+1 EOT
-            // on this creature (CR 611.2a) via the pump Op.
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 0,
-                    toughness: 1,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-};
 // Aegis of the Meek — {1}, {T}: Target 1/1 creature gets +1/+2 until end of
 // turn (CR 605 activated ability; CR 613 layer 7c). The "1/1 creature" filter
 // is the target's effective power AND toughness (powerFilter + toughnessFilter
@@ -374,36 +341,6 @@ export const barbedSextant: CardDefinition = {
     ],
     delayedTriggers: [nextUpkeepDrawTrigger()],
 };
-// Baton of Morale — {2}: Target creature gains banding until end of turn
-// (CR 605 activated ability; CR 702.22 banding granted via the layer system,
-// CR 613 layer 6).
-export const batonOfMorale: CardDefinition = {
-    id: "8bc29872-b1a2-4851-9eca-f3e67ae6e14c",
-    name: "Baton of Morale",
-    rarity: "uncommon",
-    oracleText: "{2}: Target creature gains banding until end of turn.",
-    manaCost: { X: 2 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "baton-of-morale-banding",
-            oracleText: "{2}: Target creature gains banding until end of turn.",
-            cost: { mana: { X: 2 } },
-            useStack: true,
-            targetRequirement: { type: "Creature", count: 1 },
-            // Migrated resolve()→effects[] (ADR 0045, #843): grant banding to
-            // the announced target creature until end of turn (CR 611.2a).
-            effects: [
-                {
-                    op: "grantAbility",
-                    ability: "banding",
-                    target: { target: 0 },
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-};
 // Celestial Sword — {3}, {T}: Target creature you control gets +3/+3 until end
 // of turn, then is sacrificed at the next end step (CR 605 activated ability;
 // CR 613 layer 7c buff; CR 603.7b delayed triggered ability for the sacrifice).
@@ -624,38 +561,6 @@ export const elkinBottle: CardDefinition = {
                     }
                 );
             },
-        },
-    ],
-};
-// Fyndhorn Bow — {3}, {T}: Target creature gains first strike until end of turn
-// (CR 605 activated ability; CR 702.7 first strike granted via the layer system,
-// CR 613 layer 6).
-export const fyndhornBow: CardDefinition = {
-    id: "65dd0a41-cc51-4728-b597-fdb2510accd8",
-    name: "Fyndhorn Bow",
-    rarity: "uncommon",
-    oracleText:
-        "{3}, {T}: Target creature gains first strike until end of turn.",
-    manaCost: { X: 2 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "fyndhorn-bow-first-strike",
-            oracleText:
-                "{3}, {T}: Target creature gains first strike until end of turn.",
-            cost: { mana: { X: 3 }, tap: true },
-            useStack: true,
-            targetRequirement: { type: "Creature", count: 1 },
-            // Migrated resolve()→effects[] (ADR 0045, #843): grant first strike
-            // to the announced target creature until end of turn (CR 611.2a).
-            effects: [
-                {
-                    op: "grantAbility",
-                    ability: "first strike",
-                    target: { target: 0 },
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
         },
     ],
 };
@@ -1304,43 +1209,6 @@ export const pentagramOfTheAges: CardDefinition = {
         },
     ],
 };
-// Pit Trap — {2}, {T}, Sacrifice this artifact: Destroy target attacking
-// creature without flying. It can't be regenerated (CR 605 activated ability
-// with sacrifice cost; CR 508.1 attacking filter; CR 702.9 "without flying"
-// via excludeAbility; CR 701.8 destroy).
-export const pitTrap: CardDefinition = {
-    id: "c588fe7f-945d-4459-904c-67442f88b4e1",
-    name: "Pit Trap",
-    rarity: "uncommon",
-    oracleText:
-        "{2}, {T}, Sacrifice this artifact: Destroy target attacking creature without flying. It can't be regenerated.",
-    manaCost: { X: 2 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "pit-trap-destroy",
-            oracleText:
-                "{2}, {T}, Sacrifice this artifact: Destroy target attacking creature without flying. It can't be regenerated.",
-            cost: { mana: { X: 2 }, tap: true, sacrifice: true },
-            useStack: true,
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                combatRoleFilter: "attacking",
-                excludeAbility: "flying",
-            },
-            // Migrated resolve()→effects[] (ADR 0045, PRD #795): destroy the
-            // announced target, can't-be-regenerated (CR 701.8 / 701.19c).
-            effects: [
-                {
-                    op: "destroy",
-                    target: { target: 0 },
-                    cantBeRegenerated: true,
-                },
-            ],
-        },
-    ],
-};
 // Runed Arch — enters tapped; {X},{T},Sac: X target creatures with power 2 or
 // less can't be blocked this turn (CR 110.5b enters tapped; CR 605 activated
 // ability with X-bound target count; CR 107.3 X chosen at activation;
@@ -1417,39 +1285,6 @@ export const shieldOfTheAges: CardDefinition = {
                     duration: { phase: "end-of-turn" },
                 },
             ],
-        },
-    ],
-};
-// Skull Catapult — {1}, {T}, Sacrifice a creature: This artifact deals 2 damage
-// to any target (CR 605 activated ability with a sacrifice-a-creature cost via
-// `sacrificeFilter`; CR 120.1 / 115.4 "any target" damage).
-export const skullCatapult: CardDefinition = {
-    id: "eb92a3e6-dc30-4a08-baba-e125290cadc5",
-    name: "Skull Catapult",
-    rarity: "uncommon",
-    oracleText:
-        "{1}, {T}, Sacrifice a creature: This artifact deals 2 damage to any target.",
-    manaCost: { X: 4 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "skull-catapult-fling",
-            oracleText:
-                "{1}, {T}, Sacrifice a creature: This artifact deals 2 damage to any target.",
-            cost: {
-                mana: { X: 1 },
-                tap: true,
-                // A sacrifice cost is always paid from the activating player's
-                // own battlefield, so no `controllerRelation` is needed (nor
-                // supported — the cost-validation call sites pass no
-                // `selfControllerId`; a `controllerRelation` here never matches).
-                sacrificeFilter: {
-                    types: "Creature",
-                },
-            },
-            useStack: true,
-            targetRequirement: { type: "any", count: 1 },
-            effects: [{ op: "dealDamage", amount: 2, to: { target: 0 } }],
         },
     ],
 };
@@ -1934,101 +1769,6 @@ export const wallOfShields: CardDefinition = {
     power: 0,
     toughness: 4,
     staticAbilities: ["defender", "banding"],
-};
-// War Chariot — {3}, {T}: Target creature gains trample until end of turn
-// (CR 605 activated ability; CR 702.19 trample granted via the layer system,
-// CR 613 layer 6).
-export const warChariot: CardDefinition = {
-    id: "d0ea0c6c-aa76-4b16-bc99-2ff46dc56d4e",
-    name: "War Chariot",
-    rarity: "uncommon",
-    oracleText: "{3}, {T}: Target creature gains trample until end of turn.",
-    manaCost: { X: 3 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "war-chariot-trample",
-            oracleText:
-                "{3}, {T}: Target creature gains trample until end of turn.",
-            cost: { mana: { X: 3 }, tap: true },
-            useStack: true,
-            targetRequirement: { type: "Creature", count: 1 },
-            // Migrated resolve()→effects[] (ADR 0045, #843): grant trample to
-            // the announced target creature until end of turn (CR 611.2a).
-            effects: [
-                {
-                    op: "grantAbility",
-                    ability: "trample",
-                    target: { target: 0 },
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-};
-// Whalebone Glider — {2}, {T}: Target creature with power 3 or less gains
-// flying until end of turn (CR 605 activated ability; CR 702.9 flying granted
-// via the layer system; the "power 3 or less" filter narrows legal targets via
-// powerFilter, CR 613 layer 7c effective power).
-export const whaleboneGlider: CardDefinition = {
-    id: "4b75adf0-9501-4776-a213-456c2b821070",
-    name: "Whalebone Glider",
-    rarity: "uncommon",
-    oracleText:
-        "{2}, {T}: Target creature with power 3 or less gains flying until end of turn.",
-    manaCost: { X: 2 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "whalebone-glider-flying",
-            oracleText:
-                "{2}, {T}: Target creature with power 3 or less gains flying until end of turn.",
-            cost: { mana: { X: 2 }, tap: true },
-            useStack: true,
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                powerFilter: { max: 3 },
-            },
-            // Migrated resolve()→effects[] (ADR 0045, #843): grant flying to the
-            // announced target creature until end of turn (CR 611.2a).
-            effects: [
-                {
-                    op: "grantAbility",
-                    ability: "flying",
-                    target: { target: 0 },
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-};
-// Zuran Orb — Sacrifice a land: You gain 2 life (CR 605 activated ability with
-// a sacrifice-a-land cost via `sacrificeFilter`; CR 119.3 life gain). A {0}
-// artifact (no mana cost). The ability has no mana/tap component — its only
-// cost is the land sacrifice.
-export const zuranOrb: CardDefinition = {
-    id: "3a9d1082-a862-45d4-9e5e-392e879fead6",
-    name: "Zuran Orb",
-    rarity: "uncommon",
-    oracleText: "Sacrifice a land: You gain 2 life.",
-    manaCost: {},
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "zuran-orb-gain-life",
-            oracleText: "Sacrifice a land: You gain 2 life.",
-            cost: {
-                // A sacrifice cost is always paid from the activating player's
-                // own battlefield, so no `controllerRelation` is needed (nor
-                // supported — the cost-validation call sites pass no
-                // `selfControllerId`; a `controllerRelation` here never matches).
-                sacrificeFilter: { types: "Land" },
-            },
-            useStack: true,
-            effects: [{ op: "gainLife", player: "controller", amount: 2 }],
-        },
-    ],
 };
 // Painland cycle (Adarkar Wastes, Brushland, Karplusan Forest, Sulfurous
 // Springs, Underground River) — "{T}: Add {C}.  {T}: Add <c1> or <c2>. This

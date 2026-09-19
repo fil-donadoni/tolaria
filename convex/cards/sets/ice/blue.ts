@@ -1928,37 +1928,6 @@ export const realityTwist: CardDefinition = {
         }),
     ],
 };
-// Sea Spirit — {U}: firebreathing self-pump (CR 611.2a temporary +1/+0).
-export const seaSpirit: CardDefinition = {
-    id: "f2d93d05-98bc-4504-9045-dedb925895ae",
-    name: "Sea Spirit",
-    rarity: "uncommon",
-    oracleText: "{U}: This creature gets +1/+0 until end of turn.",
-    manaCost: { X: 4, U: 1 },
-    types: ["Creature"],
-    subtypes: ["Elemental", "Spirit"],
-    power: 2,
-    toughness: 3,
-    activatedAbilities: [
-        {
-            id: "sea-spirit-pump",
-            oracleText: "{U}: This creature gets +1/+0 until end of turn.",
-            cost: { mana: { U: 1 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, issue #840): +1/+0 EOT
-            // on this creature (CR 611.2a) via the pump Op.
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 1,
-                    toughness: 0,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-};
 // Shyft — at the controller's upkeep (CR 603.6a, `phaseTrigger` scope "your"),
 // the controller MAY (CR 117.3a, `requestMayPay` cost-less) set Shyft's colour
 // via a layer-5 colour override (CR 305.7 / 613.1d — `setColorOverride`). The
@@ -2678,32 +2647,6 @@ export const zuranEnchanter: CardDefinition = {
                     cards: { ref: "$discards" },
                 },
             ],
-        },
-    ],
-};
-// Zuran Spellcaster — {T}: deal 1 damage to any target (CR 605 activated
-// ability, CR 120.1 damage). The Prodigal Sorcerer "Tim" shape.
-export const zuranSpellcaster: CardDefinition = {
-    id: "152a72b1-a7b7-4e5c-8558-fab97465f549",
-    name: "Zuran Spellcaster",
-    rarity: "common",
-    oracleText: "{T}: This creature deals 1 damage to any target.",
-    manaCost: { X: 2, U: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Wizard"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "zuran-spellcaster-zap",
-            oracleText: "{T}: This creature deals 1 damage to any target.",
-            cost: { tap: true },
-            useStack: true,
-            targetRequirement: { type: "any", count: 1 },
-            // Migrated resolve()→effects[] (ADR 0045): 1 damage to the
-            // announced target (CR 120.1). Untouched per-card test is the
-            // equivalence harness.
-            effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
         },
     ],
 };

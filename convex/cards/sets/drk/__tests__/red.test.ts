@@ -45,7 +45,6 @@ const eternalFlame = getDefinition("d646feea-3c20-4737-8d20-ffad42258ced");
 const fireDrake = getDefinition("d3419db6-1c38-4aa4-b953-1dde7d22b927");
 const fissure = getDefinition("aa2d778d-d74b-45ec-a86b-5d52ffad6ba5");
 const goblinCaves = getDefinition("c6a415b0-00a2-4a65-8994-4a395c50ae2d");
-const goblinDiggingTeam = getDefinition("8a538b9d-351e-40bb-be11-9ba08c16352b");
 const goblinHero = getDefinition("7135a569-e5d3-4a1f-924b-bdb86926b4e1");
 const goblinRockSled = getDefinition("91e0b59d-8f9b-4a76-9845-bcb0dc32523d");
 const goblinShrine = getDefinition("cd69a6dc-27f3-42aa-9e63-4417796e4ef5");
@@ -516,14 +515,16 @@ describe("Goblin Digging Team — {T}, Sac this: destroy target Wall (CR 701.8)"
             controllerId: "p2",
             ownerId: "p2",
         });
-        const team = makeInstance(goblinDiggingTeam.id, { controllerId: "p1" });
+        const team = makeInstance("8a538b9d-351e-40bb-be11-9ba08c16352b", {
+            controllerId: "p1",
+        });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [team] }),
                 makePlayer("p2", { battlefield: [wall] }),
             ],
         });
-        resolveActivated(state, team, "goblin-digging-team-destroy-wall", [
+        resolveActivated(state, team, "goblin-digging-team-ability", [
             { type: "permanent", id: wall.id },
         ]);
         expect(

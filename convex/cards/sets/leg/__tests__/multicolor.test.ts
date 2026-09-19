@@ -56,7 +56,6 @@ const bartelRuneaxe = getDefinition("f1a42691-98bb-4234-9b56-085e6677f3e4");
 const borisDevilboon = getDefinition("82ae30e8-2dcd-46b8-925b-cc24e11fb95d");
 const chromium = getDefinition("8cd7d7e1-f928-4429-9a59-ba0590a78e98");
 const dakkonBlackblade = getDefinition("fbfd1278-1486-4516-8846-007ce1985ee9");
-const gwendlynDiCorci = getDefinition("473d70b6-a88c-49f4-9415-19919c4468ae");
 const halfdane = getDefinition("2e939761-3542-4044-9038-d1d30c6a38fc");
 const jacquesLeVert = getDefinition("ee5a45b1-169b-468e-9251-424c09cd7f0f");
 const jasmineBoreal = getDefinition("db6ef678-4ce9-48d6-aa4f-2afd9a1ad724");
@@ -65,10 +64,8 @@ const ladyOrca = getDefinition("b2779553-74eb-42ba-97d0-96269f48c269");
 const livonyaSilone = getDefinition("b9211949-66a5-4039-ac6d-3e42b008b58e");
 const nicolBolas = getDefinition("729feb73-4581-4f9d-ba47-bece72481b86");
 const palladiaMors = getDefinition("ad64874d-ce33-4e0a-bcca-723f129ef415");
-const pavelMaliki = getDefinition("304f9d39-3ea2-4274-b23e-e4eaabbc1c4b");
 const pendelhaven = getDefinition("79427109-c1f3-476d-a029-0049217237b5");
 const princessLucrezia = getDefinition("a1dcf48c-2700-4024-807e-9244e4c649ac");
-const ragnar = getDefinition("2cf6a3a3-4a06-4eb7-981a-b70cf05b2473");
 const rasputinDreamweaver = getDefinition(
     "503256f8-3aab-49d0-b78b-6502aa29ce52"
 );
@@ -448,7 +445,7 @@ describe("Boris Devilboon ({2}{B}{R},{T}: make a Minor Demon, CR 111)", () => {
 
 describe("Gwendlyn Di Corci ({T}: random discard, your turn, CR 701.9a)", () => {
     it("makes the target player discard a card at random", () => {
-        const gwen = makeInstance(gwendlynDiCorci.id, {
+        const gwen = makeInstance("473d70b6-a88c-49f4-9415-19919c4468ae", {
             id: "gwen",
             controllerId: "p1",
         });
@@ -463,7 +460,7 @@ describe("Gwendlyn Di Corci ({T}: random discard, your turn, CR 701.9a)", () => 
             ],
         });
         expect(state.players[1].hand.length).toBe(1);
-        resolveActivated(state, gwen, "gwendlyn-di-corci-discard", [
+        resolveActivated(state, gwen, "gwendlyn-di-corci-ability", [
             { type: "player", id: "p2" },
         ]);
         expect(state.players[1].hand.length).toBe(0);
@@ -495,7 +492,7 @@ describe("Kei Takahashi ({T}: prevent next 2 to target creature, CR 615)", () =>
 
 describe("Pavel Maliki ({B}{R}: +1/+0 EOT, CR 611.1)", () => {
     it("buffs its own power by 1 until end of turn", () => {
-        const pavel = makeInstance(pavelMaliki.id, {
+        const pavel = makeInstance("304f9d39-3ea2-4274-b23e-e4eaabbc1c4b", {
             id: "pavel",
             controllerId: "p1",
         });
@@ -506,7 +503,7 @@ describe("Pavel Maliki ({B}{R}: +1/+0 EOT, CR 611.1)", () => {
             ],
         });
         expect(getEffectivePower(state, pavel)).toBe(5);
-        resolveActivated(state, pavel, "pavel-maliki-pump");
+        resolveActivated(state, pavel, "pavel-maliki-ability");
         const live = state.players[0].battlefield.find(
             (c) => c.id === "pavel"
         )!;
@@ -516,10 +513,13 @@ describe("Pavel Maliki ({B}{R}: +1/+0 EOT, CR 611.1)", () => {
 
 describe("Ragnar ({G}{W}{U},{T}: regenerate target creature, CR 701.19a)", () => {
     it("arms a regeneration shield on the target", () => {
-        const ragnarInst = makeInstance(ragnar.id, {
-            id: "ragnar",
-            controllerId: "p1",
-        });
+        const ragnarInst = makeInstance(
+            "2cf6a3a3-4a06-4eb7-981a-b70cf05b2473",
+            {
+                id: "ragnar",
+                controllerId: "p1",
+            }
+        );
         const bear = makeInstance("d05b92bd-797e-413f-a8b0-32e0937a1ee0", {
             id: "bear",
             controllerId: "p1",
@@ -530,7 +530,7 @@ describe("Ragnar ({G}{W}{U},{T}: regenerate target creature, CR 701.19a)", () =>
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, ragnarInst, "ragnar-regenerate", [
+        resolveActivated(state, ragnarInst, "ragnar-ability", [
             { type: "permanent", id: "bear" },
         ]);
         const live = state.players[0].battlefield.find((c) => c.id === "bear")!;

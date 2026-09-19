@@ -87,97 +87,6 @@ export const wallOfSpears: CardDefinition = {
 // CR 611.1 temp P/T mods; CR 701.19 regeneration; CR 502.1 untap restriction)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Dragon Engine — {3} Artifact Creature — Construct, 1/3 with "{2}: This
-// creature gets +1/+0 until end of turn." (CR 611.1 temporary P/T modification,
-// CR 514.2 cleanup expiry). Same shape as Wall of Water's pump (lea.ts).
-export const dragonEngine: CardDefinition = {
-    id: "07793a71-1106-4303-b620-e403bd378020",
-    rarity: "common",
-    name: "Dragon Engine",
-    oracleText: "{2}: This creature gets +1/+0 until end of turn.",
-    manaCost: { X: 3 },
-    types: ["Artifact", "Creature"],
-    subtypes: ["Construct"],
-    power: 1,
-    toughness: 3,
-    activatedAbilities: [
-        {
-            id: "dragon-engine-pump",
-            oracleText: "{2}: This creature gets +1/+0 until end of turn.",
-            cost: { mana: { X: 2 } },
-            useStack: true,
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 1,
-                    toughness: 0,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-};
-
-// Clay Statue — {4} Artifact Creature — Golem, 3/1 with "{2}: Regenerate this
-// creature." (CR 701.19a regeneration shield — the next time this would be
-// destroyed this turn, instead tap it, remove damage, and remove it from
-// combat). The shield is armed via `applyRegenerationShield` on the source.
-export const clayStatue: CardDefinition = {
-    id: "64975352-8d35-4d02-94ac-fa0c6ee12409",
-    rarity: "common",
-    name: "Clay Statue",
-    oracleText: "{2}: Regenerate this creature.",
-    manaCost: { X: 4 },
-    types: ["Artifact", "Creature"],
-    subtypes: ["Golem"],
-    power: 3,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "clay-statue-regen",
-            oracleText: "{2}: Regenerate this creature.",
-            cost: { mana: { X: 2 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
-            // shield on the source (CR 701.19a) via the implicit $source.
-            effects: [{ op: "regenerate", target: { ref: "$source" } }],
-        },
-    ],
-};
-
-// Grapeshot Catapult — {4} Artifact Creature — Construct, 2/3 with "{T}: This
-// creature deals 1 damage to target creature with flying." (CR 605 activated
-// ability with a tap cost and a target; CR 120.3 damage; CR 702.9 flying — the
-// `requireAbility: "flying"` filter restricts legal targets to flyers).
-export const grapeshotCatapult: CardDefinition = {
-    id: "4c7a7348-c82e-453c-975c-e5365e152a3a",
-    rarity: "common",
-    name: "Grapeshot Catapult",
-    oracleText:
-        "{T}: This creature deals 1 damage to target creature with flying.",
-    manaCost: { X: 4 },
-    types: ["Artifact", "Creature"],
-    subtypes: ["Construct"],
-    power: 2,
-    toughness: 3,
-    activatedAbilities: [
-        {
-            id: "grapeshot-catapult-bolt",
-            oracleText:
-                "{T}: This creature deals 1 damage to target creature with flying.",
-            cost: { tap: true },
-            useStack: true,
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                requireAbility: "flying",
-            },
-            effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
-        },
-    ],
-};
-
 // Colossus of Sardia — {9} Artifact Creature — Golem, 9/9 with trample +
 // "This creature doesn't untap during your untap step. {9}: Untap this
 // creature. Activate only during your upkeep." (CR 702.19 trample; CR 502.1
@@ -850,38 +759,6 @@ export const weakstone: CardDefinition = {
                 ctx.isCreature(target) && target.isAttacking === true,
             power: -1,
             toughness: 0,
-        },
-    ],
-};
-
-// Staff of Zegon — {4} Artifact. "{3}, {T}: Target creature gets -2/-0 until
-// end of turn." (CR 605 activated ability; CR 611.1 temporary P/T mod; CR
-// 514.2 cleanup expiry via the end-of-turn duration.) Same temp-buff shape as
-// Dragon Engine's pump, applied to a chosen target with a negative power buff.
-export const staffOfZegon: CardDefinition = {
-    id: "a6bf858d-bba9-4a16-9045-55384b1de633",
-    rarity: "common",
-    name: "Staff of Zegon",
-    oracleText: "{3}, {T}: Target creature gets -2/-0 until end of turn.",
-    manaCost: { X: 4 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "staff-of-zegon-weaken",
-            oracleText:
-                "{3}, {T}: Target creature gets -2/-0 until end of turn.",
-            cost: { tap: true, mana: { X: 3 } },
-            useStack: true,
-            targetRequirement: { type: "Creature", count: 1 },
-            effects: [
-                {
-                    op: "pump",
-                    target: { target: 0 },
-                    power: -2,
-                    toughness: 0,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
         },
     ],
 };
@@ -1920,39 +1797,6 @@ export const urzasMiter: CardDefinition = {
                 },
             ],
         }),
-    ],
-};
-
-// Coral Helm — {3} Artifact. "{3}, Discard a card at random: Target creature
-// gets +2/+2 until end of turn." (CR 118.3 random-discard additional cost via
-// `cost.discardAtRandom`; CR 611.1 "+2/+2 until end of turn" via
-// `addTemporaryPTBuff`.)
-export const coralHelm: CardDefinition = {
-    id: "6c6df9db-0a46-40a5-ae9d-59f47dae9056",
-    rarity: "rare",
-    name: "Coral Helm",
-    oracleText:
-        "{3}, Discard a card at random: Target creature gets +2/+2 until end of turn.",
-    manaCost: { X: 3 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "coral-helm-pump",
-            oracleText:
-                "{3}, Discard a card at random: Target creature gets +2/+2 until end of turn.",
-            cost: { mana: { X: 3 }, discardAtRandom: 1 },
-            useStack: true,
-            targetRequirement: { type: "Creature", count: 1 },
-            effects: [
-                {
-                    op: "pump",
-                    target: { target: 0 },
-                    power: 2,
-                    toughness: 2,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
     ],
 };
 

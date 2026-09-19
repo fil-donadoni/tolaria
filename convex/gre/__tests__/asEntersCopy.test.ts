@@ -47,7 +47,7 @@ import {
     copyArtifact,
     vesuvanDoppelganger,
 } from "../../cards/sets/lea/blue";
-import { grizzlyBears, helmOfChatzuk, serraAngel } from "../../cards/sets/lea";
+import { grizzlyBears, serraAngel } from "../../cards/sets/lea";
 import { phantasmalImage } from "../../cards/sets/m12/blue";
 import { phyrexianMetamorph } from "../../cards/sets/nph/blue";
 import { reanimate } from "../../cards/sets/tmp/black";
@@ -254,7 +254,7 @@ describe("CR 707.5 — the copy choice is raised on a NON-CAST entry (#2451)", (
         // or an Academy-Rector-shaped effect uses, and it is the same
         // chokepoint.
         const state = graveyardBoard(copyArtifact.id, [
-            opponentPermanent(helmOfChatzuk.id, "helm"),
+            opponentPermanent("3792c6ef-c4e6-4923-9a51-7d28fbc5c393", "helm"),
             opponentPermanent(serraAngel.id, "serra"),
         ]);
 
@@ -265,7 +265,9 @@ describe("CR 707.5 — the copy choice is raised on a NON-CAST entry (#2451)", (
         answer(state, ["helm"]);
 
         const copy = entered(state);
-        expect((copy.card as { id: string }).id).toBe(helmOfChatzuk.id);
+        expect((copy.card as { id: string }).id).toBe(
+            "3792c6ef-c4e6-4923-9a51-7d28fbc5c393"
+        );
         expect(copy.types).toContain("Artifact");
         expect(copy.types).toContain("Enchantment");
     });

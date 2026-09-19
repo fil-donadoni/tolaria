@@ -351,71 +351,23 @@ export const heroism: CardDefinition = {
     ],
 };
 
-export const icatianInfantry: CardDefinition = {
-    id: "f95d42d8-ba75-43bf-81b8-b02374f03e83", // FEM 7a
-    rarity: "common",
-    name: "Icatian Infantry",
-    oracleText:
-        "{1}: This creature gains first strike until end of turn.\n{1}: This creature gains banding until end of turn.",
-    manaCost: { W: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Soldier"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "icatian-infantry-first-strike",
-            oracleText:
-                "{1}: This creature gains first strike until end of turn.",
-            cost: { mana: { X: 1 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, #843): self-grant first
-            // strike until end of turn (CR 611.2a).
-            effects: [
-                {
-                    op: "grantAbility",
-                    ability: "first strike",
-                    target: { ref: "$source" },
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-        {
-            id: "icatian-infantry-banding",
-            oracleText: "{1}: This creature gains banding until end of turn.",
-            cost: { mana: { X: 1 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, #843): self-grant banding
-            // until end of turn (CR 611.2a).
-            effects: [
-                {
-                    op: "grantAbility",
-                    ability: "banding",
-                    target: { ref: "$source" },
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-};
-
 export const icatianInfantryFemB: CardPrint = {
     printId: "e0e4a9d2-ea43-46ac-8b8b-00496a478103", // FEM 7b
-    definitionId: icatianInfantry.id,
+    definitionId: "f95d42d8-ba75-43bf-81b8-b02374f03e83",
     setCode: "fem",
     rarity: "common",
 };
 
 export const icatianInfantryFemC: CardPrint = {
     printId: "efac583d-a492-45ee-8c52-60a6422b2168", // FEM 7c
-    definitionId: icatianInfantry.id,
+    definitionId: "f95d42d8-ba75-43bf-81b8-b02374f03e83",
     setCode: "fem",
     rarity: "common",
 };
 
 export const icatianInfantryFemD: CardPrint = {
     printId: "96b2a8d4-7c06-454c-9923-553294aada4f", // FEM 7d
-    definitionId: icatianInfantry.id,
+    definitionId: "f95d42d8-ba75-43bf-81b8-b02374f03e83",
     setCode: "fem",
     rarity: "common",
 };
@@ -460,41 +412,6 @@ export const icatianJavelineersFemC: CardPrint = {
     definitionId: icatianJavelineers.id,
     setCode: "fem",
     rarity: "common",
-};
-
-export const icatianLieutenant: CardDefinition = {
-    id: "39fec59a-4ade-4c6f-ae7d-911fbe6da26d", // FEM 9
-    rarity: "uncommon",
-    name: "Icatian Lieutenant",
-    oracleText: "{1}{W}: Target Soldier creature gets +1/+0 until end of turn.",
-    manaCost: { W: 2 },
-    types: ["Creature"],
-    subtypes: ["Human", "Soldier"],
-    power: 1,
-    toughness: 2,
-    activatedAbilities: [
-        {
-            id: "icatian-lieutenant-pump",
-            oracleText:
-                "{1}{W}: Target Soldier creature gets +1/+0 until end of turn.",
-            cost: { mana: { X: 1, W: 1 } },
-            useStack: true,
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                subtypeFilter: "Soldier",
-            },
-            effects: [
-                {
-                    op: "pump",
-                    target: { target: 0 },
-                    power: 1,
-                    toughness: 0,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
 };
 
 export const icatianMoneychanger: CardDefinition = {
@@ -596,87 +513,23 @@ export const icatianPhalanx: CardDefinition = {
     staticAbilities: ["banding"],
 };
 
-export const icatianPriest: CardDefinition = {
-    id: "d7690cdd-6610-4310-9e93-60dc4db2ae8d", // FEM 12
-    rarity: "uncommon",
-    name: "Icatian Priest",
-    oracleText: "{1}{W}{W}: Target creature gets +1/+1 until end of turn.",
-    manaCost: { W: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Cleric"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "icatian-priest-pump",
-            oracleText:
-                "{1}{W}{W}: Target creature gets +1/+1 until end of turn.",
-            cost: { mana: { X: 1, W: 2 } },
-            useStack: true,
-            targetRequirement: { type: "Creature", count: 1 },
-            effects: [
-                {
-                    op: "pump",
-                    target: { target: 0 },
-                    power: 1,
-                    toughness: 1,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-};
-
-export const icatianScout: CardDefinition = {
-    id: "86bf4aaa-a9b1-4798-a96b-c3e35afb77f7", // FEM 13a
-    rarity: "common",
-    name: "Icatian Scout",
-    oracleText:
-        "{1}, {T}: Target creature gains first strike until end of turn.",
-    manaCost: { W: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Soldier", "Scout"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "icatian-scout-first-strike",
-            oracleText:
-                "{1}, {T}: Target creature gains first strike until end of turn.",
-            cost: { mana: { X: 1 }, tap: true },
-            useStack: true,
-            targetRequirement: { type: "Creature", count: 1 },
-            // Migrated resolve()→effects[] (ADR 0045, #843): grant first strike
-            // to the announced target creature until end of turn (CR 611.2a).
-            effects: [
-                {
-                    op: "grantAbility",
-                    ability: "first strike",
-                    target: { target: 0 },
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-};
-
 export const icatianScoutFemB: CardPrint = {
     printId: "e9db3442-01cb-4db2-ac33-8eca6880c315", // FEM 13b
-    definitionId: icatianScout.id,
+    definitionId: "86bf4aaa-a9b1-4798-a96b-c3e35afb77f7",
     setCode: "fem",
     rarity: "common",
 };
 
 export const icatianScoutFemC: CardPrint = {
     printId: "6c461655-a05d-4eed-85b2-04d554f5ec50", // FEM 13c
-    definitionId: icatianScout.id,
+    definitionId: "86bf4aaa-a9b1-4798-a96b-c3e35afb77f7",
     setCode: "fem",
     rarity: "common",
 };
 
 export const icatianScoutFemD: CardPrint = {
     printId: "db63ad7f-6dc4-4249-b360-46ec5569a5a9", // FEM 13d
-    definitionId: icatianScout.id,
+    definitionId: "86bf4aaa-a9b1-4798-a96b-c3e35afb77f7",
     setCode: "fem",
     rarity: "common",
 };

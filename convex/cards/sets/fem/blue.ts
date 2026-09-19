@@ -258,30 +258,6 @@ export const homaridWarriorFemC: CardPrint = {
     rarity: "common",
 };
 
-export const homaridShaman: CardDefinition = {
-    id: "c17c6416-86d6-46ea-aea1-41b98a66b250", // FEM 20
-    rarity: "uncommon",
-    name: "Homarid Shaman",
-    oracleText: "{U}: Tap target green creature.",
-    manaCost: { X: 2, U: 2 },
-    types: ["Creature"],
-    subtypes: ["Homarid", "Shaman"],
-    power: 2,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "homarid-shaman-tap",
-            oracleText: "{U}: Tap target green creature.",
-            cost: { mana: { U: 1 } },
-            useStack: true,
-            targetRequirement: { type: "Creature", count: 1, colorFilter: "G" },
-            // Migrated resolve()→effects[] (ADR 0045, #842): tap the announced
-            // green-creature target (CR 701.26a).
-            effects: [{ op: "tapUntap", action: "tap", target: { target: 0 } }],
-        },
-    ],
-};
-
 export const homaridSpawningBed: CardDefinition = {
     id: "2cbb62fc-3cd9-41a6-804a-4ff9a766897f", // FEM 21
     rarity: "uncommon",
@@ -455,44 +431,6 @@ export const riverMerfolk: CardDefinition = {
                     op: "grantAbility",
                     ability: "mountainwalk",
                     target: { ref: "$source" },
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-};
-
-export const svyelunitePriest: CardDefinition = {
-    id: "316d25ae-7ac6-4f5b-93ab-0e0e28ec104b", // FEM 26
-    rarity: "common",
-    name: "Svyelunite Priest",
-    oracleText:
-        "{U}{U}, {T}: Target creature gains shroud until end of turn. Activate only during your upkeep.",
-    manaCost: { X: 1, U: 1 },
-    types: ["Creature"],
-    subtypes: ["Merfolk", "Cleric"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "svyelunite-priest-shroud",
-            oracleText:
-                "{U}{U}, {T}: Target creature gains shroud until end of turn. Activate only during your upkeep.",
-            cost: { mana: { U: 2 }, tap: true },
-            useStack: true,
-            // CR 602.5 — "Activate only during your upkeep": the source's
-            // controller must be the active player (controllerTurnOnly) and the
-            // phase must be UPKEEP (activationPhaseRestriction).
-            controllerTurnOnly: true,
-            activationPhaseRestriction: ["UPKEEP"],
-            targetRequirement: { type: "Creature", count: 1 },
-            // Migrated resolve()→effects[] (ADR 0045, #843): grant shroud to the
-            // announced target creature until end of turn (CR 611.2a).
-            effects: [
-                {
-                    op: "grantAbility",
-                    ability: "shroud",
-                    target: { target: 0 },
                     duration: { phase: "end-of-turn" },
                 },
             ],

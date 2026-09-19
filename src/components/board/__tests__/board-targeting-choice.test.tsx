@@ -562,7 +562,7 @@ describe("board activation sacrifice-cost picker (#282, CR 602.1)", () => {
             pendingActivation: {
                 playerId: "me",
                 cardInstanceId: "some-source",
-                abilityId: "atog-pump",
+                abilityId: "atog-ability",
                 manaCost: {},
                 tappedLandIds: [],
                 tapSource: false,
@@ -595,7 +595,7 @@ describe("board activation sacrifice-cost picker (#282, CR 602.1)", () => {
             pendingActivation: {
                 playerId: "me",
                 cardInstanceId: "some-source",
-                abilityId: "atog-pump",
+                abilityId: "atog-ability",
                 manaCost: {},
                 tappedLandIds: [],
                 tapSource: false,

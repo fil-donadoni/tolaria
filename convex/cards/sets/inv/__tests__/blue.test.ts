@@ -1762,7 +1762,6 @@ describe("Faerie Squadron (Kicker → two +1/+1 counters + flying; CR 702.33 / 1
 // ─────────────────────────────────────────────────────────────────────────────
 
 const teferisResponse = getDefinition("f3bb2df8-c559-4a34-83b0-d48fbc694cc8");
-const icyManipulator = getDefinition("29dc1596-a2e7-4d60-9f99-89babaef8a06");
 const stoneRainDef = getDefinition("57ff74cb-a2ed-4123-ac42-f72f9820049e");
 const islandDef = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
 const grizzlyBearsDef = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
@@ -1815,7 +1814,7 @@ describe("Teferi's Response (issue #2708)", () => {
                             controllerId: "p2",
                             ownerId: "p2",
                         }),
-                        makeInstance(icyManipulator.id, {
+                        makeInstance("29dc1596-a2e7-4d60-9f99-89babaef8a06", {
                             id: "icy",
                             controllerId: "p2",
                             ownerId: "p2",
@@ -1824,7 +1823,7 @@ describe("Teferi's Response (issue #2708)", () => {
                         // item is a clone of its source, so its item id IS the
                         // source id — two activations of the SAME permanent
                         // would collide in the sweep below.
-                        makeInstance(icyManipulator.id, {
+                        makeInstance("29dc1596-a2e7-4d60-9f99-89babaef8a06", {
                             id: "icy2",
                             controllerId: "p2",
                             ownerId: "p2",
@@ -1852,7 +1851,7 @@ describe("Teferi's Response (issue #2708)", () => {
         // re-wrote that shape by hand would prove nothing about it.
         const item = buildActivatedAbilityStackItem(source, {
             castById: "p2",
-            abilityId: "icy-manipulator-tap",
+            abilityId: "icy-manipulator-ability",
             targets: [{ type: "permanent", id: targetLandId }],
         });
         state.stack.push(item);
@@ -2065,7 +2064,7 @@ describe("Teferi's Response (issue #2708)", () => {
         )!;
         const item = buildActivatedAbilityStackItem(source, {
             castById: "p2",
-            abilityId: "icy-manipulator-tap",
+            abilityId: "icy-manipulator-ability",
             targets: [{ type: "permanent", id: "myLand" }],
         });
         // The blink: the source left (LKI stamped) and an object with the same

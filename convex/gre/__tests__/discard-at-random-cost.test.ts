@@ -22,7 +22,6 @@ import {
     type StackItem,
 } from "../state";
 import { getDefinition } from "../../cards";
-import { coralHelm } from "../../cards/sets/atq";
 import { grizzlyBears } from "../../cards/sets/lea";
 import {
     makeInstance,
@@ -45,7 +44,7 @@ function activateCoralHelm(
     if (!card) throw new Error("Source not on battlefield");
     const def = getDefinition((card.card as { id: string }).id);
     const ability = def.activatedAbilities!.find(
-        (a) => a.id === "coral-helm-pump"
+        (a) => a.id === "coral-helm-ability"
     )!;
 
     // CR 118.3 — illegal with an empty hand (validated up-front in game.ts).
@@ -67,7 +66,7 @@ function activateCoralHelm(
         ...structuredClone(card),
         zone: "stack" as const,
         castById: playerId,
-        abilityId: "coral-helm-pump",
+        abilityId: "coral-helm-ability",
         targets: [{ type: "permanent", id: targetId }],
     };
     state.stack.push(stackItem);
@@ -77,7 +76,7 @@ function activateCoralHelm(
 
 describe("Coral Helm random-discard cost (CR 118.3 / 701.8, #292)", () => {
     const setup = (handSize: number) => {
-        const helm = makeInstance(coralHelm.id, {
+        const helm = makeInstance("6c6df9db-0a46-40a5-ae9d-59f47dae9056", {
             id: "helm",
             controllerId: "p1",
             ownerId: "p1",

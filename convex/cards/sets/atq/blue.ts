@@ -184,28 +184,6 @@ export const drafnasRestoration: CardDefinition = {
     ],
 };
 
-// Sage of Lat-Nam — {1}{U} 1/2. "{T}, Sacrifice an artifact: Draw a card."
-export const sageOfLatNam: CardDefinition = {
-    id: "b4ff60ce-073c-46b8-807c-8b40467b960c",
-    rarity: "common",
-    name: "Sage of Lat-Nam",
-    oracleText: "{T}, Sacrifice an artifact: Draw a card.",
-    manaCost: { X: 1, U: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Artificer"],
-    power: 1,
-    toughness: 2,
-    activatedAbilities: [
-        {
-            id: "sage-of-lat-nam-draw",
-            oracleText: "{T}, Sacrifice an artifact: Draw a card.",
-            cost: { tap: true, sacrificeFilter: { types: "Artifact" } },
-            useStack: true,
-            effects: [{ op: "draw", player: "controller", count: 1 }],
-        },
-    ],
-};
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Cluster J (#290) — activated-ability cost reduction. CR 601.2f models cost
 // modification (reductions and increases) applied as the cost is calculated;

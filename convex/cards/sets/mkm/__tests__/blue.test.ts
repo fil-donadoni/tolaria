@@ -278,9 +278,9 @@ describe("Forensic Gadgeteer (activated-ability cost reduction scoped to artifac
     it("reduces its controller's artifact ability by {1}, floored at one mana (CR 118.7)", () => {
         const { state, host } = board(DRAGON_ENGINE_ID, "p1");
         // Dragon Engine's {2} pump ability: {2} - {1} = {1}.
-        expect(effectiveAbilityCost(state, host, "dragon-engine-pump")).toEqual(
-            { X: 1 }
-        );
+        expect(
+            effectiveAbilityCost(state, host, "dragon-engine-ability")
+        ).toEqual({ X: 1 });
     });
 
     it("does NOT reduce a non-artifact permanent's ability", () => {
@@ -293,9 +293,9 @@ describe("Forensic Gadgeteer (activated-ability cost reduction scoped to artifac
 
     it("does NOT reduce an artifact ability its controller doesn't control ('artifacts YOU control')", () => {
         const { state, host } = board(DRAGON_ENGINE_ID, "p2");
-        expect(effectiveAbilityCost(state, host, "dragon-engine-pump")).toEqual(
-            { X: 2 }
-        );
+        expect(
+            effectiveAbilityCost(state, host, "dragon-engine-ability")
+        ).toEqual({ X: 2 });
     });
 
     it("wire format: the reduction survives projectPublicState", () => {
@@ -308,7 +308,7 @@ describe("Forensic Gadgeteer (activated-ability cost reduction scoped to artifac
             effectiveAbilityCost(
                 projected as unknown as GameState,
                 slimHost as unknown as CardInstanceState,
-                "dragon-engine-pump"
+                "dragon-engine-ability"
             )
         ).toEqual({ X: 1 });
     });

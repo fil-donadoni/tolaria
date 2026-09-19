@@ -196,7 +196,7 @@ describe("validateScenarioCandidate", () => {
                         kind: "ability",
                         name: "Prodigal Sorcerer",
                         controller: "me",
-                        abilityId: "prodigal-sorcerer-zap",
+                        abilityId: "prodigal-sorcerer-ability",
                         targets: [{ kind: "player", seat: "opp" }],
                     },
                 ],
@@ -211,7 +211,7 @@ describe("validateScenarioCandidate", () => {
             targets: [{ kind: "permanent", seat: "me", name: "Grizzly Bears" }],
         });
         expect(candidate!.spec.stack![1].abilityId).toBe(
-            "prodigal-sorcerer-zap"
+            "prodigal-sorcerer-ability"
         );
         expect(candidate!.spec.priority).toBe("opp");
     });

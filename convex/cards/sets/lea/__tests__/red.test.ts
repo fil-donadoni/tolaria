@@ -59,9 +59,6 @@ const castle = getDefinition("b0da8d56-3178-44c2-9344-95d2346d326f");
 const crusade = getDefinition("057986c7-20c0-4157-b4df-beae4ef5c66d");
 const disintegrate = getDefinition("8712c49e-f171-4669-bed9-87575a37af11");
 const dragonWhelp = getDefinition("6bbf1eab-bc32-4835-b566-8634b1fe81b0");
-const dwarvenDemolitionTeam = getDefinition(
-    "03482c9c-1f25-4d73-9243-17462ea37ac4"
-);
 const dwarvenWarriors = getDefinition("2d4d87a3-5f8b-4152-9a8b-538ab49d62e8");
 const earthbind = getDefinition("a6d492b7-b0b3-420e-8d00-6dacb11de77e");
 const earthquake = getDefinition("e68ac362-6cdc-48a6-bdd3-4f8ea32add64");
@@ -70,9 +67,6 @@ const flashfires = getDefinition("ee8a05a4-0ce3-4abe-bb60-08af53cf08e5");
 const fireball = getDefinition("b7623c00-144b-4a8f-9c6c-f5e9e4f65ece");
 const firebreathing = getDefinition("3eb27381-505d-4e47-bf66-9e7ba91a5075");
 const fork = getDefinition("e6b43916-fe2d-417a-a550-d7c795023297");
-const goblinBalloonBrigade = getDefinition(
-    "5129b422-7a35-4bc5-b14b-c814012a0d8f"
-);
 const goblinKing = getDefinition("5873672d-37ea-4c0f-97f3-12b74fde112d");
 const graniteGargoyle = getDefinition("f15bf2b2-6848-4fbd-b89a-8d8da8ae1cdc");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
@@ -111,7 +105,6 @@ const tunnel = getDefinition("b21ebc9f-a93e-4d18-b3e8-8459e3abbf31");
 const twoHeadedGiantOfForiys = getDefinition(
     "31c687dc-ee0c-4e54-a2b3-5d8e633b3245"
 );
-const uthdenTroll = getDefinition("2ff21a6f-83a7-4bf3-a078-294e303232cc");
 const wallOfBone = getDefinition("ae20d442-a544-4a03-9ebf-5ecb137c67dd");
 const wallOfFire = getDefinition("efcf12cd-fb70-444e-9641-73ffa0e8f16e");
 const wallOfSwords = getDefinition("99ec4723-b36c-4015-b361-736a6523e8f5");
@@ -517,7 +510,7 @@ describe("Burrowing (Aura — host has mountainwalk, CR 702.14c)", () => {
 
 describe("Goblin Balloon Brigade ({R}: gain flying until end of turn)", () => {
     function setup() {
-        const bb = makeInstance(goblinBalloonBrigade.id, {
+        const bb = makeInstance("5129b422-7a35-4bc5-b14b-c814012a0d8f", {
             id: "bb",
             controllerId: "p1",
             ownerId: "p1",
@@ -536,7 +529,7 @@ describe("Goblin Balloon Brigade ({R}: gain flying until end of turn)", () => {
             ...source,
             zone: "stack",
             castById: "p1",
-            abilityId: "goblin-balloon-brigade-fly",
+            abilityId: "goblin-balloon-brigade-ability",
             targets: [],
         });
         resolveTopOfStack(state);
@@ -751,7 +744,7 @@ describe("Shatter / Stone Rain / Tunnel (destroy-target shorthand)", () => {
 
 describe("Uthden Troll ({R}: regenerate self)", () => {
     it("activating regen shields self", () => {
-        const troll = makeInstance(uthdenTroll.id, {
+        const troll = makeInstance("2ff21a6f-83a7-4bf3-a078-294e303232cc", {
             id: "troll",
             controllerId: "p1",
             ownerId: "p1",
@@ -766,7 +759,7 @@ describe("Uthden Troll ({R}: regenerate self)", () => {
             ...troll,
             zone: "stack",
             castById: "p1",
-            abilityId: "uthden-troll-regenerate",
+            abilityId: "uthden-troll-ability",
             targets: [],
         });
         resolveTopOfStack(state);
@@ -1804,7 +1797,7 @@ describe("Sedge Troll (conditional +1/+1 if Swamp + {B}: regen, CR 611/701.19a)"
 
 describe("Dwarven Demolition Team ({T}: destroy target Wall)", () => {
     it("destroys a target Wall on resolution", () => {
-        const ddt = makeInstance(dwarvenDemolitionTeam.id, {
+        const ddt = makeInstance("03482c9c-1f25-4d73-9243-17462ea37ac4", {
             id: "ddt",
             controllerId: "p1",
             ownerId: "p1",
@@ -1825,7 +1818,7 @@ describe("Dwarven Demolition Team ({T}: destroy target Wall)", () => {
             id: "stack-ddt",
             zone: "stack",
             castById: "p1",
-            abilityId: "dwarven-demolition-team-destroy",
+            abilityId: "dwarven-demolition-team-ability",
             targets: [{ type: "permanent", id: "wall" }],
         });
         resolveTopOfStack(state);

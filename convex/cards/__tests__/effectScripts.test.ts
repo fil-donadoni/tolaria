@@ -6,7 +6,7 @@
 // DSL-only card is a DB row waiting to happen (ADR 0046).
 
 import { describe, it, expect } from "vitest";
-import { getAllCards } from "..";
+import { getAllCatalogueCards } from "..";
 import {
     validateAbilityAiEffectsScript,
     validateAbilityEffectScript,
@@ -19,7 +19,10 @@ import { getAbilityEffectFn, getResolveFn } from "../effectRegistry";
 import { abilitySites, modeSites } from "./effectSites";
 
 describe("Effect Script catalogue sweep (ADR 0045)", () => {
-    const cards = getAllCards();
+    // Prodigal Pyromancer retired in issue #4027 (ADR 0114) — this sweep
+    // wants every registered card, compiled twins included, not just the
+    // hand-written half.
+    const cards = getAllCatalogueCards();
     const dslCards = cards.filter((c) => c.effects !== undefined);
     const abilityDslSites = cards
         .flatMap(abilitySites)

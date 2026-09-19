@@ -16,7 +16,6 @@ import type {
     SpellContext,
     TargetSelection,
 } from "../../types";
-import { TARGET_ACL_PERMANENT } from "../../types";
 import { makeDualLand, makeTapForMana } from "../../abilities";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
@@ -611,38 +610,6 @@ export const glassesOfUrza: CardDefinition = {
     ],
 };
 
-// Helm of Chatzuk — "{1}, {T}: Target creature gains banding until end of
-// turn." Temporary keyword grant (CR 611.2a) via grantStaticAbility with an
-// end-of-turn duration, mirroring Jump (flying).
-export const helmOfChatzuk: CardDefinition = {
-    id: "3792c6ef-c4e6-4923-9a51-7d28fbc5c393",
-    rarity: "rare",
-    name: "Helm of Chatzuk",
-    oracleText: "{1}, {T}: Target creature gains banding until end of turn.",
-    manaCost: { X: 1 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "helm-of-chatzuk-grant-banding",
-            oracleText:
-                "{1}, {T}: Target creature gains banding until end of turn.",
-            cost: { mana: { X: 1 }, tap: true },
-            useStack: true,
-            targetRequirement: { type: "Creature", count: 1 },
-            // Migrated resolve()→effects[] (ADR 0045, #843): grant banding to the
-            // announced target creature until end of turn (CR 611.2a).
-            effects: [
-                {
-                    op: "grantAbility",
-                    ability: "banding",
-                    target: { target: 0 },
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-};
-
 // Howling Mine — "At the beginning of each player's draw step, if this
 // artifact is untapped, that player draws an additional card."
 // CR 603.6a (beginning-of-step trigger), CR 603.4 (intervening-if: condition
@@ -682,30 +649,6 @@ export const howlingMine: CardDefinition = {
                 },
             ],
         }),
-    ],
-};
-
-// Icy Manipulator — "{1}, {T}: Tap target artifact, creature, or land."
-// CR 701.26a (tap), CR 605 (activated abilities), CR 602.2 (target selection
-// at activation). Uses the stack (not a mana ability) so it can be responded to.
-export const icyManipulator: CardDefinition = {
-    id: "29dc1596-a2e7-4d60-9f99-89babaef8a06",
-    rarity: "uncommon",
-    name: "Icy Manipulator",
-    oracleText: "{1}, {T}: Tap target artifact, creature, or land.",
-    manaCost: { X: 4 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "icy-manipulator-tap",
-            oracleText: "{1}, {T}: Tap target artifact, creature, or land.",
-            cost: { tap: true, mana: { X: 1 } },
-            useStack: true,
-            targetRequirement: TARGET_ACL_PERMANENT,
-            // Migrated resolve()→effects[] (ADR 0045, #842): tap the announced
-            // artifact/creature/land target (CR 701.26a).
-            effects: [{ op: "tapUntap", action: "tap", target: { target: 0 } }],
-        },
     ],
 };
 
@@ -889,27 +832,6 @@ export const jadeStatue: CardDefinition = {
                     duration: { phase: "end-of-combat" },
                 },
             ],
-        },
-    ],
-};
-
-// Jayemdae Tome — "{4}, {T}: Draw a card." CR 107.1 (mana cost symbols), CR
-// 602.1 (activated abilities), CR 121.1 (drawing a card). Uses the stack
-// (useStack: true) — this is a non-mana activated ability (CR 605.1a).
-export const jayemdaeTome: CardDefinition = {
-    id: "cac8c421-5b92-481d-b2de-560c0231ab58",
-    rarity: "rare",
-    name: "Jayemdae Tome",
-    oracleText: "{4}, {T}: Draw a card.",
-    manaCost: { X: 4 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "jayemdae-tome-draw",
-            oracleText: "{4}, {T}: Draw a card.",
-            cost: { tap: true, mana: { X: 4 } },
-            useStack: true,
-            effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
 };
@@ -1306,28 +1228,6 @@ export const obsianusGolem: CardDefinition = {
     subtypes: ["Golem"],
     power: 4,
     toughness: 6,
-};
-
-// Rod of Ruin — "{3}, {T}: Rod of Ruin deals 1 damage to any target." (CR
-// 605 activated ability, 120.1 damage). Same shape as Prodigal Sorcerer's
-// ping but on an artifact body.
-export const rodOfRuin: CardDefinition = {
-    id: "af957200-c538-4f52-b105-6db7a7abb4dc",
-    rarity: "uncommon",
-    name: "Rod of Ruin",
-    oracleText: "{3}, {T}: This artifact deals 1 damage to any target.",
-    manaCost: { X: 4 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "rod-of-ruin-shoot",
-            oracleText: "{3}, {T}: Rod of Ruin deals 1 damage to any target.",
-            cost: { mana: { X: 3 }, tap: true },
-            useStack: true,
-            targetRequirement: { type: "any", count: 1 },
-            effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
-        },
-    ],
 };
 
 export const solRing: CardDefinition = {

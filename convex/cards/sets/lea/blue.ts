@@ -860,30 +860,6 @@ export const powerSink: CardDefinition = {
     },
 };
 
-// Prodigal Sorcerer — "{T}: Prodigal Sorcerer deals 1 damage to any target."
-// (CR 605 activated ability, 120.1 damage). The original "Tim".
-export const prodigalSorcerer: CardDefinition = {
-    id: "e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a",
-    rarity: "common",
-    name: "Prodigal Sorcerer",
-    oracleText: "{T}: This creature deals 1 damage to any target.",
-    manaCost: { X: 2, U: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Wizard", "Sorcerer"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "prodigal-sorcerer-zap",
-            oracleText: "{T}: Prodigal Sorcerer deals 1 damage to any target.",
-            cost: { tap: true },
-            useStack: true,
-            targetRequirement: { type: "any", count: 1 },
-            effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
-        },
-    ],
-};
-
 // Psionic Blast — deals 4 damage to any target and 2 damage to you.
 // CR 115.4: "any target" = creature/player/planeswalker. CR 120.3: damage
 // to self is a normal damage event (can be prevented/redirected), not life

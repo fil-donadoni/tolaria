@@ -41,7 +41,6 @@ import {
 import { getDefinition } from "../../../index";
 
 const aladdin = getDefinition("db52bad2-a3ec-4f6f-9418-12e8c40703f6");
-const aliBaba = getDefinition("29cd7064-3703-43e0-8702-d1ba13703fd8");
 const aliFromCairo = getDefinition("42027613-d261-4ce2-8ba1-7a2480c660f8");
 const brassMan = getDefinition("1a364362-e42b-415c-9d95-b6ec7139f5e7");
 const desert = getDefinition("201155ea-f474-4e13-acda-cb071a6ca977");
@@ -54,12 +53,13 @@ const rukhEgg = getDefinition("b28f9e63-e5e4-44b5-a17e-8301ff17c623");
 const ydwenEfreet = getDefinition("efdba2a9-d171-45ed-8dd4-9d0046128f68");
 const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
-const prodigalSorcerer = getDefinition("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a");
 const psionicBlast = getDefinition("a6a86e6e-bfff-46af-9d36-c912901fea92");
 
 describe("Ali Baba ({R}: tap target Wall)", () => {
     it("taps a Wall", () => {
-        const ali = makeInstance(aliBaba.id, { id: "ali" });
+        const ali = makeInstance("29cd7064-3703-43e0-8702-d1ba13703fd8", {
+            id: "ali",
+        });
         // Synthetic Wall (no Wall card in lea registry needed — minimal view).
         const wall = makeInstance(grizzlyBears.id, {
             id: "wall",
@@ -71,7 +71,7 @@ describe("Ali Baba ({R}: tap target Wall)", () => {
                 makePlayer("p2", { battlefield: [wall] }),
             ],
         });
-        resolveActivated(state, ali, "ali-baba-tap-wall", [
+        resolveActivated(state, ali, "ali-baba-ability", [
             { type: "permanent", id: "wall" },
         ]);
         expect(
@@ -146,12 +146,12 @@ describe("Ali from Cairo (clamp life >= 1, CR 614)", () => {
 
     it("is repeatable across multiple damage events", () => {
         const ali = makeInstance(aliFromCairo.id, { id: "ali" });
-        const tim = makeInstance(prodigalSorcerer.id, {
+        const tim = makeInstance("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a", {
             id: "tim",
             controllerId: "p2",
             ownerId: "p2",
         });
-        const tim2 = makeInstance(prodigalSorcerer.id, {
+        const tim2 = makeInstance("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a", {
             id: "tim2",
             controllerId: "p2",
             ownerId: "p2",
@@ -162,11 +162,11 @@ describe("Ali from Cairo (clamp life >= 1, CR 614)", () => {
                 makePlayer("p2", { battlefield: [tim, tim2] }),
             ],
         });
-        resolveActivated(state, tim, "prodigal-sorcerer-zap", [
+        resolveActivated(state, tim, "prodigal-sorcerer-ability", [
             { type: "player", id: "p1" },
         ]);
         expect(state.players[0].life).toBe(1);
-        resolveActivated(state, tim2, "prodigal-sorcerer-zap", [
+        resolveActivated(state, tim2, "prodigal-sorcerer-ability", [
             { type: "player", id: "p1" },
         ]);
         expect(state.players[0].life).toBe(1);
@@ -296,7 +296,9 @@ describe("Desert Nomads (desertwalk + prevent damage from Deserts)", () => {
             ownerId: "p2",
         });
         const des = makeInstance(desert.id, { id: "des" });
-        const tim = makeInstance(prodigalSorcerer.id, { id: "tim" });
+        const tim = makeInstance("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a", {
+            id: "tim",
+        });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [des, tim] }),
@@ -312,7 +314,7 @@ describe("Desert Nomads (desertwalk + prevent damage from Deserts)", () => {
                 ?.damageMarked ?? 0
         ).toBe(0);
         // A non-Desert source still hits it.
-        resolveActivated(state, tim, "prodigal-sorcerer-zap", [
+        resolveActivated(state, tim, "prodigal-sorcerer-ability", [
             { type: "permanent", id: "nomads" },
         ]);
         expect(

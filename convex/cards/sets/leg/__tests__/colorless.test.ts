@@ -63,7 +63,6 @@ const mountainStronghold = getDefinition(
 const pendelhaven = getDefinition("79427109-c1f3-476d-a029-0049217237b5");
 const planarGate = getDefinition("dd27f0fe-c032-4f61-9f3d-98a6d2e2c426");
 const redManaBattery = getDefinition("363cc5d6-70f8-4a3c-92bd-8f49774bdce2");
-const relicBarrier = getDefinition("c062cbae-ce5e-43be-9932-c81a0a3622e8");
 const seafarersQuay = getDefinition("66641d88-b3f0-4bcd-8d2d-29aa2de69e30");
 const tolaria = getDefinition("d43c01b7-443d-4061-a934-6863d230c9b8");
 const tundraWolves = getDefinition("8f649cb5-e19c-453f-b062-4fd452d92257");
@@ -482,7 +481,9 @@ describe("Planar Gate (creature spells you cast cost {2} less, CR 601.2f)", () =
 
 describe("Relic Barrier ({T}: Tap target artifact, CR 701.26)", () => {
     it("taps the target artifact", () => {
-        const barrier = makeInstance(relicBarrier.id, { id: "barrier" });
+        const barrier = makeInstance("c062cbae-ce5e-43be-9932-c81a0a3622e8", {
+            id: "barrier",
+        });
         const otherArtifact = makeInstance(manaMatrix.id, { id: "other" });
         const state = makeState({
             players: [
@@ -493,7 +494,7 @@ describe("Relic Barrier ({T}: Tap target artifact, CR 701.26)", () => {
             ],
         });
         expect(otherArtifact.isTapped).toBe(false);
-        resolveActivated(state, barrier, "relic-barrier-tap", [
+        resolveActivated(state, barrier, "relic-barrier-ability", [
             { type: "permanent", id: "other" },
         ]);
         const target = state.players[0].battlefield.find(

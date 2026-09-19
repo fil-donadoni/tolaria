@@ -109,7 +109,6 @@ const triskelion = getDefinition("a79c99e1-722a-44b6-8fa3-2be3f0c193d8");
 const clockworkAvian = getDefinition("1dea8c2f-4aea-478d-aee7-cba1f74edd6c");
 const mightstone = getDefinition("b28ba599-5299-4831-a118-1712ada10ef6");
 const weakstone = getDefinition("46adf48f-99d2-440e-9129-794584c1ea21");
-const staffOfZegon = getDefinition("a6bf858d-bba9-4a16-9045-55384b1de633");
 const mishrasFactory = getDefinition("a696c5b6-f216-454d-8029-74e84bbd1428");
 const batteringRam = getDefinition("f7a69e35-d209-41c0-aa3c-c78414617075");
 const urzasAvenger = getDefinition("448e1811-fb16-4390-ac22-b7066a4a019c");
@@ -131,7 +130,6 @@ const shapeshifter = getDefinition("cc278af4-b60d-41b7-b9d7-36c8aefca1a7");
 const cursedRack = getDefinition("720d871d-1e7b-482e-bd1e-8ec79519fb86");
 const theRack = getDefinition("ec0686ba-1277-4412-a397-7a6227808311");
 const urzasMiter = getDefinition("438f0c61-a61d-4a9e-b21f-4e86420c7913");
-const coralHelm = getDefinition("6c6df9db-0a46-40a5-ae9d-59f47dae9056");
 const golgothianSylex = getDefinition("856be1dd-a20b-49c2-be9d-7db76c7efd8b");
 const rocketLauncher = getDefinition("d5bb2093-78a8-4a6c-abe7-9a5afc181ec5");
 const tawnossWand = getDefinition("978f09dd-121a-4da5-ba16-5c03fbdce084");
@@ -339,7 +337,9 @@ describe("Wall of Spears (defender + first strike, CR 702.3 / 702.7)", () => {
 
 describe("Dragon Engine ({2}: +1/+0 EOT, CR 611.1)", () => {
     it("pumps itself +1/+0 until end of turn", () => {
-        const engine = makeInstance(dragonEngine.id, { id: "engine" });
+        const engine = makeInstance("07793a71-1106-4303-b620-e403bd378020", {
+            id: "engine",
+        });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [engine] }),
@@ -349,7 +349,7 @@ describe("Dragon Engine ({2}: +1/+0 EOT, CR 611.1)", () => {
         const target = { type: "permanent" as const, id: "engine" };
         expect(getEffectivePower(state, engine)).toBe(1);
 
-        resolveActivated(state, engine, "dragon-engine-pump", [target]);
+        resolveActivated(state, engine, "dragon-engine-ability", [target]);
         const live = state.players[0].battlefield.find(
             (c) => c.id === "engine"
         )!;
@@ -358,14 +358,16 @@ describe("Dragon Engine ({2}: +1/+0 EOT, CR 611.1)", () => {
     });
 
     it("the +1/+0 buff survives projection (wire format)", () => {
-        const engine = makeInstance(dragonEngine.id, { id: "engine" });
+        const engine = makeInstance("07793a71-1106-4303-b620-e403bd378020", {
+            id: "engine",
+        });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [engine] }),
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, engine, "dragon-engine-pump", [
+        resolveActivated(state, engine, "dragon-engine-ability", [
             { type: "permanent", id: "engine" },
         ]);
 
@@ -384,14 +386,16 @@ describe("Dragon Engine ({2}: +1/+0 EOT, CR 611.1)", () => {
 
 describe("Clay Statue ({2}: regenerate, CR 701.19)", () => {
     it("stacks a regeneration shield on itself", () => {
-        const statue = makeInstance(clayStatue.id, { id: "statue" });
+        const statue = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
+            id: "statue",
+        });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [statue] }),
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, statue, "clay-statue-regen", [
+        resolveActivated(state, statue, "clay-statue-ability", [
             { type: "permanent", id: "statue" },
         ]);
         expect(
@@ -407,7 +411,9 @@ describe("Clay Statue ({2}: regenerate, CR 701.19)", () => {
 
 describe("Grapeshot Catapult ({T}: 1 dmg to flyer, CR 120.3 / 702.9)", () => {
     it("only a creature with flying is a legal target", () => {
-        const cat = makeInstance(grapeshotCatapult.id, { id: "cat" });
+        const cat = makeInstance("4c7a7348-c82e-453c-975c-e5365e152a3a", {
+            id: "cat",
+        });
         const flyer = makeInstance(ornithopter.id, {
             id: "flyer",
             controllerId: "p2",
@@ -421,7 +427,7 @@ describe("Grapeshot Catapult ({T}: 1 dmg to flyer, CR 120.3 / 702.9)", () => {
             ],
         });
         const req = grapeshotCatapult.activatedAbilities!.find(
-            (a) => a.id === "grapeshot-catapult-bolt"
+            (a) => a.id === "grapeshot-catapult-ability"
         )!.targetRequirement!;
         const legal = getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1");
         const ids = legal.map((t) => t.id);
@@ -430,7 +436,9 @@ describe("Grapeshot Catapult ({T}: 1 dmg to flyer, CR 120.3 / 702.9)", () => {
     });
 
     it("deals 1 damage to a 0/2 flyer (does not kill it)", () => {
-        const cat = makeInstance(grapeshotCatapult.id, { id: "cat" });
+        const cat = makeInstance("4c7a7348-c82e-453c-975c-e5365e152a3a", {
+            id: "cat",
+        });
         const flyer = makeInstance(ornithopter.id, {
             id: "flyer",
             controllerId: "p2",
@@ -442,7 +450,7 @@ describe("Grapeshot Catapult ({T}: 1 dmg to flyer, CR 120.3 / 702.9)", () => {
                 makePlayer("p2", { battlefield: [flyer] }),
             ],
         });
-        resolveActivated(state, cat, "grapeshot-catapult-bolt", [
+        resolveActivated(state, cat, "grapeshot-catapult-ability", [
             { type: "permanent", id: "flyer" },
         ]);
         const live = state.players[1].battlefield.find(
@@ -546,12 +554,12 @@ describe("Strip Mine ({T}: add C; sac: destroy target land, CR 701.8)", () => {
 describe("Obelisk of Undoing ({6},{T}: return your permanent, CR 400.7)", () => {
     it("only the activator's own permanents are legal targets", () => {
         const obelisk = makeInstance(obeliskOfUndoing.id, { id: "obelisk" });
-        const mine = makeInstance(clayStatue.id, {
+        const mine = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
             id: "mine",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const theirs = makeInstance(clayStatue.id, {
+        const theirs = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
             id: "theirs",
             controllerId: "p2",
             ownerId: "p2",
@@ -599,7 +607,7 @@ describe("Obelisk of Undoing ({6},{T}: return your permanent, CR 400.7)", () => 
 
     it("returns a target permanent to its owner's hand", () => {
         const obelisk = makeInstance(obeliskOfUndoing.id, { id: "obelisk" });
-        const target = makeInstance(clayStatue.id, {
+        const target = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
             id: "target",
             controllerId: "p1",
             ownerId: "p1",
@@ -643,13 +651,13 @@ describe("Feldon's Cane ({T}, Exile this artifact: shuffle graveyard into librar
      *  library, p1 holding priority in their own main phase — the shape
      *  `activateAbilityOnState` (the real mutation body) requires. */
     function caneBoard(): GameState {
-        const g1 = makeInstance(clayStatue.id, {
+        const g1 = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
             id: "g1",
             controllerId: "p1",
             ownerId: "p1",
             zone: "graveyard",
         });
-        const g2 = makeInstance(dragonEngine.id, {
+        const g2 = makeInstance("07793a71-1106-4303-b620-e403bd378020", {
             id: "g2",
             controllerId: "p1",
             ownerId: "p1",
@@ -763,13 +771,13 @@ describe("Millstone ({2},{T}: target player mills two, CR 701.17a)", () => {
             ownerId: "p2",
             zone: "library",
         });
-        const c2 = makeInstance(dragonEngine.id, {
+        const c2 = makeInstance("07793a71-1106-4303-b620-e403bd378020", {
             id: "c2",
             controllerId: "p2",
             ownerId: "p2",
             zone: "library",
         });
-        const c3 = makeInstance(clayStatue.id, {
+        const c3 = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
             id: "c3",
             controllerId: "p2",
             ownerId: "p2",
@@ -831,7 +839,7 @@ describe("Jalum Tome ({2},{T}: draw then discard, CR 121.1 / 701.8)", () => {
             ownerId: "p1",
             zone: "library",
         });
-        const inHand = makeInstance(dragonEngine.id, {
+        const inHand = makeInstance("07793a71-1106-4303-b620-e403bd378020", {
             id: "inHand",
             controllerId: "p1",
             ownerId: "p1",
@@ -1539,12 +1547,14 @@ describe("Weakstone (attacking creatures get -1/-0, CR 611)", () => {
 // Staff of Zegon (CR 611.1 temporary -2/-0)
 describe("Staff of Zegon ({3},{T}: target -2/-0 EOT, CR 611.1)", () => {
     it("applies a -2/-0 temporary buff to the chosen creature", () => {
-        const staff = makeInstance(staffOfZegon.id, { id: "staff" });
+        const staff = makeInstance("a6bf858d-bba9-4a16-9045-55384b1de633", {
+            id: "staff",
+        });
         const bear = vanilla("bear", 3, 3, { controllerId: "p1" });
         const state = makeState({
             players: [makePlayer("p1", { battlefield: [staff, bear] })],
         });
-        resolveActivated(state, staff, "staff-of-zegon-weaken", [
+        resolveActivated(state, staff, "staff-of-zegon-ability", [
             { type: "permanent", id: "bear" },
         ]);
         const live = state.players[0].battlefield.find((c) => c.id === "bear")!;
@@ -3458,7 +3468,7 @@ describe("Urza's Miter (non-sacrifice artifact to graveyard → may pay {3} draw
 // Coral Helm (CR 118.3 random-discard cost; +2/+2 EOT)
 describe("Coral Helm ({3}, discard at random: target +2/+2 EOT)", () => {
     it("pumps the target +2/+2 until end of turn", () => {
-        const helm = makeInstance(coralHelm.id, {
+        const helm = makeInstance("6c6df9db-0a46-40a5-ae9d-59f47dae9056", {
             id: "helm",
             controllerId: "p1",
             ownerId: "p1",
@@ -3474,7 +3484,7 @@ describe("Coral Helm ({3}, discard at random: target +2/+2 EOT)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, helm, "coral-helm-pump", [
+        resolveActivated(state, helm, "coral-helm-ability", [
             { type: "permanent", id: "bear" },
         ]);
         const live = state.players[0].battlefield.find((c) => c.id === "bear")!;

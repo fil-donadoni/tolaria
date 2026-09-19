@@ -51,10 +51,10 @@ const VANGUARD = getCardByName("Llanowar Vanguard").id;
 const SAFEKEEPER = getCardByName("Sylvan Safekeeper").id;
 const CLERGY = getCardByName("Clergy of the Holy Nimbus").id;
 
-const SORCERER_ZAP = "prodigal-sorcerer-zap";
+const SORCERER_ZAP = "prodigal-sorcerer-ability";
 const MOTHER_ABILITY = "mother-of-runes-protect";
 const FACTORY_MANA = "mishras-factory-mana";
-const VANGUARD_PUMP = "llanowar-vanguard-pump";
+const VANGUARD_PUMP = "llanowar-vanguard-ability";
 
 function mine(cardId: string, id: string, extra = {}): CardInstanceState {
     return makeInstance(cardId, {

@@ -261,38 +261,6 @@ export const sporeFlower: CardDefinition = {
     ],
 };
 
-export const fungalBloom: CardDefinition = {
-    id: "cf1a2cb2-9a6b-41f7-96f7-ec457c69c16c", // FEM 70
-    rarity: "rare",
-    name: "Fungal Bloom",
-    oracleText: "{G}{G}: Put a spore counter on target Fungus.",
-    manaCost: { G: 2 },
-    types: ["Enchantment"],
-    activatedAbilities: [
-        {
-            id: "fungal-bloom-feed",
-            oracleText: "{G}{G}: Put a spore counter on target Fungus.",
-            cost: { mana: { G: 2 } },
-            useStack: true,
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                subtypeFilter: "Fungus",
-            },
-            // CR 122 (issue #841) — put one spore counter on the target Fungus.
-            effects: [
-                {
-                    op: "counters",
-                    action: "add",
-                    counter: "spore",
-                    target: { target: 0 },
-                    count: 1,
-                },
-            ],
-        },
-    ],
-};
-
 export const elvishFarmer: CardDefinition = {
     id: "40a9710e-b2f8-4746-8640-d450f58a6e49", // FEM 66
     rarity: "common",
@@ -334,56 +302,23 @@ export const elvishFarmer: CardDefinition = {
     ],
 };
 
-export const elvenFortress: CardDefinition = {
-    id: "9387105d-46d0-4db0-8980-dd0fded15eef", // FEM 65a (canonical art)
-    rarity: "common",
-    name: "Elven Fortress",
-    oracleText:
-        "{1}{G}: Target blocking creature gets +0/+1 until end of turn.",
-    manaCost: { G: 1 },
-    types: ["Enchantment"],
-    activatedAbilities: [
-        {
-            id: "elven-fortress-pump",
-            oracleText:
-                "{1}{G}: Target blocking creature gets +0/+1 until end of turn.",
-            cost: { mana: { X: 1, G: 1 } },
-            useStack: true,
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                combatRoleFilter: "blocking",
-            },
-            effects: [
-                {
-                    op: "pump",
-                    target: { target: 0 },
-                    power: 0,
-                    toughness: 1,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-};
-
 export const elvenFortressFemB: CardPrint = {
     printId: "091b5ed4-91f5-47c1-b1a1-5443f7346078", // FEM 65b
-    definitionId: elvenFortress.id,
+    definitionId: "9387105d-46d0-4db0-8980-dd0fded15eef",
     setCode: "fem",
     rarity: "common",
 };
 
 export const elvenFortressFemC: CardPrint = {
     printId: "960b542f-cb24-4f74-92da-d31559d87c2d", // FEM 65c
-    definitionId: elvenFortress.id,
+    definitionId: "9387105d-46d0-4db0-8980-dd0fded15eef",
     setCode: "fem",
     rarity: "common",
 };
 
 export const elvenFortressFemD: CardPrint = {
     printId: "c52743f0-5c5b-46b9-bbbd-67950d4c89e5", // FEM 65d
-    definitionId: elvenFortress.id,
+    definitionId: "9387105d-46d0-4db0-8980-dd0fded15eef",
     setCode: "fem",
     rarity: "common",
 };

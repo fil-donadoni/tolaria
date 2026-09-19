@@ -55,32 +55,6 @@ export const warElephant: CardDefinition = {
     staticAbilities: ["trample", "banding"],
 };
 
-export const kingSuleiman: CardDefinition = {
-    id: "4d3dce0f-2168-4f63-b2f9-156a11beeea7",
-    rarity: "rare",
-    name: "King Suleiman",
-    oracleText: "{T}: Destroy target Djinn or Efreet.",
-    manaCost: { X: 1, W: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Noble"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "king-suleiman-destroy",
-            oracleText: "{T}: Destroy target Djinn or Efreet.",
-            cost: { tap: true },
-            useStack: true,
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                subtypeFilter: ["Djinn", "Efreet"],
-            },
-            effects: [{ op: "destroy", target: { target: 0 } }],
-        },
-    ],
-};
-
 export const armyOfAllah: CardDefinition = {
     id: "3d170015-b125-49a6-a15e-8fd116bbcb14",
     rarity: "common",

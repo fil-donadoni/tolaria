@@ -86,10 +86,8 @@ const meteorShower = getDefinition("50b4851e-677b-468e-9baa-e47a3b4b8339");
 const kjeldoranKnight = getDefinition("d5b9db8f-93b5-44e3-9e2b-728c80dfbb37");
 const brainstorm = getDefinition("8d42d7aa-7f53-4cfc-842a-086aab2448d1");
 const glacialWall = getDefinition("07b71bc1-d9a2-4e99-a8fa-cd696925328d");
-const seaSpirit = getDefinition("f2d93d05-98bc-4504-9045-dedb925895ae");
 const anarchy = getDefinition("28d941da-b5cb-4b7e-84f2-ece883f89af3");
 const conquer = getDefinition("ae610e66-7bcb-40ec-bed5-86dcfd098654");
-const flameSpirit = getDefinition("add2b82a-9aa5-4d5c-a1c2-e313541f12c8");
 const imposingVisage = getDefinition("cca42b74-9b42-482b-b12a-79cafdcd087e");
 const incinerate = getDefinition("9c3f00af-010d-4485-b8b7-47400d99c496");
 const jokulhaups = getDefinition("3bf0d325-5928-4593-8faa-64ffa414cb48");
@@ -365,7 +363,7 @@ describe("Jokulhaups (CR 701.8 mass destruction)", () => {
 describe("Pyroblast (CR 700.2 modal, blue-gated)", () => {
     it("destroy mode destroys a blue permanent", () => {
         // Sea Spirit is a registered blue creature → colours derive correctly.
-        const bluePerm = makeInstance(seaSpirit.id, {
+        const bluePerm = makeInstance("f2d93d05-98bc-4504-9045-dedb925895ae", {
             id: "blue",
             controllerId: "p2",
             ownerId: "p2",
@@ -408,7 +406,7 @@ describe("Conquer (CR 613.1b control-change on land)", () => {
 
 describe("Flame Spirit firebreathing (CR 611.1)", () => {
     it("+1/+0 until end of turn pumps power, survives projection", () => {
-        const spirit = makeInstance(flameSpirit.id, {
+        const spirit = makeInstance("add2b82a-9aa5-4d5c-a1c2-e313541f12c8", {
             id: "spirit",
             controllerId: "p1",
             ownerId: "p1",
@@ -419,7 +417,7 @@ describe("Flame Spirit firebreathing (CR 611.1)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, spirit, "flame-spirit-firebreathing");
+        resolveActivated(state, spirit, "flame-spirit-ability");
         const after = state.players[0].battlefield[0];
         expect(getEffectivePower(state, after)).toBe(3);
         // wire format: the pump survives projectPublicState.

@@ -89,14 +89,12 @@ const gazeOfPain = getDefinition("48401643-ec4b-444a-8f9a-1a5ea471ff4a");
 const burntOffering = getDefinition("1dae52a2-3af7-4b97-9d2e-2448b7c413fb");
 const spoilsOfWar = getDefinition("b38af8bd-d927-46d0-a1b1-fb437ea9ea66");
 const kjeldoranWarrior = getDefinition("ce76f38f-566e-49ff-b197-510cfa1cb51c");
-const seaSpirit = getDefinition("f2d93d05-98bc-4504-9045-dedb925895ae");
 const brineShaman = getDefinition("f445962c-44a1-4f3f-88d4-17048f8ca9dc");
 const darkBanishing = getDefinition("f7dc2716-ed62-4797-ad2b-227eca5408d0");
 const demonicConsultation = getDefinition(
     "8d727b9b-6114-414d-9172-16b6e1db41cc"
 );
 const foulFamiliar = getDefinition("8bad3541-8e40-4a2f-ac9d-f7b61f3d75a1");
-const hoarShade = getDefinition("72242dff-15ca-4da0-b3ae-9984d037b31f");
 const hyalopterousLemure = getDefinition(
     "d2c9e037-f4d5-46fd-b439-56bee6fb2ad3"
 );
@@ -226,12 +224,15 @@ describe("Dark Banishing (destroy nonblack creature, CR 701.8)", () => {
 describe("Demonic Consultation (name + exile loop, CR 202.3)", () => {
     it("exiles the top six, then digs to the named card", () => {
         const lib = [0, 1, 2, 3, 4, 5, 6, 7].map((i) =>
-            makeInstance(i === 7 ? moorFiend.id : hoarShade.id, {
-                id: `lib${i}`,
-                controllerId: "p1",
-                ownerId: "p1",
-                zone: "library",
-            })
+            makeInstance(
+                i === 7 ? moorFiend.id : "72242dff-15ca-4da0-b3ae-9984d037b31f",
+                {
+                    id: `lib${i}`,
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    zone: "library",
+                }
+            )
         );
         const state = makeState({
             players: [makePlayer("p1", { library: lib }), makePlayer("p2")],
@@ -303,7 +304,7 @@ describe("Foul Familiar (can't block + bounce, CR 509.1b / 701.14)", () => {
 
 describe("Hoar Shade ({B}: +1/+1, CR 611.2a)", () => {
     it("pumps itself +1/+1 until end of turn (wire format)", () => {
-        const shade = makeInstance(hoarShade.id, {
+        const shade = makeInstance("72242dff-15ca-4da0-b3ae-9984d037b31f", {
             id: "hs",
             controllerId: "p1",
             ownerId: "p1",
@@ -314,7 +315,7 @@ describe("Hoar Shade ({B}: +1/+1, CR 611.2a)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, shade, "hoar-shade-pump");
+        resolveActivated(state, shade, "hoar-shade-ability");
         const live = state.players[0].battlefield.find((c) => c.id === "hs")!;
         expect(getEffectivePower(state, live)).toBe(2);
         expect(getEffectiveToughness(state, live)).toBe(3);
@@ -702,7 +703,7 @@ describe("Call to Arms (#653) — white anthem while chosen colour is opponent's
             id: "b2",
             controllerId: "p2",
         });
-        const blue1 = makeInstance(seaSpirit.id, {
+        const blue1 = makeInstance("f2d93d05-98bc-4504-9045-dedb925895ae", {
             id: "u1",
             controllerId: "p2",
         });
@@ -717,7 +718,7 @@ describe("Call to Arms (#653) — white anthem while chosen colour is opponent's
             id: "b1",
             controllerId: "p2",
         });
-        const blue1 = makeInstance(seaSpirit.id, {
+        const blue1 = makeInstance("f2d93d05-98bc-4504-9045-dedb925895ae", {
             id: "u1",
             controllerId: "p2",
         });

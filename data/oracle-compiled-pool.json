@@ -1782,6 +1782,49 @@
         "rarity": "common"
     },
     {
+        "name": "Dwarven Demolition Team",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dwarf"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{T}: Destroy target Wall.",
+        "activatedAbilities": [
+            {
+                "id": "dwarven-demolition-team-ability",
+                "oracleText": "{T}: Destroy target Wall.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "subtypeFilter": [
+                        "Wall"
+                    ]
+                }
+            }
+        ],
+        "id": "03482c9c-1f25-4d73-9243-17462ea37ac4",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Infantry Veteran",
         "types": [
             "Creature"
@@ -1915,6 +1958,56 @@
         ],
         "id": "036c1954-37d3-4787-8df8-f2d0dd39058a",
         "rarity": "common"
+    },
+    {
+        "name": "Pradesh Gypsies",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Nomad"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{1}{G}, {T}: Target creature gets -2/-0 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "pradesh-gypsies-ability",
+                "oracleText": "{1}{G}, {T}: Target creature gets -2/-0 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "G": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "target": 0
+                        },
+                        "power": -2,
+                        "toughness": 0,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "0370330d-83d9-44d2-a1ed-c4827edc60fd",
+        "rarity": "uncommon"
     },
     {
         "name": "Scabland",
@@ -3347,6 +3440,51 @@
         "rarity": "common"
     },
     {
+        "name": "Fyndhorn Brownie",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Ouphe"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{2}{G}, {T}: Untap target creature.",
+        "activatedAbilities": [
+            {
+                "id": "fyndhorn-brownie-ability",
+                "oracleText": "{2}{G}, {T}: Untap target creature.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "G": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "06204e82-9dfd-4334-a23a-f8240fc37772",
+        "rarity": "common"
+    },
+    {
         "name": "Crystalline Sliver",
         "types": [
             "Creature"
@@ -3854,6 +3992,49 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Dragon Engine",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Construct"
+        ],
+        "manaCost": {
+            "X": 3
+        },
+        "power": 1,
+        "toughness": 3,
+        "oracleText": "{2}: This creature gets +1/+0 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "dragon-engine-ability",
+                "oracleText": "{2}: This creature gets +1/+0 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 1,
+                        "toughness": 0,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "07793a71-1106-4303-b620-e403bd378020",
+        "rarity": "common"
+    },
+    {
         "name": "Playful Shove",
         "types": [
             "Sorcery"
@@ -4143,6 +4324,59 @@
         },
         "id": "0841423d-7a27-4bc5-9ac2-0ba47648c6f1",
         "rarity": "common"
+    },
+    {
+        "name": "Dwarven Weaponsmith",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dwarf",
+            "Artificer"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{T}, Sacrifice an artifact: Put a +1/+1 counter on target creature. Activate only during your upkeep.",
+        "activatedAbilities": [
+            {
+                "id": "dwarven-weaponsmith-ability",
+                "oracleText": "{T}, Sacrifice an artifact: Put a +1/+1 counter on target creature. Activate only during your upkeep.",
+                "cost": {
+                    "tap": true,
+                    "sacrificeFilter": {
+                        "types": [
+                            "Artifact"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "counters",
+                        "action": "add",
+                        "counter": "+1/+1",
+                        "target": {
+                            "target": 0
+                        },
+                        "count": 1
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                },
+                "activationPhaseRestriction": [
+                    "UPKEEP"
+                ],
+                "controllerTurnOnly": true
+            }
+        ],
+        "id": "0848d94a-2704-460f-986b-b192dd6d26b7",
+        "rarity": "uncommon"
     },
     {
         "name": "Graypelt Refuge",
@@ -5553,6 +5787,50 @@
             "deathtouch"
         ],
         "id": "0c082aa8-bf7f-47f2-baf8-43ad253fd7d7",
+        "rarity": "common"
+    },
+    {
+        "name": "Folk of the Pines",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dryad"
+        ],
+        "manaCost": {
+            "X": 4,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 5,
+        "oracleText": "{1}{G}: This creature gets +1/+0 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "folk-of-the-pines-ability",
+                "oracleText": "{1}{G}: This creature gets +1/+0 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "G": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 1,
+                        "toughness": 0,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "0c13311d-db83-483f-ba2b-4f54ceb8b026",
         "rarity": "common"
     },
     {
@@ -8148,6 +8426,39 @@
         "rarity": "common"
     },
     {
+        "name": "Greed",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "oracleText": "{B}, Pay 2 life: Draw a card.",
+        "activatedAbilities": [
+            {
+                "id": "greed-ability",
+                "oracleText": "{B}, Pay 2 life: Draw a card.",
+                "cost": {
+                    "mana": {
+                        "B": 1
+                    },
+                    "life": 2
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "111a16a2-e875-4756-80db-290f9e8606db",
+        "rarity": "rare"
+    },
+    {
         "name": "Royal Falcon",
         "types": [
             "Creature"
@@ -9269,6 +9580,46 @@
         "rarity": "rare"
     },
     {
+        "name": "Benalish Heralds",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 4,
+        "oracleText": "{3}{U}, {T}: Draw a card.",
+        "activatedAbilities": [
+            {
+                "id": "benalish-heralds-ability",
+                "oracleText": "{3}{U}, {T}: Draw a card.",
+                "cost": {
+                    "mana": {
+                        "X": 3,
+                        "U": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "13c6e51d-54eb-4e5b-9ec9-54521b16b8d1",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Messenger Drake",
         "types": [
             "Creature"
@@ -9605,6 +9956,48 @@
         "rarity": "rare"
     },
     {
+        "name": "Zuran Spellcaster",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{T}: This creature deals 1 damage to any target.",
+        "activatedAbilities": [
+            {
+                "id": "zuran-spellcaster-ability",
+                "oracleText": "{T}: This creature deals 1 damage to any target.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 1,
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "152a72b1-a7b7-4e5c-8558-fab97465f549",
+        "rarity": "common"
+    },
+    {
         "name": "Goblin Trailblazer",
         "types": [
             "Creature"
@@ -9879,6 +10272,49 @@
         "rarity": "common"
     },
     {
+        "name": "Firescreamer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Kavu"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{R}: This creature gets +1/+0 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "firescreamer-ability",
+                "oracleText": "{R}: This creature gets +1/+0 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "R": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 1,
+                        "toughness": 0,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "155a2213-bf6e-4a54-924b-e450b7d06f26",
+        "rarity": "common"
+    },
+    {
         "name": "Voyaging Satyr",
         "types": [
             "Creature"
@@ -10088,6 +10524,51 @@
             "menace"
         ],
         "id": "15bf72e0-0b0c-4b29-8709-9dcd460508cb",
+        "rarity": "common"
+    },
+    {
+        "name": "Wyluli Wolf",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Wolf"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{T}: Target creature gets +1/+1 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "wyluli-wolf-ability",
+                "oracleText": "{T}: Target creature gets +1/+1 until end of turn.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "target": 0
+                        },
+                        "power": 1,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "15ccebe1-ef08-4805-a65f-a1c57abed9f2",
         "rarity": "common"
     },
     {
@@ -11102,6 +11583,46 @@
         "rarity": "common"
     },
     {
+        "name": "Goblin Bombardment",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "oracleText": "Sacrifice a creature: This enchantment deals 1 damage to any target.",
+        "activatedAbilities": [
+            {
+                "id": "goblin-bombardment-ability",
+                "oracleText": "Sacrifice a creature: This enchantment deals 1 damage to any target.",
+                "cost": {
+                    "sacrificeFilter": {
+                        "types": [
+                            "Creature"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 1,
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "179e954f-1d90-4ef4-b800-25845cc338e2",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Reprisal",
         "types": [
             "Instant"
@@ -11324,6 +11845,51 @@
             }
         ],
         "id": "17f4d2a5-bb85-4662-b2dd-a363ec7eab9b",
+        "rarity": "rare"
+    },
+    {
+        "name": "Exorcist",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Cleric"
+        ],
+        "manaCost": {
+            "W": 2
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{1}{W}, {T}: Destroy target black creature.",
+        "activatedAbilities": [
+            {
+                "id": "exorcist-ability",
+                "oracleText": "{1}{W}, {T}: Destroy target black creature.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "W": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "colorFilter": "B"
+                }
+            }
+        ],
+        "id": "184b7d52-e991-4668-9f6a-bcded97f51ac",
         "rarity": "rare"
     },
     {
@@ -12618,6 +13184,53 @@
         ],
         "id": "1aff26fc-e6d3-4135-96b9-0da7cb8b6dae",
         "rarity": "common"
+    },
+    {
+        "name": "Trench Wurm",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Wurm"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "{2}{R}, {T}: Destroy target nonbasic land.",
+        "activatedAbilities": [
+            {
+                "id": "trench-wurm-ability",
+                "oracleText": "{2}{R}, {T}: Destroy target nonbasic land.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "R": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Land",
+                    "count": 1,
+                    "excludeSupertypes": [
+                        "Basic"
+                    ]
+                }
+            }
+        ],
+        "id": "1b076f85-d1bf-491a-af9d-f35b8e1bd163",
+        "rarity": "uncommon"
     },
     {
         "name": "Fledgling Djinn",
@@ -14428,6 +15041,74 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Stormscape Apprentice",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{W}, {T}: Tap target creature.\n{B}, {T}: Target player loses 1 life.",
+        "activatedAbilities": [
+            {
+                "id": "stormscape-apprentice-ability",
+                "oracleText": "{W}, {T}: Tap target creature.",
+                "cost": {
+                    "mana": {
+                        "W": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "tap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            },
+            {
+                "id": "stormscape-apprentice-ability-2",
+                "oracleText": "{B}, {T}: Target player loses 1 life.",
+                "cost": {
+                    "mana": {
+                        "B": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "loseLife",
+                        "player": {
+                            "target": 0
+                        },
+                        "amount": 1
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "1eb42f39-9187-44e4-aa34-14ab31977199",
+        "rarity": "common"
+    },
+    {
         "name": "Moonlit Wake",
         "types": [
             "Enchantment"
@@ -14829,6 +15510,51 @@
             "fear"
         ],
         "id": "1fff470a-3574-42be-8f0b-ac5e7a70f61a",
+        "rarity": "common"
+    },
+    {
+        "name": "Ghosts of the Damned",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Spirit"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 2
+        },
+        "power": 0,
+        "toughness": 2,
+        "oracleText": "{T}: Target creature gets -1/-0 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "ghosts-of-the-damned-ability",
+                "oracleText": "{T}: Target creature gets -1/-0 until end of turn.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "target": 0
+                        },
+                        "power": -1,
+                        "toughness": 0,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "20275678-3488-43d8-a93b-993e2267ab07",
         "rarity": "common"
     },
     {
@@ -15399,6 +16125,49 @@
         "rarity": "rare"
     },
     {
+        "name": "Llanowar Cavalry",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 4,
+        "oracleText": "{W}: This creature gains vigilance until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "llanowar-cavalry-ability",
+                "oracleText": "{W}: This creature gains vigilance until end of turn.",
+                "cost": {
+                    "mana": {
+                        "W": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "ability": "vigilance",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "21d92191-a743-4916-bbe4-5e207e964d9b",
+        "rarity": "common"
+    },
+    {
         "name": "Gavony Unhallowed",
         "types": [
             "Creature"
@@ -15541,6 +16310,51 @@
         "entersTapped": true,
         "id": "2224d7ef-2e2f-47dd-a4a0-e36b3170b124",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Atog",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Atog"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "Sacrifice an artifact: This creature gets +2/+2 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "atog-ability",
+                "oracleText": "Sacrifice an artifact: This creature gets +2/+2 until end of turn.",
+                "cost": {
+                    "sacrificeFilter": {
+                        "types": [
+                            "Artifact"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 2,
+                        "toughness": 2,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "2249fc40-4412-48fd-800a-7ea3678aee3f",
+        "rarity": "common"
     },
     {
         "name": "Salt Flats",
@@ -16013,6 +16827,44 @@
             "haste"
         ],
         "id": "23510414-974e-4510-9742-884ecd572ad8",
+        "rarity": "common"
+    },
+    {
+        "name": "Drudge Skeletons",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Skeleton"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{B}: Regenerate this creature. (The next time this creature would be destroyed this turn, instead tap it, remove it from combat, and heal all damage on it.)",
+        "activatedAbilities": [
+            {
+                "id": "drudge-skeletons-ability",
+                "oracleText": "{B}: Regenerate this creature.",
+                "cost": {
+                    "mana": {
+                        "B": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "ref": "$source"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "23614289-0d73-4747-a849-5cb67cc97d6a",
         "rarity": "common"
     },
     {
@@ -18534,6 +19386,94 @@
         "rarity": "common"
     },
     {
+        "name": "Ali Baba",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Rogue"
+        ],
+        "manaCost": {
+            "R": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{R}: Tap target Wall.",
+        "activatedAbilities": [
+            {
+                "id": "ali-baba-ability",
+                "oracleText": "{R}: Tap target Wall.",
+                "cost": {
+                    "mana": {
+                        "R": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "tap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "subtypeFilter": [
+                        "Wall"
+                    ]
+                }
+            }
+        ],
+        "id": "29cd7064-3703-43e0-8702-d1ba13703fd8",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Icy Manipulator",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 4
+        },
+        "oracleText": "{1}, {T}: Tap target artifact, creature, or land.",
+        "activatedAbilities": [
+            {
+                "id": "icy-manipulator-ability",
+                "oracleText": "{1}, {T}: Tap target artifact, creature, or land.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "tap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": [
+                        "Artifact",
+                        "Creature",
+                        "Land"
+                    ],
+                    "count": 1
+                }
+            }
+        ],
+        "id": "29dc1596-a2e7-4d60-9f99-89babaef8a06",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Racers' Ring",
         "types": [
             "Land"
@@ -19019,6 +19959,80 @@
         ],
         "id": "2b56c895-37d3-4475-a542-dc6d21c46f06",
         "rarity": "common"
+    },
+    {
+        "name": "Fountain of Youth",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {},
+        "oracleText": "{2}, {T}: You gain 1 life.",
+        "activatedAbilities": [
+            {
+                "id": "fountain-of-youth-ability",
+                "oracleText": "{2}, {T}: You gain 1 life.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 1
+                    }
+                ]
+            }
+        ],
+        "id": "2b60eb23-cb9a-4203-86fb-60e47dbd870b",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Goblin Chirurgeon",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Goblin",
+            "Shaman"
+        ],
+        "manaCost": {
+            "R": 1
+        },
+        "power": 0,
+        "toughness": 2,
+        "oracleText": "Sacrifice a Goblin: Regenerate target creature.",
+        "activatedAbilities": [
+            {
+                "id": "goblin-chirurgeon-ability",
+                "oracleText": "Sacrifice a Goblin: Regenerate target creature.",
+                "cost": {
+                    "sacrificeFilter": {
+                        "subtypes": [
+                            "Goblin"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "2b710c21-e9f5-4660-80f6-2104ec65f63f",
+        "rarity": "uncommon"
     },
     {
         "name": "Jadecraft Artisan",
@@ -19782,6 +20796,56 @@
         ],
         "id": "2cc97674-f60a-4854-a807-60dbcf90637e",
         "rarity": "common"
+    },
+    {
+        "name": "Ragnar",
+        "types": [
+            "Creature"
+        ],
+        "supertypes": [
+            "Legendary"
+        ],
+        "subtypes": [
+            "Human",
+            "Cleric"
+        ],
+        "manaCost": {
+            "W": 1,
+            "U": 1,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{G}{W}{U}, {T}: Regenerate target creature.",
+        "activatedAbilities": [
+            {
+                "id": "ragnar-ability",
+                "oracleText": "{G}{W}{U}, {T}: Regenerate target creature.",
+                "cost": {
+                    "mana": {
+                        "W": 1,
+                        "U": 1,
+                        "G": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "2cf6a3a3-4a06-4eb7-981a-b70cf05b2473",
+        "rarity": "rare"
     },
     {
         "name": "Compulsion",
@@ -21003,6 +22067,44 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Uthden Troll",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Troll"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{R}: Regenerate this creature.",
+        "activatedAbilities": [
+            {
+                "id": "uthden-troll-ability",
+                "oracleText": "{R}: Regenerate this creature.",
+                "cost": {
+                    "mana": {
+                        "R": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "ref": "$source"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "2ff21a6f-83a7-4bf3-a078-294e303232cc",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Pardic Wanderer",
         "types": [
             "Artifact",
@@ -21132,6 +22234,54 @@
             "flying"
         ],
         "id": "302d62d6-8abf-4693-974c-bef6841b394f",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Pavel Maliki",
+        "types": [
+            "Creature"
+        ],
+        "supertypes": [
+            "Legendary"
+        ],
+        "subtypes": [
+            "Human"
+        ],
+        "manaCost": {
+            "X": 4,
+            "B": 1,
+            "R": 1
+        },
+        "power": 5,
+        "toughness": 3,
+        "oracleText": "{B}{R}: Pavel Maliki gets +1/+0 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "pavel-maliki-ability",
+                "oracleText": "{B}{R}: {self} gets +1/+0 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "B": 1,
+                        "R": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 1,
+                        "toughness": 0,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "304f9d39-3ea2-4274-b23e-e4eaabbc1c4b",
         "rarity": "uncommon"
     },
     {
@@ -21527,6 +22677,58 @@
         "power": 2,
         "toughness": 2,
         "id": "3129645a-221c-4eb5-88fd-12cc742a1dfe",
+        "rarity": "common"
+    },
+    {
+        "name": "Svyelunite Priest",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Merfolk",
+            "Cleric"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{U}{U}, {T}: Target creature gains shroud until end of turn. Activate only during your upkeep. (It can't be the target of spells or abilities.)",
+        "activatedAbilities": [
+            {
+                "id": "svyelunite-priest-ability",
+                "oracleText": "{U}{U}, {T}: Target creature gains shroud until end of turn. Activate only during your upkeep.",
+                "cost": {
+                    "mana": {
+                        "U": 2
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "target": 0
+                        },
+                        "ability": "shroud",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                },
+                "activationPhaseRestriction": [
+                    "UPKEEP"
+                ],
+                "controllerTurnOnly": true
+            }
+        ],
+        "id": "316d25ae-7ac6-4f5b-93ab-0e0e28ec104b",
         "rarity": "common"
     },
     {
@@ -23304,6 +24506,47 @@
         "rarity": "common"
     },
     {
+        "name": "Meteor Storm",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "R": 1,
+            "G": 1
+        },
+        "oracleText": "{2}{R}{G}, Discard two cards at random: This enchantment deals 4 damage to any target.",
+        "activatedAbilities": [
+            {
+                "id": "meteor-storm-ability",
+                "oracleText": "{2}{R}{G}, Discard two cards at random: This enchantment deals 4 damage to any target.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "R": 1,
+                        "G": 1
+                    },
+                    "discardAtRandom": 2
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 4,
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "36489b24-f8a8-46b6-b879-0a5ce400a6dc",
+        "rarity": "rare"
+    },
+    {
         "name": "Starlit Angel",
         "types": [
             "Creature"
@@ -23402,6 +24645,72 @@
             }
         ],
         "id": "3686eb57-e9c8-480f-8ab4-2894e1b5fe20",
+        "rarity": "common"
+    },
+    {
+        "name": "Stone Kavu",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Kavu"
+        ],
+        "manaCost": {
+            "X": 4,
+            "G": 1
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "{R}: This creature gets +1/+0 until end of turn.\n{W}: This creature gets +0/+1 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "stone-kavu-ability",
+                "oracleText": "{R}: This creature gets +1/+0 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "R": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 1,
+                        "toughness": 0,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            },
+            {
+                "id": "stone-kavu-ability-2",
+                "oracleText": "{W}: This creature gets +0/+1 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "W": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 0,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "36a1cdca-d48c-4936-ad6a-4610aeb991ce",
         "rarity": "common"
     },
     {
@@ -23864,6 +25173,47 @@
         ],
         "id": "378c5ba0-bf4f-43d5-b371-0991db5a2e32",
         "rarity": "common"
+    },
+    {
+        "name": "Helm of Chatzuk",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 1
+        },
+        "oracleText": "{1}, {T}: Target creature gains banding until end of turn. (Any creatures with banding, and up to one without, can attack in a band. Bands are blocked as a group. If any creatures with banding a player controls are blocking or being blocked by a creature, that player divides that creature's combat damage, not its controller, among any of the creatures it's being blocked by or is blocking.)",
+        "activatedAbilities": [
+            {
+                "id": "helm-of-chatzuk-ability",
+                "oracleText": "{1}, {T}: Target creature gains banding until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "target": 0
+                        },
+                        "ability": "banding",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "3792c6ef-c4e6-4923-9a51-7d28fbc5c393",
+        "rarity": "rare"
     },
     {
         "name": "Vigilant Drake",
@@ -24913,6 +26263,57 @@
         "rarity": "common"
     },
     {
+        "name": "Icatian Lieutenant",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Soldier"
+        ],
+        "manaCost": {
+            "W": 2
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "{1}{W}: Target Soldier creature gets +1/+0 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "icatian-lieutenant-ability",
+                "oracleText": "{1}{W}: Target Soldier creature gets +1/+0 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "W": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "target": 0
+                        },
+                        "power": 1,
+                        "toughness": 0,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "subtypeFilter": [
+                        "Soldier"
+                    ]
+                }
+            }
+        ],
+        "id": "39fec59a-4ade-4c6f-ae7d-911fbe6da26d",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Noxious Newt",
         "types": [
             "Creature"
@@ -25303,6 +26704,37 @@
         ],
         "id": "3a9a1ecf-29f6-474e-bbcf-3455d388aa94",
         "rarity": "common"
+    },
+    {
+        "name": "Zuran Orb",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {},
+        "oracleText": "Sacrifice a land: You gain 2 life.",
+        "activatedAbilities": [
+            {
+                "id": "zuran-orb-ability",
+                "oracleText": "Sacrifice a land: You gain 2 life.",
+                "cost": {
+                    "sacrificeFilter": {
+                        "types": [
+                            "Land"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 2
+                    }
+                ]
+            }
+        ],
+        "id": "3a9d1082-a862-45d4-9e5e-392e879fead6",
+        "rarity": "uncommon"
     },
     {
         "name": "Leaf Gilder",
@@ -26912,6 +28344,49 @@
         "entersTapped": true,
         "id": "3f2f8396-72ab-4387-9276-987836427107",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Noble Panther",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Cat"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1,
+            "G": 1
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "{1}: This creature gains first strike until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "noble-panther-ability",
+                "oracleText": "{1}: This creature gains first strike until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "ability": "first strike",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "3f327818-8222-4295-8cef-118757b34d17",
+        "rarity": "rare"
     },
     {
         "name": "Mist Leopard",
@@ -29893,6 +31368,53 @@
         "rarity": "common"
     },
     {
+        "name": "Gwendlyn Di Corci",
+        "types": [
+            "Creature"
+        ],
+        "supertypes": [
+            "Legendary"
+        ],
+        "subtypes": [
+            "Human",
+            "Rogue"
+        ],
+        "manaCost": {
+            "U": 1,
+            "B": 2,
+            "R": 1
+        },
+        "power": 3,
+        "toughness": 5,
+        "oracleText": "{T}: Target player discards a card at random. Activate only during your turn.",
+        "activatedAbilities": [
+            {
+                "id": "gwendlyn-di-corci-ability",
+                "oracleText": "{T}: Target player discards a card at random. Activate only during your turn.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "discardAtRandom",
+                        "player": {
+                            "target": 0
+                        },
+                        "count": 1
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                },
+                "controllerTurnOnly": true
+            }
+        ],
+        "id": "473d70b6-a88c-49f4-9415-19919c4468ae",
+        "rarity": "rare"
+    },
+    {
         "name": "Alaborn Musketeer",
         "types": [
             "Creature"
@@ -30076,6 +31598,52 @@
         ],
         "id": "47d2fb65-cc3d-4664-bee0-8cf1cba5d8fa",
         "rarity": "common"
+    },
+    {
+        "name": "Shivan Harvest",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "oracleText": "{1}{R}, Sacrifice a creature: Destroy target nonbasic land.",
+        "activatedAbilities": [
+            {
+                "id": "shivan-harvest-ability",
+                "oracleText": "{1}{R}, Sacrifice a creature: Destroy target nonbasic land.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "R": 1
+                    },
+                    "sacrificeFilter": {
+                        "types": [
+                            "Creature"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Land",
+                    "count": 1,
+                    "excludeSupertypes": [
+                        "Basic"
+                    ]
+                }
+            }
+        ],
+        "id": "47dbd765-d7ea-4181-bd22-5c749ad081af",
+        "rarity": "uncommon"
     },
     {
         "name": "Yavimaya Hollow",
@@ -31456,6 +33024,48 @@
         "rarity": "common"
     },
     {
+        "name": "Viashino Grappler",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Lizard"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "power": 3,
+        "toughness": 1,
+        "oracleText": "{G}: This creature gains trample until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "viashino-grappler-ability",
+                "oracleText": "{G}: This creature gains trample until end of turn.",
+                "cost": {
+                    "mana": {
+                        "G": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "ability": "trample",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "4a94aeb4-349c-4394-848d-c1c9133856e2",
+        "rarity": "common"
+    },
+    {
         "name": "Tidehollow Strix",
         "types": [
             "Artifact",
@@ -31909,6 +33519,91 @@
         "rarity": "common"
     },
     {
+        "name": "Flying Carpet",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 4
+        },
+        "oracleText": "{2}, {T}: Target creature gains flying until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "flying-carpet-ability",
+                "oracleText": "{2}, {T}: Target creature gains flying until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "target": 0
+                        },
+                        "ability": "flying",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "4b71ff49-ee0a-4065-9131-380468d62a30",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Whalebone Glider",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 2
+        },
+        "oracleText": "{2}, {T}: Target creature with power 3 or less gains flying until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "whalebone-glider-ability",
+                "oracleText": "{2}, {T}: Target creature with power 3 or less gains flying until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "target": 0
+                        },
+                        "ability": "flying",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "powerFilter": {
+                        "max": 3
+                    }
+                }
+            }
+        ],
+        "id": "4b75adf0-9501-4776-a213-456c2b821070",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Harmonize",
         "types": [
             "Sorcery"
@@ -32190,6 +33885,48 @@
         "rarity": "common"
     },
     {
+        "name": "Grapeshot Catapult",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Construct"
+        ],
+        "manaCost": {
+            "X": 4
+        },
+        "power": 2,
+        "toughness": 3,
+        "oracleText": "{T}: This creature deals 1 damage to target creature with flying.",
+        "activatedAbilities": [
+            {
+                "id": "grapeshot-catapult-ability",
+                "oracleText": "{T}: This creature deals 1 damage to target creature with flying.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 1,
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "requireAbility": "flying"
+                }
+            }
+        ],
+        "id": "4c7a7348-c82e-453c-975c-e5365e152a3a",
+        "rarity": "common"
+    },
+    {
         "name": "Courier Griffin",
         "types": [
             "Creature"
@@ -32226,6 +33963,51 @@
         ],
         "id": "4d3afc71-f5db-45c3-96b2-8454b7f33542",
         "rarity": "common"
+    },
+    {
+        "name": "King Suleiman",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Noble"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{T}: Destroy target Djinn or Efreet.",
+        "activatedAbilities": [
+            {
+                "id": "king-suleiman-ability",
+                "oracleText": "{T}: Destroy target Djinn or Efreet.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "subtypeFilter": [
+                        "Djinn",
+                        "Efreet"
+                    ]
+                }
+            }
+        ],
+        "id": "4d3dce0f-2168-4f63-b2f9-156a11beeea7",
+        "rarity": "rare"
     },
     {
         "name": "Darksteel Gargoyle",
@@ -33444,6 +35226,77 @@
         "rarity": "common"
     },
     {
+        "name": "Thornscape Apprentice",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{R}, {T}: Target creature gains first strike until end of turn.\n{W}, {T}: Tap target creature.",
+        "activatedAbilities": [
+            {
+                "id": "thornscape-apprentice-ability",
+                "oracleText": "{R}, {T}: Target creature gains first strike until end of turn.",
+                "cost": {
+                    "mana": {
+                        "R": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "target": 0
+                        },
+                        "ability": "first strike",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            },
+            {
+                "id": "thornscape-apprentice-ability-2",
+                "oracleText": "{W}, {T}: Tap target creature.",
+                "cost": {
+                    "mana": {
+                        "W": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "tap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "505da522-73a8-4232-ae1a-d3365f3e598f",
+        "rarity": "common"
+    },
+    {
         "name": "Meeting of Minds",
         "types": [
             "Instant"
@@ -33536,6 +35389,48 @@
         ],
         "id": "50d69ee8-a616-4191-b111-1330dfb24f72",
         "rarity": "common"
+    },
+    {
+        "name": "Goblin Balloon Brigade",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Goblin",
+            "Warrior"
+        ],
+        "manaCost": {
+            "R": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{R}: This creature gains flying until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "goblin-balloon-brigade-ability",
+                "oracleText": "{R}: This creature gains flying until end of turn.",
+                "cost": {
+                    "mana": {
+                        "R": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "ability": "flying",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "5129b422-7a35-4bc5-b14b-c814012a0d8f",
+        "rarity": "uncommon"
     },
     {
         "name": "Dire Fleet Neckbreaker",
@@ -34840,6 +36735,99 @@
         ],
         "id": "545503f8-a8c6-4518-9ad6-76e4996397fc",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Alpha Kavu",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Kavu"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{1}{G}: Target Kavu creature gets -1/+1 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "alpha-kavu-ability",
+                "oracleText": "{1}{G}: Target Kavu creature gets -1/+1 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "G": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "target": 0
+                        },
+                        "power": -1,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "subtypeFilter": [
+                        "Kavu"
+                    ]
+                }
+            }
+        ],
+        "id": "545ed916-59fc-4c60-9260-8c2dc88e67a1",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Hooded Kavu",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Kavu"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{B}: This creature gains fear until end of turn. (It can't be blocked except by artifact creatures and/or black creatures.)",
+        "activatedAbilities": [
+            {
+                "id": "hooded-kavu-ability",
+                "oracleText": "{B}: This creature gains fear until end of turn.",
+                "cost": {
+                    "mana": {
+                        "B": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "ability": "fear",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "5464b80a-22fe-42c7-a839-31667712fb2d",
+        "rarity": "common"
     },
     {
         "name": "Vagrant Plowbeasts",
@@ -36626,6 +38614,48 @@
         "rarity": "common"
     },
     {
+        "name": "Royal Assassin",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Assassin"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 2
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{T}: Destroy target tapped creature.",
+        "activatedAbilities": [
+            {
+                "id": "royal-assassin-ability",
+                "oracleText": "{T}: Destroy target tapped creature.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "tappedFilter": "tapped"
+                }
+            }
+        ],
+        "id": "59590768-fa96-4869-8763-9d5ab6ac22ad",
+        "rarity": "rare"
+    },
+    {
         "name": "Untamed Hunger",
         "types": [
             "Enchantment"
@@ -37000,6 +39030,41 @@
         ],
         "id": "5a37719a-2a87-4870-8f25-12544ca2f2cf",
         "rarity": "common"
+    },
+    {
+        "name": "Book of Rass",
+        "types": [
+            "Artifact"
+        ],
+        "subtypes": [
+            "Book"
+        ],
+        "manaCost": {
+            "X": 6
+        },
+        "oracleText": "{2}, Pay 2 life: Draw a card.",
+        "activatedAbilities": [
+            {
+                "id": "book-of-rass-ability",
+                "oracleText": "{2}, Pay 2 life: Draw a card.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    },
+                    "life": 2
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "5a391ada-e9e3-45db-ae84-17421ac6b44d",
+        "rarity": "uncommon"
     },
     {
         "name": "Sustenance",
@@ -38408,6 +40473,54 @@
         "rarity": "common"
     },
     {
+        "name": "Grim Lavamancer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "R": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{R}, {T}, Exile two cards from your graveyard: This creature deals 2 damage to any target.",
+        "activatedAbilities": [
+            {
+                "id": "grim-lavamancer-ability",
+                "oracleText": "{R}, {T}, Exile two cards from your graveyard: This creature deals 2 damage to any target.",
+                "cost": {
+                    "mana": {
+                        "R": 1
+                    },
+                    "tap": true,
+                    "exileFromGraveyard": {
+                        "count": 2,
+                        "owner": "you"
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 2,
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "5dd72697-24be-42c7-a6d9-a837bdbd4662",
+        "rarity": "rare"
+    },
+    {
         "name": "Become Immense",
         "types": [
             "Instant"
@@ -38439,6 +40552,52 @@
         },
         "id": "5e17b65e-56c3-4e12-a774-780514dfd8ba",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Orcish Mechanics",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Orc"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{T}, Sacrifice an artifact: This creature deals 2 damage to any target.",
+        "activatedAbilities": [
+            {
+                "id": "orcish-mechanics-ability",
+                "oracleText": "{T}, Sacrifice an artifact: This creature deals 2 damage to any target.",
+                "cost": {
+                    "tap": true,
+                    "sacrificeFilter": {
+                        "types": [
+                            "Artifact"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 2,
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "5e34fc6b-5f00-4a22-9ee2-afc1caf99961",
+        "rarity": "common"
     },
     {
         "name": "Nimble-Blade Khenra",
@@ -40496,6 +42655,58 @@
         "rarity": "common"
     },
     {
+        "name": "Northern Paladin",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Knight"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 2
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "{W}{W}, {T}: Destroy target black permanent.",
+        "activatedAbilities": [
+            {
+                "id": "northern-paladin-ability",
+                "oracleText": "{W}{W}, {T}: Destroy target black permanent.",
+                "cost": {
+                    "mana": {
+                        "W": 2
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": [
+                        "Artifact",
+                        "Battle",
+                        "Creature",
+                        "Enchantment",
+                        "Land",
+                        "Planeswalker"
+                    ],
+                    "count": 1,
+                    "colorFilter": "B"
+                }
+            }
+        ],
+        "id": "6303233b-35eb-49ca-b844-ba6b9fe1cbd2",
+        "rarity": "rare"
+    },
+    {
         "name": "Blur Sliver",
         "types": [
             "Creature"
@@ -41275,6 +43486,44 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Clay Statue",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Golem"
+        ],
+        "manaCost": {
+            "X": 4
+        },
+        "power": 3,
+        "toughness": 1,
+        "oracleText": "{2}: Regenerate this creature.",
+        "activatedAbilities": [
+            {
+                "id": "clay-statue-ability",
+                "oracleText": "{2}: Regenerate this creature.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "ref": "$source"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "64975352-8d35-4d02-94ac-fa0c6ee12409",
+        "rarity": "common"
+    },
+    {
         "name": "Wild Jhovall",
         "types": [
             "Creature"
@@ -41695,6 +43944,47 @@
             }
         ],
         "id": "65998e94-15a0-41f1-8288-730b957f81df",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Fyndhorn Bow",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 2
+        },
+        "oracleText": "{3}, {T}: Target creature gains first strike until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "fyndhorn-bow-ability",
+                "oracleText": "{3}, {T}: Target creature gains first strike until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 3
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "target": 0
+                        },
+                        "ability": "first strike",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "65dd0a41-cc51-4728-b597-fdb2510accd8",
         "rarity": "uncommon"
     },
     {
@@ -42451,6 +44741,75 @@
         ],
         "id": "675112db-c477-43f4-b755-54162445fb49",
         "rarity": "common"
+    },
+    {
+        "name": "Psychatog",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Atog"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1,
+            "B": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "Discard a card: This creature gets +1/+1 until end of turn.\nExile two cards from your graveyard: This creature gets +1/+1 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "psychatog-ability",
+                "oracleText": "Discard a card: This creature gets +1/+1 until end of turn.",
+                "cost": {
+                    "discardFilter": {
+                        "filter": {},
+                        "count": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 1,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            },
+            {
+                "id": "psychatog-ability-2",
+                "oracleText": "Exile two cards from your graveyard: This creature gets +1/+1 until end of turn.",
+                "cost": {
+                    "exileFromGraveyard": {
+                        "count": 2,
+                        "owner": "you"
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 1,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "6757bf0e-489f-4be2-9e41-463b59f00dd1",
+        "rarity": "uncommon"
     },
     {
         "name": "Obscura Initiate",
@@ -43672,6 +46031,48 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Serpentine Kavu",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Kavu"
+        ],
+        "manaCost": {
+            "X": 4,
+            "G": 1
+        },
+        "power": 4,
+        "toughness": 4,
+        "oracleText": "{R}: This creature gains haste until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "serpentine-kavu-ability",
+                "oracleText": "{R}: This creature gains haste until end of turn.",
+                "cost": {
+                    "mana": {
+                        "R": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "ability": "haste",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "699f1fe8-02c6-4d95-9231-3f8aefe603da",
+        "rarity": "common"
+    },
+    {
         "name": "Shadowblood Ridge",
         "types": [
             "Land"
@@ -44658,6 +47059,48 @@
         ],
         "id": "6c691f62-009b-4178-8e8b-d6e88229a282",
         "rarity": "common"
+    },
+    {
+        "name": "Coral Helm",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 3
+        },
+        "oracleText": "{3}, Discard a card at random: Target creature gets +2/+2 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "coral-helm-ability",
+                "oracleText": "{3}, Discard a card at random: Target creature gets +2/+2 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 3
+                    },
+                    "discardAtRandom": 1
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "target": 0
+                        },
+                        "power": 2,
+                        "toughness": 2,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "6c6df9db-0a46-40a5-ae9d-59f47dae9056",
+        "rarity": "rare"
     },
     {
         "name": "Nebelgast Intruder",
@@ -46787,6 +49230,49 @@
         "rarity": "common"
     },
     {
+        "name": "Hoar Shade",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Shade"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "{B}: This creature gets +1/+1 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "hoar-shade-ability",
+                "oracleText": "{B}: This creature gets +1/+1 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "B": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 1,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "72242dff-15ca-4da0-b3ae-9984d037b31f",
+        "rarity": "common"
+    },
+    {
         "name": "Venerable Monk",
         "types": [
             "Creature"
@@ -47008,6 +49494,47 @@
         "power": 2,
         "toughness": 1,
         "id": "72c6465f-3144-4faf-b248-a9fb941dc002",
+        "rarity": "common"
+    },
+    {
+        "name": "Llanowar Vanguard",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dryad"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{T}: This creature gets +0/+4 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "llanowar-vanguard-ability",
+                "oracleText": "{T}: This creature gets +0/+4 until end of turn.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 0,
+                        "toughness": 4,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "72e6ed79-bdfd-49f9-bfa4-be4196880487",
         "rarity": "common"
     },
     {
@@ -48471,6 +50998,78 @@
         "power": 4,
         "toughness": 3,
         "id": "75935f0e-9086-485b-b3e6-1a958fd0f2af",
+        "rarity": "common"
+    },
+    {
+        "name": "Thunderscape Apprentice",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "R": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{B}, {T}: Target player loses 1 life.\n{G}, {T}: Target creature gets +1/+1 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "thunderscape-apprentice-ability",
+                "oracleText": "{B}, {T}: Target player loses 1 life.",
+                "cost": {
+                    "mana": {
+                        "B": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "loseLife",
+                        "player": {
+                            "target": 0
+                        },
+                        "amount": 1
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                }
+            },
+            {
+                "id": "thunderscape-apprentice-ability-2",
+                "oracleText": "{G}, {T}: Target creature gets +1/+1 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "G": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "target": 0
+                        },
+                        "power": 1,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "75a0b075-5414-48d3-a2b1-47dc20213e96",
         "rarity": "common"
     },
     {
@@ -54055,6 +56654,51 @@
         "rarity": "common"
     },
     {
+        "name": "Slingshot Goblin",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Goblin"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{R}, {T}: This creature deals 2 damage to target blue creature.",
+        "activatedAbilities": [
+            {
+                "id": "slingshot-goblin-ability",
+                "oracleText": "{R}, {T}: This creature deals 2 damage to target blue creature.",
+                "cost": {
+                    "mana": {
+                        "R": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 2,
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "colorFilter": "U"
+                }
+            }
+        ],
+        "id": "81825aef-bef7-46b7-bf52-29e32c1836b0",
+        "rarity": "common"
+    },
+    {
         "name": "Advance Scout",
         "types": [
             "Creature"
@@ -54930,6 +57574,54 @@
         "power": 0,
         "toughness": 3,
         "id": "83ec1486-900b-4763-9b5b-390cb00aff02",
+        "rarity": "common"
+    },
+    {
+        "name": "Kelsinko Ranger",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Ranger"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{1}{W}: Target green creature gains first strike until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "kelsinko-ranger-ability",
+                "oracleText": "{1}{W}: Target green creature gains first strike until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "W": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "target": 0
+                        },
+                        "ability": "first strike",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "colorFilter": "G"
+                }
+            }
+        ],
+        "id": "8402543e-5406-404f-95c4-800a1dce35f1",
         "rarity": "common"
     },
     {
@@ -55810,6 +58502,54 @@
             "flying"
         ],
         "id": "869fee23-df75-448d-9fca-6ba6713d459f",
+        "rarity": "common"
+    },
+    {
+        "name": "Icatian Scout",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Soldier",
+            "Scout"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{1}, {T}: Target creature gains first strike until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "icatian-scout-ability",
+                "oracleText": "{1}, {T}: Target creature gains first strike until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "target": 0
+                        },
+                        "ability": "first strike",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "86bf4aaa-a9b1-4798-a96b-c3e35afb77f7",
         "rarity": "common"
     },
     {
@@ -56836,6 +59576,50 @@
         "rarity": "common"
     },
     {
+        "name": "Shambling Strider",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Yeti"
+        ],
+        "manaCost": {
+            "X": 4,
+            "G": 2
+        },
+        "power": 5,
+        "toughness": 5,
+        "oracleText": "{R}{G}: This creature gets +1/-1 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "shambling-strider-ability",
+                "oracleText": "{R}{G}: This creature gets +1/-1 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "R": 1,
+                        "G": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 1,
+                        "toughness": -1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "8886ba2d-b25a-4b74-9299-911c509ae864",
+        "rarity": "common"
+    },
+    {
         "name": "Scepter of Dominance",
         "types": [
             "Artifact"
@@ -57711,6 +60495,49 @@
         "rarity": "common"
     },
     {
+        "name": "Goblin Digging Team",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Goblin"
+        ],
+        "manaCost": {
+            "R": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{T}, Sacrifice this creature: Destroy target Wall.",
+        "activatedAbilities": [
+            {
+                "id": "goblin-digging-team-ability",
+                "oracleText": "{T}, Sacrifice this creature: Destroy target Wall.",
+                "cost": {
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "subtypeFilter": [
+                        "Wall"
+                    ]
+                }
+            }
+        ],
+        "id": "8a538b9d-351e-40bb-be11-9ba08c16352b",
+        "rarity": "common"
+    },
+    {
         "name": "Gaea's Skyfolk",
         "types": [
             "Creature"
@@ -58414,6 +61241,46 @@
         ],
         "id": "8bc288a3-ea56-450a-96fd-c2123121f663",
         "rarity": "common"
+    },
+    {
+        "name": "Baton of Morale",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 2
+        },
+        "oracleText": "{2}: Target creature gains banding until end of turn. (Any creatures with banding, and up to one without, can attack in a band. Bands are blocked as a group. If any creatures with banding a player controls are blocking or being blocked by a creature, that player divides that creature's combat damage, not its controller, among any of the creatures it's being blocked by or is blocking.)",
+        "activatedAbilities": [
+            {
+                "id": "baton-of-morale-ability",
+                "oracleText": "{2}: Target creature gains banding until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "target": 0
+                        },
+                        "ability": "banding",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "8bc29872-b1a2-4851-9eca-f3e67ae6e14c",
+        "rarity": "uncommon"
     },
     {
         "name": "Tuinvale Treefolk",
@@ -59553,6 +62420,49 @@
             }
         ],
         "id": "8e974df6-d78a-43ea-ada5-17c53fcca97b",
+        "rarity": "common"
+    },
+    {
+        "name": "Scavenger Folk",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{G}, {T}, Sacrifice this creature: Destroy target artifact.",
+        "activatedAbilities": [
+            {
+                "id": "scavenger-folk-ability",
+                "oracleText": "{G}, {T}, Sacrifice this creature: Destroy target artifact.",
+                "cost": {
+                    "mana": {
+                        "G": 1
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Artifact",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "8e99870c-b2b9-431b-b8a8-3f4a80aa8fa5",
         "rarity": "common"
     },
     {
@@ -61119,6 +64029,51 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Elven Fortress",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "oracleText": "{1}{G}: Target blocking creature gets +0/+1 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "elven-fortress-ability",
+                "oracleText": "{1}{G}: Target blocking creature gets +0/+1 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "G": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "target": 0
+                        },
+                        "power": 0,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "combatRoleFilter": [
+                        "blocking"
+                    ]
+                }
+            }
+        ],
+        "id": "9387105d-46d0-4db0-8980-dd0fded15eef",
+        "rarity": "common"
+    },
+    {
         "name": "Rumbling Baloth",
         "types": [
             "Creature"
@@ -62619,6 +65574,48 @@
             }
         ],
         "id": "977698ab-3b64-41f2-a214-ac95e04c9956",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Prodigal Pyromancer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{T}: This creature deals 1 damage to any target.",
+        "activatedAbilities": [
+            {
+                "id": "prodigal-pyromancer-ability",
+                "oracleText": "{T}: This creature deals 1 damage to any target.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 1,
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "97787109-408e-42d3-acc5-300f5f5bf2ff",
         "rarity": "uncommon"
     },
     {
@@ -65283,6 +68280,48 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Niall Silvain",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Ouphe"
+        ],
+        "manaCost": {
+            "G": 3
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{G}{G}{G}{G}, {T}: Regenerate target creature.",
+        "activatedAbilities": [
+            {
+                "id": "niall-silvain-ability",
+                "oracleText": "{G}{G}{G}{G}, {T}: Regenerate target creature.",
+                "cost": {
+                    "mana": {
+                        "G": 4
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "9d5911b5-a54e-4ebb-9c36-d4dc8e97bb4b",
+        "rarity": "rare"
+    },
+    {
         "name": "Reach Through Mists",
         "types": [
             "Instant"
@@ -67855,6 +70894,44 @@
         "rarity": "common"
     },
     {
+        "name": "Draconian Cylix",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 3
+        },
+        "oracleText": "{2}, {T}, Discard a card at random: Regenerate target creature.",
+        "activatedAbilities": [
+            {
+                "id": "draconian-cylix-ability",
+                "oracleText": "{2}, {T}, Discard a card at random: Regenerate target creature.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    },
+                    "tap": true,
+                    "discardAtRandom": 1
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "a419c9e3-5615-44f9-9256-94a3022bb69f",
+        "rarity": "common"
+    },
+    {
         "name": "Fencing Ace",
         "types": [
             "Creature"
@@ -68876,6 +71953,48 @@
         ],
         "id": "a6982bde-1fa3-48fa-803d-a45d6acbc2fe",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Staff of Zegon",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 4
+        },
+        "oracleText": "{3}, {T}: Target creature gets -2/-0 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "staff-of-zegon-ability",
+                "oracleText": "{3}, {T}: Target creature gets -2/-0 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 3
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "target": 0
+                        },
+                        "power": -2,
+                        "toughness": 0,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "a6bf858d-bba9-4a16-9045-55384b1de633",
+        "rarity": "common"
     },
     {
         "name": "Rattlechains",
@@ -70072,6 +73191,50 @@
             "infect"
         ],
         "id": "a978c49d-483a-42fe-971c-858288d07e40",
+        "rarity": "common"
+    },
+    {
+        "name": "Armor Thrull",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Thrull"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "power": 1,
+        "toughness": 3,
+        "oracleText": "{T}, Sacrifice this creature: Put a +1/+2 counter on target creature.",
+        "activatedAbilities": [
+            {
+                "id": "armor-thrull-ability",
+                "oracleText": "{T}, Sacrifice this creature: Put a +1/+2 counter on target creature.",
+                "cost": {
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "counters",
+                        "action": "add",
+                        "counter": "+1/+2",
+                        "target": {
+                            "target": 0
+                        },
+                        "count": 1
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "a98384d1-8e7d-4c41-9f23-47bc2ae2ad6a",
         "rarity": "common"
     },
     {
@@ -71965,6 +75128,50 @@
         "rarity": "common"
     },
     {
+        "name": "Flame Spirit",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elemental",
+            "Spirit"
+        ],
+        "manaCost": {
+            "X": 4,
+            "R": 1
+        },
+        "power": 2,
+        "toughness": 3,
+        "oracleText": "{R}: This creature gets +1/+0 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "flame-spirit-ability",
+                "oracleText": "{R}: This creature gets +1/+0 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "R": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 1,
+                        "toughness": 0,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "add2b82a-9aa5-4d5c-a1c2-e313541f12c8",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Leonin Snarecaster",
         "types": [
             "Creature"
@@ -72797,6 +76004,82 @@
         },
         "id": "af6b3bf7-bd09-4f0d-a670-2efc1c6d416f",
         "rarity": "common"
+    },
+    {
+        "name": "Seal of Cleansing",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "Sacrifice this enchantment: Destroy target artifact or enchantment.",
+        "activatedAbilities": [
+            {
+                "id": "seal-of-cleansing-ability",
+                "oracleText": "Sacrifice this enchantment: Destroy target artifact or enchantment.",
+                "cost": {
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": [
+                        "Artifact",
+                        "Enchantment"
+                    ],
+                    "count": 1
+                }
+            }
+        ],
+        "id": "af6c921e-1b82-412c-9979-adfdf83440f7",
+        "rarity": "common"
+    },
+    {
+        "name": "Rod of Ruin",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 4
+        },
+        "oracleText": "{3}, {T}: This artifact deals 1 damage to any target.",
+        "activatedAbilities": [
+            {
+                "id": "rod-of-ruin-ability",
+                "oracleText": "{3}, {T}: This artifact deals 1 damage to any target.",
+                "cost": {
+                    "mana": {
+                        "X": 3
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 1,
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "af957200-c538-4f52-b105-6db7a7abb4dc",
+        "rarity": "uncommon"
     },
     {
         "name": "Thistledown Players",
@@ -74798,6 +78081,47 @@
         "power": 2,
         "toughness": 4,
         "id": "b4f27dd9-7ee4-4cdc-8f65-a4349b6aa47f",
+        "rarity": "common"
+    },
+    {
+        "name": "Sage of Lat-Nam",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Artificer"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "{T}, Sacrifice an artifact: Draw a card.",
+        "activatedAbilities": [
+            {
+                "id": "sage-of-lat-nam-ability",
+                "oracleText": "{T}, Sacrifice an artifact: Draw a card.",
+                "cost": {
+                    "tap": true,
+                    "sacrificeFilter": {
+                        "types": [
+                            "Artifact"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "b4ff60ce-073c-46b8-807c-8b40467b960c",
         "rarity": "common"
     },
     {
@@ -77233,6 +80557,46 @@
         "rarity": "common"
     },
     {
+        "name": "Horror of Horrors",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 2
+        },
+        "oracleText": "Sacrifice a Swamp: Regenerate target black creature. (The next time that creature would be destroyed this turn, instead tap it, remove it from combat, and heal all damage on it.)",
+        "activatedAbilities": [
+            {
+                "id": "horror-of-horrors-ability",
+                "oracleText": "Sacrifice a Swamp: Regenerate target black creature.",
+                "cost": {
+                    "sacrificeFilter": {
+                        "subtypes": [
+                            "Swamp"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "colorFilter": "B"
+                }
+            }
+        ],
+        "id": "b9f68dc2-c048-41ec-b237-c36fdd99c27d",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Feral Prowler",
         "types": [
             "Creature"
@@ -77789,6 +81153,44 @@
         "rarity": "common"
     },
     {
+        "name": "Aladdin's Ring",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 8
+        },
+        "oracleText": "{8}, {T}: This artifact deals 4 damage to any target.",
+        "activatedAbilities": [
+            {
+                "id": "aladdin-s-ring-ability",
+                "oracleText": "{8}, {T}: This artifact deals 4 damage to any target.",
+                "cost": {
+                    "mana": {
+                        "X": 8
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 4,
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "bb2b74a2-cb74-4b54-b9c6-78c63f14cf5b",
+        "rarity": "rare"
+    },
+    {
         "name": "Rakdos Ragemutt",
         "types": [
             "Creature"
@@ -78210,6 +81612,44 @@
         ],
         "id": "bc47d1fe-8ab2-42f6-bcab-4bc2084ceba7",
         "rarity": "common"
+    },
+    {
+        "name": "Jandor's Saddlebags",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 2
+        },
+        "oracleText": "{3}, {T}: Untap target creature.",
+        "activatedAbilities": [
+            {
+                "id": "jandor-s-saddlebags-ability",
+                "oracleText": "{3}, {T}: Untap target creature.",
+                "cost": {
+                    "mana": {
+                        "X": 3
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "bc4f4b92-7d4e-4b03-8cb4-e6b356c338b4",
+        "rarity": "rare"
     },
     {
         "name": "Vastwood Gorger",
@@ -78907,6 +82347,49 @@
         ],
         "id": "bdaa9ac4-b742-4a24-a316-97538adfd361",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Deadapult",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "oracleText": "{R}, Sacrifice a Zombie: This enchantment deals 2 damage to any target.",
+        "activatedAbilities": [
+            {
+                "id": "deadapult-ability",
+                "oracleText": "{R}, Sacrifice a Zombie: This enchantment deals 2 damage to any target.",
+                "cost": {
+                    "mana": {
+                        "R": 1
+                    },
+                    "sacrificeFilter": {
+                        "subtypes": [
+                            "Zombie"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 2,
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "bdc93b3d-bde4-422f-9edc-e337719be7b4",
+        "rarity": "rare"
     },
     {
         "name": "Merfolk of the Depths",
@@ -79953,6 +83436,41 @@
         "rarity": "common"
     },
     {
+        "name": "Relic Barrier",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 2
+        },
+        "oracleText": "{T}: Tap target artifact.",
+        "activatedAbilities": [
+            {
+                "id": "relic-barrier-ability",
+                "oracleText": "{T}: Tap target artifact.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "tap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Artifact",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "c062cbae-ce5e-43be-9932-c81a0a3622e8",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Angelheart Protector",
         "types": [
             "Creature"
@@ -80454,6 +83972,51 @@
         "rarity": "common"
     },
     {
+        "name": "Homarid Shaman",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Homarid",
+            "Shaman"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 2
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "{U}: Tap target green creature.",
+        "activatedAbilities": [
+            {
+                "id": "homarid-shaman-ability",
+                "oracleText": "{U}: Tap target green creature.",
+                "cost": {
+                    "mana": {
+                        "U": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "tap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "colorFilter": "G"
+                }
+            }
+        ],
+        "id": "c17c6416-86d6-46ea-aea1-41b98a66b250",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Seaside Citadel",
         "types": [
             "Land"
@@ -80875,6 +84438,46 @@
         "rarity": "common"
     },
     {
+        "name": "Stormbind",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1,
+            "G": 1
+        },
+        "oracleText": "{2}, Discard a card at random: This enchantment deals 2 damage to any target.",
+        "activatedAbilities": [
+            {
+                "id": "stormbind-ability",
+                "oracleText": "{2}, Discard a card at random: This enchantment deals 2 damage to any target.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    },
+                    "discardAtRandom": 1
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 2,
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "c2d5d91b-aeb4-4d7e-b748-77f9960da55f",
+        "rarity": "rare"
+    },
+    {
         "name": "Braidwood Cup",
         "types": [
             "Artifact"
@@ -81184,6 +84787,87 @@
         ],
         "id": "c392a7e5-6ff5-4c2f-9590-f8811a724f44",
         "rarity": "common"
+    },
+    {
+        "name": "Elven Lyre",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 2
+        },
+        "oracleText": "{1}, {T}, Sacrifice this artifact: Target creature gets +2/+2 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "elven-lyre-ability",
+                "oracleText": "{1}, {T}, Sacrifice this artifact: Target creature gets +2/+2 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "target": 0
+                        },
+                        "power": 2,
+                        "toughness": 2,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "c3a8cd72-04c0-46f7-a249-f1cecddfdc26",
+        "rarity": "common"
+    },
+    {
+        "name": "Diabolic Machine",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Construct"
+        ],
+        "manaCost": {
+            "X": 7
+        },
+        "power": 4,
+        "toughness": 4,
+        "oracleText": "{3}: Regenerate this creature.",
+        "activatedAbilities": [
+            {
+                "id": "diabolic-machine-ability",
+                "oracleText": "{3}: Regenerate this creature.",
+                "cost": {
+                    "mana": {
+                        "X": 3
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "ref": "$source"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "c3b0f228-6b06-4426-a557-1225d547b908",
+        "rarity": "uncommon"
     },
     {
         "name": "Uktabi Faerie",
@@ -81778,6 +85462,49 @@
             }
         ],
         "id": "c5869f08-fac8-44b6-8142-7d7ecccab414",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Pit Trap",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 2
+        },
+        "oracleText": "{2}, {T}, Sacrifice this artifact: Destroy target attacking creature without flying. It can't be regenerated.",
+        "activatedAbilities": [
+            {
+                "id": "pit-trap-ability",
+                "oracleText": "{2}, {T}, Sacrifice this artifact: Destroy target attacking creature without flying. It can't be regenerated.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "target": 0
+                        },
+                        "cantBeRegenerated": true
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "combatRoleFilter": [
+                        "attacking"
+                    ],
+                    "excludeAbility": "flying"
+                }
+            }
+        ],
+        "id": "c588fe7f-945d-4459-904c-67442f88b4e1",
         "rarity": "uncommon"
     },
     {
@@ -83536,6 +87263,41 @@
         "rarity": "common"
     },
     {
+        "name": "Jayemdae Tome",
+        "types": [
+            "Artifact"
+        ],
+        "subtypes": [
+            "Book"
+        ],
+        "manaCost": {
+            "X": 4
+        },
+        "oracleText": "{4}, {T}: Draw a card.",
+        "activatedAbilities": [
+            {
+                "id": "jayemdae-tome-ability",
+                "oracleText": "{4}, {T}: Draw a card.",
+                "cost": {
+                    "mana": {
+                        "X": 4
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "cac8c421-5b92-481d-b2de-560c0231ab58",
+        "rarity": "rare"
+    },
+    {
         "name": "Reclamation Sage",
         "types": [
             "Creature"
@@ -83700,6 +87462,49 @@
             "count": 1
         },
         "id": "cb13420d-d295-4000-9c38-fa5d10e06ece",
+        "rarity": "common"
+    },
+    {
+        "name": "Juniper Order Druid",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Cleric",
+            "Druid"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{T}: Untap target land.",
+        "activatedAbilities": [
+            {
+                "id": "juniper-order-druid-ability",
+                "oracleText": "{T}: Untap target land.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Land",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "cb211704-ff8e-498b-b7bb-f8384f198ffd",
         "rarity": "common"
     },
     {
@@ -83962,6 +87767,49 @@
         ],
         "id": "cbb6e447-5f40-4039-8a17-257b4a55382c",
         "rarity": "common"
+    },
+    {
+        "name": "Carrion Ants",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Insect"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 2
+        },
+        "power": 0,
+        "toughness": 1,
+        "oracleText": "{1}: This creature gets +1/+1 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "carrion-ants-ability",
+                "oracleText": "{1}: This creature gets +1/+1 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 1,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "cbc0b009-3951-4aa3-985a-97139882da7e",
+        "rarity": "rare"
     },
     {
         "name": "Canopy Gorger",
@@ -85559,6 +89407,48 @@
         "rarity": "common"
     },
     {
+        "name": "Fungal Bloom",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "G": 2
+        },
+        "oracleText": "{G}{G}: Put a spore counter on target Fungus.",
+        "activatedAbilities": [
+            {
+                "id": "fungal-bloom-ability",
+                "oracleText": "{G}{G}: Put a spore counter on target Fungus.",
+                "cost": {
+                    "mana": {
+                        "G": 2
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "counters",
+                        "action": "add",
+                        "counter": "spore",
+                        "target": {
+                            "target": 0
+                        },
+                        "count": 1
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "subtypeFilter": [
+                        "Fungus"
+                    ]
+                }
+            }
+        ],
+        "id": "cf1a2cb2-9a6b-41f7-96f7-ec457c69c16c",
+        "rarity": "rare"
+    },
+    {
         "name": "Scattershot",
         "types": [
             "Instant"
@@ -86004,6 +89894,49 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Frozen Shade",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Shade"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "power": 0,
+        "toughness": 1,
+        "oracleText": "{B}: This creature gets +1/+1 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "frozen-shade-ability",
+                "oracleText": "{B}: This creature gets +1/+1 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "B": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 1,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "d0bd76c8-4cff-4c15-9686-7a299b589814",
+        "rarity": "common"
+    },
+    {
         "name": "Battering Sliver",
         "types": [
             "Creature"
@@ -86058,6 +89991,47 @@
         },
         "id": "d0df839f-dc4c-44b0-82c7-cb2037172ac5",
         "rarity": "common"
+    },
+    {
+        "name": "War Chariot",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 3
+        },
+        "oracleText": "{3}, {T}: Target creature gains trample until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "war-chariot-ability",
+                "oracleText": "{3}, {T}: Target creature gains trample until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 3
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "target": 0
+                        },
+                        "ability": "trample",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "d0ea0c6c-aa76-4b16-bc99-2ff46dc56d4e",
+        "rarity": "uncommon"
     },
     {
         "name": "Merchant of Secrets",
@@ -88327,6 +92301,47 @@
         "rarity": "rare"
     },
     {
+        "name": "Spinal Villain",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Beast"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "{T}: Destroy target blue creature.",
+        "activatedAbilities": [
+            {
+                "id": "spinal-villain-ability",
+                "oracleText": "{T}: Destroy target blue creature.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "colorFilter": "U"
+                }
+            }
+        ],
+        "id": "d6d5e36f-0049-4be8-bf85-8dc0186339a4",
+        "rarity": "rare"
+    },
+    {
         "name": "Llanowar Visionary",
         "types": [
             "Creature"
@@ -88494,6 +92509,92 @@
         ],
         "id": "d74e0337-d9ac-4bf2-b2b5-aadc97433030",
         "rarity": "common"
+    },
+    {
+        "name": "Walking Dead",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Zombie"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{B}: Regenerate this creature.",
+        "activatedAbilities": [
+            {
+                "id": "walking-dead-ability",
+                "oracleText": "{B}: Regenerate this creature.",
+                "cost": {
+                    "mana": {
+                        "B": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "ref": "$source"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "d7533a72-77d1-40cd-b3a1-7597d566c428",
+        "rarity": "common"
+    },
+    {
+        "name": "Icatian Priest",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Cleric"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{1}{W}{W}: Target creature gets +1/+1 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "icatian-priest-ability",
+                "oracleText": "{1}{W}{W}: Target creature gets +1/+1 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "W": 2
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "target": 0
+                        },
+                        "power": 1,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "d7690cdd-6610-4310-9e93-60dc4db2ae8d",
+        "rarity": "uncommon"
     },
     {
         "name": "Goblin-town",
@@ -92985,6 +97086,50 @@
         "rarity": "common"
     },
     {
+        "name": "Centaur Archer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Centaur",
+            "Archer"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1,
+            "G": 1
+        },
+        "power": 3,
+        "toughness": 2,
+        "oracleText": "{T}: This creature deals 1 damage to target creature with flying.",
+        "activatedAbilities": [
+            {
+                "id": "centaur-archer-ability",
+                "oracleText": "{T}: This creature deals 1 damage to target creature with flying.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 1,
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "requireAbility": "flying"
+                }
+            }
+        ],
+        "id": "e275c295-72da-4a86-82c6-cfd75b38b19c",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Monster Mashup",
         "types": [
             "Creature"
@@ -93432,6 +97577,51 @@
         "rarity": "common"
     },
     {
+        "name": "Benalish Trapper",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "{W}, {T}: Tap target creature.",
+        "activatedAbilities": [
+            {
+                "id": "benalish-trapper-ability",
+                "oracleText": "{W}, {T}: Tap target creature.",
+                "cost": {
+                    "mana": {
+                        "W": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "tap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "e312653d-c3e1-4c79-90d2-0963419b618c",
+        "rarity": "common"
+    },
+    {
         "name": "Rugged Prairie",
         "types": [
             "Land"
@@ -93641,6 +97831,40 @@
             "count": 1
         },
         "id": "e3ca1108-ccf2-48ea-8ca7-986aa45d5fe8",
+        "rarity": "common"
+    },
+    {
+        "name": "Dark Heart of the Wood",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "B": 1,
+            "G": 1
+        },
+        "oracleText": "Sacrifice a Forest: You gain 3 life.",
+        "activatedAbilities": [
+            {
+                "id": "dark-heart-of-the-wood-ability",
+                "oracleText": "Sacrifice a Forest: You gain 3 life.",
+                "cost": {
+                    "sacrificeFilter": {
+                        "subtypes": [
+                            "Forest"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 3
+                    }
+                ]
+            }
+        ],
+        "id": "e3d3df64-1e90-4aef-86ae-0062aa23ff30",
         "rarity": "common"
     },
     {
@@ -93991,6 +98215,49 @@
             "flying"
         ],
         "id": "e4d6d488-01df-4d61-92ff-9881838b4018",
+        "rarity": "common"
+    },
+    {
+        "name": "Prodigal Sorcerer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard",
+            "Sorcerer"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{T}: This creature deals 1 damage to any target.",
+        "activatedAbilities": [
+            {
+                "id": "prodigal-sorcerer-ability",
+                "oracleText": "{T}: This creature deals 1 damage to any target.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 1,
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a",
         "rarity": "common"
     },
     {
@@ -96203,6 +100470,57 @@
         "rarity": "common"
     },
     {
+        "name": "Dwarven Lieutenant",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dwarf",
+            "Soldier"
+        ],
+        "manaCost": {
+            "R": 2
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "{1}{R}: Target Dwarf creature gets +1/+0 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "dwarven-lieutenant-ability",
+                "oracleText": "{1}{R}: Target Dwarf creature gets +1/+0 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "R": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "target": 0
+                        },
+                        "power": 1,
+                        "toughness": 0,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "subtypeFilter": [
+                        "Dwarf"
+                    ]
+                }
+            }
+        ],
+        "id": "ea9a38b1-4676-425a-b40d-4fb478966024",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Gaea's Anthem",
         "types": [
             "Enchantment"
@@ -96569,6 +100887,49 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Skull Catapult",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 4
+        },
+        "oracleText": "{1}, {T}, Sacrifice a creature: This artifact deals 2 damage to any target.",
+        "activatedAbilities": [
+            {
+                "id": "skull-catapult-ability",
+                "oracleText": "{1}, {T}, Sacrifice a creature: This artifact deals 2 damage to any target.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true,
+                    "sacrificeFilter": {
+                        "types": [
+                            "Creature"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 2,
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "eb92a3e6-dc30-4a08-baba-e125290cadc5",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Fists of the Anvil",
         "types": [
             "Instant"
@@ -96856,6 +101217,54 @@
             "requireAbility": "flying"
         },
         "id": "ec3c023c-037e-495a-b7df-32be42a75f36",
+        "rarity": "common"
+    },
+    {
+        "name": "Capashen Unicorn",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Unicorn"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "{1}{W}, {T}, Sacrifice this creature: Destroy target artifact or enchantment.",
+        "activatedAbilities": [
+            {
+                "id": "capashen-unicorn-ability",
+                "oracleText": "{1}{W}, {T}, Sacrifice this creature: Destroy target artifact or enchantment.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "W": 1
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": [
+                        "Artifact",
+                        "Enchantment"
+                    ],
+                    "count": 1
+                }
+            }
+        ],
+        "id": "ec3e5741-88d7-4837-9b43-ba8304d9ee74",
         "rarity": "common"
     },
     {
@@ -98833,6 +103242,55 @@
         "rarity": "common"
     },
     {
+        "name": "Sylvan Safekeeper",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Sacrifice a land: Target creature you control gains shroud until end of turn. (It can't be the target of spells or abilities.)",
+        "activatedAbilities": [
+            {
+                "id": "sylvan-safekeeper-ability",
+                "oracleText": "Sacrifice a land: Target creature you control gains shroud until end of turn.",
+                "cost": {
+                    "sacrificeFilter": {
+                        "types": [
+                            "Land"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "target": 0
+                        },
+                        "ability": "shroud",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "controller": "you"
+                }
+            }
+        ],
+        "id": "f1b8413f-c9fc-4cea-b416-a1fcf651b009",
+        "rarity": "rare"
+    },
+    {
         "name": "Mardu Hateblade",
         "types": [
             "Creature"
@@ -99264,6 +103722,50 @@
         "toughness": 4,
         "id": "f2c60e63-0b86-4100-a932-bb9e9b197610",
         "rarity": "common"
+    },
+    {
+        "name": "Sea Spirit",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elemental",
+            "Spirit"
+        ],
+        "manaCost": {
+            "X": 4,
+            "U": 1
+        },
+        "power": 2,
+        "toughness": 3,
+        "oracleText": "{U}: This creature gets +1/+0 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "sea-spirit-ability",
+                "oracleText": "{U}: This creature gets +1/+0 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "U": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 1,
+                        "toughness": 0,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "f2d93d05-98bc-4504-9045-dedb925895ae",
+        "rarity": "uncommon"
     },
     {
         "name": "Kill Shot",
@@ -101897,6 +106399,48 @@
         "rarity": "common"
     },
     {
+        "name": "Ley Druid",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Druid"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{T}: Untap target land.",
+        "activatedAbilities": [
+            {
+                "id": "ley-druid-ability",
+                "oracleText": "{T}: Untap target land.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Land",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "f9232508-d363-4ef3-987a-741f6bff331f",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Orzhov Signet",
         "types": [
             "Artifact"
@@ -101949,6 +106493,70 @@
         },
         "id": "f93d8357-83bd-4157-a389-68e4aa4985c8",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Icatian Infantry",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Soldier"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{1}: This creature gains first strike until end of turn.\n{1}: This creature gains banding until end of turn. (Any creatures with banding, and up to one without, can attack in a band. Bands are blocked as a group. If any creatures with banding you control are blocking or being blocked by a creature, you divide that creature's combat damage, not its controller, among any of the creatures it's being blocked by or is blocking.)",
+        "activatedAbilities": [
+            {
+                "id": "icatian-infantry-ability",
+                "oracleText": "{1}: This creature gains first strike until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "ability": "first strike",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            },
+            {
+                "id": "icatian-infantry-ability-2",
+                "oracleText": "{1}: This creature gains banding until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "ability": "banding",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "f95d42d8-ba75-43bf-81b8-b02374f03e83",
+        "rarity": "common"
     },
     {
         "name": "Archweaver",
@@ -102367,6 +106975,44 @@
         ],
         "id": "fa9b4040-ab49-476b-b101-5ef2b1824e10",
         "rarity": "common"
+    },
+    {
+        "name": "Flood",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "U": 1
+        },
+        "oracleText": "{U}{U}: Tap target creature without flying.",
+        "activatedAbilities": [
+            {
+                "id": "flood-ability",
+                "oracleText": "{U}{U}: Tap target creature without flying.",
+                "cost": {
+                    "mana": {
+                        "U": 2
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "tap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "excludeAbility": "flying"
+                }
+            }
+        ],
+        "id": "fabc3267-b59b-4f36-8873-5b4b072711ca",
+        "rarity": "uncommon"
     },
     {
         "name": "Satyr Rambler",
@@ -103785,6 +108431,46 @@
         "rarity": "common"
     },
     {
+        "name": "Reckless Assault",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1,
+            "R": 1
+        },
+        "oracleText": "{1}, Pay 2 life: This enchantment deals 1 damage to any target.",
+        "activatedAbilities": [
+            {
+                "id": "reckless-assault-ability",
+                "oracleText": "{1}, Pay 2 life: This enchantment deals 1 damage to any target.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "life": 2
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 1,
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "ff0f568e-4d3a-40a5-b72a-63040ec5402d",
+        "rarity": "rare"
+    },
+    {
         "name": "Shepherd of the Lost",
         "types": [
             "Creature"
@@ -103989,6 +108675,49 @@
         "entersTapped": true,
         "id": "ff61d4e4-3c8c-48f7-a994-ec2317bbd9a0",
         "rarity": "common"
+    },
+    {
+        "name": "Adarkar Sentinel",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 5
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "{1}: This creature gets +0/+1 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "adarkar-sentinel-ability",
+                "oracleText": "{1}: This creature gets +0/+1 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 0,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "ff62754b-f4f0-4731-8dd7-327a820f60a8",
+        "rarity": "uncommon"
     },
     {
         "name": "Thallid Soothsayer",
@@ -104225,6 +108954,78 @@
         ],
         "id": "ff8b607d-56c5-4a18-88b5-d5d0f50ef403",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Stalking Assassin",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Assassin"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1,
+            "B": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{3}{U}, {T}: Tap target creature.\n{3}{B}, {T}: Destroy target tapped creature.",
+        "activatedAbilities": [
+            {
+                "id": "stalking-assassin-ability",
+                "oracleText": "{3}{U}, {T}: Tap target creature.",
+                "cost": {
+                    "mana": {
+                        "X": 3,
+                        "U": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "tap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            },
+            {
+                "id": "stalking-assassin-ability-2",
+                "oracleText": "{3}{B}, {T}: Destroy target tapped creature.",
+                "cost": {
+                    "mana": {
+                        "X": 3,
+                        "B": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "tappedFilter": "tapped"
+                }
+            }
+        ],
+        "id": "ff8cc71f-3070-497f-908f-35aa13a8a857",
+        "rarity": "rare"
     },
     {
         "name": "Demon's Grasp",

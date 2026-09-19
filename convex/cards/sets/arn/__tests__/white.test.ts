@@ -36,14 +36,12 @@ const eyeForAnEye = getDefinition("2933ca2a-097b-44f4-ae56-ad524d26fd06");
 const flyingMen = getDefinition("25ab9a2b-e248-4ae2-aac3-b49fdb3e260a");
 const jihad = getDefinition("b6c7705a-2987-4ef1-92b1-2c55d989ec6f");
 const juzamDjinn = getDefinition("31bf3f14-b5df-498b-a1bb-965885c82401");
-const kingSuleiman = getDefinition("4d3dce0f-2168-4f63-b2f9-156a11beeea7");
 const mijaeDjinn = getDefinition("d3ddbe51-cd1a-4b2c-849a-7c82d622122a");
 const piety = getDefinition("f649c571-d7ec-4ebc-9e18-b0657cab495b");
 const repentantBlacksmith = getDefinition(
     "61fc30b6-1355-425b-a86f-18f59f83141c"
 );
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
-const prodigalSorcerer = getDefinition("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a");
 
 describe("Army of Allah (attacking creatures +2/+0, CR 611.2)", () => {
     it("pumps only attacking creatures", () => {
@@ -95,7 +93,9 @@ describe("Piety (blocking creatures +0/+3, CR 611.2 + isBlocking filter)", () =>
 
 describe("King Suleiman ({T}: destroy target Djinn or Efreet)", () => {
     it("destroys a Djinn", () => {
-        const king = makeInstance(kingSuleiman.id, { id: "king" });
+        const king = makeInstance("4d3dce0f-2168-4f63-b2f9-156a11beeea7", {
+            id: "king",
+        });
         const djinn = makeInstance(juzamDjinn.id, {
             id: "djinn",
             controllerId: "p2",
@@ -107,7 +107,7 @@ describe("King Suleiman ({T}: destroy target Djinn or Efreet)", () => {
                 makePlayer("p2", { battlefield: [djinn] }),
             ],
         });
-        resolveActivated(state, king, "king-suleiman-destroy", [
+        resolveActivated(state, king, "king-suleiman-ability", [
             { type: "permanent", id: "djinn" },
         ]);
         expect(state.players[1].battlefield).toHaveLength(0);
@@ -271,7 +271,7 @@ describe("Abu Ja'far (dies → destroy combat partners; no regen; CR 603.2/603.1
 
 describe("Eye for an Eye (reflect damage to source's controller, CR 614)", () => {
     it("reflects the chosen source's damage to its controller without reducing yours", () => {
-        const tim = makeInstance(prodigalSorcerer.id, {
+        const tim = makeInstance("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a", {
             id: "tim",
             controllerId: "p2",
             ownerId: "p2",
@@ -286,7 +286,7 @@ describe("Eye for an Eye (reflect damage to source's controller, CR 614)", () =>
             { type: "permanent", id: "tim" },
         ]);
         resolveTopOfStack(state);
-        resolveActivated(state, tim, "prodigal-sorcerer-zap", [
+        resolveActivated(state, tim, "prodigal-sorcerer-ability", [
             { type: "player", id: "p1" },
         ]);
         expect(state.players[0].life).toBe(19); // damage to you unchanged
@@ -294,12 +294,12 @@ describe("Eye for an Eye (reflect damage to source's controller, CR 614)", () =>
     });
 
     it("is one-shot — a second hit from the source is not reflected", () => {
-        const tim = makeInstance(prodigalSorcerer.id, {
+        const tim = makeInstance("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a", {
             id: "tim",
             controllerId: "p2",
             ownerId: "p2",
         });
-        const tim2 = makeInstance(prodigalSorcerer.id, {
+        const tim2 = makeInstance("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a", {
             id: "tim2",
             controllerId: "p2",
             ownerId: "p2",
@@ -314,11 +314,11 @@ describe("Eye for an Eye (reflect damage to source's controller, CR 614)", () =>
             { type: "permanent", id: "tim" },
         ]);
         resolveTopOfStack(state);
-        resolveActivated(state, tim, "prodigal-sorcerer-zap", [
+        resolveActivated(state, tim, "prodigal-sorcerer-ability", [
             { type: "player", id: "p1" },
         ]);
         // Second zap from the same source: shield consumed, no reflect.
-        resolveActivated(state, tim2, "prodigal-sorcerer-zap", [
+        resolveActivated(state, tim2, "prodigal-sorcerer-ability", [
             { type: "player", id: "p1" },
         ]);
         expect(state.players[0].life).toBe(18); // took both hits

@@ -178,28 +178,6 @@ export const planarGate: CardDefinition = {
 
 // --- Utility artifacts (CR 602 activated abilities) -----------------------
 
-// Relic Barrier — "{T}: Tap target artifact." (CR 701.26 tap.)
-export const relicBarrier: CardDefinition = {
-    id: "c062cbae-ce5e-43be-9932-c81a0a3622e8",
-    rarity: "uncommon",
-    name: "Relic Barrier",
-    oracleText: "{T}: Tap target artifact.",
-    manaCost: { X: 2 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "relic-barrier-tap",
-            oracleText: "{T}: Tap target artifact.",
-            cost: { tap: true },
-            useStack: true,
-            targetRequirement: { type: "Artifact", count: 1 },
-            // Migrated resolve()→effects[] (ADR 0045, #842): tap the announced
-            // artifact target (CR 701.26a).
-            effects: [{ op: "tapUntap", action: "tap", target: { target: 0 } }],
-        },
-    ],
-};
-
 // North Star — "{4}, {T}: For one spell this turn, you may spend mana as though
 // it were mana of any type to pay that spell's mana cost." (CR 609.4b / 118.14,
 // issue #2890.) "Any TYPE" is the broader of the two printed wordings: CR

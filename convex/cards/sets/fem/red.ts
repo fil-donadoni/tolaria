@@ -169,40 +169,16 @@ export const goblinWarrens: CardDefinition = {
     ],
 };
 
-export const goblinChirurgeon: CardDefinition = {
-    id: "2b710c21-e9f5-4660-80f6-2104ec65f63f", // FEM 54a (canonical art)
-    rarity: "uncommon",
-    name: "Goblin Chirurgeon",
-    oracleText: "Sacrifice a Goblin: Regenerate target creature.",
-    manaCost: { R: 1 },
-    types: ["Creature"],
-    subtypes: ["Goblin", "Shaman"],
-    power: 0,
-    toughness: 2,
-    activatedAbilities: [
-        {
-            id: "goblin-chirurgeon-regen",
-            oracleText: "Sacrifice a Goblin: Regenerate target creature.",
-            cost: { sacrificeFilter: { subtypes: ["Goblin"] } },
-            useStack: true,
-            targetRequirement: { type: "Creature", count: 1 },
-            // Migrated resolve()→effects[] (ADR 0045, #846): regenerate the
-            // announced creature target (CR 701.19a).
-            effects: [{ op: "regenerate", target: { target: 0 } }],
-        },
-    ],
-};
-
 export const goblinChirurgeonFemB: CardPrint = {
     printId: "982115b2-e1e7-4b2f-8eb6-a1633477d4a8", // FEM 54b
-    definitionId: goblinChirurgeon.id,
+    definitionId: "2b710c21-e9f5-4660-80f6-2104ec65f63f",
     setCode: "fem",
     rarity: "uncommon",
 };
 
 export const goblinChirurgeonFemC: CardPrint = {
     printId: "c9740842-7955-4cf9-8f76-a426858360b1", // FEM 54c
-    definitionId: goblinChirurgeon.id,
+    definitionId: "2b710c21-e9f5-4660-80f6-2104ec65f63f",
     setCode: "fem",
     rarity: "uncommon",
 };
@@ -565,41 +541,6 @@ export const goblinFlotilla: CardDefinition = {
     power: 2,
     toughness: 2,
     staticAbilities: ["islandwalk"],
-};
-
-export const dwarvenLieutenant: CardDefinition = {
-    id: "ea9a38b1-4676-425a-b40d-4fb478966024", // FEM 52
-    rarity: "uncommon",
-    name: "Dwarven Lieutenant",
-    oracleText: "{1}{R}: Target Dwarf creature gets +1/+0 until end of turn.",
-    manaCost: { R: 2 },
-    types: ["Creature"],
-    subtypes: ["Dwarf", "Soldier"],
-    power: 1,
-    toughness: 2,
-    activatedAbilities: [
-        {
-            id: "dwarven-lieutenant-pump",
-            oracleText:
-                "{1}{R}: Target Dwarf creature gets +1/+0 until end of turn.",
-            cost: { mana: { X: 1, R: 1 } },
-            useStack: true,
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                subtypeFilter: "Dwarf",
-            },
-            effects: [
-                {
-                    op: "pump",
-                    target: { target: 0 },
-                    power: 1,
-                    toughness: 0,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
 };
 
 export const dwarvenSoldier: CardDefinition = {

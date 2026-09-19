@@ -12,7 +12,6 @@ import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
 import { hullBreach } from "../cards/sets/pls/multicolor";
 import { grizzlyBears, plains } from "../cards/sets/lea";
 import { fork, hillGiant } from "../cards/sets/lea/red";
-import { prodigalSorcerer } from "../cards/sets/lea/blue";
 import {
     withTemporaryDefinition,
     withTemporaryDefinitionAsync,
@@ -268,7 +267,11 @@ describe("ModeSelection — announcement bounds (CR 700.2a / 700.2d)", () => {
                 gameStateSeed(
                     board({
                         myBattlefield: [
-                            creature(prodigalSorcerer.id, "wiz", "p1"),
+                            creature(
+                                "e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a",
+                                "wiz",
+                                "p1"
+                            ),
                         ],
                     })
                 ),

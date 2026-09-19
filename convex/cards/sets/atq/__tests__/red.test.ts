@@ -23,24 +23,17 @@ import { resolveActivated, vanilla } from "./helpers";
 import { getDefinition } from "../../../index";
 
 const ornithopter = getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
-const dragonEngine = getDefinition("07793a71-1106-4303-b620-e403bd378020");
-const clayStatue = getDefinition("64975352-8d35-4d02-94ac-fa0c6ee12409");
 const crumble = getDefinition("d2101f86-8d3c-4ba8-ac42-bd3df0644280");
 const detonate = getDefinition("ffd7eb90-ae95-49df-898a-9510187bce1c");
 const shatterstorm = getDefinition("0987461a-45c0-4956-8627-cd27a7e038d0");
 const artifactBlast = getDefinition("1506d99d-7b2e-4101-84a5-c950dadb263a");
 const amuletOfKroog = getDefinition("b094f8dd-0184-41a2-9767-e848a6e4eac1");
 const goblinArtisans = getDefinition("6669d96e-9a7b-4427-a477-f4e76831f593");
-const atog = getDefinition("2249fc40-4412-48fd-800a-7ea3678aee3f");
-const orcishMechanics = getDefinition("5e34fc6b-5f00-4a22-9ee2-afc1caf99961");
-const dwarvenWeaponsmith = getDefinition(
-    "0848d94a-2704-460f-986b-b192dd6d26b7"
-);
 
 describe("Detonate ({X}{R} — destroy artifact of mv X, X damage to controller, CR 107.3 / 701.8)", () => {
     it("destroys an artifact with mv X and deals X damage to its controller", () => {
         // Dragon Engine is mv 3 (MTGJSON {3}). X = 3.
-        const engine = makeInstance(dragonEngine.id, {
+        const engine = makeInstance("07793a71-1106-4303-b620-e403bd378020", {
             id: "engine",
             controllerId: "p2",
             ownerId: "p2",
@@ -66,12 +59,12 @@ describe("Detonate ({X}{R} — destroy artifact of mv X, X damage to controller,
     it("getLegalTargets restricts to artifacts whose mv equals the chosen X", () => {
         // Two artifacts: Dragon Engine (mv 3), Clay Statue (mv 4). With X=3,
         // only the mv-3 artifact is legal (mvFilter: { equals: "X" }).
-        const engine = makeInstance(dragonEngine.id, {
+        const engine = makeInstance("07793a71-1106-4303-b620-e403bd378020", {
             id: "engine",
             controllerId: "p2",
             ownerId: "p2",
         });
-        const statue = makeInstance(clayStatue.id, {
+        const statue = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
             id: "statue",
             controllerId: "p2",
             ownerId: "p2",
@@ -94,11 +87,14 @@ describe("Detonate ({X}{R} — destroy artifact of mv X, X damage to controller,
     });
 
     it("can't be regenerated — a regen shield does not save the target", () => {
-        const engine = makeInstance(dragonEngine.id, {
+        const engine = makeInstance("07793a71-1106-4303-b620-e403bd378020", {
             id: "engine",
             controllerId: "p2",
             ownerId: "p2",
-            card: { id: dragonEngine.id, regenerationShields: 1 },
+            card: {
+                id: "07793a71-1106-4303-b620-e403bd378020",
+                regenerationShields: 1,
+            },
         });
         const state = makeState({
             players: [
@@ -119,12 +115,12 @@ describe("Detonate ({X}{R} — destroy artifact of mv X, X damage to controller,
 
 describe("Shatterstorm (destroy all artifacts, no regen, CR 701.8 / 701.19c)", () => {
     it("destroys every artifact on the battlefield, leaving non-artifacts", () => {
-        const a1 = makeInstance(clayStatue.id, {
+        const a1 = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
             id: "a1",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const a2 = makeInstance(dragonEngine.id, {
+        const a2 = makeInstance("07793a71-1106-4303-b620-e403bd378020", {
             id: "a2",
             controllerId: "p2",
             ownerId: "p2",
@@ -151,11 +147,14 @@ describe("Shatterstorm (destroy all artifacts, no regen, CR 701.8 / 701.19c)", (
     });
 
     it("can't be regenerated — artifacts with regen shields still die", () => {
-        const a1 = makeInstance(clayStatue.id, {
+        const a1 = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
             id: "a1",
             controllerId: "p1",
             ownerId: "p1",
-            card: { id: clayStatue.id, regenerationShields: 1 },
+            card: {
+                id: "64975352-8d35-4d02-94ac-fa0c6ee12409",
+                regenerationShields: 1,
+            },
         });
         const state = makeState({
             players: [
@@ -171,7 +170,7 @@ describe("Shatterstorm (destroy all artifacts, no regen, CR 701.8 / 701.19c)", (
     });
 
     it("spares indestructible artifacts (CR 702.12)", () => {
-        const a1 = makeInstance(clayStatue.id, {
+        const a1 = makeInstance("64975352-8d35-4d02-94ac-fa0c6ee12409", {
             id: "a1",
             controllerId: "p1",
             ownerId: "p1",
@@ -195,7 +194,11 @@ describe("Artifact Blast (counter target artifact spell, CR 701.6a / 114.1)", ()
     it("counters an artifact spell on the stack", () => {
         const state = makeState();
         // p2 casts Clay Statue (an Artifact spell). p1 responds with blast.
-        const statueSpell = pushSpell(state, clayStatue.id, "p2");
+        const statueSpell = pushSpell(
+            state,
+            "64975352-8d35-4d02-94ac-fa0c6ee12409",
+            "p2"
+        );
         pushSpell(state, artifactBlast.id, "p1", [
             { type: "spell", id: statueSpell.id },
         ]);
@@ -211,7 +214,11 @@ describe("Artifact Blast (counter target artifact spell, CR 701.6a / 114.1)", ()
 
     it("getLegalTargets only offers artifact spells, not other spell types", () => {
         const state = makeState();
-        const artifactSpell = pushSpell(state, clayStatue.id, "p2");
+        const artifactSpell = pushSpell(
+            state,
+            "64975352-8d35-4d02-94ac-fa0c6ee12409",
+            "p2"
+        );
         const instantSpell = pushSpell(state, crumble.id, "p2", [
             { type: "permanent", id: "nonexistent" },
         ]);
@@ -333,14 +340,16 @@ describe("Goblin Artisans ({T}: flip → draw / counter own artifact spell)", ()
 
 describe("Atog (CR 602.1 — sacrifice an artifact: +2/+2)", () => {
     it("pumps the source +2/+2 until end of turn on resolution", () => {
-        const at = makeInstance(atog.id, { id: "atog-1" });
+        const at = makeInstance("2249fc40-4412-48fd-800a-7ea3678aee3f", {
+            id: "atog-1",
+        });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [at] }),
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, at, "atog-pump");
+        resolveActivated(state, at, "atog-ability");
         const after = state.players[0].battlefield.find(
             (c) => c.id === "atog-1"
         )!;
@@ -349,14 +358,16 @@ describe("Atog (CR 602.1 — sacrifice an artifact: +2/+2)", () => {
     });
 
     it("wire format — pump survives projection", () => {
-        const at = makeInstance(atog.id, { id: "atog-1" });
+        const at = makeInstance("2249fc40-4412-48fd-800a-7ea3678aee3f", {
+            id: "atog-1",
+        });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [at] }),
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, at, "atog-pump");
+        resolveActivated(state, at, "atog-ability");
         const projected = projectPublicState(state, 1, "p1");
         const slim = projected.players[0].battlefield.find(
             (c) => c.id === "atog-1"
@@ -368,14 +379,16 @@ describe("Atog (CR 602.1 — sacrifice an artifact: +2/+2)", () => {
 
 describe("Orcish Mechanics (CR 602.1 — {T}, sac artifact: 2 dmg any target)", () => {
     it("deals 2 damage to a target player on resolution", () => {
-        const mech = makeInstance(orcishMechanics.id, { id: "mech-1" });
+        const mech = makeInstance("5e34fc6b-5f00-4a22-9ee2-afc1caf99961", {
+            id: "mech-1",
+        });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [mech] }),
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, mech, "orcish-mechanics-bolt", [
+        resolveActivated(state, mech, "orcish-mechanics-ability", [
             { type: "player", id: "p2" },
         ]);
         expect(state.players[1].life).toBe(18);
@@ -384,7 +397,9 @@ describe("Orcish Mechanics (CR 602.1 — {T}, sac artifact: 2 dmg any target)", 
 
 describe("Dwarven Weaponsmith (CR 602.5b — upkeep-only +1/+1 counter)", () => {
     it("puts a +1/+1 counter on a target creature on resolution", () => {
-        const smith = makeInstance(dwarvenWeaponsmith.id, { id: "smith-1" });
+        const smith = makeInstance("0848d94a-2704-460f-986b-b192dd6d26b7", {
+            id: "smith-1",
+        });
         const target = makeInstance(ornithopter.id, { id: "orn-tgt" });
         const state = makeState({
             phase: "UPKEEP",
@@ -393,7 +408,7 @@ describe("Dwarven Weaponsmith (CR 602.5b — upkeep-only +1/+1 counter)", () => 
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, smith, "dwarven-weaponsmith-counter", [
+        resolveActivated(state, smith, "dwarven-weaponsmith-ability", [
             { type: "permanent", id: "orn-tgt" },
         ]);
         const after = state.players[0].battlefield.find(

@@ -395,58 +395,6 @@ export const conchHorn: CardDefinition = {
     ],
 };
 
-export const draconianCylix: CardDefinition = {
-    id: "a419c9e3-5615-44f9-9256-94a3022bb69f", // FEM 86
-    rarity: "common",
-    name: "Draconian Cylix",
-    oracleText:
-        "{2}, {T}, Discard a card at random: Regenerate target creature.",
-    manaCost: { X: 3 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "draconian-cylix",
-            oracleText:
-                "{2}, {T}, Discard a card at random: Regenerate target creature.",
-            cost: { mana: { X: 2 }, tap: true, discardAtRandom: 1 },
-            useStack: true,
-            targetRequirement: { type: "Creature", count: 1 },
-            // Migrated resolve()→effects[] (ADR 0045, #846): regenerate the
-            // announced creature target (CR 701.19a).
-            effects: [{ op: "regenerate", target: { target: 0 } }],
-        },
-    ],
-};
-
-export const elvenLyre: CardDefinition = {
-    id: "c3a8cd72-04c0-46f7-a249-f1cecddfdc26", // FEM 87
-    rarity: "common",
-    name: "Elven Lyre",
-    oracleText:
-        "{1}, {T}, Sacrifice this artifact: Target creature gets +2/+2 until end of turn.",
-    manaCost: { X: 2 },
-    types: ["Artifact"],
-    activatedAbilities: [
-        {
-            id: "elven-lyre",
-            oracleText:
-                "{1}, {T}, Sacrifice this artifact: Target creature gets +2/+2 until end of turn.",
-            cost: { mana: { X: 1 }, tap: true, sacrifice: true },
-            useStack: true,
-            targetRequirement: { type: "Creature", count: 1 },
-            effects: [
-                {
-                    op: "pump",
-                    target: { target: 0 },
-                    power: 2,
-                    toughness: 2,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-};
-
 export const ringOfRenewal: CardDefinition = {
     id: "a532d38a-809b-4132-8690-be15fe23afab", // FEM 89
     rarity: "rare",

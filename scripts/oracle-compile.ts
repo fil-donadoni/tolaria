@@ -223,6 +223,16 @@ export interface BuildLockfileOptions {
      * committed verdicts forward (`carriedBotReach`), so the gate never plays.
      */
     readonly botReach?: BotReachSource;
+    /**
+     * The retirement ledger `stampRetirements` marks rows against. Omitted,
+     * reads the committed `data/oracle-retirements.json` — the real write and
+     * drift-guard paths. A test building a SYNTHETIC corpus passes
+     * `emptyRetirementLedger()` (or its own fixture ledger) so a real,
+     * globally-retired card's oracle id — absent from the synthetic corpus by
+     * construction — cannot fail `stampRetirements`'s unguarded-row refusal
+     * (issue #4027 exposed this: the ledger was empty until that PR).
+     */
+    readonly retirements?: RetirementLedger;
 }
 
 export function buildLockfile(
@@ -237,7 +247,7 @@ export function buildLockfile(
         );
     }
     const pool = poolOracleIds();
-    const retirements = readRetirementLedger();
+    const retirements = options.retirements ?? readRetirementLedger();
 
     // Fragment table: dedupe by the unconsumed line, count the CARDS it blocks.
     //

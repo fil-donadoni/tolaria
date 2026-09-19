@@ -126,7 +126,7 @@ describe("exile-set-driven activated-ability grant (CR 607.2a, issue #2943)", ()
             syncLayer6(state);
             expect(offeredAbilityIds(recipient)).toEqual([
                 "llanowar-elves-mana",
-                "prodigal-sorcerer-zap",
+                "prodigal-sorcerer-ability",
             ]);
             // The row names the EXILED card as the granting def and declares
             // where the template lives — no fallback could have found it, the
@@ -134,7 +134,7 @@ describe("exile-set-driven activated-ability grant (CR 607.2a, issue #2943)", ()
             expect(recipient.grantedActivatedAbilities).toEqual([
                 expect.objectContaining({
                     sourceCardId: SORCERER,
-                    abilityId: "prodigal-sorcerer-zap",
+                    abilityId: "prodigal-sorcerer-ability",
                     origin: "card-abilities",
                     auraId: "cauldron",
                 }),
@@ -166,7 +166,7 @@ describe("exile-set-driven activated-ability grant (CR 607.2a, issue #2943)", ()
             });
             syncLayer6(state);
             expect(offeredAbilityIds(recipient)).toEqual([
-                "prodigal-sorcerer-zap",
+                "prodigal-sorcerer-ability",
             ]);
 
             // A second card joins the linked pile mid-turn (CR 607.2a — a
@@ -182,7 +182,7 @@ describe("exile-set-driven activated-ability grant (CR 607.2a, issue #2943)", ()
             syncLayer6(state);
             expect(offeredAbilityIds(recipient)).toEqual([
                 "llanowar-elves-mana",
-                "prodigal-sorcerer-zap",
+                "prodigal-sorcerer-ability",
             ]);
 
             // ...and leaving it takes the ability back off.
@@ -246,7 +246,7 @@ describe("exile-set-driven activated-ability grant (CR 607.2a, issue #2943)", ()
                 { sourceId: "stripper", seq: grantSeq - 1 },
             ];
             expect(offeredAbilityIds(recipient)).toEqual([
-                "prodigal-sorcerer-zap",
+                "prodigal-sorcerer-ability",
             ]);
 
             // One that POSTDATES it takes it (Humility, then the grant).
@@ -320,7 +320,7 @@ describe("the ability source is narrowed by the type line IN EXILE (CR 113.6c, i
                 "grist-the-hunger-tide-minus2",
                 "grist-the-hunger-tide-minus5",
                 "grist-the-hunger-tide-plus1",
-                "prodigal-sorcerer-zap",
+                "prodigal-sorcerer-ability",
             ]);
         });
     });

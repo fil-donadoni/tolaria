@@ -406,64 +406,6 @@ export const savaenElves: CardDefinition = {
     ],
 };
 
-// Scavenger Folk — "{G}, {T}, Sacrifice this creature: Destroy target artifact."
-// (CR 605 activated ability; CR 118.5 sacrifice-self as a cost; CR 701.8 destroy
-// .) `cost.sacrifice: true` sacrifices the source itself as part of
-// activation; the destroy runs on resolution.
-export const scavengerFolk: CardDefinition = {
-    id: "8e99870c-b2b9-431b-b8a8-3f4a80aa8fa5",
-    rarity: "common",
-    name: "Scavenger Folk",
-    oracleText: "{G}, {T}, Sacrifice this creature: Destroy target artifact.",
-    manaCost: { G: 1 },
-    types: ["Creature"],
-    subtypes: ["Human"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "scavenger-folk-destroy-artifact",
-            oracleText:
-                "{G}, {T}, Sacrifice this creature: Destroy target artifact.",
-            cost: { mana: { G: 1 }, tap: true, sacrifice: true },
-            useStack: true,
-            targetRequirement: { type: "Artifact", count: 1 },
-            // Migrated resolve()→effects[] (ADR 0045, #832): destroy the
-            // announced target artifact (CR 701.8 destroy). The self-sacrifice is an
-            // activation cost, not part of the effect.
-            effects: [{ op: "destroy", target: { target: 0 } }],
-        },
-    ],
-};
-
-// Niall Silvain — "{G}{G}{G}{G}, {T}: Regenerate target creature." (CR 605
-// activated ability; CR 701.19 regeneration shield.) Targets ANY creature
-// (including itself). The regen primitive is `applyRegenerationShield`, the same
-// one Walking Dead / Zombie Master use, here applied to the chosen target.
-export const niallSilvain: CardDefinition = {
-    id: "9d5911b5-a54e-4ebb-9c36-d4dc8e97bb4b",
-    rarity: "rare",
-    name: "Niall Silvain",
-    oracleText: "{G}{G}{G}{G}, {T}: Regenerate target creature.",
-    manaCost: { G: 3 },
-    types: ["Creature"],
-    subtypes: ["Ouphe"],
-    power: 2,
-    toughness: 2,
-    activatedAbilities: [
-        {
-            id: "niall-silvain-regenerate",
-            oracleText: "{G}{G}{G}{G}, {T}: Regenerate target creature.",
-            cost: { mana: { G: 4 }, tap: true },
-            useStack: true,
-            targetRequirement: { type: "Creature", count: 1 },
-            // Migrated resolve()→effects[] (ADR 0045, #846): regenerate the
-            // announced creature target (CR 701.19a).
-            effects: [{ op: "regenerate", target: { target: 0 } }],
-        },
-    ],
-};
-
 // Scarwood Hag — two activated abilities granting / stripping forestwalk until
 // end of turn (CR 605 activated abilities; CR 611 layer-6 keyword grant /
 // removal; CR 702.14c forestwalk). The grant reuses `grantStaticAbility` with an

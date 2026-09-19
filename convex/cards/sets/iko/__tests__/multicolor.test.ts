@@ -37,7 +37,6 @@ const zirda = getDefinition("1bd8e61c-2ee8-4243-a848-7008810db8a0");
 // Dragon Engine (atq/colorless.ts) — Artifact Creature, "{2}: +1/+0" (non-mana,
 // useStack: true). Cross-set fixture, same pattern as Power Artifact's own
 // test (atq/__tests__/blue.test.ts).
-const dragonEngine = getDefinition("07793a71-1106-4303-b620-e403bd378020");
 // Celestial Prism (lea/colorless.ts) — Artifact, "{2}, {T}: Add one mana of
 // any color" — a MANA ability (useStack: false) WITH mana in its own cost,
 // the one shape that proves Zirda's "aren't mana abilities" exclusion (a
@@ -230,7 +229,7 @@ describe("Zirda, the Dawnwaker (Companion, activated-ability cost reduction excl
     /** Dragon Engine + Celestial Prism on one board, controlled by
      *  `hostController`; Zirda always controlled by p1. */
     function boardWithZirda(hostController: "p1" | "p2") {
-        const engine = makeInstance(dragonEngine.id, {
+        const engine = makeInstance("07793a71-1106-4303-b620-e403bd378020", {
             id: "engine",
             controllerId: hostController,
             ownerId: hostController,
@@ -261,14 +260,14 @@ describe("Zirda, the Dawnwaker (Companion, activated-ability cost reduction excl
         const { state, engine } = boardWithZirda("p1");
         // Dragon Engine's {2} pump ability: {2} - {2} = {0}, floored to {1}.
         expect(
-            effectiveAbilityCost(state, engine, "dragon-engine-pump")
+            effectiveAbilityCost(state, engine, "dragon-engine-ability")
         ).toEqual({ X: 1 });
     });
 
     it("does NOT reduce an ability its controller doesn't control ('abilities YOU activate')", () => {
         const { state, engine } = boardWithZirda("p2");
         expect(
-            effectiveAbilityCost(state, engine, "dragon-engine-pump")
+            effectiveAbilityCost(state, engine, "dragon-engine-ability")
         ).toEqual({ X: 2 });
     });
 
@@ -348,7 +347,7 @@ describe("Zirda, the Dawnwaker (Companion, activated-ability cost reduction excl
             effectiveAbilityCost(
                 projected as unknown as GameState,
                 slimEngine as unknown as CardInstanceState,
-                "dragon-engine-pump"
+                "dragon-engine-ability"
             )
         ).toEqual({ X: 1 });
     });

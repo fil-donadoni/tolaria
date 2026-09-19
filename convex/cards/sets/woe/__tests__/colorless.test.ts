@@ -34,7 +34,7 @@ const EXILE_ABILITY = "agathas-soul-cauldron-exile";
  *  card whose activated ability carries a COLOURED pip, so the grant and the
  *  fixing are observable on the same activation. */
 const SHADE = "d0bd76c8-4cff-4c15-9686-7a299b589814";
-const SHADE_PUMP = "frozen-shade-pump";
+const SHADE_PUMP = "frozen-shade-ability";
 /** Grizzly Bears — a vanilla 2/2 body with no printed activated ability, so
  *  every ability the recipient offers is the Cauldron's doing. */
 const BEARS = "ce2d603a-3231-4a8c-bf39-1617586ea870";
@@ -46,7 +46,7 @@ const LIGHTNING_BOLT = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a";
  *  `activatedAbilities[]` contributes nothing whether or not the type filter
  *  exists. */
 const ICY = "29dc1596-a2e7-4d60-9f99-89babaef8a06";
-const ICY_TAP = "icy-manipulator-tap";
+const ICY_TAP = "icy-manipulator-ability";
 /** Grist, the Hunger Tide — a PLANESWALKER card that is a 1/1 Insect creature
  *  in every zone but the battlefield (CR 113.6c). The reflexive gate's
  *  zone-conditional case (issue #3278): read off the printed type line it is

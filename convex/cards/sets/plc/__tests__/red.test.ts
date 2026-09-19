@@ -37,7 +37,7 @@ describe("Prodigal Pyromancer ({T}: 1 damage to any target — DSL-only activate
     });
 
     it("deals 1 damage to the targeted player when the ability resolves (CR 120.1)", () => {
-        const pinger = makeInstance(prodigalPyromancer.id, {
+        const pinger = makeInstance("97787109-408e-42d3-acc5-300f5f5bf2ff", {
             id: "pyro1",
             controllerId: "p1",
             ownerId: "p1",
@@ -62,7 +62,7 @@ describe("Prodigal Pyromancer ({T}: 1 damage to any target — DSL-only activate
     });
 
     it("the 1 damage survives projection (wire format)", () => {
-        const pinger = makeInstance(prodigalPyromancer.id, {
+        const pinger = makeInstance("97787109-408e-42d3-acc5-300f5f5bf2ff", {
             id: "pyro2",
             controllerId: "p1",
             ownerId: "p1",

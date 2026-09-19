@@ -172,37 +172,6 @@ export const altarOfBone: CardDefinition = {
         ctx.shuffleLibrary(ctx.controller);
     },
 };
-// Centaur Archer — {1}{R}{G} 3/2. "{T}: This creature deals 1 damage to target
-// creature with flying." (CR 605 activated ability; CR 120.1 damage; the "with
-// flying" filter narrows legal targets via `requireAbility`. Modern Scryfall
-// Oracle text — ADR 0004.)
-export const centaurArcher: CardDefinition = {
-    id: "e275c295-72da-4a86-82c6-cfd75b38b19c",
-    name: "Centaur Archer",
-    rarity: "uncommon",
-    oracleText:
-        "{T}: This creature deals 1 damage to target creature with flying.",
-    manaCost: { X: 1, R: 1, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Centaur", "Archer"],
-    power: 3,
-    toughness: 2,
-    activatedAbilities: [
-        {
-            id: "centaur-archer-ping",
-            oracleText:
-                "{T}: This creature deals 1 damage to target creature with flying.",
-            cost: { tap: true },
-            useStack: true,
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                requireAbility: "flying",
-            },
-            effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
-        },
-    ],
-};
 // DEFERRED (#734): the colour-keyed all-damage prevention shield itself now
 // ships (Prismatic Ward — a `replacementEffects[]` damage shield reading the
 // stored `chosenModeId` colour). Chromatic Armor now reuses that exact shield
@@ -1202,30 +1171,6 @@ export const stormSpirit: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "Creature", count: 1 },
-            effects: [{ op: "dealDamage", amount: 2, to: { target: 0 } }],
-        },
-    ],
-};
-// Stormbind — R/G Enchantment (activated here as part of the Red tranche, #633):
-// "{2}, Discard a card at random: This enchantment deals 2 damage to any
-// target." (CR 605 activated ability; the discard-at-random leg of the cost uses
-// the `discardAtRandom` cost field; CR 120.1 damage.)
-export const stormbind: CardDefinition = {
-    id: "c2d5d91b-aeb4-4d7e-b748-77f9960da55f",
-    name: "Stormbind",
-    rarity: "rare",
-    oracleText:
-        "{2}, Discard a card at random: This enchantment deals 2 damage to any target.",
-    manaCost: { X: 1, R: 1, G: 1 },
-    types: ["Enchantment"],
-    activatedAbilities: [
-        {
-            id: "stormbind-bolt",
-            oracleText:
-                "{2}, Discard a card at random: This enchantment deals 2 damage to any target.",
-            cost: { mana: { X: 2 }, discardAtRandom: 1 },
-            useStack: true,
-            targetRequirement: { type: "any", count: 1 },
             effects: [{ op: "dealDamage", amount: 2, to: { target: 0 } }],
         },
     ],

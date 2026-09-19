@@ -16,9 +16,6 @@ import { projectPublicState } from "../../../../gameProjections";
 import { resolveTopOfStack } from "../../../../gre/state";
 import { getDefinition } from "../../../index";
 
-const darkHeartOfTheWood = getDefinition(
-    "e3d3df64-1e90-4aef-86ae-0062aa23ff30"
-);
 const scarwoodGoblins = getDefinition("5542d236-af43-43b8-b30f-8980d74bbdd0");
 
 describe("Scarwood Goblins (vanilla creature, CR 302)", () => {
@@ -44,7 +41,7 @@ describe("Scarwood Goblins (vanilla creature, CR 302)", () => {
 
 describe("Dark Heart of the Wood — Sacrifice a Forest: gain 3 life (CR 118.5 / 119.3)", () => {
     it("the ability gains its controller 3 life on resolution (CR 119.3)", () => {
-        const dh = makeInstance(darkHeartOfTheWood.id, {
+        const dh = makeInstance("e3d3df64-1e90-4aef-86ae-0062aa23ff30", {
             id: "dh",
             controllerId: "p1",
         });
@@ -54,7 +51,7 @@ describe("Dark Heart of the Wood — Sacrifice a Forest: gain 3 life (CR 118.5 /
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, dh, "dark-heart-of-the-wood-gain", []);
+        resolveActivated(state, dh, "dark-heart-of-the-wood-ability", []);
         expect(state.players[0].life).toBe(23); // 20 + 3
     });
 });

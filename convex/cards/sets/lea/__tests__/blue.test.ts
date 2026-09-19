@@ -81,11 +81,9 @@ const feedback = getDefinition("0eb8f591-d763-49bf-8ef9-86265aaa72f7");
 const flight = getDefinition("67c7784b-6b79-4268-a714-895c82809aff");
 const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
-const helmOfChatzuk = getDefinition("3792c6ef-c4e6-4923-9a51-7d28fbc5c393");
 const invisibility = getDefinition("1858ac51-e6a7-48d7-8759-166070ca13d8");
 const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
 const jadeStatue = getDefinition("8d82d94b-ceef-4533-a4f2-b6442a61b839");
-const jayemdaeTome = getDefinition("cac8c421-5b92-481d-b2de-560c0231ab58");
 const jump = getDefinition("cb3f4b11-ad1b-48e2-a500-787d351b0174");
 const lifetap = getDefinition("11add837-7ee4-4104-b031-c161bce459ae");
 const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
@@ -109,7 +107,6 @@ const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
 const plateau = getDefinition("6eafa00b-c628-40f6-86eb-88e1361fc7a0");
 const powerLeak = getDefinition("ccc982b6-35b2-4e33-ace2-86cb79123e4f");
 const powerSink = getDefinition("1b342dd3-09b9-4108-bf12-a65d4cef4eb9");
-const prodigalSorcerer = getDefinition("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a");
 const psionicBlast = getDefinition("a6a86e6e-bfff-46af-9d36-c912901fea92");
 const psychicVenom = getDefinition("f3f5b68a-6b0e-431e-89f0-ff60f17687a5");
 const redWard = getDefinition("e0c64c01-c2aa-470b-88c6-3d3e4a969649");
@@ -1463,7 +1460,7 @@ describe("Twiddle (modal tap/untap target artifact/creature/land, CR 701.26)", (
             controllerId: "p2",
             ownerId: "p2",
         });
-        const tome = makeInstance(jayemdaeTome.id, {
+        const tome = makeInstance("cac8c421-5b92-481d-b2de-560c0231ab58", {
             id: "tome",
             controllerId: "p1",
             ownerId: "p1",
@@ -1930,7 +1927,7 @@ describe("Pirate Ship ({T}: 1 dmg + can't attack unless defender controls Island
 
 describe("Prodigal Sorcerer ({T}: 1 dmg to any target — original Tim)", () => {
     function setup() {
-        const tim = makeInstance(prodigalSorcerer.id, {
+        const tim = makeInstance("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a", {
             id: "tim",
             controllerId: "p1",
             ownerId: "p1",
@@ -1951,7 +1948,7 @@ describe("Prodigal Sorcerer ({T}: 1 dmg to any target — original Tim)", () => 
             ...tim,
             zone: "stack",
             castById: "p1",
-            abilityId: "prodigal-sorcerer-zap",
+            abilityId: "prodigal-sorcerer-ability",
             targets: [{ type: "player", id: "p2" }],
         });
         resolveTopOfStack(state);
@@ -1971,7 +1968,7 @@ describe("Prodigal Sorcerer ({T}: 1 dmg to any target — original Tim)", () => 
             ...tim,
             zone: "stack",
             castById: "p1",
-            abilityId: "prodigal-sorcerer-zap",
+            abilityId: "prodigal-sorcerer-ability",
             targets: [{ type: "permanent", id: "lion" }],
         });
         resolveTopOfStack(state);
@@ -3366,7 +3363,7 @@ describe("Clone (enter as a copy of any creature, CR 707.2)", () => {
 
 describe("Copy Artifact (copy artifact + keep Enchantment, CR 707.9d)", () => {
     it("enters as a copy of an artifact and stays an enchantment too", () => {
-        const helm = makeInstance(helmOfChatzuk.id, {
+        const helm = makeInstance("3792c6ef-c4e6-4923-9a51-7d28fbc5c393", {
             id: "helm",
             controllerId: "p2",
             ownerId: "p2",
@@ -3397,7 +3394,9 @@ describe("Copy Artifact (copy artifact + keep Enchantment, CR 707.9d)", () => {
         const copy = state.players[0].battlefield.find(
             (c) => c.id === "copy1"
         )!;
-        expect((copy.card as { id: string }).id).toBe(helmOfChatzuk.id);
+        expect((copy.card as { id: string }).id).toBe(
+            "3792c6ef-c4e6-4923-9a51-7d28fbc5c393"
+        );
         expect(copy.types).toContain("Artifact");
         expect(copy.types).toContain("Enchantment");
         expect(copy.copiedFrom).toBe(copyArtifact.id);

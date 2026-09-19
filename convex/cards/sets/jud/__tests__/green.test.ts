@@ -10,7 +10,6 @@ import type {
 } from "../../../../gre/state";
 import { getDefinition } from "../../../index";
 
-const sylvanSafekeeper = getDefinition("f1b8413f-c9fc-4cea-b416-a1fcf651b009");
 const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 
 /** Push an activated ability onto the stack with its cost assumed already
@@ -37,11 +36,14 @@ function resolveActivated(
 // wiring, see ulg/white.ts-style precedent noted in jud/green.ts).
 describe("Sylvan Safekeeper (CR 118.5 sacrifice-a-land cost; CR 702.18 shroud grant)", () => {
     function setup() {
-        const safekeeper = makeInstance(sylvanSafekeeper.id, {
-            id: "safekeeper",
-            controllerId: "p1",
-            ownerId: "p1",
-        });
+        const safekeeper = makeInstance(
+            "f1b8413f-c9fc-4cea-b416-a1fcf651b009",
+            {
+                id: "safekeeper",
+                controllerId: "p1",
+                ownerId: "p1",
+            }
+        );
         const land = makeInstance(forest.id, {
             id: "land",
             controllerId: "p1",
@@ -58,7 +60,7 @@ describe("Sylvan Safekeeper (CR 118.5 sacrifice-a-land cost; CR 702.18 shroud gr
 
     it("grants the target creature you control shroud until end of turn", () => {
         const { state, safekeeper } = setup();
-        resolveActivated(state, safekeeper, "sylvan-safekeeper-shroud", [
+        resolveActivated(state, safekeeper, "sylvan-safekeeper-ability", [
             { type: "permanent", id: "safekeeper" },
         ]);
         const live = state.players[0].battlefield.find(

@@ -114,36 +114,6 @@ export const angryMob: CardDefinition = {
 // Activated-ability creatures (CR 605)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Exorcist — "{1}{W}, {T}: Destroy target black creature." (CR 605 activated
-// ability; CR 202.2 colour filter; CR 701.8 destroy.)
-export const exorcist: CardDefinition = {
-    id: "184b7d52-e991-4668-9f6a-bcded97f51ac",
-    rarity: "rare",
-    name: "Exorcist",
-    oracleText: "{1}{W}, {T}: Destroy target black creature.",
-    manaCost: { W: 2 },
-    types: ["Creature"],
-    subtypes: ["Human", "Cleric"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "exorcist-destroy-black",
-            oracleText: "{1}{W}, {T}: Destroy target black creature.",
-            cost: { mana: { X: 1, W: 1 }, tap: true },
-            useStack: true,
-            targetRequirement: {
-                type: "Creature",
-                colorFilter: "B",
-                count: 1,
-            },
-            // Migrated resolve()→effects[] (ADR 0045, #832): destroy the
-            // announced target black creature (CR 701.8).
-            effects: [{ op: "destroy", target: { target: 0 } }],
-        },
-    ],
-};
-
 // Miracle Worker — "{T}: Destroy target Aura attached to a creature you
 // control." (CR 605 activated ability; CR 701.8 destroy.) `subtypeFilter`
 // scopes targets to Auras; the "attached to a creature you control"

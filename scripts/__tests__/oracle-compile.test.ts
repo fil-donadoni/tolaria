@@ -9,12 +9,14 @@ import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-    buildLockfile,
+    buildLockfile as buildLockfileRaw,
     poolOracleIds,
     poolOracleIdsFromIndex,
+    type BuildLockfileOptions,
 } from "../oracle-compile";
 import { headerHashDrift } from "../check-oracle-lockfile";
 import type { CorpusCard } from "../oracle-corpus";
+import { emptyRetirementLedger } from "../lib/oracle-retirements";
 import {
     compilerHash,
     compilerSourceFiles,
@@ -28,6 +30,21 @@ import {
 } from "../lib/oracle-lockfile";
 
 const ROOT = join(import.meta.dirname, "..", "..");
+
+// This file builds SYNTHETIC corpora ("Test Bear" and friends), never the
+// real vendored one — so it must not stamp against the real, committed
+// `data/oracle-retirements.json` (issue #4027): a globally-retired card's
+// oracle id is absent from these fixtures by construction, and
+// `stampRetirements`'s own unguarded-row refusal would fire on every build.
+function buildLockfile(
+    corpus: readonly CorpusCard[],
+    options: BuildLockfileOptions = {}
+) {
+    return buildLockfileRaw(corpus, {
+        retirements: emptyRetirementLedger(),
+        ...options,
+    });
+}
 const LOCKFILE_PATH = join(ROOT, "data", "oracle-compiled.json");
 
 function corpusCard(overrides: Partial<CorpusCard> = {}): CorpusCard {
@@ -399,11 +416,22 @@ describe("the committed lockfile", () => {
 
     it("reproduces PRD #2693's Premodern corpus size", () => {
         // The PRD's measured baseline (2026-08-23) is 5,375 Premodern-legal
-        // oracle ids, of which 1,303 were covered by a hand-written definition.
-        // The corpus size is Scryfall's and must match exactly; the pool grows
-        // as cards ship, so it is asserted as a floor.
+        // oracle ids, of which 1,303 were covered by a hand-written
+        // definition. The corpus size is Scryfall's and must match exactly;
+        // the pool grows as cards ship, so it is asserted as a floor.
+        //
+        // Floor lowered from 1303 (issue #4027): `pool` is
+        // `poolOracleIdsFromIndex` — oracle ids WITHOUT
+        // `source: "compiled"` on their `data/card-index.json` row, i.e. the
+        // hand-written count specifically. Retirement (ADR 0114 §2) moves a
+        // card's row to `source: "compiled"` without losing coverage — it is
+        // still `ready` and still playable through its compiled twin, just no
+        // longer HAND-written — so retiring a wave of Premodern-legal cards
+        // is the first thing that can shrink this floor by design. Several
+        // more ranked "migration" tickets of this same kind are queued and
+        // will keep eroding it.
         expect(lock!.formats.premodern.total).toBe(5375);
-        expect(lock!.formats.premodern.pool).toBeGreaterThanOrEqual(1303);
+        expect(lock!.formats.premodern.pool).toBeGreaterThanOrEqual(1284);
     });
 });
 

@@ -669,35 +669,6 @@ export const kudzu: CardDefinition = {
     ],
 };
 
-// Ley Druid — "{T}: Untap target land." (CR 605 activated ability, 701.20a
-// untap). Stack-using ability (not a mana ability per CR 605.1a — produces no
-// mana directly).
-export const leyDruid: CardDefinition = {
-    id: "f9232508-d363-4ef3-987a-741f6bff331f",
-    rarity: "uncommon",
-    name: "Ley Druid",
-    oracleText: "{T}: Untap target land.",
-    manaCost: { X: 2, G: 1 },
-    types: ["Creature"],
-    subtypes: ["Human", "Druid"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "ley-druid-untap",
-            oracleText: "{T}: Untap target land.",
-            cost: { tap: true },
-            useStack: true,
-            targetRequirement: { type: "Land", count: 1 },
-            // Migrated resolve()→effects[] (ADR 0045, #842): untap the
-            // announced land target (CR 701.26b).
-            effects: [
-                { op: "tapUntap", action: "untap", target: { target: 0 } },
-            ],
-        },
-    ],
-};
-
 // Lifeforce — "{G}, Sacrifice Lifeforce: Counter target black spell." (CR
 // 701.6a counter, 202.2 color filter on stack target). Mirror of Deathgrip.
 export const lifeforce: CardDefinition = {

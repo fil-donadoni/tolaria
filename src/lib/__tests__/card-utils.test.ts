@@ -1747,7 +1747,7 @@ describe("getStackAbilities", () => {
                 view
             );
             expect(abilities.map((a) => a.id)).toContain(
-                "grim-lavamancer-bolt"
+                "grim-lavamancer-ability"
             );
         });
 
@@ -1772,7 +1772,7 @@ describe("getStackAbilities", () => {
                 view
             );
             expect(abilities.map((a) => a.id)).not.toContain(
-                "grim-lavamancer-bolt"
+                "grim-lavamancer-ability"
             );
         });
     });

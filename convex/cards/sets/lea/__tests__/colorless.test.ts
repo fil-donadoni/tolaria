@@ -101,7 +101,6 @@ const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 const gauntletOfMight = getDefinition("da248001-ed75-4b68-9532-37d3cd5afc4c");
 const glassesOfUrza = getDefinition("cafc2350-5d64-4379-9198-79a114654d45");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
-const helmOfChatzuk = getDefinition("3792c6ef-c4e6-4923-9a51-7d28fbc5c393");
 const hillGiant = getDefinition("0ddb98e8-13fe-4786-83f7-b72c56db135a");
 const howlingMine = getDefinition("51f8f6e1-a451-4262-90d3-5107caf54175");
 const icyManipulator = getDefinition("29dc1596-a2e7-4d60-9f99-89babaef8a06");
@@ -133,7 +132,6 @@ const phantasmalTerrain = getDefinition("1c371aa1-1619-41e3-8364-7bc9b8cf5d14");
 const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
 const plateau = getDefinition("6eafa00b-c628-40f6-86eb-88e1361fc7a0");
 const prodigalSorcerer = getDefinition("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a");
-const rodOfRuin = getDefinition("af957200-c538-4f52-b105-6db7a7abb4dc");
 const savannah = getDefinition("94f7e24c-2546-41b6-81ad-5e920b07e64e");
 const savannahLions = getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0");
 const scrubland = getDefinition("bebe39d4-21fb-46a4-a1ec-b97102e46c15");
@@ -602,7 +600,7 @@ describe.each([
 
 describe("Jayemdae Tome ({4}, {T}: Draw a card, CR 602.1 + 121.1)", () => {
     it("resolving the ability draws one card for the controller", () => {
-        const tome = makeInstance(jayemdaeTome.id, {
+        const tome = makeInstance("cac8c421-5b92-481d-b2de-560c0231ab58", {
             id: "tome",
             controllerId: "p1",
             ownerId: "p1",
@@ -627,7 +625,7 @@ describe("Jayemdae Tome ({4}, {T}: Draw a card, CR 602.1 + 121.1)", () => {
             ...tome,
             zone: "stack",
             castById: "p1",
-            abilityId: "jayemdae-tome-draw",
+            abilityId: "jayemdae-tome-ability",
             targets: [],
         });
         resolveTopOfStack(state);
@@ -639,7 +637,9 @@ describe("Jayemdae Tome ({4}, {T}: Draw a card, CR 602.1 + 121.1)", () => {
         // Jayemdae Tome's ability is visible on the board — the projection
         // strips card.card to { id }, so the engine must read ability metadata
         // from the registry, not from the fat embed.
-        const tome = makeInstance(jayemdaeTome.id, { id: "tome" });
+        const tome = makeInstance("cac8c421-5b92-481d-b2de-560c0231ab58", {
+            id: "tome",
+        });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [tome] }),
@@ -654,7 +654,7 @@ describe("Jayemdae Tome ({4}, {T}: Draw a card, CR 602.1 + 121.1)", () => {
         // registry via the card id.
         const def = jayemdaeTome;
         expect(slimTome.card.id).toBe(def.id);
-        expect(def.activatedAbilities?.[0].id).toBe("jayemdae-tome-draw");
+        expect(def.activatedAbilities?.[0].id).toBe("jayemdae-tome-ability");
     });
 });
 
@@ -782,14 +782,16 @@ describe("Icy Manipulator ({1}, {T}: tap target artifact/creature/land, CR 701.2
             ...icy,
             zone: "stack",
             castById: "p1",
-            abilityId: "icy-manipulator-tap",
+            abilityId: "icy-manipulator-ability",
             targets: [target],
         });
         resolveTopOfStack(state);
     }
 
     it("taps an untapped creature on resolution", () => {
-        const icy = makeInstance(icyManipulator.id, { id: "icy" });
+        const icy = makeInstance("29dc1596-a2e7-4d60-9f99-89babaef8a06", {
+            id: "icy",
+        });
         const lion = makeInstance(savannahLions.id, {
             id: "lion",
             controllerId: "p2",
@@ -806,7 +808,9 @@ describe("Icy Manipulator ({1}, {T}: tap target artifact/creature/land, CR 701.2
     });
 
     it("is a no-op when the target is already tapped (CR 701.26a)", () => {
-        const icy = makeInstance(icyManipulator.id, { id: "icy" });
+        const icy = makeInstance("29dc1596-a2e7-4d60-9f99-89babaef8a06", {
+            id: "icy",
+        });
         const lion = makeInstance(savannahLions.id, {
             id: "lion",
             controllerId: "p2",
@@ -824,7 +828,9 @@ describe("Icy Manipulator ({1}, {T}: tap target artifact/creature/land, CR 701.2
     });
 
     it("can target a land (tapping a tapland-source for mana denial)", () => {
-        const icy = makeInstance(icyManipulator.id, { id: "icy" });
+        const icy = makeInstance("29dc1596-a2e7-4d60-9f99-89babaef8a06", {
+            id: "icy",
+        });
         const island = makeInstance(tropicalIsland.id, {
             id: "island",
             controllerId: "p2",
@@ -841,8 +847,10 @@ describe("Icy Manipulator ({1}, {T}: tap target artifact/creature/land, CR 701.2
     });
 
     it("can target an artifact (including itself in principle)", () => {
-        const icy = makeInstance(icyManipulator.id, { id: "icy" });
-        const tome = makeInstance(jayemdaeTome.id, {
+        const icy = makeInstance("29dc1596-a2e7-4d60-9f99-89babaef8a06", {
+            id: "icy",
+        });
+        const tome = makeInstance("cac8c421-5b92-481d-b2de-560c0231ab58", {
             id: "tome",
             controllerId: "p2",
             ownerId: "p2",
@@ -858,7 +866,9 @@ describe("Icy Manipulator ({1}, {T}: tap target artifact/creature/land, CR 701.2
     });
 
     it("silently fizzles if the target has left the battlefield (CR 608.2b)", () => {
-        const icy = makeInstance(icyManipulator.id, { id: "icy" });
+        const icy = makeInstance("29dc1596-a2e7-4d60-9f99-89babaef8a06", {
+            id: "icy",
+        });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [icy] }),
@@ -870,7 +880,9 @@ describe("Icy Manipulator ({1}, {T}: tap target artifact/creature/land, CR 701.2
     });
 
     it("legal-target set spans artifacts, creatures and lands", () => {
-        const icy = makeInstance(icyManipulator.id, { id: "icy" });
+        const icy = makeInstance("29dc1596-a2e7-4d60-9f99-89babaef8a06", {
+            id: "icy",
+        });
         const lion = makeInstance(savannahLions.id, {
             id: "lion",
             controllerId: "p2",
@@ -881,7 +893,7 @@ describe("Icy Manipulator ({1}, {T}: tap target artifact/creature/land, CR 701.2
             controllerId: "p2",
             ownerId: "p2",
         });
-        const tome = makeInstance(jayemdaeTome.id, {
+        const tome = makeInstance("cac8c421-5b92-481d-b2de-560c0231ab58", {
             id: "tome",
             controllerId: "p1",
             ownerId: "p1",
@@ -902,7 +914,9 @@ describe("Icy Manipulator ({1}, {T}: tap target artifact/creature/land, CR 701.2
     });
 
     it("wire format: tap survives projectPublicState (regression guard)", () => {
-        const icy = makeInstance(icyManipulator.id, { id: "icy" });
+        const icy = makeInstance("29dc1596-a2e7-4d60-9f99-89babaef8a06", {
+            id: "icy",
+        });
         const lion = makeInstance(savannahLions.id, {
             id: "lion",
             controllerId: "p2",
@@ -1032,7 +1046,7 @@ describe("Copper Tablet (1 dmg to each player at their upkeep)", () => {
 
 describe("Rod of Ruin ({3}, {T}: 1 damage to any target)", () => {
     it("deals 1 damage to a target player on resolution", () => {
-        const rod = makeInstance(rodOfRuin.id, {
+        const rod = makeInstance("af957200-c538-4f52-b105-6db7a7abb4dc", {
             id: "rod",
             controllerId: "p1",
             ownerId: "p1",
@@ -1047,7 +1061,7 @@ describe("Rod of Ruin ({3}, {T}: 1 damage to any target)", () => {
             ...rod,
             zone: "stack",
             castById: "p1",
-            abilityId: "rod-of-ruin-shoot",
+            abilityId: "rod-of-ruin-ability",
             targets: [{ type: "player", id: "p2" }],
         });
         resolveTopOfStack(state);
@@ -2462,7 +2476,7 @@ describe("Jade Monolith ({1}: redirect next damage to creature to controller)", 
             controllerId: "p1",
             ownerId: "p1",
         });
-        const tim = makeInstance(prodigalSorcerer.id, {
+        const tim = makeInstance("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a", {
             id: "tim",
             controllerId: "p2",
             ownerId: "p2",
@@ -2491,9 +2505,12 @@ describe("Jade Monolith ({1}: redirect next damage to creature to controller)", 
         state.pendingChoices = undefined;
         resolveTopOfStack(state);
         // Now Tim taps to deal 1 damage to bear → shield redirects to p1.
-        const timAct = pushSpell(state, prodigalSorcerer.id, "p2", [
-            { type: "permanent", id: "bear" },
-        ]);
+        const timAct = pushSpell(
+            state,
+            "e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a",
+            "p2",
+            [{ type: "permanent", id: "bear" }]
+        );
         timAct.abilityId = prodigalSorcerer.activatedAbilities![0].id;
         // The shield matches on stack item id; rebind the stack item id to
         // "tim" so the source filter on the shield identifies the Tim
@@ -4110,7 +4127,9 @@ describe("Sunglasses of Urza (spend white as though red, CR 609.4b)", () => {
 
 describe("Helm of Chatzuk (CR 611.2a temporary keyword grant)", () => {
     it("grants banding to the target creature until end of turn", () => {
-        const helm = makeInstance(helmOfChatzuk.id, { id: "helm" });
+        const helm = makeInstance("3792c6ef-c4e6-4923-9a51-7d28fbc5c393", {
+            id: "helm",
+        });
         const lion = makeInstance(grizzlyBearsId(), {
             id: "lion",
             controllerId: "p1",
@@ -4123,7 +4142,7 @@ describe("Helm of Chatzuk (CR 611.2a temporary keyword grant)", () => {
             ...helm,
             zone: "stack",
             castById: "p1",
-            abilityId: "helm-of-chatzuk-grant-banding",
+            abilityId: "helm-of-chatzuk-ability",
             targets: [{ type: "permanent", id: "lion" }],
         });
         resolveTopOfStack(state);

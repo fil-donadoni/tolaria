@@ -22,11 +22,7 @@ import {
 import { getDefinition, getCardByName, tryGetDefinition } from "../../cards";
 import { tracker } from "../../cards/sets/drk";
 import { checkStateBasedActions } from "../sba";
-import {
-    circleOfProtectionRed,
-    jayemdaeTome,
-    lightningBolt,
-} from "../../cards/sets/lea";
+import { circleOfProtectionRed, lightningBolt } from "../../cards/sets/lea";
 import {
     oasis,
     pyramids,
@@ -354,7 +350,10 @@ describe("activation flow — Jayemdae Tome ({4}, {T}: Draw a card)", () => {
     function setup() {
         const tome = makeInstance({
             id: "tome",
-            card: { id: jayemdaeTome.id, name: "Jayemdae Tome" },
+            card: {
+                id: "cac8c421-5b92-481d-b2de-560c0231ab58",
+                name: "Jayemdae Tome",
+            },
             types: ["Artifact"],
         });
         const islands = Array.from({ length: 4 }, (_, i) =>
@@ -368,7 +367,10 @@ describe("activation flow — Jayemdae Tome ({4}, {T}: Draw a card)", () => {
         const library = Array.from({ length: 3 }, (_, i) =>
             makeInstance({
                 id: `lib-${i}`,
-                card: { id: jayemdaeTome.id, name: "Jayemdae Tome" },
+                card: {
+                    id: "cac8c421-5b92-481d-b2de-560c0231ab58",
+                    name: "Jayemdae Tome",
+                },
                 zone: "library",
                 types: ["Artifact"],
             })
@@ -391,10 +393,12 @@ describe("activation flow — Jayemdae Tome ({4}, {T}: Draw a card)", () => {
             state,
             "p1",
             "tome",
-            "jayemdae-tome-draw"
+            "jayemdae-tome-ability"
         );
         expect(result).toBe("pending");
-        expect(state.pendingActivation?.abilityId).toBe("jayemdae-tome-draw");
+        expect(state.pendingActivation?.abilityId).toBe(
+            "jayemdae-tome-ability"
+        );
         expect(state.pendingActivation?.tapSource).toBe(true);
         expect(state.pendingActivation?.manaCost).toEqual({ X: 4 });
         // Source is NOT tapped yet — deferred to commit.
@@ -406,7 +410,7 @@ describe("activation flow — Jayemdae Tome ({4}, {T}: Draw a card)", () => {
 
     it("auto-commits after tapping four Islands and puts ability on stack", () => {
         const state = setup();
-        activateAbility(state, "p1", "tome", "jayemdae-tome-draw");
+        activateAbility(state, "p1", "tome", "jayemdae-tome-ability");
 
         expect(tapForActivationPayment(state, "p1", "island-0")).toBe("tapped");
         expect(tapForActivationPayment(state, "p1", "island-1")).toBe("tapped");
@@ -417,7 +421,7 @@ describe("activation flow — Jayemdae Tome ({4}, {T}: Draw a card)", () => {
 
         expect(state.pendingActivation).toBeUndefined();
         expect(state.stack).toHaveLength(1);
-        expect(state.stack[0].abilityId).toBe("jayemdae-tome-draw");
+        expect(state.stack[0].abilityId).toBe("jayemdae-tome-ability");
         const tome = getPlayer(state, "p1").battlefield.find(
             (c) => c.id === "tome"
         )!;
@@ -432,7 +436,7 @@ describe("activation flow — Jayemdae Tome ({4}, {T}: Draw a card)", () => {
 
     it("cancel rolls back tapped lands and leaves the source untapped", () => {
         const state = setup();
-        activateAbility(state, "p1", "tome", "jayemdae-tome-draw");
+        activateAbility(state, "p1", "tome", "jayemdae-tome-ability");
         tapForActivationPayment(state, "p1", "island-0");
         tapForActivationPayment(state, "p1", "island-1");
 
@@ -454,7 +458,7 @@ describe("activation flow — Jayemdae Tome ({4}, {T}: Draw a card)", () => {
 
     it("untapForActivationPayment reverses a single tap", () => {
         const state = setup();
-        activateAbility(state, "p1", "tome", "jayemdae-tome-draw");
+        activateAbility(state, "p1", "tome", "jayemdae-tome-ability");
         tapForActivationPayment(state, "p1", "island-0");
         tapForActivationPayment(state, "p1", "island-1");
 
@@ -482,7 +486,7 @@ describe("activation flow — Jayemdae Tome ({4}, {T}: Draw a card)", () => {
             state,
             "p1",
             "tome",
-            "jayemdae-tome-draw"
+            "jayemdae-tome-ability"
         );
 
         expect(result).toBe("committed");

@@ -569,7 +569,7 @@ describe("activated-ability targets are ranked too (CR 602.2b, PR #1914 review f
         return enumerateMoves(state, me(state)).filter(
             (m): m is Extract<Move, { kind: "activate-ability" }> =>
                 m.kind === "activate-ability" &&
-                m.abilityId === "jandors-saddlebags-untap"
+                m.abilityId === "jandor-s-saddlebags-ability"
         );
     }
 

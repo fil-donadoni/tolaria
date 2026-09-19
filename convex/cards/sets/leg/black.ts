@@ -209,98 +209,6 @@ export const lostSoul: CardDefinition = {
 
 // --- Activated-ability creatures (CR 605) ----------------------------------
 
-// Carrion Ants — "{1}: This creature gets +1/+1 until end of turn." (CR 611.1
-// repeatable temporary buff.)
-export const carrionAnts: CardDefinition = {
-    id: "cbc0b009-3951-4aa3-985a-97139882da7e",
-    rarity: "rare",
-    name: "Carrion Ants",
-    oracleText: "{1}: This creature gets +1/+1 until end of turn.",
-    manaCost: { X: 2, B: 2 },
-    types: ["Creature"],
-    subtypes: ["Insect"],
-    power: 0,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "carrion-ants-pump",
-            oracleText: "{1}: This creature gets +1/+1 until end of turn.",
-            cost: { mana: { X: 1 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, #840): self-pump +1/+1
-            // until end of turn (CR 611.1) via the `pump` Op.
-            effects: [
-                {
-                    op: "pump",
-                    target: { ref: "$source" },
-                    power: 1,
-                    toughness: 1,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-};
-
-// Walking Dead — "{B}: Regenerate this creature." (CR 701.19a regeneration
-// shield.)
-export const walkingDead: CardDefinition = {
-    id: "d7533a72-77d1-40cd-b3a1-7597d566c428",
-    rarity: "common",
-    name: "Walking Dead",
-    oracleText: "{B}: Regenerate this creature.",
-    manaCost: { X: 1, B: 1 },
-    types: ["Creature"],
-    subtypes: ["Zombie"],
-    power: 1,
-    toughness: 1,
-    activatedAbilities: [
-        {
-            id: "walking-dead-regenerate",
-            oracleText: "{B}: Regenerate this creature.",
-            cost: { mana: { B: 1 } },
-            useStack: true,
-            // Migrated resolve()→effects[] (ADR 0045, #846): a self-regenerate
-            // shield on the source (CR 701.19a) via the implicit $source.
-            effects: [{ op: "regenerate", target: { ref: "$source" } }],
-        },
-    ],
-};
-
-// Ghosts of the Damned — "{T}: Target creature gets -1/-0 until end of turn."
-// (CR 611.1 temporary debuff via a tap ability.)
-export const ghostsOfTheDamned: CardDefinition = {
-    id: "20275678-3488-43d8-a93b-993e2267ab07",
-    rarity: "common",
-    name: "Ghosts of the Damned",
-    oracleText: "{T}: Target creature gets -1/-0 until end of turn.",
-    manaCost: { X: 1, B: 2 },
-    types: ["Creature"],
-    subtypes: ["Spirit"],
-    power: 0,
-    toughness: 2,
-    activatedAbilities: [
-        {
-            id: "ghosts-of-the-damned-debuff",
-            oracleText: "{T}: Target creature gets -1/-0 until end of turn.",
-            cost: { tap: true },
-            useStack: true,
-            targetRequirement: { type: "Creature", count: 1 },
-            // Migrated resolve()→effects[] (ADR 0045, #840): -1/-0 to the
-            // targeted creature until end of turn (CR 611.1) via `pump`.
-            effects: [
-                {
-                    op: "pump",
-                    target: { target: 0 },
-                    power: -1,
-                    toughness: 0,
-                    duration: { phase: "end-of-turn" },
-                },
-            ],
-        },
-    ],
-};
-
 // Fallen Angel — Flying; "Sacrifice a creature: This creature gets +2/+1 until
 // end of turn." (CR 702.9 flying + CR 602.1 sacrifice-another cost via
 // `sacrificeFilter`, CR 611.1 buff.)
@@ -579,31 +487,6 @@ export const touchOfDarkness: CardDefinition = {
     ],
 };
 
-// Horror of Horrors — "Sacrifice a Swamp: Regenerate target black creature."
-// (CR 602.1 sacrifice cost via `sacrificeFilter` + CR 701.19a regeneration
-// shield on a colour-restricted target.)
-export const horrorOfHorrors: CardDefinition = {
-    id: "b9f68dc2-c048-41ec-b237-c36fdd99c27d",
-    rarity: "uncommon",
-    name: "Horror of Horrors",
-    oracleText: "Sacrifice a Swamp: Regenerate target black creature.",
-    manaCost: { X: 3, B: 2 },
-    types: ["Enchantment"],
-    activatedAbilities: [
-        {
-            id: "horror-of-horrors-regenerate",
-            oracleText: "Sacrifice a Swamp: Regenerate target black creature.",
-            // CR 205.3i — Swamp is a land type, so the subtype alone names it.
-            cost: { sacrificeFilter: { subtypes: "Swamp" } },
-            useStack: true,
-            targetRequirement: { type: "Creature", count: 1, colorFilter: "B" },
-            // Migrated resolve()→effects[] (ADR 0045, #846): regenerate the
-            // announced creature target (CR 701.19a).
-            effects: [{ op: "regenerate", target: { target: 0 } }],
-        },
-    ],
-};
-
 // --- Death triggers (CR 603.2) ---------------------------------------------
 
 // Cyclopean Mummy — "When this creature dies, exile it." (CR 603.2 self death
@@ -641,26 +524,6 @@ export const cyclopeanMummy: CardDefinition = {
                 );
             },
         }),
-    ],
-};
-
-// Greed — "{B}, Pay 2 life: Draw a card." (CR 119.4 life payment + CR 121.1
-// draw.)
-export const greed: CardDefinition = {
-    id: "111a16a2-e875-4756-80db-290f9e8606db",
-    rarity: "rare",
-    name: "Greed",
-    oracleText: "{B}, Pay 2 life: Draw a card.",
-    manaCost: { X: 3, B: 1 },
-    types: ["Enchantment"],
-    activatedAbilities: [
-        {
-            id: "greed-draw",
-            oracleText: "{B}, Pay 2 life: Draw a card.",
-            cost: { mana: { B: 1 }, life: 2 },
-            useStack: true,
-            effects: [{ op: "draw", player: "controller", count: 1 }],
-        },
     ],
 };
 

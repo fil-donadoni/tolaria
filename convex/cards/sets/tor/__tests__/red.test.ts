@@ -27,7 +27,7 @@ import { getDefinition } from "../../../index";
 const grimLavamancer = getDefinition("5dd72697-24be-42c7-a6d9-a837bdbd4662");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
-const ABILITY_ID = "grim-lavamancer-bolt";
+const ABILITY_ID = "grim-lavamancer-ability";
 
 /** Mirror of game.ts `canPayExileFromGraveyard`, including the `owner: "you"`
  *  restriction: when `restrictOwnerId` is set only that player's graveyard is
@@ -104,7 +104,7 @@ function setup(overrides?: {
     ownGraveyard?: CardInstanceState[];
     oppGraveyard?: CardInstanceState[];
 }) {
-    const lavamancer = makeInstance(grimLavamancer.id, {
+    const lavamancer = makeInstance("5dd72697-24be-42c7-a6d9-a837bdbd4662", {
         id: "lava",
         controllerId: "p1",
         ownerId: "p1",

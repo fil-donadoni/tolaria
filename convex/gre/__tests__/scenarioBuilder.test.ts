@@ -30,7 +30,7 @@ import {
     lightningBolt,
     shivanDragon,
 } from "../../cards/sets/lea/red";
-import { prodigalSorcerer } from "../../cards/sets/lea/blue";
+const prodigalSorcerer = getDefinition("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a");
 import { arboria } from "../../cards/sets/leg/green";
 import { rasputinDreamweaver } from "../../cards/sets/leg/multicolor";
 import { cityOfBrass } from "../../cards/sets/arn/colorless";
@@ -46,7 +46,11 @@ import {
 } from "../../cards/sets/lea/black";
 import { onceUponATime } from "../../cards/sets/eld/green";
 import { grapeshot } from "../../cards/sets/tsp";
-import { tokenDefinitionId, tryGetDefinition } from "../../cards";
+import {
+    getDefinition,
+    tokenDefinitionId,
+    tryGetDefinition,
+} from "../../cards";
 import { findTokenSpec } from "../../cards/tokenCatalogue";
 import { projectFullState, projectPublicState } from "../../gameProjections";
 import {
@@ -4551,7 +4555,7 @@ describe("a declared stack loads into a live game (issue #3515)", () => {
                 kind: "ability",
                 name: prodigalSorcerer.name,
                 controller: "me",
-                abilityId: "prodigal-sorcerer-zap",
+                abilityId: "prodigal-sorcerer-ability",
                 targets: [{ kind: "player", seat: "opp" }],
             },
         ],
@@ -4574,7 +4578,7 @@ describe("a declared stack loads into a live game (issue #3515)", () => {
         expect(bolt.castById).toBe(p2.id);
         expect(bolt.abilityId).toBeUndefined();
         expect(bolt.targets).toEqual([{ type: "permanent", id: bears.id }]);
-        expect(zap.abilityId).toBe("prodigal-sorcerer-zap");
+        expect(zap.abilityId).toBe("prodigal-sorcerer-ability");
         expect(zap.castById).toBe(p1.id);
         expect(zap.targets).toEqual([{ type: "player", id: p2.id }]);
 

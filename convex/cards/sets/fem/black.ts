@@ -35,56 +35,23 @@ const THRULL_TOKEN: EffectTokenSpec = {
     imagePrintId: tokenPrintIdFor(BREEDING_PIT_ID, "Thrull"),
 };
 
-export const armorThrull: CardDefinition = {
-    id: "a98384d1-8e7d-4c41-9f23-47bc2ae2ad6a", // FEM 33a (canonical art)
-    rarity: "common",
-    name: "Armor Thrull",
-    oracleText:
-        "{T}, Sacrifice this creature: Put a +1/+2 counter on target creature.",
-    manaCost: { X: 2, B: 1 },
-    types: ["Creature"],
-    subtypes: ["Thrull"],
-    power: 1,
-    toughness: 3,
-    activatedAbilities: [
-        {
-            id: "armor-thrull-counter",
-            oracleText:
-                "{T}, Sacrifice this creature: Put a +1/+2 counter on target creature.",
-            cost: { tap: true, sacrifice: true },
-            useStack: true,
-            targetRequirement: { type: "Creature", count: 1 },
-            // CR 122 (issue #841) — put one +1/+2 counter on the target.
-            effects: [
-                {
-                    op: "counters",
-                    action: "add",
-                    counter: "+1/+2",
-                    target: { target: 0 },
-                    count: 1,
-                },
-            ],
-        },
-    ],
-};
-
 export const armorThrullFemB: CardPrint = {
     printId: "9c6120e6-ceb8-4eab-86b0-18d38ed97d8f", // FEM 33b
-    definitionId: armorThrull.id,
+    definitionId: "a98384d1-8e7d-4c41-9f23-47bc2ae2ad6a",
     setCode: "fem",
     rarity: "common",
 };
 
 export const armorThrullFemC: CardPrint = {
     printId: "18a91ed4-131e-455b-a3bd-0bd42aa754e5", // FEM 33c
-    definitionId: armorThrull.id,
+    definitionId: "a98384d1-8e7d-4c41-9f23-47bc2ae2ad6a",
     setCode: "fem",
     rarity: "common",
 };
 
 export const armorThrullFemD: CardPrint = {
     printId: "3d653ca4-c21f-4594-b900-2526a912001b", // FEM 33d
-    definitionId: armorThrull.id,
+    definitionId: "a98384d1-8e7d-4c41-9f23-47bc2ae2ad6a",
     setCode: "fem",
     rarity: "common",
 };

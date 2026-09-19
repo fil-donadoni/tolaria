@@ -436,10 +436,10 @@ describe("Dack Fayden emblem — cast-target steal (CR 601.2c / 603.2c / 613.1b)
         activateAbilityOnState(state, {
             playerId: "p1",
             cardInstanceId: "tim1",
-            abilityId: "prodigal-sorcerer-zap",
+            abilityId: "prodigal-sorcerer-ability",
         });
         const pt = state.pendingTarget!;
-        expect(pt.abilityId).toBe("prodigal-sorcerer-zap");
+        expect(pt.abilityId).toBe("prodigal-sorcerer-ability");
         pt.selected = [{ type: "permanent", id: "victim1" }];
         finalizeTargetSelection(state, pt, "p1");
 
@@ -451,7 +451,7 @@ describe("Dack Fayden emblem — cast-target steal (CR 601.2c / 603.2c / 613.1b)
         // only through what did NOT land on the stack — flip that call site to
         // `"spell"` and this test goes red.
         const abilityItem = state.stack.find(
-            (s) => s.abilityId === "prodigal-sorcerer-zap"
+            (s) => s.abilityId === "prodigal-sorcerer-ability"
         )!;
         expect(abilityItem).toBeDefined();
         expect(abilityItem.targets).toEqual([
