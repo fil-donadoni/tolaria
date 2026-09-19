@@ -214,6 +214,8 @@ function cardNameProse(body: string): string {
  * Inline code is NOT exempt: a card name in backticks is exactly the form the
  * convention replaces.
  *
+ * A `Front // Back` card is matched by its full name or by its front face.
+ *
  * Tuned for noise, not recall: case-sensitive, whole words only, and
  * single-word names (Island, Fog, Shock, Counterspell …) are skipped — they
  * collide with ordinary English and with engine identifiers, and a lint that
@@ -225,12 +227,22 @@ export function unlinkedCardNames(
 ): string[] {
     const prose = cardNameProse(body);
     const found = new Set<string>();
+    // A possessive follows a name (`Lightning Bolt's`, `…’s`), so the
+    // lookahead refuses only a word character or a hyphen; the lookbehind also
+    // refuses an apostrophe, which would make the match the tail of a word.
+    const bare = (name: string) =>
+        /\s/.test(name.trim()) &&
+        prose.includes(name) &&
+        new RegExp(`(?<![\\w'’-])${escapeRegExp(name)}(?![\\w-])`).test(prose);
     for (const name of cardNames) {
-        if (!/\s/.test(name.trim()) || !prose.includes(name)) continue;
-        const bounded = new RegExp(
-            `(?<![\\w'’-])${escapeRegExp(name)}(?![\\w’-])`
-        );
-        if (bounded.test(prose)) found.add(name);
+        if (bare(name)) {
+            found.add(name);
+            continue;
+        }
+        // A double-faced or split card is indexed as `Front // Back`, and
+        // prose names its front face — the name `card:link` resolves too.
+        const front = name.split(" // ")[0]!;
+        if (front !== name && bare(front)) found.add(front);
     }
     return [...found].sort();
 }

@@ -415,6 +415,28 @@ describe("queue lint — unlinked-card-name (issue #3666)", () => {
         ).toHaveLength(1);
     });
 
+    it("flags a possessive, straight or curly apostrophe alike", () => {
+        expect(
+            unlinkedCardNames("Lightning Bolt's target.", cardNames)
+        ).toEqual(["Lightning Bolt"]);
+        expect(
+            unlinkedCardNames("Lightning Bolt’s target.", cardNames)
+        ).toEqual(["Lightning Bolt"]);
+    });
+
+    it("flags a double-faced card by its front face, and by its full name", () => {
+        const dfc = ["Barkchannel Pathway // Tidechannel Pathway"];
+        expect(unlinkedCardNames("Barkchannel Pathway enters.", dfc)).toEqual([
+            "Barkchannel Pathway",
+        ]);
+        expect(
+            unlinkedCardNames(
+                "Barkchannel Pathway // Tidechannel Pathway enters.",
+                dfc
+            )
+        ).toEqual(["Barkchannel Pathway // Tidechannel Pathway"]);
+    });
+
     it("stays silent on a single-word name", () => {
         expect(unlinked("Shock the creature.")).toEqual([]);
     });
