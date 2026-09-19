@@ -156,19 +156,23 @@ describe("trigger-head anaphora — refusals (fail-closed, ADR 0105)", () => {
         ).toBe(true);
     });
 
-    it("refuses 'that card' returned anywhere but its owner's hand", () => {
-        expect(
-            refused(
-                oracleCard({
-                    typeLine: "Enchantment — Aura",
-                    oracleText:
-                        "Enchant creature\nWhen enchanted creature dies, return that card to the battlefield under your control.",
-                    power: undefined,
-                    toughness: undefined,
-                })
-            )
-        ).toBe(true);
-    });
+    // Destinations the zone grammar READS, so the refusal is the lowering's
+    // "hand only" rule and not an unread phrase.
+    it.each(["the battlefield", "your hand"])(
+        "refuses 'that card' returned to %s — only its owner's hand is read",
+        (zone) => {
+            expect(
+                refused(
+                    oracleCard({
+                        typeLine: "Enchantment — Aura",
+                        oracleText: `Enchant creature\nWhen enchanted creature dies, return that card to ${zone}.`,
+                        power: undefined,
+                        toughness: undefined,
+                    })
+                )
+            ).toBe(true);
+        }
+    );
 
     it.each(["one", "six"])(
         "refuses a '%s or more basic land types' threshold (CR 305.6 — five types exist)",
