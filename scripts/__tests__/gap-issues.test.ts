@@ -16,7 +16,6 @@ import {
     renderUnlockBlockedBy,
     syncUnlockEdges,
     withUnlockBlockers,
-    OP_GAP_UMBRELLA,
     PRD_ISSUE,
     renderOpGapBody,
     SUB_ISSUE_CAP,
@@ -56,7 +55,7 @@ describe("buildGrammarGapFilings", () => {
             ["(op) › draw", 4001],
         ]);
         expect(filings[0]!.kind).toBe("grammar");
-        expect(filings[0]!.fallbackParent).toBe(OP_GAP_UMBRELLA);
+        expect(filings[0]!.fallbackParent).toBe(PRD_ISSUE);
         expect(filings[0]!.title).toBe(grammarGapTitle(ADD_MANA_KEY));
         expect(filings[0]!.body(0)).toBe(
             renderOpGapBody("addMana", ADD_MANA_KEY)
@@ -103,7 +102,14 @@ class StubTracker implements GapTracker {
     updateCalls = 0;
 
     getIssue(number: number): TrackedIssue | null {
-        return this.issues.get(number) ?? null;
+        const issue = this.issues.get(number);
+        if (issue === undefined) return null;
+        const parent = this.parents.get(number);
+        return parent === undefined ? issue : { ...issue, parent };
+    }
+
+    setParent(child: number, parent: number): void {
+        this.parents.set(child, parent);
     }
 
     createIssue(input: { body: string; parent: number }): number {
@@ -170,7 +176,7 @@ function filing(over: Partial<GapFiling> = {}): GapFiling {
         title: grammarGapTitle(ADD_MANA_KEY),
         labels: LABELS,
         parentSetCode: null,
-        fallbackParent: OP_GAP_UMBRELLA,
+        fallbackParent: PRD_ISSUE,
         body: () => "body v1",
         ...over,
     };
@@ -192,7 +198,7 @@ describe("syncGaps", () => {
             },
         ]);
         expect(result.updatedRows.get(ADD_MANA_ROW)).toBe(5000);
-        expect(tracker.parents.get(5000)).toBe(OP_GAP_UMBRELLA);
+        expect(tracker.parents.get(5000)).toBe(PRD_ISSUE);
     });
 
     it("a second run against the tracker it just wrote is a no-op — idempotent", () => {

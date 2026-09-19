@@ -103,7 +103,8 @@ is more work than the Op". Then:
    Op-census allowlist rows (a closed set, `scripts/lib/gap-issues.ts`), which
    a new Op never enters; until it files fragment gaps too (issue #3869), open
    the issue through `/new-qa-issue`, titled `Grammar Gap: <key>`, under the
-   Op-gap umbrella issue #3972.
+   Grammar Rules umbrella of its band (`docs/agents/issue-tracker.md` §
+   Umbrellas partition by band).
 3. Stop here and report the gap issue. The Op lands with the rule that emits
    it, as Branch A, in the issue that closes the gap.
 

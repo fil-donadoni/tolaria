@@ -30,15 +30,29 @@
  * and the native `blocked by` edge this writes from it (issue #4052) — is the
  * last section of this file, with its own header.
  *
- * ── Parent, and the cap ────────────────────────────────────────────────
+ * ── Parent: umbrellas partition by BAND (issue #4056) ──────────────────
  *
- * Every Op-gap issue is a child of `OP_GAP_UMBRELLA`, never of PRD #3820
- * directly: GitHub caps a parent at 100 sub-issues, and 87 Op gaps under the
- * PRD filled it, leaving no room for its own slices (issue #3974). The other
- * kinds parent under their Target's set umbrella when there is one, else PRD
- * #3820. `syncGaps` refuses up front, before any write, a run whose creates
- * would push ANY parent past the cap — per parent, since a run now spans
- * several.
+ * Three kinds are partitioned — `grammar` under the Grammar Rules umbrellas,
+ * `mechanic` under the Ops umbrellas (new and existing Ops alike), `bot` under
+ * the Bot Gaps umbrellas — one umbrella per band, `BAND_UMBRELLAS`. The band
+ * is the COMPUTED one of `backlog:triage`: the strongest Target among the
+ * cards the gap reaches (`strongestCardBand`), so the umbrella is chosen by the
+ * same rule that computes the band and the partition cannot drift from the
+ * axis it partitions (issue #3851 decision 7). An open issue whose band is
+ * recomputed MOVES to its new band's umbrella — up or down, the board follows
+ * the Target List — except out of a `P0` umbrella, which is hand-set only.
+ *
+ * A partitioned gap with NO computed band is residue: filed under its kind's
+ * fallback, and an existing one keeps its current parent — `gaps-sync.ts`
+ * lists it. The one exception is a parent in `RETIRED_UMBRELLAS` (issue
+ * #3972, the undifferentiated Op-gap pile this replaced): residue there moves
+ * to the fallback, so the retired umbrella can close empty.
+ *
+ * The other kinds parent under their Target's set umbrella when there is one,
+ * else PRD #3820. GitHub caps a parent at 100 sub-issues; a band holds a
+ * bounded slice of the backlog, which is what keeps the cap unreachable, and
+ * `syncGaps` still refuses up front, before any write, a run whose creates and
+ * moves would push ANY parent past it.
  *
  * ── Idempotency ────────────────────────────────────────────────────────
  *
@@ -59,9 +73,12 @@
 
 import type { Allowlist } from "../check-gaps";
 import { declaredSection } from "./declared-section";
+import type { Band } from "./backlog-triage";
+import type { Lockfile } from "./oracle-lockfile";
 import {
     claimId,
     GAP_KINDS,
+    quarantineClass,
     splitClaimId,
     type ClaimRow,
     type GapKind,
@@ -70,8 +87,50 @@ import {
 /** The placeholder every allowlist row was seeded with: "not filed yet". */
 export const PRD_ISSUE = 3820;
 
-/** The parent of every Op-gap issue (itself a child of PRD #3820). */
-export const OP_GAP_UMBRELLA = 3972;
+/** The umbrella families the partition knows (issue #4056). */
+export type UmbrellaFamily = "grammar-rules" | "ops" | "bot-gaps";
+
+/** The kinds parented by band, and the family each one files under. A kind
+ *  missing here keeps the set-umbrella / PRD parent. */
+export const PARTITIONED_KINDS: Readonly<
+    Partial<Record<GapKind, UmbrellaFamily>>
+> = {
+    grammar: "grammar-rules",
+    mechanic: "ops",
+    bot: "bot-gaps",
+};
+
+/** A band an umbrella holds — `P0` too, although no rule computes it. */
+export type UmbrellaBand = "P0" | Band;
+
+/**
+ * One umbrella per (family, band). `P0` umbrellas are the owner's: nothing is
+ * filed into one and nothing is moved out of one. The umbrella's board
+ * `Priority` IS its band — set by hand once, at creation, and inherited by its
+ * children (issue #3212).
+ */
+export const BAND_UMBRELLAS: Readonly<
+    Record<UmbrellaFamily, Readonly<Record<UmbrellaBand, number>>>
+> = {
+    "grammar-rules": { P0: 4091, P1: 4092, P2: 4093, P3: 4094 },
+    ops: { P0: 4095, P1: 4096, P2: 4097, P3: 4098 },
+    "bot-gaps": { P0: 4099, P1: 4100, P2: 4101, P3: 4102 },
+};
+
+/** Parents the partition empties: residue under one moves to its fallback. */
+export const RETIRED_UMBRELLAS: ReadonlySet<number> = new Set([3972]);
+
+/** The band `parent` stands for within `family`, or null when it is not one
+ *  of that family's umbrellas. */
+export function umbrellaBand(
+    family: UmbrellaFamily,
+    parent: number | null
+): UmbrellaBand | null {
+    if (parent === null) return null;
+    for (const [band, n] of Object.entries(BAND_UMBRELLAS[family]))
+        if (n === parent) return band as UmbrellaBand;
+    return null;
+}
 
 /** GitHub's hard cap on sub-issues per parent. */
 export const SUB_ISSUE_CAP = 100;
@@ -120,6 +179,12 @@ export interface GapFiling {
     readonly parentSetCode: string | null;
     /** The parent to use when `parentSetCode` names no live umbrella. */
     readonly fallbackParent: number;
+    /**
+     * The COMPUTED band of a partitioned kind (`withPartitionBands`): its band
+     * umbrella wins over `parentSetCode` / `fallbackParent`. Absent or null =
+     * not partitioned, or residue.
+     */
+    readonly band?: Band | null;
     readonly body: (issue: number) => string;
 }
 
@@ -137,7 +202,7 @@ export function renderOpGapBody(op: string, key: string): string {
         "",
         `Closes when the rule lands: \`bun run check:gaps\` then forces the allowlist row (\`data/grammar-gaps.json\`, key \`${key}\`) out — the allowlist only shrinks.`,
         "",
-        `Parent: #${OP_GAP_UMBRELLA} (Op census gaps umbrella).`,
+        "Parent: the Grammar Rules umbrella of this gap's computed band — `gaps:sync` moves it when the band is recomputed (issue #4056).",
     ].join("\n");
 }
 
@@ -152,10 +217,75 @@ export function buildGrammarGapFilings(allowlist: Allowlist): GapFiling[] {
             title: grammarGapTitle(row.key),
             labels: GAP_LABELS.grammar,
             parentSetCode: null,
-            fallbackParent: OP_GAP_UMBRELLA,
+            fallbackParent: PRD_ISSUE,
             body: () => body,
         };
     });
+}
+
+// ── Band partition — the cards each partitioned gap reaches (issue #4056) ─
+
+/** The `grammar` key of an Op-census row names its Op after this prefix. */
+const OP_KEY_PREFIX = "(op) › ";
+
+/**
+ * `claimId` → the oracle ids a partitioned gap REACHES — what its band is
+ * computed over:
+ *
+ *   - `grammar` `(op) › <Op>` — the catalogue cards whose hand-written
+ *     definition uses the Op (`opUsers`): the cards whose Oracle text needs the
+ *     rule that emits it. The lockfile cannot say — no fragment is ever
+ *     attributed to an Op, and no compiled row emits it by definition;
+ *   - `mechanic` — the cards whose quarantine reasons map to the class
+ *     (`quarantineClass`, the key the filer used);
+ *   - `bot` — the cards carrying the key as their `CardRow.botGap` (a
+ *     `played` row's stale key excluded).
+ *
+ * Every lockfile card, not only the ranked ones: the band asks which Target
+ * the gap reaches at all, and `cardBandIndex` already ignores a card no
+ * ranked Target holds.
+ */
+export function partitionCardIndex(
+    lock: Pick<Lockfile, "cards">,
+    opUsers: ReadonlyMap<string, ReadonlySet<string>>
+): Map<string, Set<string>> {
+    const out = new Map<string, Set<string>>();
+    const add = (id: string, oracleId: string): void => {
+        let set = out.get(id);
+        if (set === undefined) out.set(id, (set = new Set()));
+        set.add(oracleId);
+    };
+    for (const row of lock.cards) {
+        for (const reason of row.quarantineReasons ?? []) {
+            const cls = quarantineClass(reason);
+            if (cls.kind === "mechanic")
+                add(claimId("mechanic", cls.key), row.oracleId);
+        }
+        // A `played` row's key is stale by contract (`CardRow.botGap`); the
+        // filer never files it, so it lends no band either.
+        if (row.botGap !== undefined && row.botReach !== "played")
+            add(claimId("bot", row.botGap), row.oracleId);
+    }
+    for (const [op, ids] of opUsers)
+        for (const id of ids)
+            add(claimId("grammar", `${OP_KEY_PREFIX}${op}`), id);
+    return out;
+}
+
+/**
+ * Stamp each PARTITIONED filing with its computed band — `bandOf` is the
+ * triage's cards source over the filing's reached cards. Every other filing
+ * is returned unchanged.
+ */
+export function withPartitionBands(
+    filings: readonly GapFiling[],
+    bandOf: (filing: GapFiling) => Band | null
+): GapFiling[] {
+    return filings.map((filing) =>
+        PARTITIONED_KINDS[filing.kind] === undefined
+            ? filing
+            : { ...filing, band: bandOf(filing) }
+    );
 }
 
 // ── Tracker ──────────────────────────────────────────────────────────────
@@ -163,6 +293,9 @@ export function buildGrammarGapFilings(allowlist: Allowlist): GapFiling[] {
 export interface TrackedIssue {
     readonly state: "OPEN" | "CLOSED";
     readonly body: string;
+    /** The native parent, null when none — read with the issue, so deciding a
+     *  move costs no call of its own. */
+    readonly parent?: number | null;
 }
 
 /** One open issue of the tracker, as the orphan-card pass reads it. */
@@ -184,6 +317,8 @@ export interface GapTracker {
         parent: number;
     }): number;
     updateBody(number: number, body: string): void;
+    /** Re-parent `child` under `parent` — the partition's move (issue #4056). */
+    setParent(child: number, parent: number): void;
     /** How many sub-issues `parent` holds right now. */
     subIssueCount(parent: number): number;
     /** The open, `prd`-labelled `[<CODE>] … set rollout` issue, or null. */
@@ -210,15 +345,40 @@ export type GapSyncAction = {
     readonly issue: number;
 };
 
+/** One re-parent the partition performed (issue #4056). */
+export interface GapMove {
+    readonly kind: GapKind;
+    readonly key: string;
+    readonly issue: number;
+    readonly from: number | null;
+    readonly to: number;
+}
+
 export interface GapSyncResult {
     readonly actions: readonly GapSyncAction[];
+    readonly moves: readonly GapMove[];
     /** `claimId(kind, key)` → the issue number the allowlist must record. */
     readonly updatedRows: ReadonlyMap<string, number>;
 }
 
-/** The parent to file `filing` under — its Target's umbrella, else the kind's
- *  own fallback (`OP_GAP_UMBRELLA` for `grammar`, PRD #3820 otherwise). */
+/** The band umbrella `filing` belongs under, or null — not partitioned, or
+ *  residue. */
+export function bandUmbrellaOf(filing: GapFiling): number | null {
+    const family = PARTITIONED_KINDS[filing.kind];
+    if (
+        family === undefined ||
+        filing.band === undefined ||
+        filing.band === null
+    )
+        return null;
+    return BAND_UMBRELLAS[family][filing.band];
+}
+
+/** The parent to file `filing` under — its band umbrella, else its Target's
+ *  set umbrella, else the kind's own fallback (PRD #3820). */
 function parentOf(filing: GapFiling, tracker: GapTracker): number {
+    const umbrella = bandUmbrellaOf(filing);
+    if (umbrella !== null) return umbrella;
     if (filing.parentSetCode === null) return filing.fallbackParent;
     return (
         tracker.findSetUmbrella(filing.parentSetCode) ?? filing.fallbackParent
@@ -226,11 +386,36 @@ function parentOf(filing: GapFiling, tracker: GapTracker): number {
 }
 
 /**
- * Create, update or leave alone — one decision per filing, entirely through
- * `tracker`. Reads every filed issue first and refuses, before any write, a
- * run whose creates would push ANY parent past GitHub's sub-issue cap: an
- * issue created and then left unparented is the failure this guards (issue
- * #3974), and a run now spans several parents, so the count is per parent.
+ * Where an EXISTING open issue must move, or null (issue #4056):
+ *
+ *   - banded → its band umbrella, unless it is already there or sits in its
+ *     family's hand-set `P0` umbrella;
+ *   - residue (or an unpartitioned kind) → nowhere, unless its parent is a
+ *     retired umbrella, in which case the kind's fallback.
+ */
+export function planMove(
+    filing: GapFiling,
+    parent: number | null
+): number | null {
+    const target = bandUmbrellaOf(filing);
+    if (target === null) {
+        if (parent !== null && RETIRED_UMBRELLAS.has(parent))
+            return filing.fallbackParent;
+        return null;
+    }
+    if (parent === target) return null;
+    if (umbrellaBand(PARTITIONED_KINDS[filing.kind]!, parent) === "P0")
+        return null;
+    return target;
+}
+
+/**
+ * Create, update, move or leave alone — one decision per filing, entirely
+ * through `tracker`. Reads every filed issue first and refuses, before any
+ * write, a run whose creates and moves would push ANY parent past GitHub's
+ * sub-issue cap: an issue created and then left unparented is the failure
+ * this guards (issue #3974), and a run spans several parents, so the count is
+ * per parent.
  */
 export function syncGaps(
     filings: readonly GapFiling[],
@@ -252,14 +437,24 @@ export function syncGaps(
     // Resolve each create's parent ONCE — `findSetUmbrella` is a network call
     // and the cap check and the create itself must agree on the answer.
     const parents = new Map<string, number>();
-    const creates = new Map<number, number>();
+    const moveTo = new Map<string, number>();
+    const incoming = new Map<number, number>();
     for (const filing of filings) {
-        if (!isCreate(filing)) continue;
-        const parent = parentOf(filing, tracker);
-        parents.set(claimId(filing.kind, filing.key), parent);
-        creates.set(parent, (creates.get(parent) ?? 0) + 1);
+        const id = claimId(filing.kind, filing.key);
+        let parent: number | null;
+        if (isCreate(filing)) {
+            parent = parentOf(filing, tracker);
+            parents.set(id, parent);
+        } else {
+            const current = existing.get(id)!;
+            if (current.state === "CLOSED") continue;
+            parent = planMove(filing, current.parent ?? null);
+            if (parent === null) continue;
+            moveTo.set(id, parent);
+        }
+        incoming.set(parent, (incoming.get(parent) ?? 0) + 1);
     }
-    for (const [parent, n] of creates) {
+    for (const [parent, n] of incoming) {
         const children = tracker.subIssueCount(parent);
         if (children + n > SUB_ISSUE_CAP) {
             throw new Error(
@@ -269,6 +464,7 @@ export function syncGaps(
     }
 
     const actions: GapSyncAction[] = [];
+    const moves: GapMove[] = [];
     const updatedRows = new Map<string, number>();
     for (const filing of filings) {
         const id = claimId(filing.kind, filing.key);
@@ -293,6 +489,11 @@ export function syncGaps(
             actions.push({ action: "skip-closed", ...common, issue });
             continue;
         }
+        const to = moveTo.get(id);
+        if (to !== undefined) {
+            tracker.setParent(issue, to);
+            moves.push({ ...common, issue, from: current.parent ?? null, to });
+        }
         const body = filing.body(issue);
         if (current.body === body) {
             actions.push({ action: "noop", ...common, issue });
@@ -301,7 +502,7 @@ export function syncGaps(
         tracker.updateBody(issue, body);
         actions.push({ action: "update", ...common, issue });
     }
-    return { actions, updatedRows };
+    return { actions, moves, updatedRows };
 }
 
 /**
