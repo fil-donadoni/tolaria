@@ -209,9 +209,12 @@ describe("the choice DOMAIN and the placeable POPULATION are different sets", ()
         // combined string is not — "the player must choose one of those
         // names and not both". Asserted as an exclusion rather than skipped,
         // so a split card that leaked its combined name into the domain reds.
+        // Read over the WHOLE catalogue, the population `getAllCardNames`
+        // walks: a compiled split card (Assault // Battery, issue #4125)
+        // obeys CR 709.4a exactly as a hand-written one does.
         const chooseable = new Set(getChooseableCardNames());
         const splitCombined = new Set(
-            getAllCards()
+            getAllCatalogueCards()
                 .filter((c) => c.splitHalves)
                 .map((c) => c.name)
         );
