@@ -261,9 +261,14 @@ export function partitionCardIndex(
             if (cls.kind === "mechanic")
                 add(claimId("mechanic", cls.key), row.oracleId);
         }
-        // A `played` row's key is stale by contract (`CardRow.botGap`); the
-        // filer never files it, so it lends no band either.
-        if (row.botGap !== undefined && row.botReach !== "played")
+        // `botGapOf`'s pair check (`gap-kinds.ts`), re-stated rather than
+        // imported — that module imports this one: a key with no verdict, or
+        // a `played` row's stale key, is never filed, so it lends no band.
+        if (
+            row.botGap !== undefined &&
+            row.botReach !== undefined &&
+            row.botReach !== "played"
+        )
             add(claimId("bot", row.botGap), row.oracleId);
     }
     for (const [op, ids] of opUsers)
