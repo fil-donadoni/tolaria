@@ -92,6 +92,10 @@ What should happen after the fix. Be specific about edge cases.
   (`docs/agents/issue-tracker.md` § `## Cards`), so a card cited as an EXAMPLE
   or a test case never goes here — omit the section when no card is the
   subject.
+- **Card names are Scryfall links** (`docs/agents/issue-tracker.md` § Card names are Scryfall links): every card name in the body —
+  never the title — is the link `bun run card:link "<Card Name>"` prints;
+  paste it, never build the URL by hand. Fenced code and the `## Cards` items
+  stay bare. `bun run queue:lint` flags a miss as `unlinked-card-name`.
 - Describe types, interfaces, and behavioral contracts
 - Each acceptance criterion must be independently testable
 - **`area:game-bot` issues carry a mandatory `Blade:` acceptance line**

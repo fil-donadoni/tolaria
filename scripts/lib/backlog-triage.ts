@@ -46,7 +46,11 @@
 import { PRD_ISSUE } from "./gap-issues";
 import { cardsNamedByTitle } from "./gap-kinds";
 import type { BoardPriority } from "./board-priority";
-import { declaredSection, fencedLines } from "./declared-section";
+import {
+    CARDS_HEADING,
+    declaredSection,
+    fencedLines,
+} from "./declared-section";
 import type { CardRow, Lockfile } from "./oracle-lockfile";
 import { quarantineClass, type ClaimRow } from "./targets";
 
@@ -205,7 +209,6 @@ export function cardsNamedByEngineTitle(
     return names;
 }
 
-const CARDS_HEADING = /^#{1,6}\s+cards\s*$/i;
 /** One inline wrapper a writer may put round a name: `` `X` `` or `**X**`. */
 const NAME_WRAPPER = /^(?:`([^`]+)`|\*\*([^*]+)\*\*)$/;
 

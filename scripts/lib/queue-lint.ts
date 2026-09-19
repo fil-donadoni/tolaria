@@ -20,6 +20,8 @@
 // that are already a contradiction in the data — block; everything else is
 // advisory and names the one-line fix. See the per-rule notes.
 
+import { CARDS_HEADING, fencedLines } from "./declared-section";
+
 export interface LintableIssue {
     number: number;
     title: string;
@@ -173,7 +175,85 @@ const PARENT = /^#{1,6}\s+parent/i;
 const HUMAN_JUDGMENT =
     /\b(browser|visually|visual|looks right|screenshot|by hand|manually|manual|design review|judgement|judgment|decide|chrome)\b/i;
 
-export function lintIssue(issue: LintableIssue): Finding[] {
+/** What the lint knows beyond the issue itself. Optional, so a caller that
+ *  only wants the blocking rules (the planner) pays nothing for it. */
+export interface LintContext {
+    /** Every card name the catalogue knows (`data/card-index.json`) — the
+     *  vocabulary of `unlinked-card-name`. Absent → that rule is not run. */
+    cardNames?: readonly string[];
+}
+
+/** An inline or image Markdown link, title included: the linked form is the
+ *  convention itself, and its tooltip is a type line, never a name. */
+const MARKDOWN_LINK = /!?\[(?:\\.|[^\]\\])*\]\([^)]*\)/g;
+const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * The body minus what is not prose an author wrote a card name into: fenced
+ * code (a log, a spec, a quoted template — `fencedLines` owns the fence rules)
+ * and the `## Cards` section, whose items are bare lockfile names BY CONTRACT
+ * because `backlog:triage` reads them (issue #4086).
+ */
+function cardNameProse(body: string): string {
+    const lines = body.split("\n");
+    const fenced = fencedLines(lines);
+    const kept: string[] = [];
+    let inCards = false;
+    lines.forEach((line, i) => {
+        if (fenced.has(i)) return;
+        const trimmed = line.trim();
+        if (HEADING.test(trimmed)) inCards = CARDS_HEADING.test(trimmed);
+        if (!inCards) kept.push(line);
+    });
+    return kept.join("\n").replace(MARKDOWN_LINK, "");
+}
+
+/**
+ * The catalogue card names the body writes as bare text — outside a link,
+ * outside a code fence, outside the `## Cards` declaration (issue #3666).
+ * Inline code is NOT exempt: a card name in backticks is exactly the form the
+ * convention replaces.
+ *
+ * A `Front // Back` card is matched by its full name or by its front face.
+ *
+ * Tuned for noise, not recall: case-sensitive, whole words only, and
+ * single-word names (Island, Fog, Shock, Counterspell …) are skipped — they
+ * collide with ordinary English and with engine identifiers, and a lint that
+ * cries wolf on "Shock" is one nobody reads.
+ */
+export function unlinkedCardNames(
+    body: string,
+    cardNames: readonly string[]
+): string[] {
+    const prose = cardNameProse(body);
+    const found = new Set<string>();
+    // A possessive follows a name (`Lightning Bolt's`, `…’s`), so the
+    // lookahead refuses only a word character or a hyphen; the lookbehind also
+    // refuses an apostrophe, which would make the match the tail of a word.
+    const bare = (name: string) =>
+        /\s/.test(name.trim()) &&
+        prose.includes(name) &&
+        new RegExp(`(?<![\\w'’-])${escapeRegExp(name)}(?![\\w-])`).test(prose);
+    for (const name of cardNames) {
+        if (bare(name)) {
+            found.add(name);
+            continue;
+        }
+        // A double-faced or split card is indexed as `Front // Back`, and
+        // prose names its front face — the name `card:link` resolves too.
+        const front = name.split(" // ")[0]!;
+        if (front !== name && bare(front)) found.add(front);
+    }
+    return [...found].sort();
+}
+
+/** How many names a finding lists before it summarises the rest. */
+const UNLINKED_SHOWN = 5;
+
+export function lintIssue(
+    issue: LintableIssue,
+    context: LintContext = {}
+): Finding[] {
     const findings: Finding[] = [];
     const body = issue.body ?? "";
     const labels = issue.labels;
@@ -294,6 +374,23 @@ export function lintIssue(issue: LintableIssue): Finding[] {
                 message:
                     "flagged HITL, but no acceptance criterion needs a human to look at anything — an HITL flag stops the PR being merged, so a wrong one parks finished work indefinitely (heuristic: no human-judgment wording found)",
                 fix: "drop the HITL flag, or state the criterion that genuinely needs a person",
+            });
+        }
+    }
+
+    if (context.cardNames) {
+        const bare = unlinkedCardNames(body, context.cardNames);
+        if (bare.length > 0) {
+            const shown = bare.slice(0, UNLINKED_SHOWN);
+            const more =
+                bare.length > shown.length
+                    ? ` … and ${bare.length - shown.length} more`
+                    : "";
+            findings.push({
+                rule: "unlinked-card-name",
+                severity: "advisory",
+                message: `card name(s) written as bare text: ${shown.join(", ")}${more} — a reader has to search Scryfall by hand (convention: docs/agents/issue-tracker.md § Card names are Scryfall links)`,
+                fix: `bun run card:link ${bare.map((n) => `"${n}"`).join(" ")}   # paste the printed links in place of the bare names`,
             });
         }
     }

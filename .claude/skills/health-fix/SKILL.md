@@ -104,7 +104,8 @@ every other change — with the standing sections: what to build, acceptance
 criteria, and a **`Target files`** section, one path per line. Parent it to the
 health PRD when the failure is about the gate itself; otherwise leave it
 parentless. Do **not** label it `ready-for-agent` — you are implementing it in
-this session, and the queue is drained, never filled.
+this session, and the queue is drained, never filled. A card named in the body
+is a Scryfall link from `bun run card:link "<Card Name>"` (`docs/agents/issue-tracker.md` § Card names are Scryfall links).
 
 ```bash
 gh issue create --title '…' --body '…' --label bug

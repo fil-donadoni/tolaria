@@ -157,6 +157,10 @@ self-contained, because the tracker is about to be closed:
 - **Definition of done** — including the standing per-slice obligations
   (proof-of-failure on new tests, frontend wiring walked, debug scenario
   emitted in the PR receipt as `{ label, spec }`).
+- **Card names are Scryfall links** (`docs/agents/issue-tracker.md` § Card names are Scryfall links) — every card name in the
+  body is the link `bun run card:link "<Card Name>"` prints, never a bare name
+  or a hand-built URL. When the slices are cut through `/to-tickets`, tell it
+  so: it is MTG-agnostic.
 - **`## Target files`** — MANDATORY, a plain bullet list of the module/glob
   paths the slice touches, derived from the Sites table. This is not a
   duplicate: the Sites table is prose for the implementer, `## Target files` is

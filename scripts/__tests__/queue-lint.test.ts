@@ -7,6 +7,7 @@ import {
     targetFilesSection,
     TARGET_FILES_FIX,
     TARGET_FILES_LABEL,
+    unlinkedCardNames,
     type LintableIssue,
 } from "../lib/queue-lint";
 import { parseTargetFiles } from "../lib/queue-plan";
@@ -355,5 +356,102 @@ describe("template, lint hint and reader name the same form (issue #3535)", () =
         expect(lintIssue(issue({ body })).map((x) => x.rule)).toContain(
             "no-target-files"
         );
+    });
+});
+
+describe("queue lint — unlinked-card-name (issue #3666)", () => {
+    // A slice of the catalogue vocabulary: two multi-word names, one that is a
+    // strict substring of neither, and a single-word name the rule must skip.
+    const cardNames = ["Lightning Bolt", "Serra Angel", "Shock", "Juzám Djinn"];
+    const LINK =
+        '[Lightning Bolt](https://scryfall.com/card/d573ef03-4730-45aa-93dd-e45ac1dbaf4a "{R} · Instant")';
+    const withCards = (extra: string) =>
+        lintIssue(issue({ body: `${WELL_FORMED}\n${extra}\n` }), {
+            cardNames,
+        });
+    const unlinked = (extra: string) =>
+        withCards(extra).filter((f) => f.rule === "unlinked-card-name");
+
+    it("flags a bare multi-word card name, advisory, naming the helper", () => {
+        const found = unlinked("Resolve Lightning Bolt against the face.");
+        expect(found).toHaveLength(1);
+        expect(found[0]!.severity).toBe("advisory");
+        expect(found[0]!.message).toContain("Lightning Bolt");
+        expect(found[0]!.fix).toBe(
+            'bun run card:link "Lightning Bolt"   # paste the printed links in place of the bare names'
+        );
+    });
+
+    it("never blocks, however many names are bare", () => {
+        const findings = withCards("Lightning Bolt, Serra Angel, Juzám Djinn.");
+        expect(isBlocking(findings)).toBe(false);
+    });
+
+    it("flags a name written as inline code — the form the convention replaces", () => {
+        expect(unlinked("Cast `Serra Angel` first.")).toHaveLength(1);
+    });
+
+    it("stays silent on a linked name", () => {
+        expect(unlinked(`Resolve ${LINK} against the face.`)).toEqual([]);
+    });
+
+    it("stays silent on a name inside a code fence", () => {
+        expect(
+            unlinked(
+                "```\nlog: Lightning Bolt resolved\n```\n\n~~~ts\nSerra Angel\n~~~"
+            )
+        ).toEqual([]);
+    });
+
+    it("stays silent on the `## Cards` declaration — bare names by contract", () => {
+        expect(
+            unlinked(
+                "## Cards\n\n- Serra Angel\n- `Lightning Bolt`\n\n## Notes\n\nnone"
+            )
+        ).toEqual([]);
+        // …but only inside it: the next section is prose again.
+        expect(
+            unlinked("## Cards\n\n- Serra Angel\n\n## Notes\n\nLightning Bolt")
+        ).toHaveLength(1);
+    });
+
+    it("flags a possessive, straight or curly apostrophe alike", () => {
+        expect(
+            unlinkedCardNames("Lightning Bolt's target.", cardNames)
+        ).toEqual(["Lightning Bolt"]);
+        expect(
+            unlinkedCardNames("Lightning Bolt’s target.", cardNames)
+        ).toEqual(["Lightning Bolt"]);
+    });
+
+    it("flags a double-faced card by its front face, and by its full name", () => {
+        const dfc = ["Barkchannel Pathway // Tidechannel Pathway"];
+        expect(unlinkedCardNames("Barkchannel Pathway enters.", dfc)).toEqual([
+            "Barkchannel Pathway",
+        ]);
+        expect(
+            unlinkedCardNames(
+                "Barkchannel Pathway // Tidechannel Pathway enters.",
+                dfc
+            )
+        ).toEqual(["Barkchannel Pathway // Tidechannel Pathway"]);
+    });
+
+    it("stays silent on a single-word name", () => {
+        expect(unlinked("Shock the creature.")).toEqual([]);
+    });
+
+    it("matches case-sensitively and on word boundaries only", () => {
+        expect(unlinked("a lightning bolt of inspiration")).toEqual([]);
+        expect(unlinked("XLightning Bolts")).toEqual([]);
+        expect(unlinkedCardNames("Juzám Djinn attacks.", cardNames)).toEqual([
+            "Juzám Djinn",
+        ]);
+    });
+
+    it("is not run when the caller passes no vocabulary (the planner)", () => {
+        expect(
+            lintIssue(issue({ body: `${WELL_FORMED}\nLightning Bolt\n` }))
+        ).toEqual([]);
     });
 });
