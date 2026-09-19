@@ -10,7 +10,7 @@
 
 import { describe, it, expect } from "vitest";
 import { tokenPrintIdFor } from "../tokenPrintLookup";
-import { getAllCards } from "../index";
+import { getAllCatalogueCards } from "../catalogue";
 import type { CardDefinition, EffectOp, EffectTokenSpec } from "../types";
 
 describe("tokenPrintIdFor (build-time Scryfall reverse-link)", () => {
@@ -86,6 +86,34 @@ const NO_PRINTED_TOKEN_ALLOWLIST: Record<string, string> = {
         "Boris Devilboon (LEG) — 1/1 B/R Minor Demon; no printed Minor Demon token exists.",
     "4e6bf56e-2d74-4e4d-a667-885853979377:Wolves of the Hunt":
         "Master of the Hunt (LEG) — 1/1 green Wolf named Wolves of the Hunt; no printed token exists.",
+    // Oracle-compiled producers (issue #4125): the card's FIRST printing — its
+    // compiled id (ADR 0108) — links no token in Scryfall's `all_parts`, so
+    // `fetch-token-prints.mjs --compiled` has nothing to resolve. They render
+    // via `TokenPlaceholder` until a pinned substitute exists for compiled cards.
+    "6d3c539b-4039-45c2-8d43-80648d946e91:Knight":
+        "Errand of Duty (compiled) — first printing's all_parts links no Knight token.",
+    "9079b01a-d595-4085-9e75-59e31827efeb:Skeleton":
+        "Hag of Death's Legion (compiled) — first printing's all_parts links no Skeleton token.",
+    "3c1a11b2-bcb8-43e2-9aa3-8e964dec1319:Spirit":
+        "Imaginary Friends (compiled) — first printing's all_parts links no Spirit token.",
+    "ee334211-4109-46ff-8676-856048221a1c:Kavu":
+        "Penumbra Kavu (compiled) — first printing's all_parts links no Kavu token.",
+    "9b544ed7-0df1-4fa0-b62c-d4b4a79bc121:Faerie Dragon":
+        "Rasaad, Dragon Monk (compiled) — first printing's all_parts links no Faerie Dragon token.",
+    "96aa9530-5404-4890-8bd0-40b39393afdd:Skeleton":
+        "Rasaad, Shadow Monk (compiled) — first printing's all_parts links no Skeleton token.",
+    "e26b4c00-cc85-41a2-8864-4688bef175aa:Boar":
+        "Rasaad, Sylvan Monk (compiled) — first printing's all_parts links no Boar token.",
+    "154ad44b-0a15-4564-890a-12517d81948f:Soldier":
+        "Rasaad, Warrior Monk (compiled) — first printing's all_parts links no Soldier token.",
+    "18cd73f4-78ba-404b-bdb2-7213a56daa4f:Saproling":
+        "Scatter the Seeds (compiled) — first printing's all_parts links no Saproling token.",
+    "951473f8-6925-4fe4-8595-ad4886282330:Saproling":
+        "Thallid Germinator (compiled) — first printing's all_parts links no Saproling token.",
+    "d0eee2d9-bb7e-40d8-b1bf-ca98c107c5d2:Saproling":
+        "Thallid Shell-Dweller (compiled) — first printing's all_parts links no Saproling token.",
+    "1131c187-8fc3-4cee-9422-355ef6622de7:Elemental":
+        "Wand of the Elements (compiled) — first printing's all_parts links no Elemental token.",
 };
 
 /** Recursively collects every `createToken` Op's token spec out of an Op
@@ -141,10 +169,14 @@ function allTokenSpecsFor(card: CardDefinition): EffectTokenSpec[] {
         .flatMap(collectTokenSpecs);
 }
 
+// The walk covers the WHOLE catalogue — hand-written AND Oracle-compiled
+// (issue #4125). A compiled card resolves its token art through the same
+// `tokenPrintIdFor(producerId, name)` lookup at runtime, so a grammar rule
+// that graduates a token producer owes the same art a hand-written author does.
 describe("createToken art completeness catalogue guard (issue #1305)", () => {
     it("every DSL createToken spec has resolvable art (print, explicit, or allowlisted)", () => {
         const missing: string[] = [];
-        for (const card of getAllCards()) {
+        for (const card of getAllCatalogueCards()) {
             for (const spec of allTokenSpecsFor(card)) {
                 const printed = tokenPrintIdFor(card.id, spec.name);
                 const key = `${card.id}:${spec.name}`;
@@ -153,7 +185,7 @@ describe("createToken art completeness catalogue guard (issue #1305)", () => {
                     spec.imagePrintId !== undefined || printed !== undefined;
                 if (!hasArt && !allowlisted) {
                     missing.push(
-                        `${card.name} (${card.id}): token "${spec.name}" has NO token art — regenerate token-prints.json (node scripts/fetch-token-prints.mjs --all) or add "${key}" to NO_PRINTED_TOKEN_ALLOWLIST`
+                        `${card.name} (${card.id}): token "${spec.name}" has NO token art — regenerate token-prints.json (node scripts/fetch-token-prints.mjs --all; --compiled for a compiled card) or add "${key}" to NO_PRINTED_TOKEN_ALLOWLIST`
                     );
                 }
             }
@@ -163,7 +195,7 @@ describe("createToken art completeness catalogue guard (issue #1305)", () => {
 
     it("no allowlist entry masks a token that DOES have a print now", () => {
         const stale: string[] = [];
-        for (const card of getAllCards()) {
+        for (const card of getAllCatalogueCards()) {
             for (const spec of allTokenSpecsFor(card)) {
                 const key = `${card.id}:${spec.name}`;
                 if (

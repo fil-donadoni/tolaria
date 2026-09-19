@@ -17,6 +17,7 @@ import type {
     EffectObjectSelector,
     EffectOp,
     EffectPlayerRef,
+    EffectTokenSpec,
     EffectValue,
     KickerCost,
     ManaCost,
@@ -152,6 +153,19 @@ export class SentenceWalk {
      * so the anaphora binds to nothing it was not written for.
      */
     libraryLookedAt: EffectPlayerRef | null = null;
+    /**
+     * CR 608.2h — the announced object the last sentence acted on, with the
+     * Op that acted on it: the referent of "that creature's mana value" in
+     * the sentence after it. The Op is kept (not a copy) so the reader can
+     * give it the `bind` that snapshots the object before it changes zone;
+     * set only by the lowerings that record it, so the anaphora binds to
+     * nothing it was not written for.
+     */
+    actedOn: {
+        /** A `destroy` or announced-target `moveZone` — both carry `bind`. */
+        readonly op: { bind?: string };
+        readonly requirement: TargetRequirement;
+    } | null = null;
 
     /** A binding name unique within this ability's script. */
     nextBind(prefix: string): string {
@@ -216,6 +230,26 @@ export function lowerSentence(
     walk: SentenceWalk,
     site: SiteOptions
 ): Lowered<EffectOp[]> {
+    const announced = walk.targets.requirements().length;
+    const actedOn = walk.actedOn;
+    const out = lowerSentenceBody(sentence, walk, site);
+    // CR 608.2h — "that creature" names the object the LAST sentence acted
+    // on. A sentence that announced a new target without recording itself
+    // (a tap, a pump) makes the older referent stale, so it is dropped rather
+    // than read past: an X read off the wrong object is a silent misread.
+    if (
+        walk.targets.requirements().length !== announced &&
+        walk.actedOn === actedOn
+    )
+        walk.actedOn = null;
+    return out;
+}
+
+function lowerSentenceBody(
+    sentence: EffectSentenceIR,
+    walk: SentenceWalk,
+    site: SiteOptions
+): Lowered<EffectOp[]> {
     const slots = walk.targets;
     switch (sentence.kind) {
         case "pump": {
@@ -272,17 +306,16 @@ export function lowerSentence(
             if (!target.ok) return target;
             // CR 701.19c — a "can't be regenerated" clause is a property of
             // the destruction, not a second effect.
-            return lowered(
+            const destroy: Extract<EffectOp, { op: "destroy" }> =
                 sentence.cantBeRegenerated
-                    ? [
-                          {
-                              op: "destroy",
-                              target: target.value,
-                              cantBeRegenerated: true,
-                          },
-                      ]
-                    : [{ op: "destroy", target: target.value }]
-            );
+                    ? {
+                          op: "destroy",
+                          target: target.value,
+                          cantBeRegenerated: true,
+                      }
+                    : { op: "destroy", target: target.value };
+            recordActedOn(walk, sentence.subject, destroy);
+            return lowered([destroy]);
         }
         case "tap-untap": {
             const target = objectSelector(sentence.subject, slots);
@@ -334,8 +367,14 @@ export function lowerSentence(
                 },
             ]);
         }
-        case "move-zone":
-            return lowerMoveZone(sentence.subject, sentence.to, slots);
+        case "move-zone": {
+            const moved = lowerMoveZone(sentence.subject, sentence.to, slots);
+            if (moved.ok)
+                recordActedOn(walk, sentence.subject, moved.value[0]!);
+            return moved;
+        }
+        case "create-token":
+            return lowerCreateToken(sentence, walk);
         case "optional": {
             // CR 603.2 — an optional triggered ability's controller chooses on
             // resolution, and declining does NOTHING. That is a cost-free
@@ -470,9 +509,84 @@ function gatedSentence(
     site: SiteOptions
 ): Lowered<EffectOp[]> {
     const antecedent = walk.libraryLookedAt;
+    const actedOn = walk.actedOn;
     const inner = lowerSentence(sentence, walk, site);
     walk.libraryLookedAt = antecedent;
+    walk.actedOn = actedOn;
     return inner;
+}
+
+/** Remember the announced object a sentence acted on (see `actedOn`). */
+function recordActedOn(
+    walk: SentenceWalk,
+    subject: SubjectIR,
+    op: EffectOp
+): void {
+    if (subject.kind !== "target") return;
+    if (op.op === "destroy" || (op.op === "moveZone" && "target" in op))
+        walk.actedOn = { op, requirement: subject.requirement };
+}
+
+/**
+ * CR 111.1 — create creature tokens, lowered to `createToken` in the shape
+ * every hand-written producer writes: the controller creates them (CR 111.2),
+ * the name is the subtypes — a DEVIATION from CR 111.4, which appends the
+ * word "Token", kept because it is the catalogue's convention for every
+ * unnamed token and the key `token-prints.json` art is looked up by (a name
+ * is never read to decide anything here: no card in this form names its own
+ * token) — and the art is NOT pinned on the spec: the runtime resolves
+ * it per producer from `token-prints.json` (`tokenPrintIdFor`), and the
+ * compiled pool's art-completeness guard (`tokenPrintLookup.test.ts`) holds
+ * every compiled producer to it.
+ *
+ * "where X is that <noun>'s mana value" (CR 202.3) reads the object the
+ * sentence before acted on, snapshotted by that Op's `bind` before it left
+ * the battlefield (CR 608.2h) — the Artifact Mutation shape. A noun that is
+ * not the announced object's type names an object we cannot point at.
+ */
+function lowerCreateToken(
+    sentence: Extract<EffectSentenceIR, { kind: "create-token" }>,
+    walk: SentenceWalk
+): Lowered<EffectOp[]> {
+    const { token, count } = sentence;
+    // CR 702.1 — a keyword the engine does not implement is a token that
+    // silently lacks it (Guard A, #962).
+    if (token.keyword !== null && token.keyword.status !== "implemented")
+        return unlowerable(
+            `the token's keyword "${token.keyword.ability}" is not implemented`
+        );
+    const spec: EffectTokenSpec = {
+        name: token.subtypes.join(" "),
+        types: ["Creature"],
+        subtypes: [...token.subtypes],
+        power: token.power,
+        toughness: token.toughness,
+        colors: [...token.colors],
+    };
+    if (token.keyword !== null) spec.staticAbilities = [token.keyword.ability];
+    const op: Extract<EffectOp, { op: "createToken" }> = {
+        op: "createToken",
+        token: spec,
+        controller: "controller",
+    };
+    if (count.kind === "fixed") {
+        if (count.value !== 1) op.count = count.value;
+        return lowered([op]);
+    }
+    const actedOn = walk.actedOn;
+    if (actedOn === null)
+        return unlowerable(
+            `"that ${count.noun}" names no object acted on before it (CR 608.2h)`
+        );
+    const type = actedOn.requirement.type;
+    if (typeof type !== "string" || type.toLowerCase() !== count.noun)
+        return unlowerable(
+            `"that ${count.noun}" is not the ${JSON.stringify(type)} acted on before it`
+        );
+    const bind = actedOn.op.bind ?? walk.nextBind("that");
+    actedOn.op.bind = bind;
+    op.count = { ref: `${bind}.manaValue` };
+    return lowered([op]);
 }
 
 /**

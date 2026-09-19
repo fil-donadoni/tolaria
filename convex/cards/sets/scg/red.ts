@@ -81,8 +81,6 @@ export const sulfuricVortex: CardDefinition = {
 // same shape Deadapult (`pls/red.ts`) uses for "Sacrifice a Zombie". The
 // Commander is itself a Goblin, so it is a legal sacrifice for its own
 // ability (CR 701.21a — the cost names a characteristic, not "another").
-//
-// compiler-gap: When this creature enters, create three 1/1 red Goblin creature tokens. (#2693)
 export const siegeGangCommander: CardDefinition = {
     id: "92e78cec-aaf9-4fe8-887b-b7e356d63315", // SCG 103
     rarity: "rare",

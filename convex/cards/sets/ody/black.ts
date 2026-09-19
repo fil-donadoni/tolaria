@@ -203,8 +203,6 @@ export const hauntingEchoes: CardDefinition = {
 // not apply and it waits for priority. The empty filter constrains nothing
 // ("two cards"), and the pair is paid at activation, never at resolution —
 // so a responding removal spell does not refund the cards (CR 602.2b).
-//
-// compiler-gap: "Discard two cards: Create a 2/2 black Zombie creature token." (#2693)
 export const zombieInfestation: CardDefinition = {
     id: "ccd5f98a-7ab5-44b3-850c-b50963dace66",
     rarity: "uncommon",

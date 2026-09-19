@@ -80,4 +80,52 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             },
         },
     },
+    // CR 111.1 + CR 608.2h — "Create X <token>s, where X is that creature's
+    // mana value": X is read off the snapshot the previous sentence's Op
+    // binds before the object leaves the battlefield. Exhibits two forms the
+    // canned smoke scenario cannot build — a `moveZone` to hand that binds
+    // its object, and a `createToken` whose count is a ref — so this fixture
+    // is the evidence both are emitted as the hand-written Artifact Mutation
+    // (sets/inv/multicolor.ts) writes them (issue #4125).
+    {
+        rule: "create token",
+        card: {
+            oracleId: "6697fe5b-90ac-4321-aa2f-cdc6ec283cb4",
+            name: "Aether Mutation",
+            manaCost: "{3}{G}{U}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Return target creature to its owner's hand. Create X 1/1 green Saproling creature tokens, where X is that creature's mana value.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Aether Mutation",
+            types: ["Sorcery"],
+            manaCost: { X: 3, U: 1, G: 1 },
+            oracleText:
+                "Return target creature to its owner's hand. Create X 1/1 green Saproling creature tokens, where X is that creature's mana value.",
+            effects: [
+                {
+                    op: "moveZone",
+                    target: { target: 0 },
+                    to: "hand",
+                    bind: "$that1",
+                },
+                {
+                    op: "createToken",
+                    token: {
+                        name: "Saproling",
+                        types: ["Creature"],
+                        subtypes: ["Saproling"],
+                        power: 1,
+                        toughness: 1,
+                        colors: ["G"],
+                    },
+                    controller: "controller",
+                    count: { ref: "$that1.manaValue" },
+                },
+            ],
+            targetRequirement: { type: "Creature", count: 1 },
+        },
+    },
 ]);

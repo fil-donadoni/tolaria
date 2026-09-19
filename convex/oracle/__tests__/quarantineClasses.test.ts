@@ -208,10 +208,11 @@ describe("card-dependent smoke skips quarantine until a fixture exhibits the for
 
     it("an op-covered container does not hide a card-dependent body", () => {
         // `mayPay` + `if` are op-covered; the `moveZone` in the `if` body is
-        // not, and `analyseOp` alone never reaches it.
-        const outcome = compileCard(MAY_BOUNCE);
-        expect(outcome.state).toBe("quarantine");
-        expect(smokeReasons(outcome)).toEqual([
+        // not, and `analyseOp` alone never reaches it. Gated with NO fixture:
+        // the registry's Aether Mutation row (issue #4125) exhibits this
+        // bounce form, and would otherwise clear the body this test is about.
+        const reasons = gate(compiled(MAY_BOUNCE), []);
+        expect(reasons.map((r) => r.detail)).toEqual([
             expect.stringContaining(`Op "moveZone"`),
         ]);
     });

@@ -1,4 +1,16 @@
 {
+    "04134be2-5e40-4732-832c-f616009eceff": [
+        {
+            "scryfallId": "09293ae7-0629-417b-9eda-9bd3f6d8e118",
+            "name": "Vampire"
+        }
+    ],
+    "04a8a5b8-9743-4d1a-89e9-61bdf180b2e0": [
+        {
+            "scryfallId": "c9deae5c-80d4-4701-b425-91853b7ee03b",
+            "name": "Inkling"
+        }
+    ],
     "04d83a07-6054-45f1-bdf9-07f2006238d2": [
         {
             "scryfallId": "000d9280-a79a-4f9f-822c-7aaecbff3337",
@@ -15,6 +27,12 @@
             "name": "The Monarch"
         }
     ],
+    "075b419a-fd44-4a9a-8c40-474562b7e11a": [
+        {
+            "scryfallId": "4c5ad4e1-b489-4023-88ab-1200c5f26ffc",
+            "name": "Merfolk"
+        }
+    ],
     "0783b426-a527-42c1-9271-be28b229e1c6": [
         {
             "scryfallId": "8c4b0257-2ca5-4015-9d63-d7cf6e87ab9d",
@@ -25,6 +43,36 @@
         {
             "scryfallId": "4ae9f454-4f8c-4123-9886-674bc439dfe7",
             "name": "Treasure"
+        }
+    ],
+    "08598b2b-6fd2-4a1d-8d74-7ca6d93ad382": [
+        {
+            "scryfallId": "880d5dc1-ceec-4c5f-93c2-c88b7dbfcac2",
+            "name": "Centaur"
+        }
+    ],
+    "0bef3905-24f8-419b-aeca-396adfc6d0dc": [
+        {
+            "scryfallId": "39b36f22-21f9-44fe-8a49-bdc859503342",
+            "name": "Elf"
+        }
+    ],
+    "0ec6a889-c941-4898-a2f6-4d3863faf535": [
+        {
+            "scryfallId": "e96f22c0-b9c8-418a-8224-e7d0b2841bd2",
+            "name": "Elephant"
+        }
+    ],
+    "118ba6f2-a2f0-4554-ad87-a932c951cdd4": [
+        {
+            "scryfallId": "14259948-5427-401f-b510-f5b705445e50",
+            "name": "Demon"
+        }
+    ],
+    "122d821f-c8dd-4a3c-a6d7-b42fe5491f02": [
+        {
+            "scryfallId": "67d3d039-248a-4eb8-be5c-12959b458fea",
+            "name": "Knight"
         }
     ],
     "13453abe-3f05-4956-8493-382d7d2af699": [
@@ -39,10 +87,40 @@
             "name": "Golem"
         }
     ],
+    "15709316-7382-46b9-9b70-53a5147e7051": [
+        {
+            "scryfallId": "bcd82cb0-ff4b-4f4d-b3d0-3ac53883b099",
+            "name": "Faerie"
+        }
+    ],
+    "15717af0-30cd-4417-947a-c27cca06d93a": [
+        {
+            "scryfallId": "398fbcd8-fac7-4396-9c69-5c72695121a9",
+            "name": "Human Citizen"
+        }
+    ],
+    "15b7cd60-e3b9-4dd8-ad3c-a687f642147f": [
+        {
+            "scryfallId": "d9cbf36e-4044-4f08-9bae-f0dcb2455716",
+            "name": "Human Soldier"
+        }
+    ],
+    "17d566bd-f272-49d1-bffb-588f2a42046a": [
+        {
+            "scryfallId": "e406949f-c629-48fa-9fb0-ba6191054d35",
+            "name": "Human Soldier"
+        }
+    ],
     "18092f68-b96e-4084-9eba-b240d2195d81": [
         {
             "scryfallId": "7d13a93a-a43d-4cf5-8300-8341f3b7f1b1",
             "name": "Human"
+        }
+    ],
+    "180b1a4f-c071-4742-9c57-9d775be0ed4f": [
+        {
+            "scryfallId": "001cc57e-f3fc-4790-a9e5-171b2e3e8739",
+            "name": "Wolf"
         }
     ],
     "18477047-218d-4b2a-a086-37431b6a3025": [
@@ -61,10 +139,76 @@
             "name": "Rogue"
         }
     ],
+    "1997e6a0-9e66-486d-921d-d64137c3221d": [
+        {
+            "scryfallId": "b8710a30-8314-49ef-b995-bd05454095be",
+            "name": "Zombie"
+        }
+    ],
+    "1b12e978-4deb-4ccc-8ae6-462bc4598c90": [
+        {
+            "scryfallId": "f55c70b8-0fa5-4d08-9061-f53d6f949908",
+            "name": "Beast"
+        }
+    ],
+    "1b9296ca-39a8-4aad-be92-0a56c704e950": [
+        {
+            "scryfallId": "c6610846-00d8-4cc2-a90a-4dc043ba7fa6",
+            "name": "Bear"
+        }
+    ],
+    "1c75f9c8-9640-4f64-b32a-916436e461fc": [
+        {
+            "scryfallId": "5f657b65-67fc-4b7d-bc9e-840190f69362",
+            "name": "Centaur"
+        }
+    ],
+    "1cc6a5e6-0b73-4488-8954-4b168ce7106d": [
+        {
+            "scryfallId": "c1424e8d-1f96-44af-9382-c337b6695ddf",
+            "name": "Plant"
+        }
+    ],
+    "1d5569e3-278c-4cf3-860e-712010333fe6": [
+        {
+            "scryfallId": "59e79ba0-33c8-46c8-8694-8bf854345fe7",
+            "name": "Spirit"
+        }
+    ],
+    "1dca2c1f-3835-478b-860c-51b2036221b2": [
+        {
+            "scryfallId": "5a84671e-cbe8-467e-9a8a-bbecba6158fa",
+            "name": "Bird"
+        }
+    ],
+    "1e3ccf3d-583c-46b4-b51e-ae1b0628d506": [
+        {
+            "scryfallId": "0c7f299e-4774-4e8b-bb0e-db27d57d2621",
+            "name": "Goblin"
+        }
+    ],
     "1f9fb33a-3b39-4aff-93b8-aedafe0ea694": [
         {
             "scryfallId": "6ef58164-4155-4e5b-8c16-f16f2ab65baa",
             "name": "Fanatic of Rhonas"
+        }
+    ],
+    "2100844c-6a41-40f5-b7f8-9b426d5a6945": [
+        {
+            "scryfallId": "3022b41d-05c1-452e-a1cd-5ec5a7f4d79d",
+            "name": "Goblin Soldier"
+        }
+    ],
+    "21049fee-a748-4856-99ae-3a225a168532": [
+        {
+            "scryfallId": "05a61555-ddb9-4d55-b637-a219d772033d",
+            "name": "Cat"
+        }
+    ],
+    "211045e1-85c7-4088-b830-a2afa0fe520b": [
+        {
+            "scryfallId": "01439983-8394-4a0c-9e9e-92a3f1927fe3",
+            "name": "Ally"
         }
     ],
     "224d904a-5972-4152-878a-9a922e7a55b6": [
@@ -77,6 +221,18 @@
         {
             "scryfallId": "fd0474f3-682d-4c6d-b902-84f3250aa269",
             "name": "Squirrel"
+        }
+    ],
+    "2354cb24-5c70-4aaa-8636-46866f0950c1": [
+        {
+            "scryfallId": "bd05e304-1a16-436d-a05c-4a38a839759b",
+            "name": "Wolf"
+        }
+    ],
+    "236ead00-d43e-4079-b74d-09be9875fd2d": [
+        {
+            "scryfallId": "a49da8fe-559f-4c34-b904-c285188fb98d",
+            "name": "Saproling"
         }
     ],
     "24c0d87b-0049-4beb-b9cb-6f813b7aa7dc": [
@@ -105,6 +261,18 @@
             "name": "Vampire"
         }
     ],
+    "29bd094c-fcc1-4abf-ba3e-03a5b9b6d1c2": [
+        {
+            "scryfallId": "248ade83-ac57-42d6-985c-1e4cc3639f36",
+            "name": "Saproling"
+        }
+    ],
+    "2a41edbe-4c5a-4535-a082-235dc3ffe60a": [
+        {
+            "scryfallId": "05b4dbe1-12ac-404f-a1fe-96e0b620533e",
+            "name": "Bird"
+        }
+    ],
     "2a717b98-cdac-416d-bf6c-f6b6638e65d1": [
         {
             "scryfallId": "e604b9ca-6c5a-459e-b509-955c3428530a",
@@ -123,10 +291,58 @@
             "name": "Rabbit"
         }
     ],
+    "2c7b19de-96a6-4590-bfc3-31b0c7b2e25e": [
+        {
+            "scryfallId": "59e79ba0-33c8-46c8-8694-8bf854345fe7",
+            "name": "Spirit"
+        }
+    ],
+    "2ccfa5c1-69f9-4351-aba3-883fe92c9b98": [
+        {
+            "scryfallId": "45907b16-af17-4237-ab38-9d7537fd30e8",
+            "name": "Soldier"
+        }
+    ],
     "2e139ad1-1079-49e9-babd-6399c44ad333": [
         {
             "scryfallId": "e5b57672-c346-42f5-ac3e-82466a13b957",
             "name": "Elemental"
+        }
+    ],
+    "2e40569c-640b-4a1a-a586-bde37de5591f": [
+        {
+            "scryfallId": "8a911fad-7af3-4bc4-bafc-cac2d5f18f22",
+            "name": "Boar"
+        }
+    ],
+    "2fc20157-edd3-484d-8864-925c071c0551": [
+        {
+            "scryfallId": "81de52ef-7515-4958-abea-fb8ebdcef93c",
+            "name": "Rabbit"
+        }
+    ],
+    "311c5f1d-7e3b-4397-b05b-f20bde2dc164": [
+        {
+            "scryfallId": "ad29eb21-7ee3-4a67-9601-a62ea0cbe4c0",
+            "name": "Kithkin Soldier"
+        }
+    ],
+    "3143fadd-0162-4e0c-89fc-89dc3501d13c": [
+        {
+            "scryfallId": "d53e20ee-b43c-45aa-9921-2c6f7ddc27fb",
+            "name": "Insect"
+        }
+    ],
+    "324b5234-ffbf-4801-a475-8f693679ae2f": [
+        {
+            "scryfallId": "2ed11e1b-2289-48d2-8d96-ee7e590ecfd4",
+            "name": "Kithkin"
+        }
+    ],
+    "3284b61a-bd95-4846-ad3f-903cd1158867": [
+        {
+            "scryfallId": "31661af9-a40a-418c-82e3-b74aa14cc7c4",
+            "name": "Bear"
         }
     ],
     "3287775f-7bec-4e8f-bb8d-daf5ce92e4a8": [
@@ -135,16 +351,46 @@
             "name": "Squirrel"
         }
     ],
+    "32a924b3-3bd6-43ad-acbd-1303dd670db4": [
+        {
+            "scryfallId": "afcaaab8-47be-43a7-a6cf-dea6dedece0e",
+            "name": "Wurm"
+        }
+    ],
+    "32d6c8d3-04a1-4b35-b7d1-18bed82beaf4": [
+        {
+            "scryfallId": "ca2df53f-060d-464a-9c97-908e49e2dc2c",
+            "name": "Saproling"
+        }
+    ],
     "32e29c7d-ed4b-4eff-b3c2-d99e5b63ef8d": [
         {
             "scryfallId": "2c5ed737-657b-43bf-b222-941da7579a4a",
             "name": "Incubator // Phyrexian"
         }
     ],
+    "333ff270-4bc7-48ee-9738-f8c70b8a7e40": [
+        {
+            "scryfallId": "5d2a3833-ab5b-4f84-b39c-d0eeb7b474d3",
+            "name": "Minotaur"
+        }
+    ],
+    "33af35c6-7802-4366-ad20-1e330b4957ef": [
+        {
+            "scryfallId": "e5aa36ec-5f3a-405d-9a65-5a56a44dcee3",
+            "name": "Insect"
+        }
+    ],
     "3462a3d0-5552-49fa-9eb7-100960c55891": [
         {
             "scryfallId": "261aed78-2d57-4ed4-b3d2-53b139b6bd44",
             "name": "Food"
+        }
+    ],
+    "356f0766-2cdc-469e-8488-27e528871dd5": [
+        {
+            "scryfallId": "44675b6a-ea5a-44f1-9f2c-3725cdfcc814",
+            "name": "Beast"
         }
     ],
     "38421179-615e-4aba-91a4-503bfee05403": [
@@ -159,16 +405,46 @@
             "name": "Copy"
         }
     ],
+    "3d6498d3-bf1f-4bf1-a602-7c21fb44c106": [
+        {
+            "scryfallId": "41dbf439-793a-4fe6-9d4e-0333f482e364",
+            "name": "Spirit"
+        }
+    ],
     "3d8ca18d-9099-4f1e-95c1-f04da58a26bd": [
         {
             "scryfallId": "cf4c245f-af2f-46a7-81f3-670a04940901",
             "name": "Skeleton"
         }
     ],
+    "3e11ad33-b9d7-43ef-840a-61955683b599": [
+        {
+            "scryfallId": "8c4b0257-2ca5-4015-9d63-d7cf6e87ab9d",
+            "name": "Soldier"
+        }
+    ],
+    "3e2c5a8f-c03a-40ab-8390-ff6b5b654717": [
+        {
+            "scryfallId": "b877c19d-6022-4377-92e7-4511e24eb98e",
+            "name": "Zombie"
+        }
+    ],
+    "3ec85cca-ac2c-4b1b-850b-6a762df72bd0": [
+        {
+            "scryfallId": "8989fdb4-723b-4c80-89b4-930ccac13b22",
+            "name": "Vampire Knight"
+        }
+    ],
     "40a9710e-b2f8-4746-8640-d450f58a6e49": [
         {
             "scryfallId": "248ade83-ac57-42d6-985c-1e4cc3639f36",
             "name": "Saproling"
+        }
+    ],
+    "41713e82-c3d3-4c2f-b075-f684cbd68ce8": [
+        {
+            "scryfallId": "b5bd6905-79be-4d2c-a343-f6e6a181b3e6",
+            "name": "Zombie"
         }
     ],
     "429a88cc-53db-4c5e-a061-f0f49a38c675": [
@@ -183,10 +459,28 @@
             "name": "Thopter"
         }
     ],
+    "44178ece-af31-4a94-88bc-c9ce43bb4573": [
+        {
+            "scryfallId": "28a7a9b0-d823-4b34-829f-ade81fc141e0",
+            "name": "Elemental"
+        }
+    ],
+    "44ee5ee3-11f8-4a4e-bfa3-10ff45ed6d1b": [
+        {
+            "scryfallId": "248ade83-ac57-42d6-985c-1e4cc3639f36",
+            "name": "Saproling"
+        }
+    ],
     "4720b4f2-e6af-4223-9250-a0ed21ed5693": [
         {
             "scryfallId": "c72ceae7-72d6-41dc-82cc-b86e845d7aa6",
             "name": "Pest"
+        }
+    ],
+    "47eba4f9-8276-4367-8ff5-53a066e8c729": [
+        {
+            "scryfallId": "70205fb6-7722-4974-a8c6-8909dbb1c96d",
+            "name": "Soldier"
         }
     ],
     "490eb213-9ae2-4b45-abec-6f1dfc83792a": [
@@ -199,6 +493,18 @@
         {
             "scryfallId": "b53e0681-603e-4180-bc86-3dadf214e61a",
             "name": "Phyrexian Germ"
+        }
+    ],
+    "4be510c8-fc01-4374-ac04-7968d24480fe": [
+        {
+            "scryfallId": "a58c2fc3-c07f-4f06-a9d5-1d0fe3dbde1f",
+            "name": "Soldier"
+        }
+    ],
+    "4c643d87-50bc-4380-b1d6-0a465eef5dbf": [
+        {
+            "scryfallId": "248ade83-ac57-42d6-985c-1e4cc3639f36",
+            "name": "Saproling"
         }
     ],
     "4c6cf93a-d073-48ac-88db-c46bf3e10beb": [
@@ -219,16 +525,40 @@
             "name": "Saproling"
         }
     ],
+    "4defdead-19fa-4535-9f71-8808388b0332": [
+        {
+            "scryfallId": "b877c19d-6022-4377-92e7-4511e24eb98e",
+            "name": "Zombie"
+        }
+    ],
     "4df8aabc-7fcb-4b7b-980b-18f499e6c170": [
         {
             "scryfallId": "284ec798-2725-4741-8748-578c259d0623",
             "name": "Treasure"
         }
     ],
+    "50cb4bf3-70d1-4acc-a1fb-49f4ea74ca16": [
+        {
+            "scryfallId": "33ee3f6c-5df6-4271-b2f9-86b9afffab7b",
+            "name": "Wurm"
+        }
+    ],
     "522aa72b-2b8c-484c-872b-f082101cee35": [
         {
             "scryfallId": "64839118-09d2-4645-9d3c-f80755ac781f",
             "name": "Map"
+        }
+    ],
+    "523ab784-c77e-4b78-99fc-b5d7ed985d76": [
+        {
+            "scryfallId": "165164e7-5693-4d65-b789-8ed8a222365b",
+            "name": "Citizen"
+        }
+    ],
+    "525ba5c7-3ce5-4e52-b8b5-96c9040a6738": [
+        {
+            "scryfallId": "0d287806-07bb-4709-9260-b9ef34fe2a13",
+            "name": "Knight"
         }
     ],
     "543d55cb-3a6b-4620-af25-10ae74ed32c4": [
@@ -243,6 +573,12 @@
             "name": "Wasp"
         }
     ],
+    "546c647d-8d0a-4b88-804e-ce0348eb772a": [
+        {
+            "scryfallId": "b7663358-c85c-4ba4-ac9b-6be6105363a9",
+            "name": "Elf Warrior"
+        }
+    ],
     "54a3ea87-005e-4985-b2a5-21711d0b71c0": [
         {
             "scryfallId": "8a016157-6f3f-4fb2-b962-1f548d378545",
@@ -251,6 +587,48 @@
         {
             "scryfallId": "059e9d51-c7bf-41c0-a6f0-c0bbc6d3b434",
             "name": "Insect"
+        }
+    ],
+    "564d6ff1-2be1-42f1-a919-fe8c2e148c3f": [
+        {
+            "scryfallId": "f9b56129-17a2-4512-a4d6-34779224473f",
+            "name": "Soldier"
+        }
+    ],
+    "5668699d-8df8-426b-a04a-99cfe55e570b": [
+        {
+            "scryfallId": "3663e79b-2bf9-44af-a638-c0ad9067d8d4",
+            "name": "Phyrexian Goblin"
+        }
+    ],
+    "56a23047-04c8-4f37-8296-f489370859aa": [
+        {
+            "scryfallId": "e5aa36ec-5f3a-405d-9a65-5a56a44dcee3",
+            "name": "Insect"
+        }
+    ],
+    "56a3108b-c33d-47c5-984b-01fa257fbd79": [
+        {
+            "scryfallId": "88439bfc-8942-473b-9e4f-863017788476",
+            "name": "Knight"
+        }
+    ],
+    "56b30a99-601b-40b9-b012-30fa4be5fd3c": [
+        {
+            "scryfallId": "7d13a93a-a43d-4cf5-8300-8341f3b7f1b1",
+            "name": "Human"
+        }
+    ],
+    "56d8e9fa-e241-4a11-99b8-ffced81eb38b": [
+        {
+            "scryfallId": "248ade83-ac57-42d6-985c-1e4cc3639f36",
+            "name": "Saproling"
+        }
+    ],
+    "5a0385d5-d0f4-40b8-af28-6557ffdfb625": [
+        {
+            "scryfallId": "09293ae7-0629-417b-9eda-9bd3f6d8e118",
+            "name": "Vampire"
         }
     ],
     "5a077de0-1893-40d0-a499-ee2e6e2258f1": [
@@ -263,6 +641,18 @@
         {
             "scryfallId": "761507d5-d36a-4123-a074-95d7f6ffb4c5",
             "name": "Servo"
+        }
+    ],
+    "5c57b3b8-71f1-479c-b7f7-508fee2b5b0f": [
+        {
+            "scryfallId": "b5bd6905-79be-4d2c-a343-f6e6a181b3e6",
+            "name": "Zombie"
+        }
+    ],
+    "5d569b01-af52-41a6-9ce4-02ed2e057038": [
+        {
+            "scryfallId": "e4a9051b-f964-43f9-877b-ea4f17620ecb",
+            "name": "Elemental"
         }
     ],
     "5da578b8-19e6-4068-9336-e7cd33c585f1": [
@@ -289,10 +679,70 @@
             "name": "Soldier"
         }
     ],
+    "5e8bded3-46c3-474f-9d09-978df8705ad1": [
+        {
+            "scryfallId": "118d0655-5719-4512-8bc1-fe759669811b",
+            "name": "Elf Warrior"
+        }
+    ],
+    "5ef6b657-7273-4abe-92f4-e1e4cda78f96": [
+        {
+            "scryfallId": "a49da8fe-559f-4c34-b904-c285188fb98d",
+            "name": "Saproling"
+        }
+    ],
+    "5f1f6178-4071-401f-bd0d-cac0c5967661": [
+        {
+            "scryfallId": "944a40e8-5469-4d8b-b044-67ff3382ec92",
+            "name": "Soldier"
+        }
+    ],
+    "5f50072b-aedd-4074-b1f7-f9ce477c26c2": [
+        {
+            "scryfallId": "248ade83-ac57-42d6-985c-1e4cc3639f36",
+            "name": "Saproling"
+        }
+    ],
+    "61a38f24-1eb3-4914-be1f-0b5f6d4b09d5": [
+        {
+            "scryfallId": "5f2a2483-d21f-4c31-9a36-ed7c5672894b",
+            "name": "Human"
+        }
+    ],
     "62b3f560-262b-4bc3-9aef-535fd7082c28": [
         {
             "scryfallId": "e85f57c5-923a-4824-969e-53feddd78c3b",
             "name": "Copy"
+        }
+    ],
+    "652c3bbb-cac8-47ad-81de-41e954e17a29": [
+        {
+            "scryfallId": "59e79ba0-33c8-46c8-8694-8bf854345fe7",
+            "name": "Spirit"
+        }
+    ],
+    "653cc07b-0f53-4b5b-9c5f-885b8b4a6e5f": [
+        {
+            "scryfallId": "a58c2fc3-c07f-4f06-a9d5-1d0fe3dbde1f",
+            "name": "Soldier"
+        }
+    ],
+    "661580bc-b5e5-48ce-b855-c177f1c61742": [
+        {
+            "scryfallId": "afcaaab8-47be-43a7-a6cf-dea6dedece0e",
+            "name": "Wurm"
+        }
+    ],
+    "668232ab-5e58-49f3-804a-c938252ff177": [
+        {
+            "scryfallId": "74506297-41ad-40e5-bb05-175650ff4907",
+            "name": "Elf Knight"
+        }
+    ],
+    "6769341a-1331-456d-a2bb-cd7fffe7b51d": [
+        {
+            "scryfallId": "f2e8077e-4400-4923-afe6-6ff5a51b5e91",
+            "name": "Djinn Monk"
         }
     ],
     "6920c895-bc98-4871-a53f-219fa27a74e5": [
@@ -301,10 +751,34 @@
             "name": "Spirit"
         }
     ],
+    "69251d44-3038-4b64-ab78-fc87f0406ba2": [
+        {
+            "scryfallId": "100c0127-49dd-4a78-9c88-1881e7923674",
+            "name": "Bat"
+        }
+    ],
+    "6967363f-1e05-4484-8790-47f7be68455c": [
+        {
+            "scryfallId": "248ade83-ac57-42d6-985c-1e4cc3639f36",
+            "name": "Saproling"
+        }
+    ],
     "69af2825-18c2-4463-b6ba-42eaa070ccc1": [
         {
             "scryfallId": "03ce1033-ce07-40ef-9315-beb759af9465",
             "name": "Insect"
+        }
+    ],
+    "6a5ebe27-2083-400e-8943-b506be470e3f": [
+        {
+            "scryfallId": "eb243b20-85e6-4eba-9403-42272975e8a5",
+            "name": "Beast"
+        }
+    ],
+    "6a989ac1-df69-45e7-98bf-564cc7c38973": [
+        {
+            "scryfallId": "96e8f429-5a66-4bcd-8a1f-69f9b79c0f5b",
+            "name": "Spider"
         }
     ],
     "6ade6918-6d1d-448d-ab56-93996051e9a9": [
@@ -319,6 +793,12 @@
             "name": "Fanatic of Rhonas"
         }
     ],
+    "7193c00f-0398-485c-974d-346ee59cd4c7": [
+        {
+            "scryfallId": "248ade83-ac57-42d6-985c-1e4cc3639f36",
+            "name": "Saproling"
+        }
+    ],
     "72d5fab1-fa20-4006-b19d-179d36238c9b": [
         {
             "scryfallId": "248ade83-ac57-42d6-985c-1e4cc3639f36",
@@ -331,10 +811,46 @@
             "name": "Horse"
         }
     ],
+    "735470df-65d8-43e9-837e-4869c8e4f052": [
+        {
+            "scryfallId": "8869a8cc-d196-417f-bba5-5ed31bae6a18",
+            "name": "Troll Warrior"
+        }
+    ],
     "73a065e3-b530-4e62-ab3c-4f6f908184ec": [
         {
             "scryfallId": "6455d903-6996-448f-9148-9068febecb00",
             "name": "Soldier"
+        }
+    ],
+    "748f263e-efef-4033-8950-c58fd024a87f": [
+        {
+            "scryfallId": "0a5ac360-dc47-4bc5-a4cc-ff223abc3ffc",
+            "name": "Wolf"
+        }
+    ],
+    "74be6236-4095-419c-9927-fbd874df21f8": [
+        {
+            "scryfallId": "f98c0167-7434-4607-87c4-315fa8b6972e",
+            "name": "Spirit"
+        }
+    ],
+    "74d0bb76-075c-49d7-9afb-e5bcf5b654f7": [
+        {
+            "scryfallId": "28a7a9b0-d823-4b34-829f-ade81fc141e0",
+            "name": "Elemental"
+        }
+    ],
+    "751db106-e9bc-4f16-97c6-f624eb1aa809": [
+        {
+            "scryfallId": "c702fc63-4a79-4c54-b22e-7e479b8354d2",
+            "name": "Elemental"
+        }
+    ],
+    "7618aa2d-d5b3-41e6-978f-2c8292f7f896": [
+        {
+            "scryfallId": "3a53a7c6-6b32-4491-8c96-e564abea8880",
+            "name": "Spirit"
         }
     ],
     "78cef262-c753-4658-b3ec-fec8db47f944": [
@@ -343,16 +859,82 @@
             "name": "The Monarch"
         }
     ],
+    "79258432-ea35-4f2a-9e4a-4abb53f335c6": [
+        {
+            "scryfallId": "86272c08-c5f2-413f-87ea-b135aca2d9c5",
+            "name": "Soldier"
+        }
+    ],
+    "7978a719-b159-4155-88d9-9c0b15183037": [
+        {
+            "scryfallId": "cc7d137c-f6c0-44e5-af9f-a8bbd52d3b2a",
+            "name": "Knight"
+        }
+    ],
     "7c024bae-5631-4e20-ac69-df392ac9e109": [
         {
             "scryfallId": "6943f966-fd21-427c-a13f-44727edcaa4b",
             "name": "Orc Army"
         }
     ],
+    "7cf3188c-879b-4b18-88b4-6237d7162271": [
+        {
+            "scryfallId": "01591603-d903-419d-9957-cf0ae7f79240",
+            "name": "Spider"
+        }
+    ],
+    "7df3cd89-02c9-4a1c-9a8a-d17a0b1030c9": [
+        {
+            "scryfallId": "8031f333-c818-4793-8cf8-232bf9088a96",
+            "name": "Dog"
+        }
+    ],
+    "7ee07266-a95d-4cd8-9863-1664922e9490": [
+        {
+            "scryfallId": "feeae905-e456-4598-b3de-b339397983bf",
+            "name": "Goblin"
+        }
+    ],
+    "80bccca0-6425-4676-a98a-e0721a6beff7": [
+        {
+            "scryfallId": "1ccee594-e1e6-4a82-bc17-93bcdeb36198",
+            "name": "Dinosaur"
+        }
+    ],
     "80c72839-0fa6-4b5f-83b7-6553ebf09bef": [
         {
             "scryfallId": "a41eb9df-d8b4-4697-a759-886faf16754d",
             "name": "Rebel"
+        }
+    ],
+    "84273844-7fab-4ff7-afb3-c82153132daf": [
+        {
+            "scryfallId": "fd0474f3-682d-4c6d-b902-84f3250aa269",
+            "name": "Squirrel"
+        }
+    ],
+    "84678e98-2258-4ea1-aaf0-8ac4cc2ecf8d": [
+        {
+            "scryfallId": "6139a45d-ebc7-4bca-8c13-73c85ea5fe0d",
+            "name": "Goblin"
+        }
+    ],
+    "84df41e9-e973-4441-b17f-434517134d46": [
+        {
+            "scryfallId": "0e67efea-8a80-42ec-8e77-07d387d933d4",
+            "name": "Goblin"
+        }
+    ],
+    "85708748-40ca-4066-a287-7a6a189ff3df": [
+        {
+            "scryfallId": "a6181330-7521-4ec6-be6c-b35487c2d2d4",
+            "name": "Human Soldier"
+        }
+    ],
+    "857fef2e-df1f-4ec6-a262-f6fa52389cf9": [
+        {
+            "scryfallId": "cd76092f-0f5e-4890-996c-33f4f47c659c",
+            "name": "Villain"
         }
     ],
     "85d22d5d-3875-42ff-b51e-c6e21db201f5": [
@@ -379,6 +961,12 @@
             "name": "Spirit"
         }
     ],
+    "8950df86-1e27-4b6b-8b5c-25298a3bda85": [
+        {
+            "scryfallId": "622759a9-e68b-48c1-8e03-beaab0a52556",
+            "name": "Saproling"
+        }
+    ],
     "89cf6f57-230f-497e-a14e-ad1e8737fd42": [
         {
             "scryfallId": "74bacab2-a4c6-4ba5-a208-6bd09ae4cf9f",
@@ -389,10 +977,64 @@
             "name": "City's Blessing"
         }
     ],
+    "89f8ea28-7de1-4908-8e2d-b1aeff651015": [
+        {
+            "scryfallId": "7d13a93a-a43d-4cf5-8300-8341f3b7f1b1",
+            "name": "Human"
+        }
+    ],
+    "8b0f5d29-5342-4591-bdc9-c2bc9289ed41": [
+        {
+            "scryfallId": "eb243b20-85e6-4eba-9403-42272975e8a5",
+            "name": "Beast"
+        }
+    ],
+    "8c31b8e5-2349-4119-9dc2-3e41c5364a78": [
+        {
+            "scryfallId": "45907b16-af17-4237-ab38-9d7537fd30e8",
+            "name": "Soldier"
+        }
+    ],
     "8c6a0ca4-5006-4c9b-91cd-e01d77e4fdc2": [
         {
             "scryfallId": "248ade83-ac57-42d6-985c-1e4cc3639f36",
             "name": "Saproling"
+        }
+    ],
+    "8d839c5a-dc35-4eaa-9cf0-b6e002815726": [
+        {
+            "scryfallId": "3a53a7c6-6b32-4491-8c96-e564abea8880",
+            "name": "Spirit"
+        }
+    ],
+    "904d3416-70bf-4043-8078-f5f033ecfb31": [
+        {
+            "scryfallId": "27b171ac-b2ef-4a80-92d1-6d9e71f3e3ca",
+            "name": "Elf Warrior"
+        }
+    ],
+    "90cef94d-d941-4e08-afec-a116626b74fb": [
+        {
+            "scryfallId": "4f736760-60d5-412d-9877-753eb7b5f926",
+            "name": "Goblin"
+        }
+    ],
+    "90eaf94e-85a7-4958-aa58-8e2fe44db58d": [
+        {
+            "scryfallId": "2d1446ed-f114-421d-bb60-9aeb655e5adb",
+            "name": "Warrior"
+        }
+    ],
+    "91bd75a1-cb54-4e38-9ce1-e8f32a73c6eb": [
+        {
+            "scryfallId": "55c6be20-b65a-4b1e-8133-4c2d88c1f6f9",
+            "name": "Dragon"
+        }
+    ],
+    "91de07da-564d-42f3-987d-a2321c3216bc": [
+        {
+            "scryfallId": "09293ae7-0629-417b-9eda-9bd3f6d8e118",
+            "name": "Vampire"
         }
     ],
     "928036c9-11b8-493e-b9f2-8fbd3487cd19": [
@@ -413,10 +1055,46 @@
             "name": "Goblin"
         }
     ],
+    "95e4f28b-c7a7-4450-b477-73e4559f0276": [
+        {
+            "scryfallId": "991a5840-adc7-45b5-8d5f-b24dae384bab",
+            "name": "Dragon"
+        }
+    ],
     "97d08a15-e61c-4421-a541-c68a4f87cb74": [
         {
             "scryfallId": "ef607895-d6d2-44ab-a6b4-84af55fce593",
             "name": "Clue"
+        }
+    ],
+    "98be3783-23e8-4143-8685-6d887f164294": [
+        {
+            "scryfallId": "0c7f299e-4774-4e8b-bb0e-db27d57d2621",
+            "name": "Goblin"
+        }
+    ],
+    "99083707-2152-42c0-b5c3-b4f97ec20190": [
+        {
+            "scryfallId": "703e7ecf-3d73-40c1-8cfe-0758778817cf",
+            "name": "Knight"
+        }
+    ],
+    "9b4f880d-6262-429f-91b7-def417aa13bd": [
+        {
+            "scryfallId": "06a96ac2-94a4-4b1c-a3c5-add1a3112cb2",
+            "name": "Spirit"
+        }
+    ],
+    "9eab4120-e7d8-4132-a304-30b88e3175e2": [
+        {
+            "scryfallId": "2b2b01b8-3dcb-4eab-9402-0db343543c38",
+            "name": "Goblin"
+        }
+    ],
+    "9f01ae0d-db1e-4912-b8ad-3069f6938e04": [
+        {
+            "scryfallId": "90317f5e-d121-4c00-86cc-5bbee953f600",
+            "name": "Merfolk"
         }
     ],
     "a0d7e85f-eba5-4fc5-9fc0-109109d368aa": [
@@ -431,10 +1109,52 @@
             "name": "Eldrazi Spawn"
         }
     ],
+    "a1c0b645-de43-46d0-84c1-03f295def217": [
+        {
+            "scryfallId": "b5bd6905-79be-4d2c-a343-f6e6a181b3e6",
+            "name": "Zombie"
+        }
+    ],
+    "a2bce334-0ae6-4a7d-85db-99ee205ce546": [
+        {
+            "scryfallId": "ebd8f43d-7e54-46d4-9fe9-ac818a9fd91f",
+            "name": "Pegasus"
+        }
+    ],
     "a36e682d-b43d-4e08-bf5b-70d7e924dbe5": [
         {
             "scryfallId": "e6b2c465-c446-4dee-9101-763105dcf813",
             "name": "Otter"
+        }
+    ],
+    "a3f6baa5-666d-40b0-82e8-b0df10ff3cdd": [
+        {
+            "scryfallId": "a49da8fe-559f-4c34-b904-c285188fb98d",
+            "name": "Saproling"
+        }
+    ],
+    "a5c1bf52-2737-423a-b340-07448afcaea6": [
+        {
+            "scryfallId": "e55d42ad-63b1-4468-8da0-c245db4d0ae3",
+            "name": "Goblin"
+        }
+    ],
+    "a60313ca-10cc-4c33-a557-1401c5721e3b": [
+        {
+            "scryfallId": "e5aa36ec-5f3a-405d-9a65-5a56a44dcee3",
+            "name": "Insect"
+        }
+    ],
+    "a6e750f9-ad86-4d60-98a3-78d11cd52cd1": [
+        {
+            "scryfallId": "577c2e32-deb6-40d9-a050-c2acb5bfc05f",
+            "name": "Goblin"
+        }
+    ],
+    "a84666a8-4ce5-46e7-9a39-f64a392515e7": [
+        {
+            "scryfallId": "622759a9-e68b-48c1-8e03-beaab0a52556",
+            "name": "Saproling"
         }
     ],
     "a87606cc-fbf0-4e2c-9798-f1c935d0573d": [
@@ -447,10 +1167,52 @@
             "name": "Copy"
         }
     ],
+    "a87cbbdb-3bbc-48da-b5e3-fcdbddebec81": [
+        {
+            "scryfallId": "248ade83-ac57-42d6-985c-1e4cc3639f36",
+            "name": "Saproling"
+        }
+    ],
+    "a8cce294-f6ee-4b18-8b65-7d01d0317b00": [
+        {
+            "scryfallId": "36cd5f96-5683-4959-b973-37f3c2fcf9bf",
+            "name": "Goat"
+        }
+    ],
+    "a9394200-7ffc-440f-8b5f-c08b7930133c": [
+        {
+            "scryfallId": "01439983-8394-4a0c-9e9e-92a3f1927fe3",
+            "name": "Ally"
+        }
+    ],
+    "a9507116-ede8-40a1-8fa3-705e6f6f64c0": [
+        {
+            "scryfallId": "248ade83-ac57-42d6-985c-1e4cc3639f36",
+            "name": "Saproling"
+        }
+    ],
+    "aa01cb8c-f080-456b-a91a-f1d7943a70b2": [
+        {
+            "scryfallId": "076f934b-a244-45f1-bcb3-7c5e882e9911",
+            "name": "Knight"
+        }
+    ],
     "aa533845-4c4b-4072-aa39-8e56ce7ec325": [
         {
             "scryfallId": "248ade83-ac57-42d6-985c-1e4cc3639f36",
             "name": "Saproling"
+        }
+    ],
+    "aa9cb544-fa42-4671-917d-e08c582f7657": [
+        {
+            "scryfallId": "c06d2c07-7d3e-46e3-86f0-7ceba3b0aee0",
+            "name": "Drake"
+        }
+    ],
+    "ab1c1375-9908-4fe8-960a-595b9b58cd10": [
+        {
+            "scryfallId": "061cb705-695a-4f65-adbf-869ebb4eb946",
+            "name": "Kithkin Soldier"
         }
     ],
     "ab1d1461-1625-4163-aacd-a939f4871fad": [
@@ -459,16 +1221,52 @@
             "name": "Spirit"
         }
     ],
+    "acf932ac-5ea5-491b-b555-5e9ea971d93d": [
+        {
+            "scryfallId": "71766a5a-ce00-4e48-b4f6-0d1a7f5b2691",
+            "name": "Angel"
+        }
+    ],
     "ae154e64-f626-45fb-bd52-840c1c27b2d3": [
         {
             "scryfallId": "a6f374bc-cd29-469f-808a-6a6c004ee8aa",
             "name": "Blood"
         }
     ],
+    "ae3dffe7-ecaf-4cf0-a43e-8e2746282992": [
+        {
+            "scryfallId": "31107acf-5969-42ff-a805-9152f439b7fa",
+            "name": "Wurm"
+        }
+    ],
+    "aea1360e-7c6b-400c-893a-82d93e53101e": [
+        {
+            "scryfallId": "cbb3e91d-9cae-49c8-ba92-087ad8171b9d",
+            "name": "Dragon"
+        }
+    ],
+    "afc35026-a29e-4fb0-931f-5e90faf41802": [
+        {
+            "scryfallId": "248ade83-ac57-42d6-985c-1e4cc3639f36",
+            "name": "Saproling"
+        }
+    ],
     "b0ae94ed-7314-470b-baba-f2f58bbc894a": [
         {
             "scryfallId": "5c087beb-99c0-403e-bb44-33cfc549a831",
             "name": "Myr"
+        }
+    ],
+    "b0f3b68e-f616-4687-bc2d-075165162cd1": [
+        {
+            "scryfallId": "1ae11d5f-f29d-44f4-8d90-cdada1040435",
+            "name": "Elephant"
+        }
+    ],
+    "b2314215-23af-4c8e-860f-b029e151af36": [
+        {
+            "scryfallId": "a49da8fe-559f-4c34-b904-c285188fb98d",
+            "name": "Saproling"
         }
     ],
     "b28f9e63-e5e4-44b5-a17e-8301ff17c623": [
@@ -483,10 +1281,64 @@
             "name": "Copy"
         }
     ],
+    "b34f0ac1-6894-4761-b62c-b85d927acf09": [
+        {
+            "scryfallId": "977ddd05-1aae-46fc-95ce-866710d1c5c6",
+            "name": "Squirrel"
+        }
+    ],
+    "b4abdf1c-a0a9-4e1d-b448-58742830f767": [
+        {
+            "scryfallId": "e96f22c0-b9c8-418a-8224-e7d0b2841bd2",
+            "name": "Elephant"
+        }
+    ],
+    "b658a309-d14c-4e20-8c76-e7b3c5156bf2": [
+        {
+            "scryfallId": "74506297-41ad-40e5-bb05-175650ff4907",
+            "name": "Elf Knight"
+        }
+    ],
+    "b742117a-8a72-43b9-b05d-274829d138a2": [
+        {
+            "scryfallId": "2885d54c-9fb2-4f01-8937-54f8ac1ce5bc",
+            "name": "Cat"
+        }
+    ],
+    "b785276b-3778-49f3-b46f-a1f3d91db097": [
+        {
+            "scryfallId": "8894949b-f190-461e-996a-cf2b39f08a5d",
+            "name": "Human"
+        }
+    ],
     "b83cfbaa-7890-4f6f-878b-4edb45677371": [
         {
             "scryfallId": "2300635e-7771-4676-a5a5-29a9d8f49f1a",
             "name": "Illusion"
+        }
+    ],
+    "b8845bba-d116-43cd-8ae0-e553f3324d66": [
+        {
+            "scryfallId": "01439983-8394-4a0c-9e9e-92a3f1927fe3",
+            "name": "Ally"
+        }
+    ],
+    "b88ab58b-918b-478a-8c6b-a213e2bc87ab": [
+        {
+            "scryfallId": "3fc3a29a-280d-4f2c-9a01-8cfead75f583",
+            "name": "Beast"
+        }
+    ],
+    "b9169431-a5b1-42ea-bcf4-6c750d2a2dbb": [
+        {
+            "scryfallId": "dfb61889-9bc6-426d-8ce5-7b1c0e6e959b",
+            "name": "Demon"
+        }
+    ],
+    "bb61443d-e47a-4fe1-b777-67a3670a5a56": [
+        {
+            "scryfallId": "e5aa36ec-5f3a-405d-9a65-5a56a44dcee3",
+            "name": "Insect"
         }
     ],
     "bbec4aa5-3319-43dc-8347-5633edbd7018": [
@@ -495,16 +1347,70 @@
             "name": "Goblin"
         }
     ],
+    "bc3c1a8e-3bdb-42cf-9442-5de7e4670d66": [
+        {
+            "scryfallId": "5a90e8ab-5a76-4834-9cd6-186af939ea41",
+            "name": "Phyrexian Insect"
+        }
+    ],
+    "bdfd0fa3-37d2-403e-99fe-8c9e57515e9d": [
+        {
+            "scryfallId": "1666cae8-8750-4091-8e45-259e76268db9",
+            "name": "Faerie Rogue"
+        }
+    ],
+    "bf736de9-9bc4-49df-ae60-672ed4f83f32": [
+        {
+            "scryfallId": "43e9f729-abaf-4000-8df5-fa46d59eff9e",
+            "name": "Inkling"
+        }
+    ],
     "bfa4e927-1d6f-4a64-9801-7d168a5ef3f6": [
         {
             "scryfallId": "17fa0c1f-6737-487c-9101-0bec2e586795",
             "name": "Hero"
         }
     ],
+    "c0f5cb3f-c27d-4b35-930f-00d806393796": [
+        {
+            "scryfallId": "86272c08-c5f2-413f-87ea-b135aca2d9c5",
+            "name": "Soldier"
+        }
+    ],
+    "c2cd809c-557a-42a5-950b-56b5b47b325b": [
+        {
+            "scryfallId": "93679bb9-ee1c-4eea-bcdd-72785d5788af",
+            "name": "Drake"
+        }
+    ],
     "c30be387-280d-49bd-a3d1-c1636ee931ce": [
         {
             "scryfallId": "248ade83-ac57-42d6-985c-1e4cc3639f36",
             "name": "Saproling"
+        }
+    ],
+    "c342e1da-7ab9-4e29-96e6-77d820a45ede": [
+        {
+            "scryfallId": "59e79ba0-33c8-46c8-8694-8bf854345fe7",
+            "name": "Spirit"
+        }
+    ],
+    "c3d0f02f-dfaf-47b6-8053-514417f4dfe2": [
+        {
+            "scryfallId": "70205fb6-7722-4974-a8c6-8909dbb1c96d",
+            "name": "Soldier"
+        }
+    ],
+    "c63dd203-bce9-4ab7-8a0c-059d19d384e9": [
+        {
+            "scryfallId": "b877c19d-6022-4377-92e7-4511e24eb98e",
+            "name": "Zombie"
+        }
+    ],
+    "c6df8f4d-a07a-4664-878d-efec8b2affb9": [
+        {
+            "scryfallId": "880d5dc1-ceec-4c5f-93c2-c88b7dbfcac2",
+            "name": "Centaur"
         }
     ],
     "c9262000-e6f3-4da1-ad1c-038f65d3bef6": [
@@ -517,6 +1423,12 @@
         {
             "scryfallId": "c3cbd01b-dbf5-424a-855d-f9a9d7e7e414",
             "name": "Beast"
+        }
+    ],
+    "cad14bc9-b90e-48e0-9e72-173874dab6bc": [
+        {
+            "scryfallId": "248ade83-ac57-42d6-985c-1e4cc3639f36",
+            "name": "Saproling"
         }
     ],
     "cbb7c28d-0366-4d01-84a2-f1bc9f38aa4a": [
@@ -537,6 +1449,12 @@
             "name": "Phyrexian Germ"
         }
     ],
+    "cd492072-9a8c-4d55-ac71-3c8efaa3fc87": [
+        {
+            "scryfallId": "67d3d039-248a-4eb8-be5c-12959b458fea",
+            "name": "Knight"
+        }
+    ],
     "d134385d-b01c-41c7-bb2d-30722b44dc5a": [
         {
             "scryfallId": "cc7d137c-f6c0-44e5-af9f-a8bbd52d3b2a",
@@ -549,10 +1467,46 @@
             "name": "Clue"
         }
     ],
+    "d1af91a5-8681-4a05-910d-96f7a819bfaa": [
+        {
+            "scryfallId": "01439983-8394-4a0c-9e9e-92a3f1927fe3",
+            "name": "Ally"
+        }
+    ],
+    "d40c73de-7a5f-46f2-a70b-449bc8ecfe24": [
+        {
+            "scryfallId": "59c2cbd7-79bb-4d93-b2b6-5d3abe88a012",
+            "name": "Insect"
+        }
+    ],
     "d5eef49c-a80f-4622-ba77-999f9151c841": [
         {
             "scryfallId": "248ade83-ac57-42d6-985c-1e4cc3639f36",
             "name": "Saproling"
+        }
+    ],
+    "d6912c5b-6aff-4506-96ca-acb5ce660322": [
+        {
+            "scryfallId": "ca3dae7d-3880-4c0a-acfb-8fd227cf9fab",
+            "name": "Bear"
+        }
+    ],
+    "d7ac8bdd-851f-449d-a108-70578eabf254": [
+        {
+            "scryfallId": "fd7094d6-6e23-47f2-a9da-4dd680294ac8",
+            "name": "Goblin Wizard"
+        }
+    ],
+    "d868d3b8-997c-4984-a2b3-72de90e280f7": [
+        {
+            "scryfallId": "67563770-a392-4f69-b93b-6029da639993",
+            "name": "Insect"
+        }
+    ],
+    "d8c0c7e7-81f5-4e75-8120-95488fd6ff60": [
+        {
+            "scryfallId": "dd81e49b-bd38-4c0c-b9fe-ce33c15621d6",
+            "name": "Beast"
         }
     ],
     "dd30f389-bac8-4b82-a8a7-6948d43a9f60": [
@@ -561,10 +1515,94 @@
             "name": "Saproling"
         }
     ],
+    "ddf54317-4c08-4a66-9fd2-9983384e2374": [
+        {
+            "scryfallId": "afcaaab8-47be-43a7-a6cf-dea6dedece0e",
+            "name": "Wurm"
+        }
+    ],
+    "dfc1df84-9c47-444b-9d58-d9c7bed51c66": [
+        {
+            "scryfallId": "06fbcd85-c54e-492e-9e42-5e101cac4255",
+            "name": "Human Warrior"
+        }
+    ],
+    "e02aa086-13b2-42cf-acf4-086ba406e886": [
+        {
+            "scryfallId": "9f5ddcda-dcf0-468d-a5db-011e1b6ccab1",
+            "name": "Worm"
+        }
+    ],
+    "e1d2c774-aab9-4747-af91-da792ed7cfe1": [
+        {
+            "scryfallId": "831fbc86-e328-4c26-a8b2-35feb24f6430",
+            "name": "Satyr"
+        }
+    ],
+    "e24e2f49-70f9-445f-af03-2ef43798004a": [
+        {
+            "scryfallId": "41bee18a-46d6-4f60-9e19-5fc670a20a4d",
+            "name": "Spider"
+        }
+    ],
+    "e27e2eb4-d48b-43c3-bd19-e1748f310c54": [
+        {
+            "scryfallId": "05abf2df-833f-4172-af74-6533b022dfa9",
+            "name": "Soldier Ally"
+        }
+    ],
+    "e2803fdc-2ae1-438c-b5b1-559817e85fdb": [
+        {
+            "scryfallId": "248ade83-ac57-42d6-985c-1e4cc3639f36",
+            "name": "Saproling"
+        }
+    ],
+    "e388c433-3a37-45f6-825a-d13d2223b6f7": [
+        {
+            "scryfallId": "fd8ca5ee-7b93-4248-8f4a-b88261ee1eed",
+            "name": "Knight"
+        }
+    ],
+    "e4ec8ada-09a6-449a-ac4a-7d3acbd08014": [
+        {
+            "scryfallId": "577c2e32-deb6-40d9-a050-c2acb5bfc05f",
+            "name": "Goblin"
+        }
+    ],
+    "e7ff8345-227c-43b4-bed5-af3a34c0a990": [
+        {
+            "scryfallId": "e406949f-c629-48fa-9fb0-ba6191054d35",
+            "name": "Human Soldier"
+        }
+    ],
     "e900c1eb-968b-4046-b824-c167a7a5b682": [
         {
             "scryfallId": "d0ddbe3e-4a66-494d-9304-7471232549bf",
             "name": "Pest"
+        }
+    ],
+    "ea51991c-1589-4c62-965b-5ae8d233520b": [
+        {
+            "scryfallId": "3d0b9b88-705e-4df0-8a93-3e240b81355b",
+            "name": "Elemental"
+        }
+    ],
+    "eb8434fd-5ee5-4be9-a28d-9e04b1b94327": [
+        {
+            "scryfallId": "bd05e304-1a16-436d-a05c-4a38a839759b",
+            "name": "Wolf"
+        }
+    ],
+    "ee7207f8-5daa-42af-aeea-7a489047110b": [
+        {
+            "scryfallId": "81de52ef-7515-4958-abea-fb8ebdcef93c",
+            "name": "Rabbit"
+        }
+    ],
+    "ee8c962f-11b0-48f7-bbba-a2212e41990f": [
+        {
+            "scryfallId": "622759a9-e68b-48c1-8e03-beaab0a52556",
+            "name": "Saproling"
         }
     ],
     "ee8e9928-d9b2-4570-adb8-44b34115decd": [
@@ -579,16 +1617,82 @@
             "name": "Blood"
         }
     ],
+    "f06c0007-299e-4d71-99c3-f905d942759d": [
+        {
+            "scryfallId": "09293ae7-0629-417b-9eda-9bd3f6d8e118",
+            "name": "Vampire"
+        }
+    ],
     "f1a21287-e244-4960-84fb-c4f6e5c346d9": [
         {
             "scryfallId": "83981313-ff55-4030-ac82-d6a3087cf675",
             "name": "Soldier"
         }
     ],
+    "f40284e6-01a1-4372-a92c-940e5732607e": [
+        {
+            "scryfallId": "33ee3f6c-5df6-4271-b2f9-86b9afffab7b",
+            "name": "Wurm"
+        }
+    ],
+    "f4051020-688c-473a-9a08-b62f0fd75675": [
+        {
+            "scryfallId": "3a53a7c6-6b32-4491-8c96-e564abea8880",
+            "name": "Spirit"
+        }
+    ],
+    "f6898737-957f-44a6-bef7-fb196658176f": [
+        {
+            "scryfallId": "1864d5b9-7151-42f0-8d37-8c319c3ab264",
+            "name": "Wolf"
+        }
+    ],
     "f6fb576e-a4a4-496b-b553-3f81cc651210": [
         {
             "scryfallId": "ef607895-d6d2-44ab-a6b4-84af55fce593",
             "name": "Clue"
+        }
+    ],
+    "f7226de1-0e05-4baf-8c2f-54297fee43c1": [
+        {
+            "scryfallId": "09293ae7-0629-417b-9eda-9bd3f6d8e118",
+            "name": "Vampire"
+        }
+    ],
+    "fb0d4d3f-d3ad-4c70-b9af-9bfcdd9efd1f": [
+        {
+            "scryfallId": "a280aee2-e15a-4625-b429-4032eae08a41",
+            "name": "Elemental Shaman"
+        }
+    ],
+    "fbc17697-9db9-41d4-aacf-b2f2e6ff80cf": [
+        {
+            "scryfallId": "b8710a30-8314-49ef-b995-bd05454095be",
+            "name": "Zombie"
+        }
+    ],
+    "fc783f49-f58a-4783-87b4-4dbc7e896f2e": [
+        {
+            "scryfallId": "677a1d9d-86fd-49db-9573-8cd2cbc1a096",
+            "name": "Warrior"
+        }
+    ],
+    "fd7d7c93-5622-45ca-9359-110685d9162c": [
+        {
+            "scryfallId": "0419a202-6e32-4f0a-a032-72f6c00cae5e",
+            "name": "Knight Ally"
+        }
+    ],
+    "fe1d40cc-2871-4a33-bc58-5250fd3d4f0e": [
+        {
+            "scryfallId": "f44d5271-5d10-46b2-9ba2-5788d99de2e6",
+            "name": "Goblin Rogue"
+        }
+    ],
+    "fe1eb098-7128-4ec8-8218-51fdde3e8326": [
+        {
+            "scryfallId": "59e79ba0-33c8-46c8-8694-8bf854345fe7",
+            "name": "Spirit"
         }
     ]
 }
