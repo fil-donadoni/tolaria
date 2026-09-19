@@ -436,6 +436,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Creature [haste] › lookDistribute",
+            "issue": 4145
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Creature › (no Ops)",
             "issue": 4069
         },
