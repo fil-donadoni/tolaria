@@ -30,7 +30,13 @@ const REPO_ROOT = path.resolve(__dirname, "..", "..");
 
 /** Skills whose residency is load-bearing. Add a row when a workflow skill
  *  becomes part of this project rather than the machine. */
-const IN_REPO_SKILLS = ["next-issue", "grammar-rule", "new-card"];
+const IN_REPO_SKILLS = [
+    "next-issue",
+    "grammar-rule",
+    "new-card",
+    "to-prd",
+    "to-tickets",
+];
 
 function isTracked(relPath: string): boolean {
     try {
