@@ -58,6 +58,7 @@
  */
 
 import type { Allowlist } from "../check-gaps";
+import { declaredSection } from "./declared-section";
 import {
     claimId,
     GAP_KINDS,
@@ -407,10 +408,6 @@ export type UnlockEdgeAction = {
 };
 
 const UNLOCKS_HEADING = /^#{1,6}\s+unlocks\s*$/i;
-const ANY_HEADING = /^#{1,6}\s+/;
-const LIST_ITEM = /^[-*]\s+(.*)$/;
-/** "nothing declared", the shape `## Blocked by` already uses. */
-const DECLARES_NOTHING = /^none\.?$/i;
 /** A bare Op name — an identifier, which is exactly what prose is not. */
 const OP_NAME = /^[A-Za-z][A-Za-z0-9]*$/;
 /** The separator a grammar gap key joins its slot and shape with. */
@@ -468,57 +465,19 @@ export function unlockCandidates(item: string): string[] {
  * Read one body's `## Unlocks` section. Returns the candidate claim ids per
  * declared line plus the lines no form could read — `null` when the body has
  * no such section at all, which is not the same as one declaring nothing.
- *
- * FENCED CODE IS NOT MARKDOWN HERE. A body that SHOWS the section — the
- * example `docs/agents/issue-tracker.md` teaches, a skill's template, a review
- * comment quoting one — carries a `## Unlocks` heading and its items inside a
- * fence. Read naively, the scan locks onto the example, wires its sample keys
- * as real edges, reports the closing fence as residue, and then stops at the
- * GENUINE heading further down as if it were the section's end: the real
- * declarations are silently dropped, which is the one outcome issue #4052
- * forbids. So the fence state is tracked for the heading search and the item
- * scan alike.
+ * Fenced code is not markdown here — `declaredSection` owns that, and why.
  */
 export function parseUnlocks(
     body: string
 ): { lines: { raw: string; candidates: string[] }[] } | null {
-    const fenced = new Set<number>();
-    let open: string | null = null;
-    const all = body.split("\n");
-    all.forEach((line, i) => {
-        const fence = /^\s*(`{3,}|~{3,})/.exec(line);
-        if (fence !== null) {
-            const marker = fence[1]![0]!;
-            if (open === null) open = marker;
-            else if (open === marker) open = null;
-            fenced.add(i);
-            return;
-        }
-        if (open !== null) fenced.add(i);
-    });
-    const start = all.findIndex(
-        (l, i) => !fenced.has(i) && UNLOCKS_HEADING.test(l.trim())
-    );
-    if (start === -1) return null;
-    const lines: { raw: string; candidates: string[] }[] = [];
-    for (const [offset, line] of all.slice(start + 1).entries()) {
-        const trimmed = line.trim();
-        if (fenced.has(start + 1 + offset)) continue;
-        if (ANY_HEADING.test(trimmed)) break;
-        if (trimmed === "") continue;
-        if (DECLARES_NOTHING.test(trimmed)) continue;
-        const item = LIST_ITEM.exec(trimmed);
-        if (item === null) {
-            // Prose. The section's own preamble is the only prose a reader
-            // could excuse, and excusing it is what "guess a key from a
-            // sentence" starts as — so every non-item line is refused.
-            lines.push({ raw: trimmed, candidates: [] });
-            continue;
-        }
-        if (DECLARES_NOTHING.test(item[1]!.trim())) continue;
-        lines.push({ raw: trimmed, candidates: unlockCandidates(item[1]!) });
-    }
-    return { lines };
+    const section = declaredSection(body, UNLOCKS_HEADING);
+    if (section === null) return null;
+    return {
+        lines: section.map(({ raw, item }) => ({
+            raw,
+            candidates: item === null ? [] : unlockCandidates(item),
+        })),
+    };
 }
 
 /**
