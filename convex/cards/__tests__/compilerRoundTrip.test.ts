@@ -124,7 +124,7 @@ import {
 // CR 115.4 "any", or narrowed to one card type): Active Volcano, Desert
 // Twister, Flash Flood and Northern Paladin round-trip once their
 // `targetRequirement.type` is the permanent-type list (CR 110.4).
-const BASELINE_CEILING = 1622;
+const BASELINE_CEILING = 1615;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that

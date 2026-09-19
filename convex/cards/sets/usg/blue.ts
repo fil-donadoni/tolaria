@@ -233,12 +233,9 @@ export const timeSpiral: CardDefinition = {
 // either; widening that generator is the separate, wider change its comment
 // names.
 //
-// compiler-gap: "Draw three cards, then discard four cards." (#2693)
-// The COST half round-trips through the grammar as of this issue
-// (`oracle/grammar/shared/cost.ts`'s `return-self` atom); the BODY does not —
-// the effect sub-grammar has no discard verb at all ("{T}: Discard a card."
-// is unparsed today), which is the Oracle-compiler PRD's own scope, not this
-// cost leg's.
+// The cost round-trips through the grammar's `return-self` atom
+// (`oracle/grammar/shared/cost.ts`), the body through the loot sentence
+// (issue #4126).
 export const attunement: CardDefinition = {
     id: "f6723528-8b2c-4beb-a465-800300faf158",
     rarity: "rare",

@@ -485,7 +485,7 @@ function lowerSentenceBody(
                     prompt:
                         discard.value === 1
                             ? "Discard a card."
-                            : `Discard ${discard.value} cards.`,
+                            : `Discard ${countWord(discard.value)} cards.`,
                     bind,
                 },
                 { op: "discard", player: "controller", cards: { ref: bind } },
@@ -681,6 +681,21 @@ function countFilterOf(filter: PermanentFilter): Lowered<EffectCardFilter> {
             );
     }
     return lowered(out);
+}
+
+/** A small count as the word Oracle text prints ("two"), for a prompt. */
+function countWord(n: number): string {
+    const words = [
+        "zero",
+        "one",
+        "two",
+        "three",
+        "four",
+        "five",
+        "six",
+        "seven",
+    ];
+    return words[n] ?? String(n);
 }
 
 /** Remember the announced object a sentence acted on (see `actedOn`). */
