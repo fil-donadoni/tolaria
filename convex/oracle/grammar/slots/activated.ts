@@ -44,11 +44,16 @@ import {
     type Rule,
 } from "../../rule";
 import type { ParseContext } from "../../types";
-import { activationCostRule, type ActivationCostIR } from "../shared/cost";
+import {
+    activationCostRule,
+    type ActivationCostIR,
+    type CostAtomIR,
+} from "../shared/cost";
 import {
     assembleSentences,
     assemblyTrace,
     sentenceRule,
+    sourcePronounListRule,
     type SentenceIR,
 } from "../shared/effectClause";
 import type { SlotIR } from "../ir";
@@ -69,16 +74,31 @@ const activatedBody: Rule<SlotIR> = rule("activated body", (span, ctx) => {
         ACTIVATED_SLOT,
         ": ",
         activationCostRule,
-        listOf("effect sentences", ". ", activatedSentence),
+        sourcePronounListRule(
+            listOf("effect sentences", ". ", activatedSentence)
+        ),
         (
             cost,
-            sentences
-        ): { cost: ActivationCostIR; sentences: SentenceIR[] } => ({
+            body
+        ): {
+            cost: ActivationCostIR;
+            sentences: SentenceIR[];
+            boundPronoun: boolean;
+        } => ({
             cost,
-            sentences,
+            sentences: body.value,
+            boundPronoun: body.boundPronoun,
         })
     ).run(span, ctx);
     if (!parsed.ok) return parsed;
+    // CR 608.2h — "Sacrifice this creature: It deals 1 damage …". The pronoun
+    // opening the effect names the object the COST named; a cost that names
+    // no object of its own leaves it without an antecedent here.
+    if (parsed.value.boundPronoun && !parsed.value.cost.atoms.some(namesSource))
+        return fail(
+            '"It" opens the effect but the cost names no source to bind it to',
+            span
+        );
     // CR 602.5 — an activated ability is the ONE site that may carry an
     // activation restriction, so it is the one caller that accepts them.
     const assembled = assembleSentences(parsed.value.sentences, {
@@ -97,6 +117,24 @@ const activatedBody: Rule<SlotIR> = rule("activated body", (span, ctx) => {
         restrictions: assembled.restrictions,
     });
 });
+
+/**
+ * A cost atom that names the source object itself ("Sacrifice this creature",
+ * "Remove a charge counter from this artifact") — the printed antecedent of
+ * an effect's leading "It". `{T}` is the source's symbol, not its name, and
+ * no corpus line binds a pronoun to it.
+ */
+function namesSource(atom: CostAtomIR): boolean {
+    switch (atom.kind) {
+        case "sacrifice-self":
+        case "exile-self":
+        case "return-self":
+        case "remove-counter":
+            return true;
+        default:
+            return false;
+    }
+}
 
 const PERMANENT_TYPE_SET = new Set<string>(PERMANENT_TYPES);
 

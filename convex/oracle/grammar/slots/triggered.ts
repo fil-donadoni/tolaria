@@ -62,6 +62,7 @@ import {
     capitalise,
     optionalSentenceRule,
     sentenceRule,
+    sourcePronounListRule,
     type SentenceIR,
 } from "../shared/effectClause";
 import { triggerHeadRule, type TriggerHeadIR } from "../shared/triggerHead";
@@ -87,14 +88,20 @@ const triggerSentence: Rule<SentenceIR> = optionalSentenceRule(plainSentence);
 interface TailIR {
     readonly condition?: ConditionIR;
     readonly sentences: readonly SentenceIR[];
+    /** The first sentence opened on "it", read as the source (CR 608.2h). */
+    readonly boundPronoun: boolean;
 }
 
 const plainTail: Rule<TailIR> = rule("trigger effects", (span, ctx) => {
-    const parsed = listOf("effect sentences", ". ", triggerSentence).run(
-        span,
-        ctx
-    );
-    return parsed.ok ? ok({ sentences: parsed.value }) : parsed;
+    const parsed = sourcePronounListRule(
+        listOf("effect sentences", ". ", triggerSentence)
+    ).run(span, ctx);
+    return parsed.ok
+        ? ok({
+              sentences: parsed.value.value,
+              boundPronoun: parsed.value.boundPronoun,
+          })
+        : parsed;
 });
 
 /** CR 603.4 — "…, if <condition>, <effect>." */
@@ -103,7 +110,25 @@ const conditionalTail: Rule<TailIR> = pair(
     ", ",
     conditionRule,
     plainTail,
-    (condition, tail): TailIR => ({ condition, sentences: tail.sentences })
+    (condition, tail): TailIR => ({ ...tail, condition })
+);
+
+/**
+ * CR 608.2h — behind an intervening "if" (CR 603.4) the condition is the
+ * nearer antecedent ("if your life total is less than …, it becomes …"), so
+ * a pronoun there is not bound to the source: the tail must not open on one.
+ */
+const conditionalTailNoPronoun: Rule<TailIR> = rule(
+    "conditional trigger tail",
+    (span, ctx) => {
+        const parsed = conditionalTail.run(span, ctx);
+        if (parsed.ok && parsed.value.boundPronoun)
+            return fail(
+                '"it" after an intervening-if clause may name the condition, not the source',
+                span
+            );
+        return parsed;
+    }
 );
 
 /**
@@ -116,7 +141,7 @@ const conditionalTail: Rule<TailIR> = pair(
  * cheap to keep.
  */
 const triggerTail: Rule<TailIR> = oneOf("trigger tail", [
-    conditionalTail,
+    conditionalTailNoPronoun,
     plainTail,
 ]);
 
@@ -129,6 +154,16 @@ const triggeredBody: Rule<SlotIR> = rule("triggered body", (span, ctx) => {
         (head, tail): { head: TriggerHeadIR; tail: TailIR } => ({ head, tail })
     ).run(span, ctx);
     if (!parsed.ok) return parsed;
+    // CR 608.2h — "Whenever this creature attacks, it gets +1/+1 …". The
+    // pronoun names the head's subject, which is the source only on a
+    // self-subject head; "Whenever another creature you control enters, it
+    // gets …" names the ENTERING creature, a referent this grammar does not
+    // bind, so the line stays unread rather than pumping the wrong object.
+    if (parsed.value.tail.boundPronoun && !headNamesSource(parsed.value.head))
+        return fail(
+            '"it" opens the effect but the trigger\'s subject is not the source',
+            span
+        );
     // CR 602.5 — there is no activation to restrict on a trigger, so a
     // restriction sentence here is a line we have misread.
     const assembled = assembleSentences(parsed.value.tail.sentences, {
@@ -151,6 +186,21 @@ const triggeredBody: Rule<SlotIR> = rule("triggered body", (span, ctx) => {
         effects: assembled.effects,
     });
 });
+
+/** The head's subject is the object the ability is printed on (CR 109.2). */
+function headNamesSource(head: TriggerHeadIR): boolean {
+    switch (head.kind) {
+        case "enters":
+        case "dies":
+            return head.scope === "self";
+        case "attacks":
+        case "combat-damage-to-player":
+            return true;
+        case "phase":
+        case "spell-cast":
+            return false;
+    }
+}
 
 /** CR 113.3c — the ability's own full stop closes the line. */
 export const triggeredSlot: Rule<SlotIR> = terminated(".", triggeredBody);
