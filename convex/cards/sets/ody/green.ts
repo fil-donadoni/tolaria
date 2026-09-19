@@ -72,8 +72,6 @@ const CALL_OF_THE_HERD_ID = "429a88cc-53db-4c5e-a061-f0f49a38c675";
 // `jud/green.ts` uses it). The body is the plain `createToken` Op (CR 111 /
 // 701.7) with the token's own printed art pinned through `tokenPrintIdFor`
 // (CR 114 — a missing image renders a placeholder silently).
-//
-// compiler-gap: Create a 3/3 green Elephant creature token. (#2693)
 export const callOfTheHerd: CardDefinition = {
     id: CALL_OF_THE_HERD_ID,
     name: "Call of the Herd",

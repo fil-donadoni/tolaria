@@ -235,7 +235,86 @@ export function behaviouralProjection(
         }
         out[key] = sortKeys(value);
     }
-    return canonicaliseShorthands(sortKeys(out)) as Record<string, unknown>;
+    return alphaRenameBindings(
+        withoutTokenDualEncodings(canonicaliseShorthands(sortKeys(out)))
+    ) as Record<string, unknown>;
+}
+
+/**
+ * Two `createToken` spellings of ONE behaviour, folded to one.
+ *
+ * `count: 1` is the Op's default (`interpreter.ts` — an omitted count creates
+ * one token), so the catalogue writes it both ways and neither is more
+ * correct. A token spec's `imagePrintId` is ART, not rules text (CR 111.3
+ * defines a token's characteristics; the picture is none of them): the
+ * runtime resolves it per producer from `token-prints.json`, and an author
+ * pins it by hand only where that lookup has nothing — a fact about Scryfall's
+ * `all_parts`, never about the Oracle line. Folding it keeps ADR 0114 §4: the
+ * engine reads it to DRAW, never to DECIDE.
+ */
+function withoutTokenDualEncodings(value: unknown): unknown {
+    if (Array.isArray(value)) return value.map(withoutTokenDualEncodings);
+    if (value === null || typeof value !== "object") return value;
+    const out: Record<string, unknown> = {};
+    for (const [key, inner] of Object.entries(value as Record<string, unknown>))
+        out[key] = withoutTokenDualEncodings(inner);
+    if (out.op !== "createToken") return out;
+    if (out.count === 1) delete out.count;
+    const token = out.token as Record<string, unknown> | undefined;
+    if (token !== undefined && "imagePrintId" in token) {
+        const { imagePrintId: _art, ...rest } = token;
+        out.token = rest;
+    }
+    return out;
+}
+
+/**
+ * Binding names are script-local identifiers (ADR 0045's `bind` / `ref`): a
+ * script that binds `$art` and reads `$art.manaValue` is the script that binds
+ * `$that1` and reads `$that1.manaValue`. Every name an Op `bind`s is renamed to
+ * its position in the (key-sorted, so deterministic) traversal, and every ref
+ * to it follows — so two scripts compare equal exactly when they are equal up
+ * to the names their author chose. Implicit bindings (`$source`, a `forEach`'s
+ * loop variable) are never `bind` values and are left as written.
+ */
+function alphaRenameBindings(value: unknown): unknown {
+    const names = new Map<string, string>();
+    const collect = (node: unknown): void => {
+        if (Array.isArray(node)) return node.forEach(collect);
+        if (node === null || typeof node !== "object") return;
+        for (const [key, inner] of Object.entries(
+            node as Record<string, unknown>
+        )) {
+            if (
+                key === "bind" &&
+                typeof inner === "string" &&
+                !names.has(inner)
+            )
+                names.set(inner, `$bind${names.size + 1}`);
+            collect(inner);
+        }
+    };
+    collect(value);
+    if (names.size === 0) return value;
+    const rename = (node: unknown): unknown => {
+        if (typeof node === "string") {
+            const dot = node.indexOf(".");
+            const head = dot === -1 ? node : node.slice(0, dot);
+            const renamed = names.get(head);
+            return renamed === undefined
+                ? node
+                : renamed + (dot === -1 ? "" : node.slice(dot));
+        }
+        if (Array.isArray(node)) return node.map(rename);
+        if (node === null || typeof node !== "object") return node;
+        const out: Record<string, unknown> = {};
+        for (const [key, inner] of Object.entries(
+            node as Record<string, unknown>
+        ))
+            out[key] = rename(inner);
+        return out;
+    };
+    return rename(value);
 }
 
 /**
