@@ -27,11 +27,13 @@
  *
  * ── What v1 refuses, and why each refusal is the point ────────────────────
  *
- * CONDITIONAL statics ("… as long as …", CR 611.2c) are refused whole. The
- * engine expresses them as a `condition` CLOSURE over the entire board
- * (`StaticPTBuff.condition`), and a JSON descriptor for "as long as" would be
- * a second condition vocabulary beside `CompiledTriggerCondition` — earned by
- * a fragment count, never by anticipation (`cards/compiledTriggers.ts`).
+ * CONDITIONAL statics ("… as long as …", CR 611.3a) are refused whole, with
+ * ONE exception: "<self> gets +N/+N as long as you control a <descriptor>"
+ * (issue #4126). Its condition is not a second vocabulary — it IS the
+ * `CompiledTriggerCondition` a trigger's intervening-if carries, read by the
+ * shared `controlsRule`, and the descriptor rebuilds it into
+ * `StaticPTBuff.condition`. Every other "as long as" tail ("an opponent
+ * controls", "it's untapped", "you have …") still fails the line.
  *
  * ENCHANTED-scope statics are read by their own frames (issue #3833), now
  * that an Aura's "Enchant <filter>" line parses (issue #3825):
@@ -154,7 +156,7 @@ export type StaticClauseIR =
     /** CR 502.3 — "doesn't untap during your untap step". */
     | { readonly kind: "does-not-untap" }
     /**
-     * CR 611.2c / 613.4c — "This creature gets +N/+N as long as you control a
+     * CR 611.3a / 613.4c — "This creature gets +N/+N as long as you control a
      * <descriptor>": the permanent's own layer-7c buff, present only while
      * the condition holds (re-checked at every layer read).
      */
@@ -339,7 +341,7 @@ export const anthemRule: Rule<StaticClauseIR> = rule(
         })
 );
 
-// ── Frame: conditional self P/T (CR 611.2c) ────────────────────────────────
+// ── Frame: conditional self P/T (CR 611.3a) ────────────────────────────────
 
 const SELF_PUMP_AS_LONG_AS =
     /^(.+) gets ([+-]\d+)\/([+-]\d+) as long as (you control .+)$/;

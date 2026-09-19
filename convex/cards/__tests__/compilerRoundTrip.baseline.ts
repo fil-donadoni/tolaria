@@ -548,7 +548,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Fabled Passage",
     "Fact or Fiction",
     "Faerie Mastermind",
-    "Faithless Looting",
     "Falling Timber",
     "False Orders",
     "Fanatic of Rhonas",

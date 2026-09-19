@@ -91,7 +91,7 @@ export const conditionRule: Rule<ConditionIR> = subGrammar(
  * `"you control a Goblin"` — the controls clause itself, without the word that
  * introduces it. Shared by the three sites that print it: the intervening "if"
  * above (CR 603.4), a resolution-time "If you control …, … instead" (CR 608.2c)
- * and a static's "as long as you control …" (CR 611.2c). One reading for all
+ * and a static's "as long as you control …" (CR 611.3a). One reading for all
  * three, so a descriptor one site accepts is never refused by another.
  */
 export const controlsRule: Rule<ConditionIR> = rule("controls", (span, ctx) => {

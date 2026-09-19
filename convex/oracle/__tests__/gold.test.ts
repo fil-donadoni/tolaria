@@ -41,15 +41,6 @@ const REPORT = runGoldHarness(CARDS);
  * be wrong" is exactly the reasoning this list exists to make expensive.
  */
 const KNOWN_DIVERGENCES: readonly string[] = [
-    // Faithless Looting — two encodings of ONE loot (issue #4126). The card
-    // raises its discard as a `discard-hand` choice, the compiler (with 12 of
-    // the catalogue's 15 hand-written looters) as `choose-hand-card`: the same
-    // pick from the controller's own hand feeding the same `discard` Op. They
-    // differ in the prompt header the client prints ("Discard" vs "Choose",
-    // `src/lib/pending-choice-labels.ts`) and in the bot's sign table only
-    // when the chooser is an announced target, which it is not here. Neither
-    // side is wrong; docs/findings/4126-loot-choice-kind-dual-encoding.md.
-    "Faithless Looting (spell)",
     // Ashnod's Altar left this list in issue #3047: it is now the CR 605.1a
     // mana ability the compiler emits (`useStack: false` + `manaProduced`).
     // Northern Paladin, Active Volcano, Flash Flood and Desert Twister left

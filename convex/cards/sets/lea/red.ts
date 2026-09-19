@@ -1019,7 +1019,7 @@ export const sedgeTroll: CardDefinition = {
     subtypes: ["Troll"],
     power: 2,
     toughness: 2,
-    // CR 611.2c / 613.4c — a layer-7c modifier gated on the board, built
+    // CR 611.3a / 613.4c — a layer-7c modifier gated on the board, built
     // through the SAME descriptor path the Oracle compiler emits (issue
     // #4126). It was a `pt-cda`, which the layer walk applies in 7a — so a
     // 7b set effect (Humility) erased the bonus it must survive.

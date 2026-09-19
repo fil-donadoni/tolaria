@@ -188,7 +188,7 @@ export function lowerStaticClause(
                 },
             };
         case "self-pt-buff-if-controls": {
-            // CR 611.2c — the condition is read off the LAYER view, so its
+            // CR 611.3a — the condition is read off the LAYER view, so its
             // filter may only name fields that view can answer.
             const unreadable = Object.keys(clause.condition.filter).find(
                 (field) => !MATERIALISED_FILTER_FIELDS.has(field)

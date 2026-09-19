@@ -145,7 +145,7 @@ export interface CompiledSpellFilter {
 export type CompiledStaticScope =
     | { readonly filter: PermanentFilter; readonly appliesTo?: never }
     | { readonly appliesTo: "host"; readonly filter?: never }
-    /** CR 109.2 — "This creature gets …": the permanent itself. */
+    /** CR 201.5 — "This creature gets …": the permanent itself. */
     | { readonly appliesTo: "self"; readonly filter?: never }
     | CompiledKickedSelfScope;
 
@@ -192,7 +192,7 @@ export type CompiledStaticEffect =
           readonly kind: "pt-buff";
           readonly power: number;
           readonly toughness: number;
-          /** CR 611.2c — "… as long as you control a <descriptor>": the buff
+          /** CR 611.3a — "… as long as you control a <descriptor>": the buff
            *  exists only while the SOURCE's controller controls a match. The
            *  same JSON condition a compiled trigger's intervening-if carries
            *  (`CompiledTriggerCondition`), read here off the layer view. */
@@ -271,7 +271,7 @@ export type CompiledStaticEffect =
  * lowering time (see the header).
  */
 /**
- * CR 611.2c / 109.5 — "as long as you control a <descriptor>", read off the
+ * CR 611.3a / 109.5 — "as long as you control a <descriptor>", read off the
  * layer view: at least `atLeast` permanents on the SOURCE controller's
  * battlefield match, through the same `filterMatches` (live colours via
  * `ctx.getColors`) every compiled static predicate uses.

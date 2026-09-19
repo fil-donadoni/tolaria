@@ -132,7 +132,7 @@ function controls(color: string) {
     };
 }
 
-describe("golden fixtures (CR 603.4, CR 608.2c, CR 611.2c)", () => {
+describe("golden fixtures (CR 603.4, CR 608.2c, CR 611.3a)", () => {
     it("Raka Sanctuary — the damage replacement keeps the one announced target", () => {
         const base = { op: "dealDamage", amount: 1, to: { target: 0 } };
         expect(compiled(RAKA)).toEqual({
@@ -378,7 +378,7 @@ describe("the upgrade decides at resolution, per colour (CR 608.2c)", () => {
     });
 });
 
-describe("the conditional self buff in the layer system (CR 611.2c, CR 613.4c)", () => {
+describe("the conditional self buff in the layer system (CR 611.3a, CR 613.4c)", () => {
     const tactician = { ...compiled(MINOTAUR), id: "compiled-minotaur-4126" };
 
     function stateWith(others: string[]) {

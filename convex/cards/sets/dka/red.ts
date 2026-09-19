@@ -8,7 +8,9 @@ import type { CardDefinition } from "../../types";
 // hand size). The interpreter checkpoints the Op index, so the draw runs once
 // and the discard choice suspends without re-drawing. Flashback is the engine
 // capability (convex/gre/flashback.ts) — the on-resolution effect is DSL like
-// any free card; the `flashback` field carries the alternative cost.
+// any free card; the `flashback` field carries the alternative cost. The
+// discard pick is a `choose-hand-card` choice, the encoding the other looters
+// and the Oracle compiler's loot sentence share (issue #4126).
 export const faithlessLooting: CardDefinition = {
     id: "a1b0da17-d595-441d-811c-a2d28d2bb232",
     rarity: "common",
@@ -21,7 +23,7 @@ export const faithlessLooting: CardDefinition = {
         { op: "draw", player: "controller", count: 2 },
         {
             op: "choice",
-            kind: "discard-hand",
+            kind: "choose-hand-card",
             player: "controller",
             zone: "hand",
             count: 2,
