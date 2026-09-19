@@ -823,11 +823,15 @@ A unique identifier for a **Card Instance** within a single **Game**. Used as Re
 _Avoid_: Card UUID, runtime ID
 
 **Card Print**:
-A per-edition record (`CardPrint`) mapping a **Print ID** to the **Card ID** of an existing **Card Definition**, plus a set code. It carries no mechanics — it exists so a **Reprint** can supply edition-specific art while reusing the original definition. The registry resolves both the **Card ID** and every **Print ID** to the same **Card Definition**.
+A per-edition record mapping a **Print ID** to the **Card ID** of the **Card Definition** it prints, with its **Set**, its **Rarity**, whether it is a promo or digital-only, and the **Token Prints** it is paired with. It carries no mechanics. Every printing Scryfall knows for a card that has a **Card Definition** — promos, Secret Lair and digital-only printings included, oversized cards excluded — is a Card Print; none is hand-written. The printing whose Print ID _is_ the Card ID is the definition itself, never a Card Print of it (ADR 0140).
 _Avoid_: Edition, variant, version
 
+**Token Print**:
+The printed token card paired with one specific **Card Print**: the token of that card's own edition when the edition printed one, otherwise the token Scryfall pairs it with from another edition. A **Token** shows the Token Print paired with the printing of the object that created it — an Odyssey printing's token looks like Odyssey's, an Ikoria reprint's like Ikoria's. Purely presentational: it never affects what the token is.
+_Avoid_: Token art, token image
+
 **Print ID**:
-The Scryfall UUID of one specific printing of a card. Distinct from the **Card ID** (which keys the mechanics). A **Card Instance** stores the **Print ID** so the chosen edition's art renders while behaviour comes from the shared **Card Definition**.
+The Scryfall UUID of one specific printing of a card. Distinct from the **Card ID** (which keys the mechanics). Chosen by the player for each card of a **Deck** — a deck entry names both — and carried into the **Game**, where it decides only which image is shown, in the deck builder and on the board; the rules engine never reads it. The one place a printing matters beyond its image is legality in an edition-scoped **Format** (Old School, Alpha 40), which judges the chosen printing's **Set** and **Rarity** (ADR 0140).
 _Avoid_: Edition ID, art ID
 
 **Rarity**:
@@ -835,7 +839,7 @@ The printed rarity of a card — one of `common`, `uncommon`, `rare` (CR 206). A
 _Avoid_: Frequency, tier
 
 **Reprint**:
-A card appearing in a later **Set** whose mechanics already exist as a **Card Definition** in an earlier set. Modelled as a **Card Print** only — never a duplicated definition. A **Set** file contains a mix of new **Card Definitions** (cards first implemented in that set) and **Card Prints** (reprints of cards already implemented).
+A card appearing in a later **Set** whose mechanics already exist as a **Card Definition** in an earlier set. Modelled as a **Card Print** only — never a duplicated definition, and never written by hand: every reprint Scryfall knows is available the moment its card has a definition (ADR 0140).
 _Avoid_: Duplicate, copy (overloaded — see **Spell Copy**)
 
 **Set**:
@@ -1031,7 +1035,7 @@ A named list of cards from which an **Alpha 40** **Deck** may include **at most 
 _Avoid_: Restricted slot, power category (overloaded with the "Power" budget itself)
 
 **Rarity**:
-A card's print rarity (`common` / `uncommon` / `rare`), carried per **Card Print** (and on the home-set **Card Definition**) and sourced from MTGJSON. Used only by **Alpha 40**, which caps copies by rarity (commons unlimited, uncommons ≤6, rares ≤3) before its **Moderated** and **Category Budget** overrides apply.
+A card's print rarity (`common` / `uncommon` / `rare` / `mythic`), carried per **Card Print** (and on the home-set **Card Definition**) and sourced from Scryfall. Used only by **Alpha 40**, which caps copies by rarity (commons unlimited, uncommons ≤6, rares ≤3) before its **Moderated** and **Category Budget** overrides apply.
 _Avoid_: Frequency, tier
 
 **Limited Event**:
