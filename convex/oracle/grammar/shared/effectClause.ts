@@ -41,6 +41,7 @@ import { durationRule, type DurationIR } from "./duration";
 import { playerRefRule, type PlayerRefIR } from "./playerRef";
 import { readNumberWord } from "./quantity";
 import { isSelfPhrase } from "./cost";
+import { SELF_MARKER } from "../../normalize";
 import { kickedConditionRule, type KickedRefIR } from "./condition";
 import { targetFilterRule } from "./targetFilter";
 import { zoneRefRule, type ZoneRefIR } from "./zoneRef";
@@ -564,7 +565,11 @@ export function kickedSentenceRule(inner: Rule<SentenceIR>): Rule<SentenceIR> {
         const condition =
             head === null ? null : kickedConditionRule.run(head, ctx);
         if (condition === null || !condition.ok) return inner.run(span, ctx);
-        const parsed = inner.run(capitalise(span.slice(comma + 2)), ctx);
+        // CR 608.2h — "If this spell was kicked, it deals …": the clause's
+        // own subject is the spell, the nearest antecedent the pronoun has
+        // (`bindSourcePronoun`), and a spell's source is the spell itself.
+        const tail = bindSourcePronoun(span.slice(comma + 2)).span;
+        const parsed = inner.run(capitalise(tail), ctx);
         if (!parsed.ok) return parsed;
         if (parsed.value.role !== "effect")
             return fail(
@@ -579,6 +584,56 @@ export function kickedSentenceRule(inner: Rule<SentenceIR>): Rule<SentenceIR> {
                 effect: parsed.value.effect,
             },
         });
+    });
+}
+
+/**
+ * A sentence opening on the pronoun "It", with the pronoun already bound.
+ *
+ * CR 608.2h — "If an ability states that an object does something, it's the
+ * object as it exists—or as it most recently existed—that does it". The
+ * pronoun names an object; WHICH object is not a fact about the sentence but
+ * about the text before it, so this sub-grammar never guesses: it binds only
+ * what its CALLER — the site that printed the antecedent — says the pronoun
+ * names, and a caller that binds nothing leaves "It" unread (the sentence
+ * table has no entry for the word, so the line stays `unparsed`).
+ *
+ * The one referent any site binds today is the SOURCE, and the binding is
+ * written as the source's own marker (`{self}`, CR 201.5), so "It deals 2
+ * damage" and "{self} deals 2 damage" are ONE sentence read by one table —
+ * `normalize.ts` makes the same substitution for the card's printed name.
+ * Only the LEADING word is rebound: "Put a +1/+1 counter on target creature.
+ * It gains flying" names the target, and a later sentence's "It" never
+ * reaches this function.
+ */
+export function bindSourcePronoun(span: string): {
+    readonly span: string;
+    readonly bound: boolean;
+} {
+    const probe = uncapitalise(span);
+    return probe.startsWith(SOURCE_PRONOUN)
+        ? {
+              span: `${SELF_MARKER} ${probe.slice(SOURCE_PRONOUN.length)}`,
+              bound: true,
+          }
+        : { span, bound: false };
+}
+
+const SOURCE_PRONOUN = "it ";
+
+/**
+ * Wrap a sentence-LIST rule so a leading "It" is read as the source, and say
+ * whether it was — the caller owns the antecedent check (`bindSourcePronoun`).
+ */
+export function sourcePronounListRule<T>(
+    inner: Rule<T>
+): Rule<{ readonly value: T; readonly boundPronoun: boolean }> {
+    return rule(`source-pronoun ${inner.label}`, (span, ctx) => {
+        const bound = bindSourcePronoun(span);
+        const parsed = inner.run(bound.span, ctx);
+        return parsed.ok
+            ? ok({ value: parsed.value, boundPronoun: bound.bound })
+            : parsed;
     });
 }
 
