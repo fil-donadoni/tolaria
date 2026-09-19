@@ -285,7 +285,7 @@ export type SentenceIR =
     | { readonly role: "effect"; readonly effect: EffectSentenceIR }
     | { readonly role: "restriction"; readonly restriction: RestrictionIR }
     | { readonly role: "modifier"; readonly modifier: ModifierIR }
-    /** CR 401.4 — the window half of a `look-distribute` (see there). */
+    /** The window half of a `look-distribute` (see there). */
     | {
           readonly role: "library-look";
           readonly reveal: boolean;
@@ -598,7 +598,7 @@ const LIFE = /^(.+) (gain|gains|lose|loses) (\S+) life$/;
 const COUNTERS = /^Put (\S+) (\S+) counters? on (.+)$/;
 const DISCARD_RANDOM = /^(.+) discards (\S+) cards? at random$/;
 
-/** CR 401.4 — the window: "Look at the top four cards of your library". */
+/** The window: "Look at [or Reveal] the top four cards of your library". */
 const LIBRARY_LOOK = /^(Look at|Reveal) the top (\S+) cards of your library$/;
 /** CR 401.4 — the one-sentence reorder, looked at by "you". */
 const LIBRARY_REORDER =

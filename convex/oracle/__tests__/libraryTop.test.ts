@@ -225,7 +225,7 @@ describe("Library top — golden fixtures (CR 401.4, CR 701.20a)", () => {
                 controller: "opponent",
             },
             effects: [
-                // CR 401.4 — you order the opponent's top three …
+                // You order the opponent's top three …
                 {
                     op: "scryReorder",
                     player: { target: 0 },

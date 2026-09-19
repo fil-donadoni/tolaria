@@ -412,8 +412,9 @@ export function lowerSentence(
                         destination: "none",
                     },
                 ]);
-            // CR 401.4 — the looker is "you", the library another player's:
-            // the controller orders it (`chooser`, the fateseal seam).
+            // The library is another player's but the looker is "you": the
+            // card overrides CR 401.4's default (the owner arranges), so the
+            // controller orders it (`chooser`, the fateseal seam).
             walk.libraryLookedAt = player.value;
             return lowered([
                 {
