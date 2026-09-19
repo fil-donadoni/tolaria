@@ -42,7 +42,7 @@ import type {
 } from "./types";
 import type { CardDefinition } from "./types";
 import { countDomain } from "./types";
-import { getEventFieldRow } from "./mechanicsRegistry";
+import { getEventFieldRow } from "./eventFields";
 import type { Phase } from "../gre/types";
 import { attacksTrigger } from "./abilities/triggers/attacksTrigger";
 import { damageDealtTrigger } from "./abilities/triggers/damageDealtTrigger";
