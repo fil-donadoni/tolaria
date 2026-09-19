@@ -643,9 +643,11 @@ describe("Event field registry ($event.<field>, ADR 0049, issue #865)", () => {
             for (const [field, row] of Object.entries(fields)) {
                 // issue #3206 — `stack-object` is the third family: a SPELL
                 // on the stack, which is neither a permanent (a battlefield
-                // recheck would reject every one) nor a player.
+                // recheck would reject every one) nor a player. Issue #4127 —
+                // `graveyard-card` is the fourth: a card a zone change put
+                // into a graveyard (CR 400.7e).
                 expect(
-                    ["object", "player", "stack-object"],
+                    ["object", "player", "stack-object", "graveyard-card"],
                     `${eventType}.${field}`
                 ).toContain(row.family);
                 expect(typeof row.resolve, `${eventType}.${field}`).toBe(

@@ -12325,6 +12325,7 @@
         {"id":"400.7e","line":"// CR 700.4 + CR 400.7e — \"When enchanted creature dies, return that card","sites":1,"status":"confirmed","ruleHash":"22e89e07f061584a"},
         {"id":"400.7e","line":"// CR 700.4 / 400.7e / issue #4127 — \"When enchanted creature dies, return","sites":1,"status":"confirmed","ruleHash":"22e89e07f061584a"},
         {"id":"400.7e","line":"// engine (issue #4127, CR 603.2b / 603.4 / 400.7e).","sites":1,"status":"confirmed","ruleHash":"22e89e07f061584a"},
+        {"id":"400.7e","line":"// into a graveyard (CR 400.7e).","sites":1,"status":"confirmed","ruleHash":"22e89e07f061584a"},
         {"id":"400.7e","line":"// read it back (issue #4127, CR 603.2b / 603.4 / 400.7e).","sites":1,"status":"confirmed","ruleHash":"22e89e07f061584a"},
         {"id":"400.7e","line":"`${at}: \"$event\" ref \"${use.ref}\" is a graveyard-card field — it is legal only as moveZone's target, the one Op that acts on a card in a graveyard (CR 400.7e)`","sites":1,"status":"confirmed","ruleHash":"22e89e07f061584a"},
         {"id":"400.7e","line":"`${at}: capture \"${name}\" \"$event\" ref \"${ref}\" is a graveyard-card field — no delayed body reads a graveyard card through a capture yet (CR 400.7e), so it is refused rather than re-bound unexercised. Act on the card in the trigger's own body instead`","sites":1,"status":"confirmed","ruleHash":"22e89e07f061584a"},

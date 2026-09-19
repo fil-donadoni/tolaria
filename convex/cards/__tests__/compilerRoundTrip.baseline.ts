@@ -355,7 +355,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Consuming Aetherborn",
     "Containment Priest",
     "Conversion",
-    "Copper Tablet",
     "Copperline Gorge",
     "Copy Artifact",
     "Cori-Steel Cutter",
