@@ -88,6 +88,38 @@ fence (like the one above) is an example and is not read.
 its `` `Name` `` / `**Name**` spans — a proposal only: confirm against the
 body, then paste.
 
+## Umbrellas partition by band (issue #4056)
+
+**Open an umbrella per BAND, never per type** (issue #3851 decision 7). A
+type umbrella is a pile: issue #3972 held 87 Op gaps in no order, and exists
+only because GitHub caps a parent at 100 sub-issues. A band umbrella is a
+bounded, ordered slice of the backlog, so the cap stops being reachable.
+
+| Family        | Holds                                                                   | P0    | P1    | P2    | P3    |
+| ------------- | ----------------------------------------------------------------------- | ----- | ----- | ----- | ----- |
+| Grammar Rules | `Grammar Gap:` (`gaps:sync` kind `grammar`), `[Grammar]` rule tickets   | #4091 | #4092 | #4093 | #4094 |
+| Ops           | `Quarantine (mechanic):` (kind `mechanic`) — new and existing Ops alike | #4095 | #4096 | #4097 | #4098 |
+| Bot Gaps      | `Bot Gap:` (kind `bot`)                                                 | #4099 | #4100 | #4101 | #4102 |
+
+- **The band is COMPUTED, and the parent follows it.** It is `backlog:triage`'s
+  cards source — the strongest registered Target among the cards the gap
+  reaches (`strongestCardBand`): the hand-written cards using the Op for an
+  Op gap, the quarantined cards for a mechanic class, the cards carrying the
+  key as `botGap` for a Bot Gap. `gaps:sync` files under that band's umbrella
+  and MOVES an open issue whose band was recomputed; the table lives in code
+  as `BAND_UMBRELLAS` (`scripts/lib/gap-issues.ts`).
+- **P0 is hand-set only.** No rule computes it; `gaps:sync` never files into
+  a P0 umbrella and never moves an issue out of one.
+- **Residue** — no ranked Target among its cards — keeps its current parent,
+  and `gaps:sync` lists it. It is never swept into a band.
+- **Each umbrella's board `Priority` is its band**, set once by hand; its
+  children inherit it (issue #3212).
+- **A hand-filed `[Grammar]` ticket** goes under the Grammar Rules umbrella of
+  the band its cards compute — `gaps:sync` does not file those.
+
+A new family gets four umbrellas, a `BAND_UMBRELLAS` row and a row here —
+never one umbrella by type.
+
 ## When a skill says "publish to the issue tracker"
 
 Create a GitHub issue.

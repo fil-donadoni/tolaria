@@ -10,9 +10,17 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { cardBandIndex, strongestCardBand } from "../lib/backlog-triage";
 import {
     applyUpdatedIssues,
+    BAND_UMBRELLAS,
+    buildGrammarGapFilings,
+    partitionCardIndex,
+    PRD_ISSUE,
     planUnlockEdges,
+    RETIRED_UMBRELLAS,
+    SUB_ISSUE_CAP,
+    withPartitionBands,
     syncGaps,
     syncUnlockEdges,
     withUnlockBlockers,
@@ -165,13 +173,26 @@ class StubTracker implements GapTracker {
         parent: number;
     }> = [];
     readonly umbrellas = new Map<string, number>();
+    /** Native parent per issue — written by a create and by `setParent`. */
+    readonly parents = new Map<number, number>();
+    readonly moves: Array<{ child: number; parent: number }> = [];
+    /** Sub-issues per parent BEFORE this run, for the cap. */
+    readonly childCounts = new Map<number, number>();
     open: TrackedIssueSummary[] = [];
     readonly added: Array<{ issue: number; label: string }> = [];
     readonly comments: Array<{ issue: number; body: string }> = [];
     updateCalls = 0;
 
     getIssue(number: number): TrackedIssue | null {
-        return this.issues.get(number) ?? null;
+        const issue = this.issues.get(number);
+        if (issue === undefined) return null;
+        const parent = this.parents.get(number);
+        return parent === undefined ? issue : { ...issue, parent };
+    }
+
+    setParent(child: number, parent: number): void {
+        this.moves.push({ child, parent });
+        this.parents.set(child, parent);
     }
 
     createIssue(input: {
@@ -187,6 +208,7 @@ class StubTracker implements GapTracker {
         });
         const number = this.next++;
         this.issues.set(number, { state: "OPEN", body: input.body });
+        this.parents.set(number, input.parent);
         return number;
     }
 
@@ -199,10 +221,10 @@ class StubTracker implements GapTracker {
         return this.umbrellas.get(setCode) ?? null;
     }
 
-    /** Far below `SUB_ISSUE_CAP`, so the cap refusal (its own cases live in
-     *  `gap-issues.test.ts`) never fires in this file. */
-    subIssueCount(): number {
-        return 0;
+    /** 0 unless a test seeds `childCounts` — far below `SUB_ISSUE_CAP`, so
+     *  the cap refusal fires only where a test asks for it. */
+    subIssueCount(parent: number): number {
+        return this.childCounts.get(parent) ?? 0;
     }
 
     listOpen(): readonly TrackedIssueSummary[] {
@@ -348,7 +370,7 @@ describe("the mechanic and scenario kinds — one issue per quarantine class", (
             tracker
         );
         expect(after.actions).toEqual([]);
-        expect(tracker.getIssue(5000)).toEqual({
+        expect(tracker.getIssue(5000)).toMatchObject({
             state: "OPEN",
             body: expect.stringContaining("changeling"),
         });
@@ -987,5 +1009,257 @@ describe("staleClaims — a row no filing referenced", () => {
         expect(staleClaims(filed, filings)).toEqual([
             { kind: "migration", key: "renamed-slot", issue: 7002 },
         ]);
+    });
+});
+
+// ── umbrellas partitioned by band (issue #4056) ─────────────────────────
+
+describe("umbrellas partition by band — the triage's cards source picks the parent (issue #4056)", () => {
+    /** One card per band, plus one no ranked Target holds. */
+    const INDEX = cardBandIndex([
+        { id: "tier1-mono-black", ids: ["c-p1"] },
+        { id: "vintage-cube", ids: ["c-p2"] },
+        { id: "set-leg", ids: ["c-p3"] },
+    ]);
+    const GRAMMAR = BAND_UMBRELLAS["grammar-rules"];
+    const OPS = BAND_UMBRELLAS.ops;
+    const BOTS = BAND_UMBRELLAS["bot-gaps"];
+
+    /** `gaps-sync.ts`'s composition, over synthetic inputs. */
+    function banded(
+        filings: readonly GapFiling[],
+        lock: Pick<Lockfile, "cards">,
+        opUsers: ReadonlyMap<string, ReadonlySet<string>> = new Map()
+    ): GapFiling[] {
+        const reached = partitionCardIndex(lock, opUsers);
+        return withPartitionBands(
+            filings,
+            (f) =>
+                strongestCardBand(
+                    reached.get(claimId(f.kind, f.key)) ?? [],
+                    INDEX
+                )?.band ?? null
+        );
+    }
+
+    /** Three Op-census rows: one reached by a P1 card, one only by a P3
+     *  card, one by no ranked card at all (residue). */
+    const OPS_ALLOWLIST = {
+        ops: [
+            { key: "(op) › drain", op: "drain", issue: PRD_ISSUE },
+            { key: "(op) › flicker", op: "flicker", issue: PRD_ISSUE },
+            { key: "(op) › oddity", op: "oddity", issue: PRD_ISSUE },
+        ],
+    };
+    const OP_USERS = new Map([
+        ["drain", new Set(["c-p1", "c-p3"])],
+        ["flicker", new Set(["c-p3"])],
+        ["oddity", new Set(["c-unranked"])],
+    ]);
+
+    it("files a grammar gap under the Grammar Rules umbrella of its band — P1 and P3 — and residue under its fallback", () => {
+        const filings = banded(
+            buildGrammarGapFilings(OPS_ALLOWLIST),
+            { cards: [] },
+            OP_USERS
+        );
+        expect(filings.map((f) => [f.key, f.band])).toEqual([
+            ["(op) › drain", "P1"],
+            ["(op) › flicker", "P3"],
+            ["(op) › oddity", null],
+        ]);
+        const tracker = new StubTracker();
+        syncGaps(filings, tracker);
+        expect(tracker.created.map((c) => [c.title, c.parent])).toEqual([
+            ["Grammar Gap: (op) › drain", GRAMMAR.P1],
+            ["Grammar Gap: (op) › flicker", GRAMMAR.P3],
+            ["Grammar Gap: (op) › oddity", PRD_ISSUE],
+        ]);
+    });
+
+    it("a residue gap already filed keeps its current parent — it is never swept into a band", () => {
+        const tracker = new StubTracker();
+        tracker.issues.set(4500, { state: "OPEN", body: "x" });
+        tracker.parents.set(4500, 3838);
+        const [residue] = banded(
+            buildGrammarGapFilings({
+                ops: [{ key: "(op) › oddity", op: "oddity", issue: 4500 }],
+            }),
+            { cards: [] },
+            OP_USERS
+        );
+        const result = syncGaps([residue!], tracker);
+        expect(result.moves).toEqual([]);
+        expect(tracker.parents.get(4500)).toBe(3838);
+    });
+
+    it("a band recomputed to a stronger value moves the issue once — a second run moves nothing", () => {
+        const tracker = new StubTracker();
+        tracker.issues.set(4501, { state: "OPEN", body: "x" });
+        // Filed under P3 when only the set card used the Op; a tier1 card now
+        // uses it too, so the band is P1.
+        tracker.parents.set(4501, GRAMMAR.P3);
+        const filings = banded(
+            buildGrammarGapFilings({
+                ops: [{ key: "(op) › drain", op: "drain", issue: 4501 }],
+            }),
+            { cards: [] },
+            OP_USERS
+        ).map((f) => ({ ...f, body: () => "x" }));
+        const first = syncGaps(filings, tracker);
+        expect(first.moves).toEqual([
+            {
+                kind: "grammar",
+                key: "(op) › drain",
+                issue: 4501,
+                from: GRAMMAR.P3,
+                to: GRAMMAR.P1,
+            },
+        ]);
+        expect(tracker.parents.get(4501)).toBe(GRAMMAR.P1);
+        const second = syncGaps(filings, tracker);
+        expect(second.moves).toEqual([]);
+        expect(tracker.moves).toHaveLength(1);
+        expect(second.actions.map((a) => a.action)).toEqual(["noop"]);
+    });
+
+    it("never moves an issue out of its family's hand-set P0 umbrella", () => {
+        const tracker = new StubTracker();
+        tracker.issues.set(4502, { state: "OPEN", body: "x" });
+        tracker.parents.set(4502, GRAMMAR.P0);
+        const filings = banded(
+            buildGrammarGapFilings({
+                ops: [{ key: "(op) › flicker", op: "flicker", issue: 4502 }],
+            }),
+            { cards: [] },
+            OP_USERS
+        );
+        expect(syncGaps(filings, tracker).moves).toEqual([]);
+        expect(tracker.parents.get(4502)).toBe(GRAMMAR.P0);
+    });
+
+    it("empties a retired umbrella: a banded child moves to its band, a residue child to its fallback", () => {
+        const [retired] = [...RETIRED_UMBRELLAS];
+        const tracker = new StubTracker();
+        for (const n of [4503, 4504]) {
+            tracker.issues.set(n, { state: "OPEN", body: "x" });
+            tracker.parents.set(n, retired!);
+        }
+        const filings = banded(
+            buildGrammarGapFilings({
+                ops: [
+                    { key: "(op) › flicker", op: "flicker", issue: 4503 },
+                    { key: "(op) › oddity", op: "oddity", issue: 4504 },
+                ],
+            }),
+            { cards: [] },
+            OP_USERS
+        );
+        syncGaps(filings, tracker);
+        expect(tracker.parents.get(4503)).toBe(GRAMMAR.P3);
+        expect(tracker.parents.get(4504)).toBe(PRD_ISSUE);
+    });
+
+    it("the Ops umbrellas partition the mechanic kind the same way — a new Op and an existing mechanic alike", () => {
+        const PLANNED_OP = {
+            kind: "planned-op",
+            detail: 'Drain Card (aaaaaaaa-0000-4000-8000-000000000011): Op "drainEverything" is not in the Mechanics Registry',
+        };
+        const lock = {
+            fragments: [],
+            cards: [
+                quarantined(
+                    "c-p2",
+                    "Cube Changeling",
+                    [CHANGELING],
+                    ["premodern"]
+                ),
+                quarantined("c-p3", "Leg Changeling", [CHANGELING]),
+                quarantined("c-p1", "Drain Card", [PLANNED_OP], ["premodern"]),
+                ...FILLER,
+            ],
+        };
+        const filings = banded(
+            buildQuarantineFilings(inputs(lock), "mechanic"),
+            lock
+        );
+        const tracker = new StubTracker();
+        syncGaps(filings, tracker);
+        expect(
+            tracker.created
+                .map((c) => [c.title.split(" › ")[0], c.parent])
+                .sort()
+        ).toEqual(
+            [
+                ["Quarantine (mechanic): planned-mechanic", OPS.P2],
+                ["Quarantine (mechanic): planned-op", OPS.P1],
+            ].sort()
+        );
+    });
+
+    it("a Bot Gap's band is the highest Target among the cards carrying its key — a played row's stale key lends nothing", () => {
+        const KEY = "never-chosen › Enchantment › destroy";
+        const lock = {
+            fragments: [],
+            cards: [
+                botRow("c-p2", "Cube Aura", KEY, ["premodern"]),
+                botRow("c-p3", "Leg Aura", KEY),
+                // Its key is stale by contract: were it counted, the band
+                // would be P1.
+                {
+                    oracleId: "c-p1",
+                    name: "Played Aura",
+                    state: "ready" as const,
+                    opsUsed: [],
+                    botReach: "played" as const,
+                    botGap: KEY,
+                },
+                ...FILLER,
+            ],
+        };
+        const filings = banded(buildBotGapFilings(inputs(lock)), lock);
+        expect(filings.map((f) => [f.key, f.band])).toEqual([[KEY, "P2"]]);
+        const tracker = new StubTracker();
+        tracker.issues.set(4505, { state: "OPEN", body: "x" });
+        tracker.parents.set(4505, PRD_ISSUE);
+        syncGaps(
+            filings.map((f) => ({ ...f, currentIssue: 4505 })),
+            tracker
+        );
+        expect(tracker.parents.get(4505)).toBe(BOTS.P2);
+    });
+
+    it("an unpartitioned kind keeps the set-umbrella / PRD parent", () => {
+        const lock = {
+            fragments: [],
+            cards: [
+                quarantined("c-p1", "Onulet", [SMOKE], ["premodern"]),
+                ...FILLER,
+            ],
+        };
+        const filings = banded(
+            buildQuarantineFilings(inputs(lock), "scenario"),
+            lock
+        );
+        expect(filings[0]!.band).toBeUndefined();
+        const tracker = new StubTracker();
+        syncGaps(filings, tracker);
+        expect(tracker.created[0]!.parent).toBe(PRD_ISSUE);
+    });
+
+    it("counts MOVES against the cap, and refuses before any write", () => {
+        const tracker = new StubTracker();
+        tracker.issues.set(4506, { state: "OPEN", body: "x" });
+        tracker.parents.set(4506, [...RETIRED_UMBRELLAS][0]!);
+        tracker.childCounts.set(GRAMMAR.P3, SUB_ISSUE_CAP);
+        const filings = banded(
+            buildGrammarGapFilings({
+                ops: [{ key: "(op) › flicker", op: "flicker", issue: 4506 }],
+            }),
+            { cards: [] },
+            OP_USERS
+        );
+        expect(() => syncGaps(filings, tracker)).toThrow(/cap of 100/);
+        expect(tracker.moves).toEqual([]);
     });
 });

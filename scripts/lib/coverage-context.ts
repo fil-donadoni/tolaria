@@ -10,7 +10,9 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { getAllCards } from "../../convex/cards/catalogue";
+import { collectOps } from "../../convex/oracle/gates";
 import { roundTripCard } from "../../convex/oracle/gold";
+import type { CompiledDefinition } from "../../convex/oracle/types";
 import { poolOracleIds } from "../oracle-compile";
 import {
     isExempting,
@@ -120,6 +122,30 @@ export function closureOracleIds(
         if (row !== undefined) ids.add(row.oracleId);
     }
     return ids;
+}
+
+/**
+ * Op name → oracle ids of the catalogue cards whose hand-written definition
+ * uses it — what an Op-census gap REACHES, since no compiled row emits the Op
+ * by definition (issue #4056, `partitionCardIndex`). `collectOps` walks a
+ * definition as plain data, so a `resolve()` body contributes no Op; the
+ * catalogue card the lockfile does not carry is skipped, like
+ * {@link closureOracleIds}.
+ */
+export function opUserOracleIds(
+    byName: ResolveContext["byName"]
+): Map<string, Set<string>> {
+    const out = new Map<string, Set<string>>();
+    for (const card of getAllCards()) {
+        const row = byName.get(card.name);
+        if (row === undefined) continue;
+        for (const op of collectOps(card as unknown as CompiledDefinition)) {
+            let set = out.get(op);
+            if (set === undefined) out.set(op, (set = new Set()));
+            set.add(row.oracleId);
+        }
+    }
+    return out;
 }
 
 /** Card name → the set module its hand-written definition lives in, repo

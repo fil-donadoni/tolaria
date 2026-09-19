@@ -107,6 +107,26 @@ export function cardBandIndex(
 }
 
 /**
+ * The cards source of the rule on its own: the strongest band any of `cards`
+ * lends, with the Target lending it — `null` when none is in a ranked Target.
+ * The ONE place that decision is made: `triage` seeds from it, and `gaps:sync`
+ * picks a gap's band umbrella from it (issue #4056), so the partition cannot
+ * drift from the axis it partitions.
+ */
+export function strongestCardBand(
+    cards: Iterable<string>,
+    index: ReadonlyMap<string, CardBand>
+): CardBand | null {
+    let best: CardBand | null = null;
+    for (const id of cards) {
+        const held = index.get(id);
+        if (held === undefined) continue;
+        if (best === null || rank(held.band) < rank(best.band)) best = held;
+    }
+    return best;
+}
+
+/**
  * The cards each issue UNLOCKS through the claims it settles — one claim row,
  * one issue (`data/grammar-gaps.json`), resolved on the lockfile with the same
  * key scheme the filer used:
@@ -377,12 +397,7 @@ export function triage(
         const out: Candidate[] = [];
         if (issue.number === fiatRoot || issue.parent === fiatRoot)
             out.push({ band: "P1", source: "fiat", via: `#${fiatRoot}` });
-        let best: CardBand | null = null;
-        for (const id of issue.cards) {
-            const held = index.get(id);
-            if (held === undefined) continue;
-            if (best === null || rank(held.band) < rank(best.band)) best = held;
-        }
+        const best = strongestCardBand(issue.cards, index);
         if (best !== null)
             out.push({ band: best.band, source: "cards", via: best.target });
         return out;

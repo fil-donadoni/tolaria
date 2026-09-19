@@ -18,6 +18,13 @@
  * contract, the scope and the umbrella, and `lib/gap-kinds.ts`'s for the two
  * measures and the rank. It closes nothing: an issue closes through its PR.
  *
+ * It parents three kinds by BAND (issue #4056): `grammar` under the Grammar
+ * Rules umbrellas, `mechanic` under the Ops umbrellas, `bot` under the Bot
+ * Gaps umbrellas, one per band — the band being `backlog:triage`'s cards
+ * source over the cards the gap reaches (`lib/gap-issues.ts` § Parent). An
+ * open issue whose band is recomputed is MOVED; residue is listed and keeps
+ * its parent.
+ *
  * It also wires the ONE dependency a gap can have that is not computed from the
  * corpus: an engine issue declares, in a `## Unlocks` section of its own body,
  * the gap keys it unblocks, and this writes both halves of that edge — the
@@ -69,13 +76,19 @@ import {
     setIssueParent,
     subIssueCount as sharedSubIssueCount,
 } from "./lib/gh";
+import { cardBandIndex, strongestCardBand } from "./lib/backlog-triage";
 import {
     applyUpdatedIssues,
+    bandUmbrellaOf,
     buildGrammarGapFilings,
     GAP_TITLE_PREFIX,
+    PARTITIONED_KINDS,
+    partitionCardIndex,
+    RETIRED_UMBRELLAS,
     planUnlockEdges,
     syncGaps,
     syncUnlockEdges,
+    withPartitionBands,
     withUnlockBlockers,
     type GapFiling,
     type GapTracker,
@@ -87,6 +100,7 @@ import {
     buildGraduates,
     compilerGapCards,
     handTailOracleIds,
+    opUserOracleIds,
 } from "./lib/coverage-context";
 import {
     buildBotGapFilings,
@@ -107,6 +121,7 @@ import {
     parseClaimRows,
     readTargetRegistry,
     resolveContext,
+    resolveTarget,
     splitClaimId,
     type GapKind,
 } from "./lib/targets";
@@ -116,6 +131,22 @@ export function isIssueNotFound(err: unknown): boolean {
     const e = err as { stderr?: unknown; message?: unknown };
     const text = `${String(e?.stderr ?? "")}\n${String(e?.message ?? "")}`;
     return /Could not resolve to an issue/i.test(text);
+}
+
+/** One issue as `gh issue list/view --json …,parent` returns it. */
+interface GhIssueRow {
+    readonly number: number;
+    readonly state: string;
+    readonly body: string;
+    readonly parent?: { readonly number?: number } | null;
+}
+
+function trackedIssue(row: Omit<GhIssueRow, "number">): TrackedIssue {
+    return {
+        state: row.state === "CLOSED" ? "CLOSED" : "OPEN",
+        body: row.body,
+        parent: row.parent?.number ?? null,
+    };
 }
 
 /** The `gh`-backed `GapTracker` — the one place this module touches the
@@ -135,25 +166,15 @@ export class GhGapTracker implements GapTracker {
      *  A number the lists miss falls back to a single `view`. */
     private prefetch(): Map<number, TrackedIssue> {
         if (this.cache !== null) return this.cache;
-        const rows: { number: number; state: string; body: string }[] = [];
+        const rows: GhIssueRow[] = [];
         for (const prefix of this.prefixes) {
             rows.push(...this.listByTitle(prefix));
         }
-        this.cache = new Map(
-            rows.map((r) => [
-                r.number,
-                {
-                    state: r.state === "CLOSED" ? "CLOSED" : "OPEN",
-                    body: r.body,
-                },
-            ])
-        );
+        this.cache = new Map(rows.map((r) => [r.number, trackedIssue(r)]));
         return this.cache;
     }
 
-    private listByTitle(
-        prefix: string
-    ): { number: number; state: string; body: string }[] {
+    private listByTitle(prefix: string): GhIssueRow[] {
         const out = gh([
             "issue",
             "list",
@@ -164,13 +185,9 @@ export class GhGapTracker implements GapTracker {
             "--limit",
             "500",
             "--json",
-            "number,state,body",
+            "number,state,body,parent",
         ]);
-        return JSON.parse(out) as {
-            number: number;
-            state: string;
-            body: string;
-        }[];
+        return JSON.parse(out) as GhIssueRow[];
     }
 
     getIssue(number: number): TrackedIssue | null {
@@ -182,13 +199,9 @@ export class GhGapTracker implements GapTracker {
                 "view",
                 String(number),
                 "--json",
-                "state,body",
+                "state,body,parent",
             ]);
-            const parsed = JSON.parse(out) as { state: string; body: string };
-            return {
-                state: parsed.state === "CLOSED" ? "CLOSED" : "OPEN",
-                body: parsed.body,
-            };
+            return trackedIssue(JSON.parse(out) as Omit<GhIssueRow, "number">);
         } catch (err) {
             // Only "no such issue" means gone. Anything else — network, rate
             // limit, auth — rethrows: read as null it would file a duplicate
@@ -373,7 +386,7 @@ export class GhGapTracker implements GapTracker {
         }
     }
 
-    private setParent(child: number, parent: number): void {
+    setParent(child: number, parent: number): void {
         if (!setIssueParent(child, parent)) {
             console.error(
                 `gaps:sync: could not confirm issue #${child}'s parent is #${parent} after 3 attempts`
@@ -458,8 +471,17 @@ export function buildAllFilings(
         ...gapIndex(lock),
     };
     const handTail = buildHandTailFilings(inputs);
-    return {
-        filings: [
+    // The band partition (issue #4056): the triage's own cards source, over
+    // EVERY registered Target — the same index `backlog:triage` builds.
+    const index = cardBandIndex(
+        registry.targets.map((row) => ({
+            id: row.id,
+            ids: resolveTarget(row, ctx).cards.map((c) => c.oracleId),
+        }))
+    );
+    const reached = partitionCardIndex(lock, opUserOracleIds(ctx.byName));
+    const filings = withPartitionBands(
+        [
             ...buildGrammarGapFilings(allowlist),
             ...buildQuarantineFilings(inputs, "mechanic"),
             ...buildQuarantineFilings(inputs, "scenario"),
@@ -467,9 +489,13 @@ export function buildAllFilings(
             ...handTail.filings,
             ...buildMigrationFilings(inputs, buildGraduates(root, ctx)),
         ],
-        handTailHeld: handTail.held,
-        filed,
-    };
+        (filing) =>
+            strongestCardBand(
+                reached.get(claimId(filing.kind, filing.key)) ?? [],
+                index
+            )?.band ?? null
+    );
+    return { filings, handTailHeld: handTail.held, filed };
 }
 
 /**
@@ -537,13 +563,33 @@ function main(): void {
         );
     }
 
+    // Residue of the band partition: no ranked Target among the cards it
+    // reaches. Listed, never swept into a band — it keeps its parent.
+    const bandResidue = filings.filter(
+        (f) =>
+            PARTITIONED_KINDS[f.kind] !== undefined &&
+            bandUmbrellaOf(f) === null
+    );
+    for (const f of bandResidue) {
+        const at =
+            f.currentIssue === null ? "unfiled" : `issue #${f.currentIssue}`;
+        console.log(
+            `residue    ${f.kind} \`${f.key}\` (${at}) — no ranked Target among the cards it reaches; no band umbrella: it keeps its parent (under a retired umbrella, it moves to its fallback)`
+        );
+    }
+
     if (dryRun) {
         for (const filing of filings) {
             const at =
                 filing.currentIssue === null
                     ? "would CREATE"
                     : `would reconcile issue #${filing.currentIssue}`;
-            console.log(`${filing.kind.padEnd(10)} ${at}: ${filing.title}`);
+            const umbrella = bandUmbrellaOf(filing);
+            const band =
+                umbrella === null ? "" : ` [${filing.band} -> #${umbrella}]`;
+            console.log(
+                `${filing.kind.padEnd(10)} ${at}${band}: ${filing.title}`
+            );
         }
         console.log(
             "unlocks    skipped — reading the `## Unlocks` declarations is a network call, and --dry-run makes none"
@@ -587,8 +633,14 @@ function main(): void {
             );
         }
     }
+    for (const move of result.moves) {
+        console.log(
+            `${move.kind.padEnd(10)} move        ${move.key} -> issue #${move.issue}: parent ${move.from === null ? "none" : `#${move.from}`} -> #${move.to}`
+        );
+    }
     console.log(
-        `gaps:sync: ${[...counts].map(([k, n]) => `${n} ${k}`).join(", ") || "no gaps"}`
+        `gaps:sync: ${[...counts].map(([k, n]) => `${n} ${k}`).join(", ") || "no gaps"}; ` +
+            `${result.moves.length} re-parented (${result.moves.filter((m) => m.from !== null && RETIRED_UMBRELLAS.has(m.from)).length} out of a retired umbrella), ${bandResidue.length} partition residue`
     );
 
     // The write-back comes FIRST, before any further network step: `syncGaps`
