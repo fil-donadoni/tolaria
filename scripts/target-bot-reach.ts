@@ -28,6 +28,8 @@ import type {
     BotReachVerdict,
 } from "../convex/gre/ai/botReach";
 import { castShape } from "../convex/gre/ai/botReachForm";
+import { collectOps } from "../convex/oracle/gates";
+import type { CompiledDefinition } from "../convex/oracle/types";
 import { botGapKey } from "./lib/oracle-bot-reach";
 import {
     parseLockfile,
@@ -69,22 +71,6 @@ export interface TargetMeasure {
         outcome: BotReachOutcome;
         cards: string[];
     }>;
-}
-
-/** Every Op name a definition's scripts use — `opsUsed` for a hand-written
- *  card, which has no compile outcome to carry one. */
-export function opsOf(def: unknown): string[] {
-    const ops = new Set<string>();
-    const walk = (node: unknown): void => {
-        if (Array.isArray(node)) node.forEach(walk);
-        else if (node !== null && typeof node === "object") {
-            const rec = node as Record<string, unknown>;
-            if (typeof rec.op === "string") ops.add(rec.op);
-            Object.values(rec).forEach(walk);
-        }
-    };
-    walk(def);
-    return [...ops].sort();
 }
 
 const zero = (): Record<BotReachOutcome, number> => ({
@@ -132,6 +118,19 @@ export function aggregate(
                     (a.key < b.key ? -1 : a.key > b.key ? 1 : 0)
             ),
     };
+}
+
+/** A row `oracle:compile` compiled and then withheld ONLY because the sweep
+ *  froze on it (`bot-unreachable`) — its definition is still the one the
+ *  sweep played, and the measurement must count it `frozen`, not
+ *  `unplayable`. A grammar quarantine never reached the Bot. */
+function botWithheld(row: CardRow): boolean {
+    const reasons = row.quarantineReasons ?? [];
+    return (
+        row.state === "quarantine" &&
+        reasons.length > 0 &&
+        reasons.every((r) => r.kind === "bot-unreachable")
+    );
 }
 
 function argValues(flag: string): string[] {
@@ -187,8 +186,14 @@ async function main(): Promise<void> {
         if (printId !== undefined) {
             def = getDefinition(printId);
             source = "hand-written";
-            opsUsed = opsOf(def);
-        } else if (row.state === "ready" && row.definition !== undefined) {
+            // The compiler's own Op census, so a hand-written card keys its
+            // Bot Gap exactly as a compiled one would (an `if` predicate's
+            // comparator is not an Op).
+            opsUsed = collectOps(def as unknown as CompiledDefinition);
+        } else if (
+            row.definition !== undefined &&
+            (row.state === "ready" || botWithheld(row))
+        ) {
             def = {
                 ...row.definition,
                 id: `oracle-bot-reach:${row.oracleId}`,

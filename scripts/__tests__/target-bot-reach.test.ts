@@ -1,31 +1,10 @@
 /**
- * Whole-Target Bot-play measurement (issue #4149) — the pure half: the Op
- * census of a hand-written definition and the per-Target aggregation. The
- * play itself is `playBotReach`, tested where it lives.
+ * Whole-Target Bot-play measurement (issue #4149) — the pure half: the
+ * per-Target aggregation. The play itself is `playBotReach`, tested where it lives.
  */
 
 import { describe, expect, it } from "vitest";
-import { aggregate, opsOf, type CardMeasure } from "../target-bot-reach";
-
-describe("opsOf", () => {
-    it("collects every nested Op name once, sorted", () => {
-        expect(
-            opsOf({
-                effects: [
-                    { op: "draw", n: 1 },
-                    { op: "if", then: [{ op: "dealDamage" }, { op: "draw" }] },
-                ],
-                triggeredAbilities: [{ effects: [{ op: "destroy" }] }],
-            })
-        ).toEqual(["dealDamage", "destroy", "draw", "if"]);
-    });
-
-    it("is empty for a closure-only definition", () => {
-        expect(opsOf({ name: "Word of Command", resolve: () => {} })).toEqual(
-            []
-        );
-    });
-});
+import { aggregate, type CardMeasure } from "../target-bot-reach";
 
 describe("aggregate", () => {
     const card = (
