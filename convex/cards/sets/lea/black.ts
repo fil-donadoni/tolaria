@@ -331,12 +331,7 @@ export const demonicHordes: CardDefinition = {
 // card on top." (CR 701.23 for search, CR 701.24 for shuffle). Modern oracle
 // simplifies (tracked-by: #2785) to "Search your library for a card, put it into your hand, then
 // shuffle." Effect Script: search-library choice (count=1), then move the
-// picked card into the caster's hand, then shuffle. (Comment deliberately
-// avoids the literal text "resolve" immediately followed by a colon — the
-// migration classifier's `resolve\s*:` regex scans comments too, and that
-// exact phrase previously caused it to brace-match into the NEXT card's
-// object literal and misattribute a spurious "free" migration item to this
-// card's name.)
+// picked card into the caster's hand, then shuffle.
 export const demonicTutor: CardDefinition = {
     id: "711d4d54-5520-4de8-9b93-79902ed8e562",
     rarity: "uncommon",
@@ -893,10 +888,7 @@ export const nettlingImp: CardDefinition = {
             // restrictCombat mode + attacked-this-turn predicate) —
             // `scheduleDelayedTrigger` is an imperative primitive here, not
             // the `delayedTrigger` Op, so this body stays a plain
-            // `DelayedTriggerDef.resolve`. (The migration classifier
-            // double-counts a DelayedTriggerDef body as its own standalone
-            // "free" item whenever the body alone isn't blocked — a known
-            // false positive; this note is what keeps it from resurfacing.)
+            // `DelayedTriggerDef.resolve`.
             id: "nettling-imp-destroy",
             oracleText:
                 "Destroy that creature at the beginning of the next end step if it didn't attack this turn.",

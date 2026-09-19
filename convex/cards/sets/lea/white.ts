@@ -1335,10 +1335,7 @@ export const wrathOfGod: CardDefinition = {
 // self, deal damage, etc. — varies per caller), so it cannot itself become a
 // single Effect Script; each caller's `onDecline` would need its own
 // migration, and the factory would need to stop being a shared imperative
-// wrapper. (The migration classifier misattributes this closure's own body —
-// just a `mayPay` call, since `args.onDecline(ctx)` is invisible to its
-// `ctx.xxx(...)` primitive scan — to whichever card literal precedes it in
-// the file; this note is what keeps that false positive from resurfacing.)
+// wrapper.
 export function makeUpkeepPayOrElse(args: {
     id: string;
     oracleText: string;

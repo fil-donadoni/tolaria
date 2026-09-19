@@ -8,8 +8,7 @@
 // site reads `getDefinition`/`tryGetDefinition` (ADR 0046) — this seam adds
 // rows to that ONE map and nothing else. It does NOT feed `catalogue.ts`'s
 // `allCards`/`getAllCards()` — that population drives several catalogue-wide
-// sweeps (full-catalogue asset build, migration classifier, card-index
-// guard) whose blast radius is a separate decision from "can a compiled card
+// sweeps (full-catalogue asset build, card-index guard) whose blast radius is a separate decision from "can a compiled card
 // be looked up". See `docs/adr/0108-compiled-card-id-scheme.md` for the id
 // scheme and the getAllCards() exclusion rationale.
 //

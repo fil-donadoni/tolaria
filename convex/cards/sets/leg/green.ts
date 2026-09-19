@@ -484,9 +484,7 @@ export const stormSeeker: CardDefinition = {
     // in that player's HAND", and `count` now has a `zone: "hand"` member
     // (CR 402.2 — hidden zone, public SIZE, the `library` member's twin), so
     // `{ count: { zone: "hand", controller: { target: 0 } } }` expresses this
-    // exactly. The closure stays only because migrating it is free-tranche
-    // work with its own batch, not part of the issue that shipped the member.
-    // tracked-by: #3729
+    // exactly.
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
         if (target?.type !== "player") return;
@@ -713,8 +711,7 @@ export const shelkinBrownie: CardDefinition = {
             // NOT DSL-migratable (ADR 0045): `removeStaticAbilities` takes a
             // PREDICATE closure (any "bands with other:"-prefixed keyword) —
             // no Op wraps ability REMOVAL (only `grantAbility`'s GRANT
-            // direction is an Op; New-Op backlog `removeStaticAbilities`,
-            // migration-classifier.mjs; same gap as Tolaria's strip ability,
+            // direction is an Op; same gap as Tolaria's strip ability,
             // `colorless.ts`). Blocked on: a keyword-removal Op.
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];

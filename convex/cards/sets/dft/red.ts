@@ -28,16 +28,8 @@ export const maraudingMako: CardDefinition = {
     power: 1,
     toughness: 1,
     triggeredAbilities: [
-        // NOT-DSL-migratable (ADR 0045) today, despite a body that is a single
-        // covered Op: the ability is built via the `discardTrigger` factory,
-        // whose `DiscardTriggerArgs` declares `resolve` as a MANDATORY field
-        // and exposes no `effects?: EffectOp[]` site (unlike `spellCastTrigger`
-        // / `enteredTrigger` / `tappedTrigger`, which already accept
-        // `effects`). Blocked on: `discardTrigger` gaining that param — an
-        // engine change, out of scope for a single-card migration. The marker
-        // is what keeps the migration classifier honest: its clause-mapper
-        // reads only the closure body, never the factory, so without this note
-        // the card resurfaces as FREE every pass. tracked-by: #1437.
+        // Imperative body: the `discardTrigger` factory takes a `resolve`
+        // only (no `effects?: EffectOp[]` site).
         discardTrigger({
             id: "marauding-mako-discard",
             oracleText:

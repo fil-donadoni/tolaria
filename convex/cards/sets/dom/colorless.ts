@@ -37,8 +37,7 @@ const KARN_CONSTRUCT_TOKEN = constructArtifactsYouControlToken(
     "c5eafa38-5333-4ef2-9661-08074c580a32"
 );
 
-/** Karn's −2 body. NOT-DSL-migratable — assessed, not merely un-migrated
- *  (the migration classifier reads this marker, `scripts/migration-classifier.mjs`).
+/** Karn's −2 body. NOT-DSL-migratable — assessed, not merely un-migrated.
  *  DSL-first exception (ADR 0045) — PROTOCOL-LIKE, recorded
  *  justification: the token carries a characteristic-defining P/T
  *  (`pt-cda-artifacts-you-control`), a `compute` closure evaluated at

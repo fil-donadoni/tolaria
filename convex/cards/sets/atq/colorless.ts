@@ -503,8 +503,7 @@ export const ivoryTower: CardDefinition = {
         // operands. "Hand size minus 4" is `{ difference: { from: { count: {
         // zone: "hand", controller: "controller" } }, minus: 4 } }`, and the
         // clamp-at-0 is `gainLife`'s own non-positive guard (CR 107.1b), not a
-        // separate construct. The closure stays only because migrating it is
-        // free-tranche work with its own batch. tracked-by: #3729
+        // separate construct.
         phaseTrigger({
             id: "ivory-tower-life",
             oracleText:
@@ -1181,8 +1180,7 @@ export const mishrasWarMachine: CardDefinition = {
             // predicate. `count`'s `zone: "hand"` member (CR 402.2) now
             // supplies exactly that: an `if` whose `predicate` is
             // `{ left: { count: { zone: "hand", controller: "controller" } },
-            // op: "ge", right: 1 }`. The closure stays only because migrating
-            // it is free-tranche work with its own batch. tracked-by: #3729
+            // op: "ge", right: 1 }`.
             resolve: (ctx, _event, playerId) => {
                 const self: TargetSelection = {
                     type: "permanent",
@@ -1731,8 +1729,7 @@ export const theRack: CardDefinition = {
         // zone and the grammar's one two-terminal subtraction), and the
         // `condition` already narrows the firing to the chosen player. Note
         // the SIBLING trigger on this card is still genuinely blocked (see
-        // its own marker) — migrating this one alone is free-tranche work
-        // with its own batch. tracked-by: #3729
+        // its own marker).
         phaseTrigger({
             id: "the-rack-upkeep-damage",
             oracleText:

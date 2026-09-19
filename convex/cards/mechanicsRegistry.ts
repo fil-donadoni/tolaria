@@ -3259,7 +3259,7 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         status: "implemented",
         cr: "701.20",
         binding: "SpellContext.shuffleLibrary",
-        note: 'Shuffle a player\'s library (CR 701.24, issue #844). A thin declarative skin over the SpellContext primitive `shuffleLibrary`, one execution path (ADR 0045): `action: "shuffle"` → shuffleLibrary (the seeded PRNG reorder that also clears every card\'s persistent knowledge, ADR 0026 — the "then shuffle" tail of a tutor, Winds of Change / Timetwister-style whole-deck randomization). `player` names whose library: the resolving controller (`"controller"`), an announced target-slot player (`{ target: N }`), or a forEach `$each` (a per-player shuffle). SCOPE (issue #844): only the `shuffle` primitive is folded — it is the one CR 401 / 701.24 library primitive expressible as a pure declarative Op (no runtime value read back into the effect). The classifier proposed folding `peekLibraryTop` / `reorderLibraryTop` too, but every closure that calls them either reads an opaque `choice` result back into `reorderLibraryTop` (Ponder, Preordain, Portent, Drafna\'s Restoration — a reorder-FROM-choice the DSL can\'t yet express) or drives a mill loop off the live top id (Millstone, Thought Scour, Ray of Erasure, Deep Spawn — needs a `mill` Op). Those two primitives stay a `planned` backlog Op (`scryReorder`) until a choice-driven reorder / mill construct exists. See `scripts/migration-classifier.mjs` OP_SEQUENCE.',
+        note: 'Shuffle a player\'s library (CR 701.24, issue #844). A thin declarative skin over the SpellContext primitive `shuffleLibrary`, one execution path (ADR 0045): `action: "shuffle"` → shuffleLibrary (the seeded PRNG reorder that also clears every card\'s persistent knowledge, ADR 0026 — the "then shuffle" tail of a tutor, Winds of Change / Timetwister-style whole-deck randomization). `player` names whose library: the resolving controller (`"controller"`), an announced target-slot player (`{ target: N }`), or a forEach `$each` (a per-player shuffle). SCOPE (issue #844): only the `shuffle` primitive is folded — it is the one CR 401 / 701.24 library primitive expressible as a pure declarative Op (no runtime value read back into the effect). The classifier proposed folding `peekLibraryTop` / `reorderLibraryTop` too, but every closure that calls them either reads an opaque `choice` result back into `reorderLibraryTop` (Ponder, Preordain, Portent, Drafna\'s Restoration — a reorder-FROM-choice the DSL can\'t yet express) or drives a mill loop off the live top id (Millstone, Thought Scour, Ray of Erasure, Deep Spawn — needs a `mill` Op). Both later shipped as their own Ops, `scryReorder` and `mill` (issue #885).',
     },
     {
         op: "shuffleSelfIntoLibrary",
@@ -3589,10 +3589,11 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
     },
 ];
 
-/** Demand-driven Op backlog (PRD #826, playbook #809). Every row is a
- *  `planned` reservation: an Op the resolve()→effects[] migration classifier
- *  (`scripts/migration-classifier.mjs`) has demonstrated is blocking real
- *  cards, but which has no interpreter binding yet. This is the machine-visible
+/** Demand-driven Op backlog. Every row is a `planned` reservation: an Op real
+ *  cards are known to need but which has no interpreter binding yet — today
+ *  `/new-op` Branch B's IOU, its note naming the open Grammar Gap (ADR 0137);
+ *  first populated by the retired resolve()→effects[] migration census (PRD
+ *  #826). This is the machine-visible
  *  IOU list — the demand-driven analogue of the CR-total keyword census in
  *  `MECHANICS_REGISTRY` (Ops are engine primitives with no enumerable CR list,
  *  so the backlog is populated from measured demand, never speculatively).
@@ -3606,14 +3607,11 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *      row, are not tripped by an unbuilt stub.
  *
  *  When an Op ships, its row moves here → `EFFECT_OP_REGISTRY` with
- *  `status: "implemented"` and a real `binding` (see the migration playbook's
- *  architecture-then-frequency Op sequence). The `note` records the
- *  SpellContext primitive(s) the classifier folds into the Op, so the demand
- *  link stays legible.
+ *  `status: "implemented"` and a real `binding`. The `note` records the
+ *  SpellContext primitive(s) the Op folds, so the demand link stays legible.
  *
  *  Wave-1 Op sequence (architecture-setting first, then by blocked-closure
- *  frequency; counts are the classifier's measured demand at #826 authoring
- *  time and drift as Ops ship). `X` is intentionally absent — it is a fifth
+ *  frequency, as measured at #826 authoring time). `X` is intentionally absent — it is a fifth
  *  `EffectValue` grammar member (the chosen-cost value, `{ X: true }`, a thin
  *  skin over SpellContext.getX()), not an Op. It SHIPPED in issue #852 as a
  *  value-grammar member (EffectValue = literal | ref | count | X); adding it did

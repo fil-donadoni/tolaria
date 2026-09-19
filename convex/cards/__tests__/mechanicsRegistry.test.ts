@@ -568,8 +568,8 @@ describe("Effect Script Op census (ADR 0045/0046, PRD #826)", () => {
     });
 
     it("the demonstrated wave-1 Op backlog (still-planned named Ops) is present as planned stubs", () => {
-        // The demand-driven backlog surfaced by the migration classifier
-        // (scripts/migration-classifier.mjs). `X` is intentionally excluded —
+        // The demand-driven backlog surfaced by the retired resolve()→effects[]
+        // migration census (PRD #826). `X` is intentionally excluded —
         // it is an EffectValue grammar member, not an Op (PRD #826). `moveZone`
         // (issue #839), `delayedTrigger` (issue #838, ADR 0048), `pump`
         // (issue #840), `counters` (issue #841), `tapUntap` (issue #842) and

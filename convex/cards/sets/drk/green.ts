@@ -695,9 +695,7 @@ export const venom: CardDefinition = {
 // cleared at CLEANUP (CR 514.2).
 //
 // protocol card: the ability arms three turn-scoped flags on one target from a
-// single Oracle sentence and predates the DSL; migrating it off `resolve()`
-// would move the migration-classifier census baseline, which is out of scope
-// here. Both primitives it calls are exposed as Ops (`exileOnDeath`,
+// single Oracle sentence and predates the DSL. Both primitives it calls are exposed as Ops (`exileOnDeath`,
 // `lockDamage`) for cards authored after this one.
 export const whippoorwill: CardDefinition = {
     id: "e56146bf-5db0-4bef-83bb-efa5ebec6684",
