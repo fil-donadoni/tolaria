@@ -27,7 +27,7 @@
 import {
     GAP_LABELS,
     GAP_TITLE_PREFIX,
-    PRD_ISSUE,
+    KIND_FALLBACK,
     type GapFiling,
 } from "./gap-issues";
 import type { CardRow, Lockfile } from "./oracle-lockfile";
@@ -215,7 +215,7 @@ function rank(
         title: draft.title,
         labels: GAP_LABELS[kind],
         parentSetCode: draft.parentSetCode,
-        fallbackParent: PRD_ISSUE,
+        fallbackParent: KIND_FALLBACK[kind],
         body: (issue: number) =>
             `Rank ${i + 1} of ${unique.length} in kind \`${kind}\` — lexicographic on the priority Targets, corpus as tie-break (issue #3869).\n\n${draft.render(issue)}`,
     }));

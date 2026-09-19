@@ -574,7 +574,7 @@ function main(): void {
         const at =
             f.currentIssue === null ? "unfiled" : `issue #${f.currentIssue}`;
         console.log(
-            `residue    ${f.kind} \`${f.key}\` (${at}) — no ranked Target among the cards it reaches; no band umbrella: it keeps its parent (under a retired umbrella, it moves to its fallback)`
+            `residue    ${f.kind} \`${f.key}\` (${at}) — no ranked Target among the cards it reaches; no band umbrella: it keeps its parent (none, or a retired one: it moves to its family's P3 umbrella)`
         );
     }
 

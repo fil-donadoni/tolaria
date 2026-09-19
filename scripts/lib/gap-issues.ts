@@ -42,14 +42,15 @@
  * recomputed MOVES to its new band's umbrella — up or down, the board follows
  * the Target List — except out of a `P0` umbrella, which is hand-set only.
  *
- * A partitioned gap with NO computed band is residue: filed under its kind's
- * fallback, and an existing one keeps its current parent — `gaps-sync.ts`
- * lists it. The one exception is a parent in `RETIRED_UMBRELLAS` (issue
- * #3972, the undifferentiated Op-gap pile this replaced): residue there moves
- * to the fallback, so the retired umbrella can close empty.
+ * A partitioned gap with NO computed band is residue: filed under its
+ * family's P3 umbrella (`KIND_FALLBACK`, issue #4110), and an existing one
+ * keeps its current parent — `gaps-sync.ts` lists it. The exception is a
+ * parent in `RETIRED_UMBRELLAS` (issue #3972, the Op-gap pile this replaced,
+ * and PRD #3820, the old fallback): a gap there moves to its fallback, so
+ * neither holds computed gaps any more.
  *
  * The other kinds parent under their Target's set umbrella when there is one,
- * else PRD #3820. GitHub caps a parent at 100 sub-issues; a band holds a
+ * else their own P3 umbrella (`KIND_FALLBACK`). GitHub caps a parent at 100 sub-issues; a band holds a
  * bounded slice of the backlog, which is what keeps the cap unreachable, and
  * `syncGaps` still refuses up front, before any write, a run whose creates and
  * moves would push ANY parent past it.
@@ -117,8 +118,31 @@ export const BAND_UMBRELLAS: Readonly<
     "bot-gaps": { P0: 4099, P1: 4100, P2: 4101, P3: 4102 },
 };
 
-/** Parents the partition empties: residue under one moves to its fallback. */
-export const RETIRED_UMBRELLAS: ReadonlySet<number> = new Set([3972]);
+/**
+ * The fallback parent of each kind — its LOWEST band (issue #4110): a gap the
+ * rule cannot band is deliberately-later work, never the parent PRD's band.
+ * A partitioned kind falls back to its family's P3 umbrella; a kind with no
+ * family yet has one P3 umbrella of its own.
+ */
+export const KIND_FALLBACK: Readonly<Record<GapKind, number>> = {
+    grammar: BAND_UMBRELLAS["grammar-rules"].P3,
+    mechanic: BAND_UMBRELLAS.ops.P3,
+    bot: BAND_UMBRELLAS["bot-gaps"].P3,
+    scenario: 4111,
+    migration: 4112,
+    "hand-tail": 4113,
+};
+
+/**
+ * Parents a gap is moved OFF, to its band umbrella or its fallback: issue
+ * #3972 (the Op-gap pile the partition replaced) and PRD #3820, the old
+ * fallback — it is closing, and a gap under it inherits its P0 band (issue
+ * #3212), the opposite of what an unranked gap deserves (issue #4110).
+ */
+export const RETIRED_UMBRELLAS: ReadonlySet<number> = new Set([
+    3972,
+    PRD_ISSUE,
+]);
 
 /** The band `parent` stands for within `family`, or null when it is not one
  *  of that family's umbrellas. */
@@ -217,7 +241,7 @@ export function buildGrammarGapFilings(allowlist: Allowlist): GapFiling[] {
             title: grammarGapTitle(row.key),
             labels: GAP_LABELS.grammar,
             parentSetCode: null,
-            fallbackParent: PRD_ISSUE,
+            fallbackParent: KIND_FALLBACK.grammar,
             body: () => body,
         };
     });
@@ -380,7 +404,7 @@ export function bandUmbrellaOf(filing: GapFiling): number | null {
 }
 
 /** The parent to file `filing` under — its band umbrella, else its Target's
- *  set umbrella, else the kind's own fallback (PRD #3820). */
+ *  set umbrella, else the kind's own fallback (`KIND_FALLBACK`). */
 function parentOf(filing: GapFiling, tracker: GapTracker): number {
     const umbrella = bandUmbrellaOf(filing);
     if (umbrella !== null) return umbrella;
@@ -395,8 +419,9 @@ function parentOf(filing: GapFiling, tracker: GapTracker): number {
  *
  *   - banded → its band umbrella, unless it is already there or sits in its
  *     family's hand-set `P0` umbrella;
- *   - residue (or an unpartitioned kind) → nowhere, unless its parent is a
- *     retired umbrella, in which case the kind's fallback.
+ *   - residue (or an unpartitioned kind) → nowhere, unless it has no parent
+ *     or its parent is a retired umbrella, in which case the kind's fallback
+ *     (`KIND_FALLBACK`, its lowest band).
  */
 export function planMove(
     filing: GapFiling,
@@ -404,9 +429,12 @@ export function planMove(
 ): number | null {
     const target = bandUmbrellaOf(filing);
     if (target === null) {
-        if (parent !== null && RETIRED_UMBRELLAS.has(parent))
-            return filing.fallbackParent;
-        return null;
+        // No parent at all is a create whose parent write failed — as much a
+        // gap with nowhere to live as one under a retired umbrella.
+        const homeless = parent === null || RETIRED_UMBRELLAS.has(parent);
+        return homeless && parent !== filing.fallbackParent
+            ? filing.fallbackParent
+            : null;
     }
     if (parent === target) return null;
     if (umbrellaBand(PARTITIONED_KINDS[filing.kind]!, parent) === "P0")

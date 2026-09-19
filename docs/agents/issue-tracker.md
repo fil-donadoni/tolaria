@@ -110,8 +110,15 @@ bounded, ordered slice of the backlog, so the cap stops being reachable.
   as `BAND_UMBRELLAS` (`scripts/lib/gap-issues.ts`).
 - **P0 is hand-set only.** No rule computes it; `gaps:sync` never files into
   a P0 umbrella and never moves an issue out of one.
-- **Residue** — no ranked Target among its cards — keeps its current parent,
-  and `gaps:sync` lists it. It is never swept into a band.
+- **Residue** — no ranked Target among its cards — files under its family's
+  **P3** umbrella: an unranked gap is deliberately-later work (issue #4110).
+  An existing one keeps a parent placed by hand; `gaps:sync` lists it.
+- **Kinds with no family yet** fall back to a P3 umbrella of their own:
+  Scenario Gaps #4111, Migrations #4112, Hand Tail #4113 (a set umbrella still
+  wins at create). The table is `KIND_FALLBACK`.
+- **PRD #3820 is not a parent of computed gaps** — it is closing, and a child
+  inherits its P0 band (issue #3212). Like issue #3972 it is in
+  `RETIRED_UMBRELLAS`: a gap under either moves to its band or its fallback.
 - **Each umbrella's board `Priority` is its band**, set once by hand; its
   children inherit it (issue #3212).
 - **A hand-filed `[Grammar]` ticket** goes under the Grammar Rules umbrella of
