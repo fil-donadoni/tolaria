@@ -43,7 +43,6 @@ import { resolveTrigger, UPKEEP, resolveActivated } from "./helpers";
 const deepSpawn = getDefinition("69c9e4a5-735f-471c-ab1a-6e6d50ba5724");
 const highTide = getDefinition("4686bbb9-517f-4cce-aa7a-5db41e22c02b");
 const homarid = getDefinition("d6ffeab4-83b1-4414-ae72-e59a2354ea15");
-const homaridShaman = getDefinition("c17c6416-86d6-46ea-aea1-41b98a66b250");
 const homaridSpawningBed = getDefinition(
     "2cbb62fc-3cd9-41a6-804a-4ff9a766897f"
 );

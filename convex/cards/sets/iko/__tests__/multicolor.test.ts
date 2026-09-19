@@ -37,7 +37,6 @@ const zirda = getDefinition("1bd8e61c-2ee8-4243-a848-7008810db8a0");
 // Dragon Engine (atq/colorless.ts) — Artifact Creature, "{2}: +1/+0" (non-mana,
 // useStack: true). Cross-set fixture, same pattern as Power Artifact's own
 // test (atq/__tests__/blue.test.ts).
-const dragonEngine = getDefinition("07793a71-1106-4303-b620-e403bd378020");
 // Celestial Prism (lea/colorless.ts) — Artifact, "{2}, {T}: Add one mana of
 // any color" — a MANA ability (useStack: false) WITH mana in its own cost,
 // the one shape that proves Zirda's "aren't mana abilities" exclusion (a

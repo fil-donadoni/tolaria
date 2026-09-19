@@ -41,7 +41,6 @@ import {
 import { getDefinition } from "../../../index";
 
 const aladdin = getDefinition("db52bad2-a3ec-4f6f-9418-12e8c40703f6");
-const aliBaba = getDefinition("29cd7064-3703-43e0-8702-d1ba13703fd8");
 const aliFromCairo = getDefinition("42027613-d261-4ce2-8ba1-7a2480c660f8");
 const brassMan = getDefinition("1a364362-e42b-415c-9d95-b6ec7139f5e7");
 const desert = getDefinition("201155ea-f474-4e13-acda-cb071a6ca977");
@@ -54,7 +53,6 @@ const rukhEgg = getDefinition("b28f9e63-e5e4-44b5-a17e-8301ff17c623");
 const ydwenEfreet = getDefinition("efdba2a9-d171-45ed-8dd4-9d0046128f68");
 const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
-const prodigalSorcerer = getDefinition("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a");
 const psionicBlast = getDefinition("a6a86e6e-bfff-46af-9d36-c912901fea92");
 
 describe("Ali Baba ({R}: tap target Wall)", () => {

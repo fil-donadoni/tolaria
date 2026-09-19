@@ -35,7 +35,6 @@ const tezzeret = getDefinition("02e8e540-8aa3-4e6a-9a11-c3949cab5f0f");
 const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 const ornithopter = getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
-const icyManipulator = getDefinition("29dc1596-a2e7-4d60-9f99-89babaef8a06");
 
 const ARTIFACT_ETB = "tezzeret-cruel-captain-artifact-loyalty";
 const ZERO = "tezzeret-cruel-captain-zero";

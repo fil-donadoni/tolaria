@@ -41,7 +41,6 @@ const farrelsMantle = getDefinition("af092da3-8713-4a59-86d3-827b942d6456");
 const farrelsZealot = getDefinition("0401bd23-9f81-40b7-a6c2-e3f9847d175c");
 const handOfJustice = getDefinition("7a899b2d-825c-4929-a769-f4df70bf6a17");
 const heroism = getDefinition("08ee87a0-a7eb-4472-9045-85d11e8a1501");
-const icatianInfantry = getDefinition("f95d42d8-ba75-43bf-81b8-b02374f03e83");
 const icatianJavelineers = getDefinition(
     "f04b8356-2384-4743-80dd-f15ca7ec65f7"
 );
@@ -49,7 +48,6 @@ const icatianMoneychanger = getDefinition(
     "b3d502d4-4a96-47b3-ae26-8b2c9f36623d"
 );
 const icatianPhalanx = getDefinition("7bc02d30-3eef-4a48-8b11-b4f37219ab3a");
-const icatianPriest = getDefinition("d7690cdd-6610-4310-9e93-60dc4db2ae8d");
 const icatianSkirmishers = getDefinition(
     "15f6d115-c02d-45a3-aa6d-402964df47dd"
 );

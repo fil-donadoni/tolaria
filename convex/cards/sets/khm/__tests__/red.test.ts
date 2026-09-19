@@ -25,7 +25,6 @@ import { getDefinition } from "../../../index";
 import type { GameEvent } from "../../../types";
 
 const magda = getDefinition("079e6263-e54c-4899-a336-5315909b9322");
-const dwarvenLieutenant = getDefinition("ea9a38b1-4676-425a-b40d-4fb478966024");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 const dromar = getDefinition("cfcc3c72-fff5-454c-814c-eb952fd23ba9");

@@ -55,7 +55,6 @@ const nafsAsp = getDefinition("965f722c-2b18-4c22-8c30-12552def5940");
 const sandstorm = getDefinition("73cba9cd-73d9-442e-bd99-9cba9f398b64");
 const serendibEfreet = getDefinition("cf56e862-3169-4f63-acd0-731080fa32f2");
 const singingTree = getDefinition("3003bf1e-8085-45d8-882b-c449109e7631");
-const wyluliWolf = getDefinition("15ccebe1-ef08-4805-a65f-a1c57abed9f2");
 const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 

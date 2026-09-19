@@ -46,8 +46,6 @@ import { getDefinition } from "../../../index";
 
 const ornithopter = getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
 const yotianSoldier = getDefinition("27cf53e3-76f6-4831-800e-1259394d779d");
-const clayStatue = getDefinition("64975352-8d35-4d02-94ac-fa0c6ee12409");
-const grapeshotCatapult = getDefinition("4c7a7348-c82e-453c-975c-e5365e152a3a");
 const colossusOfSardia = getDefinition("067c44e9-1b23-42fd-9acb-daafb62c32a2");
 const crumble = getDefinition("d2101f86-8d3c-4ba8-ac42-bd3df0644280");
 const citanulDruid = getDefinition("f8a130dc-3b1f-4fae-8459-b26bb5647fec");

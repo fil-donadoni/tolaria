@@ -83,7 +83,6 @@ import {
 } from "./helpers";
 
 const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
-const fyndhornBrownie = getDefinition("06204e82-9dfd-4334-a23a-f8240fc37772");
 const fyndhornElves = getDefinition("3ba95ffa-990a-4013-98b7-5d8c0b34e9c4");
 const blizzard = getDefinition("c369e4f9-0f2b-446c-9e2d-d3eefab0586d");
 const chubToad = getDefinition("b6ebcc1d-0c5c-4bc2-ade7-41944f69162e");
@@ -91,7 +90,6 @@ const earthlore = getDefinition("319d252e-7c43-47d6-8873-f69b0e063256");
 const elderDruid = getDefinition("210f6fab-62f0-42ab-bd01-00d647bd25e7");
 const essenceFilter = getDefinition("9b610103-dafd-4248-9d79-ce57f84b9e03");
 const fanaticalFever = getDefinition("2abba7f1-5d07-4137-88a2-5967396a3e42");
-const folkOfThePines = getDefinition("0c13311d-db83-483f-ba2b-4f54ceb8b026");
 const freyalisesCharm = getDefinition("3e147ac1-d221-49c7-966e-5e665ddeab6b");
 const gorillaPack = getDefinition("046f6b76-5f17-4728-aa34-72b7eff1d4c9");
 const forbiddenLore = getDefinition("5fc225cf-4fe2-4a5b-828e-ffcb99e404e8");
@@ -104,7 +102,6 @@ const johtullWurm = getDefinition("64a22e88-f7b1-48c8-a199-e57edcd50654");
 const lhurgoyf = getDefinition("fee6d385-d44b-4f1a-beb1-13aeebde063e");
 const naturesLore = getDefinition("668d2969-b6b7-4507-bdd4-20bbaa68035a");
 const scaledWurm = getDefinition("499cd7fa-c86c-4a5f-b36d-8160e8a6af1f");
-const shamblingStrider = getDefinition("8886ba2d-b25a-4b74-9299-911c509ae864");
 const stampede = getDefinition("bc8265a1-4621-4d25-8f7f-f0179951a694");
 const stuntedGrowth = getDefinition("4c9b7393-eb35-4c99-bbf5-bcf924aa8ff3");
 const tinderWall = getDefinition("2a7c6489-21e9-4b86-a54a-b1e2f1fce318");

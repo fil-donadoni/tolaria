@@ -1762,7 +1762,6 @@ describe("Faerie Squadron (Kicker → two +1/+1 counters + flying; CR 702.33 / 1
 // ─────────────────────────────────────────────────────────────────────────────
 
 const teferisResponse = getDefinition("f3bb2df8-c559-4a34-83b0-d48fbc694cc8");
-const icyManipulator = getDefinition("29dc1596-a2e7-4d60-9f99-89babaef8a06");
 const stoneRainDef = getDefinition("57ff74cb-a2ed-4123-ac42-f72f9820049e");
 const islandDef = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
 const grizzlyBearsDef = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");

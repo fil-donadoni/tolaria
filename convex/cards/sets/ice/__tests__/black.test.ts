@@ -89,14 +89,12 @@ const gazeOfPain = getDefinition("48401643-ec4b-444a-8f9a-1a5ea471ff4a");
 const burntOffering = getDefinition("1dae52a2-3af7-4b97-9d2e-2448b7c413fb");
 const spoilsOfWar = getDefinition("b38af8bd-d927-46d0-a1b1-fb437ea9ea66");
 const kjeldoranWarrior = getDefinition("ce76f38f-566e-49ff-b197-510cfa1cb51c");
-const seaSpirit = getDefinition("f2d93d05-98bc-4504-9045-dedb925895ae");
 const brineShaman = getDefinition("f445962c-44a1-4f3f-88d4-17048f8ca9dc");
 const darkBanishing = getDefinition("f7dc2716-ed62-4797-ad2b-227eca5408d0");
 const demonicConsultation = getDefinition(
     "8d727b9b-6114-414d-9172-16b6e1db41cc"
 );
 const foulFamiliar = getDefinition("8bad3541-8e40-4a2f-ac9d-f7b61f3d75a1");
-const hoarShade = getDefinition("72242dff-15ca-4da0-b3ae-9984d037b31f");
 const hyalopterousLemure = getDefinition(
     "d2c9e037-f4d5-46fd-b439-56bee6fb2ad3"
 );

@@ -78,7 +78,6 @@ const iceStorm = getDefinition("9914836e-2fa6-4390-94b2-431427848a54");
 const instillEnergy = getDefinition("5bd38716-874c-4e3c-a315-837839a6258c");
 const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
 const kudzu = getDefinition("b2b72dcd-9ea1-4729-baae-ecd262fdff67");
-const leyDruid = getDefinition("f9232508-d363-4ef3-987a-741f6bff331f");
 const lifeforce = getDefinition("e292577e-6232-44fa-a9c2-cc09949c6ed3");
 const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
 const livingArtifact = getDefinition("c9e753a2-a7d0-4d37-ae65-b5a1b5039a6e");

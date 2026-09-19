@@ -31,8 +31,6 @@ import { getDefinition } from "../../../index";
 
 const ornithopter = getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
 const yotianSoldier = getDefinition("27cf53e3-76f6-4831-800e-1259394d779d");
-const clayStatue = getDefinition("64975352-8d35-4d02-94ac-fa0c6ee12409");
-const grapeshotCatapult = getDefinition("4c7a7348-c82e-453c-975c-e5365e152a3a");
 const colossusOfSardia = getDefinition("067c44e9-1b23-42fd-9acb-daafb62c32a2");
 const argivianArchaeologist = getDefinition(
     "ce83a3cb-467d-44f6-a051-4855c8cf52a6"

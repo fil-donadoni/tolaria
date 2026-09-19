@@ -25,12 +25,10 @@ import {
 import { resolveTrigger, UPKEEP, resolveActivated } from "./helpers";
 import { getDefinition } from "../../../index";
 
-const elvenFortress = getDefinition("9387105d-46d0-4db0-8980-dd0fded15eef");
 const elvishFarmer = getDefinition("40a9710e-b2f8-4746-8640-d450f58a6e49");
 const elvishHunter = getDefinition("e00455ac-c7ce-4916-98ed-cca9354e3f22");
 const elvishScout = getDefinition("689cd2ed-be81-4769-a8ec-287946301396");
 const feralThallid = getDefinition("e585241e-c647-456d-b3b1-3d48dd78c372");
-const fungalBloom = getDefinition("cf1a2cb2-9a6b-41f7-96f7-ec457c69c16c");
 const nightSoil = getDefinition("4cda6d18-d4b1-4b8a-a72e-f90115adf4c3");
 const sporeCloud = getDefinition("1691a9f4-4ea7-440f-9bdc-4214ab3c90f0");
 const sporeFlower = getDefinition("f9681dc0-d0fc-4d5b-a23c-63ec1cc8343d");

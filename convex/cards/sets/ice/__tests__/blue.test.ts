@@ -96,7 +96,6 @@ const bindingGrasp = getDefinition("6b086186-5fbf-4ba7-af0d-ee3ad61d27bb");
 const brainstorm = getDefinition("8d42d7aa-7f53-4cfc-842a-086aab2448d1");
 const deflection = getDefinition("1005a00a-6a0e-44cb-abea-37e2e53125e2");
 const iceberg = getDefinition("a2f70e49-17fa-4033-bd45-63374f7f5ec5");
-const seaSpirit = getDefinition("f2d93d05-98bc-4504-9045-dedb925895ae");
 const silverErne = getDefinition("685076cc-098c-4f98-918c-0ad825eda10f");
 const snowDevil = getDefinition("2be3a9a5-2ac5-4ea4-915d-8cff35c0e72f");
 const wintersChill = getDefinition("a779aca7-ff2c-48d8-9484-6ad04b2c6bcb");
@@ -104,7 +103,6 @@ const snowCoveredIsland = getDefinition("ad8b77cf-b53e-4da3-9c27-3851b7b25a98");
 const thunderWall = getDefinition("4fc5d510-c4f7-4a09-bf86-83c3fa3f8928");
 const wordOfUndoing = getDefinition("22b04476-5a5d-4843-a948-82db209c4218");
 const wrathOfMaritLage = getDefinition("1d512f5c-0327-4d49-8a26-672574a49102");
-const zuranSpellcaster = getDefinition("152a72b1-a7b7-4e5c-8558-fab97465f549");
 const arnjlotsAscent = getDefinition("2307fb16-8b77-45b5-8a02-51a13214791d");
 const illusionaryForces = getDefinition("ab02268e-01cf-4729-95ca-5773afd40b56");
 const illusionaryWall = getDefinition("6430e8e2-fee3-4744-820e-d6e16cb992bd");
@@ -152,7 +150,6 @@ const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
 const mountain = getDefinition("eace2c85-976c-425e-9800-5a6ccbd91b56");
 const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
 const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
-const jayemdaeTome = getDefinition("cac8c421-5b92-481d-b2de-560c0231ab58");
 
 // ===========================================================================
 // Blue free tranche (#631)

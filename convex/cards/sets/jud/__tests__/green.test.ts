@@ -10,7 +10,6 @@ import type {
 } from "../../../../gre/state";
 import { getDefinition } from "../../../index";
 
-const sylvanSafekeeper = getDefinition("f1b8413f-c9fc-4cea-b416-a1fcf651b009");
 const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 
 /** Push an activated ability onto the stack with its cost assumed already

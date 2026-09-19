@@ -85,7 +85,6 @@ const floodedWoodlands = getDefinition("de89e9e1-485b-42e5-9728-5d6f948999e1");
 const reclamation = getDefinition("ca335f4f-d345-4eb9-9bc6-74595c501078");
 const chromaticArmor = getDefinition("2657e85b-8f77-41fa-9df2-233443efef43");
 const knightOfStromgald = getDefinition("2b87069b-ebaf-4705-b5da-446932af9b73");
-const seaSpirit = getDefinition("f2d93d05-98bc-4504-9045-dedb925895ae");
 const glaciers = getDefinition("b86e159b-ecf1-4b4a-9041-4e97fdf935e5");
 const diabolicVision = getDefinition("1ea01324-1cfb-498c-8299-f690373864bd");
 const elementalAugury = getDefinition("62bbff2a-5109-400a-961b-eacffb9aed67");

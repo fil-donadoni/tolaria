@@ -70,7 +70,6 @@ const blackVise = getDefinition("76ac72f8-5b1e-4d67-a796-ef69cde27424");
 const balduvianBears = getDefinition("ef5297cb-e763-4871-9cd3-0e2dbcc52095");
 const psionicBlast = getDefinition("a6a86e6e-bfff-46af-9d36-c912901fea92");
 const blackKnight = getDefinition("c1662949-0d69-49a3-8c69-daf10717ed4e");
-const drudgeSkeletons = getDefinition("23614289-0d73-4747-a849-5cb67cc97d6a");
 const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
 const plains = getDefinition("b1623d57-4729-4796-b3f7-f1837a05c6ed");
 const savannahLions = getDefinition("d05b92bd-797e-413f-a8b0-32e0937a1ee0");

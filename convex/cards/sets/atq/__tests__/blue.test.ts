@@ -40,8 +40,6 @@ import {
 const ornithopter = getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
 const transmuteArtifact = getDefinition("6eab6765-eba3-4844-81ca-ae37a6e903df");
 const yotianSoldier = getDefinition("27cf53e3-76f6-4831-800e-1259394d779d");
-const dragonEngine = getDefinition("07793a71-1106-4303-b620-e403bd378020");
-const clayStatue = getDefinition("64975352-8d35-4d02-94ac-fa0c6ee12409");
 const stripMine = getDefinition("e7880157-7f27-4f1b-9cdc-ab36a6252376");
 const crumble = getDefinition("d2101f86-8d3c-4ba8-ac42-bd3df0644280");
 const hurkylsRecall = getDefinition("f32373dd-06d8-45d1-8777-3b1411bcb30a");
@@ -49,7 +47,6 @@ const reconstruction = getDefinition("1aa2d27b-cc25-4baa-86f4-4db45b30e2a4");
 const drafnasRestoration = getDefinition(
     "4be2aa3b-207b-4d21-abfb-6788520c7676"
 );
-const sageOfLatNam = getDefinition("b4ff60ce-073c-46b8-807c-8b40467b960c");
 const ashnodsBattleGear = getDefinition("aeeec853-dd3f-4ac3-8b20-c07fada8888f");
 const powerArtifact = getDefinition("e48bc89e-6da5-43da-b4e0-60d5f850199c");
 const energyFlux = getDefinition("bd1f624b-e8f2-462f-838a-7cb9e8fda988");

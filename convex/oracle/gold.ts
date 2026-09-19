@@ -740,11 +740,11 @@ function eventsOf(event: GameEventType | GameEventType[]): GameEventType[] {
  * The behavioural harness has to neutralise it for the same reason, or the two
  * harnesses disagree about what counts as behaviour. Concretely: a per-card
  * test pushes an ability onto the stack by its literal id
- * (`abilityId: "royal-assassin-ability"`), so an un-grafted twin's ability is
- * never found, nothing resolves, and the test reds — reporting a NAME
- * difference as a semantic one, on a card whose compiled body is exactly right.
- * That is the same false signal in the opposite direction from a vacuous green,
- * and just as wrong.
+ * (`abilityId: "royal-assassin-destroy"`), so an un-grafted twin — which the
+ * compiler names `royal-assassin-ability` — is never found, nothing resolves,
+ * and the test reds — reporting a NAME difference as a semantic one, on a
+ * card whose compiled body is exactly right. That is the same false signal in
+ * the opposite direction from a vacuous green, and just as wrong.
  *
  * The PREVIOUS version paired ability `i` on one side with ability `i` on the
  * other whenever the counts matched, with nothing checking the compiler read

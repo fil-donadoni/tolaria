@@ -518,26 +518,54 @@ export function registerCompiledDefinitions(
     // The CLIENT calls this after module load (from the loading gate), so a
     // population memo taken earlier would be missing every compiled row.
     expandedCatalogueCards = null;
+    wirePrintAliases(rows.length > 0);
     return fresh.length;
 }
 
-registerCompiledDefinitions(compiledReadyDefinitions);
+// printId -> whether `registerPrintAlias` has already run for it — tracked
+// separately from the registry because `registerPrintAlias` itself throws on
+// a repeat call, and `wirePrintAliases` re-scans EVERY print on EVERY
+// `registerCompiledDefinitions` call (below).
+const aliasedPrintIds = new Set<string>();
 
-// Wire print-id → same-def-object lookups so `getDefinition(printId)` returns
-// the SAME object reference as `getDefinition(definitionId)` — sharing the
-// `expansionCache` (WeakMap) entry. Run AFTER compiled hydration (ADR 0114
-// §2): a retired card's reprint stub now resolves only through the compiled
-// twin, which is not in the registry until `registerCompiledDefinitions` has
-// run — issue #4027 is the first retirement to expose the ordering.
-for (const print of allPrints) {
-    const def = tryGetDefinition(print.definitionId);
-    if (!def) {
+/**
+ * Wire print-id → same-def-object lookups so `getDefinition(printId)`
+ * returns the SAME object reference as `getDefinition(definitionId)` —
+ * sharing the `expansionCache` (WeakMap) entry.
+ *
+ * Re-run on every `registerCompiledDefinitions` call, not just once at module
+ * load (ADR 0114 §2, issue #4027): on the SERVER the bundled pool is the
+ * whole compiled population and one pass resolves everything. On the CLIENT
+ * `./compiledPool` is aliased to an empty array (ADR 0113 §2) — module load
+ * calls this with NOTHING, so a retired card's reprint (definitionId now
+ * served only by its compiled twin) cannot resolve yet, and must not throw:
+ * the loading gate's later call, with the rows it FETCHED
+ * (`src/lib/catalogueArtifact.ts`), is what actually hydrates it. Only a call
+ * that hydrated real rows (`hydrated`) — the server's one call, or the
+ * client's fetch-gate call — can conclude a leftover definitionId is
+ * genuinely broken rather than merely not-yet-hydrated.
+ */
+function wirePrintAliases(hydrated: boolean): void {
+    const unresolved: CardPrint[] = [];
+    for (const print of allPrints) {
+        if (aliasedPrintIds.has(print.printId)) continue;
+        const def = tryGetDefinition(print.definitionId);
+        if (!def) {
+            unresolved.push(print);
+            continue;
+        }
+        registerPrintAlias(print.printId, print.definitionId);
+        aliasedPrintIds.add(print.printId);
+    }
+    if (hydrated && unresolved.length > 0) {
+        const first = unresolved[0]!;
         throw new Error(
-            `CardPrint ${print.printId} references unknown definitionId ${print.definitionId}`
+            `CardPrint ${first.printId} references unknown definitionId ${first.definitionId}`
         );
     }
-    registerPrintAlias(print.printId, print.definitionId);
 }
+
+registerCompiledDefinitions(compiledReadyDefinitions);
 
 export const getCardByName = (name: string): CardDefinition => {
     const card = nameRegistry.get(name.toLowerCase());
@@ -550,8 +578,17 @@ export const getCardByName = (name: string): CardDefinition => {
 export const tryGetCardByName = (name: string): CardDefinition | null =>
     nameRegistry.get(name.toLowerCase()) ?? null;
 
+// `getAllCatalogueCards()`, not `allCards`: a retired hand-written card
+// (ADR 0114 §2, issue #4027) is still placeable through
+// `tryGetPlaceableCardByName` below, and every consumer of this list treats
+// it as the allow-list of names that CAN be placed — the LLM scenario
+// generator's `scenarioAllowList` (`convex/debugScenarios.ts`), the debug
+// `debugListCards` query (`convex/game.ts`), and the debug card-name
+// autocomplete field. Narrowing it to hand-written-only would let the
+// allow-list and the placement resolver disagree on exactly the cards this
+// migration retires.
 export const getAllCardNames = (): string[] =>
-    allCards.map((card) => card.name);
+    getAllCatalogueCards().map((card) => card.name);
 
 /** CR 715.4 / 715.2c — `tryGetCardByName` restricted to names that can be
  *  PLACED as a card: a printed catalogue card, never an inset spell's twin.
@@ -598,16 +635,17 @@ export const getChooseableCardNames = (): string[] => {
     // difference against it.
     const names: string[] = [];
     for (const card of allCards) names.push(...chooseableNamesOf(card));
-    // A COMPILED row contributes only its EXTRA names. Its own printed name is
-    // deliberately absent, exactly as it is absent from `getAllCardNames`:
-    // ADR 0113 §2 delivers the compiled pool asymmetrically (bundled on the
-    // server, fetched on the client), so a domain that included it would
-    // differ between the two and the submit gate would accept names the
-    // button never offered. Widening BOTH seams together is its own change.
+    // A COMPILED row contributes its FULL `chooseableNamesOf`, own printed
+    // name included — `getAllCardNames` widened to `getAllCatalogueCards()`
+    // in issue #4027 (a retired hand-written card is compiled-only and must
+    // stay choosable), so a compiled row's own name is no longer absent from
+    // that seam either. The two seams are widened TOGETHER on purpose: ADR
+    // 0113 §2's asymmetric delivery (bundled on the server, fetched on the
+    // client) means both sides build this same list from `compiledRegistered`
+    // once hydrated, so the submit gate and the button's candidate list still
+    // agree.
     for (const card of compiledRegistered) {
-        for (const name of chooseableNamesOf(card)) {
-            if (name !== card.name) names.push(name);
-        }
+        names.push(...chooseableNamesOf(card));
     }
     return names;
 };

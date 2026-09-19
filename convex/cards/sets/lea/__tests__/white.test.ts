@@ -97,7 +97,6 @@ const holyStrength = getDefinition("e945a4cd-0eb1-4f54-898d-169ce2748a03");
 const hypnoticSpecter = getDefinition("b43b900f-2d9b-442b-9699-058483604ec9");
 const island = getDefinition("90a57c0e-fa61-45ef-955d-d296403967d5");
 const islandSanctuary = getDefinition("c15e8a42-89de-42bc-8d5f-33426d207c3a");
-const jayemdaeTome = getDefinition("cac8c421-5b92-481d-b2de-560c0231ab58");
 const karma = getDefinition("6f30ad61-fcb7-4d55-ba86-94de1bf545e4");
 const lance = getDefinition("ddb633f5-cc4d-4157-8217-def90cb15e24");
 const lifelace = getDefinition("38cb601b-a35c-412e-b386-e77dad3daa54");

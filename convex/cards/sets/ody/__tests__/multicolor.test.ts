@@ -15,7 +15,6 @@ import type {
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition } from "../../../index";
 
-const psychatog = getDefinition("6757bf0e-489f-4be2-9e41-463b59f00dd1");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 /** Puts an already-PAID activation of `abilityId` on the stack and resolves

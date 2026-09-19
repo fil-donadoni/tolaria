@@ -264,7 +264,8 @@
         "firstSet": "ice",
         "firstPrintId": "ff62754b-f4f0-4731-8dd7-327a820f60a8",
         "firstPrintSet": "ice",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Adarkar Unicorn",
@@ -811,7 +812,8 @@
         "firstSet": "arn",
         "firstPrintId": "bb2b74a2-cb74-4b54-b9c6-78c63f14cf5b",
         "firstPrintSet": "arn",
-        "rarity": "rare"
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Alchemist's Apprentice",
@@ -858,7 +860,8 @@
         "firstSet": "arn",
         "firstPrintId": "29cd7064-3703-43e0-8702-d1ba13703fd8",
         "firstPrintSet": "arn",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Ali from Cairo",
@@ -921,7 +924,8 @@
         "firstSet": "pls",
         "firstPrintId": "545ed916-59fc-4c60-9260-8c2dc88e67a1",
         "firstPrintSet": "pls",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Alpha Myr",
@@ -2046,7 +2050,8 @@
         "firstSet": "fem",
         "firstPrintId": "a98384d1-8e7d-4c41-9f23-47bc2ae2ad6a",
         "firstPrintSet": "fem",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Armored Cancrix",
@@ -2435,7 +2440,8 @@
         "firstSet": "atq",
         "firstPrintId": "2249fc40-4412-48fd-800a-7ea3678aee3f",
         "firstPrintSet": "atq",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Atraxa, Grand Unifier",
@@ -3394,7 +3400,8 @@
         "firstSet": "ice",
         "firstPrintId": "8bc29872-b1a2-4851-9eca-f3e67ae6e14c",
         "firstPrintSet": "ice",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Batterhorn",
@@ -3697,7 +3704,8 @@
         "firstSet": "inv",
         "firstPrintId": "13c6e51d-54eb-4e5b-9ec9-54521b16b8d1",
         "firstPrintSet": "inv",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Benalish Hero",
@@ -3742,7 +3750,8 @@
         "firstSet": "inv",
         "firstPrintId": "e312653d-c3e1-4c79-90d2-0963419b618c",
         "firstPrintSet": "inv",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Bend or Break",
@@ -4909,7 +4918,8 @@
         "firstSet": "drk",
         "firstPrintId": "5a391ada-e9e3-45db-ae84-17421ac6b44d",
         "firstPrintSet": "drk",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Boomerang",
@@ -5944,7 +5954,8 @@
         "firstSet": "inv",
         "firstPrintId": "ec3e5741-88d7-4837-9b43-ba8304d9ee74",
         "firstPrintSet": "inv",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Capital Guard",
@@ -6065,7 +6076,8 @@
         "firstSet": "leg",
         "firstPrintId": "cbc0b009-3951-4aa3-985a-97139882da7e",
         "firstPrintSet": "leg",
-        "rarity": "rare"
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Carrion Crow",
@@ -6384,7 +6396,8 @@
         "firstSet": "ice",
         "firstPrintId": "e275c295-72da-4a86-82c6-cfd75b38b19c",
         "firstPrintSet": "ice",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Centaur Courser",
@@ -6967,7 +6980,8 @@
         "firstSet": "atq",
         "firstPrintId": "64975352-8d35-4d02-94ac-fa0c6ee12409",
         "firstPrintSet": "atq",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Cleanse",
@@ -7822,7 +7836,8 @@
         "firstSet": "atq",
         "firstPrintId": "6c6df9db-0a46-40a5-ae9d-59f47dae9056",
         "firstPrintSet": "atq",
-        "rarity": "rare"
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Coral Merfolk",
@@ -8905,7 +8920,8 @@
         "firstSet": "drk",
         "firstPrintId": "e3d3df64-1e90-4aef-86ae-0062aa23ff30",
         "firstPrintSet": "drk",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Dark Nourishment",
@@ -9348,7 +9364,8 @@
         "firstSet": "pls",
         "firstPrintId": "bdc93b3d-bde4-422f-9edc-e337719be7b4",
         "firstPrintSet": "pls",
-        "rarity": "rare"
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Deadly Insect",
@@ -10131,7 +10148,8 @@
         "firstSet": "drk",
         "firstPrintId": "c3b0f228-6b06-4426-a557-1225d547b908",
         "firstPrintSet": "drk",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Diabolic Vision",
@@ -10614,7 +10632,8 @@
         "firstSet": "fem",
         "firstPrintId": "a419c9e3-5615-44f9-9256-94a3022bb69f",
         "firstPrintSet": "fem",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Drafna's Restoration",
@@ -10651,7 +10670,8 @@
         "firstSet": "atq",
         "firstPrintId": "07793a71-1106-4303-b620-e403bd378020",
         "firstPrintSet": "atq",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Dragon Hatchling",
@@ -11076,7 +11096,8 @@
         "firstSet": "lea",
         "firstPrintId": "23614289-0d73-4747-a849-5cb67cc97d6a",
         "firstPrintSet": "lea",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Druid Lyrist",
@@ -11309,7 +11330,8 @@
         "firstSet": "lea",
         "firstPrintId": "03482c9c-1f25-4d73-9243-17462ea37ac4",
         "firstPrintSet": "lea",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Dwarven Hold",
@@ -11326,7 +11348,8 @@
         "firstSet": "fem",
         "firstPrintId": "ea9a38b1-4676-425a-b40d-4fb478966024",
         "firstPrintSet": "fem",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Dwarven Miner",
@@ -11387,7 +11410,8 @@
         "firstSet": "atq",
         "firstPrintId": "0848d94a-2704-460f-986b-b192dd6d26b7",
         "firstPrintSet": "atq",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Eager Cadet",
@@ -11828,7 +11852,8 @@
         "firstSet": "fem",
         "firstPrintId": "9387105d-46d0-4db0-8980-dd0fded15eef",
         "firstPrintSet": "fem",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Elven Lyre",
@@ -11837,7 +11862,8 @@
         "firstSet": "fem",
         "firstPrintId": "c3a8cd72-04c0-46f7-a249-f1cecddfdc26",
         "firstPrintSet": "fem",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Elven Palisade",
@@ -12782,7 +12808,8 @@
         "firstSet": "drk",
         "firstPrintId": "184b7d52-e991-4668-9f6a-bcded97f51ac",
         "firstPrintSet": "drk",
-        "rarity": "rare"
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Exotic Curse",
@@ -13993,7 +14020,8 @@
         "firstSet": "inv",
         "firstPrintId": "155a2213-bf6e-4a54-924b-e450b7d06f26",
         "firstPrintSet": "inv",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Fishliver Oil",
@@ -14096,7 +14124,8 @@
         "firstSet": "ice",
         "firstPrintId": "add2b82a-9aa5-4d5c-a1c2-e313541f12c8",
         "firstPrintSet": "ice",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Flameborn Viron",
@@ -14375,7 +14404,8 @@
         "firstSet": "drk",
         "firstPrintId": "fabc3267-b59b-4f36-8873-5b4b072711ca",
         "firstPrintSet": "drk",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Flooded Grove",
@@ -14528,7 +14558,8 @@
         "firstSet": "arn",
         "firstPrintId": "4b71ff49-ee0a-4065-9131-380468d62a30",
         "firstPrintSet": "arn",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Flying Dolphin-Fish",
@@ -14601,7 +14632,8 @@
         "firstSet": "ice",
         "firstPrintId": "0c13311d-db83-483f-ba2b-4f54ceb8b026",
         "firstPrintSet": "ice",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Fomori Nomad",
@@ -14934,7 +14966,8 @@
         "firstSet": "drk",
         "firstPrintId": "2b60eb23-cb9a-4203-86fb-60e47dbd870b",
         "firstPrintSet": "drk",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Foxfire",
@@ -15215,7 +15248,8 @@
         "firstSet": "lea",
         "firstPrintId": "d0bd76c8-4cff-4c15-9686-7a299b589814",
         "firstPrintSet": "lea",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Fugitive Wizard",
@@ -15262,7 +15296,8 @@
         "firstSet": "fem",
         "firstPrintId": "cf1a2cb2-9a6b-41f7-96f7-ec457c69c16c",
         "firstPrintSet": "fem",
-        "rarity": "rare"
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Fungusaur",
@@ -15375,7 +15410,8 @@
         "firstSet": "ice",
         "firstPrintId": "65dd0a41-cc51-4728-b597-fdb2510accd8",
         "firstPrintSet": "ice",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Fyndhorn Brownie",
@@ -15384,7 +15420,8 @@
         "firstSet": "ice",
         "firstPrintId": "06204e82-9dfd-4334-a23a-f8240fc37772",
         "firstPrintSet": "ice",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Fyndhorn Elder",
@@ -15895,7 +15932,8 @@
         "firstSet": "leg",
         "firstPrintId": "20275678-3488-43d8-a93b-993e2267ab07",
         "firstPrintSet": "leg",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Giant Cockroach",
@@ -16450,7 +16488,8 @@
         "firstSet": "lea",
         "firstPrintId": "5129b422-7a35-4bc5-b14b-c814012a0d8f",
         "firstPrintSet": "lea",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Goblin Berserker",
@@ -16469,7 +16508,8 @@
         "firstSet": "tmp",
         "firstPrintId": "179e954f-1d90-4ef4-b800-25845cc338e2",
         "firstPrintSet": "tmp",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Goblin Bully",
@@ -16544,7 +16584,8 @@
         "firstSet": "fem",
         "firstPrintId": "2b710c21-e9f5-4660-80f6-2104ec65f63f",
         "firstPrintSet": "fem",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Goblin Deathraiders",
@@ -16563,7 +16604,8 @@
         "firstSet": "drk",
         "firstPrintId": "8a538b9d-351e-40bb-be11-9ba08c16352b",
         "firstPrintSet": "drk",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Goblin Firebomb",
@@ -17270,7 +17312,8 @@
         "firstSet": "atq",
         "firstPrintId": "4c7a7348-c82e-453c-975c-e5365e152a3a",
         "firstPrintSet": "atq",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Grapple with Death",
@@ -17485,7 +17528,8 @@
         "firstSet": "leg",
         "firstPrintId": "111a16a2-e875-4756-80db-290f9e8606db",
         "firstPrintSet": "leg",
-        "rarity": "rare"
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Greel's Caress",
@@ -17614,7 +17658,8 @@
         "firstSet": "tor",
         "firstPrintId": "5dd72697-24be-42c7-a6d9-a837bdbd4662",
         "firstPrintSet": "tor",
-        "rarity": "rare"
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Grim Monolith",
@@ -18019,7 +18064,8 @@
         "firstSet": "leg",
         "firstPrintId": "473d70b6-a88c-49f4-9415-19919c4468ae",
         "firstPrintSet": "leg",
-        "rarity": "rare"
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Gyre Engineer",
@@ -18658,7 +18704,8 @@
         "firstSet": "lea",
         "firstPrintId": "3792c6ef-c4e6-4923-9a51-7d28fbc5c393",
         "firstPrintSet": "lea",
-        "rarity": "rare"
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Helpful Hunter",
@@ -19063,7 +19110,8 @@
         "firstSet": "ice",
         "firstPrintId": "72242dff-15ca-4da0-b3ae-9984d037b31f",
         "firstPrintSet": "ice",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Hobble",
@@ -19156,7 +19204,8 @@
         "firstSet": "fem",
         "firstPrintId": "c17c6416-86d6-46ea-aea1-41b98a66b250",
         "firstPrintSet": "fem",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Homarid Spawning Bed",
@@ -19237,7 +19286,8 @@
         "firstSet": "inv",
         "firstPrintId": "5464b80a-22fe-42c7-a839-31667712fb2d",
         "firstPrintSet": "inv",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Hoof Skulkin",
@@ -19358,7 +19408,8 @@
         "firstSet": "leg",
         "firstPrintId": "b9f68dc2-c048-41ec-b237-c36fdd99c27d",
         "firstPrintSet": "leg",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Horror of the Dim",
@@ -19747,7 +19798,8 @@
         "firstSet": "fem",
         "firstPrintId": "f95d42d8-ba75-43bf-81b8-b02374f03e83",
         "firstPrintSet": "fem",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Icatian Javelineers",
@@ -19764,7 +19816,8 @@
         "firstSet": "fem",
         "firstPrintId": "39fec59a-4ade-4c6f-ae7d-911fbe6da26d",
         "firstPrintSet": "fem",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Icatian Moneychanger",
@@ -19789,7 +19842,8 @@
         "firstSet": "fem",
         "firstPrintId": "d7690cdd-6610-4310-9e93-60dc4db2ae8d",
         "firstPrintSet": "fem",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Icatian Scout",
@@ -19798,7 +19852,8 @@
         "firstSet": "fem",
         "firstPrintId": "86bf4aaa-a9b1-4798-a96b-c3e35afb77f7",
         "firstPrintSet": "fem",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Icatian Skirmishers",
@@ -19879,7 +19934,8 @@
         "firstSet": "lea",
         "firstPrintId": "29dc1596-a2e7-4d60-9f99-89babaef8a06",
         "firstPrintSet": "lea",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Icy Prison",
@@ -21006,7 +21062,8 @@
         "firstSet": "arn",
         "firstPrintId": "bc4f4b92-7d4e-4b03-8cb4-e6b356c338b4",
         "firstPrintSet": "arn",
-        "rarity": "rare"
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Jasmine Boreal",
@@ -21033,7 +21090,8 @@
         "firstSet": "lea",
         "firstPrintId": "cac8c421-5b92-481d-b2de-560c0231ab58",
         "firstPrintSet": "lea",
-        "rarity": "rare"
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Jedit Ojanen",
@@ -21358,7 +21416,8 @@
         "firstSet": "ice",
         "firstPrintId": "cb211704-ff8e-498b-b7bb-f8384f198ffd",
         "firstPrintSet": "ice",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Juntu Stakes",
@@ -21841,7 +21900,8 @@
         "firstSet": "ice",
         "firstPrintId": "8402543e-5406-404f-95c4-800a1dce35f1",
         "firstPrintSet": "ice",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Kemba's Skyguard",
@@ -21954,7 +22014,8 @@
         "firstSet": "arn",
         "firstPrintId": "4d3dce0f-2168-4f63-b2f9-156a11beeea7",
         "firstPrintSet": "arn",
-        "rarity": "rare"
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Kingfisher",
@@ -23105,7 +23166,8 @@
         "firstSet": "lea",
         "firstPrintId": "f9232508-d363-4ef3-987a-741f6bff331f",
         "firstPrintSet": "lea",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Leyline Binding",
@@ -23550,7 +23612,8 @@
         "firstSet": "inv",
         "firstPrintId": "21d92191-a743-4916-bbe4-5e207e964d9b",
         "firstPrintSet": "inv",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Llanowar Dead",
@@ -23613,7 +23676,8 @@
         "firstSet": "inv",
         "firstPrintId": "72e6ed79-bdfd-49f9-bfa4-be4196880487",
         "firstPrintSet": "inv",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Llanowar Visionary",
@@ -25472,7 +25536,8 @@
         "firstSet": "inv",
         "firstPrintId": "36489b24-f8a8-46b6-b879-0a5ce400a6dc",
         "firstPrintSet": "inv",
-        "rarity": "rare"
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Meticulous Archive",
@@ -27413,7 +27478,8 @@
         "firstSet": "drk",
         "firstPrintId": "9d5911b5-a54e-4ebb-9c36-d4dc8e97bb4b",
         "firstPrintSet": "drk",
-        "rarity": "rare"
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Niblis of Dusk",
@@ -27692,7 +27758,8 @@
         "firstSet": "inv",
         "firstPrintId": "3f327818-8222-4295-8cef-118757b34d17",
         "firstPrintSet": "inv",
-        "rarity": "rare"
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Noble Steeds",
@@ -27765,7 +27832,8 @@
         "firstSet": "lea",
         "firstPrintId": "6303233b-35eb-49ca-b844-ba6b9fe1cbd2",
         "firstPrintSet": "lea",
-        "rarity": "rare"
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Norwood Archers",
@@ -28568,7 +28636,8 @@
         "firstSet": "atq",
         "firstPrintId": "5e34fc6b-5f00-4a22-9ee2-afc1caf99961",
         "firstPrintSet": "atq",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Orcish Oriflamme",
@@ -29235,7 +29304,8 @@
         "firstSet": "leg",
         "firstPrintId": "304f9d39-3ea2-4274-b23e-e4eaabbc1c4b",
         "firstPrintSet": "leg",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Peace of Mind",
@@ -29990,7 +30060,8 @@
         "firstSet": "ice",
         "firstPrintId": "c588fe7f-945d-4459-904c-67442f88b4e1",
         "firstPrintSet": "ice",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Pith Driller",
@@ -30505,7 +30576,8 @@
         "firstSet": "leg",
         "firstPrintId": "0370330d-83d9-44d2-a1ed-c4827edc60fd",
         "firstPrintSet": "leg",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Prakhata Club Security",
@@ -30816,7 +30888,8 @@
         "firstSet": "plc",
         "firstPrintId": "97787109-408e-42d3-acc5-300f5f5bf2ff",
         "firstPrintSet": "plc",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Prodigal Sorcerer",
@@ -30825,7 +30898,8 @@
         "firstSet": "lea",
         "firstPrintId": "e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a",
         "firstPrintSet": "lea",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Prodigious Growth",
@@ -30916,7 +30990,8 @@
         "firstSet": "ody",
         "firstPrintId": "6757bf0e-489f-4be2-9e41-463b59f00dd1",
         "firstPrintSet": "ody",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Psychic Allergy",
@@ -31563,7 +31638,8 @@
         "firstSet": "leg",
         "firstPrintId": "2cf6a3a3-4a06-4eb7-981a-b70cf05b2473",
         "firstPrintSet": "leg",
-        "rarity": "rare"
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Raiding Party",
@@ -32186,7 +32262,8 @@
         "firstSet": "inv",
         "firstPrintId": "ff0f568e-4d3a-40a5-b72a-63040ec5402d",
         "firstPrintSet": "inv",
-        "rarity": "rare"
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Reckless Barbarian",
@@ -32421,7 +32498,8 @@
         "firstSet": "leg",
         "firstPrintId": "c062cbae-ce5e-43be-9932-c81a0a3622e8",
         "firstPrintSet": "leg",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Relic of Sauron",
@@ -33270,7 +33348,8 @@
         "firstSet": "lea",
         "firstPrintId": "af957200-c538-4f52-b105-6db7a7abb4dc",
         "firstPrintSet": "lea",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Rogue Kavu",
@@ -33481,7 +33560,8 @@
         "firstSet": "lea",
         "firstPrintId": "59590768-fa96-4869-8763-9d5ab6ac22ad",
         "firstPrintSet": "lea",
-        "rarity": "rare"
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Royal Falcon",
@@ -33894,7 +33974,8 @@
         "firstSet": "atq",
         "firstPrintId": "b4ff60ce-073c-46b8-807c-8b40467b960c",
         "firstPrintSet": "atq",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Saheeli, Sublime Artificer",
@@ -34479,7 +34560,8 @@
         "firstSet": "drk",
         "firstPrintId": "8e99870c-b2b9-431b-b8a8-3f4a80aa8fa5",
         "firstPrintSet": "drk",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Scavenging Ghoul",
@@ -34742,7 +34824,8 @@
         "firstSet": "ice",
         "firstPrintId": "f2d93d05-98bc-4504-9045-dedb925895ae",
         "firstPrintSet": "ice",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Seachrome Coast",
@@ -34787,7 +34870,8 @@
         "firstSet": "nem",
         "firstPrintId": "af6c921e-1b82-412c-9979-adfdf83440f7",
         "firstPrintSet": "nem",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Seal of Doom",
@@ -35302,7 +35386,8 @@
         "firstSet": "inv",
         "firstPrintId": "699f1fe8-02c6-4d95-9231-3f8aefe603da",
         "firstPrintSet": "inv",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Serra Angel",
@@ -35559,7 +35644,8 @@
         "firstSet": "ice",
         "firstPrintId": "8886ba2d-b25a-4b74-9299-911c509ae864",
         "firstPrintSet": "ice",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Shanodin Dryads",
@@ -35858,7 +35944,8 @@
         "firstSet": "inv",
         "firstPrintId": "47dbd765-d7ea-4181-bd22-5c749ad081af",
         "firstPrintSet": "inv",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Shivan Hellkite",
@@ -36737,7 +36824,8 @@
         "firstSet": "ice",
         "firstPrintId": "eb92a3e6-dc30-4a08-baba-e125290cadc5",
         "firstPrintSet": "ice",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Skull of Orm",
@@ -37204,7 +37292,8 @@
         "firstSet": "pls",
         "firstPrintId": "81825aef-bef7-46b7-bf52-29e32c1836b0",
         "firstPrintSet": "pls",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Slinking Serpent",
@@ -38085,7 +38174,8 @@
         "firstSet": "leg",
         "firstPrintId": "d6d5e36f-0049-4be8-bf85-8dc0186339a4",
         "firstPrintSet": "leg",
-        "rarity": "rare"
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Spined Karok",
@@ -38526,7 +38616,8 @@
         "firstSet": "atq",
         "firstPrintId": "a6bf858d-bba9-4a16-9045-55384b1de633",
         "firstPrintSet": "atq",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Staggershock",
@@ -38545,7 +38636,8 @@
         "firstSet": "inv",
         "firstPrintId": "ff8cc71f-3070-497f-908f-35aa13a8a857",
         "firstPrintSet": "inv",
-        "rarity": "rare"
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Stalking Bloodsucker",
@@ -39036,7 +39128,8 @@
         "firstSet": "pls",
         "firstPrintId": "36a1cdca-d48c-4936-ad6a-4610aeb991ce",
         "firstPrintSet": "pls",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Stone Quarry",
@@ -39191,7 +39284,8 @@
         "firstSet": "ice",
         "firstPrintId": "c2d5d91b-aeb4-4d7e-b748-77f9960da55f",
         "firstPrintSet": "ice",
-        "rarity": "rare"
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Stormchaser Mage",
@@ -39248,7 +39342,8 @@
         "firstSet": "inv",
         "firstPrintId": "1eb42f39-9187-44e4-aa34-14ab31977199",
         "firstPrintSet": "inv",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Stormscape Battlemage",
@@ -39947,7 +40042,8 @@
         "firstSet": "fem",
         "firstPrintId": "316d25ae-7ac6-4f5b-93ab-0e0e28ec104b",
         "firstPrintSet": "fem",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Svyelunite Temple",
@@ -40170,7 +40266,8 @@
         "firstSet": "jud",
         "firstPrintId": "f1b8413f-c9fc-4cea-b416-a1fcf651b009",
         "firstPrintSet": "jud",
-        "rarity": "rare"
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Sylvok Replica",
@@ -41345,7 +41442,8 @@
         "firstSet": "inv",
         "firstPrintId": "505da522-73a8-4232-ae1a-d3365f3e598f",
         "firstPrintSet": "inv",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Thornscape Battlemage",
@@ -41696,7 +41794,8 @@
         "firstSet": "inv",
         "firstPrintId": "75a0b075-5414-48d3-a2b1-47dc20213e96",
         "firstPrintSet": "inv",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Thunderscape Battlemage",
@@ -42619,7 +42718,8 @@
         "firstSet": "inv",
         "firstPrintId": "1b076f85-d1bf-491a-af9d-f35b8e1bd163",
         "firstPrintSet": "inv",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Trenching Steed",
@@ -43860,7 +43960,8 @@
         "firstSet": "lea",
         "firstPrintId": "2ff21a6f-83a7-4bf3-a078-294e303232cc",
         "firstPrintSet": "lea",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Utopia Tree",
@@ -44459,7 +44560,8 @@
         "firstSet": "inv",
         "firstPrintId": "4a94aeb4-349c-4394-848d-c1c9133856e2",
         "firstPrintSet": "inv",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Viashino Runner",
@@ -45128,7 +45230,8 @@
         "firstSet": "leg",
         "firstPrintId": "d7533a72-77d1-40cd-b3a1-7597d566c428",
         "firstPrintSet": "leg",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Walking Wall",
@@ -45485,7 +45588,8 @@
         "firstSet": "ice",
         "firstPrintId": "d0ea0c6c-aa76-4b16-bc99-2ff46dc56d4e",
         "firstPrintSet": "ice",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "War Elephant",
@@ -45976,7 +46080,8 @@
         "firstSet": "ice",
         "firstPrintId": "4b75adf0-9501-4776-a213-456c2b821070",
         "firstPrintSet": "ice",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Wheel of Fortune",
@@ -46947,7 +47052,8 @@
         "firstSet": "arn",
         "firstPrintId": "15ccebe1-ef08-4805-a65f-a1c57abed9f2",
         "firstPrintSet": "arn",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Xander's Lounge",
@@ -47420,7 +47526,8 @@
         "firstSet": "ice",
         "firstPrintId": "3a9d1082-a862-45d4-9e5e-392e879fead6",
         "firstPrintSet": "ice",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Zuran Spellcaster",
@@ -47429,6 +47536,7 @@
         "firstSet": "ice",
         "firstPrintId": "152a72b1-a7b7-4e5c-8558-fab97465f549",
         "firstPrintSet": "ice",
-        "rarity": "common"
+        "rarity": "common",
+        "source": "compiled"
     }
 ]

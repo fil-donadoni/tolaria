@@ -73,7 +73,6 @@ const koboldOverlord = getDefinition("490eeedb-9c03-4dc7-81fd-ae54a7932e4d");
 const koboldTaskmaster = getDefinition("1b9c63eb-8d4e-4d8b-8637-308459ef036b");
 const koboldsOfKherKeep = getDefinition("df0320d9-7c2a-456a-9159-1b4fae67bfb5");
 const primordialOoze = getDefinition("a46e47e1-8639-48f7-94c4-5f9e9666839a");
-const spinalVillain = getDefinition("d6d5e36f-0049-4be8-bf85-8dc0186339a4");
 const theBrute = getDefinition("f9ffb265-872f-47b3-974c-92bcbebd557e");
 const wallOfEarth = getDefinition("c12e97c1-ca28-432a-8140-3f08bb4485a3");
 const wallOfHeat = getDefinition("a38059a8-be69-4cc1-969b-951c610f2f11");

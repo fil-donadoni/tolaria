@@ -66,7 +66,6 @@ const killerBees = getDefinition("2e30b5ff-1239-4c4d-ac7c-554ecf8e1e27");
 const masterOfTheHunt = getDefinition("4e6bf56e-2d74-4e4d-a667-885853979377");
 const mossMonster = getDefinition("9903c043-9a7a-4994-b532-136d4c46edfd");
 const pixieQueen = getDefinition("b9527c2a-23bb-4d33-9e72-6e0ab3de0e6b");
-const pradeshGypsies = getDefinition("0370330d-83d9-44d2-a1ed-c4827edc60fd");
 const rabidWombat = getDefinition("9d9b9eb8-6367-4ab5-8e00-a9c9e1d69032");
 const shelkinBrownie = getDefinition("fddcc557-871d-425b-b4ee-bc0c9bc717aa");
 const spiritLink = getDefinition("5e2d35f8-3cf6-4843-9030-0e9a885d836c");

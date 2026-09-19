@@ -36,14 +36,12 @@ const eyeForAnEye = getDefinition("2933ca2a-097b-44f4-ae56-ad524d26fd06");
 const flyingMen = getDefinition("25ab9a2b-e248-4ae2-aac3-b49fdb3e260a");
 const jihad = getDefinition("b6c7705a-2987-4ef1-92b1-2c55d989ec6f");
 const juzamDjinn = getDefinition("31bf3f14-b5df-498b-a1bb-965885c82401");
-const kingSuleiman = getDefinition("4d3dce0f-2168-4f63-b2f9-156a11beeea7");
 const mijaeDjinn = getDefinition("d3ddbe51-cd1a-4b2c-849a-7c82d622122a");
 const piety = getDefinition("f649c571-d7ec-4ebc-9e18-b0657cab495b");
 const repentantBlacksmith = getDefinition(
     "61fc30b6-1355-425b-a86f-18f59f83141c"
 );
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
-const prodigalSorcerer = getDefinition("e4dc1103-7bf1-47f6-9006-d3ed9ccd7a6a");
 
 describe("Army of Allah (attacking creatures +2/+0, CR 611.2)", () => {
     it("pumps only attacking creatures", () => {
