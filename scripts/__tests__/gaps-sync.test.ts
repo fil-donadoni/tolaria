@@ -14,6 +14,7 @@ import { cardBandIndex, strongestCardBand } from "../lib/backlog-triage";
 import {
     applyUpdatedIssues,
     BAND_UMBRELLAS,
+    KIND_FALLBACK,
     buildGrammarGapFilings,
     partitionCardIndex,
     PRD_ISSUE,
@@ -439,7 +440,7 @@ describe("the bot kind — one issue per Bot Gap key, scoped to the ranked Targe
         expect(filing.kind).toBe("bot");
         expect(filing.title).toBe(`Bot Gap: ${NEVER_CHOSEN}`);
         expect(filing.labels).toEqual(["ready-for-agent", "area:game-bot"]);
-        expect(filing.fallbackParent).toBe(3820);
+        expect(filing.fallbackParent).toBe(KIND_FALLBACK.bot);
         const body = filing.body(7001);
         expect(body.split("\n")[0]).toBe(
             "Rank 1 of 2 in kind `bot` — lexicographic on the priority Targets, corpus as tie-break (issue #3869)."
@@ -1057,7 +1058,7 @@ describe("umbrellas partition by band — the triage's cards source picks the pa
         ["oddity", new Set(["c-unranked"])],
     ]);
 
-    it("files a grammar gap under the Grammar Rules umbrella of its band — P1 and P3 — and residue under its fallback", () => {
+    it("files a grammar gap under the Grammar Rules umbrella of its band — P1 and P3 — and residue under the family's P3", () => {
         const filings = banded(
             buildGrammarGapFilings(OPS_ALLOWLIST),
             { cards: [] },
@@ -1073,7 +1074,7 @@ describe("umbrellas partition by band — the triage's cards source picks the pa
         expect(tracker.created.map((c) => [c.title, c.parent])).toEqual([
             ["Grammar Gap: (op) › drain", GRAMMAR.P1],
             ["Grammar Gap: (op) › flicker", GRAMMAR.P3],
-            ["Grammar Gap: (op) › oddity", PRD_ISSUE],
+            ["Grammar Gap: (op) › oddity", GRAMMAR.P3],
         ]);
     });
 
@@ -1138,7 +1139,7 @@ describe("umbrellas partition by band — the triage's cards source picks the pa
         expect(tracker.parents.get(4502)).toBe(GRAMMAR.P0);
     });
 
-    it("empties a retired umbrella: a banded child moves to its band, a residue child to its fallback", () => {
+    it("empties a retired umbrella: a banded child moves to its band, a residue child to its family's P3", () => {
         const [retired] = [...RETIRED_UMBRELLAS];
         const tracker = new StubTracker();
         for (const n of [4503, 4504]) {
@@ -1157,7 +1158,7 @@ describe("umbrellas partition by band — the triage's cards source picks the pa
         );
         syncGaps(filings, tracker);
         expect(tracker.parents.get(4503)).toBe(GRAMMAR.P3);
-        expect(tracker.parents.get(4504)).toBe(PRD_ISSUE);
+        expect(tracker.parents.get(4504)).toBe(GRAMMAR.P3);
     });
 
     it("the Ops umbrellas partition the mechanic kind the same way — a new Op and an existing mechanic alike", () => {
@@ -1229,7 +1230,7 @@ describe("umbrellas partition by band — the triage's cards source picks the pa
         expect(tracker.parents.get(4505)).toBe(BOTS.P2);
     });
 
-    it("an unpartitioned kind keeps the set-umbrella / PRD parent", () => {
+    it("an unpartitioned kind files under its own P3 umbrella when no set umbrella claims it", () => {
         const lock = {
             fragments: [],
             cards: [
@@ -1244,7 +1245,7 @@ describe("umbrellas partition by band — the triage's cards source picks the pa
         expect(filings[0]!.band).toBeUndefined();
         const tracker = new StubTracker();
         syncGaps(filings, tracker);
-        expect(tracker.created[0]!.parent).toBe(PRD_ISSUE);
+        expect(tracker.created[0]!.parent).toBe(KIND_FALLBACK.scenario);
     });
 
     it("counts MOVES against the cap, and refuses before any write", () => {
@@ -1261,5 +1262,86 @@ describe("umbrellas partition by band — the triage's cards source picks the pa
         );
         expect(() => syncGaps(filings, tracker)).toThrow(/cap of 100/);
         expect(tracker.moves).toEqual([]);
+    });
+    it("moves every kind OFF PRD #3820 to its fallback — partitioned residue and unpartitioned kinds alike — once (issue #4110)", () => {
+        const lock = {
+            fragments: [],
+            cards: [
+                quarantined("c-x", "Onulet", [SMOKE], ["premodern"]),
+                ...FILLER,
+            ],
+        };
+        const scenario = banded(
+            buildQuarantineFilings(inputs(lock), "scenario"),
+            lock
+        ).map((f) => ({ ...f, currentIssue: 4600, body: () => "x" }));
+        const [oddity] = banded(
+            buildGrammarGapFilings({
+                ops: [{ key: "(op) › oddity", op: "oddity", issue: 4601 }],
+            }),
+            { cards: [] },
+            OP_USERS
+        ).map((f) => ({ ...f, body: () => "x" }));
+        const tracker = new StubTracker();
+        for (const n of [4600, 4601]) {
+            tracker.issues.set(n, { state: "OPEN", body: "x" });
+            tracker.parents.set(n, PRD_ISSUE);
+        }
+        syncGaps([...scenario, oddity!], tracker);
+        expect(tracker.parents.get(4600)).toBe(KIND_FALLBACK.scenario);
+        expect(tracker.parents.get(4601)).toBe(GRAMMAR.P3);
+        expect(syncGaps([...scenario, oddity!], tracker).moves).toEqual([]);
+        expect(tracker.moves).toHaveLength(2);
+    });
+
+    it("an open gap with NO parent at all — a create whose parent write failed — moves to its fallback", () => {
+        const [oddity] = banded(
+            buildGrammarGapFilings({
+                ops: [{ key: "(op) › oddity", op: "oddity", issue: 4603 }],
+            }),
+            { cards: [] },
+            OP_USERS
+        ).map((f) => ({ ...f, body: () => "x" }));
+        const tracker = new StubTracker();
+        tracker.issues.set(4603, { state: "OPEN", body: "x" });
+        const result = syncGaps([oddity!], tracker);
+        expect(result.moves).toEqual([
+            {
+                kind: "grammar",
+                key: "(op) › oddity",
+                issue: 4603,
+                from: null,
+                to: GRAMMAR.P3,
+            },
+        ]);
+        expect(syncGaps([oddity!], tracker).moves).toEqual([]);
+    });
+
+    it("an unpartitioned kind hand-placed under any other parent keeps it", () => {
+        const lock = {
+            fragments: [],
+            cards: [
+                quarantined("c-x", "Onulet", [SMOKE], ["premodern"]),
+                ...FILLER,
+            ],
+        };
+        const scenario = banded(
+            buildQuarantineFilings(inputs(lock), "scenario"),
+            lock
+        ).map((f) => ({ ...f, currentIssue: 4602, body: () => "x" }));
+        const tracker = new StubTracker();
+        tracker.issues.set(4602, { state: "OPEN", body: "x" });
+        tracker.parents.set(4602, 3838);
+        expect(syncGaps(scenario, tracker).moves).toEqual([]);
+        expect(tracker.parents.get(4602)).toBe(3838);
+    });
+
+    it("every kind's fallback is its LOWEST band — a family's P3, never a PRD", () => {
+        expect(KIND_FALLBACK.grammar).toBe(GRAMMAR.P3);
+        expect(KIND_FALLBACK.mechanic).toBe(OPS.P3);
+        expect(KIND_FALLBACK.bot).toBe(BOTS.P3);
+        for (const parent of Object.values(KIND_FALLBACK))
+            expect(RETIRED_UMBRELLAS.has(parent)).toBe(false);
+        expect(RETIRED_UMBRELLAS.has(PRD_ISSUE)).toBe(true);
     });
 });

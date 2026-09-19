@@ -16,6 +16,7 @@ import {
     renderUnlockBlockedBy,
     syncUnlockEdges,
     withUnlockBlockers,
+    KIND_FALLBACK,
     PRD_ISSUE,
     renderOpGapBody,
     SUB_ISSUE_CAP,
@@ -55,7 +56,7 @@ describe("buildGrammarGapFilings", () => {
             ["(op) › draw", 4001],
         ]);
         expect(filings[0]!.kind).toBe("grammar");
-        expect(filings[0]!.fallbackParent).toBe(PRD_ISSUE);
+        expect(filings[0]!.fallbackParent).toBe(KIND_FALLBACK.grammar);
         expect(filings[0]!.title).toBe(grammarGapTitle(ADD_MANA_KEY));
         expect(filings[0]!.body(0)).toBe(
             renderOpGapBody("addMana", ADD_MANA_KEY)
@@ -176,7 +177,7 @@ function filing(over: Partial<GapFiling> = {}): GapFiling {
         title: grammarGapTitle(ADD_MANA_KEY),
         labels: LABELS,
         parentSetCode: null,
-        fallbackParent: PRD_ISSUE,
+        fallbackParent: KIND_FALLBACK.grammar,
         body: () => "body v1",
         ...over,
     };
@@ -198,7 +199,7 @@ describe("syncGaps", () => {
             },
         ]);
         expect(result.updatedRows.get(ADD_MANA_ROW)).toBe(5000);
-        expect(tracker.parents.get(5000)).toBe(PRD_ISSUE);
+        expect(tracker.parents.get(5000)).toBe(KIND_FALLBACK.grammar);
     });
 
     it("a second run against the tracker it just wrote is a no-op — idempotent", () => {
@@ -217,6 +218,7 @@ describe("syncGaps", () => {
     it("rewrites an open issue whose body changed, keeping its number", () => {
         const tracker = new StubTracker();
         tracker.issues.set(4001, { state: "OPEN", body: "stale" });
+        tracker.parents.set(4001, KIND_FALLBACK.grammar);
         const result = syncGaps(
             [filing({ currentIssue: 4001, body: () => "fresh" })],
             tracker
@@ -291,6 +293,8 @@ describe("syncGaps", () => {
         const tracker = new StubTracker();
         tracker.children = SUB_ISSUE_CAP;
         tracker.issues.set(4001, { state: "OPEN", body: "body v1" });
+        // Already home — an issue with no parent would be MOVED, which asks.
+        tracker.parents.set(4001, KIND_FALLBACK.grammar);
         const result = syncGaps([filing({ currentIssue: 4001 })], tracker);
         expect(result.actions[0]!.action).toBe("noop");
     });
