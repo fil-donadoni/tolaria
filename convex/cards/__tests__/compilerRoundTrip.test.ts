@@ -124,7 +124,13 @@ import {
 // CR 115.4 "any", or narrowed to one card type): Active Volcano, Desert
 // Twister, Flash Flood and Northern Paladin round-trip once their
 // `targetRequirement.type` is the permanent-type list (CR 110.4).
-const BASELINE_CEILING = 1613;
+//
+// Lowered 1613 -> 1606 by issue #4128 (mass object selectors): Acid Rain,
+// Armageddon, Day of Judgment, Nevinyrral's Disk, Tivadar's Crusade, Tranquility
+// and Tsunami round-trip once "Destroy all …" reads as a sweep. Nevinyrral's
+// Disk and Tivadar's Crusade were corrected to the compiler's CR-faithful shape
+// (one destroy per permanent; a subtype filter with no card type beside it).
+const BASELINE_CEILING = 1606;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that

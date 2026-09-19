@@ -3110,6 +3110,16 @@
         "source": "compiled"
     },
     {
+        "name": "Back to Nature",
+        "scryfallId": "e7af9ebf-8935-4107-aacd-4c643b68cb6e",
+        "oracleId": "b8d8ece6-397e-4bc9-b86c-7caa1d675d0f",
+        "firstSet": "m11",
+        "firstPrintId": "e7af9ebf-8935-4107-aacd-4c643b68cb6e",
+        "firstPrintSet": "m11",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Backfire",
         "scryfallId": "04bc57aa-d4d9-4bd9-ba09-984370c7e23b",
         "oracleId": "e04fa58e-be7a-4c9c-98d0-48241742a41b",
@@ -7754,6 +7764,16 @@
         "source": "compiled"
     },
     {
+        "name": "Cleanfall",
+        "scryfallId": "9897707f-9669-4d44-8607-cba569da73e0",
+        "oracleId": "826b1c93-4e5d-4436-8d59-2d7d970f609f",
+        "firstSet": "chk",
+        "firstPrintId": "9897707f-9669-4d44-8607-cba569da73e0",
+        "firstPrintSet": "chk",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Cleanse",
         "scryfallId": "2fbd611b-ac97-4516-bad7-cc9ee4ef74f7",
         "oracleId": "a610c77c-fe31-4465-a1c1-392db4ce4ed1",
@@ -10922,6 +10942,26 @@
         "firstSet": "pip",
         "firstPrintId": "05f38637-8cdc-42bb-b164-85596b6b14b9",
         "firstPrintSet": "pip",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Desolation Angel",
+        "scryfallId": "445127d4-8afb-47cf-b2a1-564540b1fdae",
+        "oracleId": "87f82107-eaba-484a-800d-e61a0cc5e1f2",
+        "firstSet": "apc",
+        "firstPrintId": "445127d4-8afb-47cf-b2a1-564540b1fdae",
+        "firstPrintSet": "apc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Desolation Giant",
+        "scryfallId": "2e7291da-1d14-4763-8691-c67136ab67c7",
+        "oracleId": "c23aaf6d-151e-481a-a345-ca00c14940d1",
+        "firstSet": "apc",
+        "firstPrintId": "2e7291da-1d14-4763-8691-c67136ab67c7",
+        "firstPrintSet": "apc",
         "rarity": "rare",
         "source": "compiled"
     },
@@ -26718,6 +26758,16 @@
         "source": "compiled"
     },
     {
+        "name": "Magus of the Disk",
+        "scryfallId": "febbea40-74c7-431f-a88f-c15d4fdda89d",
+        "oracleId": "3996aa0c-3322-43be-bbaf-7b66836a8ff4",
+        "firstSet": "tsp",
+        "firstPrintId": "febbea40-74c7-431f-a88f-c15d4fdda89d",
+        "firstPrintSet": "tsp",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Magus of the Moon",
         "scryfallId": "c06a4443-6851-4873-8fb8-2ef76c9d6d2c",
         "oracleId": "6800d01c-345d-4932-a2a4-8df0fb1902f2",
@@ -30496,6 +30546,26 @@
         "source": "compiled"
     },
     {
+        "name": "Nova Cleric",
+        "scryfallId": "b2048d84-b5e6-405c-9091-1997a0c4e1a5",
+        "oracleId": "d71bc551-3fd9-43a9-9477-2acc8683a784",
+        "firstSet": "ons",
+        "firstPrintId": "b2048d84-b5e6-405c-9091-1997a0c4e1a5",
+        "firstPrintSet": "ons",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Novablast Wurm",
+        "scryfallId": "64733f34-2eb4-4df5-8656-57bdb8b3a983",
+        "oracleId": "c3aa2554-1cea-45e7-8fc7-1c09bd82fadb",
+        "firstSet": "wwk",
+        "firstPrintId": "64733f34-2eb4-4df5-8656-57bdb8b3a983",
+        "firstPrintSet": "wwk",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
         "name": "Noxious Dragon",
         "scryfallId": "cece7235-604c-49b6-b80f-3229a20b154f",
         "oracleId": "fe75b364-9e65-499d-9763-76844cf88cf7",
@@ -32182,6 +32252,16 @@
         "firstSet": "tmp",
         "firstPrintId": "e47ace1d-73de-44aa-a3fe-2e2a21ebec79",
         "firstPrintSet": "tmp"
+    },
+    {
+        "name": "Pernicious Deed",
+        "scryfallId": "ae4cbb33-4947-49f0-b612-a92141fbfaa6",
+        "oracleId": "62e44e0d-eda0-4275-8367-49dab9a087c3",
+        "firstSet": "apc",
+        "firstPrintId": "ae4cbb33-4947-49f0-b612-a92141fbfaa6",
+        "firstPrintSet": "apc",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Personal Incarnation",
@@ -34906,6 +34986,16 @@
         "firstSet": "iko",
         "firstPrintId": "02138fbb-3962-4348-8d31-faaefba0b8b2",
         "firstPrintSet": "iko"
+    },
+    {
+        "name": "Ravages of War",
+        "scryfallId": "11dca9ba-b27f-4af8-9962-3794e743886f",
+        "oracleId": "265236d1-d96c-4424-835e-a0fe91c41170",
+        "firstSet": "ptk",
+        "firstPrintId": "11dca9ba-b27f-4af8-9962-3794e743886f",
+        "firstPrintSet": "ptk",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Ravaging Horde",
@@ -39568,6 +39658,16 @@
         "source": "compiled"
     },
     {
+        "name": "Shrieking Mogg",
+        "scryfallId": "0ce46919-d312-490c-8942-39fbb2d375bf",
+        "oracleId": "088a63d4-22d2-4061-8aef-2aa3fc348639",
+        "firstSet": "nem",
+        "firstPrintId": "0ce46919-d312-490c-8942-39fbb2d375bf",
+        "firstPrintSet": "nem",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Shrike Force",
         "scryfallId": "306fec2c-d8b7-4f4b-8f58-10e3b9f3158f",
         "oracleId": "d014b02f-a8b8-4b97-96e0-f588792069f0",
@@ -39844,6 +39944,16 @@
         "firstSet": "soi",
         "firstPrintId": "535e3d1b-b71b-406a-bec6-73b2cb45f6c8",
         "firstPrintSet": "soi",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Silt Crawler",
+        "scryfallId": "f334e864-4e62-4bc3-9470-661be3d879e2",
+        "oracleId": "5ba1595a-6578-459d-96fe-fdfb84ac34d5",
+        "firstSet": "pcy",
+        "firstPrintId": "f334e864-4e62-4bc3-9470-661be3d879e2",
+        "firstPrintSet": "pcy",
         "rarity": "common",
         "source": "compiled"
     },
@@ -44728,6 +44838,16 @@
         "source": "compiled"
     },
     {
+        "name": "Tempest of Light",
+        "scryfallId": "d5cd05d7-eb2d-489d-ad1c-5527d3336a6d",
+        "oracleId": "9399ed27-31c7-4d6a-99eb-644b74e67344",
+        "firstSet": "mrd",
+        "firstPrintId": "d5cd05d7-eb2d-489d-ad1c-5527d3336a6d",
+        "firstPrintSet": "mrd",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Temple Acolyte",
         "scryfallId": "e73c5d46-128d-4ab6-901a-6102686a1b22",
         "oracleId": "17e4085e-af44-4ba8-af05-ccfe4b35f96a",
@@ -45748,6 +45868,16 @@
         "source": "compiled"
     },
     {
+        "name": "Thundermare",
+        "scryfallId": "59a9f3f5-c80f-47a4-bf84-b7262437017f",
+        "oracleId": "58fa33fd-02a4-4ec9-9226-82594cfec363",
+        "firstSet": "por",
+        "firstPrintId": "59a9f3f5-c80f-47a4-bf84-b7262437017f",
+        "firstPrintSet": "por",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Thunderscape Apprentice",
         "scryfallId": "75a0b075-5414-48d3-a2b1-47dc20213e96",
         "oracleId": "34e325f0-b66f-44b9-a25c-da88357dbac4",
@@ -46606,6 +46736,16 @@
         "source": "compiled"
     },
     {
+        "name": "Tranquil Path",
+        "scryfallId": "2da8c059-3309-49a5-ae97-c048aefc922f",
+        "oracleId": "a9595011-8ddb-403a-ba35-5a79d346557e",
+        "firstSet": "apc",
+        "firstPrintId": "2da8c059-3309-49a5-ae97-c048aefc922f",
+        "firstPrintSet": "apc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Tranquility",
         "scryfallId": "774cc5a6-3a69-4812-add4-eb5eb6389238",
         "oracleId": "f671e3c3-cd59-4d06-a1af-5d04892cf74d",
@@ -46971,6 +47111,16 @@
         "firstPrintId": "329f3aca-6db7-41d3-95b2-c479d14b7fa3",
         "firstPrintSet": "mkm",
         "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
+        "name": "Troublesome Spirit",
+        "scryfallId": "23d7e856-6852-4b97-ae0e-a4becdfc8166",
+        "oracleId": "601d9bc3-ca75-43de-beea-ab3f0a49f543",
+        "firstSet": "pcy",
+        "firstPrintId": "23d7e856-6852-4b97-ae0e-a4becdfc8166",
+        "firstPrintSet": "pcy",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -50719,6 +50869,16 @@
         "firstPrintId": "5eb18038-eb6a-4d27-ba52-52a1cee6b512",
         "firstPrintSet": "ala",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Wilderness Reclamation",
+        "scryfallId": "54af08f7-9c6c-464e-b2f7-2b5803f36481",
+        "oracleId": "6f856f99-4cb4-479d-958d-964220965ed6",
+        "firstSet": "rna",
+        "firstPrintId": "54af08f7-9c6c-464e-b2f7-2b5803f36481",
+        "firstPrintSet": "rna",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {

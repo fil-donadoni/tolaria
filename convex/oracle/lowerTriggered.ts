@@ -21,7 +21,7 @@ import type {
     CompiledTriggerHead,
     CompiledTriggeredAbility,
 } from "../cards/compiledTriggers";
-import type { EffectOp, TargetRequirement } from "../cards/types";
+import type { EffectOp, KickerCost, TargetRequirement } from "../cards/types";
 import type { TriggerConditionIR } from "./grammar/shared/condition";
 import type { EffectSentenceIR } from "./grammar/shared/effectClause";
 import type { TriggerHeadIR } from "./grammar/shared/triggerHead";
@@ -131,6 +131,8 @@ export function lowerTriggeredAbility(input: {
     readonly head: TriggerHeadIR;
     readonly condition?: TriggerConditionIR;
     readonly effects: readonly EffectSentenceIR[];
+    /** CR 702.33e — the card's kicker costs, for a sentence that reads them. */
+    readonly kickers?: readonly KickerCost[];
 }): LowerTriggerResult {
     const condition =
         input.condition !== undefined
@@ -147,6 +149,7 @@ export function lowerTriggeredAbility(input: {
             allowX: false,
             selfName: input.cardName,
             antecedents,
+            ...(input.kickers !== undefined ? { kickers: input.kickers } : {}),
         });
         if (!result.ok) return { ok: false, reason: result.reason };
         ops.push(...result.value);

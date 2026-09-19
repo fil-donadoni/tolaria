@@ -303,14 +303,18 @@ export const tivadarsCrusade: CardDefinition = {
     manaCost: { X: 1, W: 2 },
     types: ["Sorcery"],
     // Migrated resolve()→effects[] (ADR 0045, #832): destroyAll(Goblins) →
-    // forEach over every battlefield's Goblin creatures, destroy each (CR 701.8).
+    // forEach over every battlefield's Goblins, destroy each (CR 701.8). The
+    // subtype alone is the filter: "Goblins" names every permanent with the
+    // subtype (CR 205.3m — a creature type can sit on a Kindred permanent that
+    // is not a creature), exactly as Tsunami's "Islands" is `subtype: "Island"`
+    // with no card type beside it (issue #4128 — the compiler reads it so).
     effects: [
         {
             op: "forEach",
             select: {
                 set: "permanents",
                 zone: "battlefield",
-                filter: { type: "Creature", subtype: "Goblin" },
+                filter: { subtype: "Goblin" },
             },
             effects: [{ op: "destroy", target: { ref: "$each" } }],
         },
