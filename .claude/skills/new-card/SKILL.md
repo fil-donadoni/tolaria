@@ -229,7 +229,7 @@ unlocks, and writing it by hand buys one card and leaves the other N-1.
    → open the issue by hand, titled
    `Grammar Gap: <key>`, labelled `ready-for-agent` + `area:mechanics`,
    parented on the Grammar Rules umbrella of its band
-   (`docs/agents/issue-tracker.md` § Umbrellas partition by band), with a `## Target files` section — the queue planner runs an
+   (`docs/agents/issue-tracker.md` § Umbrellas partition by band). Give it a `## Target files` section — the queue planner runs an
    issue without one SOLO.
 3. **Hand the card to `/grammar-rule`** on that issue. The card graduates as
    one of the rule's `ready` delta, and the rule is what the PR is measured by.

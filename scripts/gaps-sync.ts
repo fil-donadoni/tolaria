@@ -84,6 +84,7 @@ import {
     GAP_TITLE_PREFIX,
     PARTITIONED_KINDS,
     partitionCardIndex,
+    RETIRED_UMBRELLAS,
     planUnlockEdges,
     syncGaps,
     syncUnlockEdges,
@@ -639,7 +640,7 @@ function main(): void {
     }
     console.log(
         `gaps:sync: ${[...counts].map(([k, n]) => `${n} ${k}`).join(", ") || "no gaps"}; ` +
-            `${result.moves.length} re-parented, ${bandResidue.length} partition residue`
+            `${result.moves.length} re-parented (${result.moves.filter((m) => m.from !== null && RETIRED_UMBRELLAS.has(m.from)).length} out of a retired umbrella), ${bandResidue.length} partition residue`
     );
 
     // The write-back comes FIRST, before any further network step: `syncGaps`
