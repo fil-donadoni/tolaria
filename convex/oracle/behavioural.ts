@@ -10,10 +10,9 @@
  * cards land in `GoldReport.incomparable`: accepted by the compiler, unproven
  * by the comparison.
  *
- * Unproven is exactly where the `resolve()`→`effects[]` migration lives. The
- * migration classifier (`scripts/migration-classifier.mjs`) says a closure
- * COULD be expressed in Ops; it cannot say the compiler's Ops mean the same
- * thing the closure meant. The card's OWN tests can: they were written against
+ * Unproven is exactly where the `resolve()`→`effects[]` migration lives. That
+ * a closure COULD be expressed in Ops does not say the compiler's Ops mean the
+ * same thing the closure meant. The card's OWN tests can: they were written against
  * the hand-written behaviour, by a human, citing the CR. Serve the compiled
  * definition from the registry, run those tests unchanged, and a green run is
  * behavioural equality — evidence of the same kind structural equality gives a

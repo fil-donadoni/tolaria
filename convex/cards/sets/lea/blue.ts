@@ -1019,10 +1019,7 @@ export const sirensCall: CardDefinition = {
             // `scheduleDelayedTrigger` is an imperative primitive here, not
             // the `delayedTrigger` Op, so this body stays a plain
             // `DelayedTriggerDef.resolve` regardless of its own primitives
-            // being covered. (The migration classifier double-counts a
-            // DelayedTriggerDef body as its own standalone "free" item
-            // whenever the body alone isn't blocked — a known false
-            // positive; this note is what keeps it from resurfacing.)
+            // being covered.
             id: "sirens-call-destroy",
             oracleText:
                 "Destroy all non-Wall creatures that didn't attack this turn.",

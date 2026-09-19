@@ -83,7 +83,6 @@ export const azureBeastbinder: CardDefinition = {
             // NOT DSL-migratable (ADR 0045): the `setBasePT` Op (CR 613.4b,
             // issue #1318) now covers the 2/2 base set, but this closure is
             // blocked on TWO other gaps: (1) `removeStaticAbilities` has no Op
-            // (New-Op backlog `removeStaticAbilities`, migration-classifier.mjs)
             // — the ability-stripping half; (2) the 2/2 set is CONDITIONAL on
             // the target being an opponent's CREATURE (`isCreatureTarget`, an
             // opponent-battlefield scan), which the `if` predicate grammar

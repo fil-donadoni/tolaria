@@ -193,9 +193,7 @@ const URZA_CONSTRUCT_TOKEN = constructArtifactsYouControlToken(
 // NOT-DSL-migratable — assessed, not merely un-migrated. `createToken`'s Op
 // takes a JSON-pure `EffectTokenSpec` (ADR 0046) with no `staticEffectKeys`
 // slot, and this token's P/T is a characteristic-defining ability (CR 604.3),
-// i.e. a `compute` closure. See clause 1 of the card comment above; the
-// migration classifier reads this marker (`scripts/migration-classifier.mjs`)
-// so the FREE tranche stops re-listing a closure already confirmed unskinnable.
+// i.e. a `compute` closure. See clause 1 of the card comment above.
 function createUrzaConstruct(ctx: SpellContext): void {
     ctx.createToken(URZA_CONSTRUCT_TOKEN, ctx.controller, 1);
 }
@@ -278,9 +276,7 @@ export const urzaLordHighArtificer: CardDefinition = {
             // NOT-DSL-migratable — assessed, not merely un-migrated. No Op
             // reaches "exile the top card of a library, no target, no choice"
             // and then grants cast-from-exile over it; see clause 3 of the card
-            // comment above for the per-Op walk. The migration classifier reads
-            // this marker (`scripts/migration-classifier.mjs`) so the FREE
-            // tranche stops re-listing a closure already confirmed unskinnable.
+            // comment above for the per-Op walk.
             resolve: (ctx: SpellContext) => {
                 // CR 701.24 — shuffle FIRST (the oracle's own ordering), then
                 // exile the (new) top card.

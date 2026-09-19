@@ -29,8 +29,8 @@ documented as "planned-migratable pending a triggering-event value ref" —
 Jackal Pup (`convex/cards/sets/tmp/red.ts:80-88`, which states the gap in so
 many words), El-Hajjâj (`convex/cards/sets/arn/black.ts`) and Living Artifact
 (`convex/cards/sets/lea/green.ts`). So this is a **known** gap with a working
-escape hatch, not a surprise, and the population it unblocks is small enough
-that the migration classifier has never surfaced it as a top demand. Closing it
+escape hatch, not a surprise, and the population it unblocks is small.
+Closing it
 means a new `EffectValue` member plus a family widening across
 `EVENT_FIELD_REGISTRY` / `resolveEventRef` / `validate.ts` / the Op valuers —
 the full seven-site `/new-op` walk for four cards.

@@ -128,9 +128,9 @@ export const chainLightning: CardDefinition = {
     // NOT DSL-migratable (ADR 0045): "may copy this spell and may choose a
     // new target for that copy" (CR 707.12) — spell-copying / retargeting
     // (`copyResolvingSpell` / `requestCopyRetarget`) has no Op, and the
-    // step-0 last-known-information chooser capture (`noteChoice`, New-Op
-    // backlog `noteChoice`, migration-classifier.mjs) is a bare imperative
-    // primitive too. Blocked on: spell-copy/retarget Ops + a `noteChoice` Op.
+    // step-0 last-known-information chooser capture (`noteChoice`) is a bare
+    // imperative primitive too. Blocked on: spell-copy/retarget Ops + a
+    // `noteChoice` Op.
     resolveSteps: [
         // Step 0 — capture the chooser by last-known information (CR 608.2h),
         // THEN deal the damage (CR 119.3 "any target"). The chooser must be

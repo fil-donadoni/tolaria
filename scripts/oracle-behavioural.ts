@@ -131,9 +131,7 @@ function carriesClosure(definition: CardDefinition): boolean {
  * The card's OWN test file, resolved through its own set module.
  *
  * Test files are colour-split beside the set module (ADR 0043):
- * `sets/<code>/<colour>.ts` → `sets/<code>/__tests__/<colour>.test.ts` — the
- * same derivation `scripts/migration-classifier.mjs`'s `hasTest` column makes,
- * so the two reports agree about which cards have evidence.
+ * `sets/<code>/<colour>.ts` → `sets/<code>/__tests__/<colour>.test.ts`.
  *
  * Anchored on the definition's `id` (a uuid, unique in the tree) rather than on
  * its NAME, because a name search across every test file is not safe here: a

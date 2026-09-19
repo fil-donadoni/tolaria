@@ -16,7 +16,7 @@
 //     no hand-written test required (per-Op regime, ADR 0045/0046): the
 //     catalogue-wide `validateEffectScript` sweep + the auto-generated
 //     canned-scenario smoke test cover them.
-//   • Migration (ADR 0045, playbook `docs/agents/effect-script-migration.md`):
+//   • Migration (ADR 0045):
 //     Annihilate, Phyrexian Reaper, Phyrexian Slayer, Phyrexian Delver, and
 //     Plague Spitter's dies-half moved from `resolve()` to `effects[]` as the
 //     Op vocabulary caught up — `destroy.cantBeRegenerated`, `$event.<field>`

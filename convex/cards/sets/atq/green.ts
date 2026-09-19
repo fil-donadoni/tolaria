@@ -147,17 +147,9 @@ export const gaeasAvenger: CardDefinition = {
 // its activation cost, you gain 1 life." (CR 603.2.) `scope: "opponents"`
 // encodes "an opponent controls"; the life goes to the enchantment's
 // controller (`ctx.controller`).
-// NOT DSL-migratable (ADR 0045) today: the ability-activated half is built
-// via `abilityActivatedTrigger`, which declares `resolve` as a MANDATORY
-// field with no `effects[]` site (unlike `spellCastTrigger`/`enteredTrigger`,
-// which already accept `effects`). The TAPPED half is no longer blocked —
-// `tappedTrigger` gained its `effects?: EffectOp[]` param in 85d5c1075 — but
-// a card migrates whole or not at all, so Powerleech stays imperative until
-// its second factory catches up. Blocked on: `abilityActivatedTrigger`
-// gaining an `effects?: EffectOp[]` param — an out-of-scope engine change for
-// a single-file card migration. The sibling ATQ cards using the identical
-// pattern (Haunting Wind, Artifact Possession — `atq/black.ts`) are in the
-// same state. tracked-by: #1437.
+// Imperative: the ability-activated half is built via
+// `abilityActivatedTrigger`, which takes a `resolve` only (no `effects[]`
+// site), so the card stays imperative whole.
 export const powerleech: CardDefinition = {
     id: "ae1d7b09-3a1f-410f-b330-04ae768b0455",
     rarity: "uncommon",

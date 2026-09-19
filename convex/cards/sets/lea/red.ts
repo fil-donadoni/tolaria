@@ -595,8 +595,7 @@ export const keldonWarlord: CardDefinition = {
     ],
 };
 
-// Migrated resolve() → effects[] pilot (ADR 0045, issue #809; playbook in
-// docs/agents/effect-script-migration.md). The entire effect is a single
+// Migrated resolve() → effects[] pilot (ADR 0045, issue #809). The entire effect is a single
 // `dealDamage` Op on the announced target (CR 120.1) — the same Op already
 // proven by Lava Spike (chk/red) and Prodigal Pyromancer (m11/red). The
 // pre-existing per-card behaviour test (lea/__tests__/red.test.ts, "Lightning

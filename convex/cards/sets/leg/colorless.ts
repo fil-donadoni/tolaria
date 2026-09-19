@@ -583,8 +583,7 @@ export const tolaria: CardDefinition = {
             // PREDICATE closure (matching two different keyword shapes:
             // "banding" exactly, or any "bands with other:" prefix) — no Op
             // wraps ability REMOVAL (only the `grantAbility` GRANT direction
-            // is an Op; New-Op backlog `removeStaticAbilities`,
-            // migration-classifier.mjs). Blocked on: a keyword-removal Op.
+            // is an Op). Blocked on: a keyword-removal Op.
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 if (target?.type !== "permanent") return;
