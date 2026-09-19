@@ -87,7 +87,7 @@ export type SubjectIR =
     /** A player named without targeting (CR 109.5 — "you"). */
     | { readonly kind: "player"; readonly player: PlayerRefIR }
     /**
-     * CR 400.7e / 608.2h — "that card": anaphora for the card a zone change
+     * CR 400.7e — "that card": anaphora for the card a zone change
      * put somewhere. Read here, bound by the lowering SITE (a dies trigger,
      * issue #4127); a site that names no card refuses the line.
      */

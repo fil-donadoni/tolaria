@@ -74,7 +74,7 @@ export type TriggerHeadIR =
           readonly phase: Phase;
           readonly scope: "your" | "each";
           /**
-           * CR 603.6a — the head NAMES the player whose step it is ("each
+           * CR 603.2b — the head NAMES the player whose step it is ("each
            * PLAYER'S upkeep"), which is what gives a later "that player" its
            * antecedent. "At the beginning of each upkeep" fires on exactly
            * the same events but names no one, so it binds nothing: the flag

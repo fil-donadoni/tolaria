@@ -1,5 +1,5 @@
 // Trigger-head anaphora — the heads that NAME a referent, and the words that
-// read it back (issue #4127, CR 603.4 / 603.6a / 608.2h / 400.7e).
+// read it back (issue #4127, CR 603.2b / 603.4 / 400.7e).
 //
 // "At the beginning of each player's upkeep" names a player; "When enchanted
 // creature dies" names a creature that becomes a card in a graveyard. "that
@@ -103,7 +103,7 @@ describe("trigger-head anaphora — goldens (issue #4127)", () => {
     });
 });
 
-describe("trigger-head anaphora — refusals (fail-closed, CR 608.2h)", () => {
+describe("trigger-head anaphora — refusals (fail-closed, ADR 0105)", () => {
     const artifact = (oracleText: string) =>
         oracleCard({
             typeLine: "Artifact",

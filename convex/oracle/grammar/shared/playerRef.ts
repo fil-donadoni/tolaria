@@ -24,7 +24,7 @@ export type PlayerRefIR =
     /** CR 115.1 — an announced target. `opponent` narrows the legal set. */
     | { readonly kind: "target"; readonly opponent: boolean }
     /**
-     * CR 608.2h — "that player": anaphora. The grammar reads the words; WHO
+     * "that player": anaphora. The grammar reads the words; WHO
      * they name is the lowering site's to say (a trigger head that names a
      * player, issue #4127), and a site that names no one refuses the line.
      */

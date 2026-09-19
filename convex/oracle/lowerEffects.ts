@@ -102,7 +102,7 @@ export interface SiteOptions {
      */
     readonly kickers?: readonly KickerCost[];
     /**
-     * CR 608.2h — what this site's anaphora NAME. "that player" and "that
+     * What this site's anaphora NAME. "that player" and "that
      * card" are read by the grammar as words; their referent is printed
      * outside the sentence (a trigger head: "each PLAYER'S upkeep", "enchanted
      * creature DIES", issue #4127), so only the site can supply it. Absent =
@@ -276,7 +276,7 @@ function playerRef(
     switch (ref.kind) {
         case "you":
             return lowered("controller");
-        // CR 608.2h — the player the site's head named; none, no binding.
+        // The player the site's head named; none, no binding.
         case "that-player":
             return site.antecedents?.player !== undefined
                 ? lowered(site.antecedents.player)

@@ -1,5 +1,5 @@
 // Trigger-head anaphora, compiled from real Oracle text and run through the
-// engine (issue #4127, CR 603.4 / 603.6a / 608.2h / 400.7e).
+// engine (issue #4127, CR 603.2b / 603.4 / 400.7e).
 //
 // "that player" and "that card" name something the HEAD printed — the player
 // whose upkeep it is, the card the enchanted creature became — and the

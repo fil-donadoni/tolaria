@@ -5572,6 +5572,16 @@
         "firstPrintSet": "arn"
     },
     {
+        "name": "Bottomless Pit",
+        "scryfallId": "91f05fc3-da6e-45d4-8566-f4e7bdce1fe5",
+        "oracleId": "91e6fb47-59e4-4616-b8dd-3a7e30070074",
+        "firstSet": "sth",
+        "firstPrintId": "91f05fc3-da6e-45d4-8566-f4e7bdce1fe5",
+        "firstPrintSet": "sth",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Bottomless Vault",
         "scryfallId": "639ae988-d1d1-4ead-b0f8-47fc39eb64a0",
         "oracleId": "e43413e4-be17-49af-978a-26210d05f52a",
@@ -10784,6 +10794,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Demonic Vigor",
+        "scryfallId": "09950456-09d6-4675-9995-0dc540ddb6e4",
+        "oracleId": "00cb93a8-5d33-4c6a-9e2a-4b3560f76f3f",
+        "firstSet": "dom",
+        "firstPrintId": "09950456-09d6-4675-9995-0dc540ddb6e4",
+        "firstPrintSet": "dom",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Demystify",
         "scryfallId": "d0df839f-dc4c-44b0-82c7-cb2037172ac5",
         "oracleId": "fd591199-9f7a-4147-a150-13279dbb4498",
@@ -12932,6 +12952,16 @@
         "firstSet": "arn",
         "firstPrintId": "18348df2-9037-4db4-bddb-76dc933229bf",
         "firstPrintSet": "arn"
+    },
+    {
+        "name": "Elephant Guide",
+        "scryfallId": "7d3a7226-f574-430e-9b8f-4e531a21540f",
+        "oracleId": "c138bd7f-8751-4e96-b54a-d5082e1a491f",
+        "firstSet": "jud",
+        "firstPrintId": "7d3a7226-f574-430e-9b8f-4e531a21540f",
+        "firstPrintSet": "jud",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Elephant-Rat",
@@ -19340,6 +19370,16 @@
         "firstSet": "mh2",
         "firstPrintId": "e6befbc4-1320-4f26-bd9f-b1814fedda10",
         "firstPrintSet": "mh2"
+    },
+    {
+        "name": "Griffin Guide",
+        "scryfallId": "e19a15d9-5899-4b84-9c00-345b19df53ae",
+        "oracleId": "c5323a43-82de-4340-8578-b3ffcc66f8fa",
+        "firstSet": "tsp",
+        "firstPrintId": "e19a15d9-5899-4b84-9c00-345b19df53ae",
+        "firstPrintSet": "tsp",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Griffin Protector",
@@ -27344,6 +27384,16 @@
         "firstSet": "atq",
         "firstPrintId": "bde037b9-4947-4ff7-8ea4-e9f1a7e4ab88",
         "firstPrintSet": "atq"
+    },
+    {
+        "name": "Mask of Intolerance",
+        "scryfallId": "f623ae51-5f15-4153-b2ed-d03b57b7db54",
+        "oracleId": "990d4798-3f59-462d-952c-777da5af1c41",
+        "firstSet": "apc",
+        "firstPrintId": "f623ae51-5f15-4153-b2ed-d03b57b7db54",
+        "firstPrintSet": "apc",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Mask of Law and Grace",
@@ -42116,6 +42166,16 @@
         "firstSet": "mmq",
         "firstPrintId": "4ba8325a-1203-4125-9111-94d9e2b1f14b",
         "firstPrintSet": "mmq"
+    },
+    {
+        "name": "Squee's Embrace",
+        "scryfallId": "e682a705-9341-4d1e-a9c5-d428e50b9a03",
+        "oracleId": "095f8dac-15b8-4c28-ae33-6dc71152bcc7",
+        "firstSet": "apc",
+        "firstPrintId": "e682a705-9341-4d1e-a9c5-d428e50b9a03",
+        "firstPrintSet": "apc",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Squeeze",

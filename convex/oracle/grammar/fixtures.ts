@@ -698,7 +698,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             },
         },
     },
-    // CR 603.6a + CR 305.6 — "At the beginning of each player's upkeep, if
+    // CR 603.2b + CR 305.6 — "At the beginning of each player's upkeep, if
     // there are four or more basic land types among lands that player
     // controls, …deals 3 damage to that player": "that player" is
     // `PHASE_BEGIN.activePlayerId` in both the intervening-if and the body.
@@ -755,7 +755,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
-    // CR 603.6a — "At the beginning of each player's upkeep, that player
+    // CR 603.2b — "At the beginning of each player's upkeep, that player
     // discards a card at random": exhibits `discardAtRandom` read off the
     // `$event` player the head names (issue #4127).
     {

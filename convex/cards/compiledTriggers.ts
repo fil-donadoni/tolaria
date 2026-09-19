@@ -155,7 +155,7 @@ function conditionHolds(
 ): boolean {
     if (state === undefined) return false;
     if (condition.kind === "basic-land-types") {
-        // CR 305.6 — fail CLOSED on a field the event does not carry, like
+        // CR 603.4 — fail CLOSED on a field the event does not carry, like
         // the absent state view above.
         const row = getEventFieldRow(event.type, condition.player.eventField);
         const playerId = row?.family === "player" ? row.resolve(event) : null;

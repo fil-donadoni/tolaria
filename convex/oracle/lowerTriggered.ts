@@ -67,7 +67,7 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
 }
 
 /**
- * CR 603.6a / 608.2h — the `$event` player field naming the player a head
+ * CR 603.2b — the `$event` player field naming the player a head
  * NAMES ("each PLAYER'S upkeep" → the player whose upkeep it is,
  * `PHASE_BEGIN.activePlayerId`), or null when the head names no player. The
  * one source of "that player" for both the body and an intervening-if, so the
@@ -80,7 +80,7 @@ function namedPlayerField(head: TriggerHeadIR): string | null {
 }
 
 /**
- * CR 608.2h — the referents this head gives the body's anaphora.
+ * The referents this head gives the body's anaphora.
  *
  * "that card" after a dies head is the card the creature became in its
  * owner's graveyard (CR 400.7e), whatever the head's scope — the event is the
