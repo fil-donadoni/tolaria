@@ -114,6 +114,24 @@ const conditionalTail: Rule<TailIR> = pair(
 );
 
 /**
+ * CR 608.2h — behind an intervening "if" (CR 603.4) the condition is the
+ * nearer antecedent ("if your life total is less than …, it becomes …"), so
+ * a pronoun there is not bound to the source: the tail must not open on one.
+ */
+const conditionalTailNoPronoun: Rule<TailIR> = rule(
+    "conditional trigger tail",
+    (span, ctx) => {
+        const parsed = conditionalTail.run(span, ctx);
+        if (parsed.ok && parsed.value.boundPronoun)
+            return fail(
+                '"it" after an intervening-if clause may name the condition, not the source',
+                span
+            );
+        return parsed;
+    }
+);
+
+/**
  * The tail, with or without a condition.
  *
  * `oneOf`, not a cascade: a tail both readings accept would be a line whose
@@ -123,7 +141,7 @@ const conditionalTail: Rule<TailIR> = pair(
  * cheap to keep.
  */
 const triggerTail: Rule<TailIR> = oneOf("trigger tail", [
-    conditionalTail,
+    conditionalTailNoPronoun,
     plainTail,
 ]);
 

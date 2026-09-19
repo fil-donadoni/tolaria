@@ -12,13 +12,19 @@
 //     pronoun to the spell; Jilt is still unparsed, but on its SECOND target,
 //     not on the pronoun.
 //  3. REFUSALS — every neighbour whose antecedent is not the source: a cost
-//     that names no object, a trigger head about another creature, and a
-//     pronoun opening a LATER sentence (it names that sentence's object).
+//     that names no object, a trigger head about another creature, a tail
+//     behind an intervening-if, a kicked "it" that is not dealing damage, and
+//     a pronoun opening a LATER sentence (it names that sentence's object).
 
 import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
-import { oracleCard } from "./fixtures";
+import type { Rule } from "../rule";
+import type { SlotIR } from "../grammar/ir";
+import { activatedSlot } from "../grammar/slots/activated";
+import { spellSlot } from "../grammar/slots/spell";
+import { triggeredSlot } from "../grammar/slots/triggered";
+import { oracleCard, parseContext } from "./fixtures";
 
 /** Compile a card and return its definition, failing the test if refused. */
 function compiled(card: ReturnType<typeof oracleCard>) {
@@ -216,26 +222,63 @@ describe("pronoun subject — the kicked spell (CR 702.33e)", () => {
 });
 
 describe("pronoun subject — refusals (no antecedent is the source)", () => {
+    // Each refusal is asserted on the SLOT's own reason, so a future unrelated
+    // gap cannot keep these green: the line must fail on the pronoun guard.
+    function reason(
+        slot: Rule<SlotIR>,
+        line: string,
+        typeLine = "Creature — Bear"
+    ) {
+        const card = oracleCard({ oracleText: line, typeLine });
+        const parsed = slot.run(line, parseContext(card));
+        if (parsed.ok) throw new Error(`${line} parsed`);
+        return parsed.reason;
+    }
+
     it("a cost that names no object leaves 'It' unbound", () => {
-        const card = oracleCard({
-            oracleText: "{1}: It gets +1/+1 until end of turn.",
-        });
-        expect(compileCard(card).state).toBe("unparsed");
+        expect(
+            reason(activatedSlot, "{1}: It gets +1/+1 until end of turn.")
+        ).toContain("the cost names no source");
     });
 
     it("a trigger about ANOTHER creature: 'it' is the entering creature, not the source", () => {
-        const card = oracleCard({
-            oracleText:
-                "Whenever another creature you control enters, it gets +1/+1 until end of turn.",
-        });
-        expect(compileCard(card).state).toBe("unparsed");
+        expect(
+            reason(
+                triggeredSlot,
+                "Whenever another creature you control enters, it gets +1/+1 until end of turn."
+            )
+        ).toContain("the trigger's subject is not the source");
+    });
+
+    it("behind an intervening-if the condition is the nearer antecedent", () => {
+        expect(
+            reason(
+                triggeredSlot,
+                "When this creature enters, if you control a Goblin, it gets +1/+1 until end of turn."
+            )
+        ).toContain("after an intervening-if clause");
     });
 
     it("a pronoun opening a LATER sentence names that sentence's object (Rosa, Resolute White Mage)", () => {
-        const card = oracleCard({
-            oracleText:
-                "At the beginning of combat on your turn, put a +1/+1 counter on target creature you control. It gains lifelink until end of turn.",
-        });
-        expect(compileCard(card).state).toBe("unparsed");
+        const outcome = compileCard(
+            oracleCard({
+                oracleText:
+                    "At the beginning of combat on your turn, put a +1/+1 counter on target creature you control. It gains lifelink until end of turn.",
+            })
+        );
+        expect(
+            outcome.state === "unparsed" &&
+                outcome.gaps.map((g) => g.attribution?.span)
+        ).toEqual(["It"]);
+    });
+
+    it("after a kicked condition 'it' is the spell only as a damage source", () => {
+        expect(
+            reason(
+                spellSlot,
+                "Target creature gets +1/+1 until end of turn. If this spell was kicked, it gains flying until end of turn.",
+                "Instant"
+            )
+        ).toContain("only as a damage source");
     });
 });

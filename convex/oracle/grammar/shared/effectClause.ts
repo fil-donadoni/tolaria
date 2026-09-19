@@ -568,9 +568,22 @@ export function kickedSentenceRule(inner: Rule<SentenceIR>): Rule<SentenceIR> {
         // CR 608.2h — "If this spell was kicked, it deals …": the clause's
         // own subject is the spell, the nearest antecedent the pronoun has
         // (`bindSourcePronoun`), and a spell's source is the spell itself.
-        const tail = bindSourcePronoun(span.slice(comma + 2)).span;
-        const parsed = inner.run(capitalise(tail), ctx);
+        // Only a SPELL can be what "it" deals damage from; "…, it gains
+        // flying" names the creature an earlier sentence targeted, so any
+        // other verb behind a bound pronoun fails rather than granting the
+        // ability to the spell.
+        const tail = bindSourcePronoun(span.slice(comma + 2));
+        const parsed = inner.run(capitalise(tail.span), ctx);
         if (!parsed.ok) return parsed;
+        if (
+            tail.bound &&
+            (parsed.value.role !== "effect" ||
+                parsed.value.effect.kind !== "deal-damage")
+        )
+            return fail(
+                '"it" after a kicked condition is the spell only as a damage source',
+                span
+            );
         if (parsed.value.role !== "effect")
             return fail(
                 `a kicked condition gates an effect, not a ${parsed.value.role}`,
