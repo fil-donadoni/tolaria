@@ -312,6 +312,19 @@ describe("create token — lowering invariants (CR 608.2h)", () => {
         expect(outcome.state).toBe("unparsed");
     });
 
+    it('refuses "that creature" when a later sentence targeted another object', () => {
+        // Refused today by the one-target limit too; the stale-referent reset
+        // in `lowerSentence` is what keeps it refused once that limit lifts.
+        const outcome = compileCard(
+            sorcery(
+                "Test Card",
+                "{3}{B}",
+                "Destroy target creature. Tap target creature. Create X 1/1 green Saproling creature tokens, where X is that creature's mana value."
+            )
+        );
+        expect(outcome.state).toBe("unparsed");
+    });
+
     it("binds the object acted on and reads its mana value when the noun matches", () => {
         const outcome = compileCard(
             sorcery(

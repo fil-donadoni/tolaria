@@ -230,6 +230,26 @@ export function lowerSentence(
     walk: SentenceWalk,
     site: SiteOptions
 ): Lowered<EffectOp[]> {
+    const announced = walk.targets.requirements().length;
+    const actedOn = walk.actedOn;
+    const out = lowerSentenceBody(sentence, walk, site);
+    // CR 608.2h — "that creature" names the object the LAST sentence acted
+    // on. A sentence that announced a new target without recording itself
+    // (a tap, a pump) makes the older referent stale, so it is dropped rather
+    // than read past: an X read off the wrong object is a silent misread.
+    if (
+        walk.targets.requirements().length !== announced &&
+        walk.actedOn === actedOn
+    )
+        walk.actedOn = null;
+    return out;
+}
+
+function lowerSentenceBody(
+    sentence: EffectSentenceIR,
+    walk: SentenceWalk,
+    site: SiteOptions
+): Lowered<EffectOp[]> {
     const slots = walk.targets;
     switch (sentence.kind) {
         case "pump": {

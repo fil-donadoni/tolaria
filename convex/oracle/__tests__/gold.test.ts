@@ -19,6 +19,7 @@ import {
     printManaCost,
     runGoldHarness,
 } from "../gold";
+import type { CardDefinition } from "../../cards/types";
 import { readManaCost } from "../manaCost";
 
 const CARDS = getAllCards();
@@ -285,5 +286,80 @@ describe("gold fixtures reconstruct a faithful Oracle card", () => {
                 "llanowar-elves-mana"
             );
         }
+    });
+});
+
+// issue #4125 — the comparator folds three `createToken` / binding spellings
+// that carry no behaviour, and must still tell apart every one that does.
+describe("gold comparator — dual encodings it folds, differences it keeps", () => {
+    const saproling = {
+        name: "Saproling",
+        types: ["Creature"],
+        subtypes: ["Saproling"],
+        power: 1,
+        toughness: 1,
+        colors: ["G"],
+    };
+    const card = (effects: unknown[]) =>
+        behaviouralProjection({
+            id: "x",
+            name: "Test Card",
+            types: ["Sorcery"],
+            effects,
+        } as unknown as CardDefinition);
+    const token = (extra: Record<string, unknown> = {}) => ({
+        op: "createToken",
+        token: saproling,
+        controller: "controller",
+        ...extra,
+    });
+
+    it("folds `count: 1` into the omitted default", () => {
+        expect(card([token({ count: 1 })])).toEqual(card([token()]));
+    });
+
+    it("keeps `count: 2` apart from the omitted default", () => {
+        expect(card([token({ count: 2 })])).not.toEqual(card([token()]));
+    });
+
+    it("folds a token's pinned art (CR 111.3 — art is no characteristic)", () => {
+        expect(
+            card([
+                {
+                    ...token(),
+                    token: { ...saproling, imagePrintId: "some-print" },
+                },
+            ])
+        ).toEqual(card([token()]));
+    });
+
+    it("compares binding names up to renaming", () => {
+        expect(
+            card([
+                { op: "destroy", target: { target: 0 }, bind: "$art" },
+                token({ count: { ref: "$art.manaValue" } }),
+            ])
+        ).toEqual(
+            card([
+                { op: "destroy", target: { target: 0 }, bind: "$that1" },
+                token({ count: { ref: "$that1.manaValue" } }),
+            ])
+        );
+    });
+
+    it("keeps apart a ref that reads a DIFFERENT Op's binding", () => {
+        expect(
+            card([
+                { op: "destroy", target: { target: 0 }, bind: "$a" },
+                { op: "draw", player: "controller", count: 1, bind: "$b" },
+                token({ count: { ref: "$a.manaValue" } }),
+            ])
+        ).not.toEqual(
+            card([
+                { op: "destroy", target: { target: 0 }, bind: "$a" },
+                { op: "draw", player: "controller", count: 1, bind: "$b" },
+                token({ count: { ref: "$b.manaValue" } }),
+            ])
+        );
     });
 });
