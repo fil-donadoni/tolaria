@@ -10,6 +10,18 @@
  *   # Or refresh only specific set files (merged into the existing lockfile):
  *   node scripts/fetch-token-prints.mjs convex/cards/sets/lea/colorless.ts ...
  *
+ *   # Or refresh only the Oracle compiler's token producers (issue #4125):
+ *   node scripts/fetch-token-prints.mjs --compiled
+ *
+ * COMPILED PRODUCERS (issue #4125): a compiled card has no set file — its
+ * definition lives in `data/oracle-compiled-pool.json`, its id is its first
+ * printing's Scryfall id (ADR 0108) — yet its tokens resolve their art through
+ * the SAME `tokenPrintIdFor(producerId, name)` lookup a hand-written card's
+ * do. `--compiled` (and `--all`) therefore also collect the id of every
+ * compiled-pool definition that emits a `createToken` Op. The art guard in
+ * `convex/cards/__tests__/tokenPrintLookup.test.ts` walks that pool too, and
+ * names this command when a newly compiled producer has no entry.
+ *
  * Output:
  *   convex/cards/generated/token-prints.json — a mapping
  *     {
@@ -61,11 +73,15 @@ function walkTs(dir) {
 }
 
 const args = process.argv.slice(2);
+const all = args.length === 0 || args.includes("--all");
+const compiledOnly = args.includes("--compiled") && !all;
 let inputs;
-if (args.length === 0 || args.includes("--all")) {
+if (all) {
     // Whole-catalogue regeneration: every set file (all colours, all sets).
     inputs = walkTs(resolve(repoRoot, "convex/cards/sets"));
     console.log(`--all: scanning ${inputs.length} set file(s).`);
+} else if (compiledOnly) {
+    inputs = [];
 } else {
     inputs = args.map((a) => resolve(repoRoot, a));
 }
@@ -103,6 +119,23 @@ for (const input of inputs) {
 console.log(
     `Found ${uuids.size} card ids across ${inputs.length} input file(s).`
 );
+
+// Compiled token producers (issue #4125 — see the header). A definition is a
+// producer when its JSON carries a `createToken` Op anywhere; the pool is
+// JSON-pure, so the string search is exact.
+if (all || compiledOnly) {
+    const pool = JSON.parse(
+        readFileSync(resolve(repoRoot, "data/oracle-compiled-pool.json"), "utf-8")
+    );
+    let producers = 0;
+    for (const definition of pool) {
+        if (!JSON.stringify(definition).includes('"op":"createToken"'))
+            continue;
+        uuids.add(definition.id);
+        producers++;
+    }
+    console.log(`Found ${producers} compiled token producer(s).`);
+}
 
 // ---------------------------------------------------------------------------
 // Batch /cards/collection (max 75 ids per request, ~120ms throttle).
