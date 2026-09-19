@@ -431,10 +431,10 @@ export function planMove(
     if (target === null) {
         // No parent at all is a create whose parent write failed — as much a
         // gap with nowhere to live as one under a retired umbrella.
+        // A fallback is never retired (`KIND_FALLBACK`'s test), so this can
+        // never move an issue onto the parent it already has.
         const homeless = parent === null || RETIRED_UMBRELLAS.has(parent);
-        return homeless && parent !== filing.fallbackParent
-            ? filing.fallbackParent
-            : null;
+        return homeless ? filing.fallbackParent : null;
     }
     if (parent === target) return null;
     if (umbrellaBand(PARTITIONED_KINDS[filing.kind]!, parent) === "P0")
