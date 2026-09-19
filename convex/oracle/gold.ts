@@ -262,7 +262,8 @@ function withoutTokenDualEncodings(value: unknown): unknown {
     if (out.count === 1) delete out.count;
     const token = out.token as Record<string, unknown> | undefined;
     if (token !== undefined && "imagePrintId" in token) {
-        const { imagePrintId: _art, ...rest } = token;
+        const rest = { ...token };
+        delete rest.imagePrintId;
         out.token = rest;
     }
     return out;
