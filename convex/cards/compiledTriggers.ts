@@ -156,7 +156,9 @@ function conditionHolds(
     if (state === undefined) return false;
     if (condition.kind === "basic-land-types") {
         // CR 603.4 — fail CLOSED on a field the event does not carry, like
-        // the absent state view above.
+        // the absent state view above. A hand-built stack item may carry no
+        // firing event at all.
+        if (event === undefined) return false;
         const row = getEventFieldRow(event.type, condition.player.eventField);
         const playerId = row?.family === "player" ? row.resolve(event) : null;
         if (playerId === undefined || playerId === null) return false;

@@ -278,6 +278,13 @@ function playerRef(
             return lowered("controller");
         // The player the site's head named; none, no binding.
         case "that-player":
+            // A player the body itself introduced ("target opponent … That
+            // player …") is the nearer antecedent; binding the head's would
+            // name the wrong player, so the line is refused instead.
+            if (slots.requirements().some((r) => r.type === "player"))
+                return unlowerable(
+                    '"that player" may name the announced target, not the head\'s player'
+                );
             return site.antecedents?.player !== undefined
                 ? lowered(site.antecedents.player)
                 : unlowerable('"that player" names no player at this site');
@@ -456,6 +463,17 @@ function lowerSentenceBody(
             ]);
         }
         case "move-zone": {
+            // "that card" names the head's card only while no earlier
+            // sentence introduced an object of its own.
+            if (
+                sentence.subject.kind === "that-card" &&
+                (walk.actedOn !== null ||
+                    walk.libraryLookedAt !== null ||
+                    slots.requirements().length > 0)
+            )
+                return unlowerable(
+                    '"that card" may name an object an earlier sentence introduced'
+                );
             const moved = lowerMoveZone(
                 sentence.subject,
                 sentence.to,

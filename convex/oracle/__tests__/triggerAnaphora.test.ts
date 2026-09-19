@@ -146,6 +146,38 @@ describe("trigger-head anaphora — refusals (fail-closed, ADR 0105)", () => {
         ).toBe(true);
     });
 
+    it("refuses 'that player' when the body announced a player target of its own", () => {
+        expect(
+            refused(
+                artifact(
+                    "At the beginning of each player's upkeep, target opponent discards a card at random. That player draws a card."
+                )
+            )
+        ).toBe(true);
+    });
+
+    it("refuses 'that player' at an activated-ability site", () => {
+        expect(
+            refused(
+                artifact("{T}: This artifact deals 1 damage to that player.")
+            )
+        ).toBe(true);
+    });
+
+    it("refuses 'that card' after a sentence that acted on an object of its own", () => {
+        expect(
+            refused(
+                oracleCard({
+                    typeLine: "Enchantment — Aura",
+                    oracleText:
+                        "Enchant creature\nWhen enchanted creature dies, return target creature to its owner's hand. Return that card to its owner's hand.",
+                    power: undefined,
+                    toughness: undefined,
+                })
+            )
+        ).toBe(true);
+    });
+
     it("refuses 'that card' after a head that moves no card", () => {
         expect(
             refused(
