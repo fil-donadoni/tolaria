@@ -157,12 +157,11 @@ export class TargetSlots {
  * that position, and gets the base's index back — never a second slot.
  */
 class ReplayedTargetSlots extends TargetSlots {
+    private readonly source: TargetSlots;
     private next: number;
-    constructor(
-        private readonly source: TargetSlots,
-        from: number
-    ) {
+    constructor(source: TargetSlots, from: number) {
         super();
+        this.source = source;
         this.next = from;
     }
     override allocate(requirement: TargetRequirement): Lowered<number> {
