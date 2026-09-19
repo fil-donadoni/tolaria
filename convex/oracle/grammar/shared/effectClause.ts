@@ -44,6 +44,7 @@ import { isSelfPhrase } from "./cost";
 import { kickedConditionRule, type KickedRefIR } from "./condition";
 import { targetFilterRule } from "./targetFilter";
 import { zoneRefRule, type ZoneRefIR } from "./zoneRef";
+import { CREATURE_SUBTYPES } from "./subtypes";
 
 export const EFFECT_CLAUSE = "effect clause";
 
@@ -204,6 +205,64 @@ export type EffectSentenceIR =
           readonly kind: "kicked";
           readonly kicked: KickedRefIR;
           readonly effect: EffectSentenceIR;
+      }
+    | {
+          /**
+           * CR 701.20a / CR 401.4 — "Look at [or Reveal] the top N cards of
+           * your library. Put <which> into your hand and the rest <where>."
+           *
+           * TWO printed sentences, one effect: the first names the window,
+           * the second says where its cards go, and neither means anything
+           * alone (CR 608.2c — later text modifies the meaning of earlier
+           * text). Each is parsed as its own sentence ROLE and
+           * `assembleSentences` folds them here, the way it folds "It can't be
+           * regenerated." onto its destroy — so a window with no routing, or a
+           * routing with no window in front of it, fails the line.
+           */
+          readonly kind: "look-distribute";
+          /** CR 701.20a — "reveal" shows the window to every player. */
+          readonly reveal: boolean;
+          readonly count: AmountIR;
+          readonly route: LibraryRouteIR;
+      }
+    | {
+          /**
+           * CR 401.4 — "Look at the top N cards of <player>'s library, then
+           * put them back in any order." One sentence: no card leaves the
+           * top of the library, the looker only re-arranges it.
+           *
+           * `looker` is who looks and orders. "you" at the head of the
+           * sentence; "that-player" for the reply sentence Tahngarth's Glare
+           * prints ("That player looks at the top three cards of your
+           * library, then puts them back in any order"), whose referent is
+           * the player whose library the sentence before it looked at. That
+           * is the one piece of anaphora this sentence reads, and lowering
+           * resolves it against the walk rather than here, where the previous
+           * sentence is out of sight.
+           */
+          readonly kind: "look-reorder";
+          readonly count: AmountIR;
+          readonly library: PlayerRefIR;
+          readonly looker: "you" | "that-player";
+      };
+
+/**
+ * Where a looked-at window goes (CR 401.4), as the routing sentence prints it.
+ *
+ * `all-of-subtype` — "Put all <Subtype> cards revealed this way into your hand
+ * and the rest on the bottom of your library in any order": every matching
+ * card, no choice. `take` — "Put <N> of them into your hand and the rest
+ * <rest>": the controller picks N.
+ */
+export type LibraryRouteIR =
+    | { readonly kind: "all-of-subtype"; readonly subtype: string }
+    | {
+          readonly kind: "take";
+          readonly count: AmountIR;
+          readonly rest:
+              | "bottom-any-order"
+              | "bottom-random-order"
+              | "graveyard";
       };
 
 /** CR 602.5 — a clause restricting WHEN the ability may be activated. */
@@ -225,7 +284,15 @@ export type ModifierIR = { readonly kind: "cant-be-regenerated" };
 export type SentenceIR =
     | { readonly role: "effect"; readonly effect: EffectSentenceIR }
     | { readonly role: "restriction"; readonly restriction: RestrictionIR }
-    | { readonly role: "modifier"; readonly modifier: ModifierIR };
+    | { readonly role: "modifier"; readonly modifier: ModifierIR }
+    /** The window half of a `look-distribute` (see there). */
+    | {
+          readonly role: "library-look";
+          readonly reveal: boolean;
+          readonly count: AmountIR;
+      }
+    /** CR 401.4 — the routing half of a `look-distribute` (see there). */
+    | { readonly role: "library-route"; readonly route: LibraryRouteIR };
 
 /**
  * A parsed sentence LIST assembled into what an ability site actually carries.
@@ -276,7 +343,36 @@ export function assembleSentences(
 ): AssembledSentences {
     const effects: EffectSentenceIR[] = [];
     const restrictions: RestrictionIR[] = [];
+    // CR 608.2c — a library window waits for the sentence that routes it.
+    let window: Extract<SentenceIR, { role: "library-look" }> | null = null;
     for (const sentence of sentences) {
+        if (window !== null) {
+            if (sentence.role !== "library-route")
+                return {
+                    ok: false,
+                    reason: "a library look is not followed by where its cards go",
+                };
+            const folded = foldLibraryRoute(window, sentence.route);
+            if (typeof folded === "string")
+                return { ok: false, reason: folded };
+            effects.push(folded);
+            window = null;
+            continue;
+        }
+        if (sentence.role === "library-look") {
+            if (restrictions.length > 0)
+                return {
+                    ok: false,
+                    reason: "an effect sentence follows an activation restriction",
+                };
+            window = sentence;
+            continue;
+        }
+        if (sentence.role === "library-route")
+            return {
+                ok: false,
+                reason: "a library routing follows no look at the top of a library",
+            };
         if (sentence.role === "restriction") {
             if (opts.rejectRestrictions !== undefined)
                 return { ok: false, reason: opts.rejectRestrictions };
@@ -303,9 +399,39 @@ export function assembleSentences(
         }
         effects.push(sentence.effect);
     }
+    if (window !== null)
+        return {
+            ok: false,
+            reason: "a library look is not followed by where its cards go",
+        };
     if (effects.length === 0)
         return { ok: false, reason: `the ${opts.site} has no effect sentence` };
     return { ok: true, effects, restrictions };
+}
+
+/**
+ * Pair a window with its routing, or name why the pair is not one form.
+ *
+ * Only the two pairings the corpus prints are one effect: "revealed this way"
+ * reads back a REVEAL (CR 701.20a), and "<N> of them" picks from a private
+ * LOOK. The crossed pairs are refused rather than lowered to whichever half
+ * came first, because a reveal the routing does not mention and a routing that
+ * names a reveal that never happened are both a sentence we have misread.
+ */
+function foldLibraryRoute(
+    window: Extract<SentenceIR, { role: "library-look" }>,
+    route: LibraryRouteIR
+): EffectSentenceIR | string {
+    if (route.kind === "all-of-subtype" && !window.reveal)
+        return '"revealed this way" follows a look, not a reveal (CR 701.20a)';
+    if (route.kind === "take" && window.reveal)
+        return "a pick from a revealed window is not in this grammar";
+    return {
+        kind: "look-distribute",
+        reveal: window.reveal,
+        count: window.count,
+        route,
+    };
 }
 
 // ── Subjects ───────────────────────────────────────────────────────────────
@@ -472,6 +598,30 @@ const LIFE = /^(.+) (gain|gains|lose|loses) (\S+) life$/;
 const COUNTERS = /^Put (\S+) (\S+) counters? on (.+)$/;
 const DISCARD_RANDOM = /^(.+) discards (\S+) cards? at random$/;
 
+/** The window: "Look at [or Reveal] the top four cards of your library". */
+const LIBRARY_LOOK = /^(Look at|Reveal) the top (\S+) cards of your library$/;
+/** CR 401.4 — the one-sentence reorder, looked at by "you". */
+const LIBRARY_REORDER =
+    /^Look at the top (\S+) cards of (your|target player's|target opponent's) library, then put them back in any order$/;
+/** CR 401.4 — the same reorder, looked at by the previous sentence's player. */
+const LIBRARY_REORDER_THAT_PLAYER =
+    /^That player looks at the top (\S+) cards of your library, then puts them back in any order$/;
+/** The routing half, every matching card: "Put all Goblin cards revealed …". */
+const ROUTE_ALL_OF_SUBTYPE =
+    /^Put all (\S+) cards revealed this way into your hand and the rest on the bottom of your library in any order$/;
+/** The routing half, a pick: "Put one of them into your hand and the rest …". */
+const ROUTE_TAKE =
+    /^Put (\S+) of (?:them|those cards) into your hand and the rest (on the bottom of your library in any order|on the bottom of your library in a random order|into your graveyard)$/;
+
+const ROUTE_REST: ReadonlyMap<
+    string,
+    Extract<LibraryRouteIR, { kind: "take" }>["rest"]
+> = new Map([
+    ["on the bottom of your library in any order", "bottom-any-order"],
+    ["on the bottom of your library in a random order", "bottom-random-order"],
+    ["into your graveyard", "graveyard"],
+]);
+
 /** CR 615.12 — the printed sentence, whole, without its full stop. */
 const SUPPRESS_DAMAGE_PREVENTION = "Damage can't be prevented this turn";
 
@@ -515,11 +665,56 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
                 modifier: { kind: "cant-be-regenerated" as const },
             });
 
+        const library = libraryHalf(span);
+        if (library !== null) return library;
+
         const effect = effectSentence(span, ctx);
         if (!effect.ok) return effect;
         return ok({ role: "effect" as const, effect: effect.value });
     })
 );
+
+/**
+ * The two halves of a CR 401.4 look-and-route (`look-distribute`), each a
+ * sentence role `assembleSentences` pairs up. `null` = neither half's head.
+ */
+function libraryHalf(span: string) {
+    const look = span.match(LIBRARY_LOOK);
+    if (look !== null) {
+        const count = readAmount(look[2]!);
+        if (count === null) return fail(`"${look[2]}" is not a count`, span);
+        return ok({
+            role: "library-look" as const,
+            reveal: look[1] === "Reveal",
+            count,
+        } satisfies SentenceIR);
+    }
+    const all = span.match(ROUTE_ALL_OF_SUBTYPE);
+    if (all !== null) {
+        // CR 205.3m — a creature type; anything else ("land", "creature")
+        // is a card TYPE the filter would have to read differently.
+        if (!CREATURE_SUBTYPES.has(all[1]!))
+            return fail(`"${all[1]}" is not a creature type`, span);
+        return ok({
+            role: "library-route" as const,
+            route: { kind: "all-of-subtype" as const, subtype: all[1]! },
+        } satisfies SentenceIR);
+    }
+    const take = span.match(ROUTE_TAKE);
+    if (take !== null) {
+        const count = readAmount(take[1]!);
+        if (count === null) return fail(`"${take[1]}" is not a count`, span);
+        return ok({
+            role: "library-route" as const,
+            route: {
+                kind: "take" as const,
+                count,
+                rest: ROUTE_REST.get(take[2]!)!,
+            },
+        } satisfies SentenceIR);
+    }
+    return null;
+}
 
 function effectSentence(span: string, ctx: unknown) {
     // ── pump (CR 613.4c, layer 7c) ─────────────────────────────────────────
@@ -724,6 +919,38 @@ function effectSentence(span: string, ctx: unknown) {
             kind: "move-zone" as const,
             subject: subject.value,
             to: { zone: "exile" as const, owner: "any" as const },
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── look at the top of a library, put it back (CR 401.4) ──────────────
+    const reorder = span.match(LIBRARY_REORDER);
+    if (reorder !== null) {
+        const count = readAmount(reorder[1]!);
+        if (count === null) return fail(`"${reorder[1]}" is not a count`, span);
+        // The possessive of a player phrase: "your" is "you"'s, the rest
+        // drop their "'s" ("target opponent's" → "target opponent").
+        const owner =
+            reorder[2] === "your" ? "you" : reorder[2]!.replace(/'s$/, "");
+        const library = playerSubject(owner, ctx);
+        if (library === null)
+            return fail(`"${reorder[2]}" is not a library owner`, span);
+        return ok({
+            kind: "look-reorder" as const,
+            count,
+            library,
+            looker: "you" as const,
+        } satisfies EffectSentenceIR);
+    }
+    const reorderThat = span.match(LIBRARY_REORDER_THAT_PLAYER);
+    if (reorderThat !== null) {
+        const count = readAmount(reorderThat[1]!);
+        if (count === null)
+            return fail(`"${reorderThat[1]}" is not a count`, span);
+        return ok({
+            kind: "look-reorder" as const,
+            count,
+            library: { kind: "you" as const },
+            looker: "that-player" as const,
         } satisfies EffectSentenceIR);
     }
 

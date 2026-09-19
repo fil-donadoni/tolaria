@@ -19,8 +19,6 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // `destination: "library-bottom"` is the "rest on the bottom ... in any
 // order" clause: the bottom ORDER stays the controller's pick (ADR 0026 — no
 // `randomBottom`, which is the Narset "in a RANDOM order" template instead).
-//
-// compiler-gap: When this creature enters, reveal the top four cards of your library. Put all Goblin cards revealed this way into your hand and the rest on the bottom of your library in any order. (#2693)
 export const goblinRingleader: CardDefinition = {
     id: "b6b2cd77-9552-48b1-80cb-26966323c1ea", // APC 62
     rarity: "uncommon",

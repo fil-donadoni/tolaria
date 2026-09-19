@@ -145,6 +145,13 @@ export class TargetSlots {
 export class SentenceWalk {
     readonly targets = new TargetSlots();
     private binds = 0;
+    /**
+     * CR 608.2c — the player whose library the last `look-reorder` looked
+     * at, when that player was announced as a target: the referent of "That
+     * player looks at …" in the sentence after it. Set by that lowering only,
+     * so the anaphora binds to nothing it was not written for.
+     */
+    libraryLookedAt: EffectPlayerRef | null = null;
 
     /** A binding name unique within this ability's script. */
     nextBind(prefix: string): string {
@@ -337,7 +344,7 @@ export function lowerSentence(
             // structural construct. The inner sentence is lowered by THIS
             // walk, so "you may tap target creature" allocates its slot once,
             // through the shared allocator, exactly as the bare sentence does.
-            const inner = lowerSentence(sentence.effect, walk, site);
+            const inner = gatedSentence(sentence.effect, walk, site);
             if (!inner.ok) return inner;
             const bind = walk.nextBind("may");
             return lowered([
@@ -369,13 +376,63 @@ export function lowerSentence(
                 },
             ]);
         }
+        case "look-distribute":
+            return lowerLookDistribute(sentence, site);
+        case "look-reorder": {
+            const count = lowerAmount(sentence.count, site);
+            if (!count.ok) return count;
+            if (sentence.looker === "that-player") {
+                // CR 608.2c — "That player" is the player the sentence before
+                // looked at; with no such sentence it names no one we can.
+                const chooser = walk.libraryLookedAt;
+                if (chooser === null)
+                    return unlowerable(
+                        '"that player" names no player announced before it'
+                    );
+                const player = playerRef(sentence.library, slots);
+                if (!player.ok) return player;
+                return lowered([
+                    {
+                        op: "scryReorder",
+                        player: player.value,
+                        chooser,
+                        count: count.value,
+                        destination: "none",
+                    },
+                ]);
+            }
+            const player = playerRef(sentence.library, slots);
+            if (!player.ok) return player;
+            if (player.value === "controller")
+                return lowered([
+                    {
+                        op: "scryReorder",
+                        player: player.value,
+                        count: count.value,
+                        destination: "none",
+                    },
+                ]);
+            // The library is another player's but the looker is "you": the
+            // card overrides CR 401.4's default (the owner arranges), so the
+            // controller orders it (`chooser`, the fateseal seam).
+            walk.libraryLookedAt = player.value;
+            return lowered([
+                {
+                    op: "scryReorder",
+                    player: player.value,
+                    chooser: "controller",
+                    count: count.value,
+                    destination: "none",
+                },
+            ]);
+        }
         case "kicked": {
             // CR 702.33g — a target inside the gate is chosen only if the
             // spell was kicked; a card-level `targetRequirement` would demand
             // it on every cast. Measured on the walk, so a target allocated
             // by the inner sentence is seen however it was reached.
             const before = walk.targets.requirements().length;
-            const inner = lowerSentence(sentence.effect, walk, site);
+            const inner = gatedSentence(sentence.effect, walk, site);
             if (!inner.ok) return inner;
             if (walk.targets.requirements().length !== before)
                 return unlowerable(
@@ -398,6 +455,24 @@ export function lowerSentence(
             );
         }
     }
+}
+
+/**
+ * Lower a sentence behind a gate ("you may", "if this spell was kicked").
+ *
+ * A library looked at behind a gate may never have been looked at, so it is
+ * no antecedent for a "That player" after the gate: the walk's referent is
+ * restored to what it was before the gated sentence.
+ */
+function gatedSentence(
+    sentence: EffectSentenceIR,
+    walk: SentenceWalk,
+    site: SiteOptions
+): Lowered<EffectOp[]> {
+    const antecedent = walk.libraryLookedAt;
+    const inner = lowerSentence(sentence, walk, site);
+    walk.libraryLookedAt = antecedent;
+    return inner;
 }
 
 /**
@@ -439,6 +514,51 @@ function manaKey(mana: ManaCost): string {
     return JSON.stringify(
         Object.entries(mana).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     );
+}
+
+/**
+ * CR 401.4 — look at (CR 701.20a: or reveal) the top of your library and route
+ * it: `lookDistribute`, the Op every hand-written card of this shape uses.
+ *
+ * "Put all <Subtype> cards revealed this way into your hand" keeps EVERY
+ * matching card: `take` is the whole window and `optional: false`, so the
+ * clamp to the matching count (`lookDistribute` keeps at most the filtered
+ * cards) makes the keep exactly "all of them". "Put <N> of them" is a pick of
+ * N. The rest go to the bottom in the owner's chosen order (CR 401.4) by
+ * default, in a random order (`randomBottom`), or to the graveyard.
+ */
+function lowerLookDistribute(
+    sentence: Extract<EffectSentenceIR, { kind: "look-distribute" }>,
+    site: SiteOptions
+): Lowered<EffectOp[]> {
+    const look = lowerAmount(sentence.count, site);
+    if (!look.ok) return look;
+    const route = sentence.route;
+    if (route.kind === "all-of-subtype")
+        return lowered([
+            {
+                op: "lookDistribute",
+                player: "controller",
+                look: look.value,
+                take: look.value,
+                keepTo: "hand",
+                filter: { subtype: route.subtype },
+                optional: false,
+                reveal: "window",
+            },
+        ]);
+    const take = lowerAmount(route.count, site);
+    if (!take.ok) return take;
+    const op: Extract<EffectOp, { op: "lookDistribute" }> = {
+        op: "lookDistribute",
+        keepTo: "hand",
+        player: "controller",
+        look: look.value,
+        take: take.value,
+    };
+    if (route.rest === "graveyard") op.destination = "graveyard";
+    if (route.rest === "bottom-random-order") op.randomBottom = true;
+    return lowered([op]);
 }
 
 /**
