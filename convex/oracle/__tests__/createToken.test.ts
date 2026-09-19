@@ -313,8 +313,9 @@ describe("create token — lowering invariants (CR 608.2h)", () => {
     });
 
     it('refuses "that creature" when a later sentence targeted another object', () => {
-        // Refused today by the one-target limit too; the stale-referent reset
-        // in `lowerSentence` is what keeps it refused once that limit lifts.
+        // Refused today by the one-target limit too (`TargetSlots.allocate`
+        // and `declareTargets`); the stale-referent reset in `lowerSentence`
+        // is what keeps it refused once both lift — proven by lifting them.
         const outcome = compileCard(
             sorcery(
                 "Test Card",
