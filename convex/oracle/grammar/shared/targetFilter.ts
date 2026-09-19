@@ -110,7 +110,8 @@ export interface DescriptorIR {
 
 // ── Vocabulary ─────────────────────────────────────────────────────────────
 
-const COLOR_WORDS: ReadonlyMap<string, Color> = new Map([
+/** CR 105.1 — the five colour words, as the Oracle prints them. */
+export const COLOR_WORDS: ReadonlyMap<string, Color> = new Map([
     ["white", "W"],
     ["blue", "U"],
     ["black", "B"],

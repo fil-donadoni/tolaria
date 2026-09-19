@@ -46,6 +46,7 @@ import { kickedConditionRule, type KickedRefIR } from "./condition";
 import { targetFilterRule } from "./targetFilter";
 import { zoneRefRule, type ZoneRefIR } from "./zoneRef";
 import { CREATURE_SUBTYPES } from "./subtypes";
+import { createTokenRule, type CreateTokenIR } from "./tokenSpec";
 
 export const EFFECT_CLAUSE = "effect clause";
 
@@ -162,6 +163,15 @@ export type EffectSentenceIR =
           readonly subject: SubjectIR;
           readonly to: ZoneRefIR;
       }
+    | ({
+          /**
+           * CR 111.1 — create one or more creature tokens whose
+           * characteristics the sentence defines (CR 111.3). Read by the
+           * `tokenSpec.ts` sub-grammar; the controller creates them
+           * (CR 111.2), the only creator this form prints.
+           */
+          readonly kind: "create-token";
+      } & CreateTokenIR)
     | {
           readonly kind: "discard-at-random";
           readonly player: PlayerRefIR;
@@ -1019,6 +1029,16 @@ function effectSentence(span: string, ctx: unknown) {
             count,
             library: { kind: "you" as const },
             looker: "that-player" as const,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── create tokens (CR 111.1) ───────────────────────────────────────────
+    if (span.startsWith("Create ")) {
+        const created = createTokenRule.run(span, ctx);
+        if (!created.ok) return created;
+        return ok({
+            kind: "create-token" as const,
+            ...created.value,
         } satisfies EffectSentenceIR);
     }
 
