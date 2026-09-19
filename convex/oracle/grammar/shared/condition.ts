@@ -224,13 +224,15 @@ const KICKED = /^if (.+?) was kicked(?: with its (\{[^ ]+\}) kicker)?$/;
  * creature" is the PERMANENT form, read by the static slot's entry rider, and
  * anything else is a phrase we have misread.
  */
-export const kickedConditionRule: Rule<KickedRefIR> = rule<KickedRefIR>(
-    KICKED_CONDITION,
-    (span) => {
+function kickedConditionRuleFor(
+    label: string,
+    subjects: ReadonlySet<string>
+): Rule<KickedRefIR> {
+    return rule<KickedRefIR>(label, (span) => {
         const match = span.match(KICKED);
         if (match === null)
             return fail("not a kicked condition this grammar knows", span);
-        if (!KICKED_SUBJECTS.has(match[1]!))
+        if (!subjects.has(match[1]!))
             return fail(
                 `"${match[1]}" is not the kicked spell (CR 702.33e)`,
                 span
@@ -239,5 +241,20 @@ export const kickedConditionRule: Rule<KickedRefIR> = rule<KickedRefIR>(
         const mana = readManaCost(match[2]);
         if (!mana.ok) return fail(mana.reason, mana.fragment);
         return ok({ kind: "named" as const, mana: mana.cost });
-    }
+    });
+}
+
+export const kickedConditionRule: Rule<KickedRefIR> = kickedConditionRuleFor(
+    KICKED_CONDITION,
+    KICKED_SUBJECTS
 );
+
+/**
+ * CR 702.33e — the same condition as an ETB trigger prints it: "When this
+ * creature enters, … If it was kicked, …". "It" is the permanent the trigger is
+ * printed on, which came from the kicked spell; the SLOT owns the check that
+ * the head really names the source (a trigger on "another creature" makes "it"
+ * someone else's), so this rule only widens the subject.
+ */
+export const kickedPermanentConditionRule: Rule<KickedRefIR> =
+    kickedConditionRuleFor("kicked permanent condition", new Set(["it"]));

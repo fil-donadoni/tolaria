@@ -380,7 +380,7 @@ describe("spell slot — modal spells (CR 700.2)", () => {
 
     it("refuses a mode the sentence grammar cannot read, rather than dropping it", () => {
         const r = spellSlot.run(
-            "Choose one —\n• Destroy target artifact.\n• Untap all creatures you control.",
+            "Choose one —\n• Destroy target artifact.\n• Untap all attacking creatures.",
             instant
         );
         expect(r.ok).toBe(false);

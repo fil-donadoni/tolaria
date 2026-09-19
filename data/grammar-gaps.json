@@ -158,11 +158,6 @@
             "issue": 3917
         },
         {
-            "key": "(op) › forEach",
-            "op": "forEach",
-            "issue": 3918
-        },
-        {
             "key": "(op) › gainControl",
             "op": "gainControl",
             "issue": 3919

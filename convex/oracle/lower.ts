@@ -38,6 +38,7 @@ import {
     type LoweredStatic,
 } from "./lowerStatic";
 import type { HostNoun } from "./grammar/shared/staticClause";
+import { destroysEveryLand } from "./lowerEffects";
 import { lowerTriggeredAbility } from "./lowerTriggered";
 import { sortKeys } from "./gates";
 import { readManaCost } from "./manaCost";
@@ -342,6 +343,7 @@ function lowerLine(
                     ? { condition: ir.condition }
                     : {}),
                 effects: ir.effects,
+                ...(acc.kickers !== undefined ? { kickers: acc.kickers } : {}),
             });
             if (!lowered.ok) return lowered.reason;
             acc.compiledTriggeredAbilities.push(lowered.ability);
@@ -735,7 +737,11 @@ export function lowerCard(
             };
         definition.targetRequirement = acc.enchantRequirement;
     }
-    if (acc.spellEffects !== undefined) definition.effects = acc.spellEffects;
+    if (acc.spellEffects !== undefined) {
+        definition.effects = acc.spellEffects;
+        if (destroysEveryLand(acc.spellEffects))
+            definition.destroysAllLands = true;
+    }
     if (acc.spellTargetRequirement !== undefined)
         definition.targetRequirement = acc.spellTargetRequirement;
     if (acc.spellModes !== undefined) definition.modes = acc.spellModes;

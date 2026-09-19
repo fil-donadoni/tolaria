@@ -133,6 +133,85 @@ function lowerAmount(
           );
 }
 
+/**
+ * CR 110.1 — a verb applied to every member of a sweep.
+ *
+ * `forEach` over the battlefield with the verb's Op reading `$each`, the shape
+ * every hand-written sweep writes (Tranquility, Armageddon). A bound on the
+ * announced X (CR 202.3 + CR 107.3) is an `if` INSIDE the iteration reading
+ * the member's own mana value: `PermanentFilter` has no mana-value field, so
+ * folding the bound into the selector would be dropped, and a dropped bound
+ * destroys everything the sweep names.
+ */
+function sweepOps(
+    subject: Extract<SubjectIR, { kind: "mass" }>,
+    site: SiteOptions,
+    verb: (target: EffectObjectSelector) => EffectOp
+): Lowered<EffectOp[]> {
+    const each: EffectObjectSelector = { ref: "$each" };
+    if (!subject.manaValueAtMostX)
+        return lowered([
+            { op: "forEach", select: subject.select, effects: [verb(each)] },
+        ]);
+    if (!site.allowX)
+        return unlowerable(
+            "a sweep reads X but its source announces no {X} (CR 107.3)"
+        );
+    return lowered([
+        {
+            op: "forEach",
+            select: subject.select,
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: { manaValue: { of: each } },
+                        op: "le",
+                        right: { X: true },
+                    },
+                    then: [verb(each)],
+                },
+            ],
+        },
+    ]);
+}
+
+/**
+ * CR 701.8 — does this spell body destroy every land in play, unconditionally?
+ *
+ * The hand-written catalogue marks such a spell `destroysAllLands` (Armageddon)
+ * because `spellWouldDestroyLandControlledBy` (`gre/targetFilters.ts`) reads
+ * the spell DECLARATIVELY — it never runs the body — and answers only for a
+ * single-target destroy or that flag. A compiled sweep is a `forEach`, which
+ * that predicate does not walk, so without the marker Equinox could not counter
+ * a compiled "Destroy all lands." while it counters the hand-written one.
+ *
+ * Exactly the shape `sweepOps` emits for an unscoped Land sweep and nothing
+ * else: a controller scope, an "other" exclusion or a wider type list is a
+ * different classification, and a sweep behind an `if` is not unconditional.
+ */
+export function destroysEveryLand(effects: readonly EffectOp[]): boolean {
+    return effects.some((op) => {
+        if (op.op !== "forEach" || op.select.set !== "permanents") return false;
+        const { select } = op;
+        const filter = select.filter;
+        if (
+            select.controller !== undefined ||
+            select.excludeSource === true ||
+            filter === undefined ||
+            Object.keys(filter).length !== 1 ||
+            filter.type !== "Land"
+        )
+            return false;
+        return (
+            op.effects.length === 1 &&
+            op.effects[0]!.op === "destroy" &&
+            JSON.stringify(op.effects[0]) ===
+                JSON.stringify({ op: "destroy", target: { ref: "$each" } })
+        );
+    });
+}
+
 /** Collects the ability's target requirements as the sentences are walked. */
 export class TargetSlots {
     private readonly slots: TargetRequirement[] = [];
@@ -262,6 +341,10 @@ function objectSelector(
     // change can act on; `lowerMoveZone` binds it, every other verb refuses.
     if (subject.kind === "that-card")
         return unlowerable('"that card" is read only as a returned card');
+    // CR 115.1 — a sweep announces nothing, so there is no slot to point at;
+    // only the verbs that fan out (`sweepOps`) read one.
+    if (subject.kind === "mass")
+        return unlowerable("a sweep is not a single object (CR 110.1)");
     if (subject.requirement.type === "player")
         return unlowerable("a player is not an object (CR 109.1)");
     const index = slots.allocate(subject.requirement);
@@ -397,6 +480,11 @@ function lowerSentenceBody(
             ]);
         }
         case "destroy": {
+            if (sentence.subject.kind === "mass")
+                return sweepOps(sentence.subject, site, (target) => ({
+                    op: "destroy",
+                    target,
+                }));
             const target = objectSelector(sentence.subject, slots);
             if (!target.ok) return target;
             // CR 701.19c — a "can't be regenerated" clause is a property of
@@ -413,6 +501,14 @@ function lowerSentenceBody(
             return lowered([destroy]);
         }
         case "tap-untap": {
+            if (sentence.subject.kind === "mass") {
+                const action = sentence.action;
+                return sweepOps(sentence.subject, site, (target) => ({
+                    op: "tapUntap",
+                    action,
+                    target,
+                }));
+            }
             const target = objectSelector(sentence.subject, slots);
             if (!target.ok) return target;
             return lowered([
@@ -625,6 +721,31 @@ function lowerSentenceBody(
                     op: "if",
                     predicate: { left: left.value, op: "ge", right: 1 },
                     then: inner.value,
+                },
+            ]);
+        }
+        case "replace-if-kicked": {
+            // CR 702.33e + CR 608.2c — kicked: the replacement happens; else the
+            // base does. Both halves are sweeps (`foldKickedInstead`), so no
+            // target may be announced on either side: a slot allocated in one
+            // branch only has no encoding (CR 702.33g).
+            const before = walk.targets.requirements().length;
+            const base = gatedSentence(sentence.base, walk, site);
+            if (!base.ok) return base;
+            const replacement = gatedSentence(sentence.replacement, walk, site);
+            if (!replacement.ok) return replacement;
+            if (walk.targets.requirements().length !== before)
+                return unlowerable(
+                    "a target announced in only one branch of a kicked replacement has no encoding (CR 702.33g)"
+                );
+            const left = kickedValue(sentence.kicked, site.kickers ?? []);
+            if (!left.ok) return left;
+            return lowered([
+                {
+                    op: "if",
+                    predicate: { left: left.value, op: "ge", right: 1 },
+                    then: replacement.value,
+                    else: base.value,
                 },
             ]);
         }

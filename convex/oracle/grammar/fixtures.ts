@@ -801,4 +801,374 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 110.1 + CR 701.8a — "Destroy all <type>" sweeps every player's
+    // battlefield: no target is announced, so the effect is a `forEach` over
+    // the battlefield reading `$each`, the shape Tranquility (LEA) writes by
+    // hand. Exhibits the two forms the canned smoke scenario cannot build —
+    // a `forEach` over a runtime-selected set and a `$each` object ref — so
+    // this fixture is the evidence both are emitted as the hand-written
+    // sweep writes them (issue #4128).
+    {
+        rule: "mass subject",
+        card: {
+            oracleId: "b8d8ece6-397e-4bc9-b86c-7caa1d675d0f",
+            name: "Back to Nature",
+            manaCost: "{1}{G}",
+            typeLine: "Instant",
+            oracleText: "Destroy all enchantments.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Back to Nature",
+            types: ["Instant"],
+            manaCost: { X: 1, G: 1 },
+            oracleText: "Destroy all enchantments.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Enchantment" },
+                    },
+                    effects: [{ op: "destroy", target: { ref: "$each" } }],
+                },
+            ],
+        },
+    },
+    // CR 110.1 + CR 701.26a — "tap all lands you control" is the same sweep
+    // with a controller scope and a `tapUntap` body. Exhibits the
+    // `tapUntap`-on-`$each` form the smoke generator cannot scenario-ize
+    // (issue #4128).
+    {
+        rule: "mass subject",
+        card: {
+            oracleId: "5ba1595a-6578-459d-96fe-fdfb84ac34d5",
+            name: "Silt Crawler",
+            manaCost: "{2}{G}",
+            typeLine: "Creature — Beast",
+            oracleText: "When this creature enters, tap all lands you control.",
+            power: "3",
+            toughness: "3",
+            layout: "normal",
+        },
+        expected: {
+            name: "Silt Crawler",
+            types: ["Creature"],
+            subtypes: ["Beast"],
+            manaCost: { X: 2, G: 1 },
+            power: 3,
+            toughness: 3,
+            oracleText: "When this creature enters, tap all lands you control.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "silt-crawler-trigger",
+                    oracleText:
+                        "When this creature enters, tap all lands you control.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                controller: "controller",
+                                filter: { type: "Land" },
+                            },
+                            effects: [
+                                {
+                                    op: "tapUntap",
+                                    action: "tap",
+                                    target: { ref: "$each" },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 202.3 + CR 107.3 — "each artifact, creature, and enchantment with
+    // mana value X or less": the union of three types, bounded by the
+    // announced {X}. `PermanentFilter` has no mana-value field, so the bound
+    // is an `if` over `manaValue of $each` INSIDE the sweep. Exhibits the
+    // chosen-cost-X amount form (issue #4128).
+    {
+        rule: "mass subject",
+        card: {
+            oracleId: "62e44e0d-eda0-4275-8367-49dab9a087c3",
+            name: "Pernicious Deed",
+            manaCost: "{1}{B}{G}",
+            typeLine: "Enchantment",
+            oracleText:
+                "{X}, Sacrifice this enchantment: Destroy each artifact, creature, and enchantment with mana value X or less.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Pernicious Deed",
+            types: ["Enchantment"],
+            manaCost: { X: 1, B: 1, G: 1 },
+            oracleText:
+                "{X}, Sacrifice this enchantment: Destroy each artifact, creature, and enchantment with mana value X or less.",
+            activatedAbilities: [
+                {
+                    id: "pernicious-deed-ability",
+                    oracleText:
+                        "{X}, Sacrifice this enchantment: Destroy each artifact, creature, and enchantment with mana value X or less.",
+                    cost: { mana: { X: "X" }, sacrifice: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                filter: {
+                                    type: [
+                                        "Artifact",
+                                        "Creature",
+                                        "Enchantment",
+                                    ],
+                                },
+                            },
+                            effects: [
+                                {
+                                    op: "if",
+                                    predicate: {
+                                        left: {
+                                            manaValue: { of: { ref: "$each" } },
+                                        },
+                                        op: "le",
+                                        right: { X: true },
+                                    },
+                                    then: [
+                                        {
+                                            op: "destroy",
+                                            target: { ref: "$each" },
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 110.1 + CR 701.26b — "untap all lands you control", the untap twin
+    // of the tap sweep above. `tapUntap` carries its `action` in the form,
+    // so the untap sweep is evidence of its own (issue #4128).
+    {
+        rule: "mass subject",
+        card: {
+            oracleId: "6f856f99-4cb4-479d-958d-964220965ed6",
+            name: "Wilderness Reclamation",
+            manaCost: "{3}{G}",
+            typeLine: "Enchantment",
+            oracleText:
+                "At the beginning of your end step, untap all lands you control.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Wilderness Reclamation",
+            types: ["Enchantment"],
+            manaCost: { X: 3, G: 1 },
+            oracleText:
+                "At the beginning of your end step, untap all lands you control.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "wilderness-reclamation-trigger",
+                    oracleText:
+                        "At the beginning of your end step, untap all lands you control.",
+                    head: { kind: "phase", phase: "END_STEP", scope: "your" },
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                controller: "controller",
+                                filter: { type: "Land" },
+                            },
+                            effects: [
+                                {
+                                    op: "tapUntap",
+                                    action: "untap",
+                                    target: { ref: "$each" },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // Kicker, CR 702.33e + CR 608.2c — "destroy all lands you control. If it was
+    // kicked, destroy all lands instead.": the kicked sweep replaces the
+    // base one, so both branches of one `if` carry a sweep and the base
+    // rides `else`. Exhibits the kicker-count `if`/`else` form and the
+    // unscoped Land sweep (issue #4128).
+    {
+        rule: "kicked instead",
+        card: {
+            oracleId: "87f82107-eaba-484a-800d-e61a0cc5e1f2",
+            name: "Desolation Angel",
+            manaCost: "{3}{B}{B}",
+            typeLine: "Creature — Angel",
+            oracleText:
+                "Kicker {W}{W} (You may pay an additional {W}{W} as you cast this spell.)\nFlying\nWhen this creature enters, destroy all lands you control. If it was kicked, destroy all lands instead.",
+            power: "5",
+            toughness: "4",
+            layout: "normal",
+        },
+        expected: {
+            name: "Desolation Angel",
+            types: ["Creature"],
+            subtypes: ["Angel"],
+            manaCost: { X: 3, B: 2 },
+            power: 5,
+            toughness: 4,
+            oracleText:
+                "Kicker {W}{W} (You may pay an additional {W}{W} as you cast this spell.)\nFlying\nWhen this creature enters, destroy all lands you control. If it was kicked, destroy all lands instead.",
+            staticAbilities: ["flying"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "desolation-angel-trigger",
+                    oracleText:
+                        "When this creature enters, destroy all lands you control. If it was kicked, destroy all lands instead.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        {
+                            op: "if",
+                            predicate: {
+                                left: { kickerCount: true },
+                                op: "ge",
+                                right: 1,
+                            },
+                            then: [
+                                {
+                                    op: "forEach",
+                                    select: {
+                                        set: "permanents",
+                                        zone: "battlefield",
+                                        filter: { type: "Land" },
+                                    },
+                                    effects: [
+                                        {
+                                            op: "destroy",
+                                            target: { ref: "$each" },
+                                        },
+                                    ],
+                                },
+                            ],
+                            else: [
+                                {
+                                    op: "forEach",
+                                    select: {
+                                        set: "permanents",
+                                        zone: "battlefield",
+                                        controller: "controller",
+                                        filter: { type: "Land" },
+                                    },
+                                    effects: [
+                                        {
+                                            op: "destroy",
+                                            target: { ref: "$each" },
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            kickers: [
+                { id: "kicker", description: "Kicker {W}{W}", mana: { W: 2 } },
+            ],
+        },
+    },
+    // Kicker, CR 702.33e — "destroy all other creatures you control. If
+    // it was kicked, destroy all other creatures instead." "Other" is the
+    // source excluding itself (`excludeSource`), with and without the
+    // controller scope (issue #4128).
+    {
+        rule: "kicked instead",
+        card: {
+            oracleId: "c23aaf6d-151e-481a-a345-ca00c14940d1",
+            name: "Desolation Giant",
+            manaCost: "{2}{R}{R}",
+            typeLine: "Creature — Giant",
+            oracleText:
+                "Kicker {W}{W} (You may pay an additional {W}{W} as you cast this spell.)\nWhen this creature enters, destroy all other creatures you control. If it was kicked, destroy all other creatures instead.",
+            power: "3",
+            toughness: "3",
+            layout: "normal",
+        },
+        expected: {
+            name: "Desolation Giant",
+            types: ["Creature"],
+            subtypes: ["Giant"],
+            manaCost: { X: 2, R: 2 },
+            power: 3,
+            toughness: 3,
+            oracleText:
+                "Kicker {W}{W} (You may pay an additional {W}{W} as you cast this spell.)\nWhen this creature enters, destroy all other creatures you control. If it was kicked, destroy all other creatures instead.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "desolation-giant-trigger",
+                    oracleText:
+                        "When this creature enters, destroy all other creatures you control. If it was kicked, destroy all other creatures instead.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        {
+                            op: "if",
+                            predicate: {
+                                left: { kickerCount: true },
+                                op: "ge",
+                                right: 1,
+                            },
+                            then: [
+                                {
+                                    op: "forEach",
+                                    select: {
+                                        set: "permanents",
+                                        zone: "battlefield",
+                                        filter: { type: "Creature" },
+                                        excludeSource: true,
+                                    },
+                                    effects: [
+                                        {
+                                            op: "destroy",
+                                            target: { ref: "$each" },
+                                        },
+                                    ],
+                                },
+                            ],
+                            else: [
+                                {
+                                    op: "forEach",
+                                    select: {
+                                        set: "permanents",
+                                        zone: "battlefield",
+                                        controller: "controller",
+                                        filter: { type: "Creature" },
+                                        excludeSource: true,
+                                    },
+                                    effects: [
+                                        {
+                                            op: "destroy",
+                                            target: { ref: "$each" },
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            kickers: [
+                { id: "kicker", description: "Kicker {W}{W}", mana: { W: 2 } },
+            ],
+        },
+    },
 ]);

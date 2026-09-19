@@ -7368,6 +7368,59 @@
         "rarity": "rare"
     },
     {
+        "name": "Shrieking Mogg",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Goblin"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Haste\nWhen this creature enters, tap all other creatures.",
+        "staticAbilities": [
+            "haste"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "shrieking-mogg-trigger",
+                "oracleText": "When this creature enters, tap all other creatures.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "filter": {
+                                "type": "Creature"
+                            },
+                            "excludeSource": true
+                        },
+                        "effects": [
+                            {
+                                "op": "tapUntap",
+                                "action": "tap",
+                                "target": {
+                                    "ref": "$each"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "0ce46919-d312-490c-8942-39fbb2d375bf",
+        "rarity": "rare"
+    },
+    {
         "name": "Arcane Encyclopedia",
         "types": [
             "Artifact"
@@ -10408,6 +10461,40 @@
         ],
         "id": "11da48a7-903d-43f5-8085-1b3790ed079a",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Ravages of War",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "oracleText": "Destroy all lands.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "filter": {
+                        "type": "Land"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "ref": "$each"
+                        }
+                    }
+                ]
+            }
+        ],
+        "destroysAllLands": true,
+        "id": "11dca9ba-b27f-4af8-9962-3794e743886f",
+        "rarity": "rare"
     },
     {
         "name": "Prying Eyes",
@@ -20065,6 +20152,60 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Troublesome Spirit",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Spirit"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 2
+        },
+        "power": 3,
+        "toughness": 4,
+        "oracleText": "Flying\nAt the beginning of your end step, tap all lands you control.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "troublesome-spirit-trigger",
+                "oracleText": "At the beginning of your end step, tap all lands you control.",
+                "head": {
+                    "kind": "phase",
+                    "phase": "END_STEP",
+                    "scope": "your"
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Land"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "tapUntap",
+                                "action": "tap",
+                                "target": {
+                                    "ref": "$each"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "23d7e856-6852-4b97-ae0e-a4becdfc8166",
+        "rarity": "rare"
+    },
+    {
         "name": "Curious Farm Animals",
         "types": [
             "Creature"
@@ -24592,6 +24733,44 @@
         "rarity": "rare"
     },
     {
+        "name": "Tranquil Path",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 4,
+            "G": 1
+        },
+        "oracleText": "Destroy all enchantments.\nDraw a card.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "filter": {
+                        "type": "Enchantment"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "ref": "$each"
+                        }
+                    }
+                ]
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "id": "2da8c059-3309-49a5-ae97-c048aefc922f",
+        "rarity": "common"
+    },
+    {
         "name": "Fangren Hunter",
         "types": [
             "Creature"
@@ -24971,6 +25150,98 @@
         ],
         "id": "2e6b3f38-87c9-4cea-b9e5-b8fb42e64794",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Desolation Giant",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Giant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 2
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "Kicker {W}{W} (You may pay an additional {W}{W} as you cast this spell.)\nWhen this creature enters, destroy all other creatures you control. If it was kicked, destroy all other creatures instead.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "desolation-giant-trigger",
+                "oracleText": "When this creature enters, destroy all other creatures you control. If it was kicked, destroy all other creatures instead.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "left": {
+                                "kickerCount": true
+                            },
+                            "op": "ge",
+                            "right": 1
+                        },
+                        "then": [
+                            {
+                                "op": "forEach",
+                                "select": {
+                                    "set": "permanents",
+                                    "zone": "battlefield",
+                                    "filter": {
+                                        "type": "Creature"
+                                    },
+                                    "excludeSource": true
+                                },
+                                "effects": [
+                                    {
+                                        "op": "destroy",
+                                        "target": {
+                                            "ref": "$each"
+                                        }
+                                    }
+                                ]
+                            }
+                        ],
+                        "else": [
+                            {
+                                "op": "forEach",
+                                "select": {
+                                    "set": "permanents",
+                                    "zone": "battlefield",
+                                    "controller": "controller",
+                                    "filter": {
+                                        "type": "Creature"
+                                    },
+                                    "excludeSource": true
+                                },
+                                "effects": [
+                                    {
+                                        "op": "destroy",
+                                        "target": {
+                                            "ref": "$each"
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "kickers": [
+            {
+                "id": "kicker",
+                "description": "Kicker {W}{W}",
+                "mana": {
+                    "W": 2
+                }
+            }
+        ],
+        "id": "2e7291da-1d14-4763-8691-c67136ab67c7",
+        "rarity": "rare"
     },
     {
         "name": "Isamaru, Hound of Konda",
@@ -35579,6 +35850,99 @@
         "rarity": "common"
     },
     {
+        "name": "Desolation Angel",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Angel"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 2
+        },
+        "power": 5,
+        "toughness": 4,
+        "oracleText": "Kicker {W}{W} (You may pay an additional {W}{W} as you cast this spell.)\nFlying\nWhen this creature enters, destroy all lands you control. If it was kicked, destroy all lands instead.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "desolation-angel-trigger",
+                "oracleText": "When this creature enters, destroy all lands you control. If it was kicked, destroy all lands instead.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "left": {
+                                "kickerCount": true
+                            },
+                            "op": "ge",
+                            "right": 1
+                        },
+                        "then": [
+                            {
+                                "op": "forEach",
+                                "select": {
+                                    "set": "permanents",
+                                    "zone": "battlefield",
+                                    "filter": {
+                                        "type": "Land"
+                                    }
+                                },
+                                "effects": [
+                                    {
+                                        "op": "destroy",
+                                        "target": {
+                                            "ref": "$each"
+                                        }
+                                    }
+                                ]
+                            }
+                        ],
+                        "else": [
+                            {
+                                "op": "forEach",
+                                "select": {
+                                    "set": "permanents",
+                                    "zone": "battlefield",
+                                    "controller": "controller",
+                                    "filter": {
+                                        "type": "Land"
+                                    }
+                                },
+                                "effects": [
+                                    {
+                                        "op": "destroy",
+                                        "target": {
+                                            "ref": "$each"
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "kickers": [
+            {
+                "id": "kicker",
+                "description": "Kicker {W}{W}",
+                "mana": {
+                    "W": 2
+                }
+            }
+        ],
+        "id": "445127d4-8afb-47cf-b2a1-564540b1fdae",
+        "rarity": "rare"
+    },
+    {
         "name": "Wild Ceratok",
         "types": [
             "Creature"
@@ -43540,6 +43904,52 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Wilderness Reclamation",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 3,
+            "G": 1
+        },
+        "oracleText": "At the beginning of your end step, untap all lands you control.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "wilderness-reclamation-trigger",
+                "oracleText": "At the beginning of your end step, untap all lands you control.",
+                "head": {
+                    "kind": "phase",
+                    "phase": "END_STEP",
+                    "scope": "your"
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Land"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "tapUntap",
+                                "action": "untap",
+                                "target": {
+                                    "ref": "$each"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "54af08f7-9c6c-464e-b2f7-2b5803f36481",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Brimstone Dragon",
         "types": [
             "Creature"
@@ -45836,6 +46246,60 @@
         ],
         "id": "5976c352-ac49-4e0d-a4c0-ec9b6b78db9c",
         "rarity": "common"
+    },
+    {
+        "name": "Thundermare",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elemental",
+            "Horse"
+        ],
+        "manaCost": {
+            "X": 5,
+            "R": 1
+        },
+        "power": 5,
+        "toughness": 5,
+        "oracleText": "Haste (This creature can attack and {T} as soon as it comes under your control.)\nWhen this creature enters, tap all other creatures.",
+        "staticAbilities": [
+            "haste"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "thundermare-trigger",
+                "oracleText": "When this creature enters, tap all other creatures.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "filter": {
+                                "type": "Creature"
+                            },
+                            "excludeSource": true
+                        },
+                        "effects": [
+                            {
+                                "op": "tapUntap",
+                                "action": "tap",
+                                "target": {
+                                    "ref": "$each"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "59a9f3f5-c80f-47a4-bf84-b7262437017f",
+        "rarity": "rare"
     },
     {
         "name": "Brushstrider",
@@ -51771,6 +52235,55 @@
         ],
         "id": "646edf58-4bc5-4d87-af68-b8b006ccb806",
         "rarity": "rare"
+    },
+    {
+        "name": "Novablast Wurm",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Wurm"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 2,
+            "G": 2
+        },
+        "power": 7,
+        "toughness": 7,
+        "oracleText": "Whenever this creature attacks, destroy all other creatures.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "novablast-wurm-trigger",
+                "oracleText": "Whenever this creature attacks, destroy all other creatures.",
+                "head": {
+                    "kind": "attacks"
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "filter": {
+                                "type": "Creature"
+                            },
+                            "excludeSource": true
+                        },
+                        "effects": [
+                            {
+                                "op": "destroy",
+                                "target": {
+                                    "ref": "$each"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "64733f34-2eb4-4df5-8656-57bdb8b3a983",
+        "rarity": "mythic"
     },
     {
         "name": "Submerged Boneyard",
@@ -79296,6 +79809,42 @@
         "rarity": "common"
     },
     {
+        "name": "Cleanfall",
+        "types": [
+            "Sorcery"
+        ],
+        "subtypes": [
+            "Arcane"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "Destroy all enchantments.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "filter": {
+                        "type": "Enchantment"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "ref": "$each"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "9897707f-9669-4d44-8607-cba569da73e0",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Thundering Giant",
         "types": [
             "Creature"
@@ -91393,6 +91942,75 @@
         "rarity": "common"
     },
     {
+        "name": "Pernicious Deed",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1,
+            "G": 1
+        },
+        "oracleText": "{X}, Sacrifice this enchantment: Destroy each artifact, creature, and enchantment with mana value X or less.",
+        "activatedAbilities": [
+            {
+                "id": "pernicious-deed-ability",
+                "oracleText": "{X}, Sacrifice this enchantment: Destroy each artifact, creature, and enchantment with mana value X or less.",
+                "cost": {
+                    "mana": {
+                        "X": "X"
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "filter": {
+                                "type": [
+                                    "Artifact",
+                                    "Creature",
+                                    "Enchantment"
+                                ]
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "if",
+                                "predicate": {
+                                    "left": {
+                                        "manaValue": {
+                                            "of": {
+                                                "ref": "$each"
+                                            }
+                                        }
+                                    },
+                                    "op": "le",
+                                    "right": {
+                                        "X": true
+                                    }
+                                },
+                                "then": [
+                                    {
+                                        "op": "destroy",
+                                        "target": {
+                                            "ref": "$each"
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "ae4cbb33-4947-49f0-b612-a92141fbfaa6",
+        "rarity": "rare"
+    },
+    {
         "name": "Elvish Scrapper",
         "types": [
             "Creature"
@@ -92917,6 +93535,59 @@
             "hexproof"
         ],
         "id": "b1f00799-80ce-431e-97bb-8bb4e0e8ba49",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Nova Cleric",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Cleric"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "{2}{W}, {T}, Sacrifice this creature: Destroy all enchantments.",
+        "activatedAbilities": [
+            {
+                "id": "nova-cleric-ability",
+                "oracleText": "{2}{W}, {T}, Sacrifice this creature: Destroy all enchantments.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "W": 1
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "filter": {
+                                "type": "Enchantment"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "destroy",
+                                "target": {
+                                    "ref": "$each"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "b2048d84-b5e6-405c-9091-1997a0c4e1a5",
         "rarity": "uncommon"
     },
     {
@@ -110669,6 +111340,39 @@
         "rarity": "rare"
     },
     {
+        "name": "Tempest of Light",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "Destroy all enchantments.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "filter": {
+                        "type": "Enchantment"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "ref": "$each"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "d5cd05d7-eb2d-489d-ad1c-5527d3336a6d",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Unhallowed Phalanx",
         "types": [
             "Creature"
@@ -119522,6 +120226,39 @@
         "rarity": "common"
     },
     {
+        "name": "Back to Nature",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "oracleText": "Destroy all enchantments.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "filter": {
+                        "type": "Enchantment"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "ref": "$each"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "e7af9ebf-8935-4107-aacd-4c643b68cb6e",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Manor Skeleton",
         "types": [
             "Creature"
@@ -124846,6 +125583,56 @@
             }
         ],
         "id": "f333a7b1-936e-42f3-ba22-2c76dd2f1c9a",
+        "rarity": "common"
+    },
+    {
+        "name": "Silt Crawler",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Beast"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "When this creature enters, tap all lands you control.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "silt-crawler-trigger",
+                "oracleText": "When this creature enters, tap all lands you control.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Land"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "tapUntap",
+                                "action": "tap",
+                                "target": {
+                                    "ref": "$each"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "f334e864-4e62-4bc3-9470-661be3d879e2",
         "rarity": "common"
     },
     {
@@ -130384,6 +131171,63 @@
         ],
         "id": "fea393a4-58c8-4a42-bd95-a3312504f2e2",
         "rarity": "common"
+    },
+    {
+        "name": "Magus of the Disk",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 2
+        },
+        "power": 2,
+        "toughness": 4,
+        "oracleText": "This creature enters tapped.\n{1}, {T}: Destroy all artifacts, creatures, and enchantments.",
+        "activatedAbilities": [
+            {
+                "id": "magus-of-the-disk-ability",
+                "oracleText": "{1}, {T}: Destroy all artifacts, creatures, and enchantments.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "filter": {
+                                "type": [
+                                    "Artifact",
+                                    "Creature",
+                                    "Enchantment"
+                                ]
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "destroy",
+                                "target": {
+                                    "ref": "$each"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "entersTapped": true,
+        "id": "febbea40-74c7-431f-a88f-c15d4fdda89d",
+        "rarity": "rare"
     },
     {
         "name": "Darkthicket Wolf",

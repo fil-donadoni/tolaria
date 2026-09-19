@@ -60,6 +60,7 @@ import {
     assembleSentences,
     assemblyTrace,
     capitalise,
+    kickedInsteadSentenceRule,
     optionalSentenceRule,
     sentenceRule,
     sourcePronounListRule,
@@ -83,7 +84,9 @@ const plainSentence: Rule<SentenceIR> = rule(
  * this site and the sentence behind it is capitalised by the rule it wraps —
  * one table, read through one rule, at both casings.
  */
-const triggerSentence: Rule<SentenceIR> = optionalSentenceRule(plainSentence);
+const triggerSentence: Rule<SentenceIR> = kickedInsteadSentenceRule(
+    optionalSentenceRule(plainSentence)
+);
 
 interface TailIR {
     readonly condition?: TriggerConditionIR;
@@ -162,6 +165,22 @@ const triggeredBody: Rule<SlotIR> = rule("triggered body", (span, ctx) => {
     if (parsed.value.tail.boundPronoun && !headNamesSource(parsed.value.head))
         return fail(
             '"it" opens the effect but the trigger\'s subject is not the source',
+            span
+        );
+    // CR 702.33e — "If it was kicked" names the permanent the trigger is
+    // printed on, whose spell was kicked. That is only what "it" means behind a
+    // head that fires on THIS permanent entering; behind "another creature
+    // enters" it would name a different object, and behind "dies" the kicked
+    // fact is read off a permanent that has already left.
+    if (
+        parsed.value.tail.sentences.some((s) => s.role === "kicked-instead") &&
+        !(
+            parsed.value.head.kind === "enters" &&
+            parsed.value.head.scope === "self"
+        )
+    )
+        return fail(
+            '"If it was kicked" needs a head that fires when this permanent enters',
             span
         );
     // CR 602.5 — there is no activation to restrict on a trigger, so a

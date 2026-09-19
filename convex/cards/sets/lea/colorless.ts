@@ -1182,34 +1182,22 @@ export const nevinyrralsDisk: CardDefinition = {
                 "{1}, {T}: Destroy all artifacts, creatures, and enchantments.",
             cost: { tap: true, mana: { X: 1 } },
             useStack: true,
-            // destroyAll → forEach-per-type (CR 701.8). A permanent matching
-            // more than one type (e.g. an artifact creature) is destroyed on
-            // its first pass and skipped on later passes (CR 608.2b).
+            // destroyAll → ONE forEach over the union of the three types
+            // (CR 701.8). A permanent matching more than one type (an artifact
+            // creature) is destroyed ONCE: the earlier one-forEach-per-type
+            // encoding destroyed it again on every later pass, spending a
+            // regeneration shield on the first and killing the permanent on
+            // the second (CR 701.19a). The compiler reads the printed list as
+            // this single sweep (issue #4128), and this is what it writes.
             effects: [
                 {
                     op: "forEach",
                     select: {
                         set: "permanents",
                         zone: "battlefield",
-                        filter: { type: "Artifact" },
-                    },
-                    effects: [{ op: "destroy", target: { ref: "$each" } }],
-                },
-                {
-                    op: "forEach",
-                    select: {
-                        set: "permanents",
-                        zone: "battlefield",
-                        filter: { type: "Creature" },
-                    },
-                    effects: [{ op: "destroy", target: { ref: "$each" } }],
-                },
-                {
-                    op: "forEach",
-                    select: {
-                        set: "permanents",
-                        zone: "battlefield",
-                        filter: { type: "Enchantment" },
+                        filter: {
+                            type: ["Artifact", "Creature", "Enchantment"],
+                        },
                     },
                     effects: [{ op: "destroy", target: { ref: "$each" } }],
                 },

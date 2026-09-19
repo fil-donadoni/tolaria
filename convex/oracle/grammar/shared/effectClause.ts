@@ -45,9 +45,11 @@ import { SELF_MARKER } from "../../normalize";
 import {
     controlsRule,
     kickedConditionRule,
+    kickedPermanentConditionRule,
     type ConditionIR,
     type KickedRefIR,
 } from "./condition";
+import { massSubjectRule, type MassSubjectIR } from "./massSubject";
 import { targetFilterRule } from "./targetFilter";
 import { zoneRefRule, type ZoneRefIR } from "./zoneRef";
 import { CREATURE_SUBTYPES } from "./subtypes";
@@ -91,7 +93,14 @@ export type SubjectIR =
      * put somewhere. Read here, bound by the lowering SITE (a dies trigger,
      * issue #4127); a site that names no card refuses the line.
      */
-    | { readonly kind: "that-card" };
+    | { readonly kind: "that-card" }
+    /**
+     * CR 110.1 — every permanent a descriptor matches, without announcing a
+     * target ("all enchantments"). Read only by the verbs whose lowering fans
+     * out over a sweep (destroy, tap, untap); every other verb keeps reading
+     * `subjectRule` and so never sees one.
+     */
+    | ({ readonly kind: "mass" } & MassSubjectIR);
 
 export type EffectSentenceIR =
     | {
@@ -230,6 +239,20 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 702.33e + CR 608.2c — "<base>. If it was kicked, <replacement>
+           * instead." Two printed sentences, one effect: the second REPLACES the
+           * first when the permanent's spell was kicked, and the first happens
+           * otherwise. Both halves are sweeps of the same verb (the only form
+           * the corpus prints), so neither announces a target and there is no
+           * shared object to keep identical.
+           */
+          readonly kind: "replace-if-kicked";
+          readonly kicked: KickedRefIR;
+          readonly base: EffectSentenceIR;
+          readonly replacement: EffectSentenceIR;
+      }
+    | {
+          /**
            * CR 701.20a / CR 401.4 — "Look at [or Reveal] the top N cards of
            * your library. Put <which> into your hand and the rest <where>."
            *
@@ -356,6 +379,17 @@ export type SentenceIR =
           readonly role: "instead";
           readonly conditions: readonly ConditionIR[];
           readonly body: string;
+      }
+    /**
+     * CR 702.33e — "If it was kicked, <effect> instead": the replacement half of
+     * a `replace-if-kicked`, folded onto the effect in front of it by
+     * `assembleSentences`. `replacement` is already a parsed sentence — the
+     * clause is a full effect in its own right, not a magnitude change.
+     */
+    | {
+          readonly role: "kicked-instead";
+          readonly kicked: KickedRefIR;
+          readonly replacement: EffectSentenceIR;
       };
 
 /**
@@ -466,12 +500,33 @@ export function assembleSentences(
             };
             continue;
         }
+        if (sentence.role === "kicked-instead") {
+            const previous = effects[effects.length - 1];
+            if (previous === undefined)
+                return {
+                    ok: false,
+                    reason: '"… instead" follows no effect it could replace',
+                };
+            const replaced = foldKickedInstead(previous, sentence);
+            if (typeof replaced === "string")
+                return { ok: false, reason: replaced };
+            effects[effects.length - 1] = replaced;
+            continue;
+        }
         if (sentence.role === "modifier") {
             const previous = effects[effects.length - 1];
             if (previous === undefined || previous.kind !== "destroy")
                 return {
                     ok: false,
                     reason: '"It can\'t be regenerated." follows no destroy',
+                };
+            // CR 701.19c — "It" names ONE destroyed object. Behind a sweep the
+            // pronoun has no single referent, so folding it onto the sweep
+            // would forbid regeneration for a set the sentence never named.
+            if (previous.subject.kind === "mass")
+                return {
+                    ok: false,
+                    reason: '"It can\'t be regenerated." follows a sweep, not one object',
                 };
             effects[effects.length - 1] = {
                 ...previous,
@@ -557,6 +612,25 @@ export const subjectRule: Rule<SubjectIR> = rule<SubjectIR>(
         return fail(`"${span}" is not a subject this grammar knows`, span);
     }
 );
+
+/**
+ * The subject of a verb that can act on a SWEEP: a mass subject when the span
+ * opens on "all"/"each" (CR 110.1), else the ordinary subject.
+ *
+ * The two openings are disjoint with every ordinary subject — `subjectRule`
+ * knows "target …", the source phrases and the player table, none of which
+ * starts with either word — so this is a cascade, not a choice.
+ */
+function sweepableSubject(span: string, ctx: unknown) {
+    const probe = uncapitalise(span);
+    if (probe.startsWith("all ") || probe.startsWith("each ")) {
+        const mass = massSubjectRule.run(probe, ctx);
+        return mass.ok
+            ? ok({ kind: "mass" as const, ...mass.value } as SubjectIR)
+            : mass;
+    }
+    return subjectRule.run(span, ctx);
+}
 
 /** Lowercase a sentence-initial capital, leaving the rest of the span alone. */
 export function uncapitalise(span: string): string {
@@ -865,6 +939,75 @@ export const insteadRule: Rule<SentenceIR> = rule<SentenceIR>(
     }
 );
 
+/**
+ * CR 702.33e — pair a sweep with the kicked sweep that replaces it.
+ *
+ * Only a destroy over a mass subject on BOTH sides: that is the whole printed
+ * form (a sweep with a wider reach when kicked), and a replacement of another
+ * verb, or of a single target, would have to say which object it keeps — the
+ * `upgrade-if-controls` machinery for that shape does not apply here, so the
+ * pair is refused rather than lowered to a guess.
+ */
+function foldKickedInstead(
+    previous: EffectSentenceIR,
+    sentence: Extract<SentenceIR, { role: "kicked-instead" }>
+): EffectSentenceIR | string {
+    const replacement = sentence.replacement;
+    if (
+        previous.kind !== "destroy" ||
+        replacement.kind !== "destroy" ||
+        previous.subject.kind !== "mass" ||
+        replacement.subject.kind !== "mass"
+    )
+        return '"If it was kicked, … instead" replaces a sweep with a sweep of the same verb';
+    return {
+        kind: "replace-if-kicked",
+        kicked: sentence.kicked,
+        base: previous,
+        replacement,
+    };
+}
+
+const KICKED_INSTEAD = /^If it was kicked, (.+) instead$/;
+
+/**
+ * Wrap a sentence rule so it also reads CR 702.33e's "If it was kicked,
+ * <effect> instead" — the trigger site's replacement sentence.
+ *
+ * A combinator for the reason `kickedSentenceRule` is one, and the SAME shape:
+ * the head is the condition, the tail is the caller's own sentence, so every
+ * effect the grammar reads is a candidate replacement and `foldKickedInstead`
+ * decides which pairs are one form. Fail-closed like its sibling: a head that
+ * reads as the condition with a tail the sentence grammar cannot parse fails
+ * the whole span, and a restriction or modifier behind it is a line we have
+ * misread.
+ */
+export function kickedInsteadSentenceRule(
+    inner: Rule<SentenceIR>
+): Rule<SentenceIR> {
+    return rule(`kicked instead ${inner.label}`, (span, ctx) => {
+        const match = span.match(KICKED_INSTEAD);
+        if (match === null) return inner.run(span, ctx);
+        const condition = kickedPermanentConditionRule.run(
+            "if it was kicked",
+            ctx
+        );
+        if (!condition.ok) return condition;
+        const parsed = inner.run(capitalise(match[1]!), ctx);
+        if (!parsed.ok) return parsed;
+        if (parsed.value.role !== "effect")
+            return fail(
+                `a kicked replacement is an effect, not a ${parsed.value.role}`,
+                span
+            );
+        return ok({
+            role: "kicked-instead" as const,
+            kicked: condition.value,
+            replacement: parsed.value.effect,
+        });
+    });
+}
+
 const UPGRADE_PUMP = /^that (\w+) gets ([+-]\d+)\/([+-]\d+) (.+)$/;
 const UPGRADE_DAMAGE = /^(.+) deals (\S+) damage$/;
 const UPGRADE_LIFE = /^(you|that player) (gain|gains|lose|loses) (\S+) life$/;
@@ -1094,7 +1237,7 @@ function effectSentence(span: string, ctx: unknown) {
 
     // ── destroy (CR 701.8a) ────────────────────────────────────────────────
     if (span.startsWith("Destroy ")) {
-        const subject = subjectRule.run(span.slice("Destroy ".length), ctx);
+        const subject = sweepableSubject(span.slice("Destroy ".length), ctx);
         if (!subject.ok) return subject;
         return ok({
             kind: "destroy" as const,
@@ -1109,7 +1252,7 @@ function effectSentence(span: string, ctx: unknown) {
         ["Untap ", "untap"],
     ] as const) {
         if (!span.startsWith(verb)) continue;
-        const subject = subjectRule.run(span.slice(verb.length), ctx);
+        const subject = sweepableSubject(span.slice(verb.length), ctx);
         if (!subject.ok) return subject;
         return ok({
             kind: "tap-untap" as const,

@@ -78,12 +78,14 @@ export function lowerActivatedAbility(input: {
 
     const walk = new SentenceWalk();
     const ops: EffectOp[] = [];
+    // CR 107.3 — an activated ability announces X in its ACTIVATION cost, as a
+    // variable `{X}` pip (`readManaCost` writes it as `X: "X"`). Judged here
+    // because it is a fact about the cost, exactly as the spell site judges it
+    // from the printed mana cost.
+    const announcesX = cost.value.mana?.X === "X";
     for (const sentence of input.effects) {
-        // CR 107.3 — an activated ability announces X in its ACTIVATION cost,
-        // which the cost sub-grammar does not yet read as a variable, so no
-        // site here can supply a value for it.
         const result = lowerSentence(sentence, walk, {
-            allowX: false,
+            allowX: announcesX,
             selfName: input.cardName,
         });
         if (!result.ok) return { ok: false, reason: result.reason };
