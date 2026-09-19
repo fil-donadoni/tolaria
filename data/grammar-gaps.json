@@ -58,11 +58,6 @@
             "issue": 3893
         },
         {
-            "key": "(op) › choice",
-            "op": "choice",
-            "issue": 3894
-        },
-        {
             "key": "(op) › chooseCategorized",
             "op": "chooseCategorized",
             "issue": 3895
@@ -106,11 +101,6 @@
             "key": "(op) › digMatchingToHand",
             "op": "digMatchingToHand",
             "issue": 3904
-        },
-        {
-            "key": "(op) › discard",
-            "op": "discard",
-            "issue": 3905
         },
         {
             "key": "(op) › divideIntoPiles",

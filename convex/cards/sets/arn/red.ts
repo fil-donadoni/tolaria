@@ -7,6 +7,7 @@
 // cost) live in colorless.ts.
 
 import type { CardDefinition, TargetSelection } from "../../types";
+import { resolveCompiledStatic } from "../../compiledStatics";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { untapRestriction } from "../../abilities/static/untapRestriction";
 import { tokenPrintIdFor } from "../../tokenPrintLookup";
@@ -105,25 +106,22 @@ export const kirdApe: CardDefinition = {
     subtypes: ["Ape"],
     power: 1,
     toughness: 1,
+    // CR 611.3a / 613.4c — a layer-7c modifier gated on the board, built
+    // through the SAME descriptor path the Oracle compiler emits (issue
+    // #4126). It was a `pt-cda`, which the layer walk applies in 7a — so a
+    // 7b set effect (Humility) erased the bonus it must survive.
     staticEffects: [
-        {
-            // Board-conditional, so a CDA (compute reads the full state) rather
-            // than a flat `pt-buff` (whose predicate can't query the battlefield).
-            kind: "pt-cda",
-            applies: (target, source) => target.id === source.id,
-            compute: (source, state) => {
-                const controlsForest = state.players.some((p) =>
-                    p.battlefield.some(
-                        (c) =>
-                            c.controllerId === source.controllerId &&
-                            c.subtypes.includes("Forest")
-                    )
-                );
-                return controlsForest
-                    ? { power: 1, toughness: 2 }
-                    : { power: 0, toughness: 0 };
+        resolveCompiledStatic({
+            kind: "pt-buff",
+            appliesTo: "self",
+            power: 1,
+            toughness: 2,
+            condition: {
+                kind: "controls",
+                filter: { subtypes: ["Forest"] },
+                atLeast: 1,
             },
-        },
+        }),
     ],
 };
 

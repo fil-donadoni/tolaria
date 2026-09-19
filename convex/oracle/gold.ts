@@ -258,6 +258,15 @@ function withoutTokenDualEncodings(value: unknown): unknown {
     const out: Record<string, unknown> = {};
     for (const [key, inner] of Object.entries(value as Record<string, unknown>))
         out[key] = withoutTokenDualEncodings(inner);
+    // An Op's `prompt` is the string a player READS ("Discard a card
+    // (Traumatic Critique).", "Attunement: discard four cards.") — display
+    // text, like an ability's `oracleText`, never read to decide. A `choice`
+    // Op's `id` is its pending-choice handle, defaulting to its `bind`
+    // (`interpreter.ts`: `op.id ?? op.bind`) — wiring, compared no more than
+    // the binding names `alphaRenameBindings` folds (issue #4126).
+    if (typeof out.op === "string" && typeof out.prompt === "string")
+        delete out.prompt;
+    if (out.op === "choice") delete out.id;
     if (out.op !== "createToken") return out;
     if (out.count === 1) delete out.count;
     const token = out.token as Record<string, unknown> | undefined;

@@ -9,6 +9,7 @@
 
 import type { CardDefinition, ManaCost, SpellContext } from "../../types";
 import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
+import { resolveCompiledStatic } from "../../compiledStatics";
 import { legalTargetSlots } from "../../types";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
@@ -1018,24 +1019,22 @@ export const sedgeTroll: CardDefinition = {
     subtypes: ["Troll"],
     power: 2,
     toughness: 2,
+    // CR 611.3a / 613.4c — a layer-7c modifier gated on the board, built
+    // through the SAME descriptor path the Oracle compiler emits (issue
+    // #4126). It was a `pt-cda`, which the layer walk applies in 7a — so a
+    // 7b set effect (Humility) erased the bonus it must survive.
     staticEffects: [
-        {
-            kind: "pt-cda",
-            applies: EFFECT_AFFECTS_SELF,
-            compute: (source, state) => {
-                for (const player of state.players) {
-                    for (const p of player.battlefield) {
-                        if (
-                            p.controllerId === source.controllerId &&
-                            p.subtypes.includes("Swamp")
-                        ) {
-                            return { power: 1, toughness: 1 };
-                        }
-                    }
-                }
-                return { power: 0, toughness: 0 };
+        resolveCompiledStatic({
+            kind: "pt-buff",
+            appliesTo: "self",
+            power: 1,
+            toughness: 1,
+            condition: {
+                kind: "controls",
+                filter: { subtypes: ["Swamp"] },
+                atLeast: 1,
             },
-        },
+        }),
     ],
     activatedAbilities: [
         {

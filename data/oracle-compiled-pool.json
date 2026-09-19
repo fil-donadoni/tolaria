@@ -923,6 +923,65 @@
         "rarity": "common"
     },
     {
+        "name": "Prized Elephant",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elephant"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "This creature gets +1/+1 as long as you control a Forest.\n{G}: This creature gains trample until end of turn. (It can deal excess combat damage to the player or planeswalker it's attacking.)",
+        "activatedAbilities": [
+            {
+                "id": "prized-elephant-ability",
+                "oracleText": "{G}: This creature gains trample until end of turn.",
+                "cost": {
+                    "mana": {
+                        "G": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "ability": "trample",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "self",
+                "power": 1,
+                "toughness": 1,
+                "condition": {
+                    "kind": "controls",
+                    "filter": {
+                        "subtypes": [
+                            "Forest"
+                        ]
+                    },
+                    "atLeast": 1
+                }
+            }
+        ],
+        "id": "01597ede-94e7-44a4-93c2-7fd1db11e92a",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Magmaw",
         "types": [
             "Creature"
@@ -1749,6 +1808,62 @@
             }
         ],
         "id": "02eedf9d-e26c-405c-aee5-1b3493dc5e9b",
+        "rarity": "common"
+    },
+    {
+        "name": "Erratic Visionary",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 3,
+        "oracleText": "{1}{U}, {T}: Draw a card, then discard a card.",
+        "activatedAbilities": [
+            {
+                "id": "erratic-visionary-ability",
+                "oracleText": "{1}{U}, {T}: Draw a card, then discard a card.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "U": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "03188bc3-0ef1-40cd-9c3c-4bb4d806fb92",
         "rarity": "common"
     },
     {
@@ -4002,6 +4117,69 @@
         "rarity": "common"
     },
     {
+        "name": "Arctic Aven",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Bird",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "Flying\nThis creature gets +1/+1 as long as you control a Plains.\n{W}: This creature gains lifelink until end of turn. (Damage dealt by this creature also causes you to gain that much life.)",
+        "staticAbilities": [
+            "flying"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "arctic-aven-ability",
+                "oracleText": "{W}: This creature gains lifelink until end of turn.",
+                "cost": {
+                    "mana": {
+                        "W": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "ability": "lifelink",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "self",
+                "power": 1,
+                "toughness": 1,
+                "condition": {
+                    "kind": "controls",
+                    "filter": {
+                        "subtypes": [
+                            "Plains"
+                        ]
+                    },
+                    "atLeast": 1
+                }
+            }
+        ],
+        "id": "06f6aab1-c400-4d87-b68e-f36552e7417f",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Virulent Emissary",
         "types": [
             "Creature"
@@ -5445,6 +5623,65 @@
             }
         ],
         "id": "0976a193-463a-4bcb-a951-ca73347a5572",
+        "rarity": "common"
+    },
+    {
+        "name": "Minotaur Tactician",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Minotaur"
+        ],
+        "manaCost": {
+            "X": 3,
+            "R": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Haste\nThis creature gets +1/+1 as long as you control a white creature.\nThis creature gets +1/+1 as long as you control a blue creature.",
+        "staticAbilities": [
+            "haste"
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "self",
+                "power": 1,
+                "toughness": 1,
+                "condition": {
+                    "kind": "controls",
+                    "filter": {
+                        "types": [
+                            "Creature"
+                        ],
+                        "colors": [
+                            "W"
+                        ]
+                    },
+                    "atLeast": 1
+                }
+            },
+            {
+                "kind": "pt-buff",
+                "appliesTo": "self",
+                "power": 1,
+                "toughness": 1,
+                "condition": {
+                    "kind": "controls",
+                    "filter": {
+                        "types": [
+                            "Creature"
+                        ],
+                        "colors": [
+                            "U"
+                        ]
+                    },
+                    "atLeast": 1
+                }
+            }
+        ],
+        "id": "097decb6-03bd-4a84-ab9a-75becf85cae8",
         "rarity": "common"
     },
     {
@@ -8645,6 +8882,58 @@
         "rarity": "common"
     },
     {
+        "name": "Merfolk Looter",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Merfolk",
+            "Rogue"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{T}: Draw a card, then discard a card.",
+        "activatedAbilities": [
+            {
+                "id": "merfolk-looter-ability",
+                "oracleText": "{T}: Draw a card, then discard a card.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "0fbb1c41-388f-4ff2-af37-ad64a0f4618e",
+        "rarity": "common"
+    },
+    {
         "name": "Fetid Heath",
         "types": [
             "Land"
@@ -10010,6 +10299,104 @@
             "count": 1
         },
         "id": "11cb3a5b-beee-4f53-a6b5-e9b5603546fa",
+        "rarity": "common"
+    },
+    {
+        "name": "Nightfire Giant",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Zombie",
+            "Giant"
+        ],
+        "manaCost": {
+            "X": 4,
+            "B": 1
+        },
+        "power": 4,
+        "toughness": 3,
+        "oracleText": "This creature gets +1/+1 as long as you control a Mountain.\n{4}{R}: This creature deals 2 damage to any target.",
+        "activatedAbilities": [
+            {
+                "id": "nightfire-giant-ability",
+                "oracleText": "{4}{R}: This creature deals 2 damage to any target.",
+                "cost": {
+                    "mana": {
+                        "X": 4,
+                        "R": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 2,
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "self",
+                "power": 1,
+                "toughness": 1,
+                "condition": {
+                    "kind": "controls",
+                    "filter": {
+                        "subtypes": [
+                            "Mountain"
+                        ]
+                    },
+                    "atLeast": 1
+                }
+            }
+        ],
+        "id": "11da48a7-903d-43f5-8085-1b3790ed079a",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Prying Eyes",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 4,
+            "U": 2
+        },
+        "oracleText": "Draw four cards, then discard two cards.",
+        "effects": [
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 4
+            },
+            {
+                "op": "choice",
+                "kind": "choose-hand-card",
+                "player": "controller",
+                "zone": "hand",
+                "count": 2,
+                "prompt": "Discard two cards.",
+                "bind": "$discard1"
+            },
+            {
+                "op": "discard",
+                "player": "controller",
+                "cards": {
+                    "ref": "$discard1"
+                }
+            }
+        ],
+        "id": "11ee2c64-68f1-434b-8092-ae80d6575666",
         "rarity": "common"
     },
     {
@@ -12655,6 +13042,64 @@
         ],
         "id": "16debeb1-fb2b-4172-b6da-726416d4fb38",
         "rarity": "common"
+    },
+    {
+        "name": "Desolate Lighthouse",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {C}.\n{1}{U}{R}, {T}: Draw a card, then discard a card.",
+        "activatedAbilities": [
+            {
+                "id": "desolate-lighthouse-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "desolate-lighthouse-ability-2",
+                "oracleText": "{1}{U}{R}, {T}: Draw a card, then discard a card.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "U": 1,
+                        "R": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "16fb45bc-6152-4b01-9831-a8e80b1c1852",
+        "rarity": "rare"
     },
     {
         "name": "Insatiable Souleater",
@@ -16578,6 +17023,44 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Gearsmith Guardian",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Construct"
+        ],
+        "manaCost": {
+            "X": 5
+        },
+        "power": 3,
+        "toughness": 5,
+        "oracleText": "This creature gets +2/+0 as long as you control a blue creature.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "self",
+                "power": 2,
+                "toughness": 0,
+                "condition": {
+                    "kind": "controls",
+                    "filter": {
+                        "types": [
+                            "Creature"
+                        ],
+                        "colors": [
+                            "U"
+                        ]
+                    },
+                    "atLeast": 1
+                }
+            }
+        ],
+        "id": "1d532b01-8bf7-4a27-a438-db03bcd00694",
+        "rarity": "common"
+    },
+    {
         "name": "Moorland Haunt",
         "types": [
             "Land"
@@ -18453,6 +18936,42 @@
         "rarity": "common"
     },
     {
+        "name": "Enhanced Awareness",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 4,
+            "U": 1
+        },
+        "oracleText": "Draw three cards, then discard a card.",
+        "effects": [
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 3
+            },
+            {
+                "op": "choice",
+                "kind": "choose-hand-card",
+                "player": "controller",
+                "zone": "hand",
+                "count": 1,
+                "prompt": "Discard a card.",
+                "bind": "$discard1"
+            },
+            {
+                "op": "discard",
+                "player": "controller",
+                "cards": {
+                    "ref": "$discard1"
+                }
+            }
+        ],
+        "id": "21df7db7-c23b-4dca-b9c8-c785d7007285",
+        "rarity": "common"
+    },
+    {
         "name": "Gavony Unhallowed",
         "types": [
             "Creature"
@@ -18899,6 +19418,57 @@
             }
         ],
         "id": "22dcf40c-62fb-4205-807e-71655066a61b",
+        "rarity": "common"
+    },
+    {
+        "name": "Hapless Researcher",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Sacrifice this creature: Draw a card, then discard a card.",
+        "activatedAbilities": [
+            {
+                "id": "hapless-researcher-ability",
+                "oracleText": "Sacrifice this creature: Draw a card, then discard a card.",
+                "cost": {
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "22ed0ee7-6749-4f38-8e53-c11b46b17e5d",
         "rarity": "common"
     },
     {
@@ -22588,6 +23158,62 @@
         "rarity": "common"
     },
     {
+        "name": "Hedge Troll",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Troll",
+            "Cleric"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "This creature gets +1/+1 as long as you control a Plains.\n{W}: Regenerate this creature.",
+        "activatedAbilities": [
+            {
+                "id": "hedge-troll-ability",
+                "oracleText": "{W}: Regenerate this creature.",
+                "cost": {
+                    "mana": {
+                        "W": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "ref": "$source"
+                        }
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "self",
+                "power": 1,
+                "toughness": 1,
+                "condition": {
+                    "kind": "controls",
+                    "filter": {
+                        "subtypes": [
+                            "Plains"
+                        ]
+                    },
+                    "atLeast": 1
+                }
+            }
+        ],
+        "id": "2b2e6027-598d-4ba0-93ae-f76d031de8af",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Battlegrowth",
         "types": [
             "Instant"
@@ -25975,6 +26601,42 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Catalog",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1
+        },
+        "oracleText": "Draw two cards, then discard a card.",
+        "effects": [
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 2
+            },
+            {
+                "op": "choice",
+                "kind": "choose-hand-card",
+                "player": "controller",
+                "zone": "hand",
+                "count": 1,
+                "prompt": "Discard a card.",
+                "bind": "$discard1"
+            },
+            {
+                "op": "discard",
+                "player": "controller",
+                "cards": {
+                    "ref": "$discard1"
+                }
+            }
+        ],
+        "id": "31bdef28-0e27-4c8d-a04c-5413519dcb4e",
+        "rarity": "common"
+    },
+    {
         "name": "Gore Swine",
         "types": [
             "Creature"
@@ -26622,6 +27284,173 @@
         "rarity": "common"
     },
     {
+        "name": "Ceta Sanctuary",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1
+        },
+        "oracleText": "At the beginning of your upkeep, if you control a red or green permanent, draw a card, then discard a card. If you control a red permanent and a green permanent, instead draw two cards, then discard a card.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "ceta-sanctuary-trigger",
+                "oracleText": "At the beginning of your upkeep, if you control a red or green permanent, draw a card, then discard a card. If you control a red permanent and a green permanent, instead draw two cards, then discard a card.",
+                "head": {
+                    "kind": "phase",
+                    "phase": "UPKEEP",
+                    "scope": "your"
+                },
+                "condition": {
+                    "kind": "controls",
+                    "filter": {
+                        "types": [
+                            "Artifact",
+                            "Battle",
+                            "Creature",
+                            "Enchantment",
+                            "Land",
+                            "Planeswalker"
+                        ],
+                        "colors": [
+                            "R",
+                            "G"
+                        ]
+                    },
+                    "atLeast": 1
+                },
+                "effects": [
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "left": {
+                                "count": {
+                                    "zone": "battlefield",
+                                    "controller": "controller",
+                                    "filter": {
+                                        "type": [
+                                            "Artifact",
+                                            "Battle",
+                                            "Creature",
+                                            "Enchantment",
+                                            "Land",
+                                            "Planeswalker"
+                                        ],
+                                        "color": [
+                                            "R"
+                                        ]
+                                    }
+                                }
+                            },
+                            "op": "ge",
+                            "right": 1
+                        },
+                        "then": [
+                            {
+                                "op": "if",
+                                "predicate": {
+                                    "left": {
+                                        "count": {
+                                            "zone": "battlefield",
+                                            "controller": "controller",
+                                            "filter": {
+                                                "type": [
+                                                    "Artifact",
+                                                    "Battle",
+                                                    "Creature",
+                                                    "Enchantment",
+                                                    "Land",
+                                                    "Planeswalker"
+                                                ],
+                                                "color": [
+                                                    "G"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "op": "ge",
+                                    "right": 1
+                                },
+                                "then": [
+                                    {
+                                        "op": "draw",
+                                        "player": "controller",
+                                        "count": 2
+                                    },
+                                    {
+                                        "op": "choice",
+                                        "kind": "choose-hand-card",
+                                        "player": "controller",
+                                        "zone": "hand",
+                                        "count": 1,
+                                        "prompt": "Discard a card.",
+                                        "bind": "$discard2"
+                                    },
+                                    {
+                                        "op": "discard",
+                                        "player": "controller",
+                                        "cards": {
+                                            "ref": "$discard2"
+                                        }
+                                    }
+                                ],
+                                "else": [
+                                    {
+                                        "op": "draw",
+                                        "player": "controller",
+                                        "count": 1
+                                    },
+                                    {
+                                        "op": "choice",
+                                        "kind": "choose-hand-card",
+                                        "player": "controller",
+                                        "zone": "hand",
+                                        "count": 1,
+                                        "prompt": "Discard a card.",
+                                        "bind": "$discard1"
+                                    },
+                                    {
+                                        "op": "discard",
+                                        "player": "controller",
+                                        "cards": {
+                                            "ref": "$discard1"
+                                        }
+                                    }
+                                ]
+                            }
+                        ],
+                        "else": [
+                            {
+                                "op": "draw",
+                                "player": "controller",
+                                "count": 1
+                            },
+                            {
+                                "op": "choice",
+                                "kind": "choose-hand-card",
+                                "player": "controller",
+                                "zone": "hand",
+                                "count": 1,
+                                "prompt": "Discard a card.",
+                                "bind": "$discard1"
+                            },
+                            {
+                                "op": "discard",
+                                "player": "controller",
+                                "cards": {
+                                    "ref": "$discard1"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "32cec6f3-295a-45e3-8466-e35fb043a596",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Jade Mage",
         "types": [
             "Creature"
@@ -26961,6 +27790,56 @@
         ],
         "id": "334bbd9d-3549-4352-9635-d772aab28503",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Unfulfilled Desires",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1,
+            "B": 1
+        },
+        "oracleText": "{1}, Pay 1 life: Draw a card, then discard a card.",
+        "activatedAbilities": [
+            {
+                "id": "unfulfilled-desires-ability",
+                "oracleText": "{1}, Pay 1 life: Draw a card, then discard a card.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "life": 1
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "3389d6c7-2a8a-48d6-a09d-aa195d830576",
+        "rarity": "rare"
     },
     {
         "name": "Lathnu Sailback",
@@ -33468,6 +34347,42 @@
         "rarity": "common"
     },
     {
+        "name": "Rain of Revelation",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 1
+        },
+        "oracleText": "Draw three cards, then discard a card.",
+        "effects": [
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 3
+            },
+            {
+                "op": "choice",
+                "kind": "choose-hand-card",
+                "player": "controller",
+                "zone": "hand",
+                "count": 1,
+                "prompt": "Discard a card.",
+                "bind": "$discard1"
+            },
+            {
+                "op": "discard",
+                "player": "controller",
+                "cards": {
+                    "ref": "$discard1"
+                }
+            }
+        ],
+        "id": "42230b38-c81a-4d76-ad17-1166f5f62312",
+        "rarity": "common"
+    },
+    {
         "name": "Ankle Biter",
         "types": [
             "Creature"
@@ -33943,6 +34858,44 @@
             }
         ],
         "id": "4304abfe-3c81-4053-a398-574cfac613a7",
+        "rarity": "common"
+    },
+    {
+        "name": "Foundry Screecher",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Bat"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "Flying\nThis creature gets +1/+0 as long as you control an artifact.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "self",
+                "power": 1,
+                "toughness": 0,
+                "condition": {
+                    "kind": "controls",
+                    "filter": {
+                        "types": [
+                            "Artifact"
+                        ]
+                    },
+                    "atLeast": 1
+                }
+            }
+        ],
+        "id": "4313802f-b969-47d0-b4aa-b049df0755c0",
         "rarity": "common"
     },
     {
@@ -35666,6 +36619,64 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Frontline Sage",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1
+        },
+        "power": 0,
+        "toughness": 1,
+        "oracleText": "Exalted (Whenever a creature you control attacks alone, that creature gets +1/+1 until end of turn.)\n{U}, {T}: Draw a card, then discard a card.",
+        "staticAbilities": [
+            "exalted"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "frontline-sage-ability",
+                "oracleText": "{U}, {T}: Draw a card, then discard a card.",
+                "cost": {
+                    "mana": {
+                        "U": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "46acbabc-9d0a-4fba-9604-7d131c22cdeb",
+        "rarity": "common"
+    },
+    {
         "name": "Kraul Stinger",
         "types": [
             "Creature"
@@ -36457,6 +37468,62 @@
             "deathtouch"
         ],
         "id": "482f169d-8acd-4ee3-a54c-6df6cbeb7eca",
+        "rarity": "common"
+    },
+    {
+        "name": "Bloodfire Mentor",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Efreet",
+            "Shaman"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "power": 0,
+        "toughness": 5,
+        "oracleText": "{2}{U}, {T}: Draw a card, then discard a card.",
+        "activatedAbilities": [
+            {
+                "id": "bloodfire-mentor-ability",
+                "oracleText": "{2}{U}, {T}: Draw a card, then discard a card.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "U": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "4836fb70-a8f3-44ed-bae4-890ef7d07f88",
         "rarity": "common"
     },
     {
@@ -37786,6 +38853,62 @@
             }
         ],
         "id": "4ab1601c-634c-4f21-8926-ba3cb92008c1",
+        "rarity": "common"
+    },
+    {
+        "name": "Research Assistant",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 3,
+        "oracleText": "{3}{U}, {T}: Draw a card, then discard a card.",
+        "activatedAbilities": [
+            {
+                "id": "research-assistant-ability",
+                "oracleText": "{3}{U}, {T}: Draw a card, then discard a card.",
+                "cost": {
+                    "mana": {
+                        "X": 3,
+                        "U": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "4ac8a7c0-d935-4a60-ac32-dde73f5c75da",
         "rarity": "common"
     },
     {
@@ -39425,6 +40548,40 @@
         "toughness": 2,
         "id": "4ebf3a7c-e065-468b-a73c-6f986cde3a3d",
         "rarity": "common"
+    },
+    {
+        "name": "Loam Lion",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Cat"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "This creature gets +1/+2 as long as you control a Forest.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "self",
+                "power": 1,
+                "toughness": 2,
+                "condition": {
+                    "kind": "controls",
+                    "filter": {
+                        "subtypes": [
+                            "Forest"
+                        ]
+                    },
+                    "atLeast": 1
+                }
+            }
+        ],
+        "id": "4edfbb5f-6cb4-4971-b159-ee5f875ba260",
+        "rarity": "uncommon"
     },
     {
         "name": "Striking Sliver",
@@ -41865,6 +43022,62 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Teferi's Protege",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1
+        },
+        "power": 2,
+        "toughness": 3,
+        "oracleText": "{1}{U}, {T}: Draw a card, then discard a card.",
+        "activatedAbilities": [
+            {
+                "id": "teferi-s-protege-ability",
+                "oracleText": "{1}{U}, {T}: Draw a card, then discard a card.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "U": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "5449d71c-5c1b-44c6-9407-0212aa3c3e3a",
+        "rarity": "common"
+    },
+    {
         "name": "Silverclaw Griffin",
         "types": [
             "Creature"
@@ -43609,6 +44822,61 @@
         "rarity": "common"
     },
     {
+        "name": "Dragonborn Looter",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dragon",
+            "Rogue"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "{1}, {T}: Draw a card, then discard a card.",
+        "activatedAbilities": [
+            {
+                "id": "dragonborn-looter-ability",
+                "oracleText": "{1}, {T}: Draw a card, then discard a card.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "570e8aaa-5273-42f4-b151-51976ab7730c",
+        "rarity": "common"
+    },
+    {
         "name": "Phyrexian Monitor",
         "types": [
             "Creature"
@@ -43719,6 +44987,65 @@
         ],
         "id": "572c15ab-2229-4536-b586-638ec77d9cb7",
         "rarity": "common"
+    },
+    {
+        "name": "Locke Cole",
+        "types": [
+            "Creature"
+        ],
+        "supertypes": [
+            "Legendary"
+        ],
+        "subtypes": [
+            "Human",
+            "Rogue"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1,
+            "B": 1
+        },
+        "power": 2,
+        "toughness": 3,
+        "oracleText": "Deathtouch, lifelink\nWhenever Locke Cole deals combat damage to a player, draw a card, then discard a card.",
+        "staticAbilities": [
+            "deathtouch",
+            "lifelink"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "locke-cole-trigger",
+                "oracleText": "Whenever {self} deals combat damage to a player, draw a card, then discard a card.",
+                "head": {
+                    "kind": "combat-damage-to-player"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "572feb8c-6976-40a8-8a34-b4db836cca56",
+        "rarity": "uncommon"
     },
     {
         "name": "Aven Fleetwing",
@@ -44647,6 +45974,135 @@
         ],
         "id": "5a0385d5-d0f4-40b8-af28-6557ffdfb625",
         "rarity": "common"
+    },
+    {
+        "name": "Necra Sanctuary",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "oracleText": "At the beginning of your upkeep, if you control a green or white permanent, target player loses 1 life. If you control a green permanent and a white permanent, that player loses 3 life instead.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "necra-sanctuary-trigger",
+                "oracleText": "At the beginning of your upkeep, if you control a green or white permanent, target player loses 1 life. If you control a green permanent and a white permanent, that player loses 3 life instead.",
+                "head": {
+                    "kind": "phase",
+                    "phase": "UPKEEP",
+                    "scope": "your"
+                },
+                "condition": {
+                    "kind": "controls",
+                    "filter": {
+                        "types": [
+                            "Artifact",
+                            "Battle",
+                            "Creature",
+                            "Enchantment",
+                            "Land",
+                            "Planeswalker"
+                        ],
+                        "colors": [
+                            "G",
+                            "W"
+                        ]
+                    },
+                    "atLeast": 1
+                },
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "left": {
+                                "count": {
+                                    "zone": "battlefield",
+                                    "controller": "controller",
+                                    "filter": {
+                                        "type": [
+                                            "Artifact",
+                                            "Battle",
+                                            "Creature",
+                                            "Enchantment",
+                                            "Land",
+                                            "Planeswalker"
+                                        ],
+                                        "color": [
+                                            "G"
+                                        ]
+                                    }
+                                }
+                            },
+                            "op": "ge",
+                            "right": 1
+                        },
+                        "then": [
+                            {
+                                "op": "if",
+                                "predicate": {
+                                    "left": {
+                                        "count": {
+                                            "zone": "battlefield",
+                                            "controller": "controller",
+                                            "filter": {
+                                                "type": [
+                                                    "Artifact",
+                                                    "Battle",
+                                                    "Creature",
+                                                    "Enchantment",
+                                                    "Land",
+                                                    "Planeswalker"
+                                                ],
+                                                "color": [
+                                                    "W"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "op": "ge",
+                                    "right": 1
+                                },
+                                "then": [
+                                    {
+                                        "op": "loseLife",
+                                        "player": {
+                                            "target": 0
+                                        },
+                                        "amount": 3
+                                    }
+                                ],
+                                "else": [
+                                    {
+                                        "op": "loseLife",
+                                        "player": {
+                                            "target": 0
+                                        },
+                                        "amount": 1
+                                    }
+                                ]
+                            }
+                        ],
+                        "else": [
+                            {
+                                "op": "loseLife",
+                                "player": {
+                                    "target": 0
+                                },
+                                "amount": 1
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "5a0bf165-d7eb-4ae6-b30a-4e9fd55f401d",
+        "rarity": "uncommon"
     },
     {
         "name": "Gavony Trapper",
@@ -45973,6 +47429,60 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Sky-Eel School",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Fish"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 2
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "Flying\nWhen this creature enters, draw a card, then discard a card.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "sky-eel-school-trigger",
+                "oracleText": "When this creature enters, draw a card, then discard a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "5cfc4db7-13b5-4c88-91f2-581c9792f1ff",
+        "rarity": "common"
+    },
+    {
         "name": "Nimbus of the Isles",
         "types": [
             "Creature"
@@ -47201,6 +48711,56 @@
             }
         ],
         "id": "5e9ffd83-b5c9-46b4-bc5a-172ca34ddc79",
+        "rarity": "common"
+    },
+    {
+        "name": "Wild Nacatl",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Cat",
+            "Warrior"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "This creature gets +1/+1 as long as you control a Mountain.\nThis creature gets +1/+1 as long as you control a Plains.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "self",
+                "power": 1,
+                "toughness": 1,
+                "condition": {
+                    "kind": "controls",
+                    "filter": {
+                        "subtypes": [
+                            "Mountain"
+                        ]
+                    },
+                    "atLeast": 1
+                }
+            },
+            {
+                "kind": "pt-buff",
+                "appliesTo": "self",
+                "power": 1,
+                "toughness": 1,
+                "condition": {
+                    "kind": "controls",
+                    "filter": {
+                        "subtypes": [
+                            "Plains"
+                        ]
+                    },
+                    "atLeast": 1
+                }
+            }
+        ],
+        "id": "5eb18038-eb6a-4d27-ba52-52a1cee6b512",
         "rarity": "common"
     },
     {
@@ -48844,6 +50404,42 @@
         "rarity": "common"
     },
     {
+        "name": "Ancestral Reminiscence",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 1
+        },
+        "oracleText": "Draw three cards, then discard a card.",
+        "effects": [
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 3
+            },
+            {
+                "op": "choice",
+                "kind": "choose-hand-card",
+                "player": "controller",
+                "zone": "hand",
+                "count": 1,
+                "prompt": "Discard a card.",
+                "bind": "$discard1"
+            },
+            {
+                "op": "discard",
+                "player": "controller",
+                "cards": {
+                    "ref": "$discard1"
+                }
+            }
+        ],
+        "id": "625690d3-7131-45de-adea-9c927241e661",
+        "rarity": "common"
+    },
+    {
         "name": "Ogre Menial",
         "types": [
             "Creature"
@@ -49074,6 +50670,135 @@
         },
         "id": "62ba90b8-3a30-4058-b8d3-72900b1f4fe0",
         "rarity": "common"
+    },
+    {
+        "name": "Raka Sanctuary",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "oracleText": "At the beginning of your upkeep, if you control a white or blue permanent, this enchantment deals 1 damage to target creature. If you control a white permanent and a blue permanent, this enchantment deals 3 damage instead.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "raka-sanctuary-trigger",
+                "oracleText": "At the beginning of your upkeep, if you control a white or blue permanent, this enchantment deals 1 damage to target creature. If you control a white permanent and a blue permanent, this enchantment deals 3 damage instead.",
+                "head": {
+                    "kind": "phase",
+                    "phase": "UPKEEP",
+                    "scope": "your"
+                },
+                "condition": {
+                    "kind": "controls",
+                    "filter": {
+                        "types": [
+                            "Artifact",
+                            "Battle",
+                            "Creature",
+                            "Enchantment",
+                            "Land",
+                            "Planeswalker"
+                        ],
+                        "colors": [
+                            "W",
+                            "U"
+                        ]
+                    },
+                    "atLeast": 1
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "left": {
+                                "count": {
+                                    "zone": "battlefield",
+                                    "controller": "controller",
+                                    "filter": {
+                                        "type": [
+                                            "Artifact",
+                                            "Battle",
+                                            "Creature",
+                                            "Enchantment",
+                                            "Land",
+                                            "Planeswalker"
+                                        ],
+                                        "color": [
+                                            "W"
+                                        ]
+                                    }
+                                }
+                            },
+                            "op": "ge",
+                            "right": 1
+                        },
+                        "then": [
+                            {
+                                "op": "if",
+                                "predicate": {
+                                    "left": {
+                                        "count": {
+                                            "zone": "battlefield",
+                                            "controller": "controller",
+                                            "filter": {
+                                                "type": [
+                                                    "Artifact",
+                                                    "Battle",
+                                                    "Creature",
+                                                    "Enchantment",
+                                                    "Land",
+                                                    "Planeswalker"
+                                                ],
+                                                "color": [
+                                                    "U"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "op": "ge",
+                                    "right": 1
+                                },
+                                "then": [
+                                    {
+                                        "op": "dealDamage",
+                                        "amount": 3,
+                                        "to": {
+                                            "target": 0
+                                        }
+                                    }
+                                ],
+                                "else": [
+                                    {
+                                        "op": "dealDamage",
+                                        "amount": 1,
+                                        "to": {
+                                            "target": 0
+                                        }
+                                    }
+                                ]
+                            }
+                        ],
+                        "else": [
+                            {
+                                "op": "dealDamage",
+                                "amount": 1,
+                                "to": {
+                                    "target": 0
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "62cab0be-589c-42a0-a297-1faaec46c73f",
+        "rarity": "uncommon"
     },
     {
         "name": "Soulbound Guardians",
@@ -54348,6 +56073,60 @@
         "rarity": "common"
     },
     {
+        "name": "Screeching Drake",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Drake"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Flying\nWhen this creature enters, draw a card, then discard a card.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "screeching-drake-trigger",
+                "oracleText": "When this creature enters, draw a card, then discard a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "6c16faac-b093-425b-b1e9-f71602d2f6dd",
+        "rarity": "common"
+    },
+    {
         "name": "Cabaretti Initiate",
         "types": [
             "Creature"
@@ -55340,6 +57119,60 @@
             ]
         },
         "id": "6e19acff-f3dd-417a-a9ab-ea3e36c1ba61",
+        "rarity": "common"
+    },
+    {
+        "name": "A-Dragonborn Looter",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dragon",
+            "Rogue"
+        ],
+        "manaCost": {
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "{1}, {T}: Draw a card, then discard a card.",
+        "activatedAbilities": [
+            {
+                "id": "a-dragonborn-looter-ability",
+                "oracleText": "{1}, {T}: Draw a card, then discard a card.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "6e372f2d-92dd-487e-bb69-3dce1110dac1",
         "rarity": "common"
     },
     {
@@ -56377,6 +58210,92 @@
         ],
         "id": "70c5ac71-bf45-4b99-8184-36ce88dd728a",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Harrier Strix",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Bird"
+        ],
+        "manaCost": {
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Flying\nWhen this creature enters, tap target permanent.\n{2}{U}: Draw a card, then discard a card.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "harrier-strix-ability",
+                "oracleText": "{2}{U}: Draw a card, then discard a card.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "U": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "harrier-strix-trigger",
+                "oracleText": "When this creature enters, tap target permanent.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": [
+                        "Artifact",
+                        "Battle",
+                        "Creature",
+                        "Enchantment",
+                        "Land",
+                        "Planeswalker"
+                    ],
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "tap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "70ca61a9-8938-41bf-bd14-5759f4de6521",
+        "rarity": "common"
     },
     {
         "name": "Great Hart",
@@ -59944,6 +61863,61 @@
         "rarity": "common"
     },
     {
+        "name": "Bonded Fetch",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Homunculus"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1
+        },
+        "power": 0,
+        "toughness": 2,
+        "oracleText": "Defender, haste\n{T}: Draw a card, then discard a card.",
+        "staticAbilities": [
+            "defender",
+            "haste"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "bonded-fetch-ability",
+                "oracleText": "{T}: Draw a card, then discard a card.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "76ced470-97c3-4683-b97f-9ebb8c3fbd11",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Shimmer of Possibility",
         "types": [
             "Sorcery"
@@ -60351,6 +62325,41 @@
             "prowess"
         ],
         "id": "77b552dd-1e0d-41e6-a79b-5a6c1ff28851",
+        "rarity": "common"
+    },
+    {
+        "name": "Gearsmith Prodigy",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Artificer"
+        ],
+        "manaCost": {
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "This creature gets +1/+0 as long as you control an artifact.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "self",
+                "power": 1,
+                "toughness": 0,
+                "condition": {
+                    "kind": "controls",
+                    "filter": {
+                        "types": [
+                            "Artifact"
+                        ]
+                    },
+                    "atLeast": 1
+                }
+            }
+        ],
+        "id": "77d9e666-d9c9-4ccd-89a5-83de79677fa6",
         "rarity": "common"
     },
     {
@@ -61962,6 +63971,70 @@
         "rarity": "common"
     },
     {
+        "name": "Jorubai Murk Lurker",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Leech"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 3,
+        "oracleText": "This creature gets +1/+1 as long as you control a Swamp.\n{1}{B}: Target creature gains lifelink until end of turn. (Damage dealt by the creature also causes its controller to gain that much life.)",
+        "activatedAbilities": [
+            {
+                "id": "jorubai-murk-lurker-ability",
+                "oracleText": "{1}{B}: Target creature gains lifelink until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "B": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "target": 0
+                        },
+                        "ability": "lifelink",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "self",
+                "power": 1,
+                "toughness": 1,
+                "condition": {
+                    "kind": "controls",
+                    "filter": {
+                        "subtypes": [
+                            "Swamp"
+                        ]
+                    },
+                    "atLeast": 1
+                }
+            }
+        ],
+        "id": "7af346ac-32a6-49a8-986d-834b2c8c0478",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Fallen Ferromancer",
         "types": [
             "Creature"
@@ -62030,6 +64103,45 @@
             "flying"
         ],
         "id": "7b49dd4c-ead6-4d94-9acb-0518d1f6426e",
+        "rarity": "common"
+    },
+    {
+        "name": "Unexpected Assistance",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 2
+        },
+        "oracleText": "Convoke (Your creatures can help cast this spell. Each creature you tap while casting this spell pays for {1} or one mana of that creature's color.)\nDraw three cards, then discard a card.",
+        "staticAbilities": [
+            "convoke"
+        ],
+        "effects": [
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 3
+            },
+            {
+                "op": "choice",
+                "kind": "choose-hand-card",
+                "player": "controller",
+                "zone": "hand",
+                "count": 1,
+                "prompt": "Discard a card.",
+                "bind": "$discard1"
+            },
+            {
+                "op": "discard",
+                "player": "controller",
+                "cards": {
+                    "ref": "$discard1"
+                }
+            }
+        ],
+        "id": "7b540a5f-7f1b-421a-864f-5af469556fc6",
         "rarity": "common"
     },
     {
@@ -63381,6 +65493,65 @@
         "rarity": "common"
     },
     {
+        "name": "Flinthoof Boar",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Boar"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "This creature gets +1/+1 as long as you control a Mountain.\n{R}: This creature gains haste until end of turn. (It can attack and {T} this turn.)",
+        "activatedAbilities": [
+            {
+                "id": "flinthoof-boar-ability",
+                "oracleText": "{R}: This creature gains haste until end of turn.",
+                "cost": {
+                    "mana": {
+                        "R": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "ability": "haste",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "self",
+                "power": 1,
+                "toughness": 1,
+                "condition": {
+                    "kind": "controls",
+                    "filter": {
+                        "subtypes": [
+                            "Mountain"
+                        ]
+                    },
+                    "atLeast": 1
+                }
+            }
+        ],
+        "id": "7e380b99-0173-4083-a4a2-222ad98b904a",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Hellkite Overlord",
         "types": [
             "Creature"
@@ -64477,6 +66648,75 @@
             }
         ],
         "id": "7fbb10a9-486a-4b9a-b3f5-c17f661af2b2",
+        "rarity": "common"
+    },
+    {
+        "name": "Sedraxis Alchemist",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Zombie",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "When this creature enters, if you control a blue permanent, return target nonland permanent to its owner's hand.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "sedraxis-alchemist-trigger",
+                "oracleText": "When this creature enters, if you control a blue permanent, return target nonland permanent to its owner's hand.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "condition": {
+                    "kind": "controls",
+                    "filter": {
+                        "types": [
+                            "Artifact",
+                            "Battle",
+                            "Creature",
+                            "Enchantment",
+                            "Land",
+                            "Planeswalker"
+                        ],
+                        "colors": [
+                            "U"
+                        ]
+                    },
+                    "atLeast": 1
+                },
+                "targetRequirement": {
+                    "type": [
+                        "Artifact",
+                        "Battle",
+                        "Creature",
+                        "Enchantment",
+                        "Land",
+                        "Planeswalker"
+                    ],
+                    "count": 1,
+                    "excludeTypes": [
+                        "Land"
+                    ]
+                },
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ]
+            }
+        ],
+        "id": "7fbbc5d7-86d0-4e09-b37c-e40eb88f3f33",
         "rarity": "common"
     },
     {
@@ -65831,6 +68071,58 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Elite Instructor",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "When this creature enters, draw a card, then discard a card.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "elite-instructor-trigger",
+                "oracleText": "When this creature enters, draw a card, then discard a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "821cd2dd-aa03-4c55-b9e4-98e0284889d3",
+        "rarity": "common"
+    },
+    {
         "name": "Plated Sliver",
         "types": [
             "Creature"
@@ -66406,6 +68698,58 @@
         ],
         "id": "836d5ce6-d5c9-4fb5-8302-53d25b5531b5",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Thought Courier",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{T}: Draw a card, then discard a card.",
+        "activatedAbilities": [
+            {
+                "id": "thought-courier-ability",
+                "oracleText": "{T}: Draw a card, then discard a card.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "837b6315-d5c6-480b-902e-44107a72b581",
+        "rarity": "common"
     },
     {
         "name": "Coral Merfolk",
@@ -73595,6 +75939,79 @@
         "rarity": "common"
     },
     {
+        "name": "Senate Guildmage",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "W": 1,
+            "U": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{W}, {T}: You gain 2 life.\n{U}, {T}: Draw a card, then discard a card.",
+        "activatedAbilities": [
+            {
+                "id": "senate-guildmage-ability",
+                "oracleText": "{W}, {T}: You gain 2 life.",
+                "cost": {
+                    "mana": {
+                        "W": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 2
+                    }
+                ]
+            },
+            {
+                "id": "senate-guildmage-ability-2",
+                "oracleText": "{U}, {T}: Draw a card, then discard a card.",
+                "cost": {
+                    "mana": {
+                        "U": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "913b3a2a-e3fd-4095-ab2a-5e356ea179df",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Energizer",
         "types": [
             "Artifact",
@@ -75398,6 +77815,61 @@
         "rarity": "common"
     },
     {
+        "name": "Cloistered Telepath",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Talosian",
+            "Advisor"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "Flash\nWhen this creature enters, draw a card, then discard a card.",
+        "staticAbilities": [
+            "flash"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "cloistered-telepath-trigger",
+                "oracleText": "When this creature enters, draw a card, then discard a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "959318c1-3f7e-4418-91ce-be529af27972",
+        "rarity": "common"
+    },
+    {
         "name": "Blackcleave Goblin",
         "types": [
             "Creature"
@@ -76818,6 +79290,64 @@
             }
         ],
         "id": "98c2b2af-739f-413c-8c36-da6f78df0acb",
+        "rarity": "common"
+    },
+    {
+        "name": "Furtive Analyst",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 4,
+        "oracleText": "Vigilance\n{2}, {T}: Draw a card, then discard a card.",
+        "staticAbilities": [
+            "vigilance"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "furtive-analyst-ability",
+                "oracleText": "{2}, {T}: Draw a card, then discard a card.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "98c55aff-baed-4fb5-a490-abd59b8df5e7",
         "rarity": "common"
     },
     {
@@ -79402,6 +81932,147 @@
         "rarity": "rare"
     },
     {
+        "name": "Ana Sanctuary",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "oracleText": "At the beginning of your upkeep, if you control a blue or black permanent, target creature gets +1/+1 until end of turn. If you control a blue permanent and a black permanent, that creature gets +5/+5 until end of turn instead.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "ana-sanctuary-trigger",
+                "oracleText": "At the beginning of your upkeep, if you control a blue or black permanent, target creature gets +1/+1 until end of turn. If you control a blue permanent and a black permanent, that creature gets +5/+5 until end of turn instead.",
+                "head": {
+                    "kind": "phase",
+                    "phase": "UPKEEP",
+                    "scope": "your"
+                },
+                "condition": {
+                    "kind": "controls",
+                    "filter": {
+                        "types": [
+                            "Artifact",
+                            "Battle",
+                            "Creature",
+                            "Enchantment",
+                            "Land",
+                            "Planeswalker"
+                        ],
+                        "colors": [
+                            "U",
+                            "B"
+                        ]
+                    },
+                    "atLeast": 1
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "left": {
+                                "count": {
+                                    "zone": "battlefield",
+                                    "controller": "controller",
+                                    "filter": {
+                                        "type": [
+                                            "Artifact",
+                                            "Battle",
+                                            "Creature",
+                                            "Enchantment",
+                                            "Land",
+                                            "Planeswalker"
+                                        ],
+                                        "color": [
+                                            "U"
+                                        ]
+                                    }
+                                }
+                            },
+                            "op": "ge",
+                            "right": 1
+                        },
+                        "then": [
+                            {
+                                "op": "if",
+                                "predicate": {
+                                    "left": {
+                                        "count": {
+                                            "zone": "battlefield",
+                                            "controller": "controller",
+                                            "filter": {
+                                                "type": [
+                                                    "Artifact",
+                                                    "Battle",
+                                                    "Creature",
+                                                    "Enchantment",
+                                                    "Land",
+                                                    "Planeswalker"
+                                                ],
+                                                "color": [
+                                                    "B"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "op": "ge",
+                                    "right": 1
+                                },
+                                "then": [
+                                    {
+                                        "op": "pump",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "power": 5,
+                                        "toughness": 5,
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ],
+                                "else": [
+                                    {
+                                        "op": "pump",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "power": 1,
+                                        "toughness": 1,
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            }
+                        ],
+                        "else": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "target": 0
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "9d1599bb-4f43-4ab3-985a-8be5219f2195",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Vulshok Heartstoker",
         "types": [
             "Creature"
@@ -79627,6 +82298,61 @@
         ],
         "id": "9d735ebf-61a4-4507-9399-6d32c8903ded",
         "rarity": "common"
+    },
+    {
+        "name": "Bazaar Trademage",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1
+        },
+        "power": 3,
+        "toughness": 4,
+        "oracleText": "Flying\nWhen this creature enters, draw two cards, then discard three cards.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "bazaar-trademage-trigger",
+                "oracleText": "When this creature enters, draw two cards, then discard three cards.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 2
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 3,
+                        "prompt": "Discard three cards.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "9d75faf7-fc27-4fc2-9e80-e35232c42542",
+        "rarity": "rare"
     },
     {
         "name": "Rune-Cervin Rider",
@@ -80690,6 +83416,62 @@
             }
         ],
         "id": "a06f00e8-3e58-4ba7-9542-ce6b17fd4005",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Crimson Muckwader",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Lizard"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "This creature gets +1/+1 as long as you control a Swamp.\n{2}{B}: Regenerate this creature. (The next time this creature would be destroyed this turn, instead tap it, remove it from combat, and heal all damage on it.)",
+        "activatedAbilities": [
+            {
+                "id": "crimson-muckwader-ability",
+                "oracleText": "{2}{B}: Regenerate this creature.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "B": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "ref": "$source"
+                        }
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "self",
+                "power": 1,
+                "toughness": 1,
+                "condition": {
+                    "kind": "controls",
+                    "filter": {
+                        "subtypes": [
+                            "Swamp"
+                        ]
+                    },
+                    "atLeast": 1
+                }
+            }
+        ],
+        "id": "a0811f91-ed92-4a8e-badd-ae5054e7707d",
         "rarity": "uncommon"
     },
     {
@@ -84642,6 +87424,57 @@
         "rarity": "common"
     },
     {
+        "name": "Emmessi Tome",
+        "types": [
+            "Artifact"
+        ],
+        "subtypes": [
+            "Book"
+        ],
+        "manaCost": {
+            "X": 4
+        },
+        "oracleText": "{5}, {T}: Draw two cards, then discard a card.",
+        "activatedAbilities": [
+            {
+                "id": "emmessi-tome-ability",
+                "oracleText": "{5}, {T}: Draw two cards, then discard a card.",
+                "cost": {
+                    "mana": {
+                        "X": 5
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 2
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "a870e48a-41ae-4d9f-b181-074deb067d40",
+        "rarity": "rare"
+    },
+    {
         "name": "Destructor Dragon",
         "types": [
             "Creature"
@@ -84793,6 +87626,58 @@
         ],
         "id": "a87cbbdb-3bbc-48da-b5e3-fcdbddebec81",
         "rarity": "common"
+    },
+    {
+        "name": "Magus of the Bazaar",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "power": 0,
+        "toughness": 1,
+        "oracleText": "{T}: Draw two cards, then discard three cards.",
+        "activatedAbilities": [
+            {
+                "id": "magus-of-the-bazaar-ability",
+                "oracleText": "{T}: Draw two cards, then discard three cards.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 2
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 3,
+                        "prompt": "Discard three cards.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "a89762f8-70e0-414b-a788-532710129733",
+        "rarity": "rare"
     },
     {
         "name": "Fury Sliver",
@@ -89604,6 +92489,61 @@
         "rarity": "common"
     },
     {
+        "name": "Facet Reader",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "{1}, {T}: Draw a card, then discard a card.",
+        "activatedAbilities": [
+            {
+                "id": "facet-reader-ability",
+                "oracleText": "{1}, {T}: Draw a card, then discard a card.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "b1199596-ae77-4192-ae70-3e2ebd009b64",
+        "rarity": "common"
+    },
+    {
         "name": "Advocate of the Beast",
         "types": [
             "Creature"
@@ -92627,6 +95567,59 @@
         "rarity": "common"
     },
     {
+        "name": "Rhox Meditant",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Rhino",
+            "Monk"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 4,
+        "oracleText": "When this creature enters, if you control a green permanent, draw a card.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "rhox-meditant-trigger",
+                "oracleText": "When this creature enters, if you control a green permanent, draw a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "condition": {
+                    "kind": "controls",
+                    "filter": {
+                        "types": [
+                            "Artifact",
+                            "Battle",
+                            "Creature",
+                            "Enchantment",
+                            "Land",
+                            "Planeswalker"
+                        ],
+                        "colors": [
+                            "G"
+                        ]
+                    },
+                    "atLeast": 1
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "b74f4f8d-2191-4743-aac6-cdcb4a68379c",
+        "rarity": "common"
+    },
+    {
         "name": "Stand Up for Yourself",
         "types": [
             "Instant"
@@ -92962,6 +95955,125 @@
         ],
         "id": "b7cb7fdc-fa47-4485-b268-7c2ddff28568",
         "rarity": "common"
+    },
+    {
+        "name": "Dega Sanctuary",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "At the beginning of your upkeep, if you control a black or red permanent, you gain 2 life. If you control a black permanent and a red permanent, you gain 4 life instead.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "dega-sanctuary-trigger",
+                "oracleText": "At the beginning of your upkeep, if you control a black or red permanent, you gain 2 life. If you control a black permanent and a red permanent, you gain 4 life instead.",
+                "head": {
+                    "kind": "phase",
+                    "phase": "UPKEEP",
+                    "scope": "your"
+                },
+                "condition": {
+                    "kind": "controls",
+                    "filter": {
+                        "types": [
+                            "Artifact",
+                            "Battle",
+                            "Creature",
+                            "Enchantment",
+                            "Land",
+                            "Planeswalker"
+                        ],
+                        "colors": [
+                            "B",
+                            "R"
+                        ]
+                    },
+                    "atLeast": 1
+                },
+                "effects": [
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "left": {
+                                "count": {
+                                    "zone": "battlefield",
+                                    "controller": "controller",
+                                    "filter": {
+                                        "type": [
+                                            "Artifact",
+                                            "Battle",
+                                            "Creature",
+                                            "Enchantment",
+                                            "Land",
+                                            "Planeswalker"
+                                        ],
+                                        "color": [
+                                            "B"
+                                        ]
+                                    }
+                                }
+                            },
+                            "op": "ge",
+                            "right": 1
+                        },
+                        "then": [
+                            {
+                                "op": "if",
+                                "predicate": {
+                                    "left": {
+                                        "count": {
+                                            "zone": "battlefield",
+                                            "controller": "controller",
+                                            "filter": {
+                                                "type": [
+                                                    "Artifact",
+                                                    "Battle",
+                                                    "Creature",
+                                                    "Enchantment",
+                                                    "Land",
+                                                    "Planeswalker"
+                                                ],
+                                                "color": [
+                                                    "R"
+                                                ]
+                                            }
+                                        }
+                                    },
+                                    "op": "ge",
+                                    "right": 1
+                                },
+                                "then": [
+                                    {
+                                        "op": "gainLife",
+                                        "player": "controller",
+                                        "amount": 4
+                                    }
+                                ],
+                                "else": [
+                                    {
+                                        "op": "gainLife",
+                                        "player": "controller",
+                                        "amount": 2
+                                    }
+                                ]
+                            }
+                        ],
+                        "else": [
+                            {
+                                "op": "gainLife",
+                                "player": "controller",
+                                "amount": 2
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "b7ddfdb5-3981-4954-af5f-2459d22ec575",
+        "rarity": "uncommon"
     },
     {
         "name": "Grazing Whiptail",
@@ -94694,6 +97806,61 @@
         ],
         "id": "bac6bdd4-b25b-41f6-835d-7d1570cdb951",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Quicksilver Fisher",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Phyrexian",
+            "Drake"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 2
+        },
+        "power": 4,
+        "toughness": 3,
+        "oracleText": "Flying\nWhen this creature enters, draw a card, then discard a card.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "quicksilver-fisher-trigger",
+                "oracleText": "When this creature enters, draw a card, then discard a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "bad0e96a-b4cc-4439-aab9-731a1036145d",
+        "rarity": "common"
     },
     {
         "name": "Sparring Construct",
@@ -96977,6 +100144,42 @@
         "rarity": "common"
     },
     {
+        "name": "Sift",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 1
+        },
+        "oracleText": "Draw three cards, then discard a card.",
+        "effects": [
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 3
+            },
+            {
+                "op": "choice",
+                "kind": "choose-hand-card",
+                "player": "controller",
+                "zone": "hand",
+                "count": 1,
+                "prompt": "Discard a card.",
+                "bind": "$discard1"
+            },
+            {
+                "op": "discard",
+                "player": "controller",
+                "cards": {
+                    "ref": "$discard1"
+                }
+            }
+        ],
+        "id": "bf5b23da-9ba8-4b43-a5c9-51e1fc253913",
+        "rarity": "common"
+    },
+    {
         "name": "Eager Glyphmage",
         "types": [
             "Creature"
@@ -98400,6 +101603,61 @@
         ],
         "entersTapped": true,
         "id": "c21e413b-96ed-4ded-b567-f1647074ce5f",
+        "rarity": "common"
+    },
+    {
+        "name": "Captain of Umbar",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Pirate"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1
+        },
+        "power": 2,
+        "toughness": 3,
+        "oracleText": "{1}, {T}: Draw a card, then discard a card.",
+        "activatedAbilities": [
+            {
+                "id": "captain-of-umbar-ability",
+                "oracleText": "{1}, {T}: Draw a card, then discard a card.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "c222577d-a3c7-41d9-b11b-62065bdb98ef",
         "rarity": "common"
     },
     {
@@ -100662,6 +103920,72 @@
         "rarity": "common"
     },
     {
+        "name": "Rousing Read",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1
+        },
+        "oracleText": "Enchant creature\nWhen this Aura enters, draw two cards, then discard a card.\nEnchanted creature gets +1/+1 and has flying.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "rousing-read-trigger",
+                "oracleText": "When this Aura enters, draw two cards, then discard a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 2
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 1,
+                "toughness": 1
+            },
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "flying"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "c82be2ca-8350-4cf5-83b6-e8b60a9e21c6",
+        "rarity": "common"
+    },
+    {
         "name": "Murder",
         "types": [
             "Instant"
@@ -101390,6 +104714,58 @@
         ],
         "id": "ca18a2e7-6b01-4d10-82b5-0c1cb6ba0d2b",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Bellowing Crier",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Frog",
+            "Advisor"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "When this creature enters, draw a card, then discard a card.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "bellowing-crier-trigger",
+                "oracleText": "When this creature enters, draw a card, then discard a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "ca2215dd-6300-49cf-b9b2-3a840b786c31",
+        "rarity": "common"
     },
     {
         "name": "A.I.M. Labs",
@@ -104628,6 +108004,57 @@
             }
         ],
         "id": "d08586d4-8163-454c-b8d8-c5034c4aee6c",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Broadside Barrage",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1,
+            "R": 1
+        },
+        "oracleText": "Broadside Barrage deals 5 damage to target creature or planeswalker. Draw a card, then discard a card.",
+        "effects": [
+            {
+                "op": "dealDamage",
+                "amount": 5,
+                "to": {
+                    "target": 0
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            },
+            {
+                "op": "choice",
+                "kind": "choose-hand-card",
+                "player": "controller",
+                "zone": "hand",
+                "count": 1,
+                "prompt": "Discard a card.",
+                "bind": "$discard1"
+            },
+            {
+                "op": "discard",
+                "player": "controller",
+                "cards": {
+                    "ref": "$discard1"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Creature",
+                "Planeswalker"
+            ],
+            "count": 1
+        },
+        "id": "d086e4e5-98fa-437e-85aa-d8849c94ce94",
         "rarity": "uncommon"
     },
     {
@@ -108569,6 +111996,43 @@
         "rarity": "common"
     },
     {
+        "name": "Thoughtflare",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 1,
+            "R": 1
+        },
+        "oracleText": "Draw four cards, then discard two cards.",
+        "effects": [
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 4
+            },
+            {
+                "op": "choice",
+                "kind": "choose-hand-card",
+                "player": "controller",
+                "zone": "hand",
+                "count": 2,
+                "prompt": "Discard two cards.",
+                "bind": "$discard1"
+            },
+            {
+                "op": "discard",
+                "player": "controller",
+                "cards": {
+                    "ref": "$discard1"
+                }
+            }
+        ],
+        "id": "d90514aa-e356-4502-9e0e-76ab7644a07a",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Azorius Signet",
         "types": [
             "Artifact"
@@ -108790,6 +112254,60 @@
             "lifelink"
         ],
         "id": "d954677c-2de6-440a-90d0-bab2e0c8b4af",
+        "rarity": "common"
+    },
+    {
+        "name": "Owl Familiar",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Bird"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Flying\nWhen this creature enters, draw a card, then discard a card.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "owl-familiar-trigger",
+                "oracleText": "When this creature enters, draw a card, then discard a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "d9587bcb-0ece-4b36-85dc-76899e403b08",
         "rarity": "common"
     },
     {
@@ -110907,6 +114425,41 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Careful Study",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "U": 1
+        },
+        "oracleText": "Draw two cards, then discard two cards.",
+        "effects": [
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 2
+            },
+            {
+                "op": "choice",
+                "kind": "choose-hand-card",
+                "player": "controller",
+                "zone": "hand",
+                "count": 2,
+                "prompt": "Discard two cards.",
+                "bind": "$discard1"
+            },
+            {
+                "op": "discard",
+                "player": "controller",
+                "cards": {
+                    "ref": "$discard1"
+                }
+            }
+        ],
+        "id": "dea15b53-2940-40e7-8d48-8ec11341da83",
+        "rarity": "common"
+    },
+    {
         "name": "Waterfront District",
         "types": [
             "Land"
@@ -112344,6 +115897,71 @@
         "toughness": 5,
         "id": "e1642802-055e-44d2-a261-c2a45ad515e8",
         "rarity": "common"
+    },
+    {
+        "name": "Hard Cover",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "U": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +0/+2 and has \"{T}: Draw a card, then discard a card.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 0,
+                "toughness": 2
+            },
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "hard-cover-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "hard-cover-granted",
+                "oracleText": "{T}: Draw a card, then discard a card.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "e16c9f3a-534b-42d4-9765-8d1cb15375aa",
+        "rarity": "uncommon"
     },
     {
         "name": "Krosan Archer",
@@ -117506,6 +121124,62 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Soothsayer Adept",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Merfolk",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 3,
+        "oracleText": "{1}{U}, {T}: Draw a card, then discard a card.",
+        "activatedAbilities": [
+            {
+                "id": "soothsayer-adept-ability",
+                "oracleText": "{1}{U}, {T}: Draw a card, then discard a card.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "U": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "eb93c9d2-88eb-403d-bb67-8e8b0462ac27",
+        "rarity": "common"
+    },
+    {
         "name": "Fists of the Anvil",
         "types": [
             "Instant"
@@ -117533,6 +121207,57 @@
             "count": 1
         },
         "id": "eb94bc02-b348-43c2-9e78-e2e3fd541d6a",
+        "rarity": "common"
+    },
+    {
+        "name": "Merfolk Traders",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Merfolk"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "When this creature enters, draw a card, then discard a card.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "merfolk-traders-trigger",
+                "oracleText": "When this creature enters, draw a card, then discard a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "ebacbf23-4b69-481c-aaf7-5de7b4a6db6f",
         "rarity": "common"
     },
     {
@@ -119415,6 +123140,68 @@
         "toughness": 3,
         "id": "efe1c5b2-4356-41ae-ab7e-ad9fc835a911",
         "rarity": "common"
+    },
+    {
+        "name": "Dauntless River Marshal",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "This creature gets +1/+1 as long as you control an Island.\n{3}{U}: Tap target creature.",
+        "activatedAbilities": [
+            {
+                "id": "dauntless-river-marshal-ability",
+                "oracleText": "{3}{U}: Tap target creature.",
+                "cost": {
+                    "mana": {
+                        "X": 3,
+                        "U": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "tap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "self",
+                "power": 1,
+                "toughness": 1,
+                "condition": {
+                    "kind": "controls",
+                    "filter": {
+                        "subtypes": [
+                            "Island"
+                        ]
+                    },
+                    "atLeast": 1
+                }
+            }
+        ],
+        "id": "efedfd1e-5073-47e2-9137-5f2bf4e436e3",
+        "rarity": "uncommon"
     },
     {
         "name": "Ripchain Razorkin",
@@ -122480,6 +126267,61 @@
         "rarity": "common"
     },
     {
+        "name": "Shinechaser",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Faerie"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Flying, vigilance\nThis creature gets +1/+1 as long as you control an artifact.\nThis creature gets +1/+1 as long as you control an enchantment.",
+        "staticAbilities": [
+            "flying",
+            "vigilance"
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "self",
+                "power": 1,
+                "toughness": 1,
+                "condition": {
+                    "kind": "controls",
+                    "filter": {
+                        "types": [
+                            "Artifact"
+                        ]
+                    },
+                    "atLeast": 1
+                }
+            },
+            {
+                "kind": "pt-buff",
+                "appliesTo": "self",
+                "power": 1,
+                "toughness": 1,
+                "condition": {
+                    "kind": "controls",
+                    "filter": {
+                        "types": [
+                            "Enchantment"
+                        ]
+                    },
+                    "atLeast": 1
+                }
+            }
+        ],
+        "id": "f6d5314b-4994-4cd0-a680-12e56be7c1e2",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Nimble Innovator",
         "types": [
             "Creature"
@@ -122853,6 +126695,41 @@
             }
         ],
         "id": "f7369cbf-6986-4a39-b07c-a283b40aee40",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Inventor's Apprentice",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Artificer"
+        ],
+        "manaCost": {
+            "R": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "This creature gets +1/+1 as long as you control an artifact.",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "self",
+                "power": 1,
+                "toughness": 1,
+                "condition": {
+                    "kind": "controls",
+                    "filter": {
+                        "types": [
+                            "Artifact"
+                        ]
+                    },
+                    "atLeast": 1
+                }
+            }
+        ],
+        "id": "f737109b-15fb-4b92-9007-99a33ae68628",
         "rarity": "uncommon"
     },
     {
@@ -125120,6 +128997,65 @@
         "rarity": "common"
     },
     {
+        "name": "Strix Lookout",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Bird"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "Flying, vigilance (Attacking doesn't cause this creature to tap.)\n{1}{U}, {T}: Draw a card, then discard a card.",
+        "staticAbilities": [
+            "flying",
+            "vigilance"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "strix-lookout-ability",
+                "oracleText": "{1}{U}, {T}: Draw a card, then discard a card.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "U": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "fbd2422e-8e84-4c39-af29-3b4d38baee63",
+        "rarity": "common"
+    },
+    {
         "name": "Wind-Kin Raiders",
         "types": [
             "Creature"
@@ -125415,6 +129351,60 @@
         ],
         "id": "fd06f9eb-112e-458b-83c8-3761df6d60ff",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Icewind Elemental",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elemental"
+        ],
+        "manaCost": {
+            "X": 4,
+            "U": 1
+        },
+        "power": 3,
+        "toughness": 4,
+        "oracleText": "Flying\nWhen this creature enters, draw a card, then discard a card.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "icewind-elemental-trigger",
+                "oracleText": "When this creature enters, draw a card, then discard a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "fd0eba76-3829-408b-828f-0b223c884728",
+        "rarity": "common"
     },
     {
         "name": "Amphin Cutthroat",

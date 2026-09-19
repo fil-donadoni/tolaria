@@ -49,8 +49,10 @@ import type {
     StaticCastPermission,
     StaticEffect,
     StaticEffectContext,
+    StaticEffectStateView,
     StaticKeywordGrant,
 } from "./types";
+import type { CompiledTriggerCondition } from "./compiledTriggers";
 
 /**
  * `PermanentFilter` fields a descriptor may carry.
@@ -143,6 +145,8 @@ export interface CompiledSpellFilter {
 export type CompiledStaticScope =
     | { readonly filter: PermanentFilter; readonly appliesTo?: never }
     | { readonly appliesTo: "host"; readonly filter?: never }
+    /** CR 201.5 — "This creature gets …": the permanent itself. */
+    | { readonly appliesTo: "self"; readonly filter?: never }
     | CompiledKickedSelfScope;
 
 /**
@@ -188,6 +192,11 @@ export type CompiledStaticEffect =
           readonly kind: "pt-buff";
           readonly power: number;
           readonly toughness: number;
+          /** CR 611.3a — "… as long as you control a <descriptor>": the buff
+           *  exists only while the SOURCE's controller controls a match. The
+           *  same JSON condition a compiled trigger's intervening-if carries
+           *  (`CompiledTriggerCondition`), read here off the layer view. */
+          readonly condition?: CompiledTriggerCondition;
       } & CompiledStaticScope)
     /** CR 613.1f layer 6 — "<filter> have <keyword>" / "Enchanted creature
      *  has <keyword>". */
@@ -261,6 +270,30 @@ export type CompiledStaticEffect =
  * `[]`: the view has none, and a filter that would read it is refused at
  * lowering time (see the header).
  */
+/**
+ * CR 611.3a / 109.5 — "as long as you control a <descriptor>", read off the
+ * layer view: at least `atLeast` permanents on the SOURCE controller's
+ * battlefield match, through the same `filterMatches` (live colours via
+ * `ctx.getColors`) every compiled static predicate uses.
+ */
+function controlsHolds(
+    condition: CompiledTriggerCondition,
+    source: PermanentView,
+    state: StaticEffectStateView,
+    ctx: StaticEffectContext
+): boolean {
+    let matched = 0;
+    for (const player of state.players)
+        for (const permanent of player.battlefield) {
+            if (permanent.controllerId !== source.controllerId) continue;
+            if (!filterMatches(condition.filter, permanent, source, ctx))
+                continue;
+            matched += 1;
+            if (matched >= condition.atLeast) return true;
+        }
+    return false;
+}
+
 function filterMatches(
     filter: PermanentFilter,
     target: PermanentView,
@@ -336,6 +369,8 @@ function scopePredicate(
     scope: CompiledStaticScope
 ): StaticKeywordGrant["applies"] {
     if (scope.appliesTo === "host") return AURA_AFFECTS_HOST;
+    if (scope.appliesTo === "self")
+        return (target, source) => target.id === source.id;
     if (scope.appliesTo === "self-if-kicked") {
         const kickerId = scope.kickerId;
         return (target, source) =>
@@ -353,13 +388,21 @@ export function resolveCompiledStatic(
     descriptor: CompiledStaticEffect
 ): StaticEffect {
     switch (descriptor.kind) {
-        case "pt-buff":
+        case "pt-buff": {
+            const condition = descriptor.condition;
             return {
                 kind: "pt-buff",
                 applies: scopePredicate(descriptor),
                 power: descriptor.power,
                 toughness: descriptor.toughness,
+                ...(condition !== undefined
+                    ? {
+                          condition: (source, state, ctx) =>
+                              controlsHolds(condition, source, state, ctx),
+                      }
+                    : {}),
             };
+        }
         case "keyword-grant":
             return {
                 kind: "keyword-grant",

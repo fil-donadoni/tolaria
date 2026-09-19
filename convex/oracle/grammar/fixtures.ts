@@ -128,4 +128,514 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             targetRequirement: { type: "Creature", count: 1 },
         },
     },
+    // CR 603.4 + CR 608.2c — Ceta Sanctuary: exhibits the loot (draw, choose-hand-card, discard) and the red/green colour counts (issue #4126).
+    {
+        rule: "instead if you control",
+        card: {
+            oracleId: "45c4e67c-e452-41c5-8baa-050819a1321f",
+            name: "Ceta Sanctuary",
+            manaCost: "{2}{U}",
+            typeLine: "Enchantment",
+            oracleText:
+                "At the beginning of your upkeep, if you control a red or green permanent, draw a card, then discard a card. If you control a red permanent and a green permanent, instead draw two cards, then discard a card.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Ceta Sanctuary",
+            types: ["Enchantment"],
+            manaCost: { X: 2, U: 1 },
+            oracleText:
+                "At the beginning of your upkeep, if you control a red or green permanent, draw a card, then discard a card. If you control a red permanent and a green permanent, instead draw two cards, then discard a card.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "ceta-sanctuary-trigger",
+                    oracleText:
+                        "At the beginning of your upkeep, if you control a red or green permanent, draw a card, then discard a card. If you control a red permanent and a green permanent, instead draw two cards, then discard a card.",
+                    head: { kind: "phase", phase: "UPKEEP", scope: "your" },
+                    condition: {
+                        kind: "controls",
+                        filter: {
+                            types: [
+                                "Artifact",
+                                "Battle",
+                                "Creature",
+                                "Enchantment",
+                                "Land",
+                                "Planeswalker",
+                            ],
+                            colors: ["R", "G"],
+                        },
+                        atLeast: 1,
+                    },
+                    effects: [
+                        {
+                            op: "if",
+                            predicate: {
+                                left: {
+                                    count: {
+                                        zone: "battlefield",
+                                        controller: "controller",
+                                        filter: {
+                                            type: [
+                                                "Artifact",
+                                                "Battle",
+                                                "Creature",
+                                                "Enchantment",
+                                                "Land",
+                                                "Planeswalker",
+                                            ],
+                                            color: ["R"],
+                                        },
+                                    },
+                                },
+                                op: "ge",
+                                right: 1,
+                            },
+                            then: [
+                                {
+                                    op: "if",
+                                    predicate: {
+                                        left: {
+                                            count: {
+                                                zone: "battlefield",
+                                                controller: "controller",
+                                                filter: {
+                                                    type: [
+                                                        "Artifact",
+                                                        "Battle",
+                                                        "Creature",
+                                                        "Enchantment",
+                                                        "Land",
+                                                        "Planeswalker",
+                                                    ],
+                                                    color: ["G"],
+                                                },
+                                            },
+                                        },
+                                        op: "ge",
+                                        right: 1,
+                                    },
+                                    then: [
+                                        {
+                                            op: "draw",
+                                            player: "controller",
+                                            count: 2,
+                                        },
+                                        {
+                                            op: "choice",
+                                            kind: "choose-hand-card",
+                                            player: "controller",
+                                            zone: "hand",
+                                            count: 1,
+                                            prompt: "Discard a card.",
+                                            bind: "$discard2",
+                                        },
+                                        {
+                                            op: "discard",
+                                            player: "controller",
+                                            cards: { ref: "$discard2" },
+                                        },
+                                    ],
+                                    else: [
+                                        {
+                                            op: "draw",
+                                            player: "controller",
+                                            count: 1,
+                                        },
+                                        {
+                                            op: "choice",
+                                            kind: "choose-hand-card",
+                                            player: "controller",
+                                            zone: "hand",
+                                            count: 1,
+                                            prompt: "Discard a card.",
+                                            bind: "$discard1",
+                                        },
+                                        {
+                                            op: "discard",
+                                            player: "controller",
+                                            cards: { ref: "$discard1" },
+                                        },
+                                    ],
+                                },
+                            ],
+                            else: [
+                                { op: "draw", player: "controller", count: 1 },
+                                {
+                                    op: "choice",
+                                    kind: "choose-hand-card",
+                                    player: "controller",
+                                    zone: "hand",
+                                    count: 1,
+                                    prompt: "Discard a card.",
+                                    bind: "$discard1",
+                                },
+                                {
+                                    op: "discard",
+                                    player: "controller",
+                                    cards: { ref: "$discard1" },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 603.4 + CR 608.2c — Necra Sanctuary: exhibits the green/white colour counts and a player-target replacement (issue #4126).
+    {
+        rule: "instead if you control",
+        card: {
+            oracleId: "2586a59d-8501-4c22-9d69-f4bf91de7024",
+            name: "Necra Sanctuary",
+            manaCost: "{2}{B}",
+            typeLine: "Enchantment",
+            oracleText:
+                "At the beginning of your upkeep, if you control a green or white permanent, target player loses 1 life. If you control a green permanent and a white permanent, that player loses 3 life instead.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Necra Sanctuary",
+            types: ["Enchantment"],
+            manaCost: { X: 2, B: 1 },
+            oracleText:
+                "At the beginning of your upkeep, if you control a green or white permanent, target player loses 1 life. If you control a green permanent and a white permanent, that player loses 3 life instead.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "necra-sanctuary-trigger",
+                    oracleText:
+                        "At the beginning of your upkeep, if you control a green or white permanent, target player loses 1 life. If you control a green permanent and a white permanent, that player loses 3 life instead.",
+                    head: { kind: "phase", phase: "UPKEEP", scope: "your" },
+                    condition: {
+                        kind: "controls",
+                        filter: {
+                            types: [
+                                "Artifact",
+                                "Battle",
+                                "Creature",
+                                "Enchantment",
+                                "Land",
+                                "Planeswalker",
+                            ],
+                            colors: ["G", "W"],
+                        },
+                        atLeast: 1,
+                    },
+                    targetRequirement: { type: "player", count: 1 },
+                    effects: [
+                        {
+                            op: "if",
+                            predicate: {
+                                left: {
+                                    count: {
+                                        zone: "battlefield",
+                                        controller: "controller",
+                                        filter: {
+                                            type: [
+                                                "Artifact",
+                                                "Battle",
+                                                "Creature",
+                                                "Enchantment",
+                                                "Land",
+                                                "Planeswalker",
+                                            ],
+                                            color: ["G"],
+                                        },
+                                    },
+                                },
+                                op: "ge",
+                                right: 1,
+                            },
+                            then: [
+                                {
+                                    op: "if",
+                                    predicate: {
+                                        left: {
+                                            count: {
+                                                zone: "battlefield",
+                                                controller: "controller",
+                                                filter: {
+                                                    type: [
+                                                        "Artifact",
+                                                        "Battle",
+                                                        "Creature",
+                                                        "Enchantment",
+                                                        "Land",
+                                                        "Planeswalker",
+                                                    ],
+                                                    color: ["W"],
+                                                },
+                                            },
+                                        },
+                                        op: "ge",
+                                        right: 1,
+                                    },
+                                    then: [
+                                        {
+                                            op: "loseLife",
+                                            player: { target: 0 },
+                                            amount: 3,
+                                        },
+                                    ],
+                                    else: [
+                                        {
+                                            op: "loseLife",
+                                            player: { target: 0 },
+                                            amount: 1,
+                                        },
+                                    ],
+                                },
+                            ],
+                            else: [
+                                {
+                                    op: "loseLife",
+                                    player: { target: 0 },
+                                    amount: 1,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 603.4 + CR 608.2c — Ana Sanctuary: exhibits the blue/black colour counts and a creature-target replacement (issue #4126).
+    {
+        rule: "instead if you control",
+        card: {
+            oracleId: "51f17fe1-1cf7-4362-b9a2-8ec225d41b03",
+            name: "Ana Sanctuary",
+            manaCost: "{2}{G}",
+            typeLine: "Enchantment",
+            oracleText:
+                "At the beginning of your upkeep, if you control a blue or black permanent, target creature gets +1/+1 until end of turn. If you control a blue permanent and a black permanent, that creature gets +5/+5 until end of turn instead.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Ana Sanctuary",
+            types: ["Enchantment"],
+            manaCost: { X: 2, G: 1 },
+            oracleText:
+                "At the beginning of your upkeep, if you control a blue or black permanent, target creature gets +1/+1 until end of turn. If you control a blue permanent and a black permanent, that creature gets +5/+5 until end of turn instead.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "ana-sanctuary-trigger",
+                    oracleText:
+                        "At the beginning of your upkeep, if you control a blue or black permanent, target creature gets +1/+1 until end of turn. If you control a blue permanent and a black permanent, that creature gets +5/+5 until end of turn instead.",
+                    head: { kind: "phase", phase: "UPKEEP", scope: "your" },
+                    condition: {
+                        kind: "controls",
+                        filter: {
+                            types: [
+                                "Artifact",
+                                "Battle",
+                                "Creature",
+                                "Enchantment",
+                                "Land",
+                                "Planeswalker",
+                            ],
+                            colors: ["U", "B"],
+                        },
+                        atLeast: 1,
+                    },
+                    targetRequirement: { type: "Creature", count: 1 },
+                    effects: [
+                        {
+                            op: "if",
+                            predicate: {
+                                left: {
+                                    count: {
+                                        zone: "battlefield",
+                                        controller: "controller",
+                                        filter: {
+                                            type: [
+                                                "Artifact",
+                                                "Battle",
+                                                "Creature",
+                                                "Enchantment",
+                                                "Land",
+                                                "Planeswalker",
+                                            ],
+                                            color: ["U"],
+                                        },
+                                    },
+                                },
+                                op: "ge",
+                                right: 1,
+                            },
+                            then: [
+                                {
+                                    op: "if",
+                                    predicate: {
+                                        left: {
+                                            count: {
+                                                zone: "battlefield",
+                                                controller: "controller",
+                                                filter: {
+                                                    type: [
+                                                        "Artifact",
+                                                        "Battle",
+                                                        "Creature",
+                                                        "Enchantment",
+                                                        "Land",
+                                                        "Planeswalker",
+                                                    ],
+                                                    color: ["B"],
+                                                },
+                                            },
+                                        },
+                                        op: "ge",
+                                        right: 1,
+                                    },
+                                    then: [
+                                        {
+                                            op: "pump",
+                                            target: { target: 0 },
+                                            power: 5,
+                                            toughness: 5,
+                                            duration: { phase: "end-of-turn" },
+                                        },
+                                    ],
+                                    else: [
+                                        {
+                                            op: "pump",
+                                            target: { target: 0 },
+                                            power: 1,
+                                            toughness: 1,
+                                            duration: { phase: "end-of-turn" },
+                                        },
+                                    ],
+                                },
+                            ],
+                            else: [
+                                {
+                                    op: "pump",
+                                    target: { target: 0 },
+                                    power: 1,
+                                    toughness: 1,
+                                    duration: { phase: "end-of-turn" },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 603.4 + CR 608.2c — Dega Sanctuary: exhibits the black/red colour counts behind an untargeted replacement (issue #4126).
+    {
+        rule: "instead if you control",
+        card: {
+            oracleId: "75c626fb-9dfc-4a94-b59f-f0e45c7b2f56",
+            name: "Dega Sanctuary",
+            manaCost: "{2}{W}",
+            typeLine: "Enchantment",
+            oracleText:
+                "At the beginning of your upkeep, if you control a black or red permanent, you gain 2 life. If you control a black permanent and a red permanent, you gain 4 life instead.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Dega Sanctuary",
+            types: ["Enchantment"],
+            manaCost: { X: 2, W: 1 },
+            oracleText:
+                "At the beginning of your upkeep, if you control a black or red permanent, you gain 2 life. If you control a black permanent and a red permanent, you gain 4 life instead.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "dega-sanctuary-trigger",
+                    oracleText:
+                        "At the beginning of your upkeep, if you control a black or red permanent, you gain 2 life. If you control a black permanent and a red permanent, you gain 4 life instead.",
+                    head: { kind: "phase", phase: "UPKEEP", scope: "your" },
+                    condition: {
+                        kind: "controls",
+                        filter: {
+                            types: [
+                                "Artifact",
+                                "Battle",
+                                "Creature",
+                                "Enchantment",
+                                "Land",
+                                "Planeswalker",
+                            ],
+                            colors: ["B", "R"],
+                        },
+                        atLeast: 1,
+                    },
+                    effects: [
+                        {
+                            op: "if",
+                            predicate: {
+                                left: {
+                                    count: {
+                                        zone: "battlefield",
+                                        controller: "controller",
+                                        filter: {
+                                            type: [
+                                                "Artifact",
+                                                "Battle",
+                                                "Creature",
+                                                "Enchantment",
+                                                "Land",
+                                                "Planeswalker",
+                                            ],
+                                            color: ["B"],
+                                        },
+                                    },
+                                },
+                                op: "ge",
+                                right: 1,
+                            },
+                            then: [
+                                {
+                                    op: "if",
+                                    predicate: {
+                                        left: {
+                                            count: {
+                                                zone: "battlefield",
+                                                controller: "controller",
+                                                filter: {
+                                                    type: [
+                                                        "Artifact",
+                                                        "Battle",
+                                                        "Creature",
+                                                        "Enchantment",
+                                                        "Land",
+                                                        "Planeswalker",
+                                                    ],
+                                                    color: ["R"],
+                                                },
+                                            },
+                                        },
+                                        op: "ge",
+                                        right: 1,
+                                    },
+                                    then: [
+                                        {
+                                            op: "gainLife",
+                                            player: "controller",
+                                            amount: 4,
+                                        },
+                                    ],
+                                    else: [
+                                        {
+                                            op: "gainLife",
+                                            player: "controller",
+                                            amount: 2,
+                                        },
+                                    ],
+                                },
+                            ],
+                            else: [
+                                {
+                                    op: "gainLife",
+                                    player: "controller",
+                                    amount: 2,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);

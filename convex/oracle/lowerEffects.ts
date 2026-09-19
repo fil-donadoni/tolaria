@@ -16,13 +16,18 @@
 import type {
     EffectObjectSelector,
     EffectOp,
+    CardType,
+    Color,
+    EffectCardFilter,
     EffectPlayerRef,
+    EffectPredicate,
     EffectTokenSpec,
     EffectValue,
     KickerCost,
     ManaCost,
     TargetRequirement,
 } from "../cards/types";
+import type { PermanentFilter } from "../cards/filters";
 import type { KickedRefIR } from "./grammar/shared/condition";
 import { durationSpec } from "./grammar/shared/duration";
 import {
@@ -143,9 +148,65 @@ export class TargetSlots {
  * duplicated one), so two optional sentences in one ability must not both be
  * called `$may`.
  */
+/**
+ * CR 601.2c — the SAME announced targets, read a second time.
+ *
+ * An `upgrade-if-controls` lowers its base effect and its upgraded twin, and
+ * both name the one target the ability announced. The twin is lowered through
+ * these slots: each allocation must be the requirement the base allocated at
+ * that position, and gets the base's index back — never a second slot.
+ */
+class ReplayedTargetSlots extends TargetSlots {
+    private next: number;
+    constructor(
+        private readonly source: TargetSlots,
+        from: number
+    ) {
+        super();
+        this.next = from;
+    }
+    override allocate(requirement: TargetRequirement): Lowered<number> {
+        const prior = this.source.requirements()[this.next];
+        if (
+            prior === undefined ||
+            JSON.stringify(prior) !== JSON.stringify(requirement)
+        )
+            return unlowerable(
+                "the replacement names a target its base effect did not (CR 601.2c)"
+            );
+        this.next += 1;
+        return lowered(this.next - 1);
+    }
+    override requirements(): readonly TargetRequirement[] {
+        return this.source.requirements();
+    }
+    /** How many of the source's slots the replay has read back. */
+    consumed(): number {
+        return this.next;
+    }
+}
+
 export class SentenceWalk {
-    readonly targets = new TargetSlots();
-    private binds = 0;
+    readonly targets: TargetSlots;
+    private readonly binds: { count: number };
+
+    constructor(
+        targets: TargetSlots = new TargetSlots(),
+        binds: { count: number } = { count: 0 }
+    ) {
+        this.targets = targets;
+        this.binds = binds;
+    }
+
+    /** A walk over the same targets from `from`, sharing binding names. */
+    replaying(from: number): SentenceWalk & {
+        readonly targets: ReplayedTargetSlots;
+    } {
+        return new SentenceWalk(
+            new ReplayedTargetSlots(this.targets, from),
+            this.binds
+        ) as SentenceWalk & { readonly targets: ReplayedTargetSlots };
+    }
     /**
      * CR 608.2c — the player whose library the last `look-reorder` looked
      * at, when that player was announced as a target: the referent of "That
@@ -169,8 +230,8 @@ export class SentenceWalk {
 
     /** A binding name unique within this ability's script. */
     nextBind(prefix: string): string {
-        this.binds += 1;
-        return `$${prefix}${this.binds}`;
+        this.binds.count += 1;
+        return `$${prefix}${this.binds.count}`;
     }
 }
 
@@ -402,6 +463,36 @@ function lowerSentenceBody(
                 },
             ]);
         }
+        case "loot": {
+            // CR 121.1 then CR 701.9a — draw, then discard cards of the
+            // controller's choice: the draw / choose-hand-card / discard
+            // sequence every hand-written looter writes.
+            const draw = lowerAmount(sentence.draw, site);
+            if (!draw.ok) return draw;
+            const discard = lowerAmount(sentence.discard, site);
+            if (!discard.ok) return discard;
+            if (typeof discard.value !== "number")
+                return unlowerable("a loot discards a printed number of cards");
+            const bind = walk.nextBind("discard");
+            return lowered([
+                { op: "draw", player: "controller", count: draw.value },
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zone: "hand",
+                    count: discard.value,
+                    prompt:
+                        discard.value === 1
+                            ? "Discard a card."
+                            : `Discard ${countWord(discard.value)} cards.`,
+                    bind,
+                },
+                { op: "discard", player: "controller", cards: { ref: bind } },
+            ]);
+        }
+        case "upgrade-if-controls":
+            return lowerUpgrade(sentence, walk, site);
         case "discard-at-random": {
             const player = playerRef(sentence.player, slots);
             if (!player.ok) return player;
@@ -514,6 +605,97 @@ function gatedSentence(
     walk.libraryLookedAt = antecedent;
     walk.actedOn = actedOn;
     return inner;
+}
+
+/**
+ * CR 608.2c — "<base>. If you control a <A> and a <B>, <upgraded> instead."
+ *
+ * The replacement is decided as the ability RESOLVES, so it is an `if` over
+ * `count` predicates (one per controls clause, each "at least one", read off
+ * the controller's battlefield — CR 109.5's "you") rather than a CR 603.4
+ * intervening-if. There is no conjunction in the predicate vocabulary and no
+ * fifth construct to add one (ADR 0045), so the conjunction is the nesting:
+ * `if A { if B { upgraded } else { base } } else { base }`. The base script
+ * appears once per `else`; `if` branches see a CLONE of the bindings in scope
+ * (`validateEffectScript`), so a bind inside it is legal in both.
+ */
+function lowerUpgrade(
+    sentence: Extract<EffectSentenceIR, { kind: "upgrade-if-controls" }>,
+    walk: SentenceWalk,
+    site: SiteOptions
+): Lowered<EffectOp[]> {
+    const from = walk.targets.requirements().length;
+    const base = lowerSentence(sentence.base, walk, site);
+    if (!base.ok) return base;
+    const replay = walk.replaying(from);
+    const upgraded = lowerSentence(sentence.upgraded, replay, site);
+    if (!upgraded.ok) return upgraded;
+    if (replay.targets.consumed() !== walk.targets.requirements().length)
+        return unlowerable(
+            "the replacement does not name every target its base effect did (CR 601.2c)"
+        );
+    const predicates: EffectPredicate[] = [];
+    for (const condition of sentence.conditions) {
+        const filter = countFilterOf(condition.filter);
+        if (!filter.ok) return filter;
+        predicates.push({
+            left: {
+                count: {
+                    zone: "battlefield",
+                    controller: "controller",
+                    filter: filter.value,
+                },
+            },
+            op: "ge",
+            right: condition.atLeast,
+        });
+    }
+    let script: EffectOp[] = upgraded.value;
+    for (const predicate of [...predicates].reverse())
+        script = [
+            {
+                op: "if",
+                predicate,
+                then: script,
+                else: structuredClone(base.value),
+            },
+        ];
+    return lowered(script);
+}
+
+/**
+ * A controls clause's `PermanentFilter` as the `count` construct's
+ * `EffectCardFilter` — the two members a condition emits today (CR 205.2a
+ * types, CR 105.1 colours). Any other field is refused rather than dropped: a
+ * dropped clause counts permanents the card does not mean.
+ */
+function countFilterOf(filter: PermanentFilter): Lowered<EffectCardFilter> {
+    const out: EffectCardFilter = {};
+    for (const [key, value] of Object.entries(filter)) {
+        if (value === undefined) continue;
+        if (key === "types") out.type = [...(value as CardType[])];
+        else if (key === "colors") out.color = [...(value as Color[])];
+        else
+            return unlowerable(
+                `a "${key}" clause has no resolution-time count here`
+            );
+    }
+    return lowered(out);
+}
+
+/** A small count as the word Oracle text prints ("two"), for a prompt. */
+function countWord(n: number): string {
+    const words = [
+        "zero",
+        "one",
+        "two",
+        "three",
+        "four",
+        "five",
+        "six",
+        "seven",
+    ];
+    return words[n] ?? String(n);
 }
 
 /** Remember the announced object a sentence acted on (see `actedOn`). */
