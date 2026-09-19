@@ -5417,6 +5417,46 @@
         "rarity": "common"
     },
     {
+        "name": "Gilt-Leaf Seer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elf",
+            "Shaman"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{G}, {T}: Look at the top two cards of your library, then put them back in any order.",
+        "activatedAbilities": [
+            {
+                "id": "gilt-leaf-seer-ability",
+                "oracleText": "{G}, {T}: Look at the top two cards of your library, then put them back in any order.",
+                "cost": {
+                    "mana": {
+                        "G": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "scryReorder",
+                        "player": "controller",
+                        "count": 2,
+                        "destination": "none"
+                    }
+                ]
+            }
+        ],
+        "id": "0b4cc889-9bc1-48dd-b1d1-95daa73b8fbe",
+        "rarity": "common"
+    },
+    {
         "name": "Ifnir Deadlands",
         "types": [
             "Land"
@@ -25401,6 +25441,52 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Enlistment Officer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 3,
+        "oracleText": "First strike\nWhen this creature enters, reveal the top four cards of your library. Put all Soldier cards revealed this way into your hand and the rest on the bottom of your library in any order.",
+        "staticAbilities": [
+            "first strike"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "enlistment-officer-trigger",
+                "oracleText": "When this creature enters, reveal the top four cards of your library. Put all Soldier cards revealed this way into your hand and the rest on the bottom of your library in any order.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "lookDistribute",
+                        "player": "controller",
+                        "look": 4,
+                        "take": 4,
+                        "keepTo": "hand",
+                        "filter": {
+                            "subtype": "Soldier"
+                        },
+                        "optional": false,
+                        "reveal": "window"
+                    }
+                ]
+            }
+        ],
+        "id": "38138bb4-25ea-4aaf-8b1c-e9e60678fc6b",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Guardians of Akrasa",
         "types": [
             "Creature"
@@ -28192,6 +28278,45 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Sage Owl",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Bird"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Flying\nWhen this creature enters, look at the top four cards of your library, then put them back in any order.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "sage-owl-trigger",
+                "oracleText": "When this creature enters, look at the top four cards of your library, then put them back in any order.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "scryReorder",
+                        "player": "controller",
+                        "count": 4,
+                        "destination": "none"
+                    }
+                ]
+            }
+        ],
+        "id": "3ee2d6a1-8b1e-47e5-9720-5683ac458250",
+        "rarity": "common"
+    },
+    {
         "name": "Moroii",
         "types": [
             "Creature"
@@ -30109,6 +30234,43 @@
         "power": 3,
         "toughness": 7,
         "id": "440c53f0-7922-4e14-802d-d7a22f8fed85",
+        "rarity": "common"
+    },
+    {
+        "name": "Tahngarth's Glare",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "R": 1
+        },
+        "oracleText": "Look at the top three cards of target opponent's library, then put them back in any order. That player looks at the top three cards of your library, then puts them back in any order.",
+        "effects": [
+            {
+                "op": "scryReorder",
+                "player": {
+                    "target": 0
+                },
+                "chooser": "controller",
+                "count": 3,
+                "destination": "none"
+            },
+            {
+                "op": "scryReorder",
+                "player": "controller",
+                "chooser": {
+                    "target": 0
+                },
+                "count": 3,
+                "destination": "none"
+            }
+        ],
+        "targetRequirement": {
+            "type": "player",
+            "count": 1,
+            "controller": "opponent"
+        },
+        "id": "442a4331-99ce-405e-b261-19b7f3375ddf",
         "rarity": "common"
     },
     {
@@ -33795,6 +33957,46 @@
             }
         ],
         "id": "4bf4da70-c656-4e40-bb0f-68e9dda024c9",
+        "rarity": "common"
+    },
+    {
+        "name": "Sage Aven",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Bird",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 3,
+        "oracleText": "Flying (This creature can't be blocked except by creatures with flying or reach.)\nWhen this creature enters, look at the top four cards of your library, then put them back in any order.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "sage-aven-trigger",
+                "oracleText": "When this creature enters, look at the top four cards of your library, then put them back in any order.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "scryReorder",
+                        "player": "controller",
+                        "count": 4,
+                        "destination": "none"
+                    }
+                ]
+            }
+        ],
+        "id": "4c03afc5-7ca3-4ac6-a06e-091e2cce13a0",
         "rarity": "common"
     },
     {
@@ -37648,6 +37850,29 @@
         "rarity": "common"
     },
     {
+        "name": "Drawn from Dreams",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 2
+        },
+        "oracleText": "Look at the top seven cards of your library. Put two of them into your hand and the rest on the bottom of your library in a random order.",
+        "effects": [
+            {
+                "op": "lookDistribute",
+                "keepTo": "hand",
+                "player": "controller",
+                "look": 7,
+                "take": 2,
+                "randomBottom": true
+            }
+        ],
+        "id": "5677cd48-de9f-4827-94d7-8a2301945742",
+        "rarity": "rare"
+    },
+    {
         "name": "Whirlwing Stormbrood",
         "types": [
             "Creature"
@@ -39811,6 +40036,31 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Dig Through Time",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 6,
+            "U": 2
+        },
+        "oracleText": "Delve (Each card you exile from your graveyard while casting this spell pays for {1}.)\nLook at the top seven cards of your library. Put two of them into your hand and the rest on the bottom of your library in any order.",
+        "staticAbilities": [
+            "delve"
+        ],
+        "effects": [
+            {
+                "op": "lookDistribute",
+                "keepTo": "hand",
+                "player": "controller",
+                "look": 7,
+                "take": 2
+            }
+        ],
+        "id": "5c18c2d8-995c-4736-bdef-464abcd1d31a",
+        "rarity": "rare"
+    },
+    {
         "name": "Feral Invocation",
         "types": [
             "Enchantment"
@@ -41337,6 +41587,48 @@
         ],
         "id": "5fbdae0b-b4aa-40ff-9017-b4349bd6b627",
         "rarity": "common"
+    },
+    {
+        "name": "Kavu Howler",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Kavu"
+        ],
+        "manaCost": {
+            "X": 4,
+            "G": 2
+        },
+        "power": 4,
+        "toughness": 5,
+        "oracleText": "When this creature enters, reveal the top four cards of your library. Put all Kavu cards revealed this way into your hand and the rest on the bottom of your library in any order.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "kavu-howler-trigger",
+                "oracleText": "When this creature enters, reveal the top four cards of your library. Put all Kavu cards revealed this way into your hand and the rest on the bottom of your library in any order.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "lookDistribute",
+                        "player": "controller",
+                        "look": 4,
+                        "take": 4,
+                        "keepTo": "hand",
+                        "filter": {
+                            "subtype": "Kavu"
+                        },
+                        "optional": false,
+                        "reveal": "window"
+                    }
+                ]
+            }
+        ],
+        "id": "5fdf502f-445d-4724-b7d0-8fdd5bf557a8",
+        "rarity": "uncommon"
     },
     {
         "name": "Steeple Roc",
@@ -42900,6 +43192,26 @@
         ],
         "entersTapped": true,
         "id": "63742780-47ee-4a66-993a-69e06c14967d",
+        "rarity": "common"
+    },
+    {
+        "name": "Index",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "U": 1
+        },
+        "oracleText": "Look at the top five cards of your library, then put them back in any order.",
+        "effects": [
+            {
+                "op": "scryReorder",
+                "player": "controller",
+                "count": 5,
+                "destination": "none"
+            }
+        ],
+        "id": "637ebd57-ba92-48ff-9ad4-d40dad2ff418",
         "rarity": "common"
     },
     {
@@ -51689,6 +52001,29 @@
         "rarity": "common"
     },
     {
+        "name": "Shimmer of Possibility",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "oracleText": "Look at the top four cards of your library. Put one of them into your hand and the rest on the bottom of your library in a random order.",
+        "effects": [
+            {
+                "op": "lookDistribute",
+                "keepTo": "hand",
+                "player": "controller",
+                "look": 4,
+                "take": 1,
+                "randomBottom": true
+            }
+        ],
+        "id": "76e3092d-2422-438c-b5dd-bf8eca33a76e",
+        "rarity": "common"
+    },
+    {
         "name": "Dawn's Light Archer",
         "types": [
             "Creature"
@@ -51817,6 +52152,29 @@
             "haste"
         ],
         "id": "77134e93-4c03-476b-ab60-d8fb48f7a74f",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Strategic Planning",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "oracleText": "Look at the top three cards of your library. Put one of them into your hand and the rest into your graveyard.",
+        "effects": [
+            {
+                "op": "lookDistribute",
+                "keepTo": "hand",
+                "player": "controller",
+                "look": 3,
+                "take": 1,
+                "destination": "graveyard"
+            }
+        ],
+        "id": "7727e7b5-39a3-46ba-935b-ee093c694c38",
         "rarity": "uncommon"
     },
     {
@@ -53101,6 +53459,40 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Prophetic Bolt",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 1,
+            "R": 1
+        },
+        "oracleText": "Prophetic Bolt deals 4 damage to any target. Look at the top four cards of your library. Put one of those cards into your hand and the rest on the bottom of your library in any order.",
+        "effects": [
+            {
+                "op": "dealDamage",
+                "amount": 4,
+                "to": {
+                    "target": 0
+                }
+            },
+            {
+                "op": "lookDistribute",
+                "keepTo": "hand",
+                "player": "controller",
+                "look": 4,
+                "take": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "any",
+            "count": 1
+        },
+        "id": "79f74291-c452-4a60-bf5f-73efad6583d4",
+        "rarity": "rare"
+    },
+    {
         "name": "Woodland Patrol",
         "types": [
             "Creature"
@@ -53231,6 +53623,67 @@
         ],
         "id": "7a35be7b-d693-4433-9b13-8e019adc594e",
         "rarity": "rare"
+    },
+    {
+        "name": "Aven Fateshaper",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Bird",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 6,
+            "U": 1
+        },
+        "power": 4,
+        "toughness": 5,
+        "oracleText": "Flying\nWhen this creature enters, look at the top four cards of your library, then put them back in any order.\n{4}{U}: Look at the top four cards of your library, then put them back in any order.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "aven-fateshaper-ability",
+                "oracleText": "{4}{U}: Look at the top four cards of your library, then put them back in any order.",
+                "cost": {
+                    "mana": {
+                        "X": 4,
+                        "U": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "scryReorder",
+                        "player": "controller",
+                        "count": 4,
+                        "destination": "none"
+                    }
+                ]
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "aven-fateshaper-trigger",
+                "oracleText": "When this creature enters, look at the top four cards of your library, then put them back in any order.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "scryReorder",
+                        "player": "controller",
+                        "count": 4,
+                        "destination": "none"
+                    }
+                ]
+            }
+        ],
+        "id": "7a4b41c4-0d14-4b9c-8e0c-a626ba6b104d",
+        "rarity": "uncommon"
     },
     {
         "name": "Unfriendly Fire",
@@ -56229,6 +56682,73 @@
         ],
         "id": "80acb6dc-a9bd-4f12-9025-623416bdfc32",
         "rarity": "rare"
+    },
+    {
+        "name": "Tidal Courier",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Merfolk"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "When this creature enters, reveal the top four cards of your library. Put all Merfolk cards revealed this way into your hand and the rest on the bottom of your library in any order.\n{3}{U}: This creature gains flying until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "tidal-courier-ability",
+                "oracleText": "{3}{U}: This creature gains flying until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 3,
+                        "U": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "ability": "flying",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "tidal-courier-trigger",
+                "oracleText": "When this creature enters, reveal the top four cards of your library. Put all Merfolk cards revealed this way into your hand and the rest on the bottom of your library in any order.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "lookDistribute",
+                        "player": "controller",
+                        "look": 4,
+                        "take": 4,
+                        "keepTo": "hand",
+                        "filter": {
+                            "subtype": "Merfolk"
+                        },
+                        "optional": false,
+                        "reveal": "window"
+                    }
+                ]
+            }
+        ],
+        "id": "80b7cd5d-e81a-4729-b5d3-45587756413a",
+        "rarity": "uncommon"
     },
     {
         "name": "Talas Air Ship",
@@ -59253,6 +59773,28 @@
         "rarity": "common"
     },
     {
+        "name": "Anticipate",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "oracleText": "Look at the top three cards of your library. Put one of them into your hand and the rest on the bottom of your library in any order.",
+        "effects": [
+            {
+                "op": "lookDistribute",
+                "keepTo": "hand",
+                "player": "controller",
+                "look": 3,
+                "take": 1
+            }
+        ],
+        "id": "87f7a3f3-517a-4f7a-bb28-94f11790b598",
+        "rarity": "rare"
+    },
+    {
         "name": "Goblin Assault Team",
         "types": [
             "Creature"
@@ -62164,6 +62706,42 @@
         "rarity": "common"
     },
     {
+        "name": "Sage of Epityr",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "When this creature enters, look at the top four cards of your library, then put them back in any order.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "sage-of-epityr-trigger",
+                "oracleText": "When this creature enters, look at the top four cards of your library, then put them back in any order.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "scryReorder",
+                        "player": "controller",
+                        "count": 4,
+                        "destination": "none"
+                    }
+                ]
+            }
+        ],
+        "id": "8e2ea578-069e-4020-a762-d108a3e14861",
+        "rarity": "common"
+    },
+    {
         "name": "Scuzzback Scrapper",
         "types": [
             "Creature"
@@ -64237,6 +64815,33 @@
             }
         ],
         "id": "9404c7d5-3450-4425-94e5-aa7d4e571d4e",
+        "rarity": "common"
+    },
+    {
+        "name": "Resentful Revelation",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Look at the top three cards of your library. Put one of them into your hand and the rest into your graveyard.\nFlashback {6}{B} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+        "effects": [
+            {
+                "op": "lookDistribute",
+                "keepTo": "hand",
+                "player": "controller",
+                "look": 3,
+                "take": 1,
+                "destination": "graveyard"
+            }
+        ],
+        "flashback": {
+            "X": 6,
+            "B": 1
+        },
+        "id": "945006ea-c6a1-4ee5-abb2-387c2b6d3123",
         "rarity": "common"
     },
     {
@@ -67046,6 +67651,34 @@
         ],
         "id": "9a9a1df5-a4e8-49a4-aebe-ca93894ccfcf",
         "rarity": "common"
+    },
+    {
+        "name": "Commune with Evil",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "oracleText": "Look at the top four cards of your library. Put one of them into your hand and the rest into your graveyard. You gain 3 life.",
+        "effects": [
+            {
+                "op": "lookDistribute",
+                "keepTo": "hand",
+                "player": "controller",
+                "look": 4,
+                "take": 1,
+                "destination": "graveyard"
+            },
+            {
+                "op": "gainLife",
+                "player": "controller",
+                "amount": 3
+            }
+        ],
+        "id": "9ab94ebe-b51b-4c6f-af43-0ed80e2808a3",
+        "rarity": "uncommon"
     },
     {
         "name": "Nyxborn Seaguard",
@@ -71567,6 +72200,45 @@
         "rarity": "common"
     },
     {
+        "name": "Testament Bearer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Phyrexian",
+            "Warrior"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "power": 4,
+        "toughness": 1,
+        "oracleText": "When this creature dies, look at the top three cards of your library. Put one of them into your hand and the rest into your graveyard.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "testament-bearer-trigger",
+                "oracleText": "When this creature dies, look at the top three cards of your library. Put one of them into your hand and the rest into your graveyard.",
+                "head": {
+                    "kind": "died",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "lookDistribute",
+                        "keepTo": "hand",
+                        "player": "controller",
+                        "look": 3,
+                        "take": 1,
+                        "destination": "graveyard"
+                    }
+                ]
+            }
+        ],
+        "id": "a5424859-628a-4c19-acd0-0c63c21c8338",
+        "rarity": "common"
+    },
+    {
         "name": "Unnatural Speed",
         "types": [
             "Instant"
@@ -75335,6 +76007,47 @@
         "rarity": "common"
     },
     {
+        "name": "Sultai Soothsayer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Snake",
+            "Shaman"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1,
+            "B": 1,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 5,
+        "oracleText": "When this creature enters, look at the top four cards of your library. Put one of them into your hand and the rest into your graveyard.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "sultai-soothsayer-trigger",
+                "oracleText": "When this creature enters, look at the top four cards of your library. Put one of them into your hand and the rest into your graveyard.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "lookDistribute",
+                        "keepTo": "hand",
+                        "player": "controller",
+                        "look": 4,
+                        "take": 1,
+                        "destination": "graveyard"
+                    }
+                ]
+            }
+        ],
+        "id": "ae0de2c9-957e-41ee-8899-b93e6f1091dc",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Carnassid",
         "types": [
             "Creature"
@@ -76744,6 +77457,29 @@
         ],
         "id": "b1cd0757-1b06-4e1b-a236-31271bd0d9a3",
         "rarity": "common"
+    },
+    {
+        "name": "Ancestral Memories",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 3
+        },
+        "oracleText": "Look at the top seven cards of your library. Put two of them into your hand and the rest into your graveyard.",
+        "effects": [
+            {
+                "op": "lookDistribute",
+                "keepTo": "hand",
+                "player": "controller",
+                "look": 7,
+                "take": 2,
+                "destination": "graveyard"
+            }
+        ],
+        "id": "b1d1298b-9f56-4540-8d6b-7eecfe38cf62",
+        "rarity": "rare"
     },
     {
         "name": "Ascended Lawmage",
@@ -78275,6 +79011,29 @@
         ],
         "id": "b54625ac-484f-4522-8048-38e01c545ac3",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Ransack the Lab",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Look at the top three cards of your library. Put one of them into your hand and the rest into your graveyard.",
+        "effects": [
+            {
+                "op": "lookDistribute",
+                "keepTo": "hand",
+                "player": "controller",
+                "look": 3,
+                "take": 1,
+                "destination": "graveyard"
+            }
+        ],
+        "id": "b547513d-8b69-41cd-84c9-4b08b6426f1d",
+        "rarity": "common"
     },
     {
         "name": "Deathmark Prelate",
@@ -85374,6 +86133,47 @@
         "rarity": "common"
     },
     {
+        "name": "Halimar Depths",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "This land enters tapped.\nWhen this land enters, look at the top three cards of your library, then put them back in any order.\n{T}: Add {U}.",
+        "activatedAbilities": [
+            {
+                "id": "halimar-depths-mana",
+                "oracleText": "{T}: Add {U}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "U": 1
+                }
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "halimar-depths-trigger",
+                "oracleText": "When this land enters, look at the top three cards of your library, then put them back in any order.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "scryReorder",
+                        "player": "controller",
+                        "count": 3,
+                        "destination": "none"
+                    }
+                ]
+            }
+        ],
+        "entersTapped": true,
+        "id": "c5651e5e-2314-4e3d-a2c8-2579239314e1",
+        "rarity": "common"
+    },
+    {
         "name": "Brass Secretary",
         "types": [
             "Artifact",
@@ -85865,6 +86665,45 @@
             "flying"
         ],
         "id": "c6691e62-8887-41e8-8e74-76ee2353d45e",
+        "rarity": "common"
+    },
+    {
+        "name": "Spire Owl",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Bird"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Flying\nWhen this creature enters, look at the top four cards of your library, then put them back in any order.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "spire-owl-trigger",
+                "oracleText": "When this creature enters, look at the top four cards of your library, then put them back in any order.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "scryReorder",
+                        "player": "controller",
+                        "count": 4,
+                        "destination": "none"
+                    }
+                ]
+            }
+        ],
+        "id": "c66b2aa6-e891-4ae5-b6c9-1537b797c3ab",
         "rarity": "common"
     },
     {
@@ -94547,6 +95386,29 @@
         "rarity": "common"
     },
     {
+        "name": "Scattered Thoughts",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 1
+        },
+        "oracleText": "Look at the top four cards of your library. Put two of those cards into your hand and the rest into your graveyard.",
+        "effects": [
+            {
+                "op": "lookDistribute",
+                "keepTo": "hand",
+                "player": "controller",
+                "look": 4,
+                "take": 2,
+                "destination": "graveyard"
+            }
+        ],
+        "id": "dc5c6675-6e0f-427d-9399-a6e7fc6215f1",
+        "rarity": "common"
+    },
+    {
         "name": "Thundering Rebuke",
         "types": [
             "Sorcery"
@@ -95519,6 +96381,33 @@
         ],
         "id": "df14aa0e-6d34-48ca-aee0-3563bbfb3b15",
         "rarity": "rare"
+    },
+    {
+        "name": "Blood Price",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "oracleText": "Look at the top four cards of your library. Put two of them into your hand and the rest on the bottom of your library in any order. You lose 2 life.",
+        "effects": [
+            {
+                "op": "lookDistribute",
+                "keepTo": "hand",
+                "player": "controller",
+                "look": 4,
+                "take": 2
+            },
+            {
+                "op": "loseLife",
+                "player": "controller",
+                "amount": 2
+            }
+        ],
+        "id": "df14d32d-fe53-4370-8298-fab528ff12db",
+        "rarity": "common"
     },
     {
         "name": "Simian Brawler",
@@ -98035,6 +98924,34 @@
         "power": 2,
         "toughness": 2,
         "id": "e41acc81-7c22-4b59-97b8-54473623db6f",
+        "rarity": "common"
+    },
+    {
+        "name": "Bitter Revelation",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "oracleText": "Look at the top four cards of your library. Put two of them into your hand and the rest into your graveyard. You lose 2 life.",
+        "effects": [
+            {
+                "op": "lookDistribute",
+                "keepTo": "hand",
+                "player": "controller",
+                "look": 4,
+                "take": 2,
+                "destination": "graveyard"
+            },
+            {
+                "op": "loseLife",
+                "player": "controller",
+                "amount": 2
+            }
+        ],
+        "id": "e42f5aa9-2a47-47c3-ab87-dc25735b0e54",
         "rarity": "common"
     },
     {
@@ -100724,6 +101641,33 @@
         ],
         "entersTapped": true,
         "id": "eb14f061-9506-40fb-b10d-4bada38ca0f7",
+        "rarity": "common"
+    },
+    {
+        "name": "Forbidden Alchemy",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1
+        },
+        "oracleText": "Look at the top four cards of your library. Put one of them into your hand and the rest into your graveyard.\nFlashback {6}{B} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+        "effects": [
+            {
+                "op": "lookDistribute",
+                "keepTo": "hand",
+                "player": "controller",
+                "look": 4,
+                "take": 1,
+                "destination": "graveyard"
+            }
+        ],
+        "flashback": {
+            "X": 6,
+            "B": 1
+        },
+        "id": "eb22ae62-6207-4693-87cf-7adf0fc1fe29",
         "rarity": "common"
     },
     {
@@ -104490,6 +105434,29 @@
         "rarity": "rare"
     },
     {
+        "name": "Glimpse the Future",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1
+        },
+        "oracleText": "Look at the top three cards of your library. Put one of them into your hand and the rest into your graveyard.",
+        "effects": [
+            {
+                "op": "lookDistribute",
+                "keepTo": "hand",
+                "player": "controller",
+                "look": 3,
+                "take": 1,
+                "destination": "graveyard"
+            }
+        ],
+        "id": "f4d875e9-713d-4ddb-ae0a-db8483366319",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Tower of Champions",
         "types": [
             "Artifact"
@@ -106377,6 +107344,69 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Grave Defiler",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Zombie"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "When this creature enters, reveal the top four cards of your library. Put all Zombie cards revealed this way into your hand and the rest on the bottom of your library in any order.\n{1}{B}: Regenerate this creature.",
+        "activatedAbilities": [
+            {
+                "id": "grave-defiler-ability",
+                "oracleText": "{1}{B}: Regenerate this creature.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "B": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "ref": "$source"
+                        }
+                    }
+                ]
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "grave-defiler-trigger",
+                "oracleText": "When this creature enters, reveal the top four cards of your library. Put all Zombie cards revealed this way into your hand and the rest on the bottom of your library in any order.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "lookDistribute",
+                        "player": "controller",
+                        "look": 4,
+                        "take": 4,
+                        "keepTo": "hand",
+                        "filter": {
+                            "subtype": "Zombie"
+                        },
+                        "optional": false,
+                        "reveal": "window"
+                    }
+                ]
+            }
+        ],
+        "id": "f8f76edc-6067-43bd-9582-1d59caf91597",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Phyrexian Digester",
         "types": [
             "Artifact",
@@ -107523,6 +108553,34 @@
         "rarity": "common"
     },
     {
+        "name": "A-Demon's Due",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "oracleText": "Look at the top four cards of your library. Put two of them into your hand and the rest into your graveyard. You lose 2 life.",
+        "effects": [
+            {
+                "op": "lookDistribute",
+                "keepTo": "hand",
+                "player": "controller",
+                "look": 4,
+                "take": 2,
+                "destination": "graveyard"
+            },
+            {
+                "op": "loseLife",
+                "player": "controller",
+                "amount": 2
+            }
+        ],
+        "id": "fb9f5336-130a-41aa-9df0-9bbb5dd747d9",
+        "rarity": "common"
+    },
+    {
         "name": "Siegecraft",
         "types": [
             "Enchantment"
@@ -107848,6 +108906,51 @@
         "toughness": 3,
         "id": "fd2a923a-1f9c-4a29-9c6b-344ae4d5ae8f",
         "rarity": "common"
+    },
+    {
+        "name": "Sylvan Messenger",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elf"
+        ],
+        "manaCost": {
+            "X": 3,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Trample (This creature can deal excess combat damage to the player or planeswalker it's attacking.)\nWhen this creature enters, reveal the top four cards of your library. Put all Elf cards revealed this way into your hand and the rest on the bottom of your library in any order.",
+        "staticAbilities": [
+            "trample"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "sylvan-messenger-trigger",
+                "oracleText": "When this creature enters, reveal the top four cards of your library. Put all Elf cards revealed this way into your hand and the rest on the bottom of your library in any order.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "lookDistribute",
+                        "player": "controller",
+                        "look": 4,
+                        "take": 4,
+                        "keepTo": "hand",
+                        "filter": {
+                            "subtype": "Elf"
+                        },
+                        "optional": false,
+                        "reveal": "window"
+                    }
+                ]
+            }
+        ],
+        "id": "fd67d17e-23d2-47a0-a10b-c3d63cbf969a",
+        "rarity": "uncommon"
     },
     {
         "name": "Bituminous Blast",

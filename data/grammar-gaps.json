@@ -223,11 +223,6 @@
             "issue": 3927
         },
         {
-            "key": "(op) › lookDistribute",
-            "op": "lookDistribute",
-            "issue": 3928
-        },
-        {
             "key": "(op) › lookHand",
             "op": "lookHand",
             "issue": 3929
@@ -361,11 +356,6 @@
             "key": "(op) › sacrifice",
             "op": "sacrifice",
             "issue": 3955
-        },
-        {
-            "key": "(op) › scryReorder",
-            "op": "scryReorder",
-            "issue": 3956
         },
         {
             "key": "(op) › setBasePT",
