@@ -230,7 +230,8 @@ unlocks, and writing it by hand buys one card and leaves the other N-1.
    `Grammar Gap: <key>`, labelled `ready-for-agent` + `area:mechanics`,
    parented on the Grammar Rules umbrella of its band
    (`docs/agents/issue-tracker.md` § Umbrellas partition by band). Give it a `## Target files` section — the queue planner runs an
-   issue without one SOLO.
+   issue without one SOLO. Every card name in its body is a Scryfall link
+   from `bun run card:link "<Card Name>"` (`docs/agents/issue-tracker.md` § Card names are Scryfall links).
 3. **Hand the card to `/grammar-rule`** on that issue. The card graduates as
    one of the rule's `ready` delta, and the rule is what the PR is measured by.
 
@@ -260,7 +261,9 @@ protocol (`resolve()`) card is hand tail by construction.
 COMPUTES the hand-tail filings and reports them without filing. Read the plan
 from the primary checkout, then open the issue yourself with the same shape —
 `Hand Tail: <Card Name>`, labels `ready-for-agent` + `area:cards` + `hand-tail`,
-body naming the fragment, each residual gap's leverage and the floor:
+body naming the fragment, each residual gap's leverage and the floor. The
+title keeps the bare name; in the body the card is the link
+`bun run card:link "<Card Name>"` prints (`docs/agents/issue-tracker.md` § Card names are Scryfall links):
 
 ```bash
 bun run gaps:sync --dry-run >"$SCRATCHPAD/gaps.log" 2>&1; echo "exit=$?"; grep -n "hand-tail" "$SCRATCHPAD/gaps.log"

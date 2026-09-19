@@ -21,6 +21,7 @@ import {
     type Finding,
     type LintableIssue,
 } from "./lib/queue-lint";
+import { loadCardIndexNames } from "./lib/card-link";
 
 const argv = process.argv.slice(2);
 const asJson = argv.includes("--json");
@@ -52,6 +53,7 @@ const numbers = all
     : explicit;
 
 const results: { issue: LintableIssue; findings: Finding[] }[] = [];
+const cardNames = loadCardIndexNames();
 
 for (const n of numbers) {
     const raw = JSON.parse(
@@ -76,7 +78,7 @@ for (const n of numbers) {
         parentNumber: raw.parent?.number ?? null,
         body: raw.body ?? "",
     };
-    results.push({ issue, findings: lintIssue(issue) });
+    results.push({ issue, findings: lintIssue(issue, { cardNames }) });
 }
 
 if (asJson) {

@@ -283,6 +283,10 @@ PRD is a spec, the queue planner refuses `prd`-labelled issues, so the label
 would only make `/next-issue` skip the umbrella forever. If `to-prd` applied it,
 remove it.
 
+**Tell `to-prd` the card-link rule** — it is MTG-agnostic and will not apply
+it on its own: every card name in the body is the link
+`bun run card:link "<Card Name>" […]` prints (`docs/agents/issue-tracker.md` § Card names are Scryfall links).
+
 **The title MUST start `[<CODE>]`.** `gaps:sync` finds a set's umbrella by
 `^\[<CODE>\]` over open `prd`-labelled issues (`findSetUmbrella`,
 `scripts/gaps-sync.ts`) and parents the Target's computed filings under it. A
@@ -317,8 +321,8 @@ The PRD's **Implementation Decisions** must name:
 
 ## Phase 3 — Cut the tickets (`to-tickets`)
 
-Invoke **`to-tickets`** with the umbrella issue number. Three ticket shapes,
-plus T0.
+Invoke **`to-tickets`** with the umbrella issue number, and tell it the same
+card-link rule as `to-prd` above (`docs/agents/issue-tracker.md` § Card names are Scryfall links). Three ticket shapes, plus T0.
 
 **T0 — register the Target** (only if Phase 0.2 found no row): the
 `data/targets.json` row + the committed MTGJSON blob. `area:cards`,

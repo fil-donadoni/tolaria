@@ -15,6 +15,11 @@
  */
 
 const ANY_HEADING = /^#{1,6}\s+/;
+
+/** The `## Cards` heading (issue #4086). Shared: `backlog:triage` reads the
+ *  section, and the queue lint's `unlinked-card-name` exempts it — its items
+ *  are bare lockfile names BY CONTRACT (issue #3666). */
+export const CARDS_HEADING = /^#{1,6}\s+cards\s*$/i;
 const LIST_ITEM = /^[-*]\s+(.*)$/;
 /** "nothing declared", the shape `## Blocked by` already uses. */
 const DECLARES_NOTHING = /^none\.?$/i;

@@ -73,6 +73,7 @@
         "prepare": "husky",
         "preview": "vite preview",
         "queue:lint": "bun scripts/queue-lint.ts",
+        "card:link": "bun scripts/card-link.ts",
         "queue:plan": "bun scripts/queue-plan.ts",
         "queue:train": "bun scripts/train-order.ts",
         "review:receipt": "bun scripts/write-review-receipt.ts",

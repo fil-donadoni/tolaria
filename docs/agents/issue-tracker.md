@@ -120,6 +120,47 @@ bounded, ordered slice of the backlog, so the cap stops being reachable.
 A new family gets four umbrellas, a `BAND_UMBRELLAS` row and a row here —
 never one umbrella by type.
 
+## Card names are Scryfall links (issue #3666)
+
+Every card name in the BODY of an issue an intake skill generates — Agent
+Brief, PRD umbrella, slice ticket — is a Markdown link to the card's Scryfall
+page, with a text tooltip:
+
+```markdown
+[Lightning Bolt](https://scryfall.com/card/d573ef03-4730-45aa-93dd-e45ac1dbaf4a "{R} · Instant")
+```
+
+Never build the URL by hand: **`bun run card:link "<Card Name>" […]`** prints
+one ready-to-paste link per name. It takes the Scryfall id from
+`data/card-index.json` and the tooltip from the committed Full Catalogue, and
+asks the Scryfall API (exact name) only for what the tree lacks. On a name
+nothing resolves it exits non-zero and names the card — fail-closed, no
+guessed URL.
+
+- **The id, never a name search.** `scryfall.com/card/<id>` redirects to the
+  card's page; a `?q=` search lands on a results list whenever a name has
+  several printings.
+- **Why a text tooltip, and no hover image or new tab.** GitHub sanitizes JS
+  and CSS out of an issue body and strips `target` from links, so an image
+  overlay and forced new-tab opening are both impossible there. The link
+  title (`<mana cost> · <type line>`) is the one hover GitHub renders. Do not
+  retry the image.
+- **Body only.** GitHub renders an issue title as plain text, so a title keeps
+  the bare name.
+- **Exempt:** fenced code (logs, specs, quoted templates) and the
+  `## Cards` declaration (section above), whose items are bare lockfile names
+  by contract.
+- **Forward-only.** Existing issues are not rewritten; PR bodies, commit
+  messages, findings drafts and code comments are out of scope.
+
+`bun run queue:lint` reports a bare multi-word catalogue name as the advisory
+`unlinked-card-name` (never blocking) and its fix line is the `card:link`
+command for exactly those names. Single-word names (Island, Fog, Shock …) are
+not checked — they collide with ordinary English.
+
+A skill that hands its drafting off to `/to-prd` or `/to-tickets` tells them
+to apply this rule; those two stay MTG-agnostic.
+
 ## When a skill says "publish to the issue tracker"
 
 Create a GitHub issue.

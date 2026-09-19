@@ -257,6 +257,73 @@ describe("every queue-facing skill instructs `Target files`", () => {
     });
 });
 
+describe("every queue-facing skill instructs the card-link convention (issue #3666)", () => {
+    const SKILLS = path.join(REPO_ROOT, ".claude", "skills");
+    const CONVENTION = "Card names are Scryfall links";
+
+    /**
+     * Same content-derived corpus as the `Target files` guard above, so a new
+     * intake skill is covered the day it is written.
+     */
+    const queueFacing = (): string[] =>
+        fs
+            .readdirSync(SKILLS)
+            .filter((name) => {
+                const file = path.join(SKILLS, name, "SKILL.md");
+                if (!fs.existsSync(file)) return false;
+                return /ready-for-agent|open a github issue/i.test(
+                    fs.readFileSync(file, "utf8")
+                );
+            })
+            .sort();
+
+    /**
+     * Queue-facing, but not a place a card name is drafted into an issue body.
+     * Each exemption must stay queue-facing, or it is stale and reds below.
+     */
+    const EXEMPT: Record<string, string> = {
+        "next-issue": "drains the queue; never drafts an issue body",
+        "to-prd":
+            "MTG-agnostic by design — the calling intake skill hands it the rule",
+        "to-tickets":
+            "MTG-agnostic by design — the calling intake skill hands it the rule",
+    };
+
+    it("exempts only skills that are still queue-facing", () => {
+        const stale = Object.keys(EXEMPT).filter(
+            (name) => !queueFacing().includes(name)
+        );
+        expect(stale, "stale EXEMPT entries").toEqual([]);
+    });
+
+    it("names the convention and its helper in each of the others", () => {
+        const silent = queueFacing()
+            .filter((name) => !(name in EXEMPT))
+            .filter((name) => {
+                const body = fs.readFileSync(
+                    path.join(SKILLS, name, "SKILL.md"),
+                    "utf8"
+                );
+                return (
+                    !body.includes(CONVENTION) || !body.includes("card:link")
+                );
+            });
+        expect(
+            silent,
+            `queue-facing skill(s) that never point to docs/agents/issue-tracker.md § ${CONVENTION} + \`bun run card:link\`:\n${silent.join("\n")}`
+        ).toEqual([]);
+    });
+
+    it("the section it points to exists", () => {
+        const doc = fs.readFileSync(
+            path.join(REPO_ROOT, "docs", "agents", "issue-tracker.md"),
+            "utf8"
+        );
+        expect(doc).toMatch(new RegExp(`^## ${CONVENTION}`, "m"));
+        expect(doc).toContain("bun run card:link");
+    });
+});
+
 describe("/grammar-rule names only commands that exist (issue #3834)", () => {
     const rel = path.join(".claude", "skills", "grammar-rule", "SKILL.md");
     const body = () => fs.readFileSync(path.join(REPO_ROOT, rel), "utf8");
