@@ -246,6 +246,47 @@ describe("Library top — golden fixtures (CR 401.4, CR 701.20a)", () => {
     });
 });
 
+describe("Library top — target player's library", () => {
+    it("an activated reorder of target player's library: Elemental Augury", () => {
+        const line =
+            "{3}: Look at the top three cards of target player's library, then put them back in any order.";
+        const definition = compiled(
+            oracleCard({
+                name: "Elemental Augury",
+                manaCost: "{U}{B}{R}",
+                typeLine: "Enchantment",
+                oracleText: line,
+                power: undefined,
+                toughness: undefined,
+            })
+        );
+        const ability = definition.activatedAbilities?.[0];
+        expect(ability?.targetRequirement).toEqual({
+            type: "player",
+            count: 1,
+        });
+        expect(ability?.effects).toEqual([
+            {
+                op: "scryReorder",
+                player: { target: 0 },
+                chooser: "controller",
+                count: 3,
+                destination: "none",
+            },
+        ]);
+    });
+
+    it('"That player" does not bind to a library looked at behind "you may"', () => {
+        const outcome = compileCard(
+            oracleCard({
+                oracleText:
+                    "When this creature enters, you may look at the top three cards of target opponent's library, then put them back in any order. That player looks at the top three cards of your library, then puts them back in any order.",
+            })
+        );
+        expect(outcome.state).toBe("unparsed");
+    });
+});
+
 describe("Library top — refusals (fail-closed, ADR 0105 § 2)", () => {
     const refused: [string, string][] = [
         [

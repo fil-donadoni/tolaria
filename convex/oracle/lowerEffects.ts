@@ -344,7 +344,7 @@ export function lowerSentence(
             // structural construct. The inner sentence is lowered by THIS
             // walk, so "you may tap target creature" allocates its slot once,
             // through the shared allocator, exactly as the bare sentence does.
-            const inner = lowerSentence(sentence.effect, walk, site);
+            const inner = gatedSentence(sentence.effect, walk, site);
             if (!inner.ok) return inner;
             const bind = walk.nextBind("may");
             return lowered([
@@ -432,7 +432,7 @@ export function lowerSentence(
             // it on every cast. Measured on the walk, so a target allocated
             // by the inner sentence is seen however it was reached.
             const before = walk.targets.requirements().length;
-            const inner = lowerSentence(sentence.effect, walk, site);
+            const inner = gatedSentence(sentence.effect, walk, site);
             if (!inner.ok) return inner;
             if (walk.targets.requirements().length !== before)
                 return unlowerable(
@@ -455,6 +455,24 @@ export function lowerSentence(
             );
         }
     }
+}
+
+/**
+ * Lower a sentence behind a gate ("you may", "if this spell was kicked").
+ *
+ * A library looked at behind a gate may never have been looked at, so it is
+ * no antecedent for a "That player" after the gate: the walk's referent is
+ * restored to what it was before the gated sentence.
+ */
+function gatedSentence(
+    sentence: EffectSentenceIR,
+    walk: SentenceWalk,
+    site: SiteOptions
+): Lowered<EffectOp[]> {
+    const antecedent = walk.libraryLookedAt;
+    const inner = lowerSentence(sentence, walk, site);
+    walk.libraryLookedAt = antecedent;
+    return inner;
 }
 
 /**
