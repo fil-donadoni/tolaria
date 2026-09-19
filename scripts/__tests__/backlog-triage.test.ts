@@ -5,16 +5,27 @@
  * registry and a synthetic lockfile; the I/O half (`runTriage`) is driven with
  * a recording `ghClient`, which is what pins "zero mutations" and "the board
  * read is the shared single-field query, never a whole-board item list".
+ *
+ * The write side (issue #4055) runs against a STATEFUL stub tracker: its
+ * mutations move the stub's board, so "the second run writes nothing" is
+ * measured on the board the first run left, not asserted by construction.
  */
 
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { OPEN_ISSUES_QUERY, runTriage } from "../backlog-triage";
+import {
+    applyWrites,
+    OPEN_ISSUES_QUERY,
+    PRIORITY_FIELD_QUERY,
+    runTriage,
+    WRITE_BATCH,
+} from "../backlog-triage";
 import {
     cardBandIndex,
     cardsNamedByEngineTitle,
     claimedCards,
     issueCards,
+    planWrites,
     summarize,
     targetBand,
     triage,
@@ -494,13 +505,285 @@ describe("backlog-triage — runTriage", () => {
         expect(flat).toContain('fieldValueByName(name: "Priority")');
     }, 60_000);
 
-    it("refuses --write by name", () => {
+    it("refuses --write together with --dry-run", () => {
         expect(() =>
             runTriage({
                 root: ROOT,
-                argv: ["--write"],
+                argv: ["--write", "--dry-run"],
                 ghClient: recordingGh([]),
             })
-        ).toThrow(/dry-run only/);
+        ).toThrow(/pick one/);
+    });
+});
+
+// ── The write side (issue #4055) ─────────────────────────────────────────
+
+describe("backlog-triage — planWrites", () => {
+    const band = (b: "P1" | "P2" | "P3") =>
+        ({ kind: "band", band: b, source: "fiat", via: "#1" }) as const;
+
+    it("owes only CHANGED values — a band the board holds owes nothing", () => {
+        const verdicts = new Map([
+            [1, band("P1")],
+            [2, band("P2")],
+            [3, band("P3")],
+        ]);
+        expect(planWrites(verdicts, { 1: "P1", 2: "P3" })).toEqual([
+            { number: 2, band: "P2", from: "P3" },
+            { number: 3, band: "P3", from: null },
+        ]);
+    });
+
+    it("never writes over a board P0, even against a band verdict", () => {
+        expect(planWrites(new Map([[1, band("P2")]]), { 1: "P0" })).toEqual([]);
+    });
+
+    it("a p0 or residue verdict owes no write — not P3, not a clear", () => {
+        const verdicts = new Map([
+            [1, { kind: "p0" } as const],
+            [2, { kind: "residue" } as const],
+            [3, { kind: "residue" } as const],
+        ]);
+        expect(planWrites(verdicts, { 1: "P0", 2: "P2" })).toEqual([]);
+    });
+});
+
+/**
+ * A tracker whose board MOVES: `add` returns the board item (idempotently),
+ * `update` sets the option on it. Every call is recorded; every mutation is
+ * also recorded per write so a test can read exactly which values moved.
+ */
+function stubTracker(
+    board: Record<number, BoardPriority>,
+    open: { number: number; parent: number | null }[]
+) {
+    const calls: string[][] = [];
+    const mutations: string[] = [];
+    const written: { number: number; value: string }[] = [];
+    const OPTION: Record<string, string> = {
+        P0: "OPT_P0",
+        P1: "OPT_P1",
+        P2: "OPT_P2",
+        P3: "OPT_P3",
+    };
+    const byOption = Object.fromEntries(
+        Object.entries(OPTION).map(([k, v]) => [v, k])
+    ) as Record<string, BoardPriority>;
+    const client = (args: string[]): string => {
+        calls.push(args);
+        const query = (args.find((a) => a.startsWith("query=")) ?? "").slice(
+            "query=".length
+        );
+        if (query.includes('fieldValueByName(name: "Priority")'))
+            return JSON.stringify([
+                {
+                    data: {
+                        repositoryOwner: {
+                            projectV2: {
+                                items: {
+                                    totalCount: Object.keys(board).length,
+                                    pageInfo: {
+                                        hasNextPage: false,
+                                        endCursor: null,
+                                    },
+                                    nodes: Object.entries(board).map(
+                                        ([n, value]) => ({
+                                            content: {
+                                                __typename: "Issue",
+                                                number: Number(n),
+                                                repository: {
+                                                    nameWithOwner:
+                                                        "fil-donadoni/tolaria",
+                                                },
+                                            },
+                                            fieldValueByName: { name: value },
+                                        })
+                                    ),
+                                },
+                            },
+                        },
+                    },
+                },
+            ]);
+        if (query === OPEN_ISSUES_QUERY)
+            return JSON.stringify([
+                {
+                    data: {
+                        repository: {
+                            issues: {
+                                totalCount: open.length,
+                                pageInfo: { hasNextPage: false },
+                                nodes: open.map((i) => ({
+                                    id: `I_${i.number}`,
+                                    number: i.number,
+                                    title: `issue ${i.number}`,
+                                    parent:
+                                        i.parent === null
+                                            ? null
+                                            : { number: i.parent },
+                                    blocking: { totalCount: 0, nodes: [] },
+                                })),
+                            },
+                        },
+                    },
+                },
+            ]);
+        if (query === PRIORITY_FIELD_QUERY)
+            return JSON.stringify({
+                data: {
+                    repositoryOwner: {
+                        projectV2: {
+                            id: "PVT_1",
+                            field: {
+                                id: "FLD_PRIO",
+                                options: Object.entries(OPTION).map(
+                                    ([name, id]) => ({ id, name })
+                                ),
+                            },
+                        },
+                    },
+                },
+            });
+        if (query.startsWith("mutation")) {
+            mutations.push(query);
+            const data: Record<string, unknown> = {};
+            for (const m of query.matchAll(
+                /(a\d+): addProjectV2ItemById\(input: \{ projectId: "PVT_1", contentId: "I_(\d+)" \}\)/g
+            ))
+                data[m[1]!] = { item: { id: `PVTI_${m[2]}` } };
+            for (const m of query.matchAll(
+                /(u\d+): updateProjectV2ItemFieldValue\(input: \{ projectId: "PVT_1", itemId: "PVTI_(\d+)", fieldId: "FLD_PRIO", value: \{ singleSelectOptionId: "(\w+)" \} \}\)/g
+            )) {
+                const n = Number(m[2]);
+                board[n] = byOption[m[3]!]!;
+                written.push({ number: n, value: board[n]! });
+                data[m[1]!] = { projectV2Item: { id: `PVTI_${n}` } };
+            }
+            return JSON.stringify({ data });
+        }
+        throw new Error(`unexpected gh call: ${args.join(" ")}`);
+    };
+    return { client, calls, mutations, written };
+}
+
+describe("backlog-triage — runTriage --write", () => {
+    // #3820 is the fiat root (PRD_ISSUE): its children are P1 by fiat. #50 is
+    // an umbrella the board holds at P2, so its child inherits P2.
+    const OPEN = [
+        { number: 7, parent: 3820 }, // P0 on the board — the rule says P1
+        { number: 8, parent: null }, // residue, board P3 — must stay P3
+        { number: 9, parent: 3820 }, // → P1, unprioritized today (gain)
+        { number: 10, parent: 50 }, // → P2, P3 today (change)
+        { number: 11, parent: 3820 }, // → P1, P1 today (unchanged)
+        { number: 12, parent: null }, // residue, unprioritized — stays so
+        { number: 50, parent: null }, // residue umbrella, board P2
+    ];
+    const BOARD = (): Record<number, BoardPriority> => ({
+        7: "P0",
+        8: "P3",
+        10: "P3",
+        11: "P1",
+        50: "P2",
+    });
+
+    it("a first run writes exactly the changed values; a second run writes nothing", () => {
+        const board = BOARD();
+        const first = stubTracker(board, OPEN);
+        const report = runTriage({
+            root: ROOT,
+            argv: ["--write"],
+            ghClient: first.client,
+        });
+        expect(first.written).toEqual([
+            { number: 9, value: "P1" },
+            { number: 10, value: "P2" },
+        ]);
+        expect(report).toContain(
+            "WRITE: 2 board value(s) written (P1 1, P2 1, P3 0"
+        );
+        // P0 and residue untouched on the board the run left behind.
+        expect(board).toEqual({
+            7: "P0",
+            8: "P3",
+            9: "P1",
+            10: "P2",
+            11: "P1",
+            50: "P2",
+        });
+        // Every mutation names only the changed issues' content ids.
+        const touched = first.mutations.join("\n").match(/contentId: "I_\d+"/g);
+        expect(touched).toEqual(['contentId: "I_9"', 'contentId: "I_10"']);
+
+        const second = stubTracker(board, OPEN);
+        const again = runTriage({
+            root: ROOT,
+            argv: ["--write"],
+            ghClient: second.client,
+        });
+        expect(second.mutations).toEqual([]);
+        // The two reads only — not even the project-metadata read.
+        expect(second.calls).toHaveLength(2);
+        expect(again).toContain("WRITE: 0 board value(s) written");
+    }, 60_000);
+
+    it("a dry run writes nothing, even with the write path built", () => {
+        const board = BOARD();
+        for (const argv of [[], ["--dry-run"]]) {
+            const t = stubTracker(board, OPEN);
+            const report = runTriage({ root: ROOT, argv, ghClient: t.client });
+            expect(report).toContain("DRY RUN");
+            expect(t.mutations).toEqual([]);
+            expect(t.calls).toHaveLength(2);
+        }
+        expect(board).toEqual(BOARD());
+    }, 60_000);
+
+    it("applyWrites batches, one add and one update request per batch", () => {
+        const n = WRITE_BATCH + 3;
+        const board: Record<number, BoardPriority> = {};
+        const open = Array.from({ length: n }, (_, i) => ({
+            number: i + 1,
+            parent: null,
+        }));
+        const t = stubTracker(board, open);
+        const writes = open.map((i) => ({
+            number: i.number,
+            band: "P3" as const,
+            from: null,
+        }));
+        const applied = applyWrites(
+            t.client,
+            writes,
+            new Map(open.map((i) => [i.number, `I_${i.number}`]))
+        );
+        expect(applied).toHaveLength(n);
+        expect(t.mutations).toHaveLength(4);
+        expect(Object.keys(board)).toHaveLength(n);
+        expect(applyWrites(t.client, [], new Map())).toEqual([]);
+        expect(t.calls).toHaveLength(5); // metadata + 4 mutations, none for []
+    });
+
+    it("fails closed before any write when the field lacks a band's option", () => {
+        const t = stubTracker({}, [{ number: 1, parent: null }]);
+        const noP3 = (args: string[]): string => {
+            const out = t.client(args);
+            if (args.some((a) => a === `query=${PRIORITY_FIELD_QUERY}`)) {
+                const res = JSON.parse(out);
+                res.data.repositoryOwner.projectV2.field.options =
+                    res.data.repositoryOwner.projectV2.field.options.filter(
+                        (o: { name: string }) => o.name !== "P3"
+                    );
+                return JSON.stringify(res);
+            }
+            return out;
+        };
+        expect(() =>
+            applyWrites(
+                noP3,
+                [{ number: 1, band: "P3", from: null }],
+                new Map([[1, "I_1"]])
+            )
+        ).toThrow(/no `P3` option/);
+        expect(t.mutations).toEqual([]);
     });
 });

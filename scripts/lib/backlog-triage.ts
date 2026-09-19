@@ -379,9 +379,55 @@ export function summarize(
     return { total: issues.length, p0, perBand, perSource, residue };
 }
 
-export function renderReport(summary: TriageSummary): string {
+/** One board value the write side sets: `from` is what the board holds today
+ *  (`null` = unprioritized). */
+export interface BandWrite {
+    readonly number: number;
+    readonly band: Band;
+    readonly from: BoardPriority | null;
+}
+
+/**
+ * The writes a `--write` run owes (issue #4055): ONLY the values that differ
+ * from the board, so a re-run on unchanged inputs owes nothing — the GraphQL
+ * pool is 5000 points an hour, shared with `queue:plan` and every session.
+ *
+ *   - `P0` is never written and never cleared: a `p0` verdict owes nothing,
+ *     and an issue the board holds at `P0` is skipped even if a verdict says
+ *     otherwise (belt and braces — `triage` already maps it to `p0`);
+ *   - residue owes nothing — not `P3`, not a clear: the rule abstained, and
+ *     whatever the owner set stays;
+ *   - a band the board already holds owes nothing.
+ */
+export function planWrites(
+    verdicts: ReadonlyMap<number, TriageVerdict>,
+    board: Readonly<Record<number, BoardPriority>>
+): BandWrite[] {
+    const out: BandWrite[] = [];
+    for (const [number, v] of verdicts) {
+        if (v.kind !== "band") continue;
+        const from = board[number] ?? null;
+        if (from === "P0" || from === v.band) continue;
+        out.push({ number, band: v.band, from });
+    }
+    return out.sort((a, b) => a.number - b.number);
+}
+
+/** `null` = dry run; otherwise the writes the run applied. */
+export function renderReport(
+    summary: TriageSummary,
+    written: readonly BandWrite[] | null = null
+): string {
+    const header =
+        written === null
+            ? `backlog:triage — DRY RUN, nothing written (the band rule of issue #3851 decision 3)`
+            : `backlog:triage — WRITE: ${written.length} board value(s) written (` +
+              BANDS.map(
+                  (b) => `${b} ${written.filter((w) => w.band === b).length}`
+              ).join(", ") +
+              `; the band rule of issue #3851 decision 3)`;
     const lines = [
-        `backlog:triage — DRY RUN, nothing written (the band rule of issue #3851 decision 3)`,
+        header,
         `open issues: ${summary.total}`,
         `P0 untouched (hand-set, never written or cleared): ${summary.p0.length}` +
             (summary.p0.length > 0
