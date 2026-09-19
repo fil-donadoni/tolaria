@@ -812,8 +812,7 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
                 modifier: { kind: "cant-be-regenerated" as const },
             });
 
-        const instead = insteadHalf(span, ctx);
-        if (instead !== null) return instead;
+        if (INSTEAD.test(span)) return insteadRule.run(span, ctx);
 
         const library = libraryHalf(span);
         if (library !== null) return library;
@@ -826,32 +825,38 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
 
 /**
  * CR 608.2c — the replacement sentence: "If you control a <A> and a <B>,
- * <body> instead". `null` = not this sentence's head.
+ * <body> instead".
  *
  * Exactly TWO controls clauses, each read by the shared `controlsRule`: the
  * shape every printed card of this family has, and "and" between two
  * singular "you control a …" clauses is the only conjunction read here.
  */
-function insteadHalf(span: string, ctx: unknown) {
-    const match = span.match(INSTEAD);
-    if (match === null) return null;
-    const clauses = match[1]!
-        .slice("you control ".length)
-        .split(/ and (?=an? )/);
-    if (clauses.length !== 2)
-        return fail('"instead" reads exactly two "you control" clauses', span);
-    const conditions: ConditionIR[] = [];
-    for (const clause of clauses) {
-        const condition = controlsRule.run(`you control ${clause}`, ctx);
-        if (!condition.ok) return condition;
-        conditions.push(condition.value);
+export const insteadRule: Rule<SentenceIR> = rule<SentenceIR>(
+    "instead if you control",
+    (span, ctx) => {
+        const match = span.match(INSTEAD);
+        if (match === null) return fail('not an "… instead" sentence', span);
+        const clauses = match[1]!
+            .slice("you control ".length)
+            .split(/ and (?=an? )/);
+        if (clauses.length !== 2)
+            return fail(
+                '"instead" reads exactly two "you control" clauses',
+                span
+            );
+        const conditions: ConditionIR[] = [];
+        for (const clause of clauses) {
+            const condition = controlsRule.run(`you control ${clause}`, ctx);
+            if (!condition.ok) return condition;
+            conditions.push(condition.value);
+        }
+        return ok({
+            role: "instead" as const,
+            conditions,
+            body: match[2] ?? match[3]!,
+        } satisfies SentenceIR);
     }
-    return ok({
-        role: "instead" as const,
-        conditions,
-        body: match[2] ?? match[3]!,
-    } satisfies SentenceIR);
-}
+);
 
 const UPGRADE_PUMP = /^that (\w+) gets ([+-]\d+)\/([+-]\d+) (.+)$/;
 const UPGRADE_DAMAGE = /^(.+) deals (\S+) damage$/;
