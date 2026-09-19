@@ -57,6 +57,7 @@
 
 import { readNumberWord } from "./quantity";
 import { isSelfPhrase } from "./cost";
+import { controlsRule, type ConditionIR } from "./condition";
 import { uncapitalise } from "./effectClause";
 import {
     descriptorRule,
@@ -152,6 +153,17 @@ export type StaticClauseIR =
       }
     /** CR 502.3 — "doesn't untap during your untap step". */
     | { readonly kind: "does-not-untap" }
+    /**
+     * CR 611.2c / 613.4c — "This creature gets +N/+N as long as you control a
+     * <descriptor>": the permanent's own layer-7c buff, present only while
+     * the condition holds (re-checked at every layer read).
+     */
+    | {
+          readonly kind: "self-pt-buff-if-controls";
+          readonly power: number;
+          readonly toughness: number;
+          readonly condition: ConditionIR;
+      }
     /**
      * CR 303.4b — one or more effects on the Aura's host ("Enchanted creature
      * gets +2/+2 and has flying", "You control enchanted creature"). `host`
@@ -325,6 +337,39 @@ export const anthemRule: Rule<StaticClauseIR> = rule(
                 toughness: signedModifier(pt[2]!),
             });
         })
+);
+
+// ── Frame: conditional self P/T (CR 611.2c) ────────────────────────────────
+
+const SELF_PUMP_AS_LONG_AS =
+    /^(.+) gets ([+-]\d+)\/([+-]\d+) as long as (you control .+)$/;
+
+/**
+ * "This creature gets +1/+1 as long as you control a blue creature." — the
+ * one conditional static read: its subject is the permanent itself, and its
+ * condition is the shared "you control a <descriptor>" clause every other
+ * controls site reads (`condition.ts`). Any other "as long as" tail fails.
+ */
+export const selfConditionalPumpRule: Rule<StaticClauseIR> = rule(
+    "conditional self pump",
+    (span, ctx): RuleResult<StaticClauseIR> => {
+        const match = span.match(SELF_PUMP_AS_LONG_AS);
+        if (match === null)
+            return fail(
+                'not "<self> gets +N/+N as long as you control …"',
+                span
+            );
+        if (!isSelfPhrase(uncapitalise(match[1]!)))
+            return fail(`"${match[1]}" is not the permanent itself`, span);
+        const condition = controlsRule.run(match[4]!, ctx);
+        if (!condition.ok) return condition;
+        return ok({
+            kind: "self-pt-buff-if-controls" as const,
+            power: signedModifier(match[2]!),
+            toughness: signedModifier(match[3]!),
+            condition: condition.value,
+        });
+    }
 );
 
 // ── Frame: keyword grant (CR 613.1f) ───────────────────────────────────────
@@ -1198,6 +1243,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         kickedEntersWithRule,
         entersWithEachKickRule,
         doesNotUntapRule,
+        selfConditionalPumpRule,
         enchantedHostRule,
         youControlHostRule,
     ])

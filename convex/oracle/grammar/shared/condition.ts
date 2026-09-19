@@ -78,39 +78,55 @@ const UNEVALUABLE_FILTER_KEYS = [
 export const conditionRule: Rule<ConditionIR> = subGrammar(
     CONDITION,
     rule(CONDITION, (span, ctx) => {
-        const opener = "if you control ";
+        const opener = "if ";
         if (!span.startsWith(opener))
             return fail("not a condition this grammar knows", span);
-        const rest = span.slice(opener.length);
-        const article = ARTICLES.find((a) => rest.startsWith(a));
-        if (article === undefined)
-            return fail(
-                'a "you control" condition counts a singular descriptor',
-                span
-            );
-        const descriptor = descriptorRule.run(rest.slice(article.length), ctx);
-        if (!descriptor.ok) return descriptor;
-        if (descriptor.value.plural === true)
-            return fail('"a" introduces a singular descriptor', span);
-        const filter = permanentFilterFromDescriptor(descriptor.value);
-        if (!filter.ok) return filter;
-        const unevaluable = UNEVALUABLE_FILTER_KEYS.find(
-            (key) => filter.value[key] !== undefined
-        );
-        if (unevaluable !== undefined)
-            return fail(
-                `a "${unevaluable}" clause cannot be evaluated at trigger-check time (CR 205.4a)`,
-                span
-            );
-        return ok({
-            kind: "controls" as const,
-            filter: filter.value,
-            atLeast: 1,
-        });
+        return controlsRule.run(span.slice(opener.length), ctx);
     }),
     // CR 603.4 — an intervening "if" clause opens with the word itself.
     (span) => /^if /i.test(span)
 );
+
+/**
+ * `"you control a Goblin"` — the controls clause itself, without the word that
+ * introduces it. Shared by the three sites that print it: the intervening "if"
+ * above (CR 603.4), a resolution-time "If you control …, … instead" (CR 608.2c)
+ * and a static's "as long as you control …" (CR 611.2c). One reading for all
+ * three, so a descriptor one site accepts is never refused by another.
+ */
+export const controlsRule: Rule<ConditionIR> = rule("controls", (span, ctx) => {
+    const opener = "you control ";
+    if (!span.startsWith(opener))
+        return fail("not a condition this grammar knows", span);
+    const rest = span.slice(opener.length);
+    const article = ARTICLES.find((a) => rest.startsWith(a));
+    if (article === undefined)
+        return fail(
+            'a "you control" condition counts a singular descriptor',
+            span
+        );
+    const descriptor = descriptorRule.run(rest.slice(article.length), ctx);
+    if (!descriptor.ok) return descriptor;
+    if (descriptor.value.plural === true)
+        return fail('"a" introduces a singular descriptor', span);
+    const filter = permanentFilterFromDescriptor(descriptor.value, {
+        colors: true,
+    });
+    if (!filter.ok) return filter;
+    const unevaluable = UNEVALUABLE_FILTER_KEYS.find(
+        (key) => filter.value[key] !== undefined
+    );
+    if (unevaluable !== undefined)
+        return fail(
+            `a "${unevaluable}" clause cannot be evaluated at trigger-check time (CR 205.4a)`,
+            span
+        );
+    return ok({
+        kind: "controls" as const,
+        filter: filter.value,
+        atLeast: 1,
+    });
+});
 
 // ── "if this spell was kicked" (CR 702.33d / 702.33f) ──────────────────────
 

@@ -24,7 +24,10 @@
 // board, and the client-side Brain evaluated the wrong colours. Single
 // authority, so the copies cannot drift again.
 
-import { getInstanceManaCost } from ".";
+// `./registry`, not the `.` barrel: `compiledTriggers.ts` (which `registry.ts`
+// itself imports) reads colours through this module, and the barrel would
+// evaluate the catalogue before the registry it preloads into exists.
+import { getInstanceManaCost } from "./registry";
 import { getColorsFromCost } from "./colors";
 import type { Color, PermanentView } from "./types";
 

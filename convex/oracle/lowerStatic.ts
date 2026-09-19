@@ -29,7 +29,10 @@ import { expandAnnihilator } from "../cards/abilities/annihilator";
 import { expandFadingVanishing } from "../cards/abilities/fadingVanishing";
 import { expandHideaway } from "../cards/abilities/hideaway";
 import { expandKeywordTriggers } from "../cards/abilities/keywordTriggers";
-import type { CompiledStaticEffect } from "../cards/compiledStatics";
+import {
+    MATERIALISED_FILTER_FIELDS,
+    type CompiledStaticEffect,
+} from "../cards/compiledStatics";
 import type { CardDefinition, KickerCost } from "../cards/types";
 import { kickedValue } from "./lowerEffects";
 import { deriveCastPermissionId } from "./castPermissionId";
@@ -184,6 +187,36 @@ export function lowerStaticClause(
                     ],
                 },
             };
+        case "self-pt-buff-if-controls": {
+            // CR 611.2c — the condition is read off the LAYER view, so its
+            // filter may only name fields that view can answer.
+            const unreadable = Object.keys(clause.condition.filter).find(
+                (field) => !MATERIALISED_FILTER_FIELDS.has(field)
+            );
+            if (unreadable !== undefined)
+                return {
+                    ok: false,
+                    reason: `a "${unreadable}" clause cannot be read by a static condition`,
+                };
+            return {
+                ok: true,
+                lowered: {
+                    effects: [
+                        {
+                            kind: "pt-buff",
+                            appliesTo: "self",
+                            power: clause.power,
+                            toughness: clause.toughness,
+                            condition: {
+                                kind: "controls",
+                                filter: clause.condition.filter,
+                                atLeast: clause.condition.atLeast,
+                            },
+                        },
+                    ],
+                },
+            };
+        }
         case "keyword-grant":
             return {
                 ok: true,

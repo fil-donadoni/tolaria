@@ -29,6 +29,7 @@
  * earns its registry row (ADR 0045) — never upfront.
  */
 
+import { getEffectiveColors } from "./effectiveColors";
 import { matchesPermanentFilter } from "./filters";
 import type { PermanentFilter } from "./filters";
 import type {
@@ -142,6 +143,16 @@ function conditionHolds(
                     isToken: permanent.isToken,
                     power: permanent.power,
                     toughness: permanent.toughness,
+                    // CR 105.2 / 613.1e — the LIVE colours, through the one
+                    // authority every other colour read uses. The engine hands
+                    // this gate the raw game state, whose instances carry no
+                    // `colors` field, so a colour clause ("if you control a
+                    // blue or black permanent") would otherwise match nothing.
+                    colors:
+                        permanent.colors ??
+                        getEffectiveColors(
+                            permanent as unknown as PermanentView
+                        ),
                 },
                 condition.filter,
                 {

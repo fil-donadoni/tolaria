@@ -42,7 +42,12 @@ import { playerRefRule, type PlayerRefIR } from "./playerRef";
 import { readNumberWord } from "./quantity";
 import { isSelfPhrase } from "./cost";
 import { SELF_MARKER } from "../../normalize";
-import { kickedConditionRule, type KickedRefIR } from "./condition";
+import {
+    controlsRule,
+    kickedConditionRule,
+    type ConditionIR,
+    type KickedRefIR,
+} from "./condition";
 import { targetFilterRule } from "./targetFilter";
 import { zoneRefRule, type ZoneRefIR } from "./zoneRef";
 import { CREATURE_SUBTYPES } from "./subtypes";
@@ -255,6 +260,36 @@ export type EffectSentenceIR =
           readonly count: AmountIR;
           readonly library: PlayerRefIR;
           readonly looker: "you" | "that-player";
+      }
+    | {
+          /**
+           * CR 121.1 + CR 701.9a — "Draw N cards, then discard M cards": the
+           * controller draws, then discards cards of their choice. One
+           * sentence, two actions in printed order; the discard is a CHOICE
+           * (never "at random", which is `discard-at-random`).
+           */
+          readonly kind: "loot";
+          readonly draw: AmountIR;
+          readonly discard: AmountIR;
+      }
+    | {
+          /**
+           * CR 608.2c — "<base>. If you control a <A> and a <B>, <upgraded>
+           * instead." Two printed sentences, one effect: the second REPLACES
+           * the first when every condition holds as the ability resolves, and
+           * leaves it alone otherwise. `upgraded` is the base effect with only
+           * its magnitude changed, sharing the base's subject objects — the
+           * replacement acts on the SAME announced target (CR 601.2c: it was
+           * chosen once, as the ability was put on the stack).
+           *
+           * Each condition is counted on its own, so one permanent that is
+           * both colours satisfies both ("a blue permanent and a black
+           * permanent" — a blue-black permanent is each of those).
+           */
+          readonly kind: "upgrade-if-controls";
+          readonly conditions: readonly ConditionIR[];
+          readonly base: EffectSentenceIR;
+          readonly upgraded: EffectSentenceIR;
       };
 
 /**
@@ -303,7 +338,19 @@ export type SentenceIR =
           readonly count: AmountIR;
       }
     /** CR 401.4 — the routing half of a `look-distribute` (see there). */
-    | { readonly role: "library-route"; readonly route: LibraryRouteIR };
+    | { readonly role: "library-route"; readonly route: LibraryRouteIR }
+    /**
+     * CR 608.2c — "If you control a <A> and a <B>, <effect> instead": the
+     * replacement half of an `upgrade-if-controls`, folded onto the effect in
+     * front of it by `assembleSentences`. `body` is the replacement clause
+     * WITHOUT "instead"; it is read against that effect, whose referents it
+     * reuses ("that creature", an elided damage recipient).
+     */
+    | {
+          readonly role: "instead";
+          readonly conditions: readonly ConditionIR[];
+          readonly body: string;
+      };
 
 /**
  * A parsed sentence LIST assembled into what an ability site actually carries.
@@ -395,6 +442,24 @@ export function assembleSentences(
                 ok: false,
                 reason: "an effect sentence follows an activation restriction",
             };
+        if (sentence.role === "instead") {
+            const previous = effects[effects.length - 1];
+            if (previous === undefined)
+                return {
+                    ok: false,
+                    reason: '"… instead" follows no effect it could replace',
+                };
+            const upgraded = readUpgrade(previous, sentence.body);
+            if (typeof upgraded === "string")
+                return { ok: false, reason: upgraded };
+            effects[effects.length - 1] = {
+                kind: "upgrade-if-controls",
+                conditions: sentence.conditions,
+                base: previous,
+                upgraded,
+            };
+            continue;
+        }
         if (sentence.role === "modifier") {
             const previous = effects[effects.length - 1];
             if (previous === undefined || previous.kind !== "destroy")
@@ -675,6 +740,10 @@ const DRAW_PLAYER = /^(.+) draws (\S+) cards?$/;
 const LIFE = /^(.+) (gain|gains|lose|loses) (\S+) life$/;
 const COUNTERS = /^Put (\S+) (\S+) counters? on (.+)$/;
 const DISCARD_RANDOM = /^(.+) discards (\S+) cards? at random$/;
+/** CR 121.1 + CR 701.9a — "Draw a card, then discard a card". */
+const LOOT = /^Draw (\S+) cards?, then discard (\S+) cards?$/;
+/** CR 608.2c — "If you control <A> and <B>, <body> instead" (either order). */
+const INSTEAD = /^If (you control .+?), (?:instead (.+)|(.+) instead)$/;
 
 /** The window: "Look at [or Reveal] the top four cards of your library". */
 const LIBRARY_LOOK = /^(Look at|Reveal) the top (\S+) cards of your library$/;
@@ -743,6 +812,9 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
                 modifier: { kind: "cant-be-regenerated" as const },
             });
 
+        const instead = insteadHalf(span, ctx);
+        if (instead !== null) return instead;
+
         const library = libraryHalf(span);
         if (library !== null) return library;
 
@@ -751,6 +823,108 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
         return ok({ role: "effect" as const, effect: effect.value });
     })
 );
+
+/**
+ * CR 608.2c — the replacement sentence: "If you control a <A> and a <B>,
+ * <body> instead". `null` = not this sentence's head.
+ *
+ * Exactly TWO controls clauses, each read by the shared `controlsRule`: the
+ * shape every printed card of this family has, and "and" between two
+ * singular "you control a …" clauses is the only conjunction read here.
+ */
+function insteadHalf(span: string, ctx: unknown) {
+    const match = span.match(INSTEAD);
+    if (match === null) return null;
+    const clauses = match[1]!
+        .slice("you control ".length)
+        .split(/ and (?=an? )/);
+    if (clauses.length !== 2)
+        return fail('"instead" reads exactly two "you control" clauses', span);
+    const conditions: ConditionIR[] = [];
+    for (const clause of clauses) {
+        const condition = controlsRule.run(`you control ${clause}`, ctx);
+        if (!condition.ok) return condition;
+        conditions.push(condition.value);
+    }
+    return ok({
+        role: "instead" as const,
+        conditions,
+        body: match[2] ?? match[3]!,
+    } satisfies SentenceIR);
+}
+
+const UPGRADE_PUMP = /^that (\w+) gets ([+-]\d+)\/([+-]\d+) (.+)$/;
+const UPGRADE_DAMAGE = /^(.+) deals (\S+) damage$/;
+const UPGRADE_LIFE = /^(you|that player) (gain|gains|lose|loses) (\S+) life$/;
+const UPGRADE_LOOT = /^draw (\S+) cards?, then discard (\S+) cards?$/;
+
+/**
+ * The replacement clause read AGAINST the effect it replaces (CR 608.2c).
+ *
+ * Each form changes only a magnitude and names the base effect's referent by
+ * anaphora or ellipsis — "that creature gets +5/+5 …", "this enchantment
+ * deals 3 damage" (to the same recipient), "that player loses 3 life", "you
+ * gain 4 life", "draw two cards, then discard a card" — so the upgraded IR is
+ * the base IR with the new magnitude, keeping the base's subject OBJECTS
+ * (lowering reads that identity as "the same announced target"). A referent
+ * the base does not have, a different action or a different duration is a
+ * sentence we have misread, and fails the line.
+ */
+function readUpgrade(
+    base: EffectSentenceIR,
+    body: string
+): EffectSentenceIR | string {
+    switch (base.kind) {
+        case "pump": {
+            const m = body.match(UPGRADE_PUMP);
+            if (m === null) return `"${body}" does not upgrade a pump`;
+            if (
+                base.subject.kind !== "target" ||
+                typeof base.subject.requirement.type !== "string" ||
+                base.subject.requirement.type.toLowerCase() !== m[1]
+            )
+                return `"that ${m[1]}" is not the pumped target`;
+            const duration = durationRule.run(m[4]!, undefined);
+            if (
+                !duration.ok ||
+                JSON.stringify(duration.value) !== JSON.stringify(base.duration)
+            )
+                return "the upgraded pump lasts a different duration";
+            return { ...base, power: Number(m[2]), toughness: Number(m[3]) };
+        }
+        case "deal-damage": {
+            const m = body.match(UPGRADE_DAMAGE);
+            if (m === null || !isSelfPhrase(m[1]!))
+                return `"${body}" does not upgrade the source's damage`;
+            const amount = readAmount(m[2]!);
+            if (amount === null) return `"${m[2]}" is not a damage amount`;
+            return { ...base, amount };
+        }
+        case "life": {
+            const m = body.match(UPGRADE_LIFE);
+            if (m === null) return `"${body}" does not upgrade a life change`;
+            const who = m[1] === "you" ? "you" : "target";
+            if (base.player.kind !== who)
+                return `"${m[1]}" is not the player the base effect named`;
+            if (!m[2]!.startsWith(base.action))
+                return "the upgrade changes gain to lose, or back";
+            const amount = readAmount(m[3]!);
+            if (amount === null) return `"${m[3]}" is not an amount`;
+            return { ...base, amount };
+        }
+        case "loot": {
+            const m = body.match(UPGRADE_LOOT);
+            if (m === null) return `"${body}" does not upgrade a loot`;
+            const draw = readAmount(m[1]!);
+            const discard = readAmount(m[2]!);
+            if (draw === null || discard === null)
+                return "a loot needs two counts";
+            return { ...base, draw, discard };
+        }
+        default:
+            return `"… instead" cannot replace a ${base.kind}`;
+    }
+}
 
 /**
  * The two halves of a CR 401.4 look-and-route (`look-distribute`), each a
@@ -862,6 +1036,20 @@ function effectSentence(span: string, ctx: unknown) {
             kind: "deal-damage" as const,
             amount,
             to: to.value,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── loot: draw, then discard (CR 121.1 + CR 701.9a) ──────────────────────
+    const loot = span.match(LOOT);
+    if (loot !== null) {
+        const draw = readAmount(loot[1]!);
+        const discard = readAmount(loot[2]!);
+        if (draw === null || discard === null)
+            return fail("a loot needs two counts", span);
+        return ok({
+            kind: "loot" as const,
+            draw,
+            discard,
         } satisfies EffectSentenceIR);
     }
 

@@ -179,6 +179,10 @@ export interface DescriptorState {
     excludeSubtypes: string[];
     excludeSupertypes: CardSupertype[];
     colors: Color[];
+    /** `colors` came from ONE "<colour> or <colour>" adjective (CR 105.1) —
+     *  an OR the filter's `colors` field already means, so no further colour
+     *  adjective may join it (that would be an AND read as a wider OR). */
+    colorsDisjunctive?: true;
     excludeColors: Color[];
     controller?: "you" | "opponent";
     tapped?: "tapped" | "untapped";
@@ -222,8 +226,23 @@ function readAdjective(
 ): "unknown" | string | null {
     const lower = token.toLowerCase();
 
+    // "blue or black" — one adjective token, joined by `joinColourDisjunctions`.
+    const either = lower.split(" or ");
+    if (either.length === 2) {
+        const first = COLOR_WORDS.get(either[0]!);
+        const second = COLOR_WORDS.get(either[1]!);
+        if (first === undefined || second === undefined || first === second)
+            return `"${token}" is not two colours`;
+        if (into.colors.length > 0)
+            return `"${token}" joins another colour adjective`;
+        into.colors.push(first, second);
+        into.colorsDisjunctive = true;
+        return null;
+    }
     const color = COLOR_WORDS.get(lower);
     if (color !== undefined) {
+        if (into.colorsDisjunctive === true)
+            return `colour "${token}" beside a colour disjunction`;
         if (into.colors.includes(color)) return `colour "${token}" twice`;
         into.colors.push(color);
         return null;
@@ -610,7 +629,9 @@ export function descriptorRuleWith(
         const withQualifiers = emptyState();
         const peeled = peelQualifiers(span, withQualifiers);
         if ("error" in peeled) return fail(peeled.error, span);
-        const tokens = peeled.head.split(" ").filter((t) => t.length > 0);
+        const tokens = joinColourDisjunctions(
+            peeled.head.split(" ").filter((t) => t.length > 0)
+        );
         if (tokens.length === 0) return fail("descriptor has no noun", span);
 
         // Every split of the head into [adjectives][noun phrase] is tried and
@@ -660,6 +681,32 @@ export function descriptorRuleWith(
             return fail(`ambiguous descriptor "${span}"`, span);
         return finish(hits[0]!, span);
     });
+}
+
+/**
+ * CR 105.1 — "a blue or black permanent": a colour disjunction is ONE
+ * adjective, the permanent is either colour. Joined before the split loop
+ * because the loop reads a token at a time, and a bare "or" between two colour
+ * words is not a token any reader could place. Only a colour-or-colour triple
+ * is joined: "artifact or enchantment" stays the noun list `readNoun` reads.
+ */
+function joinColourDisjunctions(tokens: readonly string[]): string[] {
+    const out: string[] = [];
+    for (let i = 0; i < tokens.length; i += 1) {
+        const [a, or, b] = [tokens[i]!, tokens[i + 1], tokens[i + 2]];
+        if (
+            or === "or" &&
+            b !== undefined &&
+            COLOR_WORDS.has(a.toLowerCase()) &&
+            COLOR_WORDS.has(b.toLowerCase())
+        ) {
+            out.push(`${a} or ${b}`);
+            i += 2;
+            continue;
+        }
+        out.push(a);
+    }
+    return out;
 }
 
 /** The descriptor rule over the vocabulary this grammar ships. */
@@ -817,7 +864,14 @@ export function targetRequirementFromDescriptor(
  * anything the filter cannot express is refused here rather than dropped.
  */
 export function permanentFilterFromDescriptor(
-    descriptor: DescriptorIR
+    descriptor: DescriptorIR,
+    /**
+     * `colors: true` admits a colour clause (CR 105.1). Opt-in, because the
+     * cost sites this converter was written for (a sacrifice filter) have no
+     * colour reader on their payment path; a CONDITION site does — the trigger
+     * gate and the static gate both read live colours (issue #4126).
+     */
+    allow: { readonly colors?: true } = {}
 ): RuleResult<PermanentFilter> {
     if (descriptor.player !== undefined || descriptor.anyTarget === true)
         return fail("a player cannot be sacrificed", "player");
@@ -834,6 +888,7 @@ export function permanentFilterFromDescriptor(
                 "excludeSubtypes",
                 "excludeSupertypes",
                 "plural",
+                ...(allow.colors === true ? ["colors"] : []),
             ].includes(field)
         ) {
             return fail(
@@ -852,6 +907,7 @@ export function permanentFilterFromDescriptor(
         filter.excludeSubtypes = [...descriptor.excludeSubtypes];
     if (descriptor.excludeSupertypes)
         filter.excludeSupertypes = [...descriptor.excludeSupertypes];
+    if (descriptor.colors) filter.colors = [...descriptor.colors];
     if (Object.keys(filter).length === 0)
         return fail("cost filter matches everything", "filter");
     return ok(filter as PermanentFilter);
