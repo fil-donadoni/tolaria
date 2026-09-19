@@ -58,6 +58,36 @@ lookup. `None.` declares nothing. The keys are the allowlist's own
 it as `unlocks residue` — read those lines, they are the only place a
 mistyped key becomes visible.
 
+## `## Cards` — the cards an issue is about (issue #4086)
+
+An issue may carry a `## Cards` section naming the cards it is ABOUT — the
+cards it ships, or the cards the engine work waits on. `bun run backlog:triage`
+bands the issue by them, exactly as it bands by the cards a claim unlocks or a
+title names: a card some ranked Target requires lends that Target's band
+(`premodern-metagame` / `tier1-*` → P1, `vintage-cube` → P2, `set-*` /
+`format-*` → P3). **A card cited as an example or a test case never goes
+here** — the section is a declaration, and reading a body's free text instead
+would band a framework issue by the card it happens to test on.
+
+One card per list item, the lockfile's name (exact, or the front face), no
+prose — one `` ` `` or `**` wrapper is tolerated:
+
+```markdown
+## Cards
+
+- Psychatog
+- Wan Shi Tong, Librarian
+```
+
+`None.` declares nothing. The contract is per LINE: a name the lockfile cannot
+resolve does not silence the others — they still band the issue, and the
+unresolvable line is printed under `## Cards residue` in the triage report,
+the only place a misspelt name becomes visible. A section shown inside a code
+fence (like the one above) is an example and is not read.
+`backlog:triage --suggest-cards` proposes a block for each residue issue from
+its `` `Name` `` / `**Name**` spans — a proposal only: confirm against the
+body, then paste.
+
 ## When a skill says "publish to the issue tracker"
 
 Create a GitHub issue.

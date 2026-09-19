@@ -18,6 +18,9 @@
  * `addProjectV2ItemById` batch (idempotent — it returns the existing item for
  * an issue already on the board) then one `updateProjectV2ItemFieldValue`
  * batch. A run cut short leaves a board the next run simply finishes.
+ * `--suggest-cards` appends the `## Cards` backfill (issue #4086) — a
+ * proposal per residue issue, printed, never written, with or without
+ * `--write`.
  *
  * Reads, and their budget (~470 items against a 5000-point/hour GraphQL pool
  * shared with `queue:plan`):
@@ -25,8 +28,8 @@
  *   - the board's `Priority` field through `fetchBoardPriority` — the shared
  *     single-field query (8 points against `gh project item-list`'s 766,
  *     `docs/agents/issue-tracker.md`), never a whole-board item list;
- *   - the open issues with their parent and the issues they block, one
- *     paginated GraphQL query at 1 point a page;
+ *   - the open issues with their body, their parent and the issues they
+ *     block, one paginated GraphQL query at 1 point a page;
  *   - the lockfile, the Target registry and `data/grammar-gaps.json`'s claims,
  *     all local.
  *
@@ -42,11 +45,16 @@ import {
     claimedCards,
     issueCards,
     planWrites,
+    parseCards,
     renderReport,
+    renderSuggestions,
+    resolveDeclaredCards,
+    suggestCards,
     summarize,
     triage,
     type Band,
     type BandWrite,
+    type CardsResidue,
     type TriageIssue,
 } from "./lib/backlog-triage";
 import { fetchBoardPriority } from "./lib/board-priority";
@@ -82,6 +90,7 @@ query($owner: String!, $name: String!, $endCursor: String) {
                 id
                 number
                 title
+                body
                 parent { number }
                 blocking(first: ${BLOCKING_PAGE}) {
                     totalCount
@@ -102,6 +111,7 @@ interface IssuePage {
                     id: string;
                     number: number;
                     title: string;
+                    body: string;
                     parent: { number: number } | null;
                     blocking: {
                         totalCount: number;
@@ -118,6 +128,9 @@ export interface OpenIssue {
     readonly nodeId: string;
     readonly number: number;
     readonly title: string;
+    /** Read in the SAME query — the `## Cards` section (issue #4086) costs
+     *  no second read. */
+    readonly body: string;
     readonly parent: number | null;
     readonly blocks: readonly number[];
 }
@@ -163,6 +176,7 @@ export function fetchOpenIssues(
             nodeId: node.id,
             number: node.number,
             title: node.title,
+            body: node.body ?? "",
             parent: node.parent?.number ?? null,
             blocks: node.blocking.nodes.map((n) => n.number),
         });
@@ -361,22 +375,50 @@ export function runTriage(opts: {
         );
 
     const open = fetchOpenIssues(opts.ghClient);
-    const issues: TriageIssue[] = open.map((i) => ({
-        number: i.number,
-        title: i.title,
-        parent: i.parent,
-        blocks: i.blocks,
-        cards: issueCards(i, claimed, byName),
-    }));
+    const cardsResidue: CardsResidue[] = [];
+    const issues: TriageIssue[] = open.map((i) => {
+        const declared = resolveDeclaredCards(i.number, i.body, byName);
+        cardsResidue.push(...declared.residue);
+        return {
+            number: i.number,
+            title: i.title,
+            parent: i.parent,
+            blocks: i.blocks,
+            cards: issueCards(i, claimed, byName, declared.ids),
+        };
+    });
     const verdicts = triage(issues, index, board);
     const summary = summarize(issues, verdicts, board);
-    if (!write) return renderReport(summary);
-    const written = applyWrites(
-        opts.ghClient,
-        planWrites(verdicts, board),
-        new Map(open.map((i) => [i.number, i.nodeId]))
+    const written = write
+        ? applyWrites(
+              opts.ghClient,
+              planWrites(verdicts, board),
+              new Map(open.map((i) => [i.number, i.nodeId]))
+          )
+        : null;
+    const report = renderReport(summary, written, cardsResidue);
+    if (!opts.argv.includes("--suggest-cards")) return report;
+    // The backfill is a PROPOSAL: printed, never written. An issue that
+    // already declares its cards has been ruled on — its bad lines are in
+    // the `## Cards residue` block above, nothing to suggest.
+    const bodies = new Map(open.map((i) => [i.number, i.body] as const));
+    const ranked = new Set(index.keys());
+    return (
+        report +
+        "\n" +
+        renderSuggestions(
+            summary.residue
+                .filter((r) => parseCards(bodies.get(r.number) ?? "") === null)
+                .map((r) => ({
+                    number: r.number,
+                    names: suggestCards(
+                        bodies.get(r.number) ?? "",
+                        byName,
+                        ranked
+                    ),
+                }))
+        )
     );
-    return renderReport(summary, written);
 }
 
 function main(): void {

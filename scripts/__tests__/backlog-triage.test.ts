@@ -26,6 +26,10 @@ import {
     claimedCards,
     issueCards,
     planWrites,
+    parseCards,
+    renderReport,
+    resolveDeclaredCards,
+    suggestCards,
     summarize,
     targetBand,
     triage,
@@ -373,6 +377,104 @@ describe("backlog-triage — cards named or unlocked", () => {
     });
 });
 
+describe("backlog-triage — `## Cards` (issue #4086)", () => {
+    it("parseCards reads a list, `None.` as empty, no section as null", () => {
+        expect(
+            parseCards(
+                "## Why\n\ntext\n\n## Cards\n\n- Meta\n- `Cube`\n- **Wan Shi Tong, Librarian**\n\n## Target files\n\n- x.ts\n"
+            )
+        ).toEqual({
+            names: ["Meta", "Cube", "Wan Shi Tong, Librarian"],
+            unreadable: [],
+        });
+        expect(parseCards("## Cards\n\nNone.\n")).toEqual({
+            names: [],
+            unreadable: [],
+        });
+        expect(parseCards("## Cards\n\n- None\n")).toEqual({
+            names: [],
+            unreadable: [],
+        });
+        expect(parseCards("## Why\n\n- Meta\n")).toBeNull();
+    });
+
+    it("ignores a fenced example section and reads the real one after it", () => {
+        const body = [
+            "## Why",
+            "",
+            "The form is:",
+            "",
+            "```markdown",
+            "## Cards",
+            "",
+            "- Psychatog",
+            "```",
+            "",
+            "## Cards",
+            "",
+            "- Cube",
+        ].join("\n");
+        expect(parseCards(body)).toEqual({ names: ["Cube"], unreadable: [] });
+        // A body that only SHOWS the section declares nothing.
+        expect(parseCards(body.split("\n").slice(0, 9).join("\n"))).toBeNull();
+    });
+
+    it("a prose line is unreadable, never read as a name", () => {
+        expect(
+            parseCards("## Cards\n\nThe cards this unblocks:\n- Meta\n")
+        ).toEqual({
+            names: ["Meta"],
+            unreadable: ["The cards this unblocks:"],
+        });
+    });
+
+    it("one unresolvable line leaves the others' cards in place, banding the issue through triage, and is reported", () => {
+        const body = "## Cards\n\n- Not A Card\n- Meta\na sentence, really\n";
+        const declared = resolveDeclaredCards(5, body, byName);
+        expect(declared.ids).toEqual([CARDS.Meta]);
+        expect(declared.residue).toEqual([
+            { issue: 5, line: "a sentence, really", reason: "unreadable" },
+            { issue: 5, line: "Not A Card", reason: "no such card" },
+        ]);
+        // An otherwise-residue issue (no claim, no card in its title, no
+        // edge, no parent) is banded P1 by its declared metagame card.
+        const cards = issueCards(
+            { number: 5, title: "[engine] something generic" },
+            new Map(),
+            byName,
+            declared.ids
+        );
+        const issues = [issue(5, { cards })];
+        const verdicts = triage(issues, index, {}, 9999);
+        expect(verdicts.get(5)).toEqual({
+            kind: "band",
+            band: "P1",
+            source: "cards",
+            via: "premodern-metagame",
+        });
+        const report = renderReport(
+            summarize(issues, verdicts, {}),
+            null,
+            declared.residue
+        );
+        expect(report).toContain("## Cards residue");
+        expect(report).toContain("#5  Not A Card  — no such card");
+        expect(report).toContain("#5  a sentence, really  — unreadable");
+    });
+
+    it("suggestCards proposes only strict spans that are a ranked Target's card", () => {
+        const ranked = new Set(index.keys());
+        const body = [
+            "Uses `Meta` and **Cube** as examples; Meta again, `Meta` again.",
+            "`Loose` is in no ranked Target; `Not A Card` resolves nothing.",
+            "```ts",
+            "const x = `SetOnly`;",
+            "```",
+        ].join("\n");
+        expect(suggestCards(body, byName, ranked)).toEqual(["Meta", "Cube"]);
+    });
+});
+
 describe("backlog-triage — summary", () => {
     it("counts gain / change / unchanged against the board, and lists residue with its board value", () => {
         const issues = [
@@ -451,18 +553,27 @@ function recordingGh(calls: string[][]) {
                     data: {
                         repository: {
                             issues: {
-                                totalCount: 2,
+                                totalCount: 3,
                                 pageInfo: { hasNextPage: false },
                                 nodes: [
                                     {
                                         number: 7,
                                         title: "hand-set",
+                                        body: "",
                                         parent: null,
                                         blocking: { totalCount: 0, nodes: [] },
                                     },
                                     {
                                         number: 8,
                                         title: "nothing",
+                                        body: "An example: `Psychatog`, and `Not A Real Card Name`.",
+                                        parent: null,
+                                        blocking: { totalCount: 0, nodes: [] },
+                                    },
+                                    {
+                                        number: 9,
+                                        title: "declares its cards",
+                                        body: "## Cards\n\n- Psychatog\n- Not A Real Card Name\n",
                                         parent: null,
                                         blocking: { totalCount: 0, nodes: [] },
                                     },
@@ -490,9 +601,20 @@ describe("backlog-triage — runTriage", () => {
         );
         expect(report).toMatch(/residue .*: 1 /);
         expect(report).toContain("#8 nothing");
+        // #9 is banded by its declared card; its typo is reported, not dropped.
+        expect(report).not.toContain("#9 declares its cards");
+        expect(report).toContain("by source: fiat 0, cards 1");
+        expect(report).toContain("#9  Not A Real Card Name  — no such card");
+        // No flag, no backfill.
+        expect(report).not.toContain("Cards suggestions");
 
-        // Exactly the two reads, both GraphQL queries — nothing else.
+        // Exactly the two reads, both GraphQL queries — nothing else; ONE of
+        // them the issue query, which carries the bodies.
         expect(calls).toHaveLength(2);
+        expect(
+            calls.filter((a) => a.includes(`query=${OPEN_ISSUES_QUERY}`))
+        ).toHaveLength(1);
+        expect(OPEN_ISSUES_QUERY).toMatch(/^\s*body$/m);
         for (const args of calls) {
             expect(args.slice(0, 2)).toEqual(["api", "graphql"]);
             const q = args.find((a) => a.startsWith("query="))!;
@@ -503,6 +625,26 @@ describe("backlog-triage — runTriage", () => {
         expect(flat).not.toContain("item-edit");
         expect(flat).not.toMatch(/\bissue edit\b/);
         expect(flat).toContain('fieldValueByName(name: "Priority")');
+    }, 60_000);
+
+    it("--suggest-cards proposes a block per residue issue and performs zero mutations", () => {
+        const calls: string[][] = [];
+        const report = runTriage({
+            root: ROOT,
+            argv: ["--suggest-cards"],
+            ghClient: recordingGh(calls),
+        });
+        expect(report).toContain("## Cards suggestions");
+        expect(report).toContain("#8\n## Cards\n\n- Psychatog");
+        expect(report).not.toContain("- Not A Real Card Name");
+        expect(calls).toHaveLength(2);
+        for (const args of calls) {
+            expect(args.slice(0, 2)).toEqual(["api", "graphql"]);
+            expect(args.find((a) => a.startsWith("query="))!).not.toMatch(
+                /\bmutation\b/
+            );
+        }
+        expect(calls.flat().join(" ")).not.toMatch(/item-edit|\bissue edit\b/);
     }, 60_000);
 
     it("refuses --write together with --dry-run", () => {

@@ -46,6 +46,7 @@
 import { PRD_ISSUE } from "./gap-issues";
 import { cardsNamedByTitle } from "./gap-kinds";
 import type { BoardPriority } from "./board-priority";
+import { declaredSection, fencedLines } from "./declared-section";
 import type { CardRow, Lockfile } from "./oracle-lockfile";
 import { quarantineClass, type ClaimRow } from "./targets";
 
@@ -184,19 +185,147 @@ export function cardsNamedByEngineTitle(
     return names;
 }
 
+const CARDS_HEADING = /^#{1,6}\s+cards\s*$/i;
+/** One inline wrapper a writer may put round a name: `` `X` `` or `**X**`. */
+const NAME_WRAPPER = /^(?:`([^`]+)`|\*\*([^*]+)\*\*)$/;
+
 /**
- * Every card an issue unlocks or names: the claim cards plus the title's
- * names — `cardsNamedByTitle` for a `[card] … —` title, whose contract is
- * kept whole, and {@link cardsNamedByEngineTitle} for an `[engine] … — <Card>`
- * one. A title naming a card the lockfile cannot resolve yields NO names,
- * since a guess would misband a real slice.
+ * Read one body's `## Cards` section (issue #4086) — the cards the issue is
+ * ABOUT, declared, one lockfile name per list item. `names` are the items as
+ * written (less one `` ` ``/`**` wrapper); `unreadable` the prose lines, which
+ * are reported and never read. `null` when the body has no such section —
+ * not the same as `None.`, which declares nothing (`names: []`). Fenced code
+ * is not markdown here — `declaredSection` owns that, and why.
+ *
+ * Nothing is resolved here: the contract is per LINE, so a name the lockfile
+ * cannot resolve is the caller's to report (`resolveDeclaredCards`).
+ */
+export function parseCards(
+    body: string
+): { names: string[]; unreadable: string[] } | null {
+    const section = declaredSection(body, CARDS_HEADING);
+    if (section === null) return null;
+    const names: string[] = [];
+    const unreadable: string[] = [];
+    for (const { raw, item } of section) {
+        if (item === null) {
+            unreadable.push(raw);
+            continue;
+        }
+        const t = item.trim();
+        const w = NAME_WRAPPER.exec(t);
+        names.push((w === null ? t : (w[1] ?? w[2])!).trim());
+    }
+    return { names, unreadable };
+}
+
+/** One `## Cards` line that bands nothing — printed, never dropped. */
+export interface CardsResidue {
+    readonly issue: number;
+    readonly line: string;
+    readonly reason: "no such card" | "unreadable";
+}
+
+/**
+ * Resolve one body's `## Cards` declaration, per LINE: a declared name is a
+ * deliberate statement, so one typo must not silence the other lines — the
+ * resolvable ones come back as oracle ids, every other line as residue.
+ * The opposite of the title's all-or-nothing contract, and on purpose: a
+ * title is read out of a sentence, this section is written to be read.
+ */
+export function resolveDeclaredCards(
+    issue: number,
+    body: string,
+    byName: (name: string) => string | undefined
+): { ids: string[]; residue: CardsResidue[] } {
+    const parsed = parseCards(body);
+    if (parsed === null) return { ids: [], residue: [] };
+    const ids = new Set<string>();
+    const residue: CardsResidue[] = parsed.unreadable.map((line) => ({
+        issue,
+        line,
+        reason: "unreadable",
+    }));
+    for (const name of parsed.names) {
+        const id = byName(name);
+        if (id === undefined)
+            residue.push({ issue, line: name, reason: "no such card" });
+        else ids.add(id);
+    }
+    return { ids: [...ids].sort(), residue };
+}
+
+/** A strict span: a whole `` `…` `` or `**…**` run on one line. */
+const STRICT_SPAN = /`([^`\n]+)`|\*\*([^*\n]+)\*\*/g;
+
+/**
+ * The `--suggest-cards` backfill (issue #4086): the STRICT spans of a body —
+ * a `` `Name` `` / `**Name**` run that is exactly the name of a card some
+ * ranked Target requires — as the lockfile names them, first mention first.
+ * Fenced code is skipped. A PROPOSAL, never a declaration: a span naming a
+ * code identifier that happens to equal a card name is exactly why a human
+ * confirms it before it is pasted.
+ */
+export function suggestCards(
+    body: string,
+    byName: (name: string) => string | undefined,
+    ranked: ReadonlySet<string>
+): string[] {
+    const lines = body.split("\n");
+    const fenced = fencedLines(lines);
+    const out: string[] = [];
+    const seen = new Set<string>();
+    lines.forEach((line, i) => {
+        if (fenced.has(i)) return;
+        for (const m of line.matchAll(STRICT_SPAN)) {
+            const name = (m[1] ?? m[2])!.trim();
+            const id = byName(name);
+            if (id === undefined || !ranked.has(id) || seen.has(id)) continue;
+            seen.add(id);
+            out.push(name);
+        }
+    });
+    return out;
+}
+
+/** The `--suggest-cards` block: per residue issue, a ready-to-paste section. */
+export function renderSuggestions(
+    suggestions: readonly {
+        readonly number: number;
+        readonly names: readonly string[];
+    }[]
+): string {
+    const hits = suggestions.filter((s) => s.names.length > 0);
+    const lines = [
+        "",
+        `## Cards suggestions — PROPOSED, nothing written; confirm each against the body before pasting: ${hits.length}`,
+    ];
+    for (const s of hits)
+        lines.push(
+            "",
+            `#${s.number}`,
+            "## Cards",
+            "",
+            ...s.names.map((n) => `- ${n}`)
+        );
+    return lines.join("\n");
+}
+
+/**
+ * Every card an issue unlocks or names: the claim cards, the title's names —
+ * `cardsNamedByTitle` for a `[card] … —` title, whose contract is kept whole,
+ * and {@link cardsNamedByEngineTitle} for an `[engine] … — <Card>` one — and
+ * the ids its `## Cards` section declares ({@link resolveDeclaredCards}). A
+ * title naming a card the lockfile cannot resolve yields NO names, since a
+ * guess would misband a real slice.
  */
 export function issueCards(
     issue: { readonly number: number; readonly title: string },
     claimed: ReadonlyMap<number, ReadonlySet<string>>,
-    byName: (name: string) => string | undefined
+    byName: (name: string) => string | undefined,
+    declared: readonly string[] = []
 ): string[] {
-    const ids = new Set(claimed.get(issue.number) ?? []);
+    const ids = new Set([...(claimed.get(issue.number) ?? []), ...declared]);
     for (const name of [
         ...cardsNamedByTitle(issue.title, byName),
         ...cardsNamedByEngineTitle(issue.title, byName),
@@ -416,7 +545,8 @@ export function planWrites(
 /** `null` = dry run; otherwise the writes the run applied. */
 export function renderReport(
     summary: TriageSummary,
-    written: readonly BandWrite[] | null = null
+    written: readonly BandWrite[] | null = null,
+    cardsResidue: readonly CardsResidue[] = []
 ): string {
     const header =
         written === null
@@ -454,5 +584,11 @@ export function renderReport(
         lines.push(
             `  #${r.number}${r.board === null ? "" : ` [board ${r.board}]`} ${r.title}`
         );
+    lines.push(
+        "",
+        `## Cards residue (a declared line that bands nothing — fix the line): ${cardsResidue.length}`
+    );
+    for (const r of cardsResidue)
+        lines.push(`  #${r.issue}  ${r.line}  — ${r.reason}`);
     return lines.join("\n");
 }
