@@ -5,10 +5,19 @@
  * `lib/backlog-triage.ts`; this file only gathers its three inputs and prints
  * the per-class diff.
  *
- * **Dry run, always.** This ticket builds the computation and the read side;
- * the mass write is the next ticket's. There is no write path here at all, so
- * a run with no flags — or with `--dry-run`, accepted for the habit — performs
- * zero mutations; `--write` is refused by name rather than ignored.
+ * **Dry run by default.** A run with no flags — or with `--dry-run`, accepted
+ * for the habit — performs zero mutations. `--write` (issue #4055) applies
+ * the bands, and this is the command re-run whenever the Target List or the
+ * lockfile moves: the band is RECOMPUTED, never assigned once (issue #3851
+ * decision 5), so the command stays and its second run is a no-op.
+ *
+ * What `--write` touches is `planWrites` in the lib: only the CHANGED values,
+ * never a `P0` (written or cleared), never the residue. An unchanged run makes
+ * no write call at all — not even the project-metadata read. The writes go as
+ * aliased GraphQL mutations, `WRITE_BATCH` per request: one
+ * `addProjectV2ItemById` batch (idempotent — it returns the existing item for
+ * an issue already on the board) then one `updateProjectV2ItemFieldValue`
+ * batch. A run cut short leaves a board the next run simply finishes.
  *
  * Reads, and their budget (~470 items against a 5000-point/hour GraphQL pool
  * shared with `queue:plan`):
@@ -32,9 +41,12 @@ import {
     cardBandIndex,
     claimedCards,
     issueCards,
+    planWrites,
     renderReport,
     summarize,
     triage,
+    type Band,
+    type BandWrite,
     type TriageIssue,
 } from "./lib/backlog-triage";
 import { fetchBoardPriority } from "./lib/board-priority";
@@ -67,6 +79,7 @@ query($owner: String!, $name: String!, $endCursor: String) {
             totalCount
             pageInfo { hasNextPage endCursor }
             nodes {
+                id
                 number
                 title
                 parent { number }
@@ -86,6 +99,7 @@ interface IssuePage {
                 totalCount?: number;
                 pageInfo?: { hasNextPage?: boolean };
                 nodes?: {
+                    id: string;
                     number: number;
                     title: string;
                     parent: { number: number } | null;
@@ -100,6 +114,8 @@ interface IssuePage {
 }
 
 export interface OpenIssue {
+    /** The issue's GraphQL node id — what `addProjectV2ItemById` takes. */
+    readonly nodeId: string;
     readonly number: number;
     readonly title: string;
     readonly parent: number | null;
@@ -144,6 +160,7 @@ export function fetchOpenIssues(
                 `backlog:triage: issue #${node.number} blocks ${node.blocking.totalCount} issues, more than one page (${BLOCKING_PAGE}) — paginate before trusting its band`
             );
         out.push({
+            nodeId: node.id,
             number: node.number,
             title: node.title,
             parent: node.parent?.number ?? null,
@@ -153,6 +170,145 @@ export function fetchOpenIssues(
     return out;
 }
 
+/** Writes per GraphQL request — each is one aliased mutation field. */
+export const WRITE_BATCH = 25;
+
+/** The project node, its `Priority` field and that field's options. */
+export const PRIORITY_FIELD_QUERY = `
+query($owner: String!, $number: Int!) {
+    repositoryOwner(login: $owner) {
+        ... on ProjectV2Owner {
+            projectV2(number: $number) {
+                id
+                field(name: "Priority") {
+                    ... on ProjectV2SingleSelectField {
+                        id
+                        options { id name }
+                    }
+                }
+            }
+        }
+    }
+}`;
+
+interface PriorityField {
+    readonly projectId: string;
+    readonly fieldId: string;
+    readonly optionId: Readonly<Record<string, string>>;
+}
+
+/** A node id goes into a mutation literal — refuse anything that is not one. */
+const NODE_ID = /^[A-Za-z0-9_=-]+$/;
+function nodeId(value: unknown, what: string): string {
+    if (typeof value !== "string" || !NODE_ID.test(value))
+        throw new Error(
+            `backlog:triage: ${what} is not a GraphQL node id: ${JSON.stringify(value)}`
+        );
+    return value;
+}
+
+function graphql(
+    run: (args: string[]) => string,
+    query: string,
+    vars: string[] = []
+): Record<string, unknown> {
+    const res = JSON.parse(
+        run(["api", "graphql", ...vars, "-f", `query=${query}`])
+    ) as { data?: Record<string, unknown>; errors?: unknown[] };
+    if (res.errors !== undefined && res.errors.length > 0)
+        throw new Error(
+            `backlog:triage: GraphQL errors: ${JSON.stringify(res.errors)}`
+        );
+    if (res.data === undefined)
+        throw new Error("backlog:triage: GraphQL response carried no data");
+    return res.data;
+}
+
+/** Fails closed before any write: a board with no `Priority` single-select, or
+ *  one missing an option a write needs, writes nothing. */
+function fetchPriorityField(
+    run: (args: string[]) => string,
+    bands: ReadonlySet<Band>
+): PriorityField {
+    const data = graphql(run, PRIORITY_FIELD_QUERY, [
+        "-f",
+        `owner=${PROJECT_OWNER}`,
+        "-F",
+        `number=${PROJECT_NUMBER}`,
+    ]) as {
+        repositoryOwner?: {
+            projectV2?: {
+                id?: string;
+                field?: {
+                    id?: string;
+                    options?: { id: string; name: string }[];
+                };
+            } | null;
+        } | null;
+    };
+    const project = data.repositoryOwner?.projectV2;
+    const options = project?.field?.options;
+    if (!project || !Array.isArray(options))
+        throw new Error(
+            `backlog:triage: project ${PROJECT_OWNER}/${PROJECT_NUMBER} has no \`Priority\` single-select field — nothing written`
+        );
+    const optionId: Record<string, string> = {};
+    for (const o of options)
+        optionId[o.name] = nodeId(o.id, `option ${o.name}`);
+    for (const band of bands)
+        if (optionId[band] === undefined)
+            throw new Error(
+                `backlog:triage: the \`Priority\` field has no \`${band}\` option — nothing written`
+            );
+    return {
+        projectId: nodeId(project.id, "project id"),
+        fieldId: nodeId(project.field!.id, "Priority field id"),
+        optionId,
+    };
+}
+
+/**
+ * Applies `writes` to the board. Makes NO call for an empty list — the
+ * second run on unchanged inputs costs nothing. Returns the writes applied;
+ * a failure throws after the batches already sent, which the next run's
+ * `planWrites` no longer owes.
+ */
+export function applyWrites(
+    run: (args: string[]) => string,
+    writes: readonly BandWrite[],
+    nodeIds: ReadonlyMap<number, string>
+): BandWrite[] {
+    if (writes.length === 0) return [];
+    const field = fetchPriorityField(run, new Set(writes.map((w) => w.band)));
+    const applied: BandWrite[] = [];
+    for (let at = 0; at < writes.length; at += WRITE_BATCH) {
+        const batch = writes.slice(at, at + WRITE_BATCH);
+        const added = graphql(
+            run,
+            `mutation {\n${batch
+                .map(
+                    (w, i) =>
+                        `    a${i}: addProjectV2ItemById(input: { projectId: "${field.projectId}", contentId: "${nodeId(nodeIds.get(w.number), `issue #${w.number}`)}" }) { item { id } }`
+                )
+                .join("\n")}\n}`
+        ) as Record<string, { item?: { id?: string } } | null>;
+        const itemIds = batch.map((w, i) =>
+            nodeId(added[`a${i}`]?.item?.id, `board item of issue #${w.number}`)
+        );
+        graphql(
+            run,
+            `mutation {\n${batch
+                .map(
+                    (w, i) =>
+                        `    u${i}: updateProjectV2ItemFieldValue(input: { projectId: "${field.projectId}", itemId: "${itemIds[i]}", fieldId: "${field.fieldId}", value: { singleSelectOptionId: "${field.optionId[w.band]}" } }) { projectV2Item { id } }`
+                )
+                .join("\n")}\n}`
+        );
+        applied.push(...batch);
+    }
+    return applied;
+}
+
 /** The whole run, minus printing — the seam the tests drive with a recording
  *  `ghClient`. */
 export function runTriage(opts: {
@@ -160,9 +316,10 @@ export function runTriage(opts: {
     argv: readonly string[];
     ghClient: (args: string[]) => string;
 }): string {
-    if (opts.argv.includes("--write"))
+    const write = opts.argv.includes("--write");
+    if (write && opts.argv.includes("--dry-run"))
         throw new Error(
-            "backlog:triage: `--write` is not built — this command is dry-run only; the mass write is the follow-up ticket of issue #4054"
+            "backlog:triage: `--write` and `--dry-run` together — pick one"
         );
     const lock = parseLockfile(
         readFileSync(join(opts.root, LOCKFILE_PATH), "utf8")
@@ -203,12 +360,23 @@ export function runTriage(opts: {
             `backlog:triage: board read failed:\n${errors.join("\n")}`
         );
 
-    const issues: TriageIssue[] = fetchOpenIssues(opts.ghClient).map((i) => ({
-        ...i,
+    const open = fetchOpenIssues(opts.ghClient);
+    const issues: TriageIssue[] = open.map((i) => ({
+        number: i.number,
+        title: i.title,
+        parent: i.parent,
+        blocks: i.blocks,
         cards: issueCards(i, claimed, byName),
     }));
     const verdicts = triage(issues, index, board);
-    return renderReport(summarize(issues, verdicts, board));
+    const summary = summarize(issues, verdicts, board);
+    if (!write) return renderReport(summary);
+    const written = applyWrites(
+        opts.ghClient,
+        planWrites(verdicts, board),
+        new Map(open.map((i) => [i.number, i.nodeId]))
+    );
+    return renderReport(summary, written);
 }
 
 function main(): void {
