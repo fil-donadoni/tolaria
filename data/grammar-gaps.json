@@ -233,11 +233,6 @@
             "issue": 3936
         },
         {
-            "key": "(op) › optionChoice",
-            "op": "optionChoice",
-            "issue": 3937
-        },
-        {
             "key": "(op) › payVariableMana",
             "op": "payVariableMana",
             "issue": 3938
@@ -336,11 +331,6 @@
             "key": "(op) › setCardTypes",
             "op": "setCardTypes",
             "issue": 3958
-        },
-        {
-            "key": "(op) › setColor",
-            "op": "setColor",
-            "issue": 3960
         },
         {
             "key": "(op) › setIslandSanctuaryProtection",

@@ -1775,4 +1775,119 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 613.1e — "This creature becomes the color of your choice until end of
+    // turn": the layer-5 colour change applied to the ability's OWN source.
+    // Exhibits the form the canned smoke scenario refuses — a `setColor` on
+    // `$source`, which the generator hands back to the card's own test rather
+    // than scenario-izing — so this fixture is the evidence the grammar emits
+    // the colour pick the hand-written Rainbow Crow writes (sets/inv/blue.ts
+    // — it round-trips, Guard C), for every card printing the same self form
+    // (Caldera Kavu, Spiritmonger; issue #4137).
+    {
+        rule: "color of your choice",
+        card: {
+            oracleId: "79bf98c8-1169-477d-838e-2ebc0fa396dc",
+            name: "Rainbow Crow",
+            manaCost: "{3}{U}",
+            typeLine: "Creature — Bird",
+            oracleText:
+                "Flying\n{1}: This creature becomes the color of your choice until end of turn.",
+            power: "2",
+            toughness: "2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Rainbow Crow",
+            types: ["Creature"],
+            subtypes: ["Bird"],
+            manaCost: { X: 3, U: 1 },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "Flying\n{1}: This creature becomes the color of your choice until end of turn.",
+            staticAbilities: ["flying"],
+            activatedAbilities: [
+                {
+                    id: "rainbow-crow-ability",
+                    oracleText:
+                        "{1}: This creature becomes the color of your choice until end of turn.",
+                    cost: { mana: { X: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "optionChoice",
+                            prompt: "Choose a color (Rainbow Crow).",
+                            modes: [
+                                {
+                                    id: "W",
+                                    label: "White",
+                                    color: "W",
+                                    effects: [
+                                        {
+                                            op: "setColor",
+                                            target: { ref: "$source" },
+                                            colors: ["W"],
+                                            duration: { phase: "end-of-turn" },
+                                        },
+                                    ],
+                                },
+                                {
+                                    id: "U",
+                                    label: "Blue",
+                                    color: "U",
+                                    effects: [
+                                        {
+                                            op: "setColor",
+                                            target: { ref: "$source" },
+                                            colors: ["U"],
+                                            duration: { phase: "end-of-turn" },
+                                        },
+                                    ],
+                                },
+                                {
+                                    id: "B",
+                                    label: "Black",
+                                    color: "B",
+                                    effects: [
+                                        {
+                                            op: "setColor",
+                                            target: { ref: "$source" },
+                                            colors: ["B"],
+                                            duration: { phase: "end-of-turn" },
+                                        },
+                                    ],
+                                },
+                                {
+                                    id: "R",
+                                    label: "Red",
+                                    color: "R",
+                                    effects: [
+                                        {
+                                            op: "setColor",
+                                            target: { ref: "$source" },
+                                            colors: ["R"],
+                                            duration: { phase: "end-of-turn" },
+                                        },
+                                    ],
+                                },
+                                {
+                                    id: "G",
+                                    label: "Green",
+                                    color: "G",
+                                    effects: [
+                                        {
+                                            op: "setColor",
+                                            target: { ref: "$source" },
+                                            colors: ["G"],
+                                            duration: { phase: "end-of-turn" },
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);

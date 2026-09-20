@@ -161,7 +161,12 @@ import {
 // Hell Swarm, Marsh Gas, Shield Wall and Sunscape Master round-trip once a
 // group "get" reads as a sweep and "for each basic land type among lands you
 // control" scales a pump by the controller's Domain.
-const BASELINE_CEILING = 1563;
+//
+// Lowered 1563 -> 1557 by issue #4137 (colour change): Alchor's Tomb, Blind
+// Seer, Caldera Kavu, Rainbow Crow, Sisay's Ingenuity and Tidal Visionary
+// round-trip once "becomes the color of your choice" reads, with and without
+// a duration, on a permanent, on a spell and on the source itself.
+const BASELINE_CEILING = 1557;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that
