@@ -80,8 +80,8 @@ type SweepableType = (typeof SWEEPABLE_TYPES)[number];
 
 /**
  * The permanent types the card's script SWEEPS on every player's battlefield —
- * a `forEach` over `set: "permanents"` with no `controller` (CR 109.5 — an
- * omitted controller is every player's). Wrath of God sweeps creatures,
+ * a `forEach` over `set: "permanents"` with no `controller` (an omitted
+ * controller selects every player's battlefield). Wrath of God sweeps creatures,
  * Tranquility enchantments, Armageddon lands, and an untyped filter sweeps them
  * all. Empty when the card sweeps nothing. Lives HERE for the same reason as
  * `needsStackTarget`: it decides what the generated position CONTAINS, so it is
@@ -259,9 +259,9 @@ export function botReachSpec(def: CardDefinition): ScenarioSpec {
     for (const type of SWEEPABLE_TYPES) {
         if (!swept.has(type)) continue;
         if (type === "Land") {
-            // CR 305.1 — a land sweep needs lands on the opponent's side to
-            // destroy; the holder's own are its cost, so the opponent's exceed
-            // them by the surplus.
+            // A land sweep needs lands on the opponent's side to destroy; the
+            // holder's own are its cost, so the opponent's exceed them by the
+            // surplus.
             for (let i = 0; i < landCount + SWEEP_SURPLUS; i++)
                 cards.push({
                     name: cycle[i % cycle.length]!,
