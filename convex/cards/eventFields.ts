@@ -27,7 +27,8 @@ export type EventFieldFamily =
     | "object"
     | "player"
     | "stack-object"
-    | "graveyard-card";
+    | "graveyard-card"
+    | "number";
 
 export interface EventFieldRow {
     /** Value family — which decides the ref POSITION the field is legal in, and
@@ -52,6 +53,12 @@ export interface EventFieldRow {
      *     GRAVEYARD", rechecked by `resolveObjectRef`. Legal ONLY in
      *     `moveZone`'s `target` position — the one Op with a graveyard-card
      *     executor — which the validator enforces.
+     *   - `"number"` — a MAGNITUDE the event carries: "you gain THAT MUCH
+     *     life" reads the damage a `DAMAGE_DEALT` dealt (CR 120.3). `resolve`
+     *     flattens it to its decimal string like every other family flattens
+     *     to a string, and `resolveValue` parses it back. Legal ONLY in a
+     *     numeric (`EffectValue`) position; nothing to recheck — a number
+     *     names no object that can leave a zone.
      *
      *  The validator checks the family against the ref's POSITION (a destroy
      *  target vs a player selector vs a `counter` target); a mismatch is a
@@ -188,6 +195,14 @@ export const EVENT_FIELD_REGISTRY: Record<
                 e.type === "DAMAGE_DEALT" && e.target.type === "permanent"
                     ? e.target.id
                     : undefined,
+        },
+        // CR 120.3 — "whenever ~ deals damage, you gain THAT MUCH life": the
+        // amount of damage the event dealt. The numeric twin of the two id
+        // fields above (`EventFieldFamily` "number").
+        amount: {
+            family: "number",
+            resolve: (e) =>
+                e.type === "DAMAGE_DEALT" ? String(e.amount) : undefined,
         },
     },
     // CR 603.6a — "at the beginning of [step]". `activePlayerId` is the player

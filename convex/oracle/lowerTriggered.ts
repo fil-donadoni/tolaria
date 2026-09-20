@@ -110,6 +110,10 @@ function headAntecedents(head: TriggerHeadIR): SiteAntecedents {
         ...(damagedOpponent !== null
             ? { player: damagedOpponent, opponent: damagedOpponent }
             : {}),
+        // CR 120.3 — "that much" after a damage head is the damage dealt.
+        ...(head.kind === "damage-dealt" || head.kind === "damage-taken"
+            ? { amount: { ref: "$event.amount" } }
+            : {}),
         ...(head.kind === "dies" ? { card: { ref: "$event.card" } } : {}),
     };
 }

@@ -6106,8 +6106,8 @@ function checkEventRef(
         );
         return;
     }
-    // Family must match the ref position. An `$event` ref only ever reads an
-    // object or player id — a numeric position is always a bug.
+    // Family must match the ref position: an object, stack-object or player
+    // id at the matching id position, a magnitude at a numeric one.
     const positionFamily =
         use.kind === "object"
             ? "object"
@@ -6115,10 +6115,12 @@ function checkEventRef(
               ? "player"
               : use.kind === "stack-object"
                 ? "stack-object"
-                : undefined;
+                : use.kind === "number"
+                  ? "number"
+                  : undefined;
     if (positionFamily === undefined) {
         errors.push(
-            `${at}: "$event" ref "${use.ref}" appears in a ${use.kind} position — an $event ref reads an object, a stack object or a player id, not a ${use.kind} value`
+            `${at}: "$event" ref "${use.ref}" appears in a ${use.kind} position — an $event ref reads an object, a stack object or a player id, or a number, not a ${use.kind} value`
         );
         return;
     }
@@ -6395,6 +6397,12 @@ function checkCaptureSource(
         if (row.family === "graveyard-card") {
             errors.push(
                 `${at}: capture "${name}" "$event" ref "${ref}" is a graveyard-card field — no delayed body reads a graveyard card through a capture yet (CR 400.7e), so it is refused rather than re-bound unexercised. Act on the card in the trigger's own body instead`
+            );
+            return;
+        }
+        if (row.family === "number") {
+            errors.push(
+                `${at}: capture "${name}" "$event" ref "${ref}" is a number field — a capture re-binds an object or a player at fire time, and no delayed body reads a captured magnitude yet`
             );
             return;
         }

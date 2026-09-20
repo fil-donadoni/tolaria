@@ -118,6 +118,8 @@ export interface SiteAntecedents {
     readonly player?: EffectPlayerRef;
     /** "that opponent" — set only by a head that names an OPPONENT. */
     readonly opponent?: EffectPlayerRef;
+    /** "that much" — the magnitude the head's event carried (CR 120.3). */
+    readonly amount?: EffectValue;
     /** "that card" — a card a zone change put into a graveyard (CR 400.7e). */
     readonly card?: EffectObjectSelector;
 }
@@ -128,6 +130,10 @@ function lowerAmount(
     site: SiteOptions
 ): Lowered<EffectValue> {
     if (amount.kind === "fixed") return lowered(amount.value);
+    if (amount.kind === "event-amount")
+        return site.antecedents?.amount !== undefined
+            ? lowered(site.antecedents.amount)
+            : unlowerable('"that much" names no amount at this site');
     return site.allowX
         ? lowered({ X: true })
         : unlowerable(

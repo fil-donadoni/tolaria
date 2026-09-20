@@ -72,11 +72,18 @@ export const EFFECT_CLAUSE = "effect clause";
  */
 export type AmountIR =
     | { readonly kind: "fixed"; readonly value: number }
-    | { readonly kind: "x" };
+    | { readonly kind: "x" }
+    /**
+     * "that much": the magnitude the trigger's own event carried (CR 120.3 —
+     * the damage dealt). Read here as words, bound by the lowering SITE: a head
+     * that carries no magnitude refuses the line rather than reading 0.
+     */
+    | { readonly kind: "event-amount" };
 
-/** A count word at an effect site: a cardinal, or CR 107.3's `X`. */
+/** A count word at an effect site: a cardinal, `X` (CR 107.3), or "that much". */
 export function readAmount(word: string): AmountIR | null {
     if (word === "X") return { kind: "x" };
+    if (word === "that much") return { kind: "event-amount" };
     const fixed = readNumberWord(word);
     return fixed === null ? null : { kind: "fixed", value: fixed };
 }
@@ -881,7 +888,7 @@ const PUMP = /^(.+) gets ([+-]\d+)\/([+-]\d+) (.+)$/;
 const DAMAGE = /^(.+) deals (\S+) damage to (.+)$/;
 const DRAW_SELF = /^Draw (\S+) cards?$/;
 const DRAW_PLAYER = /^(.+) draws (\S+) cards?$/;
-const LIFE = /^(.+) (gain|gains|lose|loses) (\S+) life$/;
+const LIFE = /^(.+) (gain|gains|lose|loses) (\S+|that much) life$/;
 const COUNTERS = /^Put (\S+) (\S+) counters? on (.+)$/;
 const DISCARD_RANDOM = /^(.+) discards (\S+) cards? at random$/;
 /** CR 701.9b — "Target player discards two cards": the player's own choice. */
@@ -894,6 +901,14 @@ const DISCARD_CHOICE = /^(.+) discards (\S+) cards?$/;
  */
 const YOU_DRAW_AND_LOSE_LIFE =
     /^You (draw \S+ cards?) and (you lose \S+ life)$/;
+/**
+ * CR 608.2c — "You draw a card and that opponent discards a card": a draw by
+ * the controller, then a discard by the player the head named. Pinned to
+ * exactly this pair, like the conjunction above: a different second subject or
+ * verb stays refused until a corpus card prints it.
+ */
+const YOU_DRAW_AND_THAT_OPPONENT_DISCARDS =
+    /^You (draw \S+ cards?) and (that opponent discards \S+ cards?)$/;
 /** CR 121.1 + CR 701.9a — "Draw a card, then discard a card". */
 const LOOT = /^Draw (\S+) cards?, then discard (\S+) cards?$/;
 /** CR 608.2c — "If you control <A> and <B>, <body> instead" (either order). */
@@ -1370,16 +1385,18 @@ function effectSentence(
         } satisfies EffectSentenceIR);
     }
 
-    // ── draw, and lose life (CR 608.2c) ────────────────────────────────────
-    const drawAndLose = span.match(YOU_DRAW_AND_LOSE_LIFE);
-    if (drawAndLose !== null) {
-        const draw = effectSentence(capitalise(drawAndLose[1]!), ctx);
+    // ── draw, and lose life / and the opponent discards (CR 608.2c) ────────
+    const drawAnd =
+        span.match(YOU_DRAW_AND_LOSE_LIFE) ??
+        span.match(YOU_DRAW_AND_THAT_OPPONENT_DISCARDS);
+    if (drawAnd !== null) {
+        const draw = effectSentence(capitalise(drawAnd[1]!), ctx);
         if (!draw.ok) return draw;
-        const lose = effectSentence(capitalise(drawAndLose[2]!), ctx);
-        if (!lose.ok) return lose;
+        const second = effectSentence(capitalise(drawAnd[2]!), ctx);
+        if (!second.ok) return second;
         return ok({
             kind: "conjunction" as const,
-            effects: [draw.value, lose.value],
+            effects: [draw.value, second.value],
         } satisfies EffectSentenceIR);
     }
 
