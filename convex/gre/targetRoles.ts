@@ -42,8 +42,9 @@
 import type { CardDefinition, EffectOp, SpellMode } from "../cards/types";
 
 /** The script whose slot reads decide this announcement's roles: the chosen
- *  MODE's body when there is one (CR 700.2a — the other modes do not resolve),
- *  otherwise the cast SUBJECT's.
+ *  MODE's body when there is one — CR 700.2a, the mode is chosen as part of
+ *  casting, so by announcement time the script is already decided — otherwise
+ *  the cast SUBJECT's.
  *
  *  `subjectDef` is the cast SUBJECT, never the printed card (CR 715.3a, ADR
  *  0120 §4): an Adventure half and a split half are their own
