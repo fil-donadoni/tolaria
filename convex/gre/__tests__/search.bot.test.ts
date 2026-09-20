@@ -1354,7 +1354,13 @@ describe("selectRootMove — sorcery-speed permanent tie-break (issue #4070)", (
     const OPPONENTS_ONLY_ENCHANTMENT = synthetic("opponents-only", {
         activatedAbilities: [{ ...ABILITY, activatableByOpponentsOnly: true }],
     });
+    const ABILITY_CREATURE = synthetic("creature", {
+        types: ["Artifact", "Creature"],
+        power: 1,
+        toughness: 1,
+    });
     const SYNTHETICS = {
+        creature: ABILITY_CREATURE,
         flash: FLASH_ENCHANTMENT,
         "as-though-flash": AS_THOUGH_FLASH_ENCHANTMENT,
         "opponents-only": OPPONENTS_ONLY_ENCHANTMENT,
@@ -1463,8 +1469,12 @@ describe("selectRootMove — sorcery-speed permanent tie-break (issue #4070)", (
         expect(pickAmong(cast("specter"), rootState())).toBe("pass");
     });
 
-    it("NO-FIRE: leaves an artifact CREATURE to the search too (its body, not its type line, is what it is)", () => {
-        expect(pickAmong(cast("ornithopter"), rootState())).toBe("pass");
+    it("NO-FIRE: leaves a creature that HAS a controller-held ability to the search too", () => {
+        withTemporaryDefinition(ABILITY_CREATURE, () => {
+            expect(
+                pickAmong(cast("creature"), rootState([], ["creature"]))
+            ).toBe("pass");
+        });
     });
 
     it("NO-FIRE: leaves a TARGETED permanent (an Aura) to announcement-variant ranking", () => {
