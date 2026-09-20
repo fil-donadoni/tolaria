@@ -203,8 +203,9 @@ describe("the neighbours this rule refuses (fail-closed, ADR 0105 § 2)", () => 
         ).not.toEqual([]);
     });
 
-    // CR 113.7a — an ability on the stack is not a spell, and the `counter`
-    // Op's target slot names a spell.
+    // CR 112.1 — a spell is a CARD on the stack; an activated or triggered
+    // ability on the stack (CR 113.7a) is not one, so it is not what this
+    // rule's `{ type: "spell" }` slot announces.
     it("refuses countering an ability — 'target activated or triggered ability'", () => {
         expect(
             refusal(

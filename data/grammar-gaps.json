@@ -78,11 +78,6 @@
             "issue": 3898
         },
         {
-            "key": "(op) › counter",
-            "op": "counter",
-            "issue": 3899
-        },
-        {
             "key": "(op) › createTokenCopy",
             "op": "createTokenCopy",
             "issue": 3901
