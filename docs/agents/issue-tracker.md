@@ -132,6 +132,14 @@ bounded, ordered slice of the backlog, so the cap stops being reachable.
   create whose parent write failed — moves to its band or its fallback.
 - **Each umbrella's board `Priority` is its band**, set once by hand; its
   children inherit it (issue #3212).
+- **A landed issue leaves its umbrella** (issue #4235). `land` runs
+  `bun run umbrella:detach <issue>` for the issue the branch names, after
+  `gaps:sync` (which reads the parent edge): a CLOSED child of a band umbrella
+  or a kind fallback (`BAND_UMBRELLAS` + `KIND_FALLBACK`) is removed from it,
+  so an umbrella lists the open work of its band. An issue still OPEN is never
+  detached — a merge whose `Closes` keyword failed leaves it open, and it
+  stays listed until it is closed and the command is re-run by hand. Retired
+  umbrellas are not in the census; `gaps:sync` empties those.
 - **A hand-filed `[Grammar]` ticket** goes under the Grammar Rules umbrella of
   the band its cards compute — `gaps:sync` does not file those.
 

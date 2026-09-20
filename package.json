@@ -96,6 +96,7 @@
         "test:bot": "bun scripts/gate.ts heavy 'vitest run --project bot-node --project bot-dom'",
         "test:perf": "vitest run --project perf --project ladder",
         "test:watch": "vitest",
+        "umbrella:detach": "bun scripts/umbrella-detach.ts",
         "usage:window": "bun scripts/usage-window.ts",
         "verify:ui-receipt": "bun scripts/ui-gate/verify-receipt.ts",
         "worktree:init": "bun scripts/bootstrap-worktree.ts",
