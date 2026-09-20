@@ -12248,6 +12248,16 @@
         "source": "compiled"
     },
     {
+        "name": "Distorting Lens",
+        "scryfallId": "ab196d8d-5d1c-4f0e-a924-37774db02821",
+        "oracleId": "9c9579c5-7edf-41ca-8595-713ca9245576",
+        "firstSet": "mmq",
+        "firstPrintId": "ab196d8d-5d1c-4f0e-a924-37774db02821",
+        "firstPrintSet": "mmq",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Distorting Wake",
         "scryfallId": "cf48eec9-96be-4f53-9d9a-c6f02d44c995",
         "oracleId": "e5387fc7-c3b3-4933-bffa-580ad793c7ab",
@@ -23289,6 +23299,16 @@
         "firstPrintId": "7f98e703-a0d3-497f-840a-aa026b02d47f",
         "firstPrintSet": "uds",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Illusion // Reality",
+        "scryfallId": "8e7dd90a-4f93-43aa-b503-18289fdd571e",
+        "oracleId": "5af2689d-c45c-4d45-b6a9-f32e8410b336",
+        "firstSet": "apc",
+        "firstPrintId": "8e7dd90a-4f93-43aa-b503-18289fdd571e",
+        "firstPrintSet": "apc",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -44428,6 +44448,16 @@
         "source": "compiled"
     },
     {
+        "name": "Spiritmonger",
+        "scryfallId": "b96d6e67-f690-4f19-bb25-a7c2d2aaf42f",
+        "oracleId": "3913c7f2-86b7-4dd4-84a6-9bd4c1c66781",
+        "firstSet": "apc",
+        "firstPrintId": "b96d6e67-f690-4f19-bb25-a7c2d2aaf42f",
+        "firstPrintSet": "apc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Spiritual Guardian",
         "scryfallId": "0dbea02f-9124-4e1a-8693-d988a0a3adae",
         "oracleId": "d03860b4-c663-4230-9200-6b89fa849ae7",
@@ -52236,6 +52266,16 @@
         "firstSet": "inv",
         "firstPrintId": "c1c0effa-a4b8-4166-a66a-90cf01c6ea0d",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Vodalian Mystic",
+        "scryfallId": "81ec203a-067e-4360-9b4d-2d67db472aab",
+        "oracleId": "c7feecf0-5229-4c12-806a-16c9ab38e147",
+        "firstSet": "apc",
+        "firstPrintId": "81ec203a-067e-4360-9b4d-2d67db472aab",
+        "firstPrintSet": "apc",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Vodalian Serpent",

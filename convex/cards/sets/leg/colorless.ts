@@ -251,8 +251,8 @@ export const alchorsTomb: CardDefinition = {
             // pickers use (issue #4137). It was hand-rolled here with an
             // explicit `player: "controller"` — the interpreter's own default
             // (`op.player ?? "controller"`), so the same choice by the same
-            // player — and the redundant field was the whole of this card's
-            // divergence from the Oracle compiler's reading of the same line.
+            // player — and that redundant field was the only thing keeping
+            // this card from round-tripping through the Oracle compiler.
             effects: chooseColorEffects(
                 { target: 0 },
                 undefined,
