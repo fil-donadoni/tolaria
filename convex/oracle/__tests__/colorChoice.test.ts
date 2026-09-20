@@ -303,6 +303,57 @@ describe("becomes the color of your choice (CR 613.1e)", () => {
     });
 });
 
+describe("the graduates reach ready, not quarantine (ADR 0105 § 3)", () => {
+    // `compiled` above only proves the line PARSED. A definition that parses
+    // and then fails `validateEffectScript` is a quarantined card, which
+    // graduates nothing — and the indefinite form did exactly that until the
+    // shared builder stopped writing `duration: undefined` for it (a key the
+    // validator rejects, where an ABSENT key is the legal encoding). Nothing
+    // else here distinguishes the two: `toEqual` reads an undefined property
+    // and a missing one as equal.
+    const CARDS: ReadonlyArray<Parameters<typeof oracleCard>[0]> = [
+        {
+            oracleId: "61473d8e-45f1-4753-918d-04918a466031",
+            name: "Alchor's Tomb",
+            manaCost: "{4}",
+            typeLine: "Artifact",
+            oracleText:
+                "{2}, {T}: Target permanent you control becomes the color of your choice. (This effect lasts indefinitely.)",
+            power: undefined,
+            toughness: undefined,
+        },
+        {
+            oracleId: "c7feecf0-5229-4c12-806a-16c9ab38e147",
+            name: "Vodalian Mystic",
+            manaCost: "{1}{U}",
+            typeLine: "Creature — Merfolk Wizard",
+            oracleText:
+                "{T}: Target instant or sorcery spell becomes the color of your choice.",
+            power: "1",
+            toughness: "1",
+        },
+        {
+            oracleId: "79bf98c8-1169-477d-838e-2ebc0fa396dc",
+            name: "Rainbow Crow",
+            manaCost: "{3}{U}",
+            typeLine: "Creature — Bird",
+            oracleText:
+                "Flying\n{1}: This creature becomes the color of your choice until end of turn.",
+            power: "2",
+            toughness: "2",
+        },
+    ];
+
+    it.each(CARDS)("$name compiles to ready", (card) => {
+        const outcome = compileCard(oracleCard(card));
+        expect(
+            outcome.state === "quarantine"
+                ? outcome.reasons.map((reason) => reason.detail)
+                : outcome.state
+        ).toBe("ready");
+    });
+});
+
 describe("the neighbours this rule refuses (fail-closed, ADR 0105 § 2)", () => {
     // A PLURAL announced slot: the requirement would need a count AND the
     // effect would need to fan out per target, and half of that is worse than
