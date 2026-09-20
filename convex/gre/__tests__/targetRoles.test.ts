@@ -141,6 +141,35 @@ describe("announcedTargetRoles — fails closed (issue #4193)", () => {
         expect(announcedTargetRoles(onlyFirst, 0, 2)).toBeUndefined();
     });
 
+    it("refuses a slot read in both branches of one `if` (only one runs)", () => {
+        // Joining the two would print "destroyed and returned to its owner's
+        // hand" for a slot that gets exactly one of them — a statement
+        // resolution contradicts, which is worse than the pick-blind prompt.
+        const branching: EffectOp[] = [
+            {
+                op: "if",
+                predicate: { left: { kickerCount: true }, op: "ge", right: 1 },
+                then: [{ op: "destroy", target: { target: 0 } }],
+                else: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
+            },
+            { op: "dealDamage", amount: 2, to: { target: 1 } },
+        ] as unknown as EffectOp[];
+        expect(announcedTargetSlotsDiffer(branching, 0, 2)).toBe(true);
+        expect(announcedTargetRoles(branching, 0, 2)).toBeUndefined();
+    });
+
+    it("keeps a slot that two Ops treat the SAME way (one phrase, not a join)", () => {
+        const twice: EffectOp[] = [
+            { op: "moveZone", target: { target: 0 }, to: "hand" },
+            { op: "moveZone", target: { target: 0 }, to: "hand" },
+            { op: "dealDamage", amount: 2, to: { target: 1 } },
+        ] as unknown as EffectOp[];
+        expect(announcedTargetRoles(twice, 0, 2)).toEqual([
+            "returned to its owner's hand",
+            "dealt 2 damage",
+        ]);
+    });
+
     it("refuses a card with no Effect Script at all (a resolve() card)", () => {
         expect(announcedTargetRoles(undefined, 0, 2)).toBeUndefined();
         expect(announcedTargetSlotsDiffer(undefined, 0, 2)).toBe(false);

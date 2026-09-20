@@ -39,7 +39,29 @@
 // interchangeable — the controller picks afterwards. A mechanism that labelled
 // them would be inventing a distinction the card does not print.
 
-import type { EffectOp } from "../cards/types";
+import type { CardDefinition, EffectOp, SpellMode } from "../cards/types";
+
+/** The script whose slot reads decide this announcement's roles: the chosen
+ *  MODE's body when there is one (CR 700.2a — the other modes do not resolve),
+ *  otherwise the cast SUBJECT's.
+ *
+ *  `subjectDef` is the cast SUBJECT, never the printed card (CR 715.3a, ADR
+ *  0120 §4): an Adventure half and a split half are their own
+ *  `CardDefinition`s with their own `targetRequirement` AND their own
+ *  `effects`, and the announcement already derives its requirement from the
+ *  subject. Reading the printed card here would pair one half's requirement
+ *  with the other's script — today only ever fail-closed, because no printed
+ *  adventurer or split card in the catalogue carries `effects`, which is the
+ *  kind of accident that stops being true without anything going red.
+ *
+ *  ONE helper because the server and the Bot's enumerator both need the
+ *  answer, and two spellings of one rule is how they drift. */
+export function announcedRoleScript(
+    subjectDef: CardDefinition | undefined,
+    chosenMode: SpellMode | undefined
+): EffectOp[] | undefined {
+    return chosenMode ? chosenMode.effects : subjectDef?.effects;
+}
 
 /** One announced slot read as an Op's own direct selector. */
 interface SlotReference {
@@ -55,9 +77,8 @@ interface SlotReference {
 
 /** CR 400.1 — how each zone a `moveZone` can name reads to the player being
  *  asked (the seven zones of that rule, less the ones no announced target is
- *  ever sent to). A
- *  destination absent from this table is unlabelled, so the whole derivation
- *  fails closed rather than printing a zone name raw. */
+ *  ever sent to). A destination absent from this table is unlabelled, so the
+ *  whole derivation fails closed rather than printing a zone name raw. */
 const MOVE_ZONE_PHRASE: Record<string, string> = {
     hand: "returned to its owner's hand",
     graveyard: "put into its owner's graveyard",
@@ -84,10 +105,12 @@ const ROLE_PHRASE: Record<
     "exile.target": () => "exiled",
     "moveZone.target": (op) =>
         typeof op.to === "string" ? MOVE_ZONE_PHRASE[op.to] : undefined,
+    // CR 615.1 — the target here is the damage's SOURCE, not its recipient
+    // (Falling Timber prevents the damage the creature WOULD DEAL).
     "preventDamage.source": (op) =>
         op.combatOnly === true
-            ? "has its combat damage prevented"
-            : "has its damage prevented",
+            ? "prevented from dealing combat damage"
+            : "prevented from dealing damage",
 };
 
 /** An announced-slot selector is the object shape `{ target: <int> }` sitting
@@ -238,7 +261,12 @@ export function announcedTargetRoles(
             if (ref.phrase === undefined) return undefined;
             if (!phrases.includes(ref.phrase)) phrases.push(ref.phrase);
         }
-        roles.push(phrases.join(" and "));
+        // Two DIFFERENT phrases on one slot are not "both happen": an `if`
+        // with an `else` reads the same slot in two branches of which exactly
+        // one runs, so joining them would print a statement resolution
+        // contradicts. That is the one thing this module must never do.
+        if (phrases.length !== 1) return undefined;
+        roles.push(phrases[0]);
     }
     // Two slots the phrase table cannot tell apart, though their Ops differ,
     // would print the same line twice — noise that answers nothing.

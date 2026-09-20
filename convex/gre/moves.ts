@@ -74,7 +74,7 @@ import {
 // CR 601.2c (issue #4193) — whether a group's announced slots receive
 // different halves of the effect, so the enumerator knows when an ORDERING is
 // its own announcement rather than the same one twice.
-import { announcedTargetSlotsDiffer } from "./targetRoles";
+import { announcedRoleScript, announcedTargetSlotsDiffer } from "./targetRoles";
 import { spliceAugmentedDefinition } from "./splice";
 import {
     announceableModeCombinations,
@@ -3161,7 +3161,7 @@ function enumerateCastMovesFromZone(
                             // stay on combinations.
                             slotRoleEffects: multiGroups
                                 ? undefined
-                                : (mode?.effects ?? def?.effects),
+                                : announcedRoleScript(def ?? undefined, mode),
                         })
                     )
                 )
@@ -3567,6 +3567,10 @@ function enumerateCastMovesFromZone(
             // exactly the pre-issue one. The generator is re-run per plan
             // rather than materialised, so the single-plan case allocates
             // nothing new.
+            // CR 601.2c (issue #4193) — hoisted out of the plan loop: it walks
+            // the whole Effect Script, depends only on the script, the groups
+            // and X, and `enumerateMoves` runs at every ISMCTS node.
+            const ordered = orderedGroupFlags(slotRoleEffects, groups, x);
             for (const tapPlan of tapPlans) {
                 for (const {
                     targets,
@@ -3581,7 +3585,7 @@ function enumerateCastMovesFromZone(
                     chosenModeIds && groupInstances
                         ? { count: chosenModeIds.length, groupInstances }
                         : undefined,
-                    orderedGroupFlags(slotRoleEffects, groups, x)
+                    ordered
                 )) {
                     if (
                         perModeCombination &&
@@ -3964,13 +3968,24 @@ function enumerateCastMovesFromZone(
                 : libraryTopCastLifeCost(state, player, card, alt.id);
         if (altPayLife > player.life) continue;
         const altReq = subjectDef?.targetRequirement;
+        // CR 601.2c (issue #4193) — the SUBJECT's script, paired with the
+        // SUBJECT's requirement above: an Adventure or split half is its own
+        // definition (CR 715.3a/b, ADR 0120 §4), so reading the printed card
+        // here would pick one half's targets by the other half's rules.
+        const altOrdered = orderedGroupFlags(
+            announcedRoleScript(subjectDef, undefined),
+            [altReq],
+            undefined
+        );
         for (const altTapPlan of altTapPlans) {
             for (const { targets, lastGroupSize } of enumerateTargetGroupTuples(
                 state,
                 player,
                 subject,
                 [altReq],
-                undefined
+                undefined,
+                undefined,
+                altOrdered
             )) {
                 moves.push({
                     kind: "cast-spell",

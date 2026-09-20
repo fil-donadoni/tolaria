@@ -7,12 +7,17 @@
 // halves the prompt states per announced target are the halves resolution
 // applies, in the order the caster clicked. The roles are NOT hand-written
 // here — they come from `announcedTargetRoleFields`, the very helper
-// `announceCast` spreads onto the `PendingTarget` — so removing that wiring
-// from the mutation makes this file red instead of passing on a fixture that
-// re-states what it is meant to guard. (There is no convex-test harness for a
-// `game.ts` mutation, ADR 0001; the rest of the walk is the real exported
+// `announceCast` spreads onto the `PendingTarget` — so a fixture that
+// re-stated them would pass with the derivation broken.
+//
+// What this does NOT cover, said plainly: `announceCast`'s one-line SPREAD of
+// that helper. There is no convex-test harness for a `game.ts` mutation (ADR
+// 0001) and this file calls the helper itself, so deleting the spread leaves
+// every test here green — the same coverage level every other announcement
+// field on `PendingTarget` has (`kickerPayments`, `buybackPaid`,
+// `chosenModeIds`). Everything below the announcement is the real exported
 // path: `applyOneTargetSelection` → `advanceTargetGroupOrFinalize` →
-// `finalizeTargetSelection` → `resolveTopOfStack`.)
+// `finalizeTargetSelection` → `resolveTopOfStack`.
 import { describe, it, expect } from "vitest";
 import {
     makeInstance,

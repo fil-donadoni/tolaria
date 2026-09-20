@@ -18,9 +18,15 @@
 // Requirements` entry's offset is not decided until the groups before it have
 // their picks in. That is also the whole reach of the bug: the count-widening
 // kicked announcement (CR 702.33g) is always a card's sole group.
+//
+// It DOES walk the cast SUBJECTS (CR 715.3a/b, ADR 0120 §4): an Adventure or
+// split half announces its own requirement out of its own script, and a sweep
+// that only read the printed card would be blind to exactly the pairing the
+// engine had wrong before this issue's review round.
 import { describe, it, expect } from "vitest";
 import { getAllCatalogueCards } from "../index";
-import type { EffectOp, TargetRequirement } from "../types";
+import type { CardDefinition, EffectOp, TargetRequirement } from "../types";
+import { castSubjectDefinition } from "../../gre/castMode";
 import {
     announcedTargetRoles,
     announcedTargetSlotsDiffer,
@@ -32,9 +38,7 @@ interface Site {
     effects: EffectOp[] | undefined;
 }
 
-function sitesOf(
-    card: ReturnType<typeof getAllCatalogueCards>[number]
-): Site[] {
+function sitesOf(card: CardDefinition): Site[] {
     const sites: Site[] = [
         {
             where: "targetRequirement",
@@ -47,6 +51,19 @@ function sitesOf(
             effects: card.effects,
         },
     ];
+    // CR 715.3a/b (ADR 0120 §4) — each alternative cast mode whose SUBJECT is
+    // a different definition announces that definition's requirement out of
+    // that definition's script. Identity for every ordinary alt cost, which
+    // the `!== card` filter drops.
+    for (const alt of card.alternativeCosts ?? []) {
+        const subject = castSubjectDefinition(card, alt.id);
+        if (!subject || subject === card) continue;
+        sites.push({
+            where: `cast subject ${alt.id}`,
+            requirement: subject.targetRequirement,
+            effects: subject.effects,
+        });
+    }
     for (const mode of card.modes ?? []) {
         sites.push({
             where: `mode ${mode.id}`,
@@ -81,8 +98,15 @@ describe("announced target roles — catalogue guard (CR 601.2c, issue #4193)", 
                 if (!announcedTargetSlotsDiffer(effects, 0, count)) continue;
                 if (announcedTargetRoles(effects, 0, count) === undefined) {
                     offenders.push(
-                        `${card.name} :: ${where} — slots differ but no phrase ` +
-                            `(add the Op's row to ROLE_PHRASE in gre/targetRoles.ts)`
+                        `${card.name} :: ${where} — the slots differ but the ` +
+                            `announcement cannot name them. One of: an Op or a ` +
+                            `moveZone destination missing from ROLE_PHRASE; two ` +
+                            `Ops that map to the SAME phrase (make them ` +
+                            `distinguishable or make the slots identical); a slot ` +
+                            `read in two branches of one \`if\`. All in ` +
+                            `gre/targetRoles.ts. A site that is not a CAST also ` +
+                            `needs wiring — roles are attached in announceCast ` +
+                            `only (see announcedTargetRoleFields, convex/game.ts).`
                     );
                 }
             }

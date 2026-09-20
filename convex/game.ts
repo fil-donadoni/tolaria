@@ -324,7 +324,7 @@ import {
 // CR 601.2c (issue #4193) — which half of the effect each announced target of
 // a group receives, so the prompt can say it per slot instead of leaving the
 // caster to infer it from click order.
-import { announcedTargetRoles } from "./gre/targetRoles";
+import { announcedRoleScript, announcedTargetRoles } from "./gre/targetRoles";
 import { spliceAugmentedDefinition } from "./gre/splice";
 import { liveSupertypesOf, countSnowLands } from "./gre/snow";
 import { computeSoloViewerId } from "./soloViewer";
@@ -5333,22 +5333,27 @@ function applyRequirementToPendingTarget(
  *  kicked announcement (CR 702.33g, `foldKickedWidening`) is always a card's
  *  sole group.
  *
+ *  `subjectDef` is the cast SUBJECT (CR 715.3a/b, ADR 0120 §4), the same
+ *  definition `castAdjustedTargetRequirement` reads the requirement from —
+ *  never the printed card, or an Adventure half's requirement would be paired
+ *  with the adventurer's script. `announcedRoleScript` owns that pairing so
+ *  the Bot's enumerator reads it the same way.
+ *
  *  Exported for the same reason `resolveBuybackChoice` below is: there is no
- *  convex-test harness for a `game.ts` mutation (ADR 0001), so the full-path
- *  test drives the announcement's own helper rather than re-deriving what it
- *  writes onto the `PendingTarget` — a hand-written `announcedTargetRoles`
- *  would be the definition written twice and would pass with this wiring
- *  removed. */
+ *  convex-test harness for a `game.ts` mutation (ADR 0001). Note what that
+ *  does NOT buy — the one-line spread at the announcement is still uncovered;
+ *  a test calling this helper cannot see it removed. The helper itself is
+ *  covered at three layers. */
 export function announcedTargetRoleFields(
-    cardDef: CardDefinition,
+    subjectDef: CardDefinition,
     chosenMode: SpellMode | undefined,
     count: PendingTarget["count"]
 ): { announcedTargetRoles?: string[] } {
     if (typeof count !== "number") return {};
-    // A modal body may live on the mode; `resolve()` cards have no script to
-    // read at all, and both fall through to "cannot tell".
+    // `resolve()` cards have no script to read at all, and fall through to
+    // "cannot tell" like every other unreadable shape.
     const roles = announcedTargetRoles(
-        chosenMode ? chosenMode.effects : cardDef.effects,
+        announcedRoleScript(subjectDef, chosenMode),
         0,
         count
     );
@@ -7931,7 +7936,7 @@ export const announceCast = mutation({
                 // — no per-Target text at all — for every symmetric card and
                 // every shape the derivation cannot read (`targetRoles.ts`).
                 ...announcedTargetRoleFields(
-                    cardDef,
+                    castSubjectDef,
                     chosenMode,
                     resolvedCount!
                 ),

@@ -193,6 +193,41 @@ export default function TargetSelectionBanner({
                                     ? `Divide ${divide.kind === "prevent" ? "prevented damage" : "damage"} — ${divide.remaining} left`
                                     : hint}
                             </span>
+                            {/* CR 601.2c (issue #4193) — directly under the
+                                instruction and ABOVE the actions: what the
+                                next click buys is read before Done/Cancel,
+                                and on a phone it is not the first thing
+                                pushed out of view. `aria-live` so the marker
+                                moving between picks is announced. */}
+                            {roleRows.length > 0 && (
+                                <ol
+                                    data-announced-target-roles
+                                    aria-live="polite"
+                                    className="flex flex-col gap-0.5 text-xs"
+                                >
+                                    {roleRows.map((row) => (
+                                        <li
+                                            key={row.slot}
+                                            data-target-role-slot={row.slot}
+                                            data-target-role-status={row.status}
+                                            className={
+                                                row.status === "current"
+                                                    ? "text-signal-target-strong"
+                                                    : row.status === "picked"
+                                                      ? "text-text-muted line-through"
+                                                      : "text-text-muted"
+                                            }
+                                        >
+                                            <span className="tabular-nums">
+                                                {row.slot}.
+                                            </span>{" "}
+                                            {row.role}
+                                            {row.status === "current" &&
+                                                " — pick now"}
+                                        </li>
+                                    ))}
+                                </ol>
+                            )}
                         </div>
                         {!divide.active && (
                             <span
@@ -269,31 +304,6 @@ export default function TargetSelectionBanner({
                             {isCopyRetarget ? "Keep targets" : "Cancel"}
                         </Button>
                     </div>
-                    {roleRows.length > 0 && (
-                        <ol
-                            data-announced-target-roles
-                            className="flex flex-col gap-1 text-xs"
-                        >
-                            {roleRows.map((row) => (
-                                <li
-                                    key={row.slot}
-                                    data-target-role-slot={row.slot}
-                                    data-target-role-status={row.status}
-                                    className={
-                                        row.status === "current"
-                                            ? "text-signal-target-strong"
-                                            : "text-text-muted"
-                                    }
-                                >
-                                    <span className="tabular-nums">
-                                        {row.slot}.
-                                    </span>{" "}
-                                    {row.role}
-                                    {row.status === "current" && " — pick now"}
-                                </li>
-                            ))}
-                        </ol>
-                    )}
                     {divide.active && <DivideTargetList />}
                 </Panel>
             </div>
