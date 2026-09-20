@@ -4616,6 +4616,23 @@ export type PendingTarget = {
      *  `modeTargetCounts` at finalization. Undefined unless more than one
      *  instance was chosen. */
     modeTargetCounts?: number[];
+    /** CR 601.2c (issue #4193) — which half of the effect each announced
+     *  target of the CURRENT group will receive, index-aligned with the
+     *  group's slots ("returned to its owner's hand", "dealt 2 damage" for a
+     *  kicked Jilt). The per-Target twin of `groupModeInstances` above: a
+     *  single instance of the word "target" may announce several objects the
+     *  script then reads POSITIONALLY, and without this the caster picks
+     *  blind and the first click silently takes slot 0.
+     *
+     *  Derived ONCE at announcement from the resolving script
+     *  (`announcedTargetRoles`, `gre/targetRoles.ts`) rather than re-derived
+     *  on the client, so the prompt states what the ENGINE will do and cannot
+     *  drift from it (ADR 0074 — the client is a view). Absent whenever the
+     *  derivation cannot tell the slots apart, which is every symmetric card
+     *  (Magma Burst, Rushing River) and every single-target announcement:
+     *  their prompt is unchanged. Cleared when the walk advances to the next
+     *  independent group (`applyRequirementToPendingTarget`). */
+    announcedTargetRoles?: string[];
     /** CR 118.9 — id of a chosen ALTERNATIVE casting cost
      *  (`CardDefinition.alternativeCosts`), propagated from announcement so it
      *  is paid at cast commit (`finalizeTargetSelection`) instead of the mana

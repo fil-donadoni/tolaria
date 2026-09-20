@@ -22,6 +22,7 @@ import type {
     ActivatedAbility,
     CardDefinition,
     Color,
+    EffectOp,
     ManaCost,
     SpellMode,
     TargetRequirement,
@@ -70,6 +71,10 @@ import {
     kickerLifeCost,
     type KickerPayments,
 } from "./kicker";
+// CR 601.2c (issue #4193) — whether a group's announced slots receive
+// different halves of the effect, so the enumerator knows when an ORDERING is
+// its own announcement rather than the same one twice.
+import { announcedRoleScript, announcedTargetSlotsDiffer } from "./targetRoles";
 import { spliceAugmentedDefinition } from "./splice";
 import {
     announceableModeCombinations,
@@ -2374,15 +2379,84 @@ export function targetCount(
     return { min: resolved.min, max: resolved.max ?? resolved.min };
 }
 
+/** Every ORDERING of `items`, capped at {@link MAX_COMBINATIONS}. Used only
+ *  for a target group whose announced slots receive DIFFERENT halves of the
+ *  effect (CR 601.2c, issue #4193) — see `orderedSlots` on
+ *  {@link enumerateTargetTuples}. */
+function permutations<T>(items: T[]): T[][] {
+    const out: T[][] = [];
+    const walk = (acc: T[], rest: T[]) => {
+        if (out.length >= MAX_COMBINATIONS) return;
+        if (rest.length === 0) {
+            out.push([...acc]);
+            return;
+        }
+        for (let i = 0; i < rest.length; i++) {
+            acc.push(rest[i]);
+            walk(acc, [...rest.slice(0, i), ...rest.slice(i + 1)]);
+            acc.pop();
+        }
+    };
+    walk([], items);
+    return out;
+}
+
+/** CR 601.2c (issue #4193) — which of an announcement's groups have slots that
+ *  receive DIFFERENT halves of the effect, index-aligned with `groups`, or
+ *  `undefined` when none do (every card but Jilt today, and the shape that
+ *  leaves {@link enumerateTargetGroupTuples} on its cheaper combination path).
+ *
+ *  A group's slot window is `[offset, offset + count)` in the FLAT announced
+ *  list the script reads positionally, so the offsets are accumulated left to
+ *  right. A variable-count group does not decide its own width until its picks
+ *  are in, so it and everything after it are left unordered — fail-closed, and
+ *  vacuous in practice: an ordered group only exists on the count-widening
+ *  kicked announcement (CR 702.33g), which is always a card's sole group. */
+function orderedGroupFlags(
+    effects: readonly EffectOp[] | undefined,
+    groups: (TargetRequirement | undefined)[],
+    chosenX: number | undefined
+): boolean[] | undefined {
+    if (!effects) return undefined;
+    const flags: boolean[] = [];
+    let offset = 0;
+    let ordered = false;
+    for (const req of groups) {
+        if (!req) {
+            flags.push(false);
+            continue;
+        }
+        const resolved = resolveTargetRequirementCount(req.count, chosenX);
+        if (typeof resolved !== "number") break;
+        const differs = announcedTargetSlotsDiffer(effects, offset, resolved);
+        flags.push(differs);
+        ordered ||= differs;
+        offset += resolved;
+    }
+    return ordered ? flags : undefined;
+}
+
 /** Every legal target tuple for one (mode) requirement at a chosen X. Returns
  *  `[[]]` (the empty tuple) when the requirement is absent or satisfiable with
- *  zero targets, so a no-target cast is always represented. */
+ *  zero targets, so a no-target cast is always represented.
+ *
+ *  `orderedSlots` (CR 601.2c, issue #4193) says the group's announced slots
+ *  receive DIFFERENT halves of the effect, so WHICH pick lands in which slot
+ *  is a decision, not bookkeeping: kicked Jilt returns slot 0 to its owner's
+ *  hand and burns slot 1, so `[big, small]` and `[small, big]` are two
+ *  different spells. `combinations` emits each SET once, in board order, which
+ *  meant the Bot could only ever announce one of the two and never scored the
+ *  other — the "Move that was never enumerated" shape, not an evaluation gap.
+ *  Every other group stays on combinations: for a symmetric group the
+ *  orderings are the same spell, so permuting would only multiply the move set
+ *  against the `MAX_COMBINATIONS` cap. */
 function enumerateTargetTuples(
     state: GameState,
     player: PlayerState,
     card: CardInstanceState,
     req: TargetRequirement | undefined,
-    chosenX: number | undefined
+    chosenX: number | undefined,
+    orderedSlots: boolean = false
 ): TargetSelection[][] {
     if (!req) return [[]];
     // CR 612.6 — a color-targeted requirement follows the source's active
@@ -2438,8 +2512,16 @@ function enumerateTargetTuples(
             if (effReq.sameController && !comboSharesController(state, combo)) {
                 continue;
             }
-            tuples.push(combo);
-            if (tuples.length >= MAX_COMBINATIONS) return tuples;
+            // CR 601.2c (issue #4193) — an ordered group's arrangements are
+            // different announcements of the same spell, so each is its own
+            // Move. `combo` is already the identity ordering, so a size-1
+            // group (and the symmetric default) allocates nothing extra.
+            for (const arrangement of orderedSlots && combo.length > 1
+                ? permutations(combo)
+                : [combo]) {
+                tuples.push(arrangement);
+                if (tuples.length >= MAX_COMBINATIONS) return tuples;
+            }
         }
     }
     // A spell that requires ≥1 target but has none stays castable only when the
@@ -2490,7 +2572,8 @@ function enumerateTargetGroupTuples(
     card: CardInstanceState,
     groups: (TargetRequirement | undefined)[],
     chosenX: number | undefined,
-    modeInstances?: { count: number; groupInstances: readonly number[] }
+    modeInstances?: { count: number; groupInstances: readonly number[] },
+    orderedGroups?: readonly boolean[]
 ): {
     targets: TargetSelection[];
     lastGroupSize: number;
@@ -2521,7 +2604,8 @@ function enumerateTargetGroupTuples(
             player,
             card,
             req,
-            chosenX
+            chosenX,
+            orderedGroups?.[g] ?? false
         );
         // CR 601.2c — a group with no legal way to be filled makes the whole
         // announcement illegal (`announceCast` throws "Not enough legal
@@ -3068,6 +3152,16 @@ function enumerateCastMovesFromZone(
                             buybackPaid,
                             groups:
                                 multiGroups ?? groupsFor(mode, kickerPayments),
+                            // CR 601.2c (issue #4193) — the script whose slot
+                            // reads decide whether a group's announced targets
+                            // are interchangeable. `undefined` for a several-
+                            // instance announcement (ADR 0094): each instance
+                            // owns its own slot window, which this one flat
+                            // script cannot be sliced into, so those groups
+                            // stay on combinations.
+                            slotRoleEffects: multiGroups
+                                ? undefined
+                                : announcedRoleScript(def ?? undefined, mode),
                         })
                     )
                 )
@@ -3259,6 +3353,7 @@ function enumerateCastMovesFromZone(
         additionalCostLegId,
         kickerPayments,
         buybackPaid,
+        slotRoleEffects,
     } of offersPrintedCast(def ?? undefined) ? announceVariants : []) {
         // CR 601.2c — the executor sends every announced target in ONE batched
         // `selectTargets` call and then AT MOST ONE trailing `confirmTargets`.
@@ -3472,6 +3567,10 @@ function enumerateCastMovesFromZone(
             // exactly the pre-issue one. The generator is re-run per plan
             // rather than materialised, so the single-plan case allocates
             // nothing new.
+            // CR 601.2c (issue #4193) — hoisted out of the plan loop: it walks
+            // the whole Effect Script, depends only on the script, the groups
+            // and X, and `enumerateMoves` runs at every ISMCTS node.
+            const ordered = orderedGroupFlags(slotRoleEffects, groups, x);
             for (const tapPlan of tapPlans) {
                 for (const {
                     targets,
@@ -3485,7 +3584,8 @@ function enumerateCastMovesFromZone(
                     x,
                     chosenModeIds && groupInstances
                         ? { count: chosenModeIds.length, groupInstances }
-                        : undefined
+                        : undefined,
+                    ordered
                 )) {
                     if (
                         perModeCombination &&
@@ -3868,13 +3968,24 @@ function enumerateCastMovesFromZone(
                 : libraryTopCastLifeCost(state, player, card, alt.id);
         if (altPayLife > player.life) continue;
         const altReq = subjectDef?.targetRequirement;
+        // CR 601.2c (issue #4193) — the SUBJECT's script, paired with the
+        // SUBJECT's requirement above: an Adventure or split half is its own
+        // definition (CR 715.3a/b, ADR 0120 §4), so reading the printed card
+        // here would pick one half's targets by the other half's rules.
+        const altOrdered = orderedGroupFlags(
+            announcedRoleScript(subjectDef, undefined),
+            [altReq],
+            undefined
+        );
         for (const altTapPlan of altTapPlans) {
             for (const { targets, lastGroupSize } of enumerateTargetGroupTuples(
                 state,
                 player,
                 subject,
                 [altReq],
-                undefined
+                undefined,
+                undefined,
+                altOrdered
             )) {
                 moves.push({
                     kind: "cast-spell",
