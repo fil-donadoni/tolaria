@@ -92,19 +92,16 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         });
     });
 
-    it("played — a sweep of every battlefield is posed with the opponent ahead", () => {
+    it("played — a destroying sweep of every battlefield is posed with the opponent ahead", () => {
         // Issue #4157. A symmetric wipe on a symmetric board is CORRECT to
         // pass on (it costs the card and destroys as much of the holder's as
         // of the opponent's), so the generated position gives the opponent a
-        // surplus of whatever the card sweeps: creatures, enchantments, lands.
-        // Languish is the trap fixture — a -4/-4 sweep, and the filler
-        // enchantment (Castle) gives its controller's creatures +0/+2, so a
-        // surplus of the UNSWEPT type kept the opponent's creatures alive.
+        // surplus of whatever the card destroys: creatures, enchantments,
+        // lands.
         for (const name of [
             "Day of Judgment",
             "Tranquility",
             "Armageddon",
-            "Languish",
         ] as const) {
             expect(playTwice(getCardByName(name)), name).toEqual({
                 outcome: "played",
@@ -112,36 +109,94 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         }
     });
 
-    it("a sweep's position puts the opponent ahead in the swept type, the holder ahead in bodies", () => {
-        const count = (
-            name: string,
-            seat: 0 | 1,
-            type: "Creature" | "Enchantment" | "Land",
-            own: boolean
-        ) => {
-            const { state, holderId } = buildBotReachState(
-                getCardByName(name),
-                seat
-            );
-            return state.players
+    type Kind = "Creature" | "Artifact" | "Enchantment" | "Land";
+    /** Opponent's count of `kind` minus the holder's, in the generated
+     *  position of `def` at `seat`. */
+    const ahead = (def: CardDefinition, seat: 0 | 1, kind: Kind): number => {
+        const { state, holderId } = buildBotReachState(def, seat);
+        const count = (own: boolean) =>
+            state.players
                 .find((p) => (p.id === holderId) === own)!
-                .battlefield.filter((c) => c.types.includes(type)).length;
-        };
+                .battlefield.filter((c) => c.types.includes(kind)).length;
+        return count(false) - count(true);
+    };
+    const forEachDestroy = (
+        id: string,
+        select: Record<string, unknown>
+    ): CardDefinition => ({
+        id: `bot-reach-test:${id}`,
+        name: `Bot Reach ${id}`,
+        rarity: "common",
+        manaCost: { W: 1, generic: 3 },
+        types: ["Sorcery"],
+        effects: [
+            {
+                op: "forEach",
+                select: { set: "permanents", zone: "battlefield", ...select },
+                effects: [{ op: "destroy", target: { ref: "$each" } }],
+            },
+        ],
+    });
+
+    it("a destroying sweep's position puts the opponent ahead in the swept type, the holder ahead in bodies", () => {
         for (const seat of [0, 1] as const) {
-            const ahead = (
-                name: string,
-                type: "Creature" | "Enchantment" | "Land"
-            ) => count(name, seat, type, false) - count(name, seat, type, true);
-            expect(ahead("Day of Judgment", "Creature")).toBeGreaterThan(0);
-            expect(ahead("Day of Judgment", "Enchantment")).toBe(0);
-            expect(ahead("Tranquility", "Enchantment")).toBeGreaterThan(0);
+            const wrath = getCardByName("Day of Judgment");
+            expect(ahead(wrath, seat, "Creature")).toBeGreaterThan(0);
+            expect(ahead(wrath, seat, "Enchantment")).toBe(0);
+            const tranquility = getCardByName("Tranquility");
+            expect(ahead(tranquility, seat, "Enchantment")).toBeGreaterThan(0);
             // What the sweep leaves standing is the holder's.
-            expect(ahead("Tranquility", "Creature")).toBeLessThan(0);
-            expect(ahead("Armageddon", "Land")).toBeGreaterThan(0);
-            expect(ahead("Armageddon", "Creature")).toBeLessThan(0);
-            // Any other card's position stays symmetric.
-            expect(ahead("Grizzly Bears", "Creature")).toBe(0);
+            expect(ahead(tranquility, seat, "Creature")).toBeLessThan(0);
+            const armageddon = getCardByName("Armageddon");
+            expect(ahead(armageddon, seat, "Land")).toBeGreaterThan(0);
+            expect(ahead(armageddon, seat, "Creature")).toBeLessThan(0);
         }
+    });
+
+    it("no claim is made where the sweep does not destroy what the pose would hand over", () => {
+        // Each of these selects every player's battlefield or looks like a
+        // sweep, and each must keep the SYMMETRIC pose: a buff or a shrink is
+        // not a loss for the opponent, a filter on anything but `type` is not
+        // read, and `controller` scopes the sweep to one side.
+        const symmetric: CardDefinition[] = [
+            getCardByName("Grizzly Bears"),
+            getCardByName("Languish"), // -4/-4 to every creature: a pump body
+            forEachDestroy("subtype-only", {
+                filter: { subtype: "Goblin" },
+            }),
+            forEachDestroy("excludes-land", {
+                filter: { excludeType: "Land" },
+            }),
+            forEachDestroy("own-only", {
+                controller: "controller",
+                filter: { type: "Creature" },
+            }),
+        ];
+        for (const def of symmetric)
+            withTemporaryDefinition(def, () => {
+                for (const seat of [0, 1] as const) {
+                    for (const kind of [
+                        "Creature",
+                        "Artifact",
+                        "Enchantment",
+                    ] as const)
+                        expect(ahead(def, seat, kind), def.name).toBe(0);
+                    // The holder's lands are the card's cost, so it always has
+                    // more of them; the pose only ever ADDS to the opponent's.
+                    expect(ahead(def, seat, "Land"), def.name).toBeLessThan(0);
+                }
+            });
+    });
+
+    it("a sweep with no filter destroys every type, so every type is posed", () => {
+        const all = forEachDestroy("unfiltered", {});
+        withTemporaryDefinition(all, () => {
+            for (const seat of [0, 1] as const) {
+                expect(ahead(all, seat, "Creature")).toBeGreaterThan(0);
+                expect(ahead(all, seat, "Enchantment")).toBeGreaterThan(0);
+                expect(ahead(all, seat, "Land")).toBeGreaterThan(0);
+            }
+        });
     });
 
     it("frozen — the engine offers the action and no Move uses the card", () => {
