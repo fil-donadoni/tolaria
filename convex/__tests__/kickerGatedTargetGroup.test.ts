@@ -149,6 +149,138 @@ function bothBattlefields(state: GameState): CardInstanceState[] {
     return state.players.flatMap((p) => p.battlefield);
 }
 
+/** Probe's announcement — "Draw three cards, then discard two cards. If this
+ *  spell was kicked, target player discards two cards." The card declares NO
+ *  `targetRequirement` at all: its only group is the gated one, so an unkicked
+ *  cast is a spell with no targets (CR 601.2c — "otherwise, the spell is cast
+ *  as though it did not require those targets"). This is the shape that made
+ *  `announceCast` build the group LIST before choosing the group that opens
+ *  the selection, and the compiler emits it (`targetSelectors.test.ts`). */
+const PROBE: CardDefinition = {
+    id: "f8d227b6-1627-4ea1-b815-887094497abf",
+    name: "Gated Probe",
+    rarity: "common",
+    oracleText:
+        "Kicker {1}\nDraw a card. If this spell was kicked, target player loses 2 life.",
+    manaCost: {},
+    types: ["Sorcery"],
+    kickers: [{ id: "kicker", description: "Kicker {1}", mana: { X: 1 } }],
+    additionalTargetRequirements: [
+        { type: "player", count: 1, announcedOnlyIfKicked: true },
+    ],
+    effects: [
+        { op: "draw", player: "controller", count: 1 },
+        {
+            op: "if",
+            predicate: { left: { kickerCount: true }, op: "ge", right: 1 },
+            then: [{ op: "loseLife", player: { target: 0 }, amount: 2 }],
+        },
+    ],
+};
+
+const PROBE_SPELL = "probe-1";
+
+/** p1 holds Probe with a library to draw from; nothing else matters. */
+function probeBoard(): GameState {
+    const spell = makeInstance(PROBE.id, {
+        id: PROBE_SPELL,
+        controllerId: "p1",
+        ownerId: "p1",
+        zone: "hand",
+    });
+    const library = Array.from({ length: 5 }, (_, i) =>
+        makeInstance(plains.id, {
+            id: `lib-${i}`,
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "library",
+        })
+    );
+    return makeState({
+        players: [
+            makePlayer("p1", {
+                hand: [spell],
+                library,
+                manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 4 },
+            }),
+            makePlayer("p2", {}),
+        ],
+        phase: "PRECOMBAT_MAIN",
+        activePlayerId: "p1",
+        priorityPlayerId: "p1",
+    });
+}
+
+describe("the gated group is the card's ONLY group (Probe, CR 601.2c)", () => {
+    it("an UNKICKED cast opens no selection at all and goes straight to the stack", async () => {
+        await withTemporaryDefinitionAsync(PROBE, async () => {
+            const harness = makeMutationCtx("p1", [
+                gameStateSeed(probeBoard()),
+            ]);
+            await runMutation(
+                announceCast as unknown as Handler<
+                    Record<string, unknown>,
+                    void
+                >,
+                harness.ctx,
+                { ...BASE, cardInstanceId: PROBE_SPELL }
+            );
+            const state = harness.state();
+            expect(state.pendingTarget).toBeUndefined();
+            expect(state.stack).toHaveLength(1);
+            expect(state.stack[0]!.targets ?? []).toEqual([]);
+        });
+    });
+
+    it("a KICKED cast opens the gated group as slot 0 and resolves against it", async () => {
+        await withTemporaryDefinitionAsync(PROBE, async () => {
+            const harness = makeMutationCtx("p1", [
+                gameStateSeed(probeBoard()),
+            ]);
+            await runMutation(
+                announceCast as unknown as Handler<
+                    Record<string, unknown>,
+                    void
+                >,
+                harness.ctx,
+                {
+                    ...BASE,
+                    cardInstanceId: PROBE_SPELL,
+                    kickerPayments: { kicker: 1 },
+                }
+            );
+            // The promoted group governs the whole selection — its own type,
+            // its own count, nothing queued behind it.
+            expect(harness.state().pendingTarget?.targetType).toBe("player");
+            expect(harness.state().pendingTarget?.count).toBe(1);
+            expect(
+                harness.state().pendingTarget?.remainingRequirements
+            ).toBeUndefined();
+
+            await runMutation(
+                selectTargets as unknown as Handler<
+                    Record<string, unknown>,
+                    void
+                >,
+                harness.ctx,
+                {
+                    ...BASE,
+                    targets: [{ targetType: "player", targetId: "p2" }],
+                }
+            );
+            const state = harness.state();
+            expect(state.pendingTarget).toBeUndefined();
+            // `{ target: 0 }` inside the kicked branch names the gated group's
+            // pick — the promotion put it at announced slot 0.
+            expect(state.stack[0]!.targets).toEqual([
+                { type: "player", id: "p2" },
+            ]);
+            resolveTopOfStack(state);
+            expect(getPlayer(state, "p2")!.life).toBe(18);
+        });
+    });
+});
+
 describe("a target group announced only if kicked (CR 702.33g)", () => {
     it("an UNKICKED cast opens the base group and never asks for the gated one", async () => {
         await withTemporaryDefinitionAsync(THUNDER, async () => {
@@ -178,9 +310,13 @@ describe("a target group announced only if kicked (CR 702.33g)", () => {
             resolveTopOfStack(state);
             const p2 = getPlayer(state, "p2")!;
             expect(p2.battlefield.map((c) => c.id)).toEqual(["bears"]);
-            // The gated half did not run: the 2/2 is untouched.
+            // The gated half did not run: the 2/2 is untouched. The field is
+            // `damageMarked` (CR 120.3e — damage from a source with neither
+            // wither nor infect is MARKED on the creature);
+            // `damage` does not exist on `CardInstanceState`, so reading it
+            // would make this assertion vacuously green.
             expect(
-                p2.battlefield.find((c) => c.id === "bears")?.damage ?? 0
+                p2.battlefield.find((c) => c.id === "bears")?.damageMarked ?? 0
             ).toBe(0);
         });
     });

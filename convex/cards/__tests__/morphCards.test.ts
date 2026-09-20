@@ -52,6 +52,12 @@ describe("morph cards (CR 702.37)", () => {
         "%s — declares no clause the face-down spell would lose (CR 702.37c 'no text')",
         (_name, card) => {
             expect(card.targetRequirement).toBeUndefined();
+            // Issue #4220 — the ADDITIONAL groups too. The announcement now
+            // builds one LIST and opens it at `[0]`, so a morph card carrying
+            // only additional groups would have the first of them promoted
+            // into the primary slot and open a selection for a spell that
+            // prints nothing.
+            expect(card.additionalTargetRequirements).toBeUndefined();
             expect(card.additionalCosts).toBeUndefined();
             expect(card.modes).toBeUndefined();
             expect(card.kickers).toBeUndefined();

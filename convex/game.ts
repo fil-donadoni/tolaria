@@ -7731,43 +7731,61 @@ export const announceCast = mutation({
         // (`kickerGatedGroups.catalogue.test.ts`); the gate lives on the
         // additional entries, so an unkicked cast of such a card announces
         // nothing and falls through to the no-target path below.
-        const announcedGroups: TargetRequirement[] = isOverloadCost
-            ? // CR 702.96b — an overloaded cast requires no targets AT ALL, so
-              // it outranks even a chosen mode's requirement: "target" was
-              // replaced throughout the spell's text (CR 702.96a), including
-              // inside a mode.
-              []
-            : multiModeGroups
-              ? multiModeGroups.map((g) => g.requirement)
-              : castAnnouncedTargetGroups(
-                    [
-                        chosenMode?.targetRequirement ??
-                            // CR 715.3a / 715.3b — the SUBJECT, not the printed
-                            // card: an Adventure spell "has only its
-                            // alternative characteristics", and its target
-                            // requirement is one of them. Identity for every
-                            // non-adventurer card, and the twin declares no
-                            // kicker, bestow, morph or overload, so every
-                            // branch inside falls through to its own
-                            // `targetRequirement` (ADR 0120 §4).
-                            castAdjustedTargetRequirement(
-                                castSubjectDef,
-                                kickerPayments,
-                                isBestowCost,
-                                isMorphCost,
-                                isOverloadCost
-                            ),
-                        ...(chosenMode?.additionalTargetRequirements ??
-                            cardDef.additionalTargetRequirements ??
-                            []),
-                    ],
-                    // ADR 0085 — "kicked" is CR 702.33d, over KICKER costs
-                    // alone: an Offspring payment leaves the announcement
-                    // alone. Same split function `castAdjustedTargetRequirement`
-                    // asks, for the same reason — this runs BEFORE the payment
-                    // record is partitioned onto the stack item.
-                    kickedCountOfPayments(castSubjectDef, kickerPayments) > 0
-                );
+        const announcedGroups: TargetRequirement[] =
+            isOverloadCost || isMorphCost
+                ? // CR 702.96b — an overloaded cast requires no targets AT ALL, so
+                  // it outranks even a chosen mode's requirement: "target" was
+                  // replaced throughout the spell's text (CR 702.96a), including
+                  // inside a mode. CR 702.37c — a face-down spell has "no text",
+                  // so no clause of the card applies to it, ADDITIONAL target
+                  // groups included: `castAdjustedTargetRequirement` answers that
+                  // for the primary slot, and the whole LIST has to answer it the
+                  // same way or a morph card with additional groups would open a
+                  // selection for a spell that prints nothing.
+                  []
+                : multiModeGroups
+                  ? multiModeGroups.map((g) => g.requirement)
+                  : castAnnouncedTargetGroups(
+                        [
+                            chosenMode?.targetRequirement ??
+                                // CR 715.3a / 715.3b — the SUBJECT, not the printed
+                                // card: an Adventure spell "has only its
+                                // alternative characteristics", and its target
+                                // requirement is one of them. Identity for every
+                                // non-adventurer card, and the twin declares no
+                                // kicker, bestow, morph or overload, so every
+                                // branch inside falls through to its own
+                                // `targetRequirement` (ADR 0120 §4).
+                                castAdjustedTargetRequirement(
+                                    castSubjectDef,
+                                    kickerPayments,
+                                    isBestowCost,
+                                    isMorphCost,
+                                    isOverloadCost
+                                ),
+                            ...(chosenMode?.additionalTargetRequirements ??
+                                cardDef.additionalTargetRequirements ??
+                                []),
+                        ],
+                        // ADR 0085 — "kicked" is CR 702.33d, over KICKER costs
+                        // alone: an Offspring payment leaves the announcement
+                        // alone. Same split function `castAdjustedTargetRequirement`
+                        // asks, for the same reason — this runs BEFORE the payment
+                        // record is partitioned onto the stack item.
+                        kickedCountOfPayments(castSubjectDef, kickerPayments) >
+                            0
+                    );
+        // The group the selection OPENS with — normally the card's printed
+        // `targetRequirement`, but an ADDITIONAL group when the card declares
+        // no primary one and its only group is kicker-gated (Probe). Two
+        // things read this position and both assume it is announced slot 0:
+        // `announcedTargetCount(..., { requireX: true })` and
+        // `announcedTargetRoleFields`, whose slot window is `[0, count)`. The
+        // assumption holds structurally rather than by luck — a gated group is
+        // always the LAST entry (the compiler refuses to allocate after one,
+        // `TargetSlots.allocate`; the catalogue guard asserts it for
+        // hand-written cards), so with no primary there is exactly ONE group
+        // and it does sit at slot 0.
         const activeTargetRequirement = announcedGroups[0];
 
         // Check if the card requires targets (CR 601.2c). When `count: "X"`

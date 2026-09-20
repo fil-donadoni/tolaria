@@ -546,6 +546,13 @@ export class TargetSlots {
      * not be written down (`allocate` refuses one).
      */
     foldKickerGatedTargets(before: number): Lowered<true> {
+        // UNREACHABLE by construction and kept for the same reason
+        // `castAdjustedTargetRequirement`'s morph branch is (`game.ts`): both
+        // settlements below set `openEnded`, so a SECOND gate's group is
+        // refused by `allocate` first, with its own message ("a target group
+        // after a variable-width announcement has no fixed positional slot"),
+        // which `kickerLine.test.ts` pins. This is the line that stays right
+        // if the width bookkeeping ever changes.
         if (this.kicked !== undefined || this.kickerGatedGroups > 0)
             return unlowerable(
                 "two kicker gates each announce a target (CR 702.33g)"

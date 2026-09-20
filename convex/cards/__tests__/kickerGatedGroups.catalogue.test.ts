@@ -74,6 +74,32 @@ describe("TargetRequirement.announcedOnlyIfKicked catalogue guard (issue #4220)"
         expect(offenders).toEqual([]);
     });
 
+    it("a gated group is the LAST group, and there is at most one", () => {
+        // CR 601.2c — an Effect Script reads the announced picks POSITIONALLY,
+        // and a dropped group closes the list up. A gated group followed by an
+        // ungated one therefore means a DIFFERENT `{ target: n }` on a kicked
+        // and an unkicked cast: the trailing group would sit one slot earlier
+        // whenever the kicker went unpaid. The compiler refuses to allocate
+        // anything after a gated group (`TargetSlots.allocate` — the
+        // announcement is open-ended from there on); this is the same
+        // invariant over the hand-written catalogue, which that refusal never
+        // sees. Two gates have the same problem twice over.
+        const offenders: string[] = [];
+        for (const card of getAllCards()) {
+            const groups = card.additionalTargetRequirements ?? [];
+            const flags = groups.filter(gated).length;
+            if (flags === 0) continue;
+            if (flags > 1) {
+                offenders.push(`${card.name} :: ${flags} gated groups`);
+                continue;
+            }
+            if (!gated(groups[groups.length - 1])) {
+                offenders.push(`${card.name} :: gated group is not last`);
+            }
+        }
+        expect(offenders).toEqual([]);
+    });
+
     it("a card declaring a gated group also declares a Kicker (CR 702.33a)", () => {
         // A gate nothing can open is a group the caster is never asked for —
         // the clause would be dead text rather than a conditional one.
