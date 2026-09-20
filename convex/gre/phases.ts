@@ -2054,6 +2054,29 @@ export function emitBlockersConfirmedEvents(state: GameState): void {
             });
         }
     }
+    // CR 509.3a — one BLOCKER_DECLARED event per BLOCKING CREATURE, however
+    // many attackers it was assigned to: "Whenever [a creature] blocks"
+    // "generally triggers only once each combat for that creature, even if it
+    // blocks multiple creatures". The per-pair stream above cannot state that
+    // — a creature blocking two attackers is in two of its events — so the
+    // dedupe lives here, at the one place that already holds the whole block
+    // graph, rather than in every trigger that reads it. Emitted in the same
+    // batch as the pair events, so both fire at the same point.
+    for (const blockerId of Object.keys(state.combat.blockerAssignments)) {
+        if ((state.combat.blockerAssignments[blockerId] ?? []).length === 0)
+            continue;
+        const blocker =
+            defender.battlefield.find((c) => c.id === blockerId) ??
+            activePlayer.battlefield.find((c) => c.id === blockerId);
+        if (!blocker) continue;
+        events.push({
+            type: "BLOCKER_DECLARED",
+            blockerId: blocker.id,
+            blockerControllerId: blocker.controllerId,
+            blockerTypes: blocker.types,
+            blockerSubtypes: blocker.subtypes,
+        });
+    }
     // CR 509.1h — one ATTACKER_UNBLOCKED event per attacker with no assigned
     // blocker (Murk Dwellers' "attacks and isn't blocked" pump).
     for (const attackerId of state.combat.attackerIds) {

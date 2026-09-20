@@ -216,6 +216,13 @@ export const EVENT_FIELD_KINDS: {
         attackerTypes: "scalar",
         attackerSubtypes: "scalar",
     },
+    // CR 509.3a — one creature declared as a blocker.
+    BLOCKER_DECLARED: {
+        blockerId: "object",
+        blockerControllerId: "player",
+        blockerTypes: "scalar",
+        blockerSubtypes: "scalar",
+    },
     // CR 121.1 — cards drawn. No card identity rides the event.
     CARD_DRAWN: {
         playerId: "player",

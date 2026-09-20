@@ -92,6 +92,16 @@ export interface EventFieldRow {
     ) => string | undefined;
 }
 
+/** CR 508.1 — the ONE creature an `ATTACKERS_DECLARED` names, or undefined
+ *  when the batch declared several (CR 608.2b — the reading Op then skips).
+ *  Shared by the two rows that read it, so the flatten has one implementation
+ *  whichever question is being asked of it. */
+function soleDeclaredAttacker(event: GameEvent): string | undefined {
+    return event.type === "ATTACKERS_DECLARED" && event.attackerIds.length === 1
+        ? event.attackerIds[0]
+        : undefined;
+}
+
 /** `(GameEventType, field) → { family, resolve }` (ADR 0049). Keyed by the
  *  literal event-type string so a lookup needs no event instance. */
 export const EVENT_FIELD_REGISTRY: Record<
@@ -107,10 +117,38 @@ export const EVENT_FIELD_REGISTRY: Record<
     ATTACKERS_DECLARED: {
         soleAttacker: {
             family: "object",
+            resolve: soleDeclaredAttacker,
+        },
+        // CR 506.4 / 508.3a — "the attacking or blocking creature" this firing
+        // is ABOUT: the one attacker a per-attacker firing
+        // (`TriggeredAbility.perAttacker`) named. Its twin row on
+        // `BLOCKER_DECLARED` names the blocker, so ONE ref —
+        // `{ ref: "$event.combatant" }` — reads the creature on either side of
+        // "whenever a creature attacks or blocks" (Powerstone Minefield),
+        // which is what lets that Oracle line stay ONE `TriggeredAbility` with
+        // an array `event` (CR 603.2).
+        //
+        // Shares `soleAttacker`'s flatten, and deliberately does not REPLACE
+        // it: the two rows answer different questions off the same shape.
+        // `soleAttacker` is CR 702.83's cardinality fact — "attacks ALONE",
+        // read off the REAL batch event, undefined the moment a second
+        // creature attacks. `combatant` is CR 508.3a's per-creature subject,
+        // well-defined for every attacker in the batch and reached by the
+        // synthetic single-attacker event the fan-out builds. Renaming either
+        // into the other would make one of the two readings unsayable.
+        combatant: {
+            family: "object",
+            resolve: soleDeclaredAttacker,
+        },
+    },
+    // CR 509.3a — a creature declared as a blocker, once per creature. The
+    // event carries exactly one, so `combatant` names it with no pair to
+    // disambiguate (see `BlockerDeclaredEvent`).
+    BLOCKER_DECLARED: {
+        combatant: {
+            family: "object",
             resolve: (e) =>
-                e.type === "ATTACKERS_DECLARED" && e.attackerIds.length === 1
-                    ? e.attackerIds[0]
-                    : undefined,
+                e.type === "BLOCKER_DECLARED" ? e.blockerId : undefined,
         },
     },
     // CR 509.1h — the attacker/blocker pairing, emitted per attacker-blocker

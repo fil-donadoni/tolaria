@@ -31,7 +31,7 @@ export function abilitySites(card: CardDefinition): {
         modes?: unknown;
     };
     label: string;
-    triggerEventType?: string;
+    triggerEventType?: string | readonly string[];
 }[] {
     const label = `${card.name} (${card.id})`;
     // Activated abilities have no firing event ($event illegal); triggered
@@ -47,15 +47,12 @@ export function abilitySites(card: CardDefinition): {
     ].map((ability) => ({
         ability,
         label,
-        // A single-event trigger pins one event type for `$event.<field>`
-        // static validation (ADR 0049); an array-`event` (multi-event, CR
-        // 603.2) has no single firing type — leave it undefined, which is
-        // sound since an Effect Script cannot read `$event` anyway.
-        triggerEventType: Array.isArray(
-            (ability as { event?: string | string[] }).event
-        )
-            ? undefined
-            : (ability as { event?: string }).event,
+        // Every event type the trigger fires on, scalar or array (CR 603.2),
+        // threaded whole: a multi-event line's `$event.<field>` ref is legal
+        // exactly when the field is censused for ALL of them with one family
+        // (`validate.ts`), which is a check the validator can only make if it
+        // is given all of them.
+        triggerEventType: (ability as { event?: string | string[] }).event,
     }));
     // CR 714.2 (ADR 0078) — a Saga's chapter lines (`chapterAbilities[]`) need
     // no branch here: `getAllCards()` routes through `expandDefinition`

@@ -34,6 +34,7 @@ import {
     getEventFieldRow,
     isRegisteredEffectOp,
 } from "../../cards/mechanicsRegistry";
+import type { EventFieldRow } from "../../cards/eventFields";
 import {
     isReservedTargetBinding,
     parseSnapshotNameRef,
@@ -6071,8 +6072,65 @@ function collectPredicateRefUses(predicate: unknown, out: RefUse[]): void {
  *  a `delayedTrigger` body, where `$event` is illegal even at a trigger site
  *  (the firing event is gone at fire time). */
 interface EventScope {
-    eventType: string | undefined;
+    /** CR 603.2 — EVERY event type the trigger fires on: one member for the
+     *  common scalar `event`, several for an Oracle line spanning more than one
+     *  engine event ("whenever a creature attacks or blocks"). `undefined` at a
+     *  site with no firing event at all (a spell, an activated ability). */
+    eventTypes: readonly string[] | undefined;
     inDelayedBody: boolean;
+}
+
+/** CR 603.2 — a `TriggeredAbility.event` (scalar or array) as the list every
+ *  `$event` check walks. `undefined` stays `undefined`: a site with no firing
+ *  event is not a trigger firing on nothing. */
+function eventTypeList(
+    event: string | readonly string[] | undefined
+): readonly string[] | undefined {
+    if (event === undefined) return undefined;
+    return typeof event === "string" ? [event] : event;
+}
+
+/**
+ * ADR 0049 — the censused row a `$event.<field>` ref resolves to, across every
+ * event type the trigger fires on.
+ *
+ * A multi-event trigger's firing event is a DIFFERENT member each time, so a
+ * field censused for only some of them would be a ref that reads a value on
+ * one firing and silently nothing on the next — exactly the fail-open shape
+ * the census exists to prevent. Both halves are therefore required: the field
+ * must be censused for EVERY member, and with ONE family (the family decides
+ * the ref position, and a ref cannot be in two positions at once).
+ *
+ * Returns the row (any member's — they agree), or the reason it is not one.
+ */
+function eventFieldRowAcross(
+    eventTypes: readonly string[],
+    field: string
+):
+    | { readonly ok: true; readonly row: EventFieldRow }
+    | { readonly ok: false; readonly reason: string } {
+    let found: EventFieldRow | undefined;
+    for (const eventType of eventTypes) {
+        const row = getEventFieldRow(eventType, field);
+        if (!row)
+            return {
+                ok: false,
+                reason: `"${field}" is not a censused field for event "${eventType}" (EVENT_FIELD_REGISTRY, ADR 0049)`,
+            };
+        if (found !== undefined && found.family !== row.family)
+            return {
+                ok: false,
+                reason: `"${field}" is a ${found.family} field on one of this trigger's events and a ${row.family} field on "${eventType}" (EVENT_FIELD_REGISTRY, ADR 0049)`,
+            };
+        found = row;
+    }
+    // An `event: []` is not expressible (`GameEventType | GameEventType[]` with
+    // a factory always writing at least one), so this is unreachable; it is
+    // spelled out rather than asserted because "no member disagreed" must not
+    // read as "every member agreed" when there were none.
+    if (found === undefined)
+        return { ok: false, reason: "this trigger declares no event type" };
+    return { ok: true, row: found };
 }
 
 /** Validates a `$event.<field>` ref (ADR 0049, issue #865). Legal ONLY at a
@@ -6093,19 +6151,18 @@ function checkEventRef(
         );
         return;
     }
-    if (eventScope.eventType === undefined) {
+    if (eventScope.eventTypes === undefined) {
         errors.push(
             `${at}: "$event" ref "${use.ref}" is only legal at a triggered-ability site (ADR 0049) — there is no firing event at a spell / activated site`
         );
         return;
     }
-    const row = getEventFieldRow(eventScope.eventType, field);
-    if (!row) {
-        errors.push(
-            `${at}: "$event" ref "${use.ref}" — "${field}" is not a censused field for event "${eventScope.eventType}" (EVENT_FIELD_REGISTRY, ADR 0049)`
-        );
+    const resolved = eventFieldRowAcross(eventScope.eventTypes, field);
+    if (!resolved.ok) {
+        errors.push(`${at}: "$event" ref "${use.ref}" — ${resolved.reason}`);
         return;
     }
+    const row = resolved.row;
     // Family must match the ref position: an object, stack-object or player
     // id at the matching id position, a magnitude at a numeric one.
     const positionFamily =
@@ -6381,19 +6438,20 @@ function checkCaptureSource(
     // family is refused here rather than at the one consumer.
     if (ref.startsWith("$event.")) {
         const field = ref.slice(ref.indexOf(".") + 1);
-        if (eventScope.inDelayedBody || eventScope.eventType === undefined) {
+        if (eventScope.inDelayedBody || eventScope.eventTypes === undefined) {
             errors.push(
                 `${at}: capture "${name}" "$event" ref "${ref}" is only legal at a triggered-ability site (ADR 0049)`
             );
             return;
         }
-        const row = getEventFieldRow(eventScope.eventType, field);
-        if (!row) {
+        const resolved = eventFieldRowAcross(eventScope.eventTypes, field);
+        if (!resolved.ok) {
             errors.push(
-                `${at}: capture "${name}" "$event" ref "${ref}" — "${field}" is not a censused field for event "${eventScope.eventType}" (EVENT_FIELD_REGISTRY, ADR 0049)`
+                `${at}: capture "${name}" "$event" ref "${ref}" — ${resolved.reason}`
             );
             return;
         }
+        const row = resolved.row;
         if (row.family === "graveyard-card") {
             errors.push(
                 `${at}: capture "${name}" "$event" ref "${ref}" is a graveyard-card field — no delayed body reads a graveyard card through a capture yet (CR 400.7e), so it is refused rather than re-bound unexercised. Act on the card in the trigger's own body instead`
@@ -6456,7 +6514,7 @@ function checkCaptureSource(
 function captureBindingKind(
     source: unknown,
     declared: ReadonlyMap<string, BindingKind>,
-    eventType: string | undefined
+    eventTypes: readonly string[] | undefined
 ): BindingKind {
     if (typeof source === "object" && source !== null) {
         // LIST-valued capture (ADR 0049, issue #866): the body binding is a
@@ -6469,10 +6527,12 @@ function captureBindingKind(
             // snapshot, a player field as a player binding (runDelayedTriggerBody
             // seeds each accordingly). Checked BEFORE the generic `.`-property
             // branch below (an `$event.blockerId` also contains a dot).
-            if (ref.startsWith("$event.") && eventType) {
+            if (ref.startsWith("$event.") && eventTypes?.length) {
                 const field = ref.slice(ref.indexOf(".") + 1);
-                const row = getEventFieldRow(eventType, field);
-                return row?.family === "player" ? "player" : "snapshot";
+                const resolved = eventFieldRowAcross(eventTypes, field);
+                return resolved.ok && resolved.row.family === "player"
+                    ? "player"
+                    : "snapshot";
             }
             if (ref.includes(".")) return "player"; // `.controller` capture
             const outer = declared.get(ref);
@@ -6832,7 +6892,7 @@ function checkOpListRefs(
                 for (const [name, src] of Object.entries(capture)) {
                     bodyScope.set(
                         name,
-                        captureBindingKind(src, declared, eventScope.eventType)
+                        captureBindingKind(src, declared, eventScope.eventTypes)
                     );
                 }
             }
@@ -6859,8 +6919,8 @@ function checkOpListRefs(
                 errors,
                 bodyScope,
                 eventBody
-                    ? { eventType: liveEventType, inDelayedBody: false }
-                    : { eventType: eventScope.eventType, inDelayedBody: true }
+                    ? { eventTypes: [liveEventType], inDelayedBody: false }
+                    : { eventTypes: eventScope.eventTypes, inDelayedBody: true }
             );
         }
 
@@ -6890,7 +6950,7 @@ function checkOpListRefs(
                 (j) => `${at}: effects[${j}]`,
                 errors,
                 bodyScope,
-                { eventType: eventScope.eventType, inDelayedBody: true }
+                { eventTypes: eventScope.eventTypes, inDelayedBody: true }
             );
         }
 
@@ -7191,7 +7251,7 @@ function checkRefUses(
     label: string,
     errors: string[],
     implicit: ReadonlySet<string>,
-    triggerEventType: string | undefined
+    triggerEventTypes: readonly string[] | undefined
 ): void {
     const declared = new Map<string, BindingKind>();
     for (const name of implicit) declared.set(name, "snapshot");
@@ -7200,7 +7260,7 @@ function checkRefUses(
         (i) => `${label}: effects[${i}]`,
         errors,
         declared,
-        { eventType: triggerEventType, inDelayedBody: false }
+        { eventTypes: triggerEventTypes, inDelayedBody: false }
     );
 }
 
@@ -7534,7 +7594,7 @@ function validateEffectOpList(
     label: string,
     implicit: ReadonlySet<string>,
     errors: string[],
-    triggerEventType: string | undefined
+    triggerEventTypes: readonly string[] | undefined
 ): void {
     if (!Array.isArray(effects)) {
         errors.push(`${label}: effects must be an array`);
@@ -7549,7 +7609,7 @@ function validateEffectOpList(
 
     // 5 — ordered ref / binding check (#802, extended for #806 predicates +
     // branches, #865 $event refs).
-    checkRefUses(effects, label, errors, implicit, triggerEventType);
+    checkRefUses(effects, label, errors, implicit, triggerEventTypes);
 
     // 5b — CR 701.44c/d (issue #2376) — `explore` inside a `forEach` body is
     // rejected, because that is the ONE shape that makes the two subrules the
@@ -7659,9 +7719,11 @@ function validateEffectOpList(
                     abilityLabel,
                     ABILITY_BINDINGS,
                     errors,
-                    typeof ability.event === "string"
-                        ? ability.event
-                        : undefined
+                    eventTypeList(
+                        typeof ability.event === "string"
+                            ? ability.event
+                            : undefined
+                    )
                 );
             }
         });
@@ -7846,7 +7908,7 @@ export type AbilityEffectScriptHost = {
 export function validateAbilityEffectScript(
     ability: AbilityEffectScriptHost,
     cardLabel: string,
-    triggerEventType?: string
+    triggerEventType?: string | readonly string[]
 ): string[] {
     const errors: string[] = [];
     const label = `${cardLabel} ability "${ability.id}"`;
@@ -7892,7 +7954,7 @@ export function validateAbilityEffectScript(
         label,
         ABILITY_BINDINGS,
         errors,
-        triggerEventType
+        eventTypeList(triggerEventType)
     );
     return errors;
 }
@@ -7943,7 +8005,7 @@ export function validateAiEffectsScript(def: EffectScriptHost): string[] {
 export function validateAbilityAiEffectsScript(
     ability: AbilityEffectScriptHost,
     cardLabel: string,
-    triggerEventType?: string
+    triggerEventType?: string | readonly string[]
 ): string[] {
     const errors: string[] = [];
     if (ability.aiEffects === undefined) return errors;
@@ -7953,7 +8015,7 @@ export function validateAbilityAiEffectsScript(
         label,
         ABILITY_BINDINGS,
         errors,
-        triggerEventType
+        eventTypeList(triggerEventType)
     );
     return errors;
 }
