@@ -227,7 +227,7 @@ describe("second group — 'Another target …' (CR 115.3)", () => {
         ).toMatch(/honoured only against battlefield permanents/);
     });
 
-    it("still excludes when the SECOND group prints 'another' after a plain one", () => {
+    it("a THIRD group printing 'another' excludes, the plain second one before it does not", () => {
         // A plain second group and a printed "another" are two different
         // announcements; the word is the only thing that carries the
         // exclusion, so a third group printing it excludes ITS earlier picks

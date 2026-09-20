@@ -2020,12 +2020,10 @@ function lowerMoveZone(
  *
  * Exported, and taking the requirement list as a PARAMETER rather than reading
  * `slots` from the closure, for the reason `routeLineWith` gives one directory
- * over: `TargetSlots.allocate` already refuses the second allocation, so no
- * input to `lowerActivatedAbility` can reach the >1 branch today. A refusal no
- * test can enter is a refusal nobody has watched hold — and this one is the
- * second, independent line of defence, the one that decides what happens if
- * `allocate` ever stops being the first. Injecting the list makes the branch
- * reachable now rather than when #2698's anaphora work allocates twice.
+ * over: the `groups = false` refusal below is the TRIGGER site's ceiling, and a
+ * triggered ability reaches it through `TargetSlots.allocate` admitting a
+ * second group (issue #3875). Injecting the list keeps the branch testable on
+ * its own, independent of what `allocate` admits at any moment.
  *
  * A group the site cannot DECLARE is UNLOWERABLE, never a silent drop: the ops
  * already reference `{target: 0}` and `{target: 1}` positionally, so dropping
