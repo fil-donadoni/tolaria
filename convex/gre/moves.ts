@@ -62,6 +62,7 @@ import {
     resolveAdditionalCosts,
 } from "./additionalCost";
 import {
+    castAnnouncedTargetGroups,
     enumerateKickerVariants,
     foldBuybackCost,
     foldKickerCosts,
@@ -2999,7 +3000,7 @@ function enumerateCastMovesFromZone(
             additionalTargetRequirements?: TargetRequirement[];
         },
         kickerPayments?: KickerPayments
-    ): (TargetRequirement | undefined)[] => {
+    ): TargetRequirement[] => {
         const primary =
             mode?.targetRequirement ??
             (def ? kickedTargetRequirement(def, kickerPayments) : undefined);
@@ -3007,7 +3008,19 @@ function enumerateCastMovesFromZone(
             mode?.additionalTargetRequirements ??
             def?.additionalTargetRequirements ??
             [];
-        return [primary, ...extra];
+        // CR 702.33g / 601.2c (issue #4220) — a group announced only if the
+        // spell was kicked belongs to exactly the variants that PAY the
+        // kicker. Same authority `announceCast` filters with, passed THIS
+        // variant's payments: enumerating a gated group on an unkicked
+        // variant hands the executor a `selectTargets` the mutation rejects
+        // (it never opened that group), and omitting it on a kicked one
+        // leaves the announcement half-filled and the next `tapForPayment`
+        // throwing `assertExpectedInput(expect: "priority")` — the same
+        // Bot-stalls-on-its-own-move shape Hull Breach's groups had.
+        return castAnnouncedTargetGroups(
+            [primary, ...extra],
+            def ? kickedCountOfPayments(def, kickerPayments) > 0 : false
+        );
     };
     // CR 614.12a (issue #2019) — a card whose modal pick is an AS-ENTERS choice
     // (Voice of All, Prismatic Ward, Quirion Elves, Jihad) does not announce a

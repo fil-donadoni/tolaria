@@ -807,6 +807,43 @@ export function kickedTargetRequirement(
     return cardDef.targetRequirement;
 }
 
+/** CR 702.33g / 601.2c (issue #4220) — the target GROUPS a cast actually
+ *  announces, in declaration order, once its Kicker payment is known.
+ *
+ *  `groups` is the announcement's printed list — the primary requirement (when
+ *  the site declares one) followed by every `additionalTargetRequirements`
+ *  entry, card- or mode-level — with `undefined` allowed in the primary slot so
+ *  a card whose ONLY target sits inside a kicker gate can be expressed at all.
+ *  What comes back is that list minus every group CR 702.33g says is not
+ *  announced: "Otherwise, the spell is cast as if it did not have those
+ *  targets."
+ *
+ *  ONE authority because THREE callers must agree to the group, or the cast
+ *  dead-ends: `announceCast` (`game.ts`) opens the selection with group 0 and
+ *  queues the rest on `remainingRequirements`; `enumerateCastMoves`
+ *  (`gre/moves.ts`) enumerates one tuple per group PER KICKER VARIANT — a Bot
+ *  that announced a gated group on an unkicked variant would hand the mutation
+ *  a move it rejects; and the resolution reads the flat picks POSITIONALLY, so
+ *  both must drop the same groups in the same order.
+ *
+ *  A gated group is dropped, never merely skipped over: the surviving groups
+ *  close up, so the Effect Script's `{ target: n }` indices are the ones the
+ *  kicked branch of the script reads. That is why the compiler refuses to
+ *  allocate anything AFTER a gated group (`TargetSlots.allocate`) — a later
+ *  group's index would shift with the kicker decision. */
+export function castAnnouncedTargetGroups(
+    groups: readonly (TargetRequirement | undefined)[],
+    wasKicked: boolean
+): TargetRequirement[] {
+    const announced: TargetRequirement[] = [];
+    for (const group of groups) {
+        if (!group) continue;
+        if (group.announcedOnlyIfKicked && !wasKicked) continue;
+        announced.push(group);
+    }
+    return announced;
+}
+
 // ---------------------------------------------------------------------------
 // Bot enumeration bound (issue #2081)
 // ---------------------------------------------------------------------------

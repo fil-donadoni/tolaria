@@ -57,7 +57,9 @@ export interface LoweredSpellBody {
     /**
      * CR 702.33g — the announcement the spell makes INSTEAD when it was
      * kicked ("Destroy target land. If this spell was kicked, destroy another
-     * target land."). See `TargetSlots.foldKickedWidening`.
+     * target land."). See `TargetSlots.foldKickerGatedTargets`, which chooses
+     * between this and the gated-GROUP encoding
+     * (`TargetRequirement.announcedOnlyIfKicked`, issue #4220).
      */
     readonly kickedTargetRequirement?: TargetRequirement;
 }
@@ -89,6 +91,12 @@ function lowerBody(
     } = { effects: ops };
     const kicked = walk.targets.kickedRequirement();
     if (kicked !== undefined) body.kickedTargetRequirement = kicked;
+    // CR 702.33g (issue #4220) — a mode's body is lowered through this same
+    // walk, and `lowerSpellModes` refuses either kicked encoding there (a
+    // `SpellMode` has no `kickedTargetRequirement`, and `announceCast` filters
+    // only the CARD-level group list). Nothing to do on the card's own body:
+    // `declareTargets` already routes a gated group onto
+    // `additionalTargetRequirements`, never onto `targetRequirement`.
     // CR 601.2c — a spell (and each of its modes) writes its groups onto
     // `targetRequirement` + `additionalTargetRequirements`, the pair the
     // cast-time target walk reads as one flat announcement.
@@ -134,6 +142,23 @@ export function lowerSpellModes(
             return {
                 ok: false,
                 reason: "a mode cannot swap in a kicked target announcement (CR 702.33g)",
+            };
+        // CR 702.33g (issue #4220) — the gated-GROUP encoding, refused at the
+        // mode site for the mirror reason: `announceCast` filters the group
+        // list it built from the CARD (or from the chosen mode), and a modal
+        // cast reaching the multi-instance path (ADR 0094) does not filter at
+        // all — so a gated group inside a bullet would be announced on an
+        // unkicked cast. Unreachable today (the modal slot refuses a kicked
+        // sentence inside a bullet), kept as the line that stays right.
+        if (
+            body.value.additionalTargetRequirements?.some(
+                (r) => r.announcedOnlyIfKicked
+            ) === true ||
+            body.value.targetRequirement?.announcedOnlyIfKicked === true
+        )
+            return {
+                ok: false,
+                reason: "a mode cannot announce a target only if kicked (CR 702.33g)",
             };
         // CR 201.5 — `normalize.ts` replaced the card's own name with
         // `SELF_MARKER` so the GRAMMAR could bind a REFERENT rather than a

@@ -785,7 +785,24 @@ export function lowerCard(
             };
         // The same card-level field carries a spell's announced target; an
         // Aura with spell text as well would have two claims on it.
-        if (acc.spellTargetRequirement !== undefined)
+        //
+        // Issue #4220 — the ADDITIONAL list is checked too. `declareTargets`
+        // leaves `targetRequirement` undefined when the spell's first group is
+        // kicker-gated (CR 702.33g), so an Aura whose only target sits inside
+        // the gate would slip past a primary-only check: the enchant
+        // restriction would take slot 0 and shift the gated group to slot 1,
+        // while the compiled script's gated op still reads `{ target: 0 }`.
+        // Emitting a wrong definition is the one thing a fail-closed compiler
+        // may not do, so the refusal covers both claims. UNREACHABLE today
+        // and untestable through the compiler: the spell slot refuses "If
+        // this spell was kicked, …" on an Aura type line two layers earlier,
+        // and the corpus holds no Aura that is kicked AND targets. Kept for
+        // the same reason `castAdjustedTargetRequirement`'s morph branch is —
+        // this states a fact about the RULE, not about today's corpus.
+        if (
+            acc.spellTargetRequirement !== undefined ||
+            acc.spellAdditionalTargetRequirements !== undefined
+        )
             return {
                 ok: false,
                 reason: "an Aura's enchant restriction and a spell target both claim targetRequirement",
