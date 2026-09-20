@@ -445,6 +445,11 @@
             "issue": 4157
         },
         {
+            "kind": "bot",
+            "key": "no-progress › follow-through",
+            "issue": 4189
+        },
+        {
             "kind": "mechanic",
             "key": "planned-mechanic › keyword \"assist\" is not implemented in the Mechanics Registry",
             "issue": 4005
