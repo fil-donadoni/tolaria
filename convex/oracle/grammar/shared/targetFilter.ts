@@ -941,6 +941,17 @@ export const targetFilterRule: Rule<TargetRequirement> = subGrammar(
     rule(TARGET_FILTER, (span, ctx) => {
         if (span === "any target")
             return ok({ type: "any", count: 1 } as TargetRequirement);
+        // CR 109.2 / 115.1 — a SPELL on the stack is a target of its own kind,
+        // not a permanent: `TargetRequirement.type: "spell"` is the whole of
+        // it, and every permanent facet below (tap state, power, supertype)
+        // is documented as ignored for a spell target. So the phrase is read
+        // HERE, by exact spelling, rather than given a `DescriptorIR` noun
+        // whose adjectives would all be silently dropped — "target creature
+        // spell", "target spell with mana value 3 or less" and "target spell
+        // or ability" each narrow the announced set in a way this shape
+        // cannot express, and each stays refused under its own gap key.
+        if (span === "target spell")
+            return ok({ type: "spell", count: 1 } as TargetRequirement);
         if (span.startsWith(UP_TO_ONE_HEAD)) {
             const descriptor = descriptorRule.run(
                 span.slice(UP_TO_ONE_HEAD.length),

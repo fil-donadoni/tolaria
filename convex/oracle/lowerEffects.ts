@@ -500,6 +500,48 @@ function lowerSentenceBody(
             recordActedOn(walk, sentence.subject, destroy);
             return lowered([destroy]);
         }
+        // CR 701.6a — counter the announced spell, with CR 118.12a's punisher
+        // when the sentence prints one.
+        case "counter": {
+            const target = objectSelector(sentence.subject, slots);
+            if (!target.ok) return target;
+            const counter: EffectOp = { op: "counter", target: target.value };
+            if (sentence.unlessPays === undefined) return lowered([counter]);
+            // CR 118.12a — "[counter] unless [its controller pays]" MEANS
+            // "its controller may pay; if they don't, counter it", which is
+            // the `mayPay` + `if not` pair verbatim. The tally is Domain read
+            // off the effect's OWN controller ("lands YOU control" — CR 109.5
+            // names the spell's controller, never the taxed player), and the
+            // price is the FOURTH `mayPay` cost leg: a generic amount built
+            // from a runtime tally (`genericEqualTo`), never a base cost with
+            // a reduction, which has nothing to subtract from.
+            const per = sentence.unlessPays.per;
+            const bind = walk.nextBind("may");
+            return lowered([
+                {
+                    op: "mayPay",
+                    // CR 118.12a — the taxed player is the spell's controller.
+                    player: {
+                        controllerOf: target.value as { target: number },
+                    },
+                    cost: {
+                        genericEqualTo: {
+                            domain:
+                                per === 1
+                                    ? { of: "controller" }
+                                    : { of: "controller", times: per },
+                        },
+                    },
+                    prompt: `Pay {${per}} for each basic land type among lands ${site.selfName}'s controller controls to prevent your spell from being countered?`,
+                    bind,
+                },
+                {
+                    op: "if",
+                    predicate: { not: { binding: bind } },
+                    then: [counter],
+                },
+            ]);
+        }
         case "tap-untap": {
             if (sentence.subject.kind === "mass") {
                 const action = sentence.action;
