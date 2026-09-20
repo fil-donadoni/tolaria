@@ -96079,6 +96079,69 @@
         "rarity": "common"
     },
     {
+        "name": "Charnelhoard Wurm",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Wurm"
+        ],
+        "manaCost": {
+            "X": 4,
+            "B": 1,
+            "R": 1,
+            "G": 1
+        },
+        "power": 6,
+        "toughness": 6,
+        "oracleText": "Trample\nWhenever this creature deals damage to an opponent, you may return target card from your graveyard to your hand.",
+        "staticAbilities": [
+            "trample"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "charnelhoard-wurm-trigger",
+                "oracleText": "Whenever this creature deals damage to an opponent, you may return target card from your graveyard to your hand.",
+                "head": {
+                    "kind": "damage-dealt",
+                    "source": "self",
+                    "recipient": "opponent"
+                },
+                "targetRequirement": {
+                    "type": "card",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Return target card from your graveyard to your hand?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "moveZone",
+                                "target": {
+                                    "target": 0
+                                },
+                                "to": "hand"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "abb7e1ec-572f-4e78-8f12-0a8034e9d0f6",
+        "rarity": "rare"
+    },
+    {
         "name": "Immolating Souleater",
         "types": [
             "Artifact",

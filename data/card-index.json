@@ -7630,6 +7630,16 @@
         "source": "compiled"
     },
     {
+        "name": "Charnelhoard Wurm",
+        "scryfallId": "abb7e1ec-572f-4e78-8f12-0a8034e9d0f6",
+        "oracleId": "4a430fa3-e693-424b-9981-d7d8193445e3",
+        "firstSet": "con",
+        "firstPrintId": "abb7e1ec-572f-4e78-8f12-0a8034e9d0f6",
+        "firstPrintSet": "con",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Chasm Drake",
         "scryfallId": "5e7e246d-92f8-4e6e-89fc-991b888fc1e8",
         "oracleId": "e0f44bb8-f07b-416c-b767-87b9fe6461aa",
@@ -17470,6 +17480,16 @@
         "source": "compiled"
     },
     {
+        "name": "Fungal Shambler",
+        "scryfallId": "1b65f96b-019b-40a9-9b4d-acd4abf4a0f9",
+        "oracleId": "9991941e-436f-42d4-8b0c-1ee84234774b",
+        "firstSet": "apc",
+        "firstPrintId": "1b65f96b-019b-40a9-9b4d-acd4abf4a0f9",
+        "firstPrintSet": "apc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Fungusaur",
         "scryfallId": "5ad89f0d-b09b-40a0-84d6-3ee60dec7e23",
         "oracleId": "3e771f5b-2de3-4a1b-8281-ab1f7491e5a1",
@@ -25038,6 +25058,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Kjeldoran Gargoyle",
+        "scryfallId": "484a4892-fba0-459d-9e72-e82f7e079d78",
+        "oracleId": "b82d1104-8a54-4745-ba8b-eeddcb657338",
+        "firstSet": "csp",
+        "firstPrintId": "484a4892-fba0-459d-9e72-e82f7e079d78",
+        "firstPrintSet": "csp",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Kjeldoran Guard",
         "scryfallId": "bdf41f17-8f82-4a8c-adec-0f3804faff3b",
         "oracleId": "bd699cf8-56c7-4375-920e-8dd22c83a82c",
@@ -26852,6 +26882,16 @@
         "firstSet": "usg",
         "firstPrintId": "525f63ae-e002-4d47-bea5-b24dc89d4d06",
         "firstPrintSet": "usg",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Looter il-Kor",
+        "scryfallId": "368ee06f-9021-4b65-9f53-9c326bf3a27f",
+        "oracleId": "c87e3b1d-2d24-4f1c-84e8-1c21a347cdc2",
+        "firstSet": "tsp",
+        "firstPrintId": "368ee06f-9021-4b65-9f53-9c326bf3a27f",
+        "firstPrintSet": "tsp",
         "rarity": "common",
         "source": "compiled"
     },
@@ -30044,6 +30084,16 @@
         "firstSet": "inv",
         "firstPrintId": "4649d881-709f-4ed0-91de-744d232a82f5",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Mourning Thrull",
+        "scryfallId": "1e2a217a-e47b-4874-9861-bb57c7b1f06a",
+        "oracleId": "0406a534-c69c-40bb-801f-228a662ac1a2",
+        "firstSet": "gpt",
+        "firstPrintId": "1e2a217a-e47b-4874-9861-bb57c7b1f06a",
+        "firstPrintSet": "gpt",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Mox Diamond",
@@ -38416,6 +38466,16 @@
         "source": "compiled"
     },
     {
+        "name": "Saltwater Stalwart",
+        "scryfallId": "ae11adef-57b1-4f39-951b-cd4d5c0a0b80",
+        "oracleId": "04472c4f-0df3-4de8-9cc2-882d95b822be",
+        "firstSet": "bbd",
+        "firstPrintId": "ae11adef-57b1-4f39-951b-cd4d5c0a0b80",
+        "firstPrintSet": "bbd",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Salvage Scout",
         "scryfallId": "5909e77e-a930-4713-bca4-c6b265238c17",
         "oracleId": "502e991c-f4de-4095-adac-cb0c25e44a7c",
@@ -42622,6 +42682,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Soul Link",
+        "scryfallId": "425e0ca4-8592-4802-b7c4-6e3323edd78c",
+        "oracleId": "bb81aa50-49db-4743-85fc-6b4d9ed29bc6",
+        "firstSet": "apc",
+        "firstPrintId": "425e0ca4-8592-4802-b7c4-6e3323edd78c",
+        "firstPrintSet": "apc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Soul Net",
         "scryfallId": "2b814198-814b-4619-a158-327af675f8f2",
         "oracleId": "6021c2d6-d098-4de2-9c7e-4c571f9238f6",
@@ -46592,6 +46662,26 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Thieving Magpie",
+        "scryfallId": "2b6b23b9-4569-40ff-988f-ad1d5d3fe573",
+        "oracleId": "2f074636-6a36-46a3-b872-add79e19aa8b",
+        "firstSet": "uds",
+        "firstPrintId": "2b6b23b9-4569-40ff-988f-ad1d5d3fe573",
+        "firstPrintSet": "uds",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Thieving Otter",
+        "scryfallId": "07f84b0a-37d9-4b0f-8d75-1fab45a12d44",
+        "oracleId": "5dee663f-9e2e-4503-8086-fc51664fdf29",
+        "firstSet": "iko",
+        "firstPrintId": "07f84b0a-37d9-4b0f-8d75-1fab45a12d44",
+        "firstPrintSet": "iko",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Think Twice",
         "scryfallId": "352d99db-de6d-4405-90ec-b144abbaa5a4",
         "oracleId": "fa85c5a2-8e83-4624-a35a-a0bbf17ecbb4",
@@ -49720,6 +49810,16 @@
         "source": "compiled"
     },
     {
+        "name": "Vampiric Link",
+        "scryfallId": "a9be1058-0668-4938-8801-e9a98464651c",
+        "oracleId": "3f4521b4-1efd-4592-a50d-5ee9918df177",
+        "firstSet": "plc",
+        "firstPrintId": "a9be1058-0668-4938-8801-e9a98464651c",
+        "firstPrintSet": "plc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Vampiric Spirit",
         "scryfallId": "f636e46a-9d35-47b8-8df0-6dcb18105d30",
         "oracleId": "dbd1fc9c-6316-4c89-a971-f2e08ca291a4",
@@ -49843,6 +49943,16 @@
         "firstPrintId": "572c15ab-2229-4536-b586-638ec77d9cb7",
         "firstPrintSet": "kld",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Vedalken Heretic",
+        "scryfallId": "5ab2ba75-e52e-46f5-8a34-3fe1e07446fd",
+        "oracleId": "001c6369-df13-427d-89df-718d5c09f382",
+        "firstSet": "arb",
+        "firstPrintId": "5ab2ba75-e52e-46f5-8a34-3fe1e07446fd",
+        "firstPrintSet": "arb",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -51510,6 +51620,16 @@
         "firstSet": "pls",
         "firstPrintId": "3bce620f-799a-4ad8-9edb-6fb3d9ea1cc6",
         "firstPrintSet": "pls"
+    },
+    {
+        "name": "Warrior Angel",
+        "scryfallId": "81d2c6e3-e556-4cc6-94b6-fdbc62d6853e",
+        "oracleId": "97140551-341a-40a1-93fe-0fcaa0c3be33",
+        "firstSet": "sth",
+        "firstPrintId": "81d2c6e3-e556-4cc6-94b6-fdbc62d6853e",
+        "firstPrintSet": "sth",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Warriors of Wakanda",
@@ -53283,6 +53403,16 @@
         "firstPrintId": "9951214b-43a9-4c51-bbb4-05bac81b9866",
         "firstPrintSet": "shm",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Zebra Unicorn",
+        "scryfallId": "a663ee9d-78f1-4c89-af9e-c788e165fa91",
+        "oracleId": "2f91818f-a6fe-4472-b52b-ab574f790905",
+        "firstSet": "mir",
+        "firstPrintId": "a663ee9d-78f1-4c89-af9e-c788e165fa91",
+        "firstPrintSet": "mir",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
