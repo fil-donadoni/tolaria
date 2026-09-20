@@ -165,9 +165,10 @@ export type EffectSentenceIR =
           /**
            * CR 207.2c — "… for each basic land type among lands you control":
            * the printed ±1 is a per-tally step, so each stat is that step
-           * times the controller's Domain. Pinned to a step of exactly ±1 on
-           * both stats (the one form the corpus prints); any other magnitude
-           * stays refused rather than read as a multiplier nobody evidenced.
+           * times the controller's Domain. Pinned to +1/+1 and -1/-1, the two
+           * forms the corpus prints; any other step (a different magnitude, a
+           * mixed sign) stays refused rather than read as a multiplier nobody
+           * evidenced.
            */
           readonly perDomain?: true;
       }
@@ -808,10 +809,13 @@ function sweepableSubject(span: string, ctx: unknown) {
  */
 function groupSubject(span: string, ctx: unknown): RuleResult<SubjectIR> {
     const probe = uncapitalise(span);
-    const mass =
-        probe.startsWith("all ") || probe.startsWith("each ")
-            ? massSubjectRule.run(probe, ctx)
-            : controlledPluralRule.run(span, ctx);
+    // "Each creature get …" is not English: "each" takes a singular verb, and
+    // the singular verbs read one object, never a sweep.
+    if (probe.startsWith("each "))
+        return fail('"each" takes a singular verb, not a group one', span);
+    const mass = probe.startsWith("all ")
+        ? massSubjectRule.run(probe, ctx)
+        : controlledPluralRule.run(span, ctx);
     return mass.ok
         ? ok({ kind: "mass" as const, ...mass.value } as SubjectIR)
         : mass;
@@ -1359,6 +1363,11 @@ function readUpgrade(
         case "pump": {
             const m = body.match(UPGRADE_PUMP);
             if (m === null) return `"${body}" does not upgrade a pump`;
+            // CR 207.2c — a per-basic-land-type base is a STEP, and the flat
+            // "+5/+5 instead" is a magnitude: copying the base's flag onto it
+            // would read the printed 5 as a step of one.
+            if (base.perDomain === true)
+                return "a per-basic-land-type pump has no flat upgrade";
             if (
                 base.subject.kind !== "target" ||
                 typeof base.subject.requirement.type !== "string" ||
@@ -1472,9 +1481,9 @@ function effectSentence(
         const perDomain = PUMP_PER_DOMAIN.test(tail);
         if (perDomain) {
             tail = tail.replace(PUMP_PER_DOMAIN, "");
-            if (Math.abs(power) !== 1 || Math.abs(toughness) !== 1)
+            if (power !== toughness || Math.abs(power) !== 1)
                 return fail(
-                    "a per-basic-land-type pump is read for a step of exactly one on each stat",
+                    "a per-basic-land-type pump is read for +1/+1 or -1/-1, the two the corpus prints",
                     span
                 );
         }
