@@ -9714,6 +9714,55 @@
         "rarity": "common"
     },
     {
+        "name": "Angel of Renewal",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Angel",
+            "Ally"
+        ],
+        "manaCost": {
+            "X": 5,
+            "W": 1
+        },
+        "power": 4,
+        "toughness": 4,
+        "oracleText": "Flying\nWhen this creature enters, you gain 1 life for each creature you control.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "angel-of-renewal-trigger",
+                "oracleText": "When this creature enters, you gain 1 life for each creature you control.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": {
+                            "count": {
+                                "zone": "battlefield",
+                                "controller": "controller",
+                                "filter": {
+                                    "type": [
+                                        "Creature"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "0f882ac2-3cbc-4548-8c83-d2a7443991df",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Pack's Favor",
         "types": [
             "Instant"
@@ -11700,6 +11749,42 @@
         "power": 3,
         "toughness": 5,
         "id": "122e08cb-407b-4b3d-8af0-077ff96bf160",
+        "rarity": "common"
+    },
+    {
+        "name": "Last Caress",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "oracleText": "Target player loses 1 life and you gain 1 life.\nDraw a card.",
+        "effects": [
+            {
+                "op": "loseLife",
+                "player": {
+                    "target": 0
+                },
+                "amount": 1
+            },
+            {
+                "op": "gainLife",
+                "player": "controller",
+                "amount": 1
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "player",
+            "count": 1
+        },
+        "id": "12317075-92a2-4b3a-a694-3b764132beaf",
         "rarity": "common"
     },
     {
@@ -19671,6 +19756,39 @@
         "rarity": "common"
     },
     {
+        "name": "Joyous Respite",
+        "types": [
+            "Sorcery"
+        ],
+        "subtypes": [
+            "Arcane"
+        ],
+        "manaCost": {
+            "X": 3,
+            "G": 1
+        },
+        "oracleText": "You gain 1 life for each land you control.",
+        "effects": [
+            {
+                "op": "gainLife",
+                "player": "controller",
+                "amount": {
+                    "count": {
+                        "zone": "battlefield",
+                        "controller": "controller",
+                        "filter": {
+                            "type": [
+                                "Land"
+                            ]
+                        }
+                    }
+                }
+            }
+        ],
+        "id": "1e33847f-fa55-4b2e-9d88-9a9e118b5cc8",
+        "rarity": "common"
+    },
+    {
         "name": "Venser's Sliver",
         "types": [
             "Artifact",
@@ -20251,6 +20369,57 @@
             "count": 1
         },
         "id": "1f44e053-95c2-410f-b35d-8ea3e3607e82",
+        "rarity": "common"
+    },
+    {
+        "name": "Skymarch Bloodletter",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Vampire",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Flying\nWhen this creature enters, target opponent loses 1 life and you gain 1 life.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "skymarch-bloodletter-trigger",
+                "oracleText": "When this creature enters, target opponent loses 1 life and you gain 1 life.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1,
+                    "controller": "opponent"
+                },
+                "effects": [
+                    {
+                        "op": "loseLife",
+                        "player": {
+                            "target": 0
+                        },
+                        "amount": 1
+                    },
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 1
+                    }
+                ]
+            }
+        ],
+        "id": "1f4b41d7-30fa-43ab-8f8d-c1de68a19add",
         "rarity": "common"
     },
     {
@@ -21852,6 +22021,40 @@
         "rarity": "rare"
     },
     {
+        "name": "Syphon Life",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 2
+        },
+        "oracleText": "Target player loses 2 life and you gain 2 life.\nRetrace (You may cast this card from your graveyard by discarding a land card in addition to paying its other costs.)",
+        "staticAbilities": [
+            "retrace"
+        ],
+        "effects": [
+            {
+                "op": "loseLife",
+                "player": {
+                    "target": 0
+                },
+                "amount": 2
+            },
+            {
+                "op": "gainLife",
+                "player": "controller",
+                "amount": 2
+            }
+        ],
+        "targetRequirement": {
+            "type": "player",
+            "count": 1
+        },
+        "id": "225cd8bf-fd0e-4cab-903b-10c6d0dd4741",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Midnight Guard",
         "types": [
             "Creature"
@@ -23121,6 +23324,35 @@
         ],
         "id": "243e9386-2a7f-406a-9ed3-77d4bf1b50fd",
         "rarity": "common"
+    },
+    {
+        "name": "Landbind Ritual",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 2
+        },
+        "oracleText": "You gain 2 life for each Plains you control.",
+        "effects": [
+            {
+                "op": "gainLife",
+                "player": "controller",
+                "amount": {
+                    "count": {
+                        "zone": "battlefield",
+                        "controller": "controller",
+                        "filter": {
+                            "subtype": "Plains"
+                        },
+                        "times": 2
+                    }
+                }
+            }
+        ],
+        "id": "245357c6-b4cd-40f3-b7c2-413eee767239",
+        "rarity": "uncommon"
     },
     {
         "name": "Desert Drake",
@@ -33860,6 +34092,57 @@
         "rarity": "common"
     },
     {
+        "name": "Bishop of the Bloodstained",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Vampire",
+            "Cleric"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 2
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "When this creature enters, target opponent loses 1 life for each Vampire you control.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "bishop-of-the-bloodstained-trigger",
+                "oracleText": "When this creature enters, target opponent loses 1 life for each Vampire you control.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1,
+                    "controller": "opponent"
+                },
+                "effects": [
+                    {
+                        "op": "loseLife",
+                        "player": {
+                            "target": 0
+                        },
+                        "amount": {
+                            "count": {
+                                "zone": "battlefield",
+                                "controller": "controller",
+                                "filter": {
+                                    "subtype": "Vampire"
+                                }
+                            }
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "373131be-bd66-49f5-80fa-836ced03fedf",
+        "rarity": "uncommon"
+    },
+    {
         "name": "A-Midnight Assassin",
         "types": [
             "Creature"
@@ -36482,6 +36765,61 @@
         ],
         "id": "3bbdba38-2b99-4226-98e3-6d2580345d6d",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Blight Keeper",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Bat",
+            "Imp"
+        ],
+        "manaCost": {
+            "B": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Flying\n{7}{B}, {T}, Sacrifice this creature: Target opponent loses 4 life and you gain 4 life.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "blight-keeper-ability",
+                "oracleText": "{7}{B}, {T}, Sacrifice this creature: Target opponent loses 4 life and you gain 4 life.",
+                "cost": {
+                    "mana": {
+                        "X": 7,
+                        "B": 1
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "loseLife",
+                        "player": {
+                            "target": 0
+                        },
+                        "amount": 4
+                    },
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 4
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1,
+                    "controller": "opponent"
+                }
+            }
+        ],
+        "id": "3bcabe2d-82d2-4c1b-8f28-21dc29c9dbf2",
+        "rarity": "common"
     },
     {
         "name": "Forgotten Sentinel",
@@ -45211,6 +45549,60 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Cabal Archon",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Cleric"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{B}, Sacrifice a Cleric: Target player loses 2 life and you gain 2 life.",
+        "activatedAbilities": [
+            {
+                "id": "cabal-archon-ability",
+                "oracleText": "{B}, Sacrifice a Cleric: Target player loses 2 life and you gain 2 life.",
+                "cost": {
+                    "mana": {
+                        "B": 1
+                    },
+                    "sacrificeFilter": {
+                        "subtypes": [
+                            "Cleric"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "loseLife",
+                        "player": {
+                            "target": 0
+                        },
+                        "amount": 2
+                    },
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 2
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "4bdf6e2a-1bf5-4d63-a58b-883cfb1ea0fa",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Fetid Horror",
         "types": [
             "Creature"
@@ -48960,6 +49352,37 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Sovereign's Bite",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Target player loses 3 life and you gain 3 life.",
+        "effects": [
+            {
+                "op": "loseLife",
+                "player": {
+                    "target": 0
+                },
+                "amount": 3
+            },
+            {
+                "op": "gainLife",
+                "player": "controller",
+                "amount": 3
+            }
+        ],
+        "targetRequirement": {
+            "type": "player",
+            "count": 1
+        },
+        "id": "5326d251-bb91-4653-b1fa-44f14c4e0b88",
+        "rarity": "common"
+    },
+    {
         "name": "Seacoast Drake",
         "types": [
             "Creature"
@@ -50721,6 +51144,60 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Gnawing Zombie",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Zombie"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "power": 1,
+        "toughness": 3,
+        "oracleText": "{1}{B}, Sacrifice a creature: Target player loses 1 life and you gain 1 life.",
+        "activatedAbilities": [
+            {
+                "id": "gnawing-zombie-ability",
+                "oracleText": "{1}{B}, Sacrifice a creature: Target player loses 1 life and you gain 1 life.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "B": 1
+                    },
+                    "sacrificeFilter": {
+                        "types": [
+                            "Creature"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "loseLife",
+                        "player": {
+                            "target": 0
+                        },
+                        "amount": 1
+                    },
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 1
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "56653d9e-0c29-440b-8724-cae746abb1a9",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Chimney Rabble",
         "types": [
             "Creature"
@@ -51897,6 +52374,56 @@
         ],
         "id": "5823990c-8d40-4352-8d34-74332934adb2",
         "rarity": "common"
+    },
+    {
+        "name": "Sophic Centaur",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Centaur",
+            "Spellshaper"
+        ],
+        "manaCost": {
+            "X": 3,
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{2}{G}{G}, {T}, Discard a card: You gain 2 life for each card in your hand.",
+        "activatedAbilities": [
+            {
+                "id": "sophic-centaur-ability",
+                "oracleText": "{2}{G}{G}, {T}, Discard a card: You gain 2 life for each card in your hand.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "G": 2
+                    },
+                    "tap": true,
+                    "discardFilter": {
+                        "filter": {},
+                        "count": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": {
+                            "count": {
+                                "zone": "hand",
+                                "controller": "controller",
+                                "times": 2
+                            }
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "582cefca-6c11-4df3-8b54-46309dafff4a",
+        "rarity": "uncommon"
     },
     {
         "name": "Skyline Predator",
@@ -54146,6 +54673,53 @@
         "rarity": "common"
     },
     {
+        "name": "Dakmor Ghoul",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Zombie"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 2
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "When this creature enters, target opponent loses 2 life and you gain 2 life.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "dakmor-ghoul-trigger",
+                "oracleText": "When this creature enters, target opponent loses 2 life and you gain 2 life.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1,
+                    "controller": "opponent"
+                },
+                "effects": [
+                    {
+                        "op": "loseLife",
+                        "player": {
+                            "target": 0
+                        },
+                        "amount": 2
+                    },
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 2
+                    }
+                ]
+            }
+        ],
+        "id": "5caeb415-0e90-4f5b-ada4-a46241cf5dda",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Tyrranax",
         "types": [
             "Creature"
@@ -54957,6 +55531,55 @@
             ]
         },
         "id": "5dba9972-dd8b-407b-9374-a8f0ed1a96db",
+        "rarity": "common"
+    },
+    {
+        "name": "Bloodrite Invoker",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Vampire",
+            "Shaman"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "power": 3,
+        "toughness": 1,
+        "oracleText": "{8}: Target player loses 3 life and you gain 3 life.",
+        "activatedAbilities": [
+            {
+                "id": "bloodrite-invoker-ability",
+                "oracleText": "{8}: Target player loses 3 life and you gain 3 life.",
+                "cost": {
+                    "mana": {
+                        "X": 8
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "loseLife",
+                        "player": {
+                            "target": 0
+                        },
+                        "amount": 3
+                    },
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 3
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "5dc36f94-2499-4d94-a506-27d42b9da667",
         "rarity": "common"
     },
     {
@@ -65130,6 +65753,60 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Hierophant's Chalice",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 3
+        },
+        "oracleText": "When this artifact enters, target opponent loses 1 life and you gain 1 life.\n{T}: Add {C}.",
+        "activatedAbilities": [
+            {
+                "id": "hierophant-s-chalice-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "hierophant-s-chalice-trigger",
+                "oracleText": "When this artifact enters, target opponent loses 1 life and you gain 1 life.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1,
+                    "controller": "opponent"
+                },
+                "effects": [
+                    {
+                        "op": "loseLife",
+                        "player": {
+                            "target": 0
+                        },
+                        "amount": 1
+                    },
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 1
+                    }
+                ]
+            }
+        ],
+        "id": "6e8be52c-25ce-49da-8435-58797550f058",
+        "rarity": "common"
+    },
+    {
         "name": "Shauku's Minion",
         "types": [
             "Creature"
@@ -68056,6 +68733,59 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Specter of the Fens",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Specter"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "power": 2,
+        "toughness": 3,
+        "oracleText": "Flying\n{5}{B}: Target opponent loses 2 life and you gain 2 life.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "specter-of-the-fens-ability",
+                "oracleText": "{5}{B}: Target opponent loses 2 life and you gain 2 life.",
+                "cost": {
+                    "mana": {
+                        "X": 5,
+                        "B": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "loseLife",
+                        "player": {
+                            "target": 0
+                        },
+                        "amount": 2
+                    },
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 2
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1,
+                    "controller": "opponent"
+                }
+            }
+        ],
+        "id": "73e3cfbc-7177-4bbc-89c4-560c9c2f97db",
+        "rarity": "common"
+    },
+    {
         "name": "Flowstone Kavu",
         "types": [
             "Creature"
@@ -68797,6 +69527,40 @@
         ],
         "id": "750ea219-b62d-49bd-9b30-8e0a62e75553",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Folk Medicine",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "oracleText": "You gain 1 life for each creature you control.\nFlashback {1}{W} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+        "effects": [
+            {
+                "op": "gainLife",
+                "player": "controller",
+                "amount": {
+                    "count": {
+                        "zone": "battlefield",
+                        "controller": "controller",
+                        "filter": {
+                            "type": [
+                                "Creature"
+                            ]
+                        }
+                    }
+                }
+            }
+        ],
+        "flashback": {
+            "X": 1,
+            "W": 1
+        },
+        "id": "751bd716-5352-41d7-89fb-d5f100f6646b",
+        "rarity": "common"
     },
     {
         "name": "Call the Skybreaker",
@@ -74079,6 +74843,52 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Dwarven Priest",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dwarf",
+            "Cleric"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 4,
+        "oracleText": "When this creature enters, you gain 1 life for each creature you control.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "dwarven-priest-trigger",
+                "oracleText": "When this creature enters, you gain 1 life for each creature you control.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": {
+                            "count": {
+                                "zone": "battlefield",
+                                "controller": "controller",
+                                "filter": {
+                                    "type": [
+                                        "Creature"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "7e1e0f13-35a6-4a5e-8666-47bc5c275be7",
+        "rarity": "common"
+    },
+    {
         "name": "Jhovall Rider",
         "types": [
             "Creature"
@@ -77958,6 +78768,55 @@
         "toughness": 1,
         "id": "837d82a9-aef8-4079-a485-05ada1b66322",
         "rarity": "common"
+    },
+    {
+        "name": "Conclave Phalanx",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 4,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 4,
+        "oracleText": "Convoke (Your creatures can help cast this spell. Each creature you tap while casting this spell pays for {1} or one mana of that creature's color.)\nWhen this creature enters, you gain 1 life for each creature you control.",
+        "staticAbilities": [
+            "convoke"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "conclave-phalanx-trigger",
+                "oracleText": "When this creature enters, you gain 1 life for each creature you control.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": {
+                            "count": {
+                                "zone": "battlefield",
+                                "controller": "controller",
+                                "filter": {
+                                    "type": [
+                                        "Creature"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "83854443-736b-4650-8a7e-e123ee6e0b8b",
+        "rarity": "uncommon"
     },
     {
         "name": "Cloud Crusader",
@@ -85827,6 +86686,59 @@
         "rarity": "common"
     },
     {
+        "name": "Orzhova, the Church of Deals",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {C}.\n{3}{W}{B}, {T}: Target player loses 1 life and you gain 1 life.",
+        "activatedAbilities": [
+            {
+                "id": "orzhova-the-church-of-deals-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "orzhova-the-church-of-deals-ability-2",
+                "oracleText": "{3}{W}{B}, {T}: Target player loses 1 life and you gain 1 life.",
+                "cost": {
+                    "mana": {
+                        "X": 3,
+                        "W": 1,
+                        "B": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "loseLife",
+                        "player": {
+                            "target": 0
+                        },
+                        "amount": 1
+                    },
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 1
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "9015cc09-56c9-4d8f-b241-a0cfaec7e1f1",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Reflex Sliver",
         "types": [
             "Creature"
@@ -87862,6 +88774,37 @@
         ],
         "id": "9404c7d5-3450-4425-94e5-aa7d4e571d4e",
         "rarity": "common"
+    },
+    {
+        "name": "Soul Feast",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 2
+        },
+        "oracleText": "Target player loses 4 life and you gain 4 life.",
+        "effects": [
+            {
+                "op": "loseLife",
+                "player": {
+                    "target": 0
+                },
+                "amount": 4
+            },
+            {
+                "op": "gainLife",
+                "player": "controller",
+                "amount": 4
+            }
+        ],
+        "targetRequirement": {
+            "type": "player",
+            "count": 1
+        },
+        "id": "9417a9db-5101-4fe1-84b7-283ca1fd42e5",
+        "rarity": "uncommon"
     },
     {
         "name": "Abyssal Horror",
@@ -91521,6 +92464,55 @@
             }
         ],
         "id": "99b74fa3-c1d7-4780-977d-f2d6663a529a",
+        "rarity": "common"
+    },
+    {
+        "name": "Bloodhunter Bat",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Bat"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Flying\nWhen this creature enters, target player loses 2 life and you gain 2 life.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "bloodhunter-bat-trigger",
+                "oracleText": "When this creature enters, target player loses 2 life and you gain 2 life.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "loseLife",
+                        "player": {
+                            "target": 0
+                        },
+                        "amount": 2
+                    },
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 2
+                    }
+                ]
+            }
+        ],
+        "id": "99c10705-6e0e-46f6-a64c-0095b2796aaf",
         "rarity": "common"
     },
     {
@@ -97146,6 +98138,73 @@
             }
         ],
         "id": "a3657719-7d4d-46db-a5f4-699ee2032ebe",
+        "rarity": "common"
+    },
+    {
+        "name": "Parasitic Strix",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Bird"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Flying\nWhen this creature enters, if you control a black permanent, target player loses 2 life and you gain 2 life.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "parasitic-strix-trigger",
+                "oracleText": "When this creature enters, if you control a black permanent, target player loses 2 life and you gain 2 life.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "condition": {
+                    "kind": "controls",
+                    "filter": {
+                        "types": [
+                            "Artifact",
+                            "Battle",
+                            "Creature",
+                            "Enchantment",
+                            "Land",
+                            "Planeswalker"
+                        ],
+                        "colors": [
+                            "B"
+                        ]
+                    },
+                    "atLeast": 1
+                },
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "loseLife",
+                        "player": {
+                            "target": 0
+                        },
+                        "amount": 2
+                    },
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 2
+                    }
+                ]
+            }
+        ],
+        "id": "a36cd0c3-1955-41b1-9a9c-b30b31a2f094",
         "rarity": "common"
     },
     {
@@ -113310,6 +114369,52 @@
         "rarity": "common"
     },
     {
+        "name": "Death Cultist",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "B": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Sacrifice this creature: Target player loses 1 life and you gain 1 life.",
+        "activatedAbilities": [
+            {
+                "id": "death-cultist-ability",
+                "oracleText": "Sacrifice this creature: Target player loses 1 life and you gain 1 life.",
+                "cost": {
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "loseLife",
+                        "player": {
+                            "target": 0
+                        },
+                        "amount": 1
+                    },
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 1
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "bd0a2fe3-45ab-4bac-aca7-a6418e28d0be",
+        "rarity": "common"
+    },
+    {
         "name": "Winged Coatl",
         "types": [
             "Creature"
@@ -125321,6 +126426,36 @@
         "rarity": "common"
     },
     {
+        "name": "Bountiful Harvest",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 4,
+            "G": 1
+        },
+        "oracleText": "You gain 1 life for each land you control.",
+        "effects": [
+            {
+                "op": "gainLife",
+                "player": "controller",
+                "amount": {
+                    "count": {
+                        "zone": "battlefield",
+                        "controller": "controller",
+                        "filter": {
+                            "type": [
+                                "Land"
+                            ]
+                        }
+                    }
+                }
+            }
+        ],
+        "id": "d225382c-cc6f-4224-82b5-4309b72feb0b",
+        "rarity": "common"
+    },
+    {
         "name": "Hero's Demise",
         "types": [
             "Instant"
@@ -132099,6 +133234,46 @@
         ],
         "entersTapped": true,
         "id": "dfcbc131-fd50-4908-b539-c8e52bb70c58",
+        "rarity": "common"
+    },
+    {
+        "name": "Tidy Conclusion",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 2
+        },
+        "oracleText": "Destroy target creature. You gain 1 life for each artifact you control.",
+        "effects": [
+            {
+                "op": "destroy",
+                "target": {
+                    "target": 0
+                }
+            },
+            {
+                "op": "gainLife",
+                "player": "controller",
+                "amount": {
+                    "count": {
+                        "zone": "battlefield",
+                        "controller": "controller",
+                        "filter": {
+                            "type": [
+                                "Artifact"
+                            ]
+                        }
+                    }
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "dfcf6849-4fac-41b9-8e70-dc77c4562a42",
         "rarity": "common"
     },
     {
@@ -139842,6 +141017,57 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Vampire Sovereign",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Vampire",
+            "Noble"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 2
+        },
+        "power": 3,
+        "toughness": 4,
+        "oracleText": "Flying\nWhen this creature enters, target opponent loses 3 life and you gain 3 life.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "vampire-sovereign-trigger",
+                "oracleText": "When this creature enters, target opponent loses 3 life and you gain 3 life.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1,
+                    "controller": "opponent"
+                },
+                "effects": [
+                    {
+                        "op": "loseLife",
+                        "player": {
+                            "target": 0
+                        },
+                        "amount": 3
+                    },
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 3
+                    }
+                ]
+            }
+        ],
+        "id": "ee338221-ead9-4b89-8b0c-12745c4ca13d",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Glade Gnarr",
         "types": [
             "Creature"
@@ -144180,6 +145406,32 @@
         "rarity": "common"
     },
     {
+        "name": "Presence of the Wise",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 2
+        },
+        "oracleText": "You gain 2 life for each card in your hand.",
+        "effects": [
+            {
+                "op": "gainLife",
+                "player": "controller",
+                "amount": {
+                    "count": {
+                        "zone": "hand",
+                        "controller": "controller",
+                        "times": 2
+                    }
+                }
+            }
+        ],
+        "id": "f6aedb5a-48f5-47db-9469-14075e2b9269",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Skyreach Manta",
         "types": [
             "Artifact",
@@ -145149,6 +146401,32 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Gerrard's Wisdom",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 2
+        },
+        "oracleText": "You gain 2 life for each card in your hand.",
+        "effects": [
+            {
+                "op": "gainLife",
+                "player": "controller",
+                "amount": {
+                    "count": {
+                        "zone": "hand",
+                        "controller": "controller",
+                        "times": 2
+                    }
+                }
+            }
+        ],
+        "id": "f81defa5-edb4-4f1f-b13c-7cfb34511138",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Izzet Signet",
         "types": [
             "Artifact"
@@ -145193,6 +146471,87 @@
         "toughness": 5,
         "id": "f824502c-d712-41af-ba44-33e8294c3735",
         "rarity": "common"
+    },
+    {
+        "name": "Sling-Gang Lieutenant",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Goblin"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "When this creature enters, create two 1/1 red Goblin creature tokens.\nSacrifice a Goblin: Target player loses 1 life and you gain 1 life.",
+        "activatedAbilities": [
+            {
+                "id": "sling-gang-lieutenant-ability",
+                "oracleText": "Sacrifice a Goblin: Target player loses 1 life and you gain 1 life.",
+                "cost": {
+                    "sacrificeFilter": {
+                        "subtypes": [
+                            "Goblin"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "loseLife",
+                        "player": {
+                            "target": 0
+                        },
+                        "amount": 1
+                    },
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 1
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                }
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "sling-gang-lieutenant-trigger",
+                "oracleText": "When this creature enters, create two 1/1 red Goblin creature tokens.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Goblin",
+                            "types": [
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Goblin"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": [
+                                "R"
+                            ]
+                        },
+                        "controller": "controller",
+                        "count": 2
+                    }
+                ]
+            }
+        ],
+        "id": "f82aec21-441b-4fcd-b666-61723bd79531",
+        "rarity": "uncommon"
     },
     {
         "name": "Alabaster Mage",
@@ -147443,6 +148802,54 @@
         ],
         "id": "fc783f49-f58a-4783-87b4-4dbc7e896f2e",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Highway Robber",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Mercenary"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 2
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "When this creature enters, target opponent loses 2 life and you gain 2 life.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "highway-robber-trigger",
+                "oracleText": "When this creature enters, target opponent loses 2 life and you gain 2 life.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1,
+                    "controller": "opponent"
+                },
+                "effects": [
+                    {
+                        "op": "loseLife",
+                        "player": {
+                            "target": 0
+                        },
+                        "amount": 2
+                    },
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 2
+                    }
+                ]
+            }
+        ],
+        "id": "fc826c88-fe3c-4004-8283-27910c550fae",
+        "rarity": "common"
     },
     {
         "name": "Turntimber Grove",

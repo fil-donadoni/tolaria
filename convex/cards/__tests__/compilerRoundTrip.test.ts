@@ -166,7 +166,11 @@ import {
 // Seer, Caldera Kavu, Rainbow Crow, Sisay's Ingenuity and Tidal Visionary
 // round-trip once "becomes the color of your choice" reads, with and without
 // a duration, on a permanent, on a spell and on the source itself.
-const BASELINE_CEILING = 1557;
+//
+// Lowered 1557 -> 1555 by issue #4136 (life quantities): Tendrils of Agony and
+// Thunderscape Master round-trip once "Target player loses N life and you gain
+// N life" reads as a drain.
+const BASELINE_CEILING = 1555;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that

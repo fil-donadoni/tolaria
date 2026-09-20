@@ -41,7 +41,7 @@ import {
 import { keywordVocabulary } from "./keywordVocabulary";
 import { durationRule, type DurationIR } from "./duration";
 import { playerRefRule, type PlayerRefIR } from "./playerRef";
-import { readNumberWord } from "./quantity";
+import { countedSetRule, readNumberWord, type CountedSetIR } from "./quantity";
 import { isSelfPhrase } from "./cost";
 import { SELF_MARKER } from "../../normalize";
 import {
@@ -90,7 +90,24 @@ export type AmountIR =
      * the damage dealt). Read here as words, bound by the lowering SITE: a head
      * that carries no magnitude refuses the line rather than reading 0.
      */
-    | { readonly kind: "event-amount" };
+    | { readonly kind: "event-amount" }
+    /**
+     * CR 107.1 — "2 life for each Swamp you control": a printed multiplier
+     * over the cardinality of a SET. Read only where a site's lowering can
+     * resolve the set (`lowerAmount`); every other site refuses it.
+     */
+    | {
+          readonly kind: "counted";
+          readonly times: number;
+          readonly set: CountedSetIR;
+      }
+    /**
+     * CR 202.3 + CR 608.2h — "its mana value" / "that card's mana value": the
+     * object the sentence BEFORE acted on. Read here as words; bound by the
+     * lowering to the announced object that sentence recorded, and refused by
+     * a site whose earlier sentences acted on none.
+     */
+    | { readonly kind: "acted-on-mana-value" };
 
 /** A count word at an effect site: a cardinal, `X` (CR 107.3), or "that much". */
 export function readAmount(word: string): AmountIR | null {
@@ -1057,6 +1074,22 @@ const SET_COLOR_CHOICE = /^(.+) becomes the color of your choice(?: (.+))?$/;
 const DRAW_SELF = /^Draw (\S+) cards?$/;
 const DRAW_PLAYER = /^(.+) draws (\S+) cards?$/;
 const LIFE = /^(.+) (gain|gains|lose|loses) (\S+|that much) life$/;
+/**
+ * CR 107.1 — "<player> gains/loses N life for each <set>". The multiplier is a
+ * printed number: "X life for each …" is a product of two variables this
+ * grammar does not read.
+ */
+const LIFE_FOR_EACH = /^(.+) (gain|gains|lose|loses) (\S+) life (for each .+)$/;
+/** CR 202.3 — "You lose life equal to its mana value" (or "that card's"). */
+const LIFE_EQUAL_MANA_VALUE =
+    /^(.+) (lose|loses) life equal to (?:its|that card's) mana value$/;
+/**
+ * CR 608.2c — a drain: "Target player loses 2 life and you gain 2 life". The
+ * loss reads through `LIFE` like any other, and the gain is pinned to exactly
+ * "you gain N life" (anti-leniency, as `YOU_DRAW_AND_LOSE_LIFE`): every other
+ * second half stays refused until a corpus card prints it.
+ */
+const DRAIN = /^(.+) loses (\S+) life and (you gain \S+ life)$/;
 const COUNTERS = /^Put (\S+) (\S+) counters? on (.+)$/;
 const DISCARD_RANDOM = /^(.+) discards (\S+) cards? at random$/;
 /** CR 701.9b — "Target player discards two cards": the player's own choice. */
@@ -1552,7 +1585,12 @@ function effectSentence(
 
     // ── grant a keyword (CR 613.1f, layer 6) ───────────────────────────────
     const gainsAt = span.indexOf(" gains ");
-    if (gainsAt !== -1 && !LIFE.test(span)) {
+    if (
+        gainsAt !== -1 &&
+        !LIFE.test(span) &&
+        !LIFE_FOR_EACH.test(span) &&
+        !DRAIN.test(span)
+    ) {
         const subject = subjectRule.run(span.slice(0, gainsAt), ctx);
         if (!subject.ok) return subject;
         const rest = span.slice(gainsAt + " gains ".length);
@@ -1762,6 +1800,52 @@ function effectSentence(
         return ok({
             kind: "regenerate" as const,
             subject: subject.value,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── drain: a loss, then the controller's gain (CR 608.2c) ──────────────
+    const drain = span.match(DRAIN);
+    if (drain !== null) {
+        const loss = effectSentence(`${drain[1]} loses ${drain[2]} life`, ctx);
+        if (!loss.ok) return loss;
+        const gain = effectSentence(capitalise(drain[3]!), ctx);
+        if (!gain.ok) return gain;
+        return ok({
+            kind: "conjunction" as const,
+            effects: [loss.value, gain.value],
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── life per counted set (CR 107.1, CR 119.3) ──────────────────────────
+    const lifeEach = span.match(LIFE_FOR_EACH);
+    if (lifeEach !== null) {
+        const player = playerSubject(lifeEach[1]!, ctx);
+        if (player === null)
+            return fail(`"${lifeEach[1]}" is not a player`, span);
+        const times = readNumberWord(lifeEach[3]!);
+        if (times === null || times < 1)
+            return fail(`"${lifeEach[3]}" is not a multiplier`, span);
+        const set = countedSetRule.run(lifeEach[4]!, ctx);
+        if (!set.ok) return set;
+        return ok({
+            kind: "life" as const,
+            action: lifeEach[2]!.startsWith("gain") ? "gain" : "lose",
+            player,
+            amount: { kind: "counted" as const, times, set: set.value },
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── life equal to the acted-on object's mana value (CR 202.3) ──────────
+    const lifeMv = span.match(LIFE_EQUAL_MANA_VALUE);
+    if (lifeMv !== null) {
+        const player = playerSubject(lifeMv[1]!, ctx);
+        if (player === null)
+            return fail(`"${lifeMv[1]}" is not a player`, span);
+        return ok({
+            kind: "life" as const,
+            action: "lose" as const,
+            player,
+            amount: { kind: "acted-on-mana-value" as const },
         } satisfies EffectSentenceIR);
     }
 

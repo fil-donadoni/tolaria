@@ -1890,4 +1890,76 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 107.1 + CR 119.3 — "You gain 2 life for each Plains you control": the
+    // printed multiplier over the cardinality of the controller's permanents
+    // with one subtype. Exhibits the "count set applies a multiplier" form: the
+    // canned smoke predictor does not model `times`, so this fixture is the
+    // evidence that the `count` the grammar emits is the one the hand-written
+    // catalogue writes (Price of Progress' `times`).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Landbind Ritual",
+            manaCost: "{3}{W}{W}",
+            typeLine: "Sorcery",
+            oracleText: "You gain 2 life for each Plains you control.",
+            oracleId: "63500b81-8fac-4208-91d3-0fe642899d87",
+            layout: "normal",
+        },
+        expected: {
+            name: "Landbind Ritual",
+            types: ["Sorcery"],
+            manaCost: { X: 3, W: 2 },
+            oracleText: "You gain 2 life for each Plains you control.",
+            effects: [
+                {
+                    op: "gainLife",
+                    player: "controller",
+                    amount: {
+                        count: {
+                            zone: "battlefield",
+                            controller: "controller",
+                            filter: { subtype: "Plains" },
+                            times: 2,
+                        },
+                    },
+                },
+            ],
+        },
+    },
+    // CR 402.3 + CR 119.3 — "You gain 2 life for each card in your hand": the
+    // size of a hand, a hidden zone whose CARDINALITY is public. Exhibits the
+    // "count set counts a HAND" form (and the multiplier again): the canned
+    // generator's hand contents belong to the cast filler, so this fixture is
+    // the evidence that the hand count the grammar emits is the shipped one.
+    {
+        rule: "effect clause",
+        card: {
+            name: "Gerrard's Wisdom",
+            manaCost: "{2}{W}{W}",
+            typeLine: "Sorcery",
+            oracleText: "You gain 2 life for each card in your hand.",
+            oracleId: "3e30e8f2-f437-4620-a3bc-dd9c29ae6570",
+            layout: "normal",
+        },
+        expected: {
+            name: "Gerrard's Wisdom",
+            types: ["Sorcery"],
+            manaCost: { X: 2, W: 2 },
+            oracleText: "You gain 2 life for each card in your hand.",
+            effects: [
+                {
+                    op: "gainLife",
+                    player: "controller",
+                    amount: {
+                        count: {
+                            zone: "hand",
+                            controller: "controller",
+                            times: 2,
+                        },
+                    },
+                },
+            ],
+        },
+    },
 ]);

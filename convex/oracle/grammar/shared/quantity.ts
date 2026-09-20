@@ -20,6 +20,7 @@
  */
 
 import { fail, ok, rule, type Rule, subGrammar } from "../../rule";
+import type { PlayerRefIR } from "./playerRef";
 import { descriptorRule, type DescriptorIR } from "./targetFilter";
 
 export const QUANTITY = "quantity";
@@ -97,5 +98,51 @@ export const quantityRule: Rule<QuantityIR> = subGrammar(
             return ok({ kind: "fixed" as const, value: number });
         if (span.startsWith("for each ")) return forEachRule.run(span, ctx);
         return fail("not a quantity this grammar knows", span);
+    })
+);
+
+/**
+ * The SET an effect site counts (CR 107.1) — the noun phrase behind
+ * "N life for each …". Two shapes, and only the two the corpus prints at a
+ * life-change site: the controller's permanents a descriptor names ("for each
+ * Swamp you control"), and the cards in a hand ("for each card in target
+ * opponent's hand" — a hidden zone whose SIZE is public, CR 402.3).
+ */
+export type CountedSetIR =
+    | { readonly kind: "permanents"; readonly descriptor: DescriptorIR }
+    | { readonly kind: "cards-in-hand"; readonly player: PlayerRefIR };
+
+/** CR 402.3 — the two hands a count is printed over. */
+const CARDS_IN_HAND = /^for each card in (your|target opponent's) hand$/;
+
+/**
+ * `"for each Swamp you control"`, `"for each card in target opponent's hand"`.
+ *
+ * The permanent form is `forEachRule`'s descriptor read whole — this rule adds
+ * no vocabulary of its own — and asks nothing of the descriptor beyond
+ * "counts something": whether the engine's `count` can express every clause it
+ * carries is the LOWERING's refusal to make, because only there is a clause
+ * that would be dropped visible.
+ */
+export const countedSetRule: Rule<CountedSetIR> = subGrammar(
+    "counted set",
+    rule<CountedSetIR>("counted set", (span, ctx) => {
+        const hand = span.match(CARDS_IN_HAND);
+        if (hand !== null)
+            return ok({
+                kind: "cards-in-hand" as const,
+                player:
+                    hand[1] === "your"
+                        ? ({ kind: "you" } as const)
+                        : ({ kind: "target", opponent: true } as const),
+            });
+        const each = forEachRule.run(span, ctx);
+        if (!each.ok) return each;
+        if (each.value.kind !== "for-each")
+            return fail("not a counted set", span);
+        return ok({
+            kind: "permanents" as const,
+            descriptor: each.value.per,
+        });
     })
 );
