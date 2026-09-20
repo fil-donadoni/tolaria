@@ -18574,6 +18574,16 @@ export interface CardDefinition {
      *  collector. The `id` on each template is the value referenced by the
      *  grant's `abilityId` field. Used by Energy Flux. */
     triggeredGrantTemplates?: TriggeredAbility[];
+    /** JSON-pure twin of `triggeredGrantTemplates` above, for the SAME reason
+     *  `compiledTriggeredAbilities` exists beside `triggeredAbilities`: a
+     *  granted trigger's `matches` is a required closure, and the Oracle
+     *  compiler emits JSON only. Rebuilt into `triggeredGrantTemplates` at the
+     *  `expandDefinition` seam by `expandCompiledTriggers`, through the SAME
+     *  `resolveCompiledTrigger` factory dispatch a printed trigger uses (CR
+     *  614.1c kicked entry rider — "… and with '<triggered ability>'",
+     *  Necravolver). Written ONLY by the Oracle compiler; consumed and removed
+     *  by the expander, so it never reaches an engine read. */
+    compiledTriggeredGrantTemplates?: CompiledTriggeredAbility[];
     /** Continuous replacement effects (CR 614). Each effect declares the kind
      *  of game event it can intercept ("damage", "lifegain", "lifeloss",
      *  "discard", "lose-game"), an `appliesTo` predicate that filters by event

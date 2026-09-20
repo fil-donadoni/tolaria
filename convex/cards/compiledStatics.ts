@@ -221,6 +221,21 @@ export type CompiledStaticEffect =
           | CompiledKickedSelfScope
       ))
     /**
+     * CR 613.1f / 113.1a layer 6 — the TRIGGERED-ability twin of
+     * `activated-grant` above: 'Enchanted creature has "<triggered
+     * ability>"' or the kicked entry rider's '… and with "<triggered
+     * ability>"' (CR 614.1c, Necravolver). `abilityId` names an entry on the
+     * granting card's `compiledTriggeredGrantTemplates[]`, rebuilt into
+     * `triggeredGrantTemplates[]` at the same expander seam.
+     */
+    | ({
+          readonly kind: "triggered-grant";
+          readonly abilityId: string;
+      } & (
+          | { readonly appliesTo: "host"; readonly filter?: never }
+          | CompiledKickedSelfScope
+      ))
+    /**
      * CR 508.1c — "Enchanted creature can't attack." / CR 509.1b — "…can't
      * block." Unconditional, so the rebuilt predicate is a constant `false`.
      *
@@ -414,6 +429,12 @@ export function resolveCompiledStatic(
         case "activated-grant":
             return {
                 kind: "activated-grant",
+                applies: scopePredicate(descriptor),
+                abilityId: descriptor.abilityId,
+            };
+        case "triggered-grant":
+            return {
+                kind: "triggered-grant",
                 applies: scopePredicate(descriptor),
                 abilityId: descriptor.abilityId,
             };

@@ -8840,6 +8840,16 @@
         "source": "compiled"
     },
     {
+        "name": "Commander's Authority",
+        "scryfallId": "08ef4383-11e7-4426-a04a-058570f46e47",
+        "oracleId": "57bc1106-81a0-4d91-94db-25e3a5f989cb",
+        "firstSet": "avr",
+        "firstPrintId": "08ef4383-11e7-4426-a04a-058570f46e47",
+        "firstPrintSet": "avr",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Commercial District",
         "scryfallId": "bf220c06-3cce-4bdd-aa58-83940c223e9c",
         "oracleId": "b33656ae-3473-4223-845f-f9147f87678b",
@@ -9111,6 +9121,16 @@
         "firstPrintId": "56a4ec08-5029-4f7b-a93b-a5dad4be5113",
         "firstPrintSet": "lrw",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Consuming Fervor",
+        "scryfallId": "d529d230-89b0-453b-987b-a47e15bc3830",
+        "oracleId": "16dddf03-449c-4df0-9902-f8901f05656e",
+        "firstSet": "akh",
+        "firstPrintId": "d529d230-89b0-453b-987b-a47e15bc3830",
+        "firstPrintSet": "akh",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -23882,6 +23902,16 @@
         "source": "compiled"
     },
     {
+        "name": "Infernal Scarring",
+        "scryfallId": "d1ead8cc-5b7d-4a6d-a56f-95da91a958d2",
+        "oracleId": "3fc640dd-6292-4d36-82fb-bd366bc00bd3",
+        "firstSet": "ori",
+        "firstPrintId": "d1ead8cc-5b7d-4a6d-a56f-95da91a958d2",
+        "firstPrintSet": "ori",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Inferno",
         "scryfallId": "a6b61512-5b24-424c-966f-36b595781e14",
         "oracleId": "69e2df4e-c7f3-4c3a-be5b-1c4afb29cead",
@@ -31814,6 +31844,16 @@
         "source": "compiled"
     },
     {
+        "name": "Necravolver",
+        "scryfallId": "232c32d9-9b0c-458d-b1b3-e4219bd34c82",
+        "oracleId": "639d16ed-daa4-4c8d-8550-5c9a29f4d9fe",
+        "firstSet": "apc",
+        "firstPrintId": "232c32d9-9b0c-458d-b1b3-e4219bd34c82",
+        "firstPrintSet": "apc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Necrite",
         "scryfallId": "311d752a-ce8a-44cb-8aeb-1ed66705eb09",
         "oracleId": "e6ab8a04-e225-4ff0-bb8b-c80d0e6ce50c",
@@ -32641,6 +32681,16 @@
         "firstPrintId": "2744ac83-a79f-4042-8720-688b5adda382",
         "firstPrintSet": "mh1",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Nurturing Presence",
+        "scryfallId": "35e109ea-8b86-4432-b15e-5a6201caf2aa",
+        "oracleId": "3f03c834-2cb3-4c54-bee6-c64f3a5fce47",
+        "firstSet": "vow",
+        "firstPrintId": "35e109ea-8b86-4432-b15e-5a6201caf2aa",
+        "firstPrintSet": "vow",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -35008,6 +35058,16 @@
         "source": "compiled"
     },
     {
+        "name": "Pillory of the Sleepless",
+        "scryfallId": "36964bbd-f068-4a69-8d6b-7e4e97938b98",
+        "oracleId": "74776491-29c3-46e6-989b-cf9a00bbfcef",
+        "firstSet": "gpt",
+        "firstPrintId": "36964bbd-f068-4a69-8d6b-7e4e97938b98",
+        "firstPrintSet": "gpt",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Pin to the Earth",
         "scryfallId": "c04e6915-39b0-4fbc-9114-2ecf371b6f72",
         "oracleId": "605624ee-b7ca-4728-993f-e13b18cc57f3",
@@ -37012,6 +37072,16 @@
         "firstPrintSet": "atq"
     },
     {
+        "name": "Rakavolver",
+        "scryfallId": "43787e24-0b7d-4005-8db4-68544476bd34",
+        "oracleId": "c00adb98-81dc-490f-9e0f-7f8546ef22ce",
+        "firstSet": "apc",
+        "firstPrintId": "43787e24-0b7d-4005-8db4-68544476bd34",
+        "firstPrintSet": "apc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Rakdos Cluestone",
         "scryfallId": "9ef43817-1813-4608-8e3d-3c14321ab736",
         "oracleId": "b4f0bda0-1051-4ab8-b254-891f427b33ad",
@@ -37998,6 +38068,16 @@
         "firstSet": "jmp",
         "firstPrintId": "7df3cd89-02c9-4a1c-9a8a-d17a0b1030c9",
         "firstPrintSet": "jmp",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Relic Bane",
+        "scryfallId": "9cbafa51-693b-485c-807d-64020540f16a",
+        "oracleId": "3609d300-af9f-4ddf-ad0e-8bebeca15a04",
+        "firstSet": "mrd",
+        "firstPrintId": "9cbafa51-693b-485c-807d-64020540f16a",
+        "firstPrintSet": "mrd",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -42934,6 +43014,16 @@
         "firstSet": "leg",
         "firstPrintId": "9c12ee9e-db13-4b4d-a061-b6566f538f09",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Sixth Sense",
+        "scryfallId": "e564db6b-0b8b-4c67-9135-5da76d2225fe",
+        "oracleId": "25d35e3e-ece8-4c94-9dbc-d076a52fca0d",
+        "firstSet": "akh",
+        "firstPrintId": "e564db6b-0b8b-4c67-9135-5da76d2225fe",
+        "firstPrintSet": "akh",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Skeletal Crocodile",
@@ -51924,6 +52014,16 @@
         "firstSet": "zen",
         "firstPrintId": "7abd2723-2851-4f1a-b2d0-dfcb526472c3",
         "firstPrintSet": "zen"
+    },
+    {
+        "name": "Verdant Embrace",
+        "scryfallId": "3dd1d130-98e7-4898-9f13-2bb58fa4777b",
+        "oracleId": "f0bbd988-50b7-476c-9183-dfabd4a95079",
+        "firstSet": "tsp",
+        "firstPrintId": "3dd1d130-98e7-4898-9f13-2bb58fa4777b",
+        "firstPrintSet": "tsp",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Verdant Field",

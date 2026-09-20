@@ -345,14 +345,30 @@ export function resolveCompiledTrigger(
  */
 export function expandCompiledTriggers(base: CardDefinition): CardDefinition {
     const descriptors = base.compiledTriggeredAbilities;
-    if (descriptors === undefined || descriptors.length === 0) return base;
-    const expanded: CardDefinition = {
-        ...base,
-        triggeredAbilities: [
+    const grantDescriptors = base.compiledTriggeredGrantTemplates;
+    if (
+        (descriptors === undefined || descriptors.length === 0) &&
+        (grantDescriptors === undefined || grantDescriptors.length === 0)
+    )
+        return base;
+    const expanded: CardDefinition = { ...base };
+    if (descriptors !== undefined && descriptors.length > 0) {
+        expanded.triggeredAbilities = [
             ...(base.triggeredAbilities ?? []),
             ...descriptors.map(resolveCompiledTrigger),
-        ],
-    };
-    delete expanded.compiledTriggeredAbilities;
+        ];
+        delete expanded.compiledTriggeredAbilities;
+    }
+    // CR 614.1c — a kicked entry rider's granted trigger (Necravolver): the
+    // SAME factory dispatch a printed trigger uses, kept off the source's own
+    // `triggeredGrantTemplates[]` twin like every other compiled field (see
+    // {@link CardDefinition.compiledTriggeredGrantTemplates}).
+    if (grantDescriptors !== undefined && grantDescriptors.length > 0) {
+        expanded.triggeredGrantTemplates = [
+            ...(base.triggeredGrantTemplates ?? []),
+            ...grantDescriptors.map(resolveCompiledTrigger),
+        ];
+        delete expanded.compiledTriggeredGrantTemplates;
+    }
     return expanded;
 }

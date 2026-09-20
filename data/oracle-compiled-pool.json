@@ -6010,6 +6010,64 @@
         "rarity": "common"
     },
     {
+        "name": "Commander's Authority",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 4,
+            "W": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature has \"At the beginning of your upkeep, create a 1/1 white Human creature token.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "triggered-grant",
+                "appliesTo": "host",
+                "abilityId": "commander-s-authority-granted"
+            }
+        ],
+        "compiledTriggeredGrantTemplates": [
+            {
+                "id": "commander-s-authority-granted",
+                "oracleText": "At the beginning of your upkeep, create a 1/1 white Human creature token.",
+                "head": {
+                    "kind": "phase",
+                    "phase": "UPKEEP",
+                    "scope": "your"
+                },
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Human",
+                            "types": [
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Human"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": [
+                                "W"
+                            ]
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "08ef4383-11e7-4426-a04a-058570f46e47",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Hobgoblin Dragoon",
         "types": [
             "Creature"
@@ -22625,6 +22683,97 @@
         "rarity": "common"
     },
     {
+        "name": "Necravolver",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Volver"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Kicker {1}{G} and/or {W} (You may pay an additional {1}{G} and/or {W} as you cast this spell.)\nIf this creature was kicked with its {1}{G} kicker, it enters with two +1/+1 counters on it and with trample.\nIf this creature was kicked with its {W} kicker, it enters with a +1/+1 counter on it and with \"Whenever this creature deals damage, you gain that much life.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "keyword": "trample",
+                "appliesTo": "self-if-kicked",
+                "kickerId": "kicker-g"
+            },
+            {
+                "kind": "triggered-grant",
+                "abilityId": "necravolver-kicked",
+                "appliesTo": "self-if-kicked",
+                "kickerId": "kicker-w"
+            }
+        ],
+        "kickers": [
+            {
+                "id": "kicker-g",
+                "description": "Kicker {1}{G}",
+                "mana": {
+                    "X": 1,
+                    "G": 1
+                }
+            },
+            {
+                "id": "kicker-w",
+                "description": "Kicker {W}",
+                "mana": {
+                    "W": 1
+                }
+            }
+        ],
+        "entersWith": {
+            "counters": [
+                {
+                    "type": "+1/+1",
+                    "count": {
+                        "additionalCostPaid": "kicker-g"
+                    }
+                },
+                {
+                    "type": "+1/+1",
+                    "count": {
+                        "additionalCostPaid": "kicker-g"
+                    }
+                },
+                {
+                    "type": "+1/+1",
+                    "count": {
+                        "additionalCostPaid": "kicker-w"
+                    }
+                }
+            ]
+        },
+        "compiledTriggeredGrantTemplates": [
+            {
+                "id": "necravolver-kicked",
+                "oracleText": "Whenever this creature deals damage, you gain that much life.",
+                "head": {
+                    "kind": "damage-dealt",
+                    "source": "self",
+                    "recipient": "any"
+                },
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": {
+                            "ref": "$event.amount"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "232c32d9-9b0c-458d-b1b3-e4219bd34c82",
+        "rarity": "rare"
+    },
+    {
         "name": "Darkslick Drake",
         "types": [
             "Creature"
@@ -33266,6 +33415,94 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Nurturing Presence",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature has \"Whenever a creature you control enters, this creature gets +1/+1 until end of turn.\"\nWhen this Aura enters, create a 1/1 white Spirit creature token with flying.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "nurturing-presence-trigger",
+                "oracleText": "When this Aura enters, create a 1/1 white Spirit creature token with flying.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Spirit",
+                            "types": [
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Spirit"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": [
+                                "W"
+                            ],
+                            "staticAbilities": [
+                                "flying"
+                            ]
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "triggered-grant",
+                "appliesTo": "host",
+                "abilityId": "nurturing-presence-granted"
+            }
+        ],
+        "compiledTriggeredGrantTemplates": [
+            {
+                "id": "nurturing-presence-granted",
+                "oracleText": "Whenever a creature you control enters, this creature gets +1/+1 until end of turn.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "yours",
+                    "filter": {
+                        "types": [
+                            "Creature"
+                        ]
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 1,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "35e109ea-8b86-4432-b15e-5a6201caf2aa",
+        "rarity": "common"
+    },
+    {
         "name": "Beast in Show",
         "types": [
             "Creature"
@@ -33628,6 +33865,62 @@
             }
         ],
         "id": "368ee06f-9021-4b65-9f53-9c326bf3a27f",
+        "rarity": "common"
+    },
+    {
+        "name": "Pillory of the Sleepless",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1,
+            "B": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature can't attack or block.\nEnchanted creature has \"At the beginning of your upkeep, you lose 1 life.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "attack-restriction",
+                "id": "pillory-of-the-sleepless-cant-attack",
+                "oracleText": "Enchanted creature can't attack or block."
+            },
+            {
+                "kind": "block-restriction",
+                "id": "pillory-of-the-sleepless-cant-block",
+                "oracleText": "Enchanted creature can't attack or block."
+            },
+            {
+                "kind": "triggered-grant",
+                "appliesTo": "host",
+                "abilityId": "pillory-of-the-sleepless-granted"
+            }
+        ],
+        "compiledTriggeredGrantTemplates": [
+            {
+                "id": "pillory-of-the-sleepless-granted",
+                "oracleText": "At the beginning of your upkeep, you lose 1 life.",
+                "head": {
+                    "kind": "phase",
+                    "phase": "UPKEEP",
+                    "scope": "your"
+                },
+                "effects": [
+                    {
+                        "op": "loseLife",
+                        "player": "controller",
+                        "amount": 1
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "36964bbd-f068-4a69-8d6b-7e4e97938b98",
         "rarity": "common"
     },
     {
@@ -37803,6 +38096,70 @@
         "rarity": "common"
     },
     {
+        "name": "Verdant Embrace",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 3,
+            "G": 2
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +3/+3 and has \"At the beginning of each upkeep, create a 1/1 green Saproling creature token.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 3,
+                "toughness": 3
+            },
+            {
+                "kind": "triggered-grant",
+                "appliesTo": "host",
+                "abilityId": "verdant-embrace-granted"
+            }
+        ],
+        "compiledTriggeredGrantTemplates": [
+            {
+                "id": "verdant-embrace-granted",
+                "oracleText": "At the beginning of each upkeep, create a 1/1 green Saproling creature token.",
+                "head": {
+                    "kind": "phase",
+                    "phase": "UPKEEP",
+                    "scope": "each"
+                },
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Saproling",
+                            "types": [
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Saproling"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": [
+                                "G"
+                            ]
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "3dd1d130-98e7-4898-9f13-2bb58fa4777b",
+        "rarity": "rare"
+    },
+    {
         "name": "Megantic Sliver",
         "types": [
             "Creature"
@@ -40445,6 +40802,97 @@
         ],
         "id": "435b700b-2072-47c0-9725-ad04414d2474",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Rakavolver",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Volver"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Kicker {1}{W} and/or {U} (You may pay an additional {1}{W} and/or {U} as you cast this spell.)\nIf this creature was kicked with its {1}{W} kicker, it enters with two +1/+1 counters on it and with \"Whenever this creature deals damage, you gain that much life.\"\nIf this creature was kicked with its {U} kicker, it enters with a +1/+1 counter on it and with flying.",
+        "compiledStaticEffects": [
+            {
+                "kind": "triggered-grant",
+                "abilityId": "rakavolver-kicked",
+                "appliesTo": "self-if-kicked",
+                "kickerId": "kicker-w"
+            },
+            {
+                "kind": "keyword-grant",
+                "keyword": "flying",
+                "appliesTo": "self-if-kicked",
+                "kickerId": "kicker-u"
+            }
+        ],
+        "kickers": [
+            {
+                "id": "kicker-w",
+                "description": "Kicker {1}{W}",
+                "mana": {
+                    "X": 1,
+                    "W": 1
+                }
+            },
+            {
+                "id": "kicker-u",
+                "description": "Kicker {U}",
+                "mana": {
+                    "U": 1
+                }
+            }
+        ],
+        "entersWith": {
+            "counters": [
+                {
+                    "type": "+1/+1",
+                    "count": {
+                        "additionalCostPaid": "kicker-w"
+                    }
+                },
+                {
+                    "type": "+1/+1",
+                    "count": {
+                        "additionalCostPaid": "kicker-w"
+                    }
+                },
+                {
+                    "type": "+1/+1",
+                    "count": {
+                        "additionalCostPaid": "kicker-u"
+                    }
+                }
+            ]
+        },
+        "compiledTriggeredGrantTemplates": [
+            {
+                "id": "rakavolver-kicked",
+                "oracleText": "Whenever this creature deals damage, you gain that much life.",
+                "head": {
+                    "kind": "damage-dealt",
+                    "source": "self",
+                    "recipient": "any"
+                },
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": {
+                            "ref": "$event.amount"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "43787e24-0b7d-4005-8db4-68544476bd34",
+        "rarity": "rare"
     },
     {
         "name": "Gallant Citizen",
@@ -94257,6 +94705,51 @@
         "rarity": "common"
     },
     {
+        "name": "Relic Bane",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 2
+        },
+        "oracleText": "Enchant artifact\nEnchanted artifact has \"At the beginning of your upkeep, you lose 2 life.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "triggered-grant",
+                "appliesTo": "host",
+                "abilityId": "relic-bane-granted"
+            }
+        ],
+        "compiledTriggeredGrantTemplates": [
+            {
+                "id": "relic-bane-granted",
+                "oracleText": "At the beginning of your upkeep, you lose 2 life.",
+                "head": {
+                    "kind": "phase",
+                    "phase": "UPKEEP",
+                    "scope": "your"
+                },
+                "effects": [
+                    {
+                        "op": "loseLife",
+                        "player": "controller",
+                        "amount": 2
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Artifact",
+            "count": 1
+        },
+        "id": "9cbafa51-693b-485c-807d-64020540f16a",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Filigree Familiar",
         "types": [
             "Artifact",
@@ -126305,6 +126798,56 @@
         "rarity": "common"
     },
     {
+        "name": "Infernal Scarring",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +2/+0 and has \"When this creature dies, draw a card.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 0
+            },
+            {
+                "kind": "triggered-grant",
+                "appliesTo": "host",
+                "abilityId": "infernal-scarring-granted"
+            }
+        ],
+        "compiledTriggeredGrantTemplates": [
+            {
+                "id": "infernal-scarring-granted",
+                "oracleText": "When this creature dies, draw a card.",
+                "head": {
+                    "kind": "died",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "d1ead8cc-5b7d-4a6d-a56f-95da91a958d2",
+        "rarity": "common"
+    },
+    {
         "name": "Barbarian Horde",
         "types": [
             "Creature"
@@ -127816,6 +128359,60 @@
             "haste"
         ],
         "id": "d5222448-95d1-4b63-ab76-d5060febcf38",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Consuming Fervor",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "R": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature gets +3/+3 and has \"At the beginning of your upkeep, put a -1/-1 counter on this creature.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 3,
+                "toughness": 3
+            },
+            {
+                "kind": "triggered-grant",
+                "appliesTo": "host",
+                "abilityId": "consuming-fervor-granted"
+            }
+        ],
+        "compiledTriggeredGrantTemplates": [
+            {
+                "id": "consuming-fervor-granted",
+                "oracleText": "At the beginning of your upkeep, put a -1/-1 counter on this creature.",
+                "head": {
+                    "kind": "phase",
+                    "phase": "UPKEEP",
+                    "scope": "your"
+                },
+                "effects": [
+                    {
+                        "op": "counters",
+                        "action": "add",
+                        "counter": "-1/-1",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "d529d230-89b0-453b-987b-a47e15bc3830",
         "rarity": "uncommon"
     },
     {
@@ -136535,6 +137132,62 @@
         ],
         "id": "e5634d1a-ca4b-4528-9e0e-b88f1025d434",
         "rarity": "common"
+    },
+    {
+        "name": "Sixth Sense",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature has \"Whenever this creature deals combat damage to a player, you may draw a card.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "triggered-grant",
+                "appliesTo": "host",
+                "abilityId": "sixth-sense-granted"
+            }
+        ],
+        "compiledTriggeredGrantTemplates": [
+            {
+                "id": "sixth-sense-granted",
+                "oracleText": "Whenever this creature deals combat damage to a player, you may draw a card.",
+                "head": {
+                    "kind": "combat-damage-to-player"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Draw a card?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "draw",
+                                "player": "controller",
+                                "count": 1
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "e564db6b-0b8b-4c67-9135-5da76d2225fe",
+        "rarity": "uncommon"
     },
     {
         "name": "Teetering Peaks",
