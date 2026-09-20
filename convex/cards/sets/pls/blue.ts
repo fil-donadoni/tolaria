@@ -10,6 +10,7 @@ import {
     PERMANENT_TYPES,
 } from "../../types";
 import { chooseColorEffects } from "../../abilities/chooseColor";
+import { landTypeChangeEffects } from "../../abilities/chooseLandType";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { additionalCostPaidCondition } from "../../abilities/triggers/shared";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
@@ -445,24 +446,15 @@ export const seaSnidd: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "Land", count: 1 },
-            effects: [
-                {
-                    op: "optionChoice",
-                    prompt: "Choose a basic land type (Sea Snidd).",
-                    modes: BASIC_LAND_SUBTYPES.map((subtype) => ({
-                        id: subtype,
-                        label: subtype,
-                        effects: [
-                            {
-                                op: "setSubtype" as const,
-                                target: { target: 0 },
-                                subtypes: [subtype],
-                                duration: { phase: "end-of-turn" as const },
-                            },
-                        ],
-                    })),
-                },
-            ],
+            // Shared with Dream Thrush and with the Oracle compiler's
+            // land-type rule (issue #4138) — the three have to agree byte for
+            // byte or this card stops round-tripping under Guard C.
+            effects: landTypeChangeEffects(
+                { target: 0 },
+                BASIC_LAND_SUBTYPES,
+                { phase: "end-of-turn" },
+                "Choose a basic land type (Sea Snidd)."
+            ),
         },
     ],
 };

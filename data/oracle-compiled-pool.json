@@ -14598,6 +14598,162 @@
         "rarity": "rare"
     },
     {
+        "name": "Pixie Illusionist",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Faerie",
+            "Wizard"
+        ],
+        "manaCost": {
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Kicker {3}{G} (You may pay an additional {3}{G} as you cast this spell.)\nFlying\nIf this creature was kicked, it enters with two +1/+1 counters on it.\n{T}: Target land you control becomes the basic land type of your choice until end of turn.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "pixie-illusionist-ability",
+                "oracleText": "{T}: Target land you control becomes the basic land type of your choice until end of turn.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "optionChoice",
+                        "prompt": "Choose a basic land type (Pixie Illusionist).",
+                        "modes": [
+                            {
+                                "id": "Plains",
+                                "label": "Plains",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Plains"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "Island",
+                                "label": "Island",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Island"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "Swamp",
+                                "label": "Swamp",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Swamp"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "Mountain",
+                                "label": "Mountain",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Mountain"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "Forest",
+                                "label": "Forest",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Forest"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Land",
+                    "count": 1,
+                    "controller": "you"
+                }
+            }
+        ],
+        "kickers": [
+            {
+                "id": "kicker",
+                "description": "Kicker {3}{G}",
+                "mana": {
+                    "X": 3,
+                    "G": 1
+                }
+            }
+        ],
+        "entersWith": {
+            "counters": [
+                {
+                    "type": "+1/+1",
+                    "count": "kicker"
+                },
+                {
+                    "type": "+1/+1",
+                    "count": "kicker"
+                }
+            ]
+        },
+        "id": "171bfcb2-dd43-4d63-b2e2-6ca594c2ec40",
+        "rarity": "common"
+    },
+    {
         "name": "Insatiable Souleater",
         "types": [
             "Artifact",
@@ -43728,6 +43884,137 @@
         "rarity": "common"
     },
     {
+        "name": "Grixis Illusionist",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{T}: Target land you control becomes the basic land type of your choice until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "grixis-illusionist-ability",
+                "oracleText": "{T}: Target land you control becomes the basic land type of your choice until end of turn.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "optionChoice",
+                        "prompt": "Choose a basic land type (Grixis Illusionist).",
+                        "modes": [
+                            {
+                                "id": "Plains",
+                                "label": "Plains",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Plains"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "Island",
+                                "label": "Island",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Island"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "Swamp",
+                                "label": "Swamp",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Swamp"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "Mountain",
+                                "label": "Mountain",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Mountain"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "Forest",
+                                "label": "Forest",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Forest"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Land",
+                    "count": 1,
+                    "controller": "you"
+                }
+            }
+        ],
+        "id": "48352b88-857d-4386-83c6-0e047d11c15b",
+        "rarity": "common"
+    },
+    {
         "name": "Bloodfire Mentor",
         "types": [
             "Creature"
@@ -68342,6 +68629,126 @@
         "oracleText": "This creature enters tapped.",
         "entersTapped": true,
         "id": "723d6f60-3e8a-4c58-8b3c-9ba59a01c867",
+        "rarity": "common"
+    },
+    {
+        "name": "Shimmering Mirage",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "oracleText": "Target land becomes the basic land type of your choice until end of turn.\nDraw a card.",
+        "effects": [
+            {
+                "op": "optionChoice",
+                "prompt": "Choose a basic land type (Shimmering Mirage).",
+                "modes": [
+                    {
+                        "id": "Plains",
+                        "label": "Plains",
+                        "effects": [
+                            {
+                                "op": "setSubtype",
+                                "target": {
+                                    "target": 0
+                                },
+                                "subtypes": [
+                                    "Plains"
+                                ],
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "id": "Island",
+                        "label": "Island",
+                        "effects": [
+                            {
+                                "op": "setSubtype",
+                                "target": {
+                                    "target": 0
+                                },
+                                "subtypes": [
+                                    "Island"
+                                ],
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "id": "Swamp",
+                        "label": "Swamp",
+                        "effects": [
+                            {
+                                "op": "setSubtype",
+                                "target": {
+                                    "target": 0
+                                },
+                                "subtypes": [
+                                    "Swamp"
+                                ],
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "id": "Mountain",
+                        "label": "Mountain",
+                        "effects": [
+                            {
+                                "op": "setSubtype",
+                                "target": {
+                                    "target": 0
+                                },
+                                "subtypes": [
+                                    "Mountain"
+                                ],
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "id": "Forest",
+                        "label": "Forest",
+                        "effects": [
+                            {
+                                "op": "setSubtype",
+                                "target": {
+                                    "target": 0
+                                },
+                                "subtypes": [
+                                    "Forest"
+                                ],
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Land",
+            "count": 1
+        },
+        "id": "7263e20e-5473-42e9-90c3-3bcd848644ca",
         "rarity": "common"
     },
     {
@@ -104061,6 +104468,52 @@
         "rarity": "common"
     },
     {
+        "name": "Tidal Warrior",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Merfolk",
+            "Warrior"
+        ],
+        "manaCost": {
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{T}: Target land becomes an Island until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "tidal-warrior-ability",
+                "oracleText": "{T}: Target land becomes an Island until end of turn.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "setSubtype",
+                        "target": {
+                            "target": 0
+                        },
+                        "subtypes": [
+                            "Island"
+                        ],
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Land",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "ab89a30a-ac4d-4a5e-bbff-a02366bc9cf6",
+        "rarity": "common"
+    },
+    {
         "name": "Brazen Wolves",
         "types": [
             "Creature"
@@ -120706,6 +121159,136 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Reef Shaman",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Merfolk",
+            "Shaman"
+        ],
+        "manaCost": {
+            "U": 1
+        },
+        "power": 0,
+        "toughness": 2,
+        "oracleText": "{T}: Target land becomes the basic land type of your choice until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "reef-shaman-ability",
+                "oracleText": "{T}: Target land becomes the basic land type of your choice until end of turn.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "optionChoice",
+                        "prompt": "Choose a basic land type (Reef Shaman).",
+                        "modes": [
+                            {
+                                "id": "Plains",
+                                "label": "Plains",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Plains"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "Island",
+                                "label": "Island",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Island"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "Swamp",
+                                "label": "Swamp",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Swamp"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "Mountain",
+                                "label": "Mountain",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Mountain"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "Forest",
+                                "label": "Forest",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Forest"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Land",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "c6f56714-0baa-48f9-8da1-50d9279e759c",
+        "rarity": "common"
+    },
+    {
         "name": "Cursebreak",
         "types": [
             "Instant"
@@ -130928,6 +131511,139 @@
         "rarity": "common"
     },
     {
+        "name": "Unstable Frontier",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {C}.\n{T}: Target land you control becomes the basic land type of your choice until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "unstable-frontier-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "unstable-frontier-ability-2",
+                "oracleText": "{T}: Target land you control becomes the basic land type of your choice until end of turn.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "optionChoice",
+                        "prompt": "Choose a basic land type (Unstable Frontier).",
+                        "modes": [
+                            {
+                                "id": "Plains",
+                                "label": "Plains",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Plains"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "Island",
+                                "label": "Island",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Island"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "Swamp",
+                                "label": "Swamp",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Swamp"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "Mountain",
+                                "label": "Mountain",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Mountain"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "Forest",
+                                "label": "Forest",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Forest"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Land",
+                    "count": 1,
+                    "controller": "you"
+                }
+            }
+        ],
+        "id": "d97e739f-8675-488e-be2b-4e455fbe390b",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Utopia Vow",
         "types": [
             "Enchantment"
@@ -132990,6 +133706,133 @@
             }
         ],
         "id": "de33c222-0d74-4eb5-8794-39f3601eb8f4",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Mystic Compass",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 2
+        },
+        "oracleText": "{1}, {T}: Target land becomes the basic land type of your choice until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "mystic-compass-ability",
+                "oracleText": "{1}, {T}: Target land becomes the basic land type of your choice until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "optionChoice",
+                        "prompt": "Choose a basic land type (Mystic Compass).",
+                        "modes": [
+                            {
+                                "id": "Plains",
+                                "label": "Plains",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Plains"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "Island",
+                                "label": "Island",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Island"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "Swamp",
+                                "label": "Swamp",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Swamp"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "Mountain",
+                                "label": "Mountain",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Mountain"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "Forest",
+                                "label": "Forest",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Forest"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Land",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "de53ba3a-f2f7-4ea6-a2f6-dd5b87029e58",
         "rarity": "uncommon"
     },
     {
@@ -137050,6 +137893,137 @@
         ],
         "entersTapped": true,
         "id": "e51b48e9-a75a-4acd-9462-5e1ac2b0d803",
+        "rarity": "common"
+    },
+    {
+        "name": "Tideshaper Mystic",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Merfolk",
+            "Wizard"
+        ],
+        "manaCost": {
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{T}: Target land becomes the basic land type of your choice until end of turn. Activate only during your turn.",
+        "activatedAbilities": [
+            {
+                "id": "tideshaper-mystic-ability",
+                "oracleText": "{T}: Target land becomes the basic land type of your choice until end of turn. Activate only during your turn.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "optionChoice",
+                        "prompt": "Choose a basic land type (Tideshaper Mystic).",
+                        "modes": [
+                            {
+                                "id": "Plains",
+                                "label": "Plains",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Plains"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "Island",
+                                "label": "Island",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Island"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "Swamp",
+                                "label": "Swamp",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Swamp"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "Mountain",
+                                "label": "Mountain",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Mountain"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "Forest",
+                                "label": "Forest",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Forest"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Land",
+                    "count": 1
+                },
+                "controllerTurnOnly": true
+            }
+        ],
+        "id": "e526ebbf-2041-4c3e-9a20-73bbf6f90251",
         "rarity": "common"
     },
     {
@@ -149420,6 +150394,82 @@
             }
         ],
         "id": "fc0c17c9-54af-4dd4-8d4a-fd5a7b8c3c77",
+        "rarity": "common"
+    },
+    {
+        "name": "Tundra Kavu",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Kavu"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{T}: Target land becomes a Plains or an Island until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "tundra-kavu-ability",
+                "oracleText": "{T}: Target land becomes a Plains or an Island until end of turn.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "optionChoice",
+                        "prompt": "Choose a basic land type (Tundra Kavu).",
+                        "modes": [
+                            {
+                                "id": "Plains",
+                                "label": "Plains",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Plains"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "Island",
+                                "label": "Island",
+                                "effects": [
+                                    {
+                                        "op": "setSubtype",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "subtypes": [
+                                            "Island"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Land",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "fc34e735-ac3c-4954-a4c8-3ed55d811715",
         "rarity": "common"
     },
     {

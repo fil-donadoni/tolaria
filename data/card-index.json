@@ -20956,6 +20956,16 @@
         "source": "compiled"
     },
     {
+        "name": "Grixis Illusionist",
+        "scryfallId": "48352b88-857d-4386-83c6-0e047d11c15b",
+        "oracleId": "c231698b-c584-4047-9668-5322e4b0065b",
+        "firstSet": "con",
+        "firstPrintId": "48352b88-857d-4386-83c6-0e047d11c15b",
+        "firstPrintSet": "con",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Grizzled Leotau",
         "scryfallId": "2b388381-9e13-4ce7-b5b3-56a74cc23d93",
         "oracleId": "59edd0e7-37c2-45f9-9f9d-8002be459662",
@@ -31470,6 +31480,16 @@
         "source": "compiled"
     },
     {
+        "name": "Mystic Compass",
+        "scryfallId": "de53ba3a-f2f7-4ea6-a2f6-dd5b87029e58",
+        "oracleId": "87bafa97-38fd-41a2-8b1d-315e88d9d0bf",
+        "firstSet": "all",
+        "firstPrintId": "de53ba3a-f2f7-4ea6-a2f6-dd5b87029e58",
+        "firstPrintSet": "all",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Mystic Gate",
         "scryfallId": "3dfa866b-93e2-4365-91b0-f12d1f7c5395",
         "oracleId": "e9f5feb2-2c1a-46ce-885a-4f378d7d10af",
@@ -35184,6 +35204,16 @@
         "source": "compiled"
     },
     {
+        "name": "Pixie Illusionist",
+        "scryfallId": "171bfcb2-dd43-4d63-b2e2-6ca594c2ec40",
+        "oracleId": "3bd066d3-5b07-4986-9e6c-39d1ae6212ff",
+        "firstSet": "dmu",
+        "firstPrintId": "171bfcb2-dd43-4d63-b2e2-6ca594c2ec40",
+        "firstPrintSet": "dmu",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Pixie Queen",
         "scryfallId": "b9527c2a-23bb-4d33-9e72-6e0ab3de0e6b",
         "oracleId": "38a7d4ef-d296-4896-9b6b-2fd3ad518243",
@@ -37944,6 +37974,16 @@
         "firstSet": "por",
         "firstPrintId": "e9399667-ae2a-4b64-84dd-8f97f3e5fe79",
         "firstPrintSet": "por",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Reef Shaman",
+        "scryfallId": "c6f56714-0baa-48f9-8da1-50d9279e759c",
+        "oracleId": "4ad870b2-133c-4229-84a8-f91e4c62fcd0",
+        "firstSet": "apc",
+        "firstPrintId": "c6f56714-0baa-48f9-8da1-50d9279e759c",
+        "firstPrintSet": "apc",
         "rarity": "common",
         "source": "compiled"
     },
@@ -42120,6 +42160,16 @@
         "firstSet": "lrw",
         "firstPrintId": "b5e85acc-ed12-4036-8193-739721c3e178",
         "firstPrintSet": "lrw",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Shimmering Mirage",
+        "scryfallId": "7263e20e-5473-42e9-90c3-3bcd848644ca",
+        "oracleId": "d1720ddc-d6ad-4d78-8dd7-29539bbb73da",
+        "firstSet": "apc",
+        "firstPrintId": "7263e20e-5473-42e9-90c3-3bcd848644ca",
+        "firstPrintSet": "apc",
         "rarity": "common",
         "source": "compiled"
     },
@@ -49034,6 +49084,16 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Tidal Warrior",
+        "scryfallId": "ab89a30a-ac4d-4a5e-bbff-a02366bc9cf6",
+        "oracleId": "9a1bc869-08a1-4a70-9c9f-2e02e47cd95b",
+        "firstSet": "sth",
+        "firstPrintId": "ab89a30a-ac4d-4a5e-bbff-a02366bc9cf6",
+        "firstPrintSet": "sth",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Tidehollow Sculler",
         "scryfallId": "1abecc77-07f2-43e4-8585-0a8199cdcf01",
         "oracleId": "51b55057-8b14-4277-894b-4813b4f7eb39",
@@ -49048,6 +49108,16 @@
         "firstSet": "ala",
         "firstPrintId": "4aafc65d-faa8-4bfe-83ac-7714c969022b",
         "firstPrintSet": "ala",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Tideshaper Mystic",
+        "scryfallId": "e526ebbf-2041-4c3e-9a20-73bbf6f90251",
+        "oracleId": "3eec0ca6-e461-4583-9989-e4f6b15a53f8",
+        "firstSet": "lrw",
+        "firstPrintId": "e526ebbf-2041-4c3e-9a20-73bbf6f90251",
+        "firstPrintSet": "lrw",
         "rarity": "common",
         "source": "compiled"
     },
@@ -50412,6 +50482,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Tundra Kavu",
+        "scryfallId": "fc34e735-ac3c-4954-a4c8-3ed55d811715",
+        "oracleId": "b0b7d88b-694b-4bbe-888d-05245e7d1c3e",
+        "firstSet": "apc",
+        "firstPrintId": "fc34e735-ac3c-4954-a4c8-3ed55d811715",
+        "firstPrintSet": "apc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Tundra Wall",
         "scryfallId": "49ae7f36-4b37-415e-ab39-5fa1e3f2e3e9",
         "oracleId": "68df4c46-513a-4d75-9d4b-ac95d45be255",
@@ -51154,6 +51234,16 @@
         "firstSet": "scg",
         "firstPrintId": "2cc4601b-5f34-4733-8c32-9779de4c502c",
         "firstPrintSet": "scg",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Unstable Frontier",
+        "scryfallId": "d97e739f-8675-488e-be2b-4e455fbe390b",
+        "oracleId": "495214b5-2eab-4fe4-8879-a30a57a67163",
+        "firstSet": "con",
+        "firstPrintId": "d97e739f-8675-488e-be2b-4e455fbe390b",
+        "firstPrintSet": "con",
         "rarity": "uncommon",
         "source": "compiled"
     },
