@@ -1324,14 +1324,41 @@ describe("selectRootMove — sorcery-speed permanent tie-break (issue #4070)", (
     const WINTER_ORB = getCardByName("Winter Orb").id; // symmetric untap lock, no ability
     const HOWLING_MINE = getCardByName("Howling Mine").id; // each player draws, no ability
     const AURA = getCardByName("Wild Growth").id; // enchant land: targets at cast
-    const FLASH_ENCHANTMENT: CardDefinition = {
-        id: "issue-4070:flash-enchantment",
-        name: "Issue 4070 Flash Enchantment",
+    // Each synthetic carries a controller-usable activated ability, so the
+    // ONLY thing that can keep it out of the class is the property it names.
+    const ABILITY = {
+        id: "issue-4070-ability",
+        oracleText: "Sacrifice this enchantment: draw a card.",
+        cost: { sacrifice: true },
+        useStack: true,
+        effects: [{ op: "draw", player: "controller", count: 1 }],
+    } as const;
+    const synthetic = (
+        key: string,
+        over: Partial<CardDefinition>
+    ): CardDefinition => ({
+        id: `issue-4070:${key}`,
+        name: `Issue 4070 ${key}`,
         rarity: "common",
         manaCost: { W: 1 },
         types: ["Enchantment"],
+        activatedAbilities: [ABILITY],
+        ...over,
+    });
+    const FLASH_ENCHANTMENT = synthetic("flash", {
         staticAbilities: ["flash"],
-    };
+    });
+    const AS_THOUGH_FLASH_ENCHANTMENT = synthetic("as-though-flash", {
+        castAsThoughFlash: true,
+    });
+    const OPPONENTS_ONLY_ENCHANTMENT = synthetic("opponents-only", {
+        activatedAbilities: [{ ...ABILITY, activatableByOpponentsOnly: true }],
+    });
+    const SYNTHETICS = {
+        flash: FLASH_ENCHANTMENT,
+        "as-though-flash": AS_THOUGH_FLASH_ENCHANTMENT,
+        "opponents-only": OPPONENTS_ONLY_ENCHANTMENT,
+    } as const;
     const PASS: Move = { kind: "pass" };
     const LAND: Move = { kind: "play-land", cardInstanceId: "forest" };
     const cast = (
@@ -1346,7 +1373,10 @@ describe("selectRootMove — sorcery-speed permanent tie-break (issue #4070)", (
             tapPlan: tapped.map((id) => ({ cardInstanceId: id })),
         }) as unknown as Move;
 
-    function rootState(extraHand: string[] = [], withFlash = false): GameState {
+    function rootState(
+        extraHand: string[] = [],
+        synthetics: (keyof typeof SYNTHETICS)[] = []
+    ): GameState {
         const inHand = (id: string, cardId: string) =>
             makeInstance(cardId, {
                 id,
@@ -1368,9 +1398,9 @@ describe("selectRootMove — sorcery-speed permanent tie-break (issue #4070)", (
                         inHand("orb", WINTER_ORB),
                         inHand("mine", HOWLING_MINE),
                         inHand("aura", AURA),
-                        ...(withFlash
-                            ? [inHand("flash", FLASH_ENCHANTMENT.id)]
-                            : []),
+                        ...synthetics.map((key) =>
+                            inHand(key, SYNTHETICS[key].id)
+                        ),
                         ...extraHand.map((id) => inHand(id, BOLT)),
                     ],
                     battlefield: ["mountain", "mountain2"].map((id) =>
@@ -1446,9 +1476,39 @@ describe("selectRootMove — sorcery-speed permanent tie-break (issue #4070)", (
         ).toBe("pass");
     });
 
-    it("NO-FIRE: leaves a Flash permanent to hold-trick (it keeps an instant-speed option)", () => {
-        withTemporaryDefinition(FLASH_ENCHANTMENT, () => {
-            expect(pickAmong(cast("flash"), rootState([], true))).toBe("pass");
+    it.each(["flash", "as-though-flash"] as const)(
+        "NO-FIRE: leaves an instant-speed permanent (%s) to hold-trick",
+        (key) => {
+            withTemporaryDefinition(SYNTHETICS[key], () => {
+                expect(pickAmong(cast(key), rootState([], [key]))).toBe("pass");
+            });
+        }
+    );
+
+    it("NO-FIRE: an ability only the OPPONENT may activate is not the controller's option", () => {
+        withTemporaryDefinition(OPPONENTS_ONLY_ENCHANTMENT, () => {
+            expect(
+                pickAmong(
+                    cast("opponents-only"),
+                    rootState([], ["opponents-only"])
+                )
+            ).toBe("pass");
+        });
+    });
+
+    it("FIRE (control for the three above): the same synthetic with a plain ability deploys", () => {
+        const plain = synthetic("plain", {});
+        withTemporaryDefinition(plain, () => {
+            const state = rootState();
+            state.players[0]!.hand.push(
+                makeInstance(plain.id, {
+                    id: "plain",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    zone: "hand",
+                })
+            );
+            expect(pickAmong(cast("plain"), state)).toBe("cast-spell");
         });
     });
 
