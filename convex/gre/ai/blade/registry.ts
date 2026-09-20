@@ -7212,6 +7212,57 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         note: "Issue #2715 — the assembly step of the Parallax Replenish list. Exactly four Plains, so the {3}{W} is payable and nothing else is; the only two lines on the board are this cast and a pass.",
     },
     {
+        // Issue #4070 — Bot Gap `never-chosen › Enchantment › destroy`. Seal of
+        // Doom ("Sacrifice this enchantment: Destroy target nonblack
+        // creature") is a removal spell that waits on the battlefield, and the
+        // Bot never cast it: at any budget from 48 to 400 iterations `pass`
+        // was chosen, on every seed, at both seats.
+        //
+        // The claim is a TIE-BREAK, not a valuation. With the mana open and
+        // nothing else to do, casting the Seal now and casting it after combat
+        // reach the same position (the `pass` edge's own rollouts cast it
+        // later), so the two are outcome-equal and the material tie-break went
+        // to `pass`. A sorcery-speed, untargeted artifact or enchantment has no
+        // option value to holding (`free-development`, ADR 0020 §1 — the same
+        // rationale as a land drop or a mana dork), so deferring it is never
+        // right. Exactly five Swamps: the {2}{B} is payable and nothing else
+        // competes for the mana. Both sides field a body of each kind — the
+        // shape of the bot-play sweep's generated position — because that is
+        // what makes the tie: against a lone opposing creature the cast is
+        // strictly better on reward and the rule is never consulted (measured:
+        // the entry passes with the rule off there, so it would prove nothing).
+        //
+        // Proven red by turning the rule off
+        // (`BLADE_VARIANT=no-rule:free-development`): the Bot passes.
+        // Its negative controls are unit tests, not registry entries — a
+        // creature, a Flash permanent, a targeted Aura and a hand that holds a
+        // castable instant must each be left to the search, and none of them
+        // has a position whose right answer is unambiguous (`selectRootMove —
+        // sorcery-speed permanent tie-break`, `gre/__tests__/search.bot.test.ts`).
+        label: "sorcery-speed permanent: deploys a Seal with the mana open and nothing else to do",
+        spec: {
+            cards: [
+                { name: "Swamp", owner: "me", zone: "battlefield", count: 5 },
+                { name: "Seal of Doom", owner: "me", zone: "hand" },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                { name: "Ornithopter", owner: "me", zone: "battlefield" },
+                { name: "Castle", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Ornithopter", owner: "opp", zone: "battlefield" },
+                { name: "Castle", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "cast-spell", card: "Seal of Doom" }] },
+        note: "Issue #4070 — free-development covers an untargeted sorcery-speed non-creature permanent. Turning the rule off (`BLADE_VARIANT=no-rule:free-development`) makes the Bot pass on every seed.",
+    },
+    {
         // DISCRIMINATING PAIR, half 1 (issue #3398, PRD #3397). The position
         // issue #3322 reported and `docs/research/greedy-vs-search.md`
         // reproduced: Stone Rain in hand, exactly its {2}{R} in untapped
