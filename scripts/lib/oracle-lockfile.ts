@@ -184,6 +184,17 @@ const DRIVER_FILES = [
     "scripts/lib/oracle-lockfile.ts",
     // The Bot Gap key and table (issue #3830) — rendered into this file.
     "scripts/lib/oracle-bot-reach.ts",
+    // The one CATALOGUE module a lowering value-imports (issue #4137):
+    // `lowerEffects.ts` builds every "becomes the color of your choice" script
+    // by calling `chooseColorEffects`, so that function's body — the mode
+    // order, each mode's `id`/`label`/`color`, the `setColor` field set — is
+    // baked into every compiled definition the colour rule emits. Reordering
+    // the five modes there changes the lockfile's bytes while nothing under
+    // `convex/oracle/**` moves, and tier 1 (the only tier that runs on a clean
+    // checkout, where the 24 MB corpus is absent) would stay green on a stale
+    // file. Same reason the driver files above are here, and the same reason
+    // the Mechanics Registry has `registryHash`.
+    "convex/cards/abilities/chooseColor.ts",
 ] as const;
 
 /**

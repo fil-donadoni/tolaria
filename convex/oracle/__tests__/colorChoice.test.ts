@@ -3,10 +3,15 @@
 //
 // Four layers, each watching a different way this family can go wrong:
 //
-//  1. GOLDEN forms — a real corpus card compiled whole must produce exactly
-//     the Compiled Definition below: the permanent target with a duration and
-//     without one, the two narrowed STACK phrases (an instant-or-sorcery
-//     spell, and CR 115.2's spell-or-permanent union), and the source itself.
+//  1. GOLDEN forms — a real corpus card must produce exactly the Compiled
+//     Definition below: the permanent target with a duration and without one,
+//     the two narrowed STACK phrases (an instant-or-sorcery spell, and
+//     CR 115.2's spell-or-permanent union), and the source itself. Each is the
+//     whole card, except Illusion — the front FACE of the split card
+//     Illusion // Reality (CR 712), asserted on its own because the split
+//     layout is another rule's subject; the face compiles byte-identically
+//     inside the real card, which `goldenFixtures`-style whole-card evidence
+//     for the union is not needed twice for.
 //  2. REFUSALS — the neighbouring colour templates this rule must NOT read: a
 //     plural target, "the color OR COLORS of your choice", a conjunct tail in
 //     the duration slot, and a fronted duration whose grant hangs off the
@@ -187,9 +192,9 @@ describe("becomes the color of your choice (CR 613.1e)", () => {
         );
     });
 
-    // CR 115.2 — a SPELL on the stack, narrowed by card type. The colour is a
-    // characteristic of an object (CR 109.1), so the stack is as legal a home
-    // for the change as the battlefield is.
+    // CR 115.2 — a SPELL on the stack, narrowed by card type. Colour is a
+    // characteristic (CR 109.3), and a spell is an object (CR 109.1), so the
+    // stack is as legal a home for the change as the battlefield is.
     it("compiles the narrowed spell target — Vodalian Mystic, whole", () => {
         const oracleText =
             "{T}: Target instant or sorcery spell becomes the color of your choice.";
@@ -271,8 +276,9 @@ describe("becomes the color of your choice (CR 613.1e)", () => {
         );
     });
 
-    // CR 109.2 — the source itself, which announces no target at all: the Op
-    // points at `$source`, and the ability carries no `targetRequirement`.
+    // CR 113.7 — the ability's own SOURCE, which announces no target at all:
+    // the Op points at `$source`, and the ability carries no
+    // `targetRequirement`.
     it("compiles the self form — Caldera Kavu's second ability", () => {
         const definition = compiled(
             oracleCard({
@@ -480,7 +486,9 @@ describe("the two new target phrases (CR 115.2)", () => {
     it("lets no battlefield verb read the spell-or-permanent union", () => {
         expect(
             refusedAt(instant("Probe", "Destroy target spell or permanent."))
-        ).toEqual(["a spell is on the stack, not the battlefield (CR 112.1)"]);
+        ).toEqual([
+            "a spell-or-permanent slot spans two zones; a battlefield verb reads one (CR 115.2)",
+        ]);
     });
 
     // CR 701.6a — a counter cancels a SPELL; the union announces something
@@ -489,6 +497,66 @@ describe("the two new target phrases (CR 115.2)", () => {
         expect(
             refusedAt(instant("Probe", "Counter target spell or permanent."))
         ).toEqual(["effect clause: Counter target spell or permanent"]);
+    });
+
+    // The OTHER verb the narrowed spell phrase reaches through the shared
+    // sub-grammar, evidenced rather than left to be rediscovered: a counter
+    // announcing the same slot is correct (CR 701.6a on a spell), and it is
+    // the only further form this ticket's target phrases open. No printed card
+    // moves state on it today.
+    it("lets a counter read the narrowed spell phrase, correctly", () => {
+        expect(
+            compiled(
+                instant("Probe", "Counter target instant or sorcery spell.")
+            )
+        ).toMatchObject({
+            effects: [{ op: "counter", target: { target: 0 } }],
+            targetRequirement: {
+                type: "spell",
+                count: 1,
+                spellTypeFilter: ["Instant", "Sorcery"],
+            },
+        });
+    });
+});
+
+describe("the colour change's own selector is an allow-list", () => {
+    function artifact(oracleText: string) {
+        return oracleCard({
+            name: "Probe",
+            manaCost: "{2}",
+            typeLine: "Artifact",
+            oracleText,
+            power: undefined,
+            toughness: undefined,
+        });
+    }
+
+    // CR 115.4 — "any target" announces a slot a PLAYER can fill, and a player
+    // has no colour. Lowered, the ability would be activated legally, the
+    // player chosen legally, and nothing would happen.
+    it("refuses 'any target'", () => {
+        expect(
+            refusedAt(
+                artifact(
+                    "{T}: Any target becomes the color of your choice until end of turn."
+                )
+            )
+        ).toEqual(["a player has no color (CR 109.1)"]);
+    });
+
+    // CR 400.1 — a card in a graveyard is in neither zone the Op writes
+    // (`setColorOverride` reaches a permanent or a spell).
+    it("refuses a card in a graveyard", () => {
+        expect(
+            refusedAt(
+                artifact(
+                    "{T}: Target creature card in your graveyard becomes the color of your choice."
+                )
+            )
+        ).toEqual([
+            "a colour change reaches the battlefield and the stack (CR 613.1e)",
+        ]);
     });
 });
 
