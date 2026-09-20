@@ -156,7 +156,12 @@ import {
 // Phyrexian Altar, Phyrexian Lens, Standing Stones, Sylvan Caryatid and Utopia
 // Tree round-trip once the five-colour production reads — the shape they all
 // already ship as `manaChoices` (CR 106.1a).
-const BASELINE_CEILING = 1569;
+//
+// Lowered 1569 -> 1563 by issue #4132 (mass P/T): Bone Flute, Gaea's Might,
+// Hell Swarm, Marsh Gas, Shield Wall and Sunscape Master round-trip once a
+// group "get" reads as a sweep and "for each basic land type among lands you
+// control" scales a pump by the controller's Domain.
+const BASELINE_CEILING = 1563;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that

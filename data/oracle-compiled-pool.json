@@ -132,6 +132,44 @@
         "rarity": "common"
     },
     {
+        "name": "Charge",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "oracleText": "Creatures you control get +1/+1 until end of turn.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "controller": "controller",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": 1,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "000eded9-854c-408a-aadf-c26209e27432",
+        "rarity": "common"
+    },
+    {
         "name": "Afflict",
         "types": [
             "Instant"
@@ -1547,6 +1585,44 @@
         "rarity": "common"
     },
     {
+        "name": "Chorus of Woe",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "B": 1
+        },
+        "oracleText": "Creatures you control get +1/+0 until end of turn.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "controller": "controller",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": 1,
+                        "toughness": 0,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "0289ddb3-b35c-4edf-92bb-06f84a3475d9",
+        "rarity": "common"
+    },
+    {
         "name": "Qilin's Blessing",
         "types": [
             "Instant"
@@ -2591,6 +2667,48 @@
         "rarity": "common"
     },
     {
+        "name": "Drag Down",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "oracleText": "Domain — Target creature gets -1/-1 until end of turn for each basic land type among lands you control.",
+        "effects": [
+            {
+                "op": "pump",
+                "target": {
+                    "target": 0
+                },
+                "power": {
+                    "negate": {
+                        "domain": {
+                            "of": "controller"
+                        }
+                    }
+                },
+                "toughness": {
+                    "negate": {
+                        "domain": {
+                            "of": "controller"
+                        }
+                    }
+                },
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "03eb2163-cce2-4d07-b7d7-9c70a41fa373",
+        "rarity": "common"
+    },
+    {
         "name": "Swab Goblin",
         "types": [
             "Creature"
@@ -2889,6 +3007,48 @@
         "power": 5,
         "toughness": 2,
         "id": "04623df9-8fa9-44cc-b528-c2c484626d1f",
+        "rarity": "common"
+    },
+    {
+        "name": "Path of Anger's Flame",
+        "types": [
+            "Instant"
+        ],
+        "subtypes": [
+            "Arcane"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "oracleText": "Creatures you control get +2/+0 until end of turn.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "controller": "controller",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": 2,
+                        "toughness": 0,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "046fd4b1-d3a4-4859-a0d4-0e8341e6c6c7",
         "rarity": "common"
     },
     {
@@ -6491,6 +6651,64 @@
         "rarity": "common"
     },
     {
+        "name": "Water Tribe Captain",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Soldier",
+            "Ally"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "{5}: Creatures you control get +1/+1 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "water-tribe-captain-ability",
+                "oracleText": "{5}: Creatures you control get +1/+1 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 5
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "0a0cdf97-1927-47c6-8ef1-29969e3567ee",
+        "rarity": "common"
+    },
+    {
         "name": "Putrefy",
         "types": [
             "Instant"
@@ -9707,6 +9925,45 @@
         "rarity": "rare"
     },
     {
+        "name": "Vitalizing Wind",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 8,
+            "G": 1
+        },
+        "oracleText": "Creatures you control get +7/+7 until end of turn.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "controller": "controller",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": 7,
+                        "toughness": 7,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "0fbd7c20-d527-4d97-9630-896d5e7bf1de",
+        "rarity": "rare"
+    },
+    {
         "name": "Archers of Qarsi",
         "types": [
             "Creature"
@@ -11487,6 +11744,77 @@
             }
         ],
         "id": "124308ac-1bf6-4a79-8aaa-f3be8eeb3e78",
+        "rarity": "common"
+    },
+    {
+        "name": "Thorin's Last Stand",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 2
+        },
+        "oracleText": "Choose one —\n• Creatures you control get +2/+1 until end of turn.\n• Destroy target artifact or enchantment. You gain 2 life.",
+        "modes": [
+            {
+                "id": "thorin-s-last-stand-mode-1",
+                "label": "Creatures you control get +2/+1 until end of turn",
+                "oracleText": "Creatures you control get +2/+1 until end of turn.",
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 2,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "id": "thorin-s-last-stand-mode-2",
+                "label": "Destroy target artifact or enchantment. You gain 2 life",
+                "oracleText": "Destroy target artifact or enchantment. You gain 2 life.",
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "target": 0
+                        }
+                    },
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 2
+                    }
+                ],
+                "targetRequirement": {
+                    "type": [
+                        "Artifact",
+                        "Enchantment"
+                    ],
+                    "count": 1
+                }
+            }
+        ],
+        "id": "127367b6-9cfe-4516-9bfd-5b951468a25c",
         "rarity": "common"
     },
     {
@@ -15665,6 +15993,103 @@
         "rarity": "common"
     },
     {
+        "name": "Selesnya Guildmage",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elf",
+            "Wizard"
+        ],
+        "manaCost": {
+            "hybrid": [
+                [
+                    "G",
+                    "W"
+                ],
+                [
+                    "G",
+                    "W"
+                ]
+            ]
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{3}{G}: Create a 1/1 green Saproling creature token.\n{3}{W}: Creatures you control get +1/+1 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "selesnya-guildmage-ability",
+                "oracleText": "{3}{G}: Create a 1/1 green Saproling creature token.",
+                "cost": {
+                    "mana": {
+                        "X": 3,
+                        "G": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Saproling",
+                            "types": [
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Saproling"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": [
+                                "G"
+                            ]
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            },
+            {
+                "id": "selesnya-guildmage-ability-2",
+                "oracleText": "{3}{W}: Creatures you control get +1/+1 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 3,
+                        "W": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "198ba150-f3fb-48a7-8c3d-bcb6b263b0a2",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Drunau Corpse Trawler",
         "types": [
             "Creature"
@@ -17019,6 +17444,49 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Violent Outburst",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1,
+            "G": 1
+        },
+        "oracleText": "Cascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)\nCreatures you control get +1/+0 until end of turn.",
+        "staticAbilities": [
+            "cascade"
+        ],
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "controller": "controller",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": 1,
+                        "toughness": 0,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "1b58856a-f88e-4625-8636-62b5c717b956",
+        "rarity": "common"
+    },
+    {
         "name": "Lawless Broker",
         "types": [
             "Creature"
@@ -18028,6 +18496,64 @@
             }
         ],
         "id": "1c63ea60-4ce0-4dc7-bda6-7f623b0f9e2a",
+        "rarity": "common"
+    },
+    {
+        "name": "Timid Shieldbearer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Kithkin",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{4}{W}: Creatures you control get +1/+1 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "timid-shieldbearer-ability",
+                "oracleText": "{4}{W}: Creatures you control get +1/+1 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 4,
+                        "W": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "1c672d38-a1a6-4912-a9a6-b11e7bf0cc67",
         "rarity": "common"
     },
     {
@@ -19680,6 +20206,64 @@
             "count": 1
         },
         "id": "1f44e053-95c2-410f-b35d-8ea3e3607e82",
+        "rarity": "common"
+    },
+    {
+        "name": "Dwarven Provisioner",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dwarf",
+            "Citizen"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{3}{W}: Creatures you control get +1/+1 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "dwarven-provisioner-ability",
+                "oracleText": "{3}{W}: Creatures you control get +1/+1 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 3,
+                        "W": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "1f9a61a1-454e-4d5b-a6dd-1a79fe9dedf3",
         "rarity": "common"
     },
     {
@@ -21632,6 +22216,60 @@
         ],
         "id": "22f84143-5912-43ca-a274-f26ed0dbadd0",
         "rarity": "rare"
+    },
+    {
+        "name": "Valor in Akros",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "oracleText": "Whenever a creature you control enters, creatures you control get +1/+1 until end of turn.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "valor-in-akros-trigger",
+                "oracleText": "Whenever a creature you control enters, creatures you control get +1/+1 until end of turn.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "yours",
+                    "filter": {
+                        "types": [
+                            "Creature"
+                        ]
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "22fa0acd-84c3-492e-adf7-e7438db47e0a",
+        "rarity": "uncommon"
     },
     {
         "name": "Phyrexian Broodlings",
@@ -28487,6 +29125,46 @@
         "rarity": "uncommon"
     },
     {
+        "name": "To Arms!",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "Untap all creatures you control.\nDraw a card.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "controller": "controller",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "ref": "$each"
+                        }
+                    }
+                ]
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "id": "2f72d4b7-3b65-411b-a072-8218a0202974",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Talas Merchant",
         "types": [
             "Creature"
@@ -32906,6 +33584,57 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Forced March",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": "X",
+            "B": 3
+        },
+        "oracleText": "Destroy all creatures with mana value X or less.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "left": {
+                                "manaValue": {
+                                    "of": {
+                                        "ref": "$each"
+                                    }
+                                }
+                            },
+                            "op": "le",
+                            "right": {
+                                "X": true
+                            }
+                        },
+                        "then": [
+                            {
+                                "op": "destroy",
+                                "target": {
+                                    "ref": "$each"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "36eae0e1-7100-449d-a259-7abfcd429117",
+        "rarity": "rare"
+    },
+    {
         "name": "Caustic Tar",
         "types": [
             "Enchantment"
@@ -34174,6 +34903,57 @@
         "rarity": "common"
     },
     {
+        "name": "Leonin Sun Standard",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 2
+        },
+        "oracleText": "{1}{W}: Creatures you control get +1/+1 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "leonin-sun-standard-ability",
+                "oracleText": "{1}{W}: Creatures you control get +1/+1 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "W": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "395f719d-1f55-4f1a-a9fb-a178cd589f70",
+        "rarity": "rare"
+    },
+    {
         "name": "Koskun Keep",
         "types": [
             "Land"
@@ -34954,6 +35734,56 @@
         ],
         "id": "3a88f807-96ce-432f-aaf5-d0097d234a4b",
         "rarity": "common"
+    },
+    {
+        "name": "Planar Despair",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 2
+        },
+        "oracleText": "Domain — All creatures get -1/-1 until end of turn for each basic land type among lands you control.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": {
+                            "negate": {
+                                "domain": {
+                                    "of": "controller"
+                                }
+                            }
+                        },
+                        "toughness": {
+                            "negate": {
+                                "domain": {
+                                    "of": "controller"
+                                }
+                            }
+                        },
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "3a92d454-3f23-45bf-921f-25b0da4ce138",
+        "rarity": "rare"
     },
     {
         "name": "Goblin Sledder",
@@ -36452,6 +37282,66 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Wandering Musicians",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Bard",
+            "Ally"
+        ],
+        "manaCost": {
+            "X": 3,
+            "hybrid": [
+                [
+                    "R",
+                    "W"
+                ]
+            ]
+        },
+        "power": 2,
+        "toughness": 5,
+        "oracleText": "Whenever this creature attacks, creatures you control get +1/+0 until end of turn.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "wandering-musicians-trigger",
+                "oracleText": "Whenever this creature attacks, creatures you control get +1/+0 until end of turn.",
+                "head": {
+                    "kind": "attacks"
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 0,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "3da81dbd-dc80-47ff-a33b-270d23a24e0a",
+        "rarity": "common"
+    },
+    {
         "name": "Megantic Sliver",
         "types": [
             "Creature"
@@ -37156,6 +38046,44 @@
         "toughness": 5,
         "id": "3f135dd7-2a4f-4c83-9a90-76bcab3cc33d",
         "rarity": "common"
+    },
+    {
+        "name": "Rollick of Abandon",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "R": 2
+        },
+        "oracleText": "All creatures get +2/-2 until end of turn.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": 2,
+                        "toughness": -2,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "3f1a80c4-8119-437d-bf5b-549c5679c90a",
+        "rarity": "uncommon"
     },
     {
         "name": "Fog of Gnats",
@@ -38639,6 +39567,101 @@
         "toughness": 1,
         "id": "42bd4896-4191-4479-be57-070753f8725c",
         "rarity": "common"
+    },
+    {
+        "name": "Sunhome Guildmage",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "W": 1,
+            "R": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{1}{R}{W}: Creatures you control get +1/+0 until end of turn.\n{2}{R}{W}: Create a 1/1 red and white Soldier creature token with haste.",
+        "activatedAbilities": [
+            {
+                "id": "sunhome-guildmage-ability",
+                "oracleText": "{1}{R}{W}: Creatures you control get +1/+0 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "W": 1,
+                        "R": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 0,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "id": "sunhome-guildmage-ability-2",
+                "oracleText": "{2}{R}{W}: Create a 1/1 red and white Soldier creature token with haste.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "W": 1,
+                        "R": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Soldier",
+                            "types": [
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Soldier"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": [
+                                "R",
+                                "W"
+                            ],
+                            "staticAbilities": [
+                                "haste"
+                            ]
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "id": "42d1122a-099b-49bf-9b53-52429658816a",
+        "rarity": "uncommon"
     },
     {
         "name": "Dawn Gryff",
@@ -40127,6 +41150,61 @@
         ],
         "id": "455c92ca-bb23-495d-be9e-2e0101b115ac",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Inspiring Captain",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Knight"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "When this creature enters, creatures you control get +1/+1 until end of turn.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "inspiring-captain-trigger",
+                "oracleText": "When this creature enters, creatures you control get +1/+1 until end of turn.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "45704604-a1b3-4225-8466-aa76136c84a8",
+        "rarity": "common"
     },
     {
         "name": "Barrow Witches",
@@ -43847,6 +44925,66 @@
         "rarity": "common"
     },
     {
+        "name": "Screeching Phoenix",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Phoenix"
+        ],
+        "manaCost": {
+            "X": 4,
+            "R": 2
+        },
+        "power": 4,
+        "toughness": 4,
+        "oracleText": "Flying\n{2}{R}: Creatures you control get +1/+0 until end of turn.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "screeching-phoenix-ability",
+                "oracleText": "{2}{R}: Creatures you control get +1/+0 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "R": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 0,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "4b9477ba-e198-4085-8733-fd392a5648e7",
+        "rarity": "rare"
+    },
+    {
         "name": "Explosive Shot",
         "types": [
             "Sorcery"
@@ -43979,6 +45117,64 @@
             }
         ],
         "id": "4be510c8-fc01-4374-ac04-7968d24480fe",
+        "rarity": "common"
+    },
+    {
+        "name": "Warren Elder",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Rabbit",
+            "Cleric"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{3}{W}: Creatures you control get +1/+1 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "warren-elder-ability",
+                "oracleText": "{3}{W}: Creatures you control get +1/+1 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 3,
+                        "W": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "4bf20069-5a20-4f95-976b-6af2b69f3ad0",
         "rarity": "common"
     },
     {
@@ -45774,6 +46970,57 @@
         "rarity": "common"
     },
     {
+        "name": "Gerrard's Battle Cry",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "oracleText": "{2}{W}: Creatures you control get +1/+1 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "gerrard-s-battle-cry-ability",
+                "oracleText": "{2}{W}: Creatures you control get +1/+1 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "W": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "504950d5-2df7-4518-b987-fe3a57ad1c58",
+        "rarity": "rare"
+    },
+    {
         "name": "Mudbutton Torchrunner",
         "types": [
             "Creature"
@@ -46329,6 +47576,49 @@
             }
         ],
         "id": "5146dd15-f696-42c3-b0e5-6a1b1d7be6b4",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Rally the Peasants",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "Creatures you control get +2/+0 until end of turn.\nFlashback {2}{R} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "controller": "controller",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": 2,
+                        "toughness": 0,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "flashback": {
+            "X": 2,
+            "R": 1
+        },
+        "id": "514fe7de-16b2-42c0-adb1-f0af1c89cfd6",
         "rarity": "uncommon"
     },
     {
@@ -47155,6 +48445,78 @@
             }
         ],
         "id": "5279ac25-8175-44ad-ab7b-dfa17e359a10",
+        "rarity": "common"
+    },
+    {
+        "name": "Goblin Surprise",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "oracleText": "Choose one —\n• Creatures you control get +2/+0 until end of turn.\n• Create two 1/1 red Goblin creature tokens.",
+        "modes": [
+            {
+                "id": "goblin-surprise-mode-1",
+                "label": "Creatures you control get +2/+0 until end of turn",
+                "oracleText": "Creatures you control get +2/+0 until end of turn.",
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 2,
+                                "toughness": 0,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "id": "goblin-surprise-mode-2",
+                "label": "Create two 1/1 red Goblin creature tokens",
+                "oracleText": "Create two 1/1 red Goblin creature tokens.",
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Goblin",
+                            "types": [
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Goblin"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": [
+                                "R"
+                            ]
+                        },
+                        "controller": "controller",
+                        "count": 2
+                    }
+                ]
+            }
+        ],
+        "id": "527dd5d4-5f72-40bb-8a9d-1f5ac3f81e2e",
         "rarity": "common"
     },
     {
@@ -49512,6 +50874,68 @@
         "rarity": "common"
     },
     {
+        "name": "Ghost Tactician",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Spirit",
+            "Spellshaper"
+        ],
+        "manaCost": {
+            "X": 4,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 5,
+        "oracleText": "{W}, {T}, Discard a card: Creatures you control get +1/+0 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "ghost-tactician-ability",
+                "oracleText": "{W}, {T}, Discard a card: Creatures you control get +1/+0 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "W": 1
+                    },
+                    "tap": true,
+                    "discardFilter": {
+                        "filter": {},
+                        "count": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 0,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "56ab366c-085b-4b13-b5ad-918965c34d22",
+        "rarity": "common"
+    },
+    {
         "name": "Dark Betrayal",
         "types": [
             "Instant"
@@ -51234,6 +52658,64 @@
         "rarity": "common"
     },
     {
+        "name": "Selfless Cathar",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Cleric"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{1}{W}, Sacrifice this creature: Creatures you control get +1/+1 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "selfless-cathar-ability",
+                "oracleText": "{1}{W}, Sacrifice this creature: Creatures you control get +1/+1 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "W": 1
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "5a1dc067-1972-4d46-ad5d-56e6a563f638",
+        "rarity": "common"
+    },
+    {
         "name": "Network Disruptor",
         "types": [
             "Artifact",
@@ -52605,6 +54087,48 @@
         "rarity": "common"
     },
     {
+        "name": "Great Teacher's Decree",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "oracleText": "Creatures you control get +2/+1 until end of turn.\nRebound (If you cast this spell from your hand, exile it as it resolves. At the beginning of your next upkeep, you may cast this card from exile without paying its mana cost.)",
+        "staticAbilities": [
+            "rebound"
+        ],
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "controller": "controller",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": 2,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "5ce2761c-20ee-497a-8c05-947a1ac93e57",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Flamecast Wheel",
         "types": [
             "Artifact"
@@ -53944,6 +55468,80 @@
         "rarity": "common"
     },
     {
+        "name": "Sunblade Elf",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elf",
+            "Warrior"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "This creature gets +1/+1 as long as you control a Plains.\n{4}{W}: Creatures you control get +1/+1 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "sunblade-elf-ability",
+                "oracleText": "{4}{W}: Creatures you control get +1/+1 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 4,
+                        "W": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "self",
+                "power": 1,
+                "toughness": 1,
+                "condition": {
+                    "kind": "controls",
+                    "filter": {
+                        "subtypes": [
+                            "Plains"
+                        ]
+                    },
+                    "atLeast": 1
+                }
+            }
+        ],
+        "id": "5e9925c5-98d5-4eb9-8aaa-a96b63a5812d",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Mental Discipline",
         "types": [
             "Enchantment"
@@ -54946,6 +56544,87 @@
         ],
         "id": "6075e0a3-a0ab-4a11-8ad2-7dabb071d309",
         "rarity": "common"
+    },
+    {
+        "name": "Shefet Dunes",
+        "types": [
+            "Land"
+        ],
+        "subtypes": [
+            "Desert"
+        ],
+        "oracleText": "{T}: Add {C}.\n{T}, Pay 1 life: Add {W}.\n{2}{W}{W}, {T}, Sacrifice a Desert: Creatures you control get +1/+1 until end of turn. Activate only as a sorcery.",
+        "activatedAbilities": [
+            {
+                "id": "shefet-dunes-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "shefet-dunes-mana-2",
+                "oracleText": "{T}, Pay 1 life: Add {W}.",
+                "cost": {
+                    "tap": true,
+                    "life": 1
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "W": 1
+                }
+            },
+            {
+                "id": "shefet-dunes-ability-3",
+                "oracleText": "{2}{W}{W}, {T}, Sacrifice a Desert: Creatures you control get +1/+1 until end of turn. Activate only as a sorcery.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "W": 2
+                    },
+                    "tap": true,
+                    "sacrificeFilter": {
+                        "subtypes": [
+                            "Desert"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "sorcerySpeedOnly": true
+            }
+        ],
+        "id": "6077f4e9-5717-4048-b798-4f8d535a4170",
+        "rarity": "uncommon"
     },
     {
         "name": "Krosan Adaptation",
@@ -57201,6 +58880,62 @@
         ],
         "id": "64733f34-2eb4-4df5-8656-57bdb8b3a983",
         "rarity": "mythic"
+    },
+    {
+        "name": "Havoc Demon",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Demon"
+        ],
+        "manaCost": {
+            "X": 5,
+            "B": 2
+        },
+        "power": 5,
+        "toughness": 5,
+        "oracleText": "Flying\nWhen this creature dies, all creatures get -5/-5 until end of turn.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "havoc-demon-trigger",
+                "oracleText": "When this creature dies, all creatures get -5/-5 until end of turn.",
+                "head": {
+                    "kind": "died",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": -5,
+                                "toughness": -5,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "6477802a-349d-41e1-b050-58da0d806abf",
+        "rarity": "rare"
     },
     {
         "name": "Submerged Boneyard",
@@ -60601,6 +62336,44 @@
         "rarity": "rare"
     },
     {
+        "name": "Natural Affinity",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "oracleText": "All lands become 2/2 creatures until end of turn. They're still lands.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "filter": {
+                        "type": "Land"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "animate",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": 2,
+                        "toughness": 2,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "69c6f647-f71b-4f61-9b16-774884ed52e2",
+        "rarity": "rare"
+    },
+    {
         "name": "Dispersing Orb",
         "types": [
             "Enchantment"
@@ -61162,6 +62935,44 @@
         "rarity": "common"
     },
     {
+        "name": "Scare Tactics",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "B": 1
+        },
+        "oracleText": "Creatures you control get +1/+0 until end of turn.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "controller": "controller",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": 1,
+                        "toughness": 0,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "6a9d4e11-ce2e-445a-9536-756a6687d6d7",
+        "rarity": "common"
+    },
+    {
         "name": "Ember Shot",
         "types": [
             "Instant"
@@ -61307,6 +63118,63 @@
         ],
         "id": "6acae374-9d71-4f8d-ba75-a983756624c7",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Sea Gate Banneret",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Kor",
+            "Warrior"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "{4}{W}: Creatures you control get +1/+1 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "sea-gate-banneret-ability",
+                "oracleText": "{4}{W}: Creatures you control get +1/+1 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 4,
+                        "W": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "6ae4634e-1487-4b66-8f70-bcb4b1fa6e77",
+        "rarity": "common"
     },
     {
         "name": "Blood Rites",
@@ -61613,6 +63481,81 @@
             ]
         },
         "id": "6b7b5f34-c250-484e-9bae-94789b2a87fb",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Plague Dogs",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Phyrexian",
+            "Zombie",
+            "Dog"
+        ],
+        "manaCost": {
+            "X": 4,
+            "B": 1
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "When this creature dies, all creatures get -1/-1 until end of turn.\n{2}, Sacrifice this creature: Draw a card.",
+        "activatedAbilities": [
+            {
+                "id": "plague-dogs-ability",
+                "oracleText": "{2}, Sacrifice this creature: Draw a card.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "plague-dogs-trigger",
+                "oracleText": "When this creature dies, all creatures get -1/-1 until end of turn.",
+                "head": {
+                    "kind": "died",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": -1,
+                                "toughness": -1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "6b9cebd8-aa3f-4e22-8d15-d4b7bad355e4",
         "rarity": "uncommon"
     },
     {
@@ -63547,6 +65490,67 @@
         "rarity": "common"
     },
     {
+        "name": "Encampment Keeper",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dog"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "First strike\n{7}{W}, {T}, Sacrifice this creature: Creatures you control get +2/+2 until end of turn.",
+        "staticAbilities": [
+            "first strike"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "encampment-keeper-ability",
+                "oracleText": "{7}{W}, {T}, Sacrifice this creature: Creatures you control get +2/+2 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 7,
+                        "W": 1
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 2,
+                                "toughness": 2,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "6fe64569-c1b6-4bd4-a742-6ee46ea5181c",
+        "rarity": "common"
+    },
+    {
         "name": "Galestrike",
         "types": [
             "Instant"
@@ -65207,6 +67211,45 @@
             "count": 1
         },
         "id": "72ab91ab-2bcf-4617-bec3-2bf040d4997c",
+        "rarity": "common"
+    },
+    {
+        "name": "Virtuous Charge",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "Creatures you control get +1/+1 until end of turn.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "controller": "controller",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": 1,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "72ad4c79-a85d-4fc6-95ab-5a6d6d667579",
         "rarity": "common"
     },
     {
@@ -69692,6 +71735,60 @@
         "rarity": "common"
     },
     {
+        "name": "Dauntless Veteran",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 2
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Whenever this creature attacks, creatures you control get +1/+1 until end of turn.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "dauntless-veteran-trigger",
+                "oracleText": "Whenever this creature attacks, creatures you control get +1/+1 until end of turn.",
+                "head": {
+                    "kind": "attacks"
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "7a136f26-ac66-407f-b389-357222d2c4a2",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Fireforger's Puzzleknot",
         "types": [
             "Artifact"
@@ -70469,6 +72566,82 @@
         },
         "id": "7b761f97-3690-497a-b6ab-c71f61b8e841",
         "rarity": "rare"
+    },
+    {
+        "name": "Magnify",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "oracleText": "All creatures get +1/+1 until end of turn.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": 1,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "7b9bb2c6-f1a6-42c3-a7cb-3a1a46854c9b",
+        "rarity": "common"
+    },
+    {
+        "name": "Warrior's Honor",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "Creatures you control get +1/+1 until end of turn.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "controller": "controller",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": 1,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "7babd273-3e20-4cf9-bf21-c602eb729fc5",
+        "rarity": "common"
     },
     {
         "name": "Stormchaser Mage",
@@ -73412,6 +75585,67 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Dawnwing Marshal",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Cat",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Flying\n{4}{W}: Creatures you control get +1/+1 until end of turn.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "dawnwing-marshal-ability",
+                "oracleText": "{4}{W}: Creatures you control get +1/+1 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 4,
+                        "W": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "807db84f-addb-4ef0-b9ba-32b3e1bced3d",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Radiant Fountain",
         "types": [
             "Land"
@@ -74796,6 +77030,61 @@
             }
         ],
         "id": "829f959e-91cd-42ea-8644-ce828a304d01",
+        "rarity": "common"
+    },
+    {
+        "name": "Ampryn Tactician",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 2
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "When this creature enters, creatures you control get +1/+1 until end of turn.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "ampryn-tactician-trigger",
+                "oracleText": "When this creature enters, creatures you control get +1/+1 until end of turn.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "82a2e1d9-6763-4024-a18b-982d96395553",
         "rarity": "common"
     },
     {
@@ -76346,6 +78635,72 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Defend the Campus",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "oracleText": "Choose one —\n• Creatures you control get +1/+1 until end of turn.\n• Destroy target creature with power 4 or greater.",
+        "modes": [
+            {
+                "id": "defend-the-campus-mode-1",
+                "label": "Creatures you control get +1/+1 until end of turn",
+                "oracleText": "Creatures you control get +1/+1 until end of turn.",
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "id": "defend-the-campus-mode-2",
+                "label": "Destroy target creature with power 4 or greater",
+                "oracleText": "Destroy target creature with power 4 or greater.",
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "powerFilter": {
+                        "min": 4
+                    }
+                }
+            }
+        ],
+        "id": "85e4e1b5-77d6-4af4-b22e-6f6b4d129f5d",
+        "rarity": "common"
+    },
+    {
         "name": "Dross Crocodile",
         "types": [
             "Creature"
@@ -76508,6 +78863,45 @@
         ],
         "id": "864a792b-ad04-4892-92d9-0f6abe3759e8",
         "rarity": "rare"
+    },
+    {
+        "name": "Warrior's Charge",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "Creatures you control get +1/+1 until end of turn.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "controller": "controller",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": 1,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "8668e4af-ae89-4fab-8015-8dc643c6cd36",
+        "rarity": "common"
     },
     {
         "name": "Olivia's Dragoon",
@@ -77377,6 +79771,91 @@
         ],
         "id": "87a538c1-8539-4955-ae3e-27312ce9e800",
         "rarity": "rare"
+    },
+    {
+        "name": "Strength of Night",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "oracleText": "Kicker {B} (You may pay an additional {B} as you cast this spell.)\nCreatures you control get +1/+1 until end of turn. If this spell was kicked, Zombie creatures you control get an additional +2/+2 until end of turn.",
+        "kickers": [
+            {
+                "id": "kicker",
+                "description": "Kicker {B}",
+                "mana": {
+                    "B": 1
+                }
+            }
+        ],
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "controller": "controller",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": 1,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            },
+            {
+                "op": "if",
+                "predicate": {
+                    "left": {
+                        "kickerCount": true
+                    },
+                    "op": "ge",
+                    "right": 1
+                },
+                "then": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature",
+                                "subtype": "Zombie"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 2,
+                                "toughness": 2,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "87aab031-4e44-44cd-89a7-6cffc7288cd1",
+        "rarity": "common"
     },
     {
         "name": "Virtuous Variant",
@@ -78324,6 +80803,54 @@
         ],
         "id": "88cc00e5-9683-4ccc-a914-c422b76f6014",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Blight Grenade",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 4,
+            "B": 1
+        },
+        "oracleText": "Destroy target creature.\nAll creatures get -3/-3 until end of turn.",
+        "effects": [
+            {
+                "op": "destroy",
+                "target": {
+                    "target": 0
+                }
+            },
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": -3,
+                        "toughness": -3,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "88cdcf69-e04d-46ab-9cce-76f1fac5bc40",
+        "rarity": "rare"
     },
     {
         "name": "Deathbloom Gardener",
@@ -79314,6 +81841,186 @@
         "rarity": "common"
     },
     {
+        "name": "Leonin Armorguard",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Cat",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1,
+            "G": 1
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "When this creature enters, creatures you control get +1/+1 until end of turn.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "leonin-armorguard-trigger",
+                "oracleText": "When this creature enters, creatures you control get +1/+1 until end of turn.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "8a57cdbd-3cd2-47c1-aec8-7f4fd7a7b804",
+        "rarity": "common"
+    },
+    {
+        "name": "Oakhame Ranger",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elf",
+            "Knight",
+            "Ranger"
+        ],
+        "manaCost": {
+            "hybrid": [
+                [
+                    "G",
+                    "W"
+                ],
+                [
+                    "G",
+                    "W"
+                ],
+                [
+                    "G",
+                    "W"
+                ],
+                [
+                    "G",
+                    "W"
+                ]
+            ]
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{T}: Creatures you control get +1/+1 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "oakhame-ranger-ability",
+                "oracleText": "{T}: Creatures you control get +1/+1 until end of turn.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "insetSpell": {
+            "kind": "adventure",
+            "name": "Bring Back",
+            "manaCost": {
+                "hybrid": [
+                    [
+                        "G",
+                        "W"
+                    ],
+                    [
+                        "G",
+                        "W"
+                    ],
+                    [
+                        "G",
+                        "W"
+                    ],
+                    [
+                        "G",
+                        "W"
+                    ]
+                ]
+            },
+            "types": [
+                "Sorcery"
+            ],
+            "subtypes": [
+                "Adventure"
+            ],
+            "oracleText": "Create two 1/1 white Human creature tokens. (Then exile this card. You may cast the creature later from exile.)",
+            "effects": [
+                {
+                    "op": "createToken",
+                    "token": {
+                        "name": "Human",
+                        "types": [
+                            "Creature"
+                        ],
+                        "subtypes": [
+                            "Human"
+                        ],
+                        "power": 1,
+                        "toughness": 1,
+                        "colors": [
+                            "W"
+                        ]
+                    },
+                    "controller": "controller",
+                    "count": 2
+                }
+            ]
+        },
+        "id": "8a665794-513f-4f78-92c9-1844ec27c79c",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Tower of Calamities",
         "types": [
             "Artifact"
@@ -79404,6 +82111,62 @@
             "haste"
         ],
         "id": "8a88f507-3d78-4f7f-a91f-8489ad9250f2",
+        "rarity": "common"
+    },
+    {
+        "name": "Death's-Head Buzzard",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Bird"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 2
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "Flying\nWhen this creature dies, all creatures get -1/-1 until end of turn.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "death-s-head-buzzard-trigger",
+                "oracleText": "When this creature dies, all creatures get -1/-1 until end of turn.",
+                "head": {
+                    "kind": "died",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": -1,
+                                "toughness": -1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "8a8d4fd9-1f9e-41f0-9114-d1a698506ad9",
         "rarity": "common"
     },
     {
@@ -80473,6 +83236,103 @@
             }
         ],
         "id": "8c604697-5c81-4329-9b16-f19bd90ba08c",
+        "rarity": "common"
+    },
+    {
+        "name": "Glorious Charge",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "Creatures you control get +1/+1 until end of turn.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "controller": "controller",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": 1,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "8c6dfcf8-a09b-4402-af80-90fe15b2ce0a",
+        "rarity": "common"
+    },
+    {
+        "name": "Cliffside Lookout",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Kor",
+            "Scout",
+            "Ally"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{4}{W}: Creatures you control get +1/+1 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "cliffside-lookout-ability",
+                "oracleText": "{4}{W}: Creatures you control get +1/+1 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 4,
+                        "W": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "8c755ae6-badc-4dc8-bfa6-fdebcb00bfba",
         "rarity": "common"
     },
     {
@@ -81808,6 +84668,63 @@
         ],
         "id": "8e732593-0bdc-4dd4-9b07-9aa1a780e6e8",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Lavafume Invoker",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Goblin",
+            "Shaman"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{8}: Creatures you control get +3/+0 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "lavafume-invoker-ability",
+                "oracleText": "{8}: Creatures you control get +3/+0 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 8
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 3,
+                                "toughness": 0,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "8e773b3f-37ef-4e37-8b1e-99b7b6314877",
+        "rarity": "common"
     },
     {
         "name": "Alaborn Cavalier",
@@ -85154,6 +88071,43 @@
         "rarity": "common"
     },
     {
+        "name": "Might of Alara",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "oracleText": "Domain — Target creature gets +1/+1 until end of turn for each basic land type among lands you control.",
+        "effects": [
+            {
+                "op": "pump",
+                "target": {
+                    "target": 0
+                },
+                "power": {
+                    "domain": {
+                        "of": "controller"
+                    }
+                },
+                "toughness": {
+                    "domain": {
+                        "of": "controller"
+                    }
+                },
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "9514c013-bc11-4cc5-af8c-f82fd4098bcf",
+        "rarity": "common"
+    },
+    {
         "name": "Seismic Mage",
         "types": [
             "Creature"
@@ -86098,6 +89052,40 @@
         "rarity": "common"
     },
     {
+        "name": "Mobilize",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "oracleText": "Untap all creatures you control.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "controller": "controller",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "ref": "$each"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "9712ecaa-4059-44ba-98b7-07bfe7411b5b",
+        "rarity": "common"
+    },
+    {
         "name": "Plated Seastrider",
         "types": [
             "Creature"
@@ -86628,6 +89616,45 @@
             }
         ],
         "id": "97f7fbb9-228c-4a74-975b-38d3b6cecb32",
+        "rarity": "common"
+    },
+    {
+        "name": "Inspired Charge",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 2
+        },
+        "oracleText": "Creatures you control get +2/+1 until end of turn.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "controller": "controller",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": 2,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "98151986-90de-4f76-9abd-507039e7c9ad",
         "rarity": "common"
     },
     {
@@ -88016,6 +91043,81 @@
         "entersTapped": true,
         "id": "99c54269-8798-4023-836f-640103e08ce0",
         "rarity": "common"
+    },
+    {
+        "name": "Final Revels",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 4,
+            "B": 1
+        },
+        "oracleText": "Choose one —\n• All creatures get +2/+0 until end of turn.\n• All creatures get -0/-2 until end of turn.",
+        "modes": [
+            {
+                "id": "final-revels-mode-1",
+                "label": "All creatures get +2/+0 until end of turn",
+                "oracleText": "All creatures get +2/+0 until end of turn.",
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 2,
+                                "toughness": 0,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "id": "final-revels-mode-2",
+                "label": "All creatures get -0/-2 until end of turn",
+                "oracleText": "All creatures get -0/-2 until end of turn.",
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 0,
+                                "toughness": -2,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "99f3744a-71c4-4a54-9e1c-92420526b792",
+        "rarity": "uncommon"
     },
     {
         "name": "Day of Destiny",
@@ -91069,6 +94171,45 @@
         "rarity": "common"
     },
     {
+        "name": "Righteous Charge",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 2
+        },
+        "oracleText": "Creatures you control get +2/+2 until end of turn.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "controller": "controller",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": 2,
+                        "toughness": 2,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "9f7bd958-20c7-4394-8beb-06b32db90d32",
+        "rarity": "common"
+    },
+    {
         "name": "Hedron Crawler",
         "types": [
             "Artifact",
@@ -91795,6 +94936,44 @@
         "power": 1,
         "toughness": 1,
         "id": "a1020538-89c8-4986-9687-78ab326acb3e",
+        "rarity": "common"
+    },
+    {
+        "name": "Nausea",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "All creatures get -1/-1 until end of turn.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": -1,
+                        "toughness": -1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "a10531d8-fc99-4a2b-94b0-97a25521d725",
         "rarity": "common"
     },
     {
@@ -94323,6 +97502,64 @@
         "rarity": "common"
     },
     {
+        "name": "Charismatic Vanguard",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dwarf",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "power": 3,
+        "toughness": 2,
+        "oracleText": "{4}{W}: Creatures you control get +1/+1 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "charismatic-vanguard-ability",
+                "oracleText": "{4}{W}: Creatures you control get +1/+1 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 4,
+                        "W": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "a51764fe-0d75-4cfa-a699-0d9e7ffb7843",
+        "rarity": "common"
+    },
+    {
         "name": "Claim of Erebos",
         "types": [
             "Enchantment"
@@ -94654,6 +97891,45 @@
             "count": 1
         },
         "id": "a54a2a30-b96a-49c7-9151-1f4b0d4a4413",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Desperate Charge",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "oracleText": "Creatures you control get +2/+0 until end of turn.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "controller": "controller",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": 2,
+                        "toughness": 0,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "a5587089-b17e-4187-97aa-1c3eec070a0b",
         "rarity": "uncommon"
     },
     {
@@ -95624,6 +98900,44 @@
         "rarity": "common"
     },
     {
+        "name": "Banners Raised",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "R": 1
+        },
+        "oracleText": "Creatures you control get +1/+0 until end of turn.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "controller": "controller",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": 1,
+                        "toughness": 0,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "a7792df3-e2ab-4e60-abee-f24b72807107",
+        "rarity": "common"
+    },
+    {
         "name": "Angelfire Crusader",
         "types": [
             "Creature"
@@ -96204,6 +99518,44 @@
         ],
         "id": "a870e48a-41ae-4d9f-b181-074deb067d40",
         "rarity": "rare"
+    },
+    {
+        "name": "Shrivel",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "All creatures get -1/-1 until end of turn.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": -1,
+                        "toughness": -1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "a87c80a1-5818-45fd-9a37-a2ee3396626e",
+        "rarity": "common"
     },
     {
         "name": "Destructor Dragon",
@@ -97025,6 +100377,100 @@
         "rarity": "common"
     },
     {
+        "name": "Grixis Charm",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "U": 1,
+            "B": 1,
+            "R": 1
+        },
+        "oracleText": "Choose one —\n• Return target permanent to its owner's hand.\n• Target creature gets -4/-4 until end of turn.\n• Creatures you control get +2/+0 until end of turn.",
+        "modes": [
+            {
+                "id": "grixis-charm-mode-1",
+                "label": "Return target permanent to its owner's hand",
+                "oracleText": "Return target permanent to its owner's hand.",
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": [
+                        "Artifact",
+                        "Battle",
+                        "Creature",
+                        "Enchantment",
+                        "Land",
+                        "Planeswalker"
+                    ],
+                    "count": 1
+                }
+            },
+            {
+                "id": "grixis-charm-mode-2",
+                "label": "Target creature gets -4/-4 until end of turn",
+                "oracleText": "Target creature gets -4/-4 until end of turn.",
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "target": 0
+                        },
+                        "power": -4,
+                        "toughness": -4,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            },
+            {
+                "id": "grixis-charm-mode-3",
+                "label": "Creatures you control get +2/+0 until end of turn",
+                "oracleText": "Creatures you control get +2/+0 until end of turn.",
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 2,
+                                "toughness": 0,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "a98a6695-44ce-445f-b476-e18a0b5dd8f2",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Weight of the Underworld",
         "types": [
             "Enchantment"
@@ -97603,6 +101049,61 @@
         ],
         "id": "aa7084f3-9335-401f-9a62-6f131351338d",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Civic Stalwart",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elephant",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "When this creature enters, creatures you control get +1/+1 until end of turn.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "civic-stalwart-trigger",
+                "oracleText": "When this creature enters, creatures you control get +1/+1 until end of turn.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "aa981489-4301-43f6-b1d7-2aa42e00cf75",
+        "rarity": "common"
     },
     {
         "name": "Leafdrake Roost",
@@ -98514,6 +102015,60 @@
             }
         ],
         "id": "abbaf916-067d-4834-a55c-b400fe0d8c1f",
+        "rarity": "common"
+    },
+    {
+        "name": "Earth-Origin Yak",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Ox"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 4,
+        "oracleText": "When this creature enters, creatures you control get +1/+1 until end of turn.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "earth-origin-yak-trigger",
+                "oracleText": "When this creature enters, creatures you control get +1/+1 until end of turn.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "abcde784-d0cd-4bac-b1bf-bd686ac2f73d",
         "rarity": "common"
     },
     {
@@ -103943,6 +107498,45 @@
         "rarity": "common"
     },
     {
+        "name": "Bar the Door",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "Creatures you control get +0/+4 until end of turn.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "controller": "controller",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": 0,
+                        "toughness": 4,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "b593f544-2d82-4237-b9a9-88503b5036cc",
+        "rarity": "common"
+    },
+    {
         "name": "Caller of Gales",
         "types": [
             "Creature"
@@ -105186,6 +108780,44 @@
         "rarity": "common"
     },
     {
+        "name": "Infest",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 2
+        },
+        "oracleText": "All creatures get -2/-2 until end of turn.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": -2,
+                        "toughness": -2,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "b7890ba2-aa42-4c8d-bbc1-94fb1d4150fc",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Belligerent Sliver",
         "types": [
             "Creature"
@@ -105757,6 +109389,45 @@
         "rarity": "common"
     },
     {
+        "name": "Burn Bright",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "oracleText": "Creatures you control get +2/+0 until end of turn.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "controller": "controller",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": 2,
+                        "toughness": 0,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "b8574ffd-3e72-41de-90bf-69363189f047",
+        "rarity": "common"
+    },
+    {
         "name": "Glamorous Grapplers",
         "types": [
             "Creature"
@@ -106192,6 +109863,61 @@
             }
         ],
         "id": "b9169431-a5b1-42ea-bcf4-6c750d2a2dbb",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Malamet War Scribe",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Cat",
+            "Warrior"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 2
+        },
+        "power": 4,
+        "toughness": 3,
+        "oracleText": "When this creature enters, creatures you control get +2/+1 until end of turn.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "malamet-war-scribe-trigger",
+                "oracleText": "When this creature enters, creatures you control get +2/+1 until end of turn.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 2,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "b92a6ba0-cea0-4084-92f1-2bd60ea25fb0",
         "rarity": "uncommon"
     },
     {
@@ -113690,6 +117416,45 @@
         "rarity": "common"
     },
     {
+        "name": "Solidarity",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "oracleText": "Creatures you control get +0/+5 until end of turn.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "controller": "controller",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": 0,
+                        "toughness": 5,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "c5e1589a-ec4f-47a4-b758-ada7f49ffb8f",
+        "rarity": "common"
+    },
+    {
         "name": "Skyraker Giant",
         "types": [
             "Creature"
@@ -114259,6 +118024,67 @@
         "rarity": "common"
     },
     {
+        "name": "Goldnight Commander",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Cleric",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Whenever another creature you control enters, creatures you control get +1/+1 until end of turn.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "goldnight-commander-trigger",
+                "oracleText": "Whenever another creature you control enters, creatures you control get +1/+1 until end of turn.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "another-yours",
+                    "filter": {
+                        "types": [
+                            "Creature"
+                        ]
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "c6ebec82-9d4a-4e78-b923-37c3a52133e7",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Cursebreak",
         "types": [
             "Instant"
@@ -114318,6 +118144,66 @@
         "entersTapped": true,
         "id": "c74024bd-b383-468d-9cf5-d112a29f6457",
         "rarity": "common"
+    },
+    {
+        "name": "Dual-Sun Adepts",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Double strike\n{5}: Creatures you control get +1/+1 until end of turn.",
+        "staticAbilities": [
+            "double strike"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "dual-sun-adepts-ability",
+                "oracleText": "{5}: Creatures you control get +1/+1 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 5
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "c7e8c830-77ae-437f-8e28-ce61c5fde6b6",
+        "rarity": "uncommon"
     },
     {
         "name": "Warden of Geometries",
@@ -115452,6 +119338,99 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Veteran Beastrider",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Knight"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1,
+            "G": 1
+        },
+        "power": 3,
+        "toughness": 4,
+        "oracleText": "At the beginning of your end step, untap each creature you control.\n{2}{G}{W}: Creatures you control get +1/+1 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "veteran-beastrider-ability",
+                "oracleText": "{2}{G}{W}: Creatures you control get +1/+1 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "W": 1,
+                        "G": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "veteran-beastrider-trigger",
+                "oracleText": "At the beginning of your end step, untap each creature you control.",
+                "head": {
+                    "kind": "phase",
+                    "phase": "END_STEP",
+                    "scope": "your"
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "tapUntap",
+                                "action": "untap",
+                                "target": {
+                                    "ref": "$each"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "cab38f35-b60c-464c-a0b5-9d5f2dc6de7f",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Crypt of the Eternals",
         "types": [
             "Land"
@@ -116027,6 +120006,45 @@
         "rarity": "common"
     },
     {
+        "name": "Steadfastness",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "Creatures you control get +0/+3 until end of turn.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "controller": "controller",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": 0,
+                        "toughness": 3,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "cb4693b3-d5d7-4401-aee3-119d3eb276a2",
+        "rarity": "common"
+    },
+    {
         "name": "Furnace Skullbomb",
         "types": [
             "Artifact"
@@ -116093,6 +120111,60 @@
             }
         ],
         "id": "cb530f9d-cf35-48a7-8711-f74b3d9a35a7",
+        "rarity": "common"
+    },
+    {
+        "name": "Village Bell-Ringer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Scout"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 4,
+        "oracleText": "Flash (You may cast this spell any time you could cast an instant.)\nWhen this creature enters, untap all creatures you control.",
+        "staticAbilities": [
+            "flash"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "village-bell-ringer-trigger",
+                "oracleText": "When this creature enters, untap all creatures you control.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "tapUntap",
+                                "action": "untap",
+                                "target": {
+                                    "ref": "$each"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "cb6912b3-bab9-4937-afdd-3711e6d792a0",
         "rarity": "common"
     },
     {
@@ -116983,6 +121055,65 @@
         "rarity": "common"
     },
     {
+        "name": "Maw of the Obzedat",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Thrull"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1,
+            "B": 1
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "Sacrifice a creature: Creatures you control get +1/+1 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "maw-of-the-obzedat-ability",
+                "oracleText": "Sacrifice a creature: Creatures you control get +1/+1 until end of turn.",
+                "cost": {
+                    "sacrificeFilter": {
+                        "types": [
+                            "Creature"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "cd1131c6-04da-4c4d-ab61-874ac5be7087",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Falkenrath Reaver",
         "types": [
             "Creature"
@@ -117782,6 +121913,59 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Inspiring Unicorn",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Unicorn"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 2
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Whenever this creature attacks, creatures you control get +1/+1 until end of turn.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "inspiring-unicorn-trigger",
+                "oracleText": "Whenever this creature attacks, creatures you control get +1/+1 until end of turn.",
+                "head": {
+                    "kind": "attacks"
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "ce8b745e-1e62-4c54-9e73-e2d0a40568a0",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Herald of the Fair",
         "types": [
             "Creature"
@@ -118439,6 +122623,67 @@
             }
         ],
         "id": "cf9b3335-565c-406d-bd94-f36974602552",
+        "rarity": "common"
+    },
+    {
+        "name": "Ambush Paratrooper",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "Flash\nFlying\n{5}: Creatures you control get +1/+1 until end of turn.",
+        "staticAbilities": [
+            "flash",
+            "flying"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "ambush-paratrooper-ability",
+                "oracleText": "{5}: Creatures you control get +1/+1 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 5
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "cfa00c0e-163d-4f59-b8b9-3ee9143d27bb",
         "rarity": "common"
     },
     {
@@ -120742,6 +124987,44 @@
         "rarity": "common"
     },
     {
+        "name": "Languish",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 2
+        },
+        "oracleText": "All creatures get -4/-4 until end of turn.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": -4,
+                        "toughness": -4,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "d3593efa-0a05-4061-9f6e-edd0a5ca9a1f",
+        "rarity": "rare"
+    },
+    {
         "name": "Baton of Courage",
         "types": [
             "Artifact"
@@ -122077,6 +126360,40 @@
             "haste"
         ],
         "id": "d6eb23c9-6061-4ad1-a8f3-2c791c49f352",
+        "rarity": "common"
+    },
+    {
+        "name": "Vitalize",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "oracleText": "Untap all creatures you control.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "controller": "controller",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "ref": "$each"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "d6ee4997-4b1a-4e03-88ac-63b451bb7b38",
         "rarity": "common"
     },
     {
@@ -124461,6 +128778,51 @@
             "reach"
         ],
         "id": "db18bbcd-527d-4134-a6ae-6f4381419867",
+        "rarity": "common"
+    },
+    {
+        "name": "Arms of Hadar",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "oracleText": "Creatures target player controls get -2/-2 until end of turn.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "filter": {
+                        "type": "Creature"
+                    },
+                    "controller": {
+                        "target": 0
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": -2,
+                        "toughness": -2,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "player",
+            "count": 1
+        },
+        "id": "db1fd431-8f6d-4ca5-bc0c-53881c500da1",
         "rarity": "common"
     },
     {
@@ -131422,6 +135784,92 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Night // Day",
+        "manaCost": {
+            "W": 1,
+            "B": 1,
+            "X": 2
+        },
+        "types": [
+            "Instant"
+        ],
+        "splitHalves": [
+            {
+                "name": "Night",
+                "manaCost": {
+                    "B": 1
+                },
+                "types": [
+                    "Instant"
+                ],
+                "oracleText": "Target creature gets -1/-1 until end of turn.",
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "target": 0
+                        },
+                        "power": -1,
+                        "toughness": -1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            },
+            {
+                "name": "Day",
+                "manaCost": {
+                    "X": 2,
+                    "W": 1
+                },
+                "types": [
+                    "Instant"
+                ],
+                "oracleText": "Creatures target player controls get +1/+1 until end of turn.",
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "filter": {
+                                "type": "Creature"
+                            },
+                            "controller": {
+                                "target": 0
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                }
+            }
+        ],
+        "oracleText": "Target creature gets -1/-1 until end of turn.\nCreatures target player controls get +1/+1 until end of turn.",
+        "id": "e8f109f1-9798-4bd3-b51a-49f173251dfd",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Mandroid Squadron",
         "types": [
             "Artifact",
@@ -137280,6 +141728,45 @@
         "rarity": "common"
     },
     {
+        "name": "Ethereal Guidance",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "Creatures you control get +2/+1 until end of turn.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "controller": "controller",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": 2,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "f47dd220-6193-4e31-a1df-591b6424ad27",
+        "rarity": "common"
+    },
+    {
         "name": "Warship Scout",
         "types": [
             "Creature"
@@ -139313,6 +143800,48 @@
         ],
         "id": "f8187e90-6a60-4ed0-9b3a-3a679743b7d0",
         "rarity": "common"
+    },
+    {
+        "name": "Overwhelm",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 5,
+            "G": 2
+        },
+        "oracleText": "Convoke (Your creatures can help cast this spell. Each creature you tap while casting this spell pays for {1} or one mana of that creature's color.)\nCreatures you control get +3/+3 until end of turn.",
+        "staticAbilities": [
+            "convoke"
+        ],
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "controller": "controller",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": 3,
+                        "toughness": 3,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "f819638d-10f1-4250-878e-93efd6dedf6e",
+        "rarity": "uncommon"
     },
     {
         "name": "Izzet Signet",
@@ -141792,6 +146321,83 @@
         "rarity": "common"
     },
     {
+        "name": "Fortify",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "Choose one —\n• Creatures you control get +2/+0 until end of turn.\n• Creatures you control get +0/+2 until end of turn.",
+        "modes": [
+            {
+                "id": "fortify-mode-1",
+                "label": "Creatures you control get +2/+0 until end of turn",
+                "oracleText": "Creatures you control get +2/+0 until end of turn.",
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 2,
+                                "toughness": 0,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "id": "fortify-mode-2",
+                "label": "Creatures you control get +0/+2 until end of turn",
+                "oracleText": "Creatures you control get +0/+2 until end of turn.",
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 0,
+                                "toughness": 2,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "fd063dc7-a35c-44c9-9f8d-b7bb2dc95bec",
+        "rarity": "common"
+    },
+    {
         "name": "Deranged Whelp",
         "types": [
             "Creature"
@@ -142343,6 +146949,67 @@
             }
         ],
         "id": "fe1eb098-7128-4ec8-8218-51fdde3e8326",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Akroan Phalanx",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "Vigilance\n{2}{R}: Creatures you control get +1/+0 until end of turn.",
+        "staticAbilities": [
+            "vigilance"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "akroan-phalanx-ability",
+                "oracleText": "{2}{R}: Creatures you control get +1/+0 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "R": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 1,
+                                "toughness": 0,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "fe23019a-e432-4a27-8acb-b17728a1e8b0",
         "rarity": "uncommon"
     },
     {

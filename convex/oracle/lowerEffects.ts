@@ -21,6 +21,7 @@ import type {
     EffectCardFilter,
     EffectPlayerRef,
     EffectPredicate,
+    EffectSignedValue,
     EffectTokenSpec,
     EffectValue,
     KickerCost,
@@ -152,11 +153,38 @@ function lowerAmount(
  * folding the bound into the selector would be dropped, and a dropped bound
  * destroys everything the sweep names.
  */
+/**
+ * CR 613.4c + CR 207.2c — one stat of a pump: the printed number, or that step
+ * per basic land type among the controller's lands (`domain`), negated for a
+ * shrink. A zero stat has no step to scale.
+ */
+function pumpStep(
+    step: number,
+    perDomain: boolean
+): number | EffectSignedValue {
+    if (!perDomain) return step;
+    const domain: EffectValue = { domain: { of: "controller" } };
+    return step < 0 ? { negate: domain } : domain;
+}
+
 function sweepOps(
-    subject: Extract<SubjectIR, { kind: "mass" }>,
+    mass: Extract<SubjectIR, { kind: "mass" }>,
     site: SiteOptions,
+    slots: TargetSlots,
     verb: (target: EffectObjectSelector) => EffectOp
 ): Lowered<EffectOp[]> {
+    // CR 115.1 — "creatures TARGET PLAYER controls": the swept battlefield is
+    // an announced player's, so the slot is allocated here, in sentence order,
+    // and written onto the selector as its controller.
+    let subject = mass;
+    if (mass.targetPlayerControls === true) {
+        const index = slots.allocate({ type: "player", count: 1 });
+        if (!index.ok) return index;
+        subject = {
+            ...mass,
+            select: { ...mass.select, controller: { target: index.value } },
+        };
+    }
     const each: EffectObjectSelector = { ref: "$each" };
     if (!subject.manaValueAtMostX)
         return lowered([
@@ -743,17 +771,52 @@ function lowerSentenceBody(
     const slots = walk.targets;
     switch (sentence.kind) {
         case "pump": {
+            const power = pumpStep(sentence.power, sentence.perDomain === true);
+            const toughness = pumpStep(
+                sentence.toughness,
+                sentence.perDomain === true
+            );
+            if (sentence.subject.kind === "mass")
+                return sweepOps(sentence.subject, site, slots, (target) => ({
+                    op: "pump",
+                    target,
+                    power,
+                    toughness,
+                    duration: durationSpec(sentence.duration),
+                }));
             const target = objectSelector(sentence.subject, slots);
             if (!target.ok) return target;
             return lowered([
                 {
                     op: "pump",
                     target: target.value,
-                    power: sentence.power,
-                    toughness: sentence.toughness,
+                    power,
+                    toughness,
                     duration: durationSpec(sentence.duration),
                 },
             ]);
+        }
+        case "animate": {
+            // CR 205.1b — only with the "They're still <types>" rider, which
+            // is what says the swept set KEEPS its types; the Op adds Creature
+            // in addition to them, so the bare sentence (whose reading would
+            // replace them) has no encoding.
+            if (sentence.retainsTypes !== true)
+                return unlowerable(
+                    "an animation that does not say the permanents are still what they were replaces their types (CR 205.1a)"
+                );
+            if (sentence.subject.kind !== "mass")
+                return unlowerable(
+                    "an animation reads a sweep, not one object"
+                );
+            const { power, toughness } = sentence;
+            return sweepOps(sentence.subject, site, slots, (target) => ({
+                op: "animate",
+                target,
+                power,
+                toughness,
+                duration: durationSpec(sentence.duration),
+            }));
         }
         case "grant-ability": {
             const target = objectSelector(sentence.subject, slots);
@@ -793,7 +856,7 @@ function lowerSentenceBody(
         }
         case "destroy": {
             if (sentence.subject.kind === "mass")
-                return sweepOps(sentence.subject, site, (target) => ({
+                return sweepOps(sentence.subject, site, slots, (target) => ({
                     op: "destroy",
                     target,
                 }));
@@ -855,7 +918,7 @@ function lowerSentenceBody(
         case "tap-untap": {
             if (sentence.subject.kind === "mass") {
                 const action = sentence.action;
-                return sweepOps(sentence.subject, site, (target) => ({
+                return sweepOps(sentence.subject, site, slots, (target) => ({
                     op: "tapUntap",
                     action,
                     target,

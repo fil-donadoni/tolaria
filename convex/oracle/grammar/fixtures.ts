@@ -1523,4 +1523,256 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             kickedTargetRequirement: { type: "Land", count: 2 },
         },
     },
+    // CR 613.4c + CR 109.5 — "Creatures you control get +1/+1 until end of turn. If this spell was kicked, Zombie creatures you control get an additional +2/+2": a group pump is a `forEach` over the controller's creatures. Exhibits the forms the canned smoke scenario cannot build — a sweep over a runtime-selected set, a `$each` pump, and the kicked gate around a sweep (issue #4132).
+    {
+        rule: "mass subject",
+        card: {
+            name: "Strength of Night",
+            manaCost: "{2}{G}",
+            typeLine: "Instant",
+            oracleText:
+                "Kicker {B} (You may pay an additional {B} as you cast this spell.)\nCreatures you control get +1/+1 until end of turn. If this spell was kicked, Zombie creatures you control get an additional +2/+2 until end of turn.",
+            oracleId: "0045cf16-86dd-4417-ae36-88ca63b30c26",
+            layout: "normal",
+        },
+        expected: {
+            name: "Strength of Night",
+            types: ["Instant"],
+            manaCost: { X: 2, G: 1 },
+            oracleText:
+                "Kicker {B} (You may pay an additional {B} as you cast this spell.)\nCreatures you control get +1/+1 until end of turn. If this spell was kicked, Zombie creatures you control get an additional +2/+2 until end of turn.",
+            kickers: [
+                { id: "kicker", description: "Kicker {B}", mana: { B: 1 } },
+            ],
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        controller: "controller",
+                        filter: { type: "Creature" },
+                    },
+                    effects: [
+                        {
+                            op: "pump",
+                            target: { ref: "$each" },
+                            power: 1,
+                            toughness: 1,
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+                {
+                    op: "if",
+                    predicate: {
+                        left: { kickerCount: true },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                controller: "controller",
+                                filter: { type: "Creature", subtype: "Zombie" },
+                            },
+                            effects: [
+                                {
+                                    op: "pump",
+                                    target: { ref: "$each" },
+                                    power: 2,
+                                    toughness: 2,
+                                    duration: { phase: "end-of-turn" },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 613.4c + CR 115.1 — "Creatures target player controls get -2/-2 until end of turn": the swept battlefield is an announced player's, so the sweep's controller is the target slot. Exhibits a sweep whose controller is a runtime target; Night // Day's Day half prints the same clause (issue #4132).
+    {
+        rule: "mass subject",
+        card: {
+            name: "Arms of Hadar",
+            manaCost: "{3}{B}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Creatures target player controls get -2/-2 until end of turn.",
+            oracleId: "c15e5cb8-b94c-4157-9327-410e66606b82",
+            layout: "normal",
+        },
+        expected: {
+            name: "Arms of Hadar",
+            types: ["Sorcery"],
+            manaCost: { X: 3, B: 1 },
+            oracleText:
+                "Creatures target player controls get -2/-2 until end of turn.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Creature" },
+                        controller: { target: 0 },
+                    },
+                    effects: [
+                        {
+                            op: "pump",
+                            target: { ref: "$each" },
+                            power: -2,
+                            toughness: -2,
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+            targetRequirement: { type: "player", count: 1 },
+        },
+    },
+    // CR 613.4c + CR 207.2c — "Domain — All creatures get -1/-1 until end of turn for each basic land type among lands you control": each stat is the printed step times the controller's Domain, negated for a shrink, over a sweep. Exhibits a pump amount the canned smoke scenario cannot know (issue #4132).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Planar Despair",
+            manaCost: "{3}{B}{B}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Domain — All creatures get -1/-1 until end of turn for each basic land type among lands you control.",
+            oracleId: "1ba36042-8902-4abb-a4ae-a8d26d81a0de",
+            layout: "normal",
+        },
+        expected: {
+            name: "Planar Despair",
+            types: ["Sorcery"],
+            manaCost: { X: 3, B: 2 },
+            oracleText:
+                "Domain — All creatures get -1/-1 until end of turn for each basic land type among lands you control.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Creature" },
+                    },
+                    effects: [
+                        {
+                            op: "pump",
+                            target: { ref: "$each" },
+                            power: { negate: { domain: { of: "controller" } } },
+                            toughness: {
+                                negate: { domain: { of: "controller" } },
+                            },
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 613.4c + CR 207.2c — "Domain — Target creature gets +1/+1 until end of turn for each basic land type among lands you control": the same per-Domain step on ONE announced creature. Exhibits a pump amount the canned smoke scenario cannot know, on a target slot (issue #4132).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Gaea's Might",
+            manaCost: "{G}",
+            typeLine: "Instant",
+            oracleText:
+                "Domain — Target creature gets +1/+1 until end of turn for each basic land type among lands you control.",
+            oracleId: "73b26f12-78eb-4d01-9dd6-ee643c7a80a8",
+            layout: "normal",
+        },
+        expected: {
+            name: "Gaea's Might",
+            types: ["Instant"],
+            manaCost: { G: 1 },
+            oracleText:
+                "Domain — Target creature gets +1/+1 until end of turn for each basic land type among lands you control.",
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: { domain: { of: "controller" } },
+                    toughness: { domain: { of: "controller" } },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+            targetRequirement: { type: "Creature", count: 1 },
+        },
+    },
+    // CR 613.4c + CR 207.2c — "Domain — Target creature gets -1/-1 until end of turn for each basic land type among lands you control": the shrink twin of the fixture above, whose amount is a negated Domain (issue #4132).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Drag Down",
+            manaCost: "{2}{B}",
+            typeLine: "Instant",
+            oracleText:
+                "Domain — Target creature gets -1/-1 until end of turn for each basic land type among lands you control.",
+            oracleId: "30e397e9-a705-4484-8387-04fb84010b2d",
+            layout: "normal",
+        },
+        expected: {
+            name: "Drag Down",
+            types: ["Instant"],
+            manaCost: { X: 2, B: 1 },
+            oracleText:
+                "Domain — Target creature gets -1/-1 until end of turn for each basic land type among lands you control.",
+            effects: [
+                {
+                    op: "pump",
+                    target: { target: 0 },
+                    power: { negate: { domain: { of: "controller" } } },
+                    toughness: { negate: { domain: { of: "controller" } } },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+            targetRequirement: { type: "Creature", count: 1 },
+        },
+    },
+    // CR 205.1b + CR 611.2c — "All lands become 2/2 creatures until end of turn. They're still lands.": a sweep that animates the set as it is when the spell resolves, KEEPING each land's types (the rider). Exhibits `animate` acting on a runtime-selected land, which the canned smoke scenario cannot stage; Life // Death prints the same clause for the controller's lands (issue #4132).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Natural Affinity",
+            manaCost: "{2}{G}",
+            typeLine: "Instant",
+            oracleText:
+                "All lands become 2/2 creatures until end of turn. They're still lands.",
+            oracleId: "09a1ab1b-d9f0-4a2a-a448-3190f85006e4",
+            layout: "normal",
+        },
+        expected: {
+            name: "Natural Affinity",
+            types: ["Instant"],
+            manaCost: { X: 2, G: 1 },
+            oracleText:
+                "All lands become 2/2 creatures until end of turn. They're still lands.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Land" },
+                    },
+                    effects: [
+                        {
+                            op: "animate",
+                            target: { ref: "$each" },
+                            power: 2,
+                            toughness: 2,
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);
