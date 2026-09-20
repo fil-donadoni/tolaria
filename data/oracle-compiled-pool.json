@@ -76798,6 +76798,131 @@
         "rarity": "rare"
     },
     {
+        "name": "Vodalian Mystic",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Merfolk",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{T}: Target instant or sorcery spell becomes the color of your choice.",
+        "activatedAbilities": [
+            {
+                "id": "vodalian-mystic-ability",
+                "oracleText": "{T}: Target instant or sorcery spell becomes the color of your choice.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "optionChoice",
+                        "prompt": "Choose a color (Vodalian Mystic).",
+                        "modes": [
+                            {
+                                "id": "W",
+                                "label": "White",
+                                "color": "W",
+                                "effects": [
+                                    {
+                                        "op": "setColor",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "colors": [
+                                            "W"
+                                        ]
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "U",
+                                "label": "Blue",
+                                "color": "U",
+                                "effects": [
+                                    {
+                                        "op": "setColor",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "colors": [
+                                            "U"
+                                        ]
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "B",
+                                "label": "Black",
+                                "color": "B",
+                                "effects": [
+                                    {
+                                        "op": "setColor",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "colors": [
+                                            "B"
+                                        ]
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "R",
+                                "label": "Red",
+                                "color": "R",
+                                "effects": [
+                                    {
+                                        "op": "setColor",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "colors": [
+                                            "R"
+                                        ]
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "G",
+                                "label": "Green",
+                                "color": "G",
+                                "effects": [
+                                    {
+                                        "op": "setColor",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "colors": [
+                                            "G"
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "spell",
+                    "count": 1,
+                    "spellTypeFilter": [
+                        "Instant",
+                        "Sorcery"
+                    ]
+                }
+            }
+        ],
+        "id": "81ec203a-067e-4360-9b4d-2d67db472aab",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Lost Leonin",
         "types": [
             "Creature"
@@ -84725,6 +84850,162 @@
         ],
         "id": "8e773b3f-37ef-4e37-8b1e-99b7b6314877",
         "rarity": "common"
+    },
+    {
+        "name": "Illusion // Reality",
+        "manaCost": {
+            "U": 1,
+            "G": 1,
+            "X": 2
+        },
+        "types": [
+            "Instant"
+        ],
+        "splitHalves": [
+            {
+                "name": "Illusion",
+                "manaCost": {
+                    "U": 1
+                },
+                "types": [
+                    "Instant"
+                ],
+                "oracleText": "Target spell or permanent becomes the color of your choice until end of turn.",
+                "effects": [
+                    {
+                        "op": "optionChoice",
+                        "prompt": "Choose a color (Illusion).",
+                        "modes": [
+                            {
+                                "id": "W",
+                                "label": "White",
+                                "color": "W",
+                                "effects": [
+                                    {
+                                        "op": "setColor",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "colors": [
+                                            "W"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "U",
+                                "label": "Blue",
+                                "color": "U",
+                                "effects": [
+                                    {
+                                        "op": "setColor",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "colors": [
+                                            "U"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "B",
+                                "label": "Black",
+                                "color": "B",
+                                "effects": [
+                                    {
+                                        "op": "setColor",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "colors": [
+                                            "B"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "R",
+                                "label": "Red",
+                                "color": "R",
+                                "effects": [
+                                    {
+                                        "op": "setColor",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "colors": [
+                                            "R"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "G",
+                                "label": "Green",
+                                "color": "G",
+                                "effects": [
+                                    {
+                                        "op": "setColor",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "colors": [
+                                            "G"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "spell-or-permanent",
+                    "count": 1
+                }
+            },
+            {
+                "name": "Reality",
+                "manaCost": {
+                    "X": 2,
+                    "G": 1
+                },
+                "types": [
+                    "Instant"
+                ],
+                "oracleText": "Destroy target artifact.",
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Artifact",
+                    "count": 1
+                }
+            }
+        ],
+        "oracleText": "Target spell or permanent becomes the color of your choice until end of turn.\nDestroy target artifact.",
+        "id": "8e7dd90a-4f93-43aa-b503-18289fdd571e",
+        "rarity": "uncommon"
     },
     {
         "name": "Alaborn Cavalier",
@@ -101523,6 +101804,142 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Distorting Lens",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 2
+        },
+        "oracleText": "{T}: Target permanent becomes the color of your choice until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "distorting-lens-ability",
+                "oracleText": "{T}: Target permanent becomes the color of your choice until end of turn.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "optionChoice",
+                        "prompt": "Choose a color (Distorting Lens).",
+                        "modes": [
+                            {
+                                "id": "W",
+                                "label": "White",
+                                "color": "W",
+                                "effects": [
+                                    {
+                                        "op": "setColor",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "colors": [
+                                            "W"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "U",
+                                "label": "Blue",
+                                "color": "U",
+                                "effects": [
+                                    {
+                                        "op": "setColor",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "colors": [
+                                            "U"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "B",
+                                "label": "Black",
+                                "color": "B",
+                                "effects": [
+                                    {
+                                        "op": "setColor",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "colors": [
+                                            "B"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "R",
+                                "label": "Red",
+                                "color": "R",
+                                "effects": [
+                                    {
+                                        "op": "setColor",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "colors": [
+                                            "R"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "G",
+                                "label": "Green",
+                                "color": "G",
+                                "effects": [
+                                    {
+                                        "op": "setColor",
+                                        "target": {
+                                            "target": 0
+                                        },
+                                        "colors": [
+                                            "G"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ],
+                "targetRequirement": {
+                    "type": [
+                        "Artifact",
+                        "Battle",
+                        "Creature",
+                        "Enchantment",
+                        "Land",
+                        "Planeswalker"
+                    ],
+                    "count": 1
+                }
+            }
+        ],
+        "id": "ab196d8d-5d1c-4f0e-a924-37774db02821",
+        "rarity": "rare"
+    },
+    {
         "name": "Cenn's Enlistment",
         "types": [
             "Sorcery"
@@ -110049,6 +110466,180 @@
         ],
         "id": "b951bc89-be0b-4330-8a13-e196e084d53c",
         "rarity": "common"
+    },
+    {
+        "name": "Spiritmonger",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Beast"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1,
+            "G": 1
+        },
+        "power": 6,
+        "toughness": 6,
+        "oracleText": "Whenever this creature deals damage to a creature, put a +1/+1 counter on this creature.\n{B}: Regenerate this creature.\n{G}: This creature becomes the color of your choice until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "spiritmonger-ability",
+                "oracleText": "{B}: Regenerate this creature.",
+                "cost": {
+                    "mana": {
+                        "B": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "ref": "$source"
+                        }
+                    }
+                ]
+            },
+            {
+                "id": "spiritmonger-ability-2",
+                "oracleText": "{G}: This creature becomes the color of your choice until end of turn.",
+                "cost": {
+                    "mana": {
+                        "G": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "optionChoice",
+                        "prompt": "Choose a color (Spiritmonger).",
+                        "modes": [
+                            {
+                                "id": "W",
+                                "label": "White",
+                                "color": "W",
+                                "effects": [
+                                    {
+                                        "op": "setColor",
+                                        "target": {
+                                            "ref": "$source"
+                                        },
+                                        "colors": [
+                                            "W"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "U",
+                                "label": "Blue",
+                                "color": "U",
+                                "effects": [
+                                    {
+                                        "op": "setColor",
+                                        "target": {
+                                            "ref": "$source"
+                                        },
+                                        "colors": [
+                                            "U"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "B",
+                                "label": "Black",
+                                "color": "B",
+                                "effects": [
+                                    {
+                                        "op": "setColor",
+                                        "target": {
+                                            "ref": "$source"
+                                        },
+                                        "colors": [
+                                            "B"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "R",
+                                "label": "Red",
+                                "color": "R",
+                                "effects": [
+                                    {
+                                        "op": "setColor",
+                                        "target": {
+                                            "ref": "$source"
+                                        },
+                                        "colors": [
+                                            "R"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "G",
+                                "label": "Green",
+                                "color": "G",
+                                "effects": [
+                                    {
+                                        "op": "setColor",
+                                        "target": {
+                                            "ref": "$source"
+                                        },
+                                        "colors": [
+                                            "G"
+                                        ],
+                                        "duration": {
+                                            "phase": "end-of-turn"
+                                        }
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "spiritmonger-trigger",
+                "oracleText": "Whenever this creature deals damage to a creature, put a +1/+1 counter on this creature.",
+                "head": {
+                    "kind": "damage-dealt",
+                    "source": "self",
+                    "recipient": "creature"
+                },
+                "effects": [
+                    {
+                        "op": "counters",
+                        "action": "add",
+                        "counter": "+1/+1",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "b96d6e67-f690-4f19-bb25-a7c2d2aaf42f",
+        "rarity": "rare"
     },
     {
         "name": "One-Clown Band",
