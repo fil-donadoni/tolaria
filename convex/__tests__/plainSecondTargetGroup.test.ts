@@ -6,8 +6,8 @@
  * `selectTargets` mutation handlers, the wire projection, then
  * `resolveTopOfStack`.
  *
- * CR 601.2c: "The same object or player can be chosen once for each instance
- * of the word 'target' on the spell". Each sentence is its own group, so the
+ * CR 115.3: "the same object or player can be chosen once for each instance
+ * of the word 'target'". Each sentence is its own group, so the
  * SAME creature may fill both — and that is the one thing a widened count
  * ("two target creatures") or an "another target" exclusion would forbid.
  * What separates the two readings is the `excludePriorTargets` directive, so
@@ -24,7 +24,7 @@ import { makeInstance, makePlayer, makeState } from "../cards/__tests__/setup";
 import { grizzlyBears } from "../cards/sets/lea/green";
 import { withTemporaryDefinitionAsync } from "../cards";
 import type { CardDefinition } from "../cards/types";
-import { announceCast, selectTargets } from "../game";
+import { announceCast, confirmTargets, selectTargets } from "../game";
 import {
     gameStateSeed,
     makeMutationCtx,
@@ -177,6 +177,14 @@ describe("a plain second 'target' is its own group (CR 115.3, issue #3875)", () 
                 { type: "permanent", id: "bear-a" },
                 { type: "permanent", id: "bear-a" },
             ]);
+            // SURFACE: the stack item on the wire keeps BOTH picks, the repeat
+            // included — a projection that deduplicated them would show one
+            // target arrow and shift every later positional slot.
+            const stackView = projectPublicState(state, 2, "p1");
+            expect(stackView.stack[0]?.targets).toEqual([
+                { type: "permanent", id: "bear-a" },
+                { type: "permanent", id: "bear-a" },
+            ]);
             resolveTopOfStack(state);
             // -3/-0 then -0/-3 on ONE 2/2 — both halves land on it — while the
             // bystander is untouched.
@@ -212,6 +220,45 @@ describe("a plain second 'target' is its own group (CR 115.3, issue #3875)", () 
             await pick(harness, "bear-a");
             const view = projectPublicState(harness.state(), 1, "p1");
             expect(view.pendingTarget?.excludeInstanceIds).toContain("bear-a");
+        });
+    });
+});
+
+describe("an optional last group is satisfied by zero picks (CR 601.2c, issue #3875)", () => {
+    const LETHAL_PROTECTION = () =>
+        compiledSpell(
+            "Test Lethal Protection",
+            "Destroy target creature. Return up to one target creature card from your graveyard to your hand."
+        );
+
+    it("confirms with the first pick alone when the graveyard offers nothing", async () => {
+        const def = LETHAL_PROTECTION();
+        await withTemporaryDefinitionAsync(def, async () => {
+            const harness = makeMutationCtx("p1", [gameStateSeed(board(def))]);
+            await announce(harness);
+            await pick(harness, "bear-a");
+            // The walk advanced to the "up to one" group; a min-0 group is
+            // closed by an explicit confirm, never by a stall.
+            const open = harness.state().pendingTarget;
+            expect(open?.zone).toBe("graveyard");
+            expect(open?.selected).toEqual([]);
+            await runMutation(
+                confirmTargets as unknown as Handler<
+                    Record<string, unknown>,
+                    void
+                >,
+                harness.ctx,
+                BASE
+            );
+            const state = harness.state();
+            expect(state.pendingTarget).toBeUndefined();
+            expect(state.stack[0]!.targets).toEqual([
+                { type: "permanent", id: "bear-a" },
+            ]);
+            resolveTopOfStack(state);
+            expect(state.players[1]!.battlefield.map((c) => c.id)).toEqual([
+                "bear-b",
+            ]);
         });
     });
 });
