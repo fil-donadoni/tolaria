@@ -461,10 +461,13 @@ export class TargetSlots {
      *     would have instead ("another" than the SOURCE, `excludeSource`) is a
      *     permanent's ability talking about itself, which this walk cannot
      *     tell apart from the spell case and so refuses rather than guesses;
-     *   - a LATER group must be one, because CR 115.3 lets two plain
-     *     instances of "target" name the SAME object and nothing in this
-     *     grammar's fixtures prints that yet: admitting it would be a second
-     *     announcement no accepted form evidences (issue #3875 owns it).
+     *   - a LATER group may print it or not. Printed, it is the directive
+     *     that forbids naming an object an earlier group already named
+     *     (`excludePriorTargets`). Not printed, it is a second plain instance
+     *     of the word "target", which CR 115.3 lets name the SAME object as
+     *     the first — so it is announced as its own group with NO exclusion,
+     *     never widened into the first group's count (that would forbid the
+     *     repeat CR 601.2c allows, a narrower spell than the card);
      *
      * Two further refusals keep a LATER group honest, and both are about
      * something the announcement cannot say rather than about the sentence:
@@ -500,37 +503,32 @@ export class TargetSlots {
                 );
             this.groups.push(requirement);
         } else {
-            // CR 702.33g (issue #4220) — inside a kicker gate the sentence is
-            // a part of the ability that "has its effect only if that spell
-            // was kicked", so its target is a NEW instance of the word
-            // "target" whether or not the card printed "another": CR 115.3
-            // lets it name an object an earlier group already named, and the
-            // announcement expresses it as its own group rather than as a
-            // widened count (`announcedOnlyIfKicked`). Outside a gate that
-            // shape is still refused — a second plain "target" over a
-            // different descriptor is a second announcement no accepted form
-            // evidences yet (issue #3875 owns it).
-            const kickerGated = !another && this.kickerGateDepth > 0;
-            if (!another && !kickerGated)
-                return unlowerable(
-                    'a second target group that is not "another target" is not in grammar v0 (CR 115.3)'
-                );
+            // CR 115.3 — the word "another" is the ONLY thing that excludes an
+            // earlier pick. A plain second "target" (issue #3875: Agony Warp's
+            // two pumps, Bounty of Might's three) is an independent group
+            // that may name the same object, and a kicker-gated sentence is
+            // always one (CR 702.33g, issue #4220): "has its effect only if
+            // that spell was kicked", so its target is a NEW instance of the
+            // word "target" whether or not the card printed "another", and
+            // the announcement expresses it as its own group rather than as
+            // a widened count (`announcedOnlyIfKicked`).
+            const plain = !another;
             if (this.openEnded)
                 return unlowerable(
                     "a target group after a variable-width announcement has no fixed positional slot (CR 601.2c)"
                 );
-            if (!kickerGated && !excludableByPriorPicks(requirement))
+            if (!plain && !excludableByPriorPicks(requirement))
                 return unlowerable(
                     '"another target" is honoured only against battlefield permanents (CR 115.3)'
                 );
-            // CR 115.3 — the exclusion is a DIRECTIVE on the later group
-            // (`excludePriorTargets`, issue #3236): when the target walk
+            // CR 115.3 — a printed "another" is a DIRECTIVE on the later
+            // group (`excludePriorTargets`, issue #3236): when the target walk
             // reaches it, every pick already made for an earlier group is
             // merged into `excludeInstanceIds`, which is the filter
             // `getLegalTargets`, `selectTarget` and the client's highlight
             // already read.
             this.groups.push(
-                kickerGated
+                plain
                     ? requirement
                     : { ...requirement, excludePriorTargets: true }
             );
@@ -560,20 +558,7 @@ export class TargetSlots {
     }
 
     private kicked?: TargetRequirement;
-    private kickerGateDepth = 0;
     private kickerGatedGroups = 0;
-
-    /** CR 702.33g — a sentence whose effect happens "only if that spell was
-     *  kicked" is being walked. A target allocated while this is open is
-     *  chosen only on a kicked cast, which is what {@link allocate} needs to
-     *  know to admit a second plain instance of the word "target". */
-    openKickerGate(): void {
-        this.kickerGateDepth += 1;
-    }
-
-    closeKickerGate(): void {
-        this.kickerGateDepth -= 1;
-    }
 
     /**
      * CR 702.33g — settle the group(s) a kicker gate announced, into one of
@@ -1650,15 +1635,10 @@ function lowerSentenceBody(
             // it on every cast, so the announcement either SWAPS a wider one
             // in (`kickedTargetRequirement`) or declares the gate on the group
             // itself (`announcedOnlyIfKicked`). `foldKickerGatedTargets` picks
-            // between them. The gate is OPEN across the inner walk so
-            // `allocate` knows a second plain "target" here is a second
-            // instance of the word, not the shape it refuses; measured on the
-            // walk, so a target allocated by the inner sentence is seen
-            // however it was reached.
+            // between them; measured on the walk, so a target allocated by
+            // the inner sentence is seen however it was reached.
             const before = walk.targets.requirements().length;
-            walk.targets.openKickerGate();
             const inner = gatedSentence(sentence.effect, walk, site);
-            walk.targets.closeKickerGate();
             if (!inner.ok) return inner;
             if (walk.targets.requirements().length !== before) {
                 const folded = walk.targets.foldKickerGatedTargets(before);

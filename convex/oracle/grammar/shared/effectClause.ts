@@ -1687,7 +1687,11 @@ function readUpgrade(
                 JSON.stringify(duration.value) !== JSON.stringify(base.duration)
             )
                 return "the upgraded pump lasts a different duration";
-            return { ...base, power: Number(m[2]), toughness: Number(m[3]) };
+            return {
+                ...base,
+                power: signedModifier(m[2]!),
+                toughness: signedModifier(m[3]!),
+            };
         }
         case "deal-damage": {
             const m = body.match(UPGRADE_DAMAGE);
@@ -1721,6 +1725,13 @@ function readUpgrade(
         default:
             return `"… instead" cannot replace a ${base.kind}`;
     }
+}
+
+/** A printed signed modifier as a number. "-0" ("gets -3/-0") is zero: the
+ *  `+ 0` folds IEEE negative zero, which JSON would print as `0` anyway and
+ *  which a structural comparison would otherwise tell apart from it. */
+export function signedModifier(printed: string): number {
+    return Number(printed) + 0;
 }
 
 /**
@@ -1782,8 +1793,8 @@ function effectSentence(
             ? groupSubject(pump[1]!, ctx)
             : subjectRule.run(pump[1]!, ctx);
         if (!subject.ok) return subject;
-        const power = Number(pump[4]);
-        const toughness = Number(pump[5]);
+        const power = signedModifier(pump[4]!);
+        const toughness = signedModifier(pump[5]!);
         let tail = pump[6]!;
         const perDomain = PUMP_PER_DOMAIN.test(tail);
         if (perDomain) {
@@ -1816,8 +1827,8 @@ function effectSentence(
         return ok({
             kind: "animate" as const,
             subject: subject.value,
-            power: Number(animate[2]),
-            toughness: Number(animate[3]),
+            power: signedModifier(animate[2]!),
+            toughness: signedModifier(animate[3]!),
             duration: duration.value,
         } satisfies EffectSentenceIR);
     }

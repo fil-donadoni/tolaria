@@ -6,12 +6,13 @@
 //  1. GOLDEN fixtures — a real corpus card compiled whole must produce exactly
 //     this Compiled Definition: the WIDE group ("up to two target creature
 //     cards from your graveyard"), the SECOND group ("Another target creature
-//     gets -2/-2"), and the KICKED swap ("If this spell was kicked, destroy
-//     another target land").
+//     gets -2/-2"), the PLAIN second group (Agony Warp's two "Target
+//     creature gets …" lines, issue #3875) and the KICKED swap ("If this
+//     spell was kicked, destroy another target land").
 //  2. REFUSALS — every neighbour the encoding cannot say: a wide group under a
 //     verb that does not fan out, a bare plural count, a number that disagrees
-//     with its head, "another" with nothing earlier to exclude, a second group
-//     that never printed the word, a kicked gate naming a different set, and a
+//     with its head, "another" with nothing earlier to exclude, a group after
+//     a wide one, a kicked gate naming a different set, and a
 //     kicked gate that omitted "another".
 //  3. SITE ceilings — a triggered ability has no `additionalTargetRequirements`
 //     twin, so a second group is refused there even though both sentences
@@ -226,15 +227,124 @@ describe("second group — 'Another target …' (CR 115.3)", () => {
         ).toMatch(/honoured only against battlefield permanents/);
     });
 
-    it("refuses a second group that did not print the word", () => {
-        // CR 115.3 lets two plain instances of "target" name the SAME object,
-        // which `excludePriorTargets` would forbid — a narrower spell than the
-        // card. That form belongs to issue #3875, with its own evidence.
+    it("still excludes when the SECOND group prints 'another' after a plain one", () => {
+        // A plain second group and a printed "another" are two different
+        // announcements; the word is the only thing that carries the
+        // exclusion, so a third group printing it excludes ITS earlier picks
+        // and a plain one does not.
+        const def = compiled(
+            spell(
+                "Target creature gets +1/+1 until end of turn. Target creature gets +2/+2 until end of turn. Another target creature gets -3/-3 until end of turn."
+            )
+        );
+        expect(def.targetRequirement).toEqual({ type: "Creature", count: 1 });
+        expect(def.additionalTargetRequirements).toEqual([
+            { type: "Creature", count: 1 },
+            { type: "Creature", count: 1, excludePriorTargets: true },
+        ]);
+    });
+});
+
+describe("plain second group — 'Target …' twice (CR 115.3, CR 601.2c, issue #3875)", () => {
+    const pumpTwice = (name: string, cost: string, text: string) =>
+        oracleCard({
+            name,
+            manaCost: cost,
+            typeLine: "Instant",
+            oracleText: text,
+            power: undefined,
+            toughness: undefined,
+        });
+
+    it("Agony Warp: two lines, two groups, neither excluding the other", () => {
+        // CR 115.3 — a second plain instance of the word "target" may name the
+        // SAME creature as the first (Agony Warp's -3/-0 and -0/-3 on one
+        // attacker is the printed use), so the group carries NO
+        // `excludePriorTargets`. Widening the first group to count 2 would say
+        // "two DIFFERENT creatures" and forbid it (CR 601.2c).
+        const def = compiled(
+            pumpTwice(
+                "Agony Warp",
+                "{U}{B}",
+                "Target creature gets -3/-0 until end of turn.\nTarget creature gets -0/-3 until end of turn."
+            )
+        );
+        expect(def.targetRequirement).toEqual({ type: "Creature", count: 1 });
+        expect(def.additionalTargetRequirements).toEqual([
+            { type: "Creature", count: 1 },
+        ]);
+        expect(def.effects).toEqual([
+            {
+                op: "pump",
+                target: { target: 0 },
+                power: -3,
+                toughness: 0,
+                duration: { phase: "end-of-turn" },
+            },
+            {
+                op: "pump",
+                target: { target: 1 },
+                power: 0,
+                toughness: -3,
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
+    });
+
+    it("Bounty of Might: three lines, three groups at slots 0, 1, 2", () => {
+        const def = compiled(
+            pumpTwice(
+                "Bounty of Might",
+                "{4}{G}{G}",
+                Array(3)
+                    .fill("Target creature gets +3/+3 until end of turn.")
+                    .join("\n")
+            )
+        );
+        expect(def.targetRequirement).toEqual({ type: "Creature", count: 1 });
+        expect(def.additionalTargetRequirements).toEqual([
+            { type: "Creature", count: 1 },
+            { type: "Creature", count: 1 },
+        ]);
+        expect(
+            def.effects.map((e) => (e as { target: unknown }).target)
+        ).toEqual([{ target: 0 }, { target: 1 }, { target: 2 }]);
+    });
+
+    it("Common Bond: the counter verb takes the same second group", () => {
+        const def = compiled(
+            pumpTwice(
+                "Common Bond",
+                "{1}{G}{W}",
+                "Put a +1/+1 counter on target creature.\nPut a +1/+1 counter on target creature."
+            )
+        );
+        expect(def.additionalTargetRequirements).toEqual([
+            { type: "Creature", count: 1 },
+        ]);
+        expect(
+            def.effects.map((e) => (e as { target: unknown }).target)
+        ).toEqual([{ target: 0 }, { target: 1 }]);
+    });
+
+    it("a second group over a DIFFERENT descriptor keeps its own requirement", () => {
+        const def = compiled(
+            spell("Destroy target artifact. Destroy target creature.")
+        );
+        expect(def.targetRequirement).toEqual({ type: "Artifact", count: 1 });
+        expect(def.additionalTargetRequirements).toEqual([
+            { type: "Creature", count: 1 },
+        ]);
+    });
+
+    it("still refuses a plain group AFTER a wide one — the later slot would shift", () => {
         expect(
             refusalReason(
-                spell("Destroy target artifact. Destroy target creature.")
+                spell(
+                    "Return up to two target creature cards from your graveyard to your hand. Target creature gets -1/-1 until end of turn."
+                )
             )
-        ).toMatch(/a second target group that is not "another target"/);
+        ).toMatch(/after a variable-width announcement/);
     });
 });
 
