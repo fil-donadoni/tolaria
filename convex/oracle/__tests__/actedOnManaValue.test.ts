@@ -250,7 +250,7 @@ describe("acted-on mana value — behaviour (CR 608.2h)", () => {
         });
     });
 
-    it("unkicked Orim's Thunder destroys and deals nothing (CR 702.33d)", () => {
+    it("unkicked Orim's Thunder: no Kicker paid, so the damage half never runs (CR 702.33d)", () => {
         withCompiled(ORIMS_THUNDER, (id) => {
             const enchantment = theirs("Control Magic", "p2-ench");
             const creature = theirs("Force of Nature", "p2-wall");
