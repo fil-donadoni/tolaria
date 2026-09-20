@@ -170,7 +170,7 @@ import {
 // Lowered 1557 -> 1555 by issue #4136 (life quantities): Tendrils of Agony and
 // Thunderscape Master round-trip once "Target player loses N life and you gain
 // N life" reads as a drain.
-const BASELINE_CEILING = 1555;
+const BASELINE_CEILING = 1551;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that

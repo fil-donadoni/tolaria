@@ -348,11 +348,6 @@
             "issue": 3963
         },
         {
-            "key": "(op) › setSubtype",
-            "op": "setSubtype",
-            "issue": 3964
-        },
-        {
             "key": "(op) › shuffleSelfIntoLibrary",
             "op": "shuffleSelfIntoLibrary",
             "issue": 3965

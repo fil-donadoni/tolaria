@@ -2654,13 +2654,6 @@
     },
     {
         "class": "ability",
-        "cardId": "8e82044d-88cd-4ee4-8ec9-e71a0a85ed46",
-        "name": "Slimy Kavu",
-        "abilityId": "slimy-kavu-swamp",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "9e5b279e-4670-4a1e-87d0-3cab7e4f9e58",
         "name": "Snapcaster Mage",
         "abilityId": "snapcaster-mage-etb-flashback",
