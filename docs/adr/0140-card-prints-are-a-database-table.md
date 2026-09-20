@@ -18,12 +18,15 @@ printed card's definition. Three facts made that shape untenable:
   Paradise had `leb`/`2ed`/`4ed`, but not Revised although the `3ed` set
   exists. The Oracle compiler is heading for every existing card (~35k), and
   the goal is every printing of each (~80k).
-- **Scale.** Measured on 2026-09-19: the Convex code bundle is at 26.2 MiB
-  of a hard 32 MiB per-deployment ceiling; an eagerly-loaded print row costs
-  ~28.5 B brotli against a 500 KB client budget. 80k rows cannot be resident
-  on either side (~11 MB server, ~2.3 MB brotli client), and splitting by
-  print-id prefix does not help: UUIDs are uniform, so one deck touches
-  nearly every shard.
+- **Scale.** Measured on 2026-09-19: an eagerly-loaded print row costs
+  ~28.5 B brotli against a 500 KB client budget, so 80k rows (~2.3 MB brotli)
+  cannot be resident client-side, and splitting by print-id prefix does not
+  help: UUIDs are uniform, so one deck touches nearly every shard. Server-side
+  the argument is per-request cost, not capacity (corrected 2026-09-20, ADR
+  0113 Amendment III: the 32 MiB code ceiling is documented but not enforced):
+  module globals do not survive a request, so the 1,409 constants cost ~6.8 ms
+  of evaluation on EVERY mutation and query, and 80k would cost
+  proportionally more. A table costs nothing until a row is read.
 - **A broken flow.** `buildPlayerState` resolved the alias and kept only the
   definition id, so a player's chosen printing never reached the board.
 
@@ -76,8 +79,7 @@ printed card's definition. Three facts made that shape untenable:
 
 - `getDefinition(printId)` stops resolving printings. Every call site that
   passed a print id receives the definition id instead.
-- Cold start sheds the 1,409 constants (~6 ms eval, measured) and gains no
-  eagerly-loaded byte.
-- ADR 0113's resident compiled corpus also stops fitting before 35k cards
-  (1,013 B per row against ~4 MB of headroom). That is its own decision, not
-  settled here.
+- Every request sheds the 1,409 constants (~6.8 ms eval, measured) and gains
+  no eagerly-loaded byte.
+- ADR 0113's resident compiled corpus at 35k cards was its own decision, since
+  settled by ADR 0113 Amendment III: it stays resident, packed.

@@ -5,7 +5,9 @@
 accepted (settles the "separate grill" PRD #2693 deferred; supersedes that
 PRD's "loaded lazily by id" contract line and the interim shape of ADR 0108 /
 issue #2702). Amended by ADR 0140: Card Prints are not part of the resident
-corpus — they live in a Convex table.
+corpus — they live in a Convex table. Amendment III (2026-09-20): the 32 MiB
+ceiling is documented but not enforced, and the server corpus stays resident,
+packed.
 
 ## Context
 
@@ -522,6 +524,112 @@ vacuously.
 The rule it encodes, for any future Node action: **a `"use node"` module pays
 for its whole import graph a second time.** Reach shared server state through
 `ctx.runQuery`, not through an import.
+
+## Amendment III (2026-09-20) — the ceiling was never tested, and the corpus stays resident, packed
+
+Amendments I and II reasoned from a 32 MiB hard ceiling. Nobody had watched
+Convex cloud refuse a push: the refusal Amendment I quotes came from a third
+party's self-hosted backend running a lowered knob. This amendment records the
+test, and re-takes the server half of § 2 on what the test left standing.
+
+### The enforced limit is 90 MB zipped, not 32 MiB
+
+Measured 2026-09-19/20 on a throwaway project (Free plan, convex 1.39.1), with
+one module holding an incompressible base64 string:
+
+| deployment | module  | result                                                                                                          |
+| ---------- | ------- | --------------------------------------------------------------------------------------------------------------- |
+| cloud dev  | 36 MiB  | accepted                                                                                                        |
+| cloud dev  | 60 MiB  | accepted, and a query read all 62,914,560 characters                                                            |
+| cloud prod | 40 MiB  | accepted by `convex deploy`, and a query read all 41,943,040 characters                                         |
+| cloud dev  | 130 MiB | refused: `ModulesTooLarge: Total module size exceeded the zipped maximum (101.37 MiB > maximum size 85.83 MiB)` |
+
+That is the one check the open-source backend has
+(`PackageSize::verify_size`, `crates/model/src/source_packages/types.rs`):
+`MAX_ZIPPED_PACKAGES_SIZE` = 90,000,000 B and `MAX_UNZIPPED_PACKAGES_SIZE` =
+230,000,000 B. The 32 MiB of the documentation is a **documented contract that
+is not enforced today**. Convex may start enforcing it, so it stays the number
+`check:convex-bundle` watches; what is withdrawn is Amendment I's reading of
+it as a wall a deploy hits ("there is no 32 MiB budget to move to next").
+
+### What actually scales badly is per-request evaluation, not capacity
+
+A second spike measured what a request pays for the catalogue. Module globals
+do not survive a request, locally or on cloud (a module-level counter reads 1
+on every call, sequential or parallel), so **there is no server-side module
+cache**, and everything a module evaluates is paid again by every mutation and
+query.
+
+Medians on cloud, as the difference from an empty mutation in the same
+interleaved run (round trip ~124 ms, so only the difference means anything):
+
+| server form of the corpus                                | rows   | bundled         | per request                        |
+| -------------------------------------------------------- | ------ | --------------- | ---------------------------------- |
+| object literal (today's `compiledPool.ts`)               | 3,144  | 1,013 B per row | +9.6 ms, on EVERY request          |
+| packed: deflate blocks of 16 rows, one base64 string     | 34,890 | ~120 B per row  | ~0 ms when no definition is asked  |
+| the same, asked for 76 definitions in 76 distinct blocks | 34,890 | 4.3 MB in total | +51 ms (+23 ms on the dev machine) |
+
+The literal's cost grows with the row count whether or not the request touches
+a card: ~100 ms per mutation at 35k rows, projected. The packed form costs
+nothing until `getDefinition` is called, and then only for the blocks a game
+touches. Ids are UUIDs, so 76 definitions in 76 blocks is the normal case, not
+the worst one.
+
+### Decision
+
+1. **The server corpus stays resident in the module graph, PACKED.** Rows are
+   sorted by id, deflated in fixed-size blocks against one shared dictionary,
+   and shipped as a single string; `getDefinition` binary-searches the block's
+   first ids, inflates the block once per request and stays synchronous (§ 1
+   stands). The reason is per-request latency, not deploy capacity. Spiked
+   with `fflate` (pure JS, synchronous, dictionary support); `atob` and
+   `TextDecoder` exist in the Convex runtime.
+2. **A definitions table is rejected**, in every shape priced in the grill: a
+   per-game closed definition set read by each mutation is 25-50 KB against a
+   7.1 KB `gameStates` row, on every mutation AND on every subscription
+   re-execution; a popularity split (hot rows resident, long tail in a table)
+   buys a second state for no measured need. Card Prints are a different
+   case and keep their table (ADR 0140): they are read at game load and when a
+   selector opens, never by the engine.
+3. **The generator owns what the registry does at load time.** Anything
+   computed today over every definition at module load (name index, twin ids,
+   split faces) moves into `scripts/catalogue-artifact.ts`; a server module
+   that enumerates the whole registry either moves to the client, which holds
+   the whole corpus (§ 3), or reads a precomputed compact index. One generator
+   still writes both renderings, and the byte-equality guard of § 2 stands.
+4. **`check:convex-bundle` stays at 30 MiB as a warning distance to the
+   documented number**, not as the edge of a refusal.
+5. **Latency budget: 100 ms of added CPU per mutation attributable to the
+   catalogue, measured on cloud** against an empty mutation in the same run.
+   A local number does not count: cloud CPU measured ~2x slower than the dev
+   machine. It is an on-demand script, never a gate.
+
+### Exit ladder
+
+Platform change is not decided here. The triggers are recorded so the next
+session does not start from zero:
+
+| trigger                                                          | move                                                                                                |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Convex starts enforcing 32 MiB and the packed bundle exceeds it  | self-hosted Convex (the limits are env knobs), an ADR 0139 amendment                                |
+| catalogue latency over the 100 ms budget after tuning block size | the GRE as its own long-lived service holding the corpus in memory; Convex keeps lobby, decks, auth |
+| Bot strength shown to be bound by search iterations per second   | evaluate a native search core, for the search only                                                  |
+
+The GRE being pure, synchronous and transport-independent is what keeps the
+second row affordable. Self-hosting was priced and is not cheaper than the
+Starter plan's pay-as-you-go overage once operations are counted.
+
+### Reservations
+
+- Rows today average 451 B compact and are the simple cards; richer rows
+  compress less. At twice the row size the packed corpus is ~8 MiB at 35k and
+  ~11 MiB at 50k, far from 90 MB zipped, near the documented 32 MiB.
+- The bundle's other 23 MiB is code and was not decomposed. Hand-written sets
+  are ~2.6 KB of source per card against 1,013 B per literal row, so retiring
+  a card into the corpus frees bytes (Amendment I assumed the opposite); the
+  GRE's own growth is unprojected.
+- Block size was not tuned; 16 rows beat 64 (24 ms against 67 ms locally) for
+  +0.2 MB.
 
 ## Open, deliberately not decided here
 
