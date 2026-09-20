@@ -36,9 +36,11 @@ import {
     ok,
     rule,
     type Rule,
+    type RuleContext,
     type RuleResult,
     subGrammar,
 } from "../../rule";
+import type { ParsedTypeLine, ParseContext } from "../../types";
 import { readNumberWord } from "./quantity";
 import { descriptorRule, permanentFilterFromDescriptor } from "./targetFilter";
 
@@ -53,6 +55,15 @@ export type CostAtomIR =
     /** CR 602.1 / 118.5 — "Sacrifice a creature", a chosen permanent. */
     | {
           readonly kind: "sacrifice-other";
+          readonly filter: PermanentFilter;
+          readonly count: number;
+      }
+    /** CR 118.3 / 701.26a — "Tap two untapped creatures you control": tap
+     *  `count` OTHER untapped permanents matching `filter`. The source is never
+     *  a candidate (`gre/tapOtherCost.ts`), so `activationCostRule` refuses
+     *  the line whenever the source could have paid with itself. */
+    | {
+          readonly kind: "tap-other";
           readonly filter: PermanentFilter;
           readonly count: number;
       }
@@ -126,6 +137,87 @@ const DISCARD_RANDOM = /^Discard (\S+) cards? at random$/;
 const REMOVE_COUNTER = /^Remove (\S+) (\S+) counters? from (.+)$/;
 const EXILE_GRAVEYARD =
     /^Exile (\S+) (?:(\S+) )?cards? from (your graveyard|a single graveyard)$/;
+
+const TAP_OTHER = /^Tap (\S+) (untapped .+)$/;
+
+/**
+ * "Tap two untapped creatures you control" — CR 118.3 (an already-tapped
+ * permanent cannot be tapped to pay a cost) and CR 701.26a. The payer taps
+ * OTHER permanents, which is not the `{T}` symbol (CR 107.5): CR 302.6's
+ * summoning-sickness rule binds a creature's own `{T}` ability only, so the
+ * tapped creatures need no continuous control since the turn began.
+ *
+ * Read from the shared object descriptor so "untapped" and "you control" mean
+ * what they mean at every other site; the descriptor refuses a trailing
+ * qualifier ("… that share a creature type") on its own, and
+ * `permanentFilterFromDescriptor` refuses a colour, so neither neighbour
+ * is read here. The noun must agree with the count word ("two … creatures").
+ */
+function readTapOtherAtom(
+    span: string,
+    ctx: RuleContext
+): RuleResult<CostAtomIR> {
+    const match = span.match(TAP_OTHER);
+    if (match === null) return fail("not a tap cost this grammar knows", span);
+    const count = readNumberWord(match[1]!);
+    if (count === null) return fail(`"${match[1]}" is not a count`, span);
+    const descriptor = descriptorRule.run(match[2]!, ctx);
+    if (!descriptor.ok) return descriptor;
+    const { controller, tapped, ...rest } = descriptor.value;
+    if (controller !== "you")
+        return fail("a tap cost taps permanents its payer controls", span);
+    if (tapped !== "untapped")
+        return fail("a tap cost taps untapped permanents", span);
+    if ((rest.plural === true) !== count > 1)
+        return fail(`"${match[1]}" does not agree with the noun`, span);
+    const filter = permanentFilterFromDescriptor(rest);
+    if (!filter.ok) return filter;
+    return ok({
+        kind: "tap-other" as const,
+        filter: { ...filter.value, controllerRelation: "you" as const },
+        count,
+    });
+}
+
+/**
+ * True when the source could be one of the permanents it taps itself.
+ *
+ * The engine's candidate pool excludes the source (`tapOtherCostCandidates`),
+ * but "Tap two untapped creatures you control" on a creature lets that creature
+ * pay with itself (CR 302.6 binds only its own `{T}`). Compiling that line
+ * would silently refuse legal activations, so the cost is refused instead.
+ * Conservative on purpose: any type, subtype or supertype the source shares
+ * with the filter counts, and a Vehicle counts as a creature (CR 301.7 — it is
+ * one whenever crewed).
+ */
+function sourceCouldPayItself(
+    filter: PermanentFilter,
+    typeLine: ParsedTypeLine
+): boolean {
+    const types: readonly string[] = typeLine.subtypes.includes("Vehicle")
+        ? [...typeLine.types, "Creature"]
+        : typeLine.types;
+    const shares = (
+        wanted: string | readonly string[] | undefined,
+        have: readonly string[]
+    ): boolean =>
+        wanted === undefined ||
+        [wanted].flat().some((word) => have.includes(word));
+    const excluded = (
+        unwanted: string | readonly string[] | undefined,
+        have: readonly string[]
+    ): boolean =>
+        unwanted !== undefined &&
+        [unwanted].flat().some((word) => have.includes(word));
+    return (
+        shares(filter.types, types) &&
+        shares(filter.subtypes, typeLine.subtypes) &&
+        shares(filter.supertypes, typeLine.supertypes) &&
+        !excluded(filter.excludeTypes, types) &&
+        !excluded(filter.excludeSubtypes, typeLine.subtypes) &&
+        !excluded(filter.excludeSupertypes, typeLine.supertypes)
+    );
+}
 
 /**
  * One cost atom, consumed whole.
@@ -262,6 +354,8 @@ const costAtom: Rule<CostAtomIR> = rule<CostAtomIR>(
             });
         }
 
+        if (span.startsWith("Tap ")) return readTapOtherAtom(span, ctx);
+
         return fail("not a cost atom this grammar knows", span);
     }
 );
@@ -303,6 +397,21 @@ export const activationCostRule: Rule<ActivationCostIR> = subGrammar(
                 return fail(`cost atom "${atom.kind}" appears twice`, span);
             seen.add(atom.kind);
         }
+        // CR 118.3 — with `{T}` in the cost the source is already tapped, so it
+        // cannot also be one of the untapped permanents it taps. Without it the
+        // source may pay with itself, which the engine's pool cannot express.
+        const tapOther = atoms.value.find((atom) => atom.kind === "tap-other");
+        if (tapOther?.kind === "tap-other" && !seen.has("tap")) {
+            const typeLine = (ctx as Partial<ParseContext>).typeLine;
+            if (
+                typeLine === undefined ||
+                sourceCouldPayItself(tapOther.filter, typeLine)
+            )
+                return fail(
+                    "the source could tap itself to pay this cost, which the engine's tap-other pool excludes",
+                    span
+                );
+        }
         return ok({ atoms: atoms.value });
     })
 );
@@ -332,6 +441,12 @@ export function lowerActivationCost(
             case "sacrifice-other":
                 cost.sacrificeFilter = atom.filter;
                 if (atom.count !== 1) cost.sacrificeFilterCount = atom.count;
+                break;
+            case "tap-other":
+                cost.tapOtherFilter = {
+                    filter: atom.filter,
+                    count: atom.count,
+                };
                 break;
             case "pay-life":
                 cost.life = atom.amount;
