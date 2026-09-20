@@ -30,6 +30,7 @@ import { attacksTrigger } from "../../cards/abilities/triggers/attacksTrigger";
 import { attacksOrBlocksTrigger } from "../../cards/abilities/triggers/attacksOrBlocksTrigger";
 import { emitBlockersConfirmedEvents } from "../phases";
 import { collectTriggers } from "../triggers";
+import { resolveTopOfStack } from "../state";
 import type { CardDefinition, EffectOp, GameEvent } from "../../cards/types";
 import type { GameState } from "../state";
 
@@ -189,9 +190,13 @@ describe("per-blocker block triggers (CR 509.3a)", () => {
             id: "a2",
             controllerId: "p1",
         });
+        // Toughness 3, so 2 damage marks the creature instead of killing it
+        // (CR 704.5g) — the assertion is WHICH creature was dealt damage.
         const blocker = makeInstance(CREATURE_CARD, {
             id: "b1",
             controllerId: "p2",
+            power: 3,
+            toughness: 3,
         });
         return makeState({
             players: [
@@ -238,6 +243,46 @@ describe("per-blocker block triggers (CR 509.3a)", () => {
             fired[0]!.triggerEvent?.type === "BLOCKER_DECLARED" &&
                 fired[0]!.triggerEvent.blockerId
         ).toBe("b1");
+    });
+
+    it("resolves onto the BLOCKER the firing named, not the attackers", () => {
+        const state = multiBlockState();
+        withTemporaryDefinition(
+            hostDefinition([
+                attacksOrBlocksTrigger({
+                    id: "attacks-or-blocks",
+                    oracleText:
+                        "Whenever a creature attacks or blocks, this enchantment deals 2 damage to it.",
+                    scope: "any",
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: 2,
+                            to: { ref: "$event.combatant" },
+                        },
+                    ],
+                }),
+            ]),
+            () => {
+                emitBlockersConfirmedEvents(state);
+                // CR 608.2h — the whole point of the censused
+                // `$event.combatant` row: the damage has to find the creature
+                // this firing was FOR. A missing row leaves the ref
+                // unresolvable and the Op silently does nothing.
+                while (state.stack.length > 0) {
+                    if (resolveTopOfStack(state) === null) break;
+                }
+            }
+        );
+
+        const damage = (id: string): number =>
+            [
+                ...state.players[0]!.battlefield,
+                ...state.players[1]!.battlefield,
+            ].find((c) => c.id === id)!.damageMarked ?? 0;
+        expect(damage("b1")).toBe(2);
+        expect(damage("a1")).toBe(0);
+        expect(damage("a2")).toBe(0);
     });
 
     it("both halves of one Oracle line read the same censused field", () => {
