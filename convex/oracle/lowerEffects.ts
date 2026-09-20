@@ -347,6 +347,45 @@ function objectSelector(
         return unlowerable("a sweep is not a single object (CR 110.1)");
     if (subject.requirement.type === "player")
         return unlowerable("a player is not an object (CR 109.1)");
+    // CR 112.1 / CR 110.1 — a SPELL is a card on the STACK; a permanent is a
+    // card on the battlefield. Every verb reaching this helper acts on the
+    // battlefield, so a spell target here is a line misread, not a narrower
+    // one: "Return target spell to its owner's hand" is CR 400.7's stack
+    // departure, which has an Op of its own (`moveSpellFromStack`, issue
+    // #2605) precisely because it is NOT a permanent bounce and NOT a counter
+    // (CR 701.6a — a counter CANCELS the spell; a bounce does not, so nothing
+    // watching for a countered spell sees one). Lowering it as `moveZone`
+    // compiled Reprieve into a spell
+    // that does something else. The stack verbs read their own selector.
+    if (subject.requirement.type === "spell")
+        return unlowerable(
+            "a spell is on the stack, not the battlefield (CR 112.1)"
+        );
+    const index = slots.allocate(subject.requirement);
+    return index.ok ? lowered({ target: index.value }) : index;
+}
+
+/**
+ * CR 112.1 — the announced SPELL a stack verb acts on.
+ *
+ * `objectSelector`'s twin one zone over, and separate for the reason that
+ * helper refuses a spell at all: the two sets of verbs are disjoint, and a
+ * single selector serving both would make every battlefield verb able to read
+ * a stack object by accident.
+ *
+ * Its own guard is UNENTERABLE today and deliberately kept: the counter rule
+ * checks the same two facts before it builds the IR (`effectClause.ts` — a
+ * subject that is not an announced spell fails the sentence), so no input
+ * reaches this refusal. It is the second line, on the side that would still
+ * be right if a future stack verb reached here from a rule that did not
+ * check — which is the only way a lowering learns of a grammar's mistake.
+ */
+function spellSelector(
+    subject: SubjectIR,
+    slots: TargetSlots
+): Lowered<{ target: number }> {
+    if (subject.kind !== "target" || subject.requirement.type !== "spell")
+        return unlowerable("a stack verb names an announced spell (CR 112.1)");
     const index = slots.allocate(subject.requirement);
     return index.ok ? lowered({ target: index.value }) : index;
 }
@@ -499,6 +538,46 @@ function lowerSentenceBody(
                     : { op: "destroy", target: target.value };
             recordActedOn(walk, sentence.subject, destroy);
             return lowered([destroy]);
+        }
+        // CR 701.6a — counter the announced spell, with CR 118.12a's punisher
+        // when the sentence prints one.
+        case "counter": {
+            const target = spellSelector(sentence.subject, slots);
+            if (!target.ok) return target;
+            const counter: EffectOp = { op: "counter", target: target.value };
+            if (sentence.unlessPays === undefined) return lowered([counter]);
+            // CR 118.12a — "[counter] unless [its controller pays]" MEANS
+            // "its controller may pay; if they don't, counter it", which is
+            // the `mayPay` + `if not` pair verbatim. The tally is Domain read
+            // off the effect's OWN controller ("lands YOU control" — CR 109.5
+            // names the spell's controller, never the taxed player), and the
+            // price is the FOURTH `mayPay` cost leg: a generic amount built
+            // from a runtime tally (`genericEqualTo`), never a base cost with
+            // a reduction, which has nothing to subtract from.
+            const bind = walk.nextBind("may");
+            return lowered([
+                {
+                    op: "mayPay",
+                    // CR 118.12a — the taxed player is the spell's controller.
+                    player: {
+                        controllerOf: target.value,
+                    },
+                    // CR 109.5 — "lands YOU control" is the EFFECT's
+                    // controller, never the taxed player; `times` is absent
+                    // because the printed price is {1} per land type and the
+                    // grammar reads no other (`COUNTER_DOMAIN_TAX`).
+                    cost: {
+                        genericEqualTo: { domain: { of: "controller" } },
+                    },
+                    prompt: `Pay {1} for each basic land type among lands ${site.selfName}'s controller controls to prevent your spell from being countered?`,
+                    bind,
+                },
+                {
+                    op: "if",
+                    predicate: { not: { binding: bind } },
+                    then: [counter],
+                },
+            ]);
         }
         case "tap-untap": {
             if (sentence.subject.kind === "mass") {

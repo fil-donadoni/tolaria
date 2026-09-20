@@ -17929,6 +17929,36 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Dismiss",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 2
+        },
+        "oracleText": "Counter target spell.\nDraw a card.",
+        "effects": [
+            {
+                "op": "counter",
+                "target": {
+                    "target": 0
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "spell",
+            "count": 1
+        },
+        "id": "1e55d6be-7682-4786-9872-e847afd710b0",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Darklit Gargoyle",
         "types": [
             "Artifact",
@@ -22114,6 +22144,34 @@
         },
         "id": "27bae717-56c0-4028-b1e7-a445d6a57176",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Forceful Denial",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 2
+        },
+        "oracleText": "Cascade (When you cast this spell, exile cards from the top of your library until you exile a nonland card that costs less. You may cast it without paying its mana cost. Put the exiled cards on the bottom in a random order.)\nCounter target spell.",
+        "staticAbilities": [
+            "cascade"
+        ],
+        "effects": [
+            {
+                "op": "counter",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "spell",
+            "count": 1
+        },
+        "id": "27c75157-2670-4804-8853-a6867c83c40a",
+        "rarity": "common"
     },
     {
         "name": "Gnathosaur",
@@ -30974,6 +31032,52 @@
             }
         },
         "id": "385bea20-c196-4da8-bc3e-36f8d50dcc17",
+        "rarity": "common"
+    },
+    {
+        "name": "Refute",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 2
+        },
+        "oracleText": "Counter target spell. Draw a card, then discard a card.",
+        "effects": [
+            {
+                "op": "counter",
+                "target": {
+                    "target": 0
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            },
+            {
+                "op": "choice",
+                "kind": "choose-hand-card",
+                "player": "controller",
+                "zone": "hand",
+                "count": 1,
+                "prompt": "Discard a card.",
+                "bind": "$discard1"
+            },
+            {
+                "op": "discard",
+                "player": "controller",
+                "cards": {
+                    "ref": "$discard1"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "spell",
+            "count": 1
+        },
+        "id": "38806934-dd9c-4ad4-a59c-a16dce03a14a",
         "rarity": "common"
     },
     {
@@ -42603,6 +42707,65 @@
         "rarity": "common"
     },
     {
+        "name": "Frilled Mystic",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elf",
+            "Lizard",
+            "Wizard"
+        ],
+        "manaCost": {
+            "U": 2,
+            "G": 2
+        },
+        "power": 3,
+        "toughness": 2,
+        "oracleText": "Flash\nWhen this creature enters, you may counter target spell.",
+        "staticAbilities": [
+            "flash"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "frilled-mystic-trigger",
+                "oracleText": "When this creature enters, you may counter target spell.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "spell",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Counter target spell?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "counter",
+                                "target": {
+                                    "target": 0
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "50595d02-edad-48a6-b10c-6fa859cc88bb",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Thornscape Apprentice",
         "types": [
             "Creature"
@@ -48811,6 +48974,58 @@
         "rarity": "common"
     },
     {
+        "name": "Evasive Action",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "oracleText": "Domain — Counter target spell unless its controller pays {1} for each basic land type among lands you control.",
+        "effects": [
+            {
+                "op": "mayPay",
+                "player": {
+                    "controllerOf": {
+                        "target": 0
+                    }
+                },
+                "cost": {
+                    "genericEqualTo": {
+                        "domain": {
+                            "of": "controller"
+                        }
+                    }
+                },
+                "prompt": "Pay {1} for each basic land type among lands Evasive Action's controller controls to prevent your spell from being countered?",
+                "bind": "$may1"
+            },
+            {
+                "op": "if",
+                "predicate": {
+                    "not": {
+                        "binding": "$may1"
+                    }
+                },
+                "then": [
+                    {
+                        "op": "counter",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "spell",
+            "count": 1
+        },
+        "id": "5d0b4f29-ada4-41d2-8292-b5af537c6fd2",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Nimbus of the Isles",
         "types": [
             "Creature"
@@ -53310,6 +53525,37 @@
         ],
         "id": "64ee32f9-6120-4f15-a692-89a4cd8167c6",
         "rarity": "common"
+    },
+    {
+        "name": "Fall of the Gavel",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1,
+            "U": 1
+        },
+        "oracleText": "Counter target spell. You gain 5 life.",
+        "effects": [
+            {
+                "op": "counter",
+                "target": {
+                    "target": 0
+                }
+            },
+            {
+                "op": "gainLife",
+                "player": "controller",
+                "amount": 5
+            }
+        ],
+        "targetRequirement": {
+            "type": "spell",
+            "count": 1
+        },
+        "id": "64f42848-963b-4b16-aeec-66d0f349758b",
+        "rarity": "uncommon"
     },
     {
         "name": "Astral Steel",
@@ -78084,6 +78330,54 @@
         "rarity": "rare"
     },
     {
+        "name": "Ertai, Wizard Adept",
+        "types": [
+            "Creature"
+        ],
+        "supertypes": [
+            "Legendary"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{2}{U}{U}, {T}: Counter target spell.",
+        "activatedAbilities": [
+            {
+                "id": "ertai-wizard-adept-ability",
+                "oracleText": "{2}{U}{U}, {T}: Counter target spell.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "U": 2
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "counter",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "spell",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "91971e19-61ce-45ac-b700-9ffca5091a27",
+        "rarity": "rare"
+    },
+    {
         "name": "Dragon Trainer",
         "types": [
             "Creature"
@@ -85950,6 +86244,36 @@
             }
         ],
         "id": "a08becd3-ca5e-4150-8d28-52436a3eaffd",
+        "rarity": "common"
+    },
+    {
+        "name": "Contradict",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 2
+        },
+        "oracleText": "Counter target spell.\nDraw a card.",
+        "effects": [
+            {
+                "op": "counter",
+                "target": {
+                    "target": 0
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "spell",
+            "count": 1
+        },
+        "id": "a0b3d4ff-09d1-4d9f-8c83-cdfbd7bb1079",
         "rarity": "common"
     },
     {
@@ -96935,6 +97259,31 @@
         ],
         "id": "b4df70ea-2b6b-4e25-a564-655989ef16fa",
         "rarity": "rare"
+    },
+    {
+        "name": "Cancel",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 2
+        },
+        "oracleText": "Counter target spell.",
+        "effects": [
+            {
+                "op": "counter",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "spell",
+            "count": 1
+        },
+        "id": "b4e175f7-f649-451b-9ee5-ad1140b2e8a7",
+        "rarity": "common"
     },
     {
         "name": "Felhide Minotaur",
@@ -110524,6 +110873,37 @@
         ],
         "id": "cee30585-f7b1-4ca4-8171-dc5a837f2b93",
         "rarity": "common"
+    },
+    {
+        "name": "Discombobulate",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 2
+        },
+        "oracleText": "Counter target spell. Look at the top four cards of your library, then put them back in any order.",
+        "effects": [
+            {
+                "op": "counter",
+                "target": {
+                    "target": 0
+                }
+            },
+            {
+                "op": "scryReorder",
+                "player": "controller",
+                "count": 4,
+                "destination": "none"
+            }
+        ],
+        "targetRequirement": {
+            "type": "spell",
+            "count": 1
+        },
+        "id": "cef584c5-6e2d-419b-9c11-a1b6c9c9ab2a",
+        "rarity": "uncommon"
     },
     {
         "name": "Fungal Bloom",
@@ -125127,6 +125507,35 @@
         "rarity": "rare"
     },
     {
+        "name": "Fervent Denial",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 2
+        },
+        "oracleText": "Counter target spell.\nFlashback {5}{U}{U} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+        "effects": [
+            {
+                "op": "counter",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "spell",
+            "count": 1
+        },
+        "flashback": {
+            "X": 5,
+            "U": 2
+        },
+        "id": "ed13fdb4-f28a-43c9-a69f-bab227806c39",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Charge Through",
         "types": [
             "Instant"
@@ -126922,6 +127331,50 @@
         ],
         "id": "f0944759-ee9f-4ae0-9d1b-2533ff6791a2",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Mystic Snake",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Snake"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 2,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Flash\nWhen this creature enters, counter target spell.",
+        "staticAbilities": [
+            "flash"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "mystic-snake-trigger",
+                "oracleText": "When this creature enters, counter target spell.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "spell",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "counter",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "f098a28c-5f9b-4a2c-b109-c342365eb948",
+        "rarity": "rare"
     },
     {
         "name": "Aven Reedstalker",
@@ -130562,6 +131015,48 @@
         "rarity": "common"
     },
     {
+        "name": "Daring Apprentice",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 2
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{T}, Sacrifice this creature: Counter target spell.",
+        "activatedAbilities": [
+            {
+                "id": "daring-apprentice-ability",
+                "oracleText": "{T}, Sacrifice this creature: Counter target spell.",
+                "cost": {
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "counter",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "spell",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "f87b3c06-5479-4060-8d3a-d161fd5830c1",
+        "rarity": "rare"
+    },
+    {
         "name": "Guardian of Pilgrims",
         "types": [
             "Creature"
@@ -130646,6 +131141,52 @@
             }
         ],
         "id": "f8805db2-5a26-43cf-9b74-f882c283e5e4",
+        "rarity": "common"
+    },
+    {
+        "name": "Failed Inspection",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 2
+        },
+        "oracleText": "Counter target spell. Draw a card, then discard a card.",
+        "effects": [
+            {
+                "op": "counter",
+                "target": {
+                    "target": 0
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            },
+            {
+                "op": "choice",
+                "kind": "choose-hand-card",
+                "player": "controller",
+                "zone": "hand",
+                "count": 1,
+                "prompt": "Discard a card.",
+                "bind": "$discard1"
+            },
+            {
+                "op": "discard",
+                "player": "controller",
+                "cards": {
+                    "ref": "$discard1"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "spell",
+            "count": 1
+        },
+        "id": "f8900f91-cb17-4f99-a5ce-15819369beb8",
         "rarity": "common"
     },
     {

@@ -6512,6 +6512,16 @@
         "source": "compiled"
     },
     {
+        "name": "Cancel",
+        "scryfallId": "b4e175f7-f649-451b-9ee5-ad1140b2e8a7",
+        "oracleId": "7d00fb28-ea6c-49a9-b4af-ffb38860a9a7",
+        "firstSet": "tsp",
+        "firstPrintId": "b4e175f7-f649-451b-9ee5-ad1140b2e8a7",
+        "firstPrintSet": "tsp",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Candelabra of Tawnos",
         "scryfallId": "35a335bf-7358-460f-b7c9-1e8bc4300f64",
         "oracleId": "c7c7bffa-442d-4ba5-b778-ad394c192f27",
@@ -8662,6 +8672,16 @@
         "source": "compiled"
     },
     {
+        "name": "Contradict",
+        "scryfallId": "a0b3d4ff-09d1-4d9f-8c83-cdfbd7bb1079",
+        "oracleId": "a48f259a-99a0-49c7-a11b-6e796f8a12f4",
+        "firstSet": "dtk",
+        "firstPrintId": "a0b3d4ff-09d1-4d9f-8c83-cdfbd7bb1079",
+        "firstPrintSet": "dtk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Control Magic",
         "scryfallId": "7b52f459-c703-4a0b-9114-ff69eec61287",
         "oracleId": "cd0d7141-46d2-4aa3-bc77-6b3b4513803e",
@@ -9848,6 +9868,16 @@
         "firstSet": "pls",
         "firstPrintId": "cf4c9d6a-86eb-45be-9405-473eb263b94c",
         "firstPrintSet": "pls"
+    },
+    {
+        "name": "Daring Apprentice",
+        "scryfallId": "f87b3c06-5479-4060-8d3a-d161fd5830c1",
+        "oracleId": "863ad4b8-094b-46b3-b6cd-0640e1f01d6d",
+        "firstSet": "mir",
+        "firstPrintId": "f87b3c06-5479-4060-8d3a-d161fd5830c1",
+        "firstPrintSet": "mir",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Daring Leap",
@@ -11512,6 +11542,16 @@
         "source": "compiled"
     },
     {
+        "name": "Discombobulate",
+        "scryfallId": "cef584c5-6e2d-419b-9c11-a1b6c9c9ab2a",
+        "oracleId": "b58d7a20-4bcd-4c33-8cda-955362525f48",
+        "firstSet": "ons",
+        "firstPrintId": "cef584c5-6e2d-419b-9c11-a1b6c9c9ab2a",
+        "firstPrintSet": "ons",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Discordant Piper",
         "scryfallId": "a8cce294-f6ee-4b18-8b65-7d01d0317b00",
         "oracleId": "bb0107f4-723a-4f2c-8e4b-237d5f668e3c",
@@ -11582,6 +11622,16 @@
         "firstSet": "nph",
         "firstPrintId": "064dfdeb-485f-473e-9fa0-8fdb7638cdc6",
         "firstPrintSet": "nph"
+    },
+    {
+        "name": "Dismiss",
+        "scryfallId": "1e55d6be-7682-4786-9872-e847afd710b0",
+        "oracleId": "5c828a5e-10ae-4f63-86fd-2f160af43cc3",
+        "firstSet": "tmp",
+        "firstPrintId": "1e55d6be-7682-4786-9872-e847afd710b0",
+        "firstPrintSet": "tmp",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Dismissive Pyromancer",
@@ -14088,6 +14138,16 @@
         "firstPrintSet": "pls"
     },
     {
+        "name": "Ertai, Wizard Adept",
+        "scryfallId": "91971e19-61ce-45ac-b700-9ffca5091a27",
+        "oracleId": "f2902dfd-888f-4b02-b8ad-1056f0059fc3",
+        "firstSet": "exo",
+        "firstPrintId": "91971e19-61ce-45ac-b700-9ffca5091a27",
+        "firstPrintSet": "exo",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Escape Routes",
         "scryfallId": "dbc9062e-ddd9-41ac-a88a-33f5a7b22103",
         "oracleId": "65260087-48b5-4968-8584-7cc561bb312c",
@@ -14239,6 +14299,16 @@
         "firstPrintId": "8f5228dc-ec9d-456f-a89c-1bc592a1bbab",
         "firstPrintSet": "clb",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Evasive Action",
+        "scryfallId": "5d0b4f29-ada4-41d2-8292-b5af537c6fd2",
+        "oracleId": "4543a99d-eefa-470d-976d-11250524ae28",
+        "firstSet": "apc",
+        "firstPrintId": "5d0b4f29-ada4-41d2-8292-b5af537c6fd2",
+        "firstPrintSet": "apc",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -14666,6 +14736,16 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Failed Inspection",
+        "scryfallId": "f8900f91-cb17-4f99-a5ce-15819369beb8",
+        "oracleId": "e4fbf952-de3b-4cbd-848a-37041f337e06",
+        "firstSet": "kld",
+        "firstPrintId": "f8900f91-cb17-4f99-a5ce-15819369beb8",
+        "firstPrintSet": "kld",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Faithbearer Paladin",
         "scryfallId": "af15a774-b97f-4bc0-913d-4d2a047fed8a",
         "oracleId": "725dc451-cae4-4345-9741-6c58e5a1a1dc",
@@ -14691,6 +14771,16 @@
         "firstPrintId": "cd2023b3-5999-44b1-a67f-3f2a76cb2d14",
         "firstPrintSet": "emn",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Fall of the Gavel",
+        "scryfallId": "64f42848-963b-4b16-aeec-66d0f349758b",
+        "oracleId": "5ad33099-0392-4f68-a4c5-7fa3ef2d473e",
+        "firstSet": "rtr",
+        "firstPrintId": "64f42848-963b-4b16-aeec-66d0f349758b",
+        "firstPrintSet": "rtr",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -15232,6 +15322,16 @@
         "firstSet": "usg",
         "firstPrintId": "091dda35-59e5-456d-8804-61513a610aed",
         "firstPrintSet": "usg"
+    },
+    {
+        "name": "Fervent Denial",
+        "scryfallId": "ed13fdb4-f28a-43c9-a69f-bab227806c39",
+        "oracleId": "2e56bc34-1e35-4b95-9525-cb58ac8ba060",
+        "firstSet": "ody",
+        "firstPrintId": "ed13fdb4-f28a-43c9-a69f-bab227806c39",
+        "firstPrintSet": "ody",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Fervor",
@@ -16510,6 +16610,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Forceful Denial",
+        "scryfallId": "27c75157-2670-4804-8853-a6867c83c40a",
+        "oracleId": "21d3db6b-58cc-435c-bfd6-8320f6efcbbe",
+        "firstSet": "cmr",
+        "firstPrintId": "27c75157-2670-4804-8853-a6867c83c40a",
+        "firstPrintSet": "cmr",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Forensic Gadgeteer",
         "scryfallId": "97d08a15-e61c-4421-a541-c68a4f87cb74",
         "oracleId": "9d5917d5-4fb3-4f37-9278-e08c1f73aae5",
@@ -16883,6 +16993,16 @@
         "firstPrintId": "20e0dba2-d15c-4d55-9b68-00648175e760",
         "firstPrintSet": "dsk",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Frilled Mystic",
+        "scryfallId": "50595d02-edad-48a6-b10c-6fa859cc88bb",
+        "oracleId": "724bc69c-cd09-4ff8-91e7-70500b9474e1",
+        "firstSet": "rna",
+        "firstPrintId": "50595d02-edad-48a6-b10c-6fa859cc88bb",
+        "firstPrintSet": "rna",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -29786,6 +29906,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Mystic Snake",
+        "scryfallId": "f098a28c-5f9b-4a2c-b109-c342365eb948",
+        "oracleId": "161b6d06-e6a7-488e-9f9c-d266c1402a3a",
+        "firstSet": "apc",
+        "firstPrintId": "f098a28c-5f9b-4a2c-b109-c342365eb948",
+        "firstPrintSet": "apc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Mystical Tutor",
         "scryfallId": "5d98101f-e32a-4a4a-a649-faa920d111ee",
         "oracleId": "fb81f95c-70f8-4eb7-8d15-15d0ae23ec03",
@@ -35892,6 +36022,16 @@
         "firstSet": "ody",
         "firstPrintId": "0084ba4e-98eb-4eb4-b23e-c5ab4d7d95cb",
         "firstPrintSet": "ody",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Refute",
+        "scryfallId": "38806934-dd9c-4ad4-a59c-a16dce03a14a",
+        "oracleId": "eb1dfa29-7371-4cb6-bfa2-16f7820b69be",
+        "firstSet": "fdn",
+        "firstPrintId": "38806934-dd9c-4ad4-a59c-a16dce03a14a",
+        "firstPrintSet": "fdn",
         "rarity": "common",
         "source": "compiled"
     },

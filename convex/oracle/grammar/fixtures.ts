@@ -1212,4 +1212,73 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 701.6a — "Counter target spell". Exhibits the form the canned smoke
+    // scenario cannot build: `counter` acts on a SPELL ON THE STACK, and the
+    // generator seeds only players and battlefield permanents. This fixture
+    // is the evidence the grammar emits the counter the hand-written
+    // Counterspell writes (sets/lea/blue.ts — it round-trips, Guard C), for
+    // every card whose counter has the same shape (issue #4129).
+    {
+        rule: "counter",
+        card: {
+            oracleId: "cc187110-1148-4090-bbb8-e205694a39f5",
+            name: "Counterspell",
+            manaCost: "{U}{U}",
+            typeLine: "Instant",
+            oracleText: "Counter target spell.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Counterspell",
+            types: ["Instant"],
+            manaCost: { U: 2 },
+            oracleText: "Counter target spell.",
+            effects: [{ op: "counter", target: { target: 0 } }],
+            targetRequirement: { type: "spell", count: 1 },
+        },
+    },
+    // CR 118.12a + CR 207.2c — the punisher counter under an ability word:
+    // "Domain — Counter target spell unless its controller pays {1} for each
+    // basic land type among lands you control". Exhibits a SECOND
+    // card-dependent form beside the counter's own — a `mayPay` whose generic
+    // price is a Domain tally, which the canned generator cannot size because
+    // it seeds no basic lands — so this fixture is the evidence that the
+    // may-pay/if-not pair CR 118.12a defines is the one the grammar emits
+    // (issue #4129).
+    {
+        rule: "counter",
+        card: {
+            oracleId: "4543a99d-eefa-470d-976d-11250524ae28",
+            name: "Evasive Action",
+            manaCost: "{1}{U}",
+            typeLine: "Instant",
+            oracleText:
+                "Domain — Counter target spell unless its controller pays {1} for each basic land type among lands you control.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Evasive Action",
+            types: ["Instant"],
+            manaCost: { X: 1, U: 1 },
+            oracleText:
+                "Domain — Counter target spell unless its controller pays {1} for each basic land type among lands you control.",
+            effects: [
+                {
+                    op: "mayPay",
+                    player: { controllerOf: { target: 0 } },
+                    cost: {
+                        genericEqualTo: { domain: { of: "controller" } },
+                    },
+                    prompt: "Pay {1} for each basic land type among lands Evasive Action's controller controls to prevent your spell from being countered?",
+                    bind: "$may1",
+                },
+                {
+                    op: "if",
+                    predicate: { not: { binding: "$may1" } },
+                    then: [{ op: "counter", target: { target: 0 } }],
+                },
+            ],
+            targetRequirement: { type: "spell", count: 1 },
+        },
+    },
 ]);

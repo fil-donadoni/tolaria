@@ -134,7 +134,11 @@ import {
 // Lowered 1606 -> 1602 by issue #4130 (player verbs with a count): Disrupting
 // Scepter, Mind Rot, Ravenous Rats and Zuran Enchanter round-trip once "target
 // player discards N cards" reads as the affected player's choice.
-const BASELINE_CEILING = 1602;
+//
+// Lowered 1602 -> 1598 by issue #4129 (counterspell forms): Absorb,
+// Counterspell, Dromar's Charm and Ertai, the Corrupted round-trip once
+// "Counter target spell" reads.
+const BASELINE_CEILING = 1598;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that

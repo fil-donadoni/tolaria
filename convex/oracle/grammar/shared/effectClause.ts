@@ -103,6 +103,21 @@ export type SubjectIR =
      */
     | ({ readonly kind: "mass" } & MassSubjectIR);
 
+/**
+ * CR 118.12a — the price a counter's controller may be made to pay to keep
+ * their spell on the stack ("… unless its controller pays <tax>").
+ *
+ * ONE form today: the per-tally generic tax "{N} for each <tally>", whose only
+ * tally this grammar reads is CR 207.2c's Domain ("each basic land type among
+ * lands you control"). A FLAT tax ("… unless its controller pays {3}", Mana
+ * Leak) is a different price in a different `mayPay` cost leg — a literal
+ * `ManaCost` rather than `genericEqualTo` — so it is neither read here nor
+ * evidenced by this form's fixture, and stays refused under its own gap key.
+ */
+export type CounterTaxIR = {
+    readonly kind: "per-domain";
+};
+
 export type EffectSentenceIR =
     | {
           readonly kind: "pump";
@@ -160,6 +175,25 @@ export type EffectSentenceIR =
           readonly kind: "destroy";
           readonly subject: SubjectIR;
           readonly cantBeRegenerated: boolean;
+      }
+    | {
+          /**
+           * CR 701.6a — counter a spell on the stack.
+           *
+           * The subject is always an announced spell target: nothing else is
+           * counterable by this grammar, and a sweep ("counter all spells")
+           * announces nothing and is refused where every other sweep is.
+           *
+           * `unlessPays` is CR 118.12a's PUNISHER half — "…, unless its
+           * controller pays <tax>" — kept on the counter rather than modelled
+           * as a separate sentence because the tax and the counter are one
+           * instruction: the payment is offered only so that the counter may
+           * be skipped, and a tax lowered beside a counter it did not gate
+           * would price nothing.
+           */
+          readonly kind: "counter";
+          readonly subject: SubjectIR;
+          readonly unlessPays?: CounterTaxIR;
       }
     | {
           readonly kind: "tap-untap";
@@ -889,6 +923,36 @@ const ROUTE_REST: ReadonlyMap<
     ["into your graveyard", "graveyard"],
 ]);
 
+/**
+ * CR 701.6a — the keyword action, at PROBE casing.
+ *
+ * Lowercase, unlike the `"Destroy "` / `"Tap "` literals beside it, because
+ * this branch is entered through `uncapitalise`: `optionalSentenceRule` hands
+ * its inner rule the clause UNCAPITALISED ("you may counter target spell"),
+ * and Frilled Mystic prints exactly that. The casing convention lives one
+ * level up and is inconsistent there — `kickedSentenceRule` re-capitalises
+ * its tail, `optionalSentenceRule` does not — so the probe is what this
+ * branch can rely on.
+ */
+const COUNTER_VERB = "counter ";
+/** CR 118.12a — where a counter's punisher clause begins. */
+const UNLESS_PAYS = " unless its controller pays ";
+/**
+ * CR 118.12a + CR 207.2c — the Domain tax, whole: "{1} for each basic land
+ * type among lands you control". Anchored over the REST of the sentence, so a
+ * tax this grammar does not price fails the counter rather than being dropped
+ * — a counter that silently forgot its "unless" is a free counterspell.
+ *
+ * The price is the LITERAL {1}, not `\{(\d+)\}`: Evasive Action is the only
+ * card in the corpus that prints a per-basic-land-type tax, so a captured
+ * amount would be an accepted form with no fixture behind it (ADR 0105 § 2)
+ * — and a captured {0} lowers to a tax anyone pays, i.e. a counterspell that
+ * never counters. The day a second amount prints, capture it and give the
+ * capture its own fixture.
+ */
+const COUNTER_DOMAIN_TAX =
+    /^ unless its controller pays \{1\} for each basic land type among lands you control$/;
+
 /** CR 615.12 — the printed sentence, whole, without its full stop. */
 const SUPPRESS_DAMAGE_PREVENTION = "Damage can't be prevented this turn";
 
@@ -914,6 +978,51 @@ const RESTRICTIONS: ReadonlyMap<string, RestrictionIR> = new Map<
 ]);
 
 /**
+ * CR 207.2c — the ability words, as that rule enumerates them.
+ *
+ * Lowercased and apostrophe-normalised on the way in, because the Oracle
+ * prints them capitalised at the head of a line ("Domain —") and the CR
+ * prints "council\u2019s dilemma" with a typographic apostrophe.
+ */
+const ABILITY_WORDS: ReadonlySet<string> = new Set(
+    (
+        "adamant, addendum, alliance, battalion, bloodrush, celebration, " +
+        "channel, chroma, cohort, constellation, converge, council's dilemma, " +
+        "coven, delirium, descend 4, descend 8, disappear, domain, eerie, " +
+        "eminence, enrage, fateful hour, fathomless descent, ferocious, " +
+        "flurry, formidable, grandeur, hellbent, heroic, imprint, infusion, " +
+        "inspired, join forces, kinship, landfall, lieutenant, magecraft, " +
+        "metalcraft, morbid, opus, pack tactics, paradox, parley, radiance, " +
+        "raid, rally, renew, repartee, revolt, secret council, spell mastery, " +
+        "strive, survival, sweep, tempting offer, threshold, undergrowth, " +
+        "valiant, vivid, void, will of the council"
+    ).split(", ")
+);
+
+/** How the Oracle separates an ability word from the ability it heads. */
+const ABILITY_WORD_SEPARATOR = " \u2014 ";
+
+/**
+ * CR 207.2c — the sentence with its leading ability word removed, or the
+ * sentence unchanged when it has none.
+ *
+ * Exact by construction: the head must be the WHOLE span before the first
+ * em dash separator AND a member of the CR census, so a sentence that merely
+ * contains an em dash keeps every word it printed.
+ */
+function withoutAbilityWord(span: string): string {
+    const at = span.indexOf(ABILITY_WORD_SEPARATOR);
+    if (at === -1) return span;
+    const head = span
+        .slice(0, at)
+        .toLowerCase()
+        .replace(/\u2019/g, "'");
+    return ABILITY_WORDS.has(head)
+        ? span.slice(at + ABILITY_WORD_SEPARATOR.length)
+        : span;
+}
+
+/**
  * One sentence, without its full stop.
  *
  * Every branch below is entered on an exact keyword and then required to match
@@ -922,7 +1031,18 @@ const RESTRICTIONS: ReadonlyMap<string, RestrictionIR> = new Map<
  */
 export const sentenceRule: Rule<SentenceIR> = subGrammar(
     EFFECT_CLAUSE,
-    rule<SentenceIR>(EFFECT_CLAUSE, (span, ctx) => {
+    rule<SentenceIR>(EFFECT_CLAUSE, (printed, ctx) => {
+        // CR 207.2c — an ability word is italic decoration at the head of an
+        // ability: it "ties together cards that have similar functionality"
+        // and has NO rules meaning. Every card that prints one spells the
+        // condition or tally out in the text that follows (Evasive Action's
+        // Domain names "each basic land type among lands you control" in
+        // full), so dropping the word loses nothing and reading it as a noun
+        // would lose the sentence. Dropped from the WHOLE vocabulary CR 207.2c
+        // enumerates, not from the one word this rule's first card printed —
+        // the list is a closed CR census, so a per-card subset would be a
+        // catalogue of card names wearing a grammar's clothes.
+        const span = withoutAbilityWord(printed);
         const restriction = RESTRICTIONS.get(span.toLowerCase());
         if (restriction !== undefined)
             return ok({ role: "restriction" as const, restriction });
@@ -1298,6 +1418,55 @@ function effectSentence(
             kind: "destroy" as const,
             subject: subject.value,
             cantBeRegenerated: false,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── counter a spell (CR 701.6a) ────────────────────────────────────────
+    //
+    // Read at either casing, for the reason `subjectRule` gives: "Counter
+    // target spell." opens its own sentence, "you may counter target spell"
+    // hands `optionalSentenceRule`'s inner rule the same words uncapitalised,
+    // and only the sentence-initial letter differs on a word this grammar
+    // dispatches on.
+    const counter = uncapitalise(span);
+    if (counter.startsWith(COUNTER_VERB)) {
+        const rest = counter.slice(COUNTER_VERB.length);
+        // CR 118.12a — the punisher clause, when there is one. Split before
+        // the subject is read so the subject rule sees a target phrase and
+        // not a target phrase with a cost glued to it.
+        const taxAt = rest.indexOf(UNLESS_PAYS);
+        const subject = subjectRule.run(
+            taxAt === -1 ? rest : rest.slice(0, taxAt),
+            ctx
+        );
+        if (!subject.ok) return subject;
+        // CR 701.6a — only a SPELL is countered by this rule. An ability
+        // ("counter target activated or triggered ability") is countered by
+        // the same keyword action on a different object, which the `counter`
+        // Op does not reach; a sweep announces nothing to point at.
+        if (
+            subject.value.kind !== "target" ||
+            subject.value.requirement.type !== "spell"
+        )
+            return fail(
+                "a counter names an announced spell target (CR 701.6a)",
+                span
+            );
+        if (taxAt === -1)
+            return ok({
+                kind: "counter" as const,
+                subject: subject.value,
+            } satisfies EffectSentenceIR);
+        const tax = rest.slice(taxAt).match(COUNTER_DOMAIN_TAX);
+        if (tax === null)
+            return fail(
+                `"${rest.slice(taxAt + 1)}" is not a counter tax this grammar reads`,
+                span
+            );
+        return ok({
+            kind: "counter" as const,
+            subject: subject.value,
+            unlessPays: { kind: "per-domain" },
         } satisfies EffectSentenceIR);
     }
 
