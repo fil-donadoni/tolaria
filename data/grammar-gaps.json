@@ -731,6 +731,11 @@
         },
         {
             "kind": "scenario",
+            "key": "smoke-scenario › script mixes player and permanent target slots",
+            "issue": 4234
+        },
+        {
+            "kind": "scenario",
             "key": "validate-effect-script › effects[0]: ref \"$source\" references undefined binding \"$source\" — no earlier Op binds it (bare object refs are the forEach \"$each\" of a permanents set)",
             "issue": 4025
         }
