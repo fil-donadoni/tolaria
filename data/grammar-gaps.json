@@ -721,6 +721,21 @@
         },
         {
             "kind": "scenario",
+            "key": "smoke-scenario › count set applies a 2× multiplier — not modelled by the canned predictor",
+            "issue": 4204
+        },
+        {
+            "kind": "scenario",
+            "key": "smoke-scenario › count set applies a 3× multiplier — not modelled by the canned predictor",
+            "issue": 4205
+        },
+        {
+            "kind": "scenario",
+            "key": "smoke-scenario › count set counts a HAND — the canned generator's hand contents are owned by the cast filler, not the count filler",
+            "issue": 4206
+        },
+        {
+            "kind": "scenario",
             "key": "validate-effect-script › effects[0]: ref \"$source\" references undefined binding \"$source\" — no earlier Op binds it (bare object refs are the forEach \"$each\" of a permanents set)",
             "issue": 4025
         }
