@@ -3,6 +3,8 @@
 // multi-step line that greedy 1-ply misses. Plus the contract checks: the move
 // is always legal, the search is deterministic given a seed, and it respects
 // the budget bound. See `convex/gre/search.ts`.
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards";
 import { withTemporaryDefinition } from "../../cards/registry";
@@ -1319,6 +1321,8 @@ describe("selectRootMove — sorcery-speed permanent tie-break (issue #4070)", (
     const TOME = getCardByName("Jayemdae Tome").id; // {4} artifact, no cast target
     const SPECTER = getCardByName("Hypnotic Specter").id; // creature
     const ORNITHOPTER = getCardByName("Ornithopter").id; // artifact creature
+    const WINTER_ORB = getCardByName("Winter Orb").id; // symmetric untap lock, no ability
+    const HOWLING_MINE = getCardByName("Howling Mine").id; // each player draws, no ability
     const AURA = getCardByName("Wild Growth").id; // enchant land: targets at cast
     const FLASH_ENCHANTMENT: CardDefinition = {
         id: "issue-4070:flash-enchantment",
@@ -1330,12 +1334,16 @@ describe("selectRootMove — sorcery-speed permanent tie-break (issue #4070)", (
     };
     const PASS: Move = { kind: "pass" };
     const LAND: Move = { kind: "play-land", cardInstanceId: "forest" };
-    const cast = (cardInstanceId: string, targets: unknown[] = []): Move =>
+    const cast = (
+        cardInstanceId: string,
+        targets: unknown[] = [],
+        tapped: string[] = []
+    ): Move =>
         ({
             kind: "cast-spell",
             cardInstanceId,
             targets,
-            tapPlan: [],
+            tapPlan: tapped.map((id) => ({ cardInstanceId: id })),
         }) as unknown as Move;
 
     function rootState(extraHand: string[] = [], withFlash = false): GameState {
@@ -1357,20 +1365,22 @@ describe("selectRootMove — sorcery-speed permanent tie-break (issue #4070)", (
                         inHand("tome", TOME),
                         inHand("specter", SPECTER),
                         inHand("ornithopter", ORNITHOPTER),
+                        inHand("orb", WINTER_ORB),
+                        inHand("mine", HOWLING_MINE),
                         inHand("aura", AURA),
                         ...(withFlash
                             ? [inHand("flash", FLASH_ENCHANTMENT.id)]
                             : []),
                         ...extraHand.map((id) => inHand(id, BOLT)),
                     ],
-                    battlefield: [
+                    battlefield: ["mountain", "mountain2"].map((id) =>
                         makeInstance(MOUNTAIN, {
-                            id: "mountain",
+                            id,
                             controllerId: "p1",
                             ownerId: "p1",
                             zone: "battlefield",
-                        }),
-                    ],
+                        })
+                    ),
                 }),
                 makePlayer("p2", {}),
             ],
@@ -1442,12 +1452,66 @@ describe("selectRootMove — sorcery-speed permanent tie-break (issue #4070)", (
         });
     });
 
-    it("NO-FIRE: keeps the mana while the caster holds a castable instant", () => {
-        expect(pickAmong(cast("seal"), rootState(["bolt"]))).toBe("pass");
+    it("NO-FIRE: leaves a permanent with NO ability of its own (Winter Orb, a symmetric lock) to the search", () => {
+        expect(pickAmong(cast("orb"), rootState())).toBe("pass");
+    });
+
+    it("NO-FIRE: leaves a symmetric gift (Howling Mine, each player draws) to the search", () => {
+        expect(pickAmong(cast("mine"), rootState())).toBe("pass");
+    });
+
+    it("NO-FIRE: keeps the mana when the cast would leave a castable instant uncastable", () => {
+        // Bolt costs {R}; both Mountains are open and the cast taps both.
+        expect(
+            pickAmong(
+                cast("seal", [], ["mountain", "mountain2"]),
+                rootState(["bolt"])
+            )
+        ).toBe("pass");
+    });
+
+    it("FIRE: deploys when an open source still pays for the instant afterwards", () => {
+        expect(
+            pickAmong(cast("seal", [], ["mountain"]), rootState(["bolt"]))
+        ).toBe("cast-spell");
     });
 
     it("NO-FIRE: keeps pass when the permanent is genuinely worse (not outcome-equal)", () => {
         expect(pickAmong(cast("seal"), rootState(), 0.4)).toBe("pass");
+    });
+
+    it("VARIANT: among outcome-equal variants of the card the higher meanMargin wins, not the pool's first", () => {
+        const first = cast("seal", [], ["mountain"]);
+        const second = cast("seal", [], ["mountain2"]);
+        const root = rootOf([
+            { move: PASS, meanReward: 0.6, meanMargin: 200 },
+            { move: first, meanReward: 0.6, meanMargin: 180 },
+            { move: second, meanReward: 0.6, meanMargin: 195 },
+        ]);
+        const chosen = selectRootMove(
+            root,
+            [PASS, first, second],
+            rootState(),
+            "p1"
+        ) as unknown as { tapPlan: { cardInstanceId: string }[] };
+        expect(chosen.tapPlan[0]?.cardInstanceId).toBe("mountain2");
+    });
+
+    it("ORDER: the ability-permanent class is consulted AFTER resolved-payoff", () => {
+        // A source-position guard, the same instrument `rootRuleMoratorium`
+        // uses for its `ruleOn` sweep: a behavioural pair needs a cast whose
+        // resolution is confined to the mover's side AND pays (the
+        // cheat-into-play shape), which no cheap fixture here builds. A cast
+        // with a measured payoff must not lose to one that is merely
+        // outcome-equal, so this class's lookup must sit below the
+        // resolved-payoff return.
+        const source = readFileSync(resolve(__dirname, "../search.ts"), "utf8");
+        const payoff = source.indexOf('finish(payoff, "resolved-payoff"');
+        const permanent = source.indexOf(
+            "isSorcerySpeedPermanentCast(rootState, e.move, botId)"
+        );
+        expect(payoff).toBeGreaterThan(0);
+        expect(permanent).toBeGreaterThan(payoff);
     });
 
     it("ORDER: a land drop outcome-equal to the permanent goes first, whatever the pool order", () => {
