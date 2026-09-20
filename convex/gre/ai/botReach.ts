@@ -11,7 +11,8 @@
  *                 move that uses the card, and the follow-through reached a
  *                 stable position with every owed input answered.
  *   - `ignored` — a move using the card was legal (it was affordable) and the
- *                 search never chose it, at any seat, at any seed — or the
+ *                 search never chose it, at any seat, at any seed, in either
+ *                 main phase of the turn ({@link REACH_WINDOWS}) — or the
  *                 generated position could not pose the card at all
  *                 (`position-unmodelled`, a limit of this harness). The card is
  *                 playable by a human and ships; the Bot's valuation of it is
@@ -206,6 +207,19 @@ export const BOT_REACH_BUDGET: BotReachBudget = {
     seeds: [0xb07, 0x5eed],
 };
 
+/**
+ * The windows of the holder's turn the card is posed in, in order. A card the
+ * Bot passes over in the first is posed again in the second, and `played` in
+ * either counts: holding a card until after combat is a play, not a refusal.
+ * Measured (issue #4069): a creature with haste, into the generated position's
+ * untapped blocker, is passed over precombat and cast postcombat on every seed
+ * and seat, while the same creature without haste is cast precombat. The
+ * sweep reads the FACT of a later cast; why the search prefers it is
+ * docs/findings/4069-bot-holds-haste-creature-past-combat.md.
+ */
+export const REACH_WINDOWS = ["PRECOMBAT_MAIN", "POSTCOMBAT_MAIN"] as const;
+export type ReachWindow = (typeof REACH_WINDOWS)[number];
+
 /** Upper bound on follow-through decisions after the card's move. */
 const MAX_FOLLOW_THROUGH_STEPS = 12;
 
@@ -243,7 +257,10 @@ const FILLER_ENCHANTMENT = "Castle";
  * The card itself is NOT in the spec: the spec names cards, and a compiled
  * definition is registered by id only. The caller adds it to the hand.
  */
-export function botReachSpec(def: CardDefinition): ScenarioSpec {
+export function botReachSpec(
+    def: CardDefinition,
+    window: ReachWindow = REACH_WINDOWS[0]
+): ScenarioSpec {
     const isLand = def.types.includes("Land");
     const landCount = isLand ? 1 : manaValue(def.manaCost) + EXTRA_LANDS;
     const cycle = basicLandsForColors(getCardColors(def));
@@ -304,7 +321,7 @@ export function botReachSpec(def: CardDefinition): ScenarioSpec {
     const stack = needsStackTarget(def);
     return {
         cards,
-        phase: "PRECOMBAT_MAIN",
+        phase: window,
         turn: 3,
         libraryCount: 20,
         // CR 400.2 — a card the holder can discard or reveal that is never a
@@ -370,11 +387,16 @@ function humanCouldAct(
 /** The generated position with the card in the holder's hand. */
 export function buildBotReachState(
     def: CardDefinition,
-    holderSeat: 0 | 1
+    holderSeat: 0 | 1,
+    window: ReachWindow = REACH_WINDOWS[0]
 ): { state: GameState; holderId: string; instanceId: string } {
     const base = buildBladeBaseState();
     const holderId = base.players[holderSeat]!.id;
-    const state = buildStateFromScenario(base, botReachSpec(def), holderId);
+    const state = buildStateFromScenario(
+        base,
+        botReachSpec(def, window),
+        holderId
+    );
     const holder = state.players.find((p) => p.id === holderId)!;
     const instanceId = allocInstanceId(state);
     holder.hand.push({
@@ -475,11 +497,35 @@ function playSeat(
     holderSeat: 0 | 1,
     budget: BotReachBudget
 ): SeatPlay {
-    const { state, holderId, instanceId } = buildBotReachState(def, holderSeat);
-    return {
+    const [first, ...later] = REACH_WINDOWS;
+    const opening = buildBotReachState(def, holderSeat, first);
+    const { holderId } = opening;
+    let verdict = playFrom(
+        def,
+        opening.state,
         holderId,
-        verdict: playFrom(def, state, holderId, instanceId, budget),
-    };
+        opening.instanceId,
+        budget
+    );
+    for (const window of later) {
+        // Only a card the search passed over is posed again: `frozen` and
+        // `position-unmodelled` describe the position or the driver, which a
+        // later window of the same turn does not change. A later `played` or
+        // `frozen` outranks the first window's refusal; a later `ignored` does
+        // not replace it.
+        if (verdict.outcome !== "ignored" || verdict.cause !== "never-chosen")
+            break;
+        const built = buildBotReachState(def, holderSeat, window);
+        const next = playFrom(
+            def,
+            built.state,
+            holderId,
+            built.instanceId,
+            budget
+        );
+        if (next.outcome !== "ignored") verdict = next;
+    }
+    return { holderId, verdict };
 }
 
 /**

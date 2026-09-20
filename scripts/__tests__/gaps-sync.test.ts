@@ -455,7 +455,7 @@ describe("the bot kind — one issue per Bot Gap key, scoped to the ranked Targe
         expect(body).toContain("- format-vintage (format, priority 2): 0");
         expect(body).toContain("- corpus: 2");
         expect(body).toContain("Cards held (2): Aura of Doom, Doom Aura");
-        expect(body).toContain("**A valuation gap.**");
+        expect(body).toContain("**A card the search never picks.**");
         expect(body).toContain("Outcome: `ignored`");
     });
 

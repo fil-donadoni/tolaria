@@ -10,6 +10,8 @@ import type { CardDefinition } from "../../../cards/types";
 import { decidingPlayer } from "../../search";
 import { enumerateMoves } from "../../moves";
 import {
+    REACH_WINDOWS,
+    botReachSpec,
     buildBotReachState,
     castShape,
     classifyNoMove,
@@ -59,6 +61,45 @@ const COUNTER_INSTANT: CardDefinition = {
     effects: [{ op: "counter", target: { target: 0 } }],
 };
 
+/** CR 702.10 — a 2/2 for three with printed haste. Into the generated
+ *  position's untapped 2/2 the Bot passes it precombat and casts it postcombat. */
+const HASTE_CREATURE: CardDefinition = {
+    id: "bot-reach-test:haste",
+    name: "Bot Reach Hasty Bear",
+    rarity: "common",
+    manaCost: { generic: 2, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Bear"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["haste"],
+};
+
+/** CR 613.1f / 702.10 — the same creature with its haste granted to ITSELF by
+ *  a static keyword grant (the shape of Blur Sliver, Reflex Sliver, Goblin
+ *  Warchief, Madrush Cyclops), not printed as a keyword. */
+const SELF_GRANTED_HASTE_CREATURE: CardDefinition = {
+    id: "bot-reach-test:haste-grant",
+    name: "Bot Reach Haste Granter",
+    rarity: "common",
+    manaCost: { generic: 2, R: 1 },
+    types: ["Creature"],
+    subtypes: ["Bear"],
+    power: 2,
+    toughness: 2,
+    compiledStaticEffects: [
+        {
+            kind: "keyword-grant",
+            filter: {
+                types: ["Creature"],
+                subtypes: ["Bear"],
+                controllerRelation: "you",
+            },
+            keyword: "haste",
+        },
+    ],
+};
+
 describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
     it("played — the Bot casts an affordable creature at both seats", () => {
         expect(playTwice(getCardByName("Grizzly Bears"))).toEqual({
@@ -79,6 +120,41 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
                 cause: "never-chosen",
                 form: "Sorcery",
             });
+        });
+    });
+
+    // Issue #4069 (and its twin Bot Gap `Creature [haste]`): into an untapped
+    // blocker the first main phase's `pass` beats the cast on every seed, and
+    // the Bot casts the creature in the second. A sweep that posed only the
+    // first window read that hold as a refusal.
+    it("played — a printed-haste creature the Bot holds past combat", () => {
+        withTemporaryDefinition(HASTE_CREATURE, () => {
+            expect(playTwice(HASTE_CREATURE)).toEqual({ outcome: "played" });
+        });
+    });
+
+    it("played — a creature granted haste by a static effect, held past combat", () => {
+        withTemporaryDefinition(SELF_GRANTED_HASTE_CREATURE, () => {
+            expect(playTwice(SELF_GRANTED_HASTE_CREATURE)).toEqual({
+                outcome: "played",
+            });
+        });
+    });
+
+    it("the second window is the same turn's post-combat main phase", () => {
+        withTemporaryDefinition(HASTE_CREATURE, () => {
+            for (const window of REACH_WINDOWS) {
+                expect(botReachSpec(HASTE_CREATURE, window).phase).toBe(window);
+                for (const seat of [0, 1] as const) {
+                    const { state, holderId } = buildBotReachState(
+                        HASTE_CREATURE,
+                        seat,
+                        window
+                    );
+                    expect(state.phase).toBe(window);
+                    expect(decidingPlayer(state)).toBe(holderId);
+                }
+            }
         });
     });
 
