@@ -109,9 +109,12 @@ export interface AttacksTriggerArgs {
     maxTriggersPerTurn?: number;
     /** Effect Script (ADR 0045) — the DSL-first default. Rides straight to the
      *  interpreter with the source's controller and `$source` bound. The
-     *  declaration payload is NOT reachable from the script, so an effect that
-     *  must inspect WHICH creatures attacked still needs a `resolve` callback.
-     *  Mutually exclusive with `resolve`. */
+     *  declaration payload is reachable only through the censused
+     *  `$event.<field>` rows (ADR 0049), and only as far as they flatten it:
+     *  under `perAttacker` the firing event names ONE creature, which
+     *  `$event.combatant` reads, and an effect that must inspect the whole
+     *  batch still needs a `resolve` callback. Mutually exclusive with
+     *  `resolve`. */
     effects?: EffectOp[];
     /** CR 603.3c / 700.2b — announce-time mode list for a MODAL attack trigger
      *  ("Whenever this creature attacks, choose one — • … • …",

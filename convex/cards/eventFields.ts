@@ -129,13 +129,22 @@ export const EVENT_FIELD_REGISTRY: Record<
         // an array `event` (CR 603.2).
         //
         // Shares `soleAttacker`'s flatten, and deliberately does not REPLACE
-        // it: the two rows answer different questions off the same shape.
-        // `soleAttacker` is CR 702.83's cardinality fact — "attacks ALONE",
-        // read off the REAL batch event, undefined the moment a second
-        // creature attacks. `combatant` is CR 508.3a's per-creature subject,
-        // well-defined for every attacker in the batch and reached by the
-        // synthetic single-attacker event the fan-out builds. Renaming either
-        // into the other would make one of the two readings unsayable.
+        // it: the two rows say what their READER meant, which is the half the
+        // flatten cannot. `soleAttacker` is written by an ability that fires
+        // on the whole declaration, where a single id IS CR 702.83's "attacks
+        // ALONE" (Exalted). `combatant` is written by a `perAttacker` ability
+        // (CR 508.3a), where the single id is this firing's own attacker and
+        // says nothing about how many others there were.
+        //
+        // NOTHING MECHANICAL KEEPS THE TWO APART — both flatten a length-1
+        // `attackerIds`, so a `perAttacker` body reading `soleAttacker` would
+        // see "attacks alone" for every attacker, and a batch body reading
+        // `combatant` would see undefined whenever two creatures attacked.
+        // Both are silent no-ops rather than errors; neither is reachable from
+        // the compiler (`resolveCompiledTrigger` sets `perAttacker` exactly
+        // when the head is per-creature) and no hand-written card writes
+        // either shape. Drafted for a static guard in
+        // `docs/findings/4151-event-field-perattacker-pairing-unguarded.md`.
         combatant: {
             family: "object",
             resolve: soleDeclaredAttacker,

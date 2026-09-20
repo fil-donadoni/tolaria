@@ -300,11 +300,7 @@ export function resolveCompiledTrigger(
                     : {}),
             });
         case "attacks-or-blocks":
-            return attacksOrBlocksTrigger({
-                ...common,
-                scope: head.scope,
-                effects,
-            });
+            return attacksOrBlocksTrigger({ ...common, scope: head.scope });
         case "combat-damage-to-player":
             // CR 510.1 — combat damage only, dealt BY this permanent, to a
             // player. `relation: "any"` because "a player" is symmetric: in a
