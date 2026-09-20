@@ -29,6 +29,7 @@ import type {
     TargetRequirement,
 } from "../cards/types";
 import type { PermanentFilter } from "../cards/filters";
+import { chooseColorEffects } from "../cards/abilities/chooseColor";
 import type { KickedRefIR } from "./grammar/shared/condition";
 import { durationSpec } from "./grammar/shared/duration";
 import {
@@ -610,7 +611,17 @@ function selectorsFor(
     // watching for a countered spell sees one). Lowering it as `moveZone`
     // compiled Reprieve into a spell
     // that does something else. The stack verbs read their own selector.
-    if (subject.requirement.type === "spell")
+    //
+    // CR 114 — the "spell OR permanent" union is refused here for the same
+    // reason and one more: half of what it announces is not on the
+    // battlefield at all, so a battlefield verb reading it would act on some
+    // of its legal targets and silently no-op on the rest. The only verbs
+    // that may read it are the ones that work in both zones (`setColor`'s
+    // layer-5 colour change, CR 613.1e), and they call their own selector.
+    if (
+        subject.requirement.type === "spell" ||
+        subject.requirement.type === "spell-or-permanent"
+    )
         return unlowerable(
             "a spell is on the stack, not the battlefield (CR 112.1)"
         );
@@ -656,6 +667,30 @@ function objectSelectors(
     slots: TargetSlots
 ): Lowered<EffectObjectSelector[]> {
     return selectorsFor(subject, slots, false);
+}
+
+/**
+ * CR 613.1e — the object a layer-5 colour change acts on.
+ *
+ * The one selector in this file that spans both zones, because the effect
+ * does: a colour is a characteristic of an OBJECT (CR 109.1), and CR 105.3's
+ * replacement applies to a spell on the stack exactly as it applies to a
+ * permanent ("target spell or permanent becomes the color of your choice",
+ * Blind Seer; "target instant or sorcery spell …", Vodalian Mystic). So it
+ * accepts the source, a permanent slot, a spell slot and CR 114's union —
+ * everything `objectSelector` accepts, plus the two stack shapes it refuses —
+ * and nothing else: a player has no colour (CR 109.1), and a sweep announces
+ * no slot to point at (CR 110.1).
+ */
+function colorChangeSelector(
+    subject: SubjectIR,
+    slots: TargetSlots
+): Lowered<EffectObjectSelector> {
+    if (subject.kind !== "target") return objectSelector(subject, slots);
+    if (subject.requirement.type === "player")
+        return unlowerable("a player has no color (CR 109.1)");
+    const index = slots.allocate(subject.requirement);
+    return index.ok ? lowered({ target: index.value }) : index;
 }
 
 /**
@@ -829,6 +864,26 @@ function lowerSentenceBody(
                     duration: durationSpec(sentence.duration),
                 },
             ]);
+        }
+        // CR 613.1e / CR 105.1 — the pick is the pre-existing `optionChoice`
+        // Op, one mode per colour, each mode a single `setColor` (ADR 0045
+        // "generalize, don't add" — no choice-kind construct). The builder is
+        // the catalogue's own `chooseColorEffects`, imported rather than
+        // re-derived: it is the shape five hand-written cards already ship,
+        // so reusing it is what makes those cards round-trip instead of
+        // diverging by a mode ordering nobody would notice.
+        case "set-color-choice": {
+            const target = colorChangeSelector(sentence.subject, slots);
+            if (!target.ok) return target;
+            return lowered(
+                chooseColorEffects(
+                    target.value,
+                    sentence.duration === undefined
+                        ? undefined
+                        : durationSpec(sentence.duration),
+                    `Choose a color (${site.selfName}).`
+                )
+            );
         }
         case "deal-damage": {
             const to = damageTarget(sentence.to, slots, site);

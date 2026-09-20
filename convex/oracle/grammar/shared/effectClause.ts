@@ -210,6 +210,29 @@ export type EffectSentenceIR =
           readonly duration: DurationIR;
       }
     | {
+          /**
+           * CR 613.1e — layer 5: the subject's colour is SET to one the
+           * controller picks as the effect resolves (CR 105.1's five — the
+           * template never offers colourless), replacing every colour it had
+           * (CR 105.3).
+           *
+           * The duration is OPTIONAL here, alone among this file's continuous
+           * effects, and that is the printed distinction rather than a
+           * default: "Target permanent you control becomes the color of your
+           * choice." (Alchor's Tomb) sets the colour for good (CR 611.2b — no
+           * duration, no reversion), where "… until end of turn" (Tidal
+           * Visionary) reverts at CR 514.2's cleanup. A spell target prints no
+           * duration for a third reason — it leaves the stack as it resolves
+           * (CR 608.2m), so there is nothing left to revert (Vodalian Mystic).
+           * Reading the absence as "until end of turn" would quietly un-set
+           * Alchor's Tomb, and reading it as an error would refuse two of the
+           * four printed forms, so it is carried as what it is.
+           */
+          readonly kind: "set-color-choice";
+          readonly subject: SubjectIR;
+          readonly duration?: DurationIR;
+      }
+    | {
           readonly kind: "deal-damage";
           readonly amount: AmountIR;
           readonly to: SubjectIR;
@@ -1019,6 +1042,18 @@ const ANIMATE = /^(.+) become (\d+)\/(\d+) creatures (.+)$/;
 /** CR 205.1b — the rider that keeps the animated set's types. */
 const STILL_TYPES = /^They(?:'|’)re still (.+)$/;
 const DAMAGE = /^(.+) deals (\S+) damage to (.+)$/;
+/**
+ * CR 613.1e — "<subject> becomes the color of your choice[ <duration>]".
+ *
+ * The colour clause is matched as a WHOLE phrase and the subject is whatever
+ * precedes it, which is what keeps the neighbouring colour templates out: "…
+ * becomes the color of that card" names a colour the sentence read elsewhere,
+ * "… becomes white" names one the card printed, and "becomes the color of your
+ * choice and gains hexproof from that color" (Mondo Gecko) ties a keyword
+ * grant to the pick. None of the three ends here, so none is read — the tail
+ * group is a DURATION or nothing.
+ */
+const SET_COLOR_CHOICE = /^(.+) becomes the color of your choice(?: (.+))?$/;
 const DRAW_SELF = /^Draw (\S+) cards?$/;
 const DRAW_PLAYER = /^(.+) draws (\S+) cards?$/;
 const LIFE = /^(.+) (gain|gains|lose|loses) (\S+|that much) life$/;
@@ -1536,6 +1571,26 @@ function effectSentence(
             kind: "grant-ability" as const,
             subject: subject.value,
             keyword,
+            duration: duration.value,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── colour change, chosen on resolution (CR 613.1e, layer 5) ───────────
+    const setColor = span.match(SET_COLOR_CHOICE);
+    if (setColor !== null) {
+        const subject = subjectRule.run(setColor[1]!, ctx);
+        if (!subject.ok) return subject;
+        const tail = setColor[2];
+        if (tail === undefined)
+            return ok({
+                kind: "set-color-choice" as const,
+                subject: subject.value,
+            } satisfies EffectSentenceIR);
+        const duration = durationRule.run(tail, ctx);
+        if (!duration.ok) return duration;
+        return ok({
+            kind: "set-color-choice" as const,
+            subject: subject.value,
             duration: duration.value,
         } satisfies EffectSentenceIR);
     }

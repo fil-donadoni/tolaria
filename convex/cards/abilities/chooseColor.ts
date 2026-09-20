@@ -85,7 +85,21 @@ export function chooseColorEffects(
             op: "optionChoice",
             prompt,
             modes: colorChoiceModes((color) => [
-                { op: "setColor", target, colors: [color], duration },
+                // The key is OMITTED, never written as `undefined`: the
+                // Effect Script validator reads a present `duration` field
+                // and rejects the value `undefined` outright, so the
+                // indefinite form this parameter documents (Alchor's Tomb's
+                // "Target permanent you control becomes the color of your
+                // choice.", CR 611.2b — no reversion) built a script that
+                // failed validation rather than one with no duration. No
+                // hand-written caller had exercised it; the Oracle compiler's
+                // colour rule is the first (issue #4137).
+                {
+                    op: "setColor",
+                    target,
+                    colors: [color],
+                    ...(duration === undefined ? {} : { duration }),
+                },
             ]),
         },
     ];

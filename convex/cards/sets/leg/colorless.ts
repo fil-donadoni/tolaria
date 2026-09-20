@@ -15,7 +15,7 @@ import type {
 } from "../../types";
 import { PERMANENT_TYPES } from "../../types";
 import { payOrSacrificeUpkeepTrigger } from "./multicolor";
-import { colorChoiceModes } from "../../abilities/chooseColor";
+import { chooseColorEffects } from "../../abilities/chooseColor";
 
 // --- Vanilla / keyword creatures (CR 110.1 — pure data) -------------------
 
@@ -246,20 +246,18 @@ export const alchorsTomb: CardDefinition = {
             // per color, each a single-Op `setColor` body on the announced
             // target. No `duration` — the effect "lasts indefinitely" (CR
             // 611.2b/613.9), matching the original `setColorOverride` call.
-            effects: [
-                {
-                    op: "optionChoice",
-                    player: "controller",
-                    prompt: "Choose a color.",
-                    modes: colorChoiceModes((color) => [
-                        {
-                            op: "setColor",
-                            target: { target: 0 },
-                            colors: [color],
-                        },
-                    ]),
-                },
-            ],
+            //
+            // Built by the SHARED `chooseColorEffects` the other four colour
+            // pickers use (issue #4137). It was hand-rolled here with an
+            // explicit `player: "controller"` — the interpreter's own default
+            // (`op.player ?? "controller"`), so the same choice by the same
+            // player — and the redundant field was the whole of this card's
+            // divergence from the Oracle compiler's reading of the same line.
+            effects: chooseColorEffects(
+                { target: 0 },
+                undefined,
+                "Choose a color (Alchor's Tomb)."
+            ),
         },
     ],
 };
