@@ -134,8 +134,27 @@ const ACTED_ON_NOUNS: ReadonlyMap<string, ActedOnNounIR> = new Map([
     ["that permanent's", "permanent"],
 ]);
 
-/** The alternation `ACTED_ON_NOUNS` keys, for the patterns that read it. */
-const ACTED_ON_NOUN_ALTERNATION = "(its|that card's|that permanent's)";
+/**
+ * A capture group over the phrases of `nouns`, DERIVED from the vocabulary so
+ * a pattern and the table it reads can never drift apart.
+ *
+ * Each SITE names the nouns it accepts, rather than inheriting all three
+ * (ADR 0137's fail-closed guard). The alternation is not a shared constant
+ * because the corpus prints the same three words at a damage site meaning
+ * something this rule does NOT read: "deals damage equal to that card's mana
+ * value" is the card REVEALED off a library (Erratic Explosion, Riddle of
+ * Lightning — 15 cards), and "deals damage equal to its mana value" is the
+ * DEALER's own mana value (Goblin Tinkerer, Enchanter's Bane). Each of those
+ * is refused today for a reason of its own — the dealer is not this spell, or
+ * no earlier sentence bound anything — and a noun set that accepted them here
+ * would be leaning on that, which is coverage held by accident.
+ */
+function actedOnNounGroup(nouns: readonly ActedOnNounIR[]): string {
+    const phrases = [...ACTED_ON_NOUNS.entries()]
+        .filter(([, noun]) => nouns.includes(noun))
+        .map(([phrase]) => phrase);
+    return `(${phrases.join("|")})`;
+}
 
 /** `"its"` / `"that card's"` / `"that permanent's"` → the amount it names. */
 function readActedOnManaValue(possessive: string): AmountIR | null {
@@ -1252,7 +1271,7 @@ const LIFE_FOR_EACH = /^(.+) (gain|gains|lose|loses) (\S+) life (for each .+)$/;
 /** CR 202.3 — "You lose life equal to its mana value" (or "that card's", or
  *  "that permanent's" — Feed the Swarm). */
 const LIFE_EQUAL_MANA_VALUE = new RegExp(
-    `^(.+) (lose|loses) life equal to ${ACTED_ON_NOUN_ALTERNATION} mana value$`
+    `^(.+) (lose|loses) life equal to ${actedOnNounGroup(["it", "card", "permanent"])} mana value$`
 );
 /**
  * CR 119.3 + CR 202.3 — "{self} deals damage equal to that permanent's mana
@@ -1265,7 +1284,7 @@ const LIFE_EQUAL_MANA_VALUE = new RegExp(
  * as an amount phrase.
  */
 const DAMAGE_EQUAL_MANA_VALUE = new RegExp(
-    `^(.+) deals damage equal to ${ACTED_ON_NOUN_ALTERNATION} mana value to (.+)$`
+    `^(.+) deals damage equal to ${actedOnNounGroup(["permanent"])} mana value to (.+)$`
 );
 /**
  * CR 608.2c — a drain: "Target player loses 2 life and you gain 2 life". The

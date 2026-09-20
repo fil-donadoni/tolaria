@@ -164,7 +164,7 @@ describe("acted-on mana value — refusals stay fail-closed (issue #4221)", () =
             '"that permanent\'s mana value" names no object acted on before it (CR 608.2h)',
         ],
         [
-            "the sentence before acted on a spell, not a permanent",
+            "the sentence before recorded no antecedent (a counter is not a bind)",
             "Counter target spell. You lose life equal to that permanent's mana value.",
             '"that permanent\'s mana value" names no object acted on before it (CR 608.2h)',
         ],
@@ -189,6 +189,34 @@ describe("acted-on mana value — refusals stay fail-closed (issue #4221)", () =
         it(`refuses: ${what}`, () => {
             expect(refusal(sorcery(line))).toBe(reason);
         });
+
+    // The corpus prints both of these at a DAMAGE site meaning something this
+    // rule does not read: "that card's" is the card revealed off a library
+    // (Erratic Explosion, Riddle of Lightning — 15 cards) and "its" is the
+    // DEALER's own mana value (Goblin Tinkerer, Enchanter's Bane). Each is
+    // refused elsewhere today — the dealer is not this spell, or nothing was
+    // bound — and this pins the damage site's own noun set so the rule does
+    // not lean on those. The LIFE site keeps all three: it has the cards.
+    for (const noun of ["its", "that card's"])
+        it(`refuses at a damage site: "${noun} mana value" is not this rule's noun`, () => {
+            expect(
+                refusal(
+                    sorcery(
+                        `Destroy target creature. Snapshot Probe deals damage equal to ${noun} mana value to another target creature.`
+                    )
+                )
+            ).toBe("no slot consumed the line");
+        });
+
+    it("the life site still reads all three nouns (Ghastly Death Tyrant's clause)", () => {
+        expect(
+            refusal(
+                sorcery(
+                    "Destroy target creature. You lose life equal to its mana value."
+                )
+            )
+        ).toBeNull();
+    });
 
     it("Carnivorous Canopy's condition form stays refused — a value read is not a comparison", () => {
         // The umbrella noun is the same; the SITE is a condition, which this
@@ -225,10 +253,11 @@ describe("acted-on mana value — behaviour (CR 608.2h)", () => {
 
     it("kicked Orim's Thunder deals the DESTROYED enchantment's printed mana value", () => {
         withCompiled(ORIMS_THUNDER, (id) => {
-            // Control Magic is {2}{U}{U} — mana value 4 — and is in the
-            // graveyard by the time the damage is dealt, so a live read would
-            // be 0 and only the `destroy` snapshot yields 4.
-            const enchantment = theirs("Control Magic", "p2-ench");
+            // Manabarbs is {3}{R} — mana value 4 — and is in the graveyard
+            // by the time the damage is dealt, so a live read would be 0 and
+            // only the `destroy` snapshot yields 4. A hostless AURA would be
+            // the wrong fixture here (CR 704.5m bins it).
+            const enchantment = theirs("Manabarbs", "p2-ench");
             const creature = theirs("Force of Nature", "p2-wall"); // 8/8
             const state = makeState({
                 players: [
@@ -252,7 +281,7 @@ describe("acted-on mana value — behaviour (CR 608.2h)", () => {
 
     it("unkicked Orim's Thunder: no Kicker paid, so the damage half never runs (CR 702.33d)", () => {
         withCompiled(ORIMS_THUNDER, (id) => {
-            const enchantment = theirs("Control Magic", "p2-ench");
+            const enchantment = theirs("Manabarbs", "p2-ench");
             const creature = theirs("Force of Nature", "p2-wall");
             const state = makeState({
                 players: [

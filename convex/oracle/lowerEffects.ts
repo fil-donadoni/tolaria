@@ -278,11 +278,18 @@ function lowerActedOnManaValue(
             `"${phrase} mana value" names no object acted on before it (CR 608.2h)`
         );
     if (noun === "permanent") {
-        const { type, zone } = actedOn.requirement;
-        const types = Array.isArray(type) ? type : [type];
+        const { type, zone, count } = actedOn.requirement;
+        const types = announcedTypes(actedOn.requirement);
+        // `bind` snapshots exactly ONE object, so a wider announcement leaves
+        // the phrase naming whichever slot happened to be first. Every facet
+        // is checked here rather than leaned on upstream: the sentence
+        // grammar refuses a multi-object `destroy` today, and a check that is
+        // fail-closed only because of that is fail-closed by accident.
         if (
+            types.length === 0 ||
             !types.every((one) => ACTED_ON_PERMANENT_TYPES.has(one)) ||
-            (zone !== undefined && zone !== "battlefield")
+            (zone !== undefined && zone !== "battlefield") ||
+            count !== 1
         )
             return unlowerable(
                 `"that permanent" is not the ${JSON.stringify(type)} in ${zone ?? "battlefield"} acted on before it (CR 110.1)`
