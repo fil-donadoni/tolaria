@@ -950,6 +950,18 @@ _Avoid_: Exception, unsupported, manual card, legacy card, residue (that is the 
 Anything the tooling computed to be missing and files as an issue — never a person's observation. Six kinds, one filer (`gaps:sync`), one allowlist, a stable key each: **Grammar Gap** (a missing **Grammar Rule**); Mechanic Gap (a keyword the **Mechanics Registry** lists as planned, holding compiled cards in `quarantine`); Scenario Gap (a form the generated smoke scenario cannot exercise); Bot Gap (a compiled card the Bot ignores); **Hand Tail** (a card below the floor); Migration (hand-written cards a landed rule now compiles, clustered by that rule). Every kind is ranked per **Target List**; an issue closes through its PR, never because the gap disappeared.
 _Avoid_: Bug (a Gap is an absence, not a defect), TODO, backlog item, finding (that is the drawer for what a person noticed and was not asked to fix)
 
+**Bot Finding**:
+One card the play **Bot** is known to have trouble with, as the admin dashboard lists it — the per-card citizen a **Bot Gap** class is not. Keyed `(oracle id, source)`: a card may carry both a measured finding and a human-reported one, and they never overwrite each other. Its measured fields belong to the measurement artifact and are rewritten by every sweep; its human fields (note, reproducer, linked issue) are never touched by one; its state is DERIVED from the two, never declared — no "mark as resolved" button. A finding from any source other than the sweep is admissible only with a **Reproducer**: without one there is no defect, only an anecdote, and it waits in triage outside every count.
+_Avoid_: Bot bug, bot issue (that is the GitHub record), Bot Gap (that is the class, one issue per key), finding (the drawer sense)
+
+**Bot Reach Finding**:
+A **Bot Finding** whose source is the Bot-play sweep — the card was played by the Bot in a generated position and the verdict was not `played`. Carries that run's `BotReachVerdict` (outcome, cause, form) and the **Bot Gap** key it counts toward, plus `blame`: a cause that judges the BOT (`never-chosen`, `no-legal-move`) owes a fix, a cause that is a bound of the harness (`no-progress`, `position-unmodelled`) owes the sweep a better position and is outside the "to fix" count. One measurement yields exactly ONE class per card: the sweep stops where the card stops, so a second blocker behind the first is unknowable until the first is closed — the dashboard shows the first visible blocker and never claims a chain.
+_Avoid_: Bot Gap (the class), bot verdict (that is the human judgement of a position — see the Verdict Lock)
+
+**Reproducer**:
+The artifact that makes a **Bot Finding** admissible and actionable: a blade entry or a saved scenario, named by its label, that rebuilds the position on demand. The dashboard's certification bar, and the same standard as proof-of-failure — a defect nobody can rebuild is not evidence. A blade entry stays a CURATED sample keyed to a class, never one entry per card (ADR 0102): the class carries the proof, the card carries the measurement.
+_Avoid_: Repro steps, test case, scenario alone (a scenario is one kind of reproducer)
+
 **Card Retirement**:
 Deleting a hand-written **Card Definition** once its compiled twin is proven to behave identically, leaving the **Oracle Lockfile** as the only copy. The card's own test does not go with it — it moves onto the registry lookup, because it is the only standing proof that the compilation was ever right. A retired card's lockfile row is marked as such, so a later change to it is reviewed rather than merely diffed.
 _Avoid_: Deletion, deprecation, cleanup
