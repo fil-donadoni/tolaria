@@ -21,10 +21,18 @@ import type {
     CompiledTriggerHead,
     CompiledTriggeredAbility,
 } from "../cards/compiledTriggers";
-import type { EffectOp, KickerCost, TargetRequirement } from "../cards/types";
+import type {
+    EffectObjectSelector,
+    EffectOp,
+    KickerCost,
+    TargetRequirement,
+} from "../cards/types";
 import type { TriggerConditionIR } from "./grammar/shared/condition";
 import type { EffectSentenceIR } from "./grammar/shared/effectClause";
-import type { TriggerHeadIR } from "./grammar/shared/triggerHead";
+import {
+    headPronounReferent,
+    type TriggerHeadIR,
+} from "./grammar/shared/triggerHead";
 import {
     declareTargets,
     lowerSentence,
@@ -56,7 +64,16 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
             // thing to get wrong.
             return { kind: "died", scope: head.scope };
         case "attacks":
-            return { kind: "attacks" };
+            // CR 508.3a — `self` is the head as it shipped before the scoped
+            // reading existed, and the field is OMITTED there rather than
+            // written: a compiled "whenever this creature attacks" must stay
+            // the same descriptor it has always been, byte for byte, or every
+            // such card churns in the lockfile for no behaviour change.
+            return head.scope === "self"
+                ? { kind: "attacks" }
+                : { kind: "attacks", scope: head.scope };
+        case "attacks-or-blocks":
+            return { kind: "attacks-or-blocks", scope: head.scope };
         case "combat-damage-to-player":
             return { kind: "combat-damage-to-player" };
         case "damage-dealt":
@@ -117,6 +134,27 @@ function headAntecedents(head: TriggerHeadIR): SiteAntecedents {
             ? { amount: { ref: "$event.amount" } }
             : {}),
         ...(head.kind === "dies" ? { card: { ref: "$event.card" } } : {}),
+        // CR 608.2h — "it". `headPronounReferent` is the ONE authority on
+        // which object the head named (the grammar refuses the pronoun behind
+        // a head that named none), and this turns its answer into the
+        // selector: the source, or the attacking / blocking creature the
+        // per-creature firing named (CR 508.3a / 509.3a — the censused
+        // `$event.combatant` row, ADR 0049).
+        ...pronounAntecedent(head),
+    };
+}
+
+/** The `object` antecedent a head supplies, if any (see `headAntecedents`). */
+function pronounAntecedent(head: TriggerHeadIR): {
+    readonly object?: EffectObjectSelector;
+} {
+    const referent = headPronounReferent(head);
+    if (referent === null) return {};
+    return {
+        object:
+            referent === "source"
+                ? { ref: "$source" }
+                : { ref: "$event.combatant" },
     };
 }
 

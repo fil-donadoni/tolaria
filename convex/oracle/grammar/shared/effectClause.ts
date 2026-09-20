@@ -150,6 +150,15 @@ export type SubjectIR =
      */
     | { readonly kind: "that-card" }
     /**
+     * CR 608.2h — "it": the OBJECT the text before this sentence named.
+     * Which object is not a fact about the sentence, so the word is read here
+     * and the referent comes from the lowering SITE
+     * (`SiteAntecedents.object`); a site that names none refuses the line
+     * rather than guessing. Written as a marker by
+     * {@link objectPronounListRule}, never by a card.
+     */
+    | { readonly kind: "pronoun" }
+    /**
      * CR 110.1 — every permanent a descriptor matches, without announcing a
      * target ("all enchantments"). Read only by the verbs whose lowering fans
      * out over a sweep (destroy, tap, untap); every other verb keeps reading
@@ -280,6 +289,15 @@ export type EffectSentenceIR =
           readonly kind: "deal-damage";
           readonly amount: AmountIR;
           readonly to: SubjectIR;
+          /**
+           * CR 608.2h — the sentence named its damage SOURCE with "it"
+           * ({@link PRONOUN_MARKER}) rather than the source's own marker.
+           * Whether that is legal depends on whom the site's pronoun names,
+           * which the sentence cannot know: `dealDamage` always deals from the
+           * ability's own source, so the LOWERING refuses the sentence when
+           * "it" names anyone else (see `lowerSentenceBody`).
+           */
+          readonly sourceIsPronoun?: true;
       }
     | {
           /**
@@ -824,6 +842,10 @@ export const subjectRule: Rule<SubjectIR> = rule<SubjectIR>(
         const probe = uncapitalise(span);
         if (isSelfPhrase(probe)) return ok({ kind: "self" as const });
         if (probe === "that card") return ok({ kind: "that-card" as const });
+        // CR 608.2h — the bound pronoun marker, written by
+        // `objectPronounListRule`. Never printed on a card, so no Oracle line
+        // can reach this branch by accident.
+        if (probe === PRONOUN_MARKER) return ok({ kind: "pronoun" as const });
         // CR 115.3 — "Another target creature …" is an ordinary target phrase
         // under an EXCLUSION the sentence alone cannot resolve (see
         // `SubjectIR`), so the head is peeled off here and the rest is read by
@@ -1045,6 +1067,57 @@ export function bindSourcePronoun(span: string): {
 }
 
 const SOURCE_PRONOUN = "it ";
+
+/**
+ * The marker a bound "It" is rewritten to when its referent is whatever the
+ * SITE says, rather than the source (see `SubjectIR`'s `pronoun`).
+ *
+ * A marker in the span, exactly like `{self}`, rather than a flag riding
+ * beside it: the sentence table dispatches on WORDS, and a subject that is a
+ * word goes through the same `subjectRule` as every other. It is deliberately
+ * not a phrase a card could print — "that creature" is one, and reading it
+ * here would silently claim every printed "that creature" for this referent.
+ */
+export const PRONOUN_MARKER = "{it}";
+
+/**
+ * A leading "It" rewritten to {@link PRONOUN_MARKER}, and whether it was.
+ *
+ * The site-referent twin of {@link bindSourcePronoun}: same rewrite, same
+ * leading-word-only rule (CR 608.2h), different referent. The two are separate
+ * functions rather than one parameterised by marker because the CALLERS differ
+ * in what they may bind — an activated ability has only its source to name,
+ * a trigger head may have named someone else.
+ */
+export function bindObjectPronoun(span: string): {
+    readonly span: string;
+    readonly bound: boolean;
+} {
+    const probe = uncapitalise(span);
+    return probe.startsWith(SOURCE_PRONOUN)
+        ? {
+              span: `${PRONOUN_MARKER} ${probe.slice(SOURCE_PRONOUN.length)}`,
+              bound: true,
+          }
+        : { span, bound: false };
+}
+
+/**
+ * Wrap a sentence-LIST rule so a leading "It" is read as the SITE's object
+ * referent, and say whether it was — the caller owns the antecedent check.
+ * {@link sourcePronounListRule}'s twin (see {@link bindObjectPronoun}).
+ */
+export function objectPronounListRule<T>(
+    inner: Rule<T>
+): Rule<{ readonly value: T; readonly boundPronoun: boolean }> {
+    return rule(`object-pronoun ${inner.label}`, (span, ctx) => {
+        const bound = bindObjectPronoun(span);
+        const parsed = inner.run(bound.span, ctx);
+        return parsed.ok
+            ? ok({ value: parsed.value, boundPronoun: bound.bound })
+            : parsed;
+    });
+}
 
 /**
  * Wrap a sentence-LIST rule so a leading "It" is read as the source, and say
@@ -1750,10 +1823,12 @@ function effectSentence(
     // ── damage (CR 119.3) ──────────────────────────────────────────────────
     const damage = span.match(DAMAGE);
     if (damage !== null) {
-        // CR 608.2 — the SOURCE of the damage. Grammar v0 reads only the
-        // source's own name: "it deals" and "that creature deals" are anaphora
+        // CR 608.2 — the SOURCE of the damage. Grammar v0 reads the source's
+        // own name and the bound pronoun; "that creature deals" is anaphora
         // whose referent lives in another sentence.
-        if (!isSelfPhrase(uncapitalise(damage[1]!)))
+        const dealer = uncapitalise(damage[1]!);
+        const dealerIsPronoun = dealer === PRONOUN_MARKER;
+        if (!dealerIsPronoun && !isSelfPhrase(dealer))
             return fail(
                 `"${damage[1]}" is not a damage source this grammar knows`,
                 span
@@ -1767,6 +1842,7 @@ function effectSentence(
             kind: "deal-damage" as const,
             amount,
             to: to.value,
+            ...(dealerIsPronoun ? { sourceIsPronoun: true as const } : {}),
         } satisfies EffectSentenceIR);
     }
 

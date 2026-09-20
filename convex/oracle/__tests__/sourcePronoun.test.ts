@@ -248,7 +248,7 @@ describe("pronoun subject — refusals (no antecedent is the source)", () => {
                 triggeredSlot,
                 "Whenever another creature you control enters, it gets +1/+1 until end of turn."
             )
-        ).toContain("the trigger's subject is not the source");
+        ).toContain("the trigger's head names no object");
     });
 
     it("behind an intervening-if the condition is the nearer antecedent", () => {

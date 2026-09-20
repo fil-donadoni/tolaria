@@ -66,8 +66,24 @@ export type TriggerHeadIR =
       }
     /** CR 603.6 — "when [this / a creature] dies". */
     | { readonly kind: "dies"; readonly scope: TriggerSubjectScope }
-    /** CR 508.1 — "whenever this creature attacks". */
-    | { readonly kind: "attacks" }
+    /**
+     * CR 508.3a — "whenever [this creature / a creature you control] attacks".
+     * The rule counts PER CREATURE: the ability triggers once for each
+     * creature declared as an attacker that `scope` admits, and each firing
+     * names its own ("…, IT gets +2/+2"). Under `self` that is one firing
+     * either way, which is why the head shipped without a scope at all.
+     */
+    | { readonly kind: "attacks"; readonly scope: TriggerSubjectScope }
+    /**
+     * CR 508.3a + CR 509.3a — "whenever a creature attacks or blocks": ONE
+     * Oracle line (CR 603.2) over two per-creature trigger conditions. Both
+     * halves count per creature, so the head does too, and "it" names whichever
+     * creature the firing was for.
+     */
+    | {
+          readonly kind: "attacks-or-blocks";
+          readonly scope: TriggerSubjectScope;
+      }
     /** CR 510.1 — "whenever this creature deals combat damage to a player". */
     | { readonly kind: "combat-damage-to-player" }
     /**
@@ -183,6 +199,23 @@ export const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
     // CR 603.6 — a creature dying. The event is `CREATURE_DIED`, so the type
     // narrowing is the EVENT's, not a filter's — a "creaturesOnly" flag here
     // would be a second, redundant authority on the same fact.
+    // CR 508.3a — an attack declaration, read per attacking creature. Only the
+    // two scopes the corpus prints: "a creature you control attacks" and the
+    // symmetric "a creature attacks or blocks". Every neighbouring phrase
+    // ("attacks a player", "attacks alone", "attacks or enters attacking",
+    // "attacks this turn") narrows the condition further and stays refused
+    // under its own gap key — a head that swallowed the narrowing would fire
+    // on attacks the card does not mean.
+    [
+        "whenever a creature you control attacks",
+        { kind: "attacks", scope: "yours" },
+    ],
+    // CR 509.3a — the blocking half is symmetric too ("a creature", not "a
+    // creature you control"): Powerstone Minefield hits either player's.
+    [
+        "whenever a creature attacks or blocks",
+        { kind: "attacks-or-blocks", scope: "any" },
+    ],
     ["whenever a creature dies", { kind: "dies", scope: "any" }],
     ["whenever another creature dies", { kind: "dies", scope: "any-other" }],
     ["whenever a creature you control dies", { kind: "dies", scope: "yours" }],
@@ -260,7 +293,11 @@ export const SELF_HEADS: readonly {
         ir: { kind: "enters", scope: "self", creaturesOnly: false },
     },
     { opener: "when ", tail: " dies", ir: { kind: "dies", scope: "self" } },
-    { opener: "whenever ", tail: " attacks", ir: { kind: "attacks" } },
+    {
+        opener: "whenever ",
+        tail: " attacks",
+        ir: { kind: "attacks", scope: "self" },
+    },
     {
         opener: "whenever ",
         tail: " deals combat damage to a player",
@@ -303,6 +340,45 @@ export function matchSelfHead(span: string): TriggerHeadIR | null {
         return head.ir;
     }
     return null;
+}
+
+/**
+ * CR 608.2h — what a sentence-leading "it" names behind this head, or null
+ * when the head names no object at all and the pronoun must stay unread.
+ *
+ * ONE authority for a fact two layers need: the GRAMMAR asks only whether the
+ * pronoun has a referent (a head that names none refuses the line rather than
+ * pointing it at a guess), and the LOWERING turns the answer into the selector
+ * the Effect Script carries. Splitting them would let the two disagree — a
+ * line the grammar accepts and the lowering then binds to the wrong object is
+ * exactly the silent misread this compiler exists to prevent.
+ *
+ *  - `"source"` — the head's subject IS the object the ability is printed on
+ *    ("Whenever {self} attacks, IT gets …", CR 109.2).
+ *  - `"combatant"` — the head fires per attacking or blocking CREATURE and
+ *    names that creature (CR 508.3a / 509.3a), which is not the source.
+ */
+export function headPronounReferent(
+    head: TriggerHeadIR
+): "source" | "combatant" | null {
+    switch (head.kind) {
+        case "enters":
+        case "dies":
+            return head.scope === "self" ? "source" : null;
+        case "attacks":
+            return head.scope === "self" ? "source" : "combatant";
+        case "attacks-or-blocks":
+            return "combatant";
+        case "combat-damage-to-player":
+            return "source";
+        // CR 303.4b — "enchanted creature" names the Aura's host, not the Aura.
+        case "damage-dealt":
+            return head.source === "self" ? "source" : null;
+        case "damage-taken":
+        case "phase":
+        case "spell-cast":
+            return null;
+    }
 }
 
 /**

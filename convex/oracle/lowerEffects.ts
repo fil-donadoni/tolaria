@@ -128,6 +128,26 @@ export interface SiteAntecedents {
     readonly amount?: EffectValue;
     /** "that card" — a card a zone change put into a graveyard (CR 400.7e). */
     readonly card?: EffectObjectSelector;
+    /**
+     * "it" — the OBJECT the site's own text named before the sentence
+     * (CR 608.2h): the source on a head whose subject IS the source, the
+     * attacking or blocking creature on a per-creature combat head
+     * (CR 508.3a / 509.3a). Absent = the site named no object, and a sentence
+     * opening on the pronoun is refused rather than pointed at a guess.
+     */
+    readonly object?: EffectObjectSelector;
+}
+
+/** CR 608.2h — true when this site's "it" names the ability's own source. The
+ *  one place the selector is read back as an identity rather than used, for
+ *  the Op that can only ever act FROM the source (`dealDamage`). */
+function pronounIsSource(site: SiteOptions): boolean {
+    const object = site.antecedents?.object;
+    return (
+        object !== undefined &&
+        "ref" in object &&
+        (object as { ref?: unknown }).ref === "$source"
+    );
 }
 
 /** CR 107.3 — an effect magnitude to an `EffectValue`, X gated by the site. */
@@ -729,9 +749,17 @@ function selectorsFor(
     subject: SubjectIR,
     slots: TargetSlots,
     single: boolean,
-    reach: SlotReach
+    reach: SlotReach,
+    site: SiteOptions
 ): Lowered<EffectObjectSelector[]> {
     if (subject.kind === "self") return lowered([{ ref: "$source" }]);
+    // CR 608.2h — "it" names whatever the SITE printed before the sentence.
+    if (subject.kind === "pronoun") {
+        const object = site.antecedents?.object;
+        return object !== undefined
+            ? lowered([object])
+            : unlowerable('"it" names no object at this site');
+    }
     if (subject.kind === "player")
         return unlowerable("a player is not an object (CR 109.1)");
     // CR 400.7e — "that card" is a card in a graveyard, which only a zone
@@ -797,9 +825,10 @@ function selectorsFor(
 function objectSelector(
     subject: SubjectIR,
     slots: TargetSlots,
+    site: SiteOptions,
     reach: SlotReach = "battlefield"
 ): Lowered<EffectObjectSelector> {
-    const one = selectorsFor(subject, slots, true, reach);
+    const one = selectorsFor(subject, slots, true, reach, site);
     return one.ok ? lowered(one.value[0]!) : one;
 }
 
@@ -817,9 +846,10 @@ function objectSelector(
  */
 function objectSelectors(
     subject: SubjectIR,
-    slots: TargetSlots
+    slots: TargetSlots,
+    site: SiteOptions
 ): Lowered<EffectObjectSelector[]> {
-    return selectorsFor(subject, slots, false, "zone-change");
+    return selectorsFor(subject, slots, false, "zone-change", site);
 }
 
 /**
@@ -837,9 +867,10 @@ function objectSelectors(
  */
 function colorChangeSelector(
     subject: SubjectIR,
-    slots: TargetSlots
+    slots: TargetSlots,
+    site: SiteOptions
 ): Lowered<EffectObjectSelector> {
-    if (subject.kind !== "target") return objectSelector(subject, slots);
+    if (subject.kind !== "target") return objectSelector(subject, slots, site);
     const requirement = subject.requirement;
     // An ALLOW-list, not a refusal list, because the two shapes that have to
     // be refused here are the two a refusal list forgets. `"any"` (CR 115.4 —
@@ -997,7 +1028,7 @@ function damageTarget(
         const player = playerRef(subject.player, slots, site);
         return player.ok ? lowered({ player: player.value }) : player;
     }
-    return objectSelector(subject, slots, "damage");
+    return objectSelector(subject, slots, site, "damage");
 }
 
 export function lowerSentence(
@@ -1041,7 +1072,7 @@ function lowerSentenceBody(
                     toughness,
                     duration: durationSpec(sentence.duration),
                 }));
-            const target = objectSelector(sentence.subject, slots);
+            const target = objectSelector(sentence.subject, slots, site);
             if (!target.ok) return target;
             return lowered([
                 {
@@ -1076,7 +1107,7 @@ function lowerSentenceBody(
             }));
         }
         case "grant-ability": {
-            const target = objectSelector(sentence.subject, slots);
+            const target = objectSelector(sentence.subject, slots, site);
             if (!target.ok) return target;
             return lowered([
                 {
@@ -1095,7 +1126,7 @@ function lowerSentenceBody(
         // so reusing it is what makes those cards round-trip instead of
         // diverging by a mode ordering nobody would notice.
         case "set-color-choice": {
-            const target = colorChangeSelector(sentence.subject, slots);
+            const target = colorChangeSelector(sentence.subject, slots, site);
             if (!target.ok) return target;
             return lowered(
                 chooseColorEffects(
@@ -1127,6 +1158,17 @@ function lowerSentenceBody(
             );
         }
         case "deal-damage": {
+            // CR 119.3 / 608.2h — `dealDamage` deals from the ability's own
+            // source and has no field for another dealer, so "IT deals N
+            // damage" is readable exactly when the site's "it" IS that source
+            // (Pitchburn Devils' dies head). Behind a head that names another
+            // creature the sentence is refused, not silently re-pointed at the
+            // source — which would be a card dealing its damage from the wrong
+            // object.
+            if (sentence.sourceIsPronoun === true && !pronounIsSource(site))
+                return unlowerable(
+                    '"it deals damage" names a dealer that is not this ability\'s source (CR 119.3)'
+                );
             const to = damageTarget(sentence.to, slots, site);
             if (!to.ok) return to;
             const amount = lowerAmount(sentence.amount, site);
@@ -1156,7 +1198,7 @@ function lowerSentenceBody(
                     op: "destroy",
                     target,
                 }));
-            const target = objectSelector(sentence.subject, slots);
+            const target = objectSelector(sentence.subject, slots, site);
             if (!target.ok) return target;
             // CR 701.19c — a "can't be regenerated" clause is a property of
             // the destruction, not a second effect.
@@ -1220,7 +1262,7 @@ function lowerSentenceBody(
                     target,
                 }));
             }
-            const target = objectSelector(sentence.subject, slots);
+            const target = objectSelector(sentence.subject, slots, site);
             if (!target.ok) return target;
             return lowered([
                 {
@@ -1231,7 +1273,7 @@ function lowerSentenceBody(
             ]);
         }
         case "regenerate": {
-            const target = objectSelector(sentence.subject, slots);
+            const target = objectSelector(sentence.subject, slots, site);
             if (!target.ok) return target;
             return lowered([{ op: "regenerate", target: target.value }]);
         }
@@ -1255,7 +1297,7 @@ function lowerSentenceBody(
             ]);
         }
         case "counters": {
-            const target = objectSelector(sentence.subject, slots);
+            const target = objectSelector(sentence.subject, slots, site);
             if (!target.ok) return target;
             const count = lowerAmount(sentence.count, site);
             if (!count.ok) return count;
@@ -1834,7 +1876,7 @@ function lowerMoveZone(
         subject.kind === "target" &&
         subject.requirement.zone === "graveyard" &&
         subject.requirement.controller === "you";
-    const targets = objectSelectors(subject, slots);
+    const targets = objectSelectors(subject, slots, site);
     if (!targets.ok) return targets;
     const each = (to: "hand" | "graveyard" | "exile"): Lowered<EffectOp[]> =>
         lowered(
