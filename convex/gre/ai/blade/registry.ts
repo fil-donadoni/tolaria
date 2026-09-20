@@ -442,6 +442,60 @@ function activationIsDiscouraged(
 
 export const BLADE_SCENARIOS: BladeScenario[] = [
     {
+        // ORDERED TARGET GROUP reachability (CR 601.2c / 702.33g, issue
+        // #4193). Kicked Jilt announces TWO targets through one widened
+        // requirement and reads them positionally: slot 0 is returned to its
+        // owner's hand, slot 1 is dealt 2 damage. The bot's main phase, four
+        // untapped basics (exactly {1}{U} plus the {1}{R} kicker), and the
+        // opponent holding a Serra Angel and a Grizzly Bears.
+        //
+        // Only one assignment is right, and it is not a matter of opinion:
+        // bounce the 4/4 — the 2 damage cannot kill it — and burn the 2/2,
+        // which dies. The other way round bounces a 2/2 for value, leaves the
+        // 4/4 on the board with two damage on it, and hands the opponent a
+        // card back.
+        //
+        // What it guards is REACHABILITY, not preference. `combinations`
+        // emitted each target SET once, in board order, so exactly one of the
+        // two assignments was ever a Move: the search could not have chosen
+        // the other at any budget and no evaluation weight could have helped.
+        // `orderedGroupFlags` (`gre/moves.ts`) is what puts both on the
+        // table, and `announcedTargetSlotsDiffer` is what keeps every
+        // symmetric group (Magma Burst) on the cheaper combination path.
+        label: "ordered targets: bounces the Angel and burns the Bears, not the reverse",
+        spec: {
+            cards: [
+                { name: "Jilt", owner: "me", zone: "hand" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Island", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Serra Angel", owner: "opp", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 600 },
+        tier: "must",
+        expect: {
+            predicate: (move, state) => {
+                if (move === null || move.kind !== "cast-spell") return false;
+                const targets = move.targets ?? [];
+                if (targets.length !== 2) return false;
+                const angels = instanceIdsForName(state, "Serra Angel");
+                const bears = instanceIdsForName(state, "Grizzly Bears");
+                // Slot 0 is the bounce, slot 1 the burn (CR 601.2c).
+                return angels.has(targets[0].id) && bears.has(targets[1].id);
+            },
+            describe:
+                "kicks Jilt announcing Serra Angel first (bounced) and Grizzly Bears second (burned)",
+        },
+        note: "CR 601.2c ordered announcement. `MoveMatcher.target` matches ANY target, so it cannot state an ORDER — and order is the whole decision here — hence the predicate shape (as for adventure / mdfc). Issue #4193.",
+    },
+    {
         // DEPLETION-LAND reachability (CR 605.1a / 118.3 / 701.21, issue
         // #2712). The bot's main phase, an empty board, one Grizzly Bears
         // ({1}{G}) in hand and ONE land: Hickory Woodlot, untapped, entering

@@ -5331,8 +5331,15 @@ function applyRequirementToPendingTarget(
  *  roles, and `applyRequirementToPendingTarget` clears the field when the walk
  *  reaches one. That is exactly the scope the bug has: the count-widening
  *  kicked announcement (CR 702.33g, `foldKickedWidening`) is always a card's
- *  sole group. */
-function announcedTargetRoleFields(
+ *  sole group.
+ *
+ *  Exported for the same reason `resolveBuybackChoice` below is: there is no
+ *  convex-test harness for a `game.ts` mutation (ADR 0001), so the full-path
+ *  test drives the announcement's own helper rather than re-deriving what it
+ *  writes onto the `PendingTarget` — a hand-written `announcedTargetRoles`
+ *  would be the definition written twice and would pass with this wiring
+ *  removed. */
+export function announcedTargetRoleFields(
     cardDef: CardDefinition,
     chosenMode: SpellMode | undefined,
     count: PendingTarget["count"]
