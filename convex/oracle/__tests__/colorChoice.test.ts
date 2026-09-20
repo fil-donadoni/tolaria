@@ -6,7 +6,7 @@
 //  1. GOLDEN forms — a real corpus card compiled whole must produce exactly
 //     the Compiled Definition below: the permanent target with a duration and
 //     without one, the two narrowed STACK phrases (an instant-or-sorcery
-//     spell, and CR 114's spell-or-permanent union), and the source itself.
+//     spell, and CR 115.2's spell-or-permanent union), and the source itself.
 //  2. REFUSALS — the neighbouring colour templates this rule must NOT read: a
 //     plural target, "the color OR COLORS of your choice", a conjunct tail in
 //     the duration slot, and a fronted duration whose grant hangs off the
@@ -16,7 +16,7 @@
 //     may be read by a verb that acts on the battlefield (CR 112.1: half of
 //     what the union announces is not there).
 //  4. The DURATION, which is optional HERE and nowhere else: its absence is a
-//     colour change that never reverts (CR 611.2b), so it must not be read as
+//     colour change that never reverts (CR 611.2a), so it must not be read as
 //     "until end of turn" and must not refuse the line.
 
 import { describe, expect, it } from "vitest";
@@ -134,7 +134,7 @@ describe("becomes the color of your choice (CR 613.1e)", () => {
         );
     });
 
-    // CR 611.2b — no duration printed, so no reversion is emitted: the
+    // CR 611.2a — no duration printed, so no reversion is emitted: the
     // reminder text says so in as many words, and the Op carries no
     // `duration` field at all rather than an "until end of turn" the card
     // never printed.
@@ -187,7 +187,7 @@ describe("becomes the color of your choice (CR 613.1e)", () => {
         );
     });
 
-    // CR 114.1 — a SPELL on the stack, narrowed by card type. The colour is a
+    // CR 115.2 — a SPELL on the stack, narrowed by card type. The colour is a
     // characteristic of an object (CR 109.1), so the stack is as legal a home
     // for the change as the battlefield is.
     it("compiles the narrowed spell target — Vodalian Mystic, whole", () => {
@@ -234,7 +234,7 @@ describe("becomes the color of your choice (CR 613.1e)", () => {
         );
     });
 
-    // CR 114 — the lace template's union: one announced slot legal on either
+    // CR 115.2 — the lace template's union: one announced slot legal on either
     // side of the stack/battlefield line.
     it("compiles the spell-or-permanent union at the SPELL slot — Illusion", () => {
         const oracleText =
@@ -396,7 +396,7 @@ describe("the neighbours this rule refuses (fail-closed, ADR 0105 § 2)", () => 
     });
 });
 
-describe("the two new target phrases (CR 114.1)", () => {
+describe("the two new target phrases (CR 115.2)", () => {
     function instant(name: string, oracleText: string) {
         return oracleCard({
             name,

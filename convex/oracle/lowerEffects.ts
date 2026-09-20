@@ -612,7 +612,7 @@ function selectorsFor(
     // compiled Reprieve into a spell
     // that does something else. The stack verbs read their own selector.
     //
-    // CR 114 — the "spell OR permanent" union is refused here for the same
+    // CR 115.2 — the "spell OR permanent" union is refused here for the same
     // reason and one more: half of what it announces is not on the
     // battlefield at all, so a battlefield verb reading it would act on some
     // of its legal targets and silently no-op on the rest. The only verbs
@@ -673,14 +673,14 @@ function objectSelectors(
  * CR 613.1e — the object a layer-5 colour change acts on.
  *
  * The one selector in this file that spans both zones, because the effect
- * does: a colour is a characteristic of an OBJECT (CR 109.1), and CR 105.3's
- * replacement applies to a spell on the stack exactly as it applies to a
- * permanent ("target spell or permanent becomes the color of your choice",
- * Blind Seer; "target instant or sorcery spell …", Vodalian Mystic). So it
- * accepts the source, a permanent slot, a spell slot and CR 114's union —
- * everything `objectSelector` accepts, plus the two stack shapes it refuses —
- * and nothing else: a player has no colour (CR 109.1), and a sweep announces
- * no slot to point at (CR 110.1).
+ * does: colour is a characteristic (CR 109.3) of an OBJECT (CR 109.1), and
+ * CR 105.3's replacement applies to a spell on the stack exactly as it does
+ * to a permanent ("target spell or permanent becomes the color of your
+ * choice", Blind Seer; "target instant or sorcery spell …", Vodalian
+ * Mystic). So it accepts the source, a permanent slot, a spell slot and
+ * CR 115.2's union — everything `objectSelector` accepts, plus the two stack
+ * shapes it refuses — and nothing else: a player has no colour (CR 109.1),
+ * and a sweep announces no slot to point at (CR 115.1).
  */
 function colorChangeSelector(
     subject: SubjectIR,

@@ -1014,10 +1014,10 @@ export const targetFilterRule: Rule<TargetRequirement> = subGrammar(
         // cannot express, and each stays refused under its own gap key.
         if (span === "target spell")
             return ok({ type: "spell", count: 1 } as TargetRequirement);
-        // CR 114.1 — the two NARROWED stack phrases the lace templates print,
+        // CR 115.2 — the two NARROWED stack phrases the lace templates print,
         // read by exact spelling for the same reason the bare one is: each
         // names a facet the engine keeps beside `type` rather than in a
-        // descriptor (`spellTypeFilter`, and the CR 114 "spell OR permanent"
+        // descriptor (`spellTypeFilter`, and CR 115.2's "spell OR permanent"
         // union), and a descriptor noun would drop it silently. Every other
         // narrowing ("target creature spell", "target spell with mana value 3
         // or less") stays refused under its own gap key.

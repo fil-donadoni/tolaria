@@ -219,11 +219,11 @@ export type EffectSentenceIR =
            * The duration is OPTIONAL here, alone among this file's continuous
            * effects, and that is the printed distinction rather than a
            * default: "Target permanent you control becomes the color of your
-           * choice." (Alchor's Tomb) sets the colour for good (CR 611.2b — no
+           * choice." (Alchor's Tomb) sets the colour for good (CR 611.2a — no
            * duration, no reversion), where "… until end of turn" (Tidal
            * Visionary) reverts at CR 514.2's cleanup. A spell target prints no
            * duration for a third reason — it leaves the stack as it resolves
-           * (CR 608.2m), so there is nothing left to revert (Vodalian Mystic).
+           * (CR 608.2n), so there is nothing left to revert (Vodalian Mystic).
            * Reading the absence as "until end of turn" would quietly un-set
            * Alchor's Tomb, and reading it as an error would refuse two of the
            * four printed forms, so it is carried as what it is.
