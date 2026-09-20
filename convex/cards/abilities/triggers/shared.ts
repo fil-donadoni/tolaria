@@ -163,7 +163,13 @@ export function matchesPermanentScope(
 /** Source-side scope vocabulary used by `damageDealtTrigger.source` and (as
  *  an optional refinement) by `damageTakenTrigger.source`. Tests the damage
  *  source's controller-relation to the trigger source (CR 109.4, 109.5). */
-export type DamageSourceScope = "self" | "yours" | "opponents" | "any";
+export type DamageSourceScope =
+    | "self"
+    | "yours"
+    | "opponents"
+    | "any"
+    /** CR 303.4b — the Aura's host: "whenever ENCHANTED creature deals damage". */
+    | "host";
 
 /** Derived payload exposed to the user-facing `resolve` callback. Spares the
  *  card author from re-narrowing `event.type` and from looking up the source's
@@ -191,6 +197,12 @@ export function matchesSourceScope(
 ): boolean {
     if (scope === "any") return true;
     if (scope === "self") return event.sourceInstanceId === self.id;
+    if (scope === "host") {
+        return (
+            self.attachedTo !== undefined &&
+            event.sourceInstanceId === self.attachedTo
+        );
+    }
     if (scope === "yours") {
         return event.sourceControllerId === self.controllerId;
     }

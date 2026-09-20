@@ -28,7 +28,15 @@ export type PlayerRefIR =
      * they name is the lowering site's to say (a trigger head that names a
      * player, issue #4127), and a site that names no one refuses the line.
      */
-    | { readonly kind: "that-player" };
+    | { readonly kind: "that-player" }
+    /**
+     * "that opponent": the same anaphora, narrowed to a head that names an
+     * OPPONENT ("whenever this creature deals damage to an opponent, … that
+     * opponent …", CR 102.2). A head naming "each player's upkeep" gives
+     * "that player" a referent and "that opponent" none — the words assert a
+     * fact the head must have printed.
+     */
+    | { readonly kind: "that-opponent" };
 
 const PHRASES: ReadonlyMap<string, PlayerRefIR> = new Map<string, PlayerRefIR>([
     ["you", { kind: "you" }],
@@ -38,6 +46,7 @@ const PHRASES: ReadonlyMap<string, PlayerRefIR> = new Map<string, PlayerRefIR>([
     ["target player", { kind: "target", opponent: false }],
     ["target opponent", { kind: "target", opponent: true }],
     ["that player", { kind: "that-player" }],
+    ["that opponent", { kind: "that-opponent" }],
 ]);
 
 export const playerRefRule: Rule<PlayerRefIR> = subGrammar(

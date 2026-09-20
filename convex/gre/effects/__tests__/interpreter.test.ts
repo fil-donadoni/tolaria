@@ -18325,6 +18325,50 @@ describe("Effect Script value grammar: $event.<field> (ADR 0049, CR 603, issue #
         ],
     });
 
+    // Number family (issue #4131): "whenever ~ deals damage, you gain that much
+    // life" — the amount is the firing event's own `amount`.
+    const EVENT_LINK_ID = "test-event-link";
+    registerTokenDefinition({
+        id: EVENT_LINK_ID,
+        name: EVENT_LINK_ID,
+        rarity: "common",
+        manaCost: { W: 1 },
+        types: ["Creature"],
+        subtypes: ["Cleric"],
+        power: 1,
+        toughness: 1,
+        triggeredAbilities: [
+            {
+                id: "link-gain",
+                oracleText: "you gain that much life",
+                event: "DAMAGE_DEALT",
+                matches: () => true,
+                effects: [
+                    {
+                        op: "gainLife",
+                        player: "controller",
+                        amount: { ref: "$event.amount" },
+                    },
+                ],
+            },
+            {
+                // A player id read as a number: NaN if the interpreter guessed,
+                // a skipped Op (CR 608.2b) if it fails closed.
+                id: "link-wrong-family",
+                oracleText: "gain life equal to the damaged player",
+                event: "DAMAGE_DEALT",
+                matches: () => true,
+                effects: [
+                    {
+                        op: "gainLife",
+                        player: "controller",
+                        amount: { ref: "$event.damagedPlayer" },
+                    },
+                ],
+            },
+        ],
+    });
+
     function blockersConfirmed(
         attackerId: string,
         blockerId: string
@@ -18430,6 +18474,79 @@ describe("Effect Script value grammar: $event.<field> (ADR 0049, CR 603, issue #
         // The same result survives the projection (ADR 0049 / wire format).
         const projected = projectPublicState(state, 1, "p1");
         expect(projected.players[1].life).toBe(18);
+    });
+
+    it("number family: $event.amount is the damage THIS event dealt (CR 120.3)", () => {
+        for (const amount of [3, 7]) {
+            const link = makeInstance(EVENT_LINK_ID, {
+                id: "link",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { life: 20, battlefield: [link] }),
+                    makePlayer("p2", { life: 20 }),
+                ],
+            });
+            fireTrigger(
+                state,
+                { id: "link", controllerId: "p1" },
+                "link-gain",
+                { ...damageToPlayer("link", "p2"), amount } as never
+            );
+            expect(state.players[0].life, `amount ${amount}`).toBe(20 + amount);
+            // The same result survives the projection (wire format).
+            expect(projectPublicState(state, 1, "p1").players[0].life).toBe(
+                20 + amount
+            );
+        }
+    });
+
+    it("number family fails CLOSED: a firing event that is not there, or a field of another family, skips the Op (CR 608.2b)", () => {
+        const link = makeInstance(EVENT_LINK_ID, {
+            id: "link",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const build = () =>
+            makeState({
+                players: [
+                    makePlayer("p1", { life: 20, battlefield: [link] }),
+                    makePlayer("p2", { life: 20 }),
+                ],
+            });
+        const noEvent = build();
+        fireTrigger(
+            noEvent,
+            { id: "link", controllerId: "p1" },
+            "link-gain",
+            undefined
+        );
+        expect(noEvent.players[0].life).toBe(20);
+        const wrongFamily = build();
+        fireTrigger(
+            wrongFamily,
+            { id: "link", controllerId: "p1" },
+            "link-wrong-family",
+            damageToPlayer("link", "p2")
+        );
+        expect(wrongFamily.players[0].life).toBe(20);
+        // A hand-edited event that omits its amount is "no such field", not the
+        // string "undefined" read back as NaN — a NaN life total would persist.
+        const noAmount = build();
+        const bare = { ...damageToPlayer("link", "p2") } as unknown as Record<
+            string,
+            unknown
+        >;
+        delete bare.amount;
+        fireTrigger(
+            noAmount,
+            { id: "link", controllerId: "p1" },
+            "link-gain",
+            bare as never
+        );
+        expect(noAmount.players[0].life).toBe(20);
     });
 
     it("object family as a delayedTrigger capture: destroys the blocker at end of combat", () => {

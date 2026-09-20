@@ -4778,6 +4778,42 @@
         "rarity": "common"
     },
     {
+        "name": "Thieving Otter",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Otter"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Whenever this creature deals damage to an opponent, draw a card.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "thieving-otter-trigger",
+                "oracleText": "Whenever this creature deals damage to an opponent, draw a card.",
+                "head": {
+                    "kind": "damage-dealt",
+                    "source": "self",
+                    "recipient": "opponent"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "07f84b0a-37d9-4b0f-8d75-1fab45a12d44",
+        "rarity": "common"
+    },
+    {
         "name": "Insomnia, Crown City",
         "types": [
             "Land"
@@ -16138,6 +16174,68 @@
         "rarity": "common"
     },
     {
+        "name": "Fungal Shambler",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Fungus",
+            "Beast"
+        ],
+        "manaCost": {
+            "X": 4,
+            "U": 1,
+            "B": 1,
+            "G": 1
+        },
+        "power": 6,
+        "toughness": 4,
+        "oracleText": "Trample\nWhenever this creature deals damage to an opponent, you draw a card and that opponent discards a card.",
+        "staticAbilities": [
+            "trample"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "fungal-shambler-trigger",
+                "oracleText": "Whenever this creature deals damage to an opponent, you draw a card and that opponent discards a card.",
+                "head": {
+                    "kind": "damage-dealt",
+                    "source": "self",
+                    "recipient": "opponent"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "discard-hand",
+                        "player": {
+                            "ref": "$event.damagedPlayer"
+                        },
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": {
+                            "ref": "$event.damagedPlayer"
+                        },
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "1b65f96b-019b-40a9-9b4d-acd4abf4a0f9",
+        "rarity": "rare"
+    },
+    {
         "name": "Geistflame",
         "types": [
             "Instant"
@@ -17800,6 +17898,52 @@
         ],
         "entersTapped": true,
         "id": "1de583ce-e805-45f1-907f-198bc82fd3b5",
+        "rarity": "common"
+    },
+    {
+        "name": "Mourning Thrull",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Thrull"
+        ],
+        "manaCost": {
+            "X": 1,
+            "hybrid": [
+                [
+                    "W",
+                    "B"
+                ]
+            ]
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "({W/B} can be paid with either {W} or {B}.)\nFlying\nWhenever this creature deals damage, you gain that much life.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "mourning-thrull-trigger",
+                "oracleText": "Whenever this creature deals damage, you gain that much life.",
+                "head": {
+                    "kind": "damage-dealt",
+                    "source": "self",
+                    "recipient": "any"
+                },
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": {
+                            "ref": "$event.amount"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "1e2a217a-e47b-4874-9861-bb57c7b1f06a",
         "rarity": "common"
     },
     {
@@ -24136,6 +24280,45 @@
         "rarity": "common"
     },
     {
+        "name": "Thieving Magpie",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Bird"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 2
+        },
+        "power": 1,
+        "toughness": 3,
+        "oracleText": "Flying (This creature can't be blocked except by creatures with flying or reach.)\nWhenever this creature deals damage to an opponent, draw a card.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "thieving-magpie-trigger",
+                "oracleText": "Whenever this creature deals damage to an opponent, draw a card.",
+                "head": {
+                    "kind": "damage-dealt",
+                    "source": "self",
+                    "recipient": "opponent"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "2b6b23b9-4569-40ff-988f-ad1d5d3fe573",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Goblin Chirurgeon",
         "types": [
             "Creature"
@@ -30118,6 +30301,62 @@
         "rarity": "common"
     },
     {
+        "name": "Looter il-Kor",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Kor",
+            "Rogue"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Shadow (This creature can block or be blocked by only creatures with shadow.)\nWhenever this creature deals damage to an opponent, draw a card, then discard a card.",
+        "staticAbilities": [
+            "shadow"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "looter-il-kor-trigger",
+                "oracleText": "Whenever this creature deals damage to an opponent, draw a card, then discard a card.",
+                "head": {
+                    "kind": "damage-dealt",
+                    "source": "self",
+                    "recipient": "opponent"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "368ee06f-9021-4b65-9f53-9c326bf3a27f",
+        "rarity": "common"
+    },
+    {
         "name": "Stone Kavu",
         "types": [
             "Creature"
@@ -35532,6 +35771,64 @@
         "rarity": "rare"
     },
     {
+        "name": "Soul Link",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1,
+            "B": 1
+        },
+        "oracleText": "Enchant creature\nWhenever enchanted creature deals damage, you gain that much life.\nWhenever enchanted creature is dealt damage, you gain that much life.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "soul-link-trigger",
+                "oracleText": "Whenever enchanted creature deals damage, you gain that much life.",
+                "head": {
+                    "kind": "damage-dealt",
+                    "source": "host",
+                    "recipient": "any"
+                },
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": {
+                            "ref": "$event.amount"
+                        }
+                    }
+                ]
+            },
+            {
+                "id": "soul-link-trigger-2",
+                "oracleText": "Whenever enchanted creature is dealt damage, you gain that much life.",
+                "head": {
+                    "kind": "damage-taken",
+                    "scope": "host"
+                },
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": {
+                            "ref": "$event.amount"
+                        }
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "425e0ca4-8592-4802-b7c4-6e3323edd78c",
+        "rarity": "common"
+    },
+    {
         "name": "Galerider Sliver",
         "types": [
             "Creature"
@@ -38903,6 +39200,48 @@
         ],
         "id": "4843ba92-fde2-4b46-8fdb-e0f8aca96959",
         "rarity": "common"
+    },
+    {
+        "name": "Kjeldoran Gargoyle",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Gargoyle"
+        ],
+        "manaCost": {
+            "X": 5,
+            "W": 1
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "Flying, first strike\nWhenever this creature deals damage, you gain that much life.",
+        "staticAbilities": [
+            "flying",
+            "first strike"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "kjeldoran-gargoyle-trigger",
+                "oracleText": "Whenever this creature deals damage, you gain that much life.",
+                "head": {
+                    "kind": "damage-dealt",
+                    "source": "self",
+                    "recipient": "any"
+                },
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": {
+                            "ref": "$event.amount"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "484a4892-fba0-459d-9e72-e82f7e079d78",
+        "rarity": "uncommon"
     },
     {
         "name": "Sacred Nectar",
@@ -47930,6 +48269,57 @@
         ],
         "id": "5aa91a9e-2fe2-43bc-aa9c-cfb8a71829ff",
         "rarity": "common"
+    },
+    {
+        "name": "Vedalken Heretic",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Vedalken",
+            "Rogue"
+        ],
+        "manaCost": {
+            "U": 1,
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Whenever this creature deals damage to an opponent, you may draw a card.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "vedalken-heretic-trigger",
+                "oracleText": "Whenever this creature deals damage to an opponent, you may draw a card.",
+                "head": {
+                    "kind": "damage-dealt",
+                    "source": "self",
+                    "recipient": "opponent"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Draw a card?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "draw",
+                                "player": "controller",
+                                "count": 1
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "5ab2ba75-e52e-46f5-8a34-3fe1e07446fd",
+        "rarity": "rare"
     },
     {
         "name": "Maned Serval",
@@ -69883,6 +70273,48 @@
         "rarity": "common"
     },
     {
+        "name": "Warrior Angel",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Angel",
+            "Warrior"
+        ],
+        "manaCost": {
+            "X": 4,
+            "W": 2
+        },
+        "power": 3,
+        "toughness": 4,
+        "oracleText": "Flying\nWhenever this creature deals damage, you gain that much life.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "warrior-angel-trigger",
+                "oracleText": "Whenever this creature deals damage, you gain that much life.",
+                "head": {
+                    "kind": "damage-dealt",
+                    "source": "self",
+                    "recipient": "any"
+                },
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": {
+                            "ref": "$event.amount"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "81d2c6e3-e556-4cc6-94b6-fdbc62d6853e",
+        "rarity": "rare"
+    },
+    {
         "name": "Ebony Rhino",
         "types": [
             "Artifact",
@@ -89243,6 +89675,45 @@
         "rarity": "common"
     },
     {
+        "name": "Zebra Unicorn",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Unicorn"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Whenever this creature deals damage, you gain that much life.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "zebra-unicorn-trigger",
+                "oracleText": "Whenever this creature deals damage, you gain that much life.",
+                "head": {
+                    "kind": "damage-dealt",
+                    "source": "self",
+                    "recipient": "any"
+                },
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": {
+                            "ref": "$event.amount"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "a663ee9d-78f1-4c89-af9e-c788e165fa91",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Crushing Canopy",
         "types": [
             "Instant"
@@ -91356,6 +91827,45 @@
         ],
         "id": "a9ba0f1c-8641-4f5a-8f2e-f969fc7a058a",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Vampiric Link",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "B": 1
+        },
+        "oracleText": "Enchant creature\nWhenever enchanted creature deals damage, you gain that much life.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "vampiric-link-trigger",
+                "oracleText": "Whenever enchanted creature deals damage, you gain that much life.",
+                "head": {
+                    "kind": "damage-dealt",
+                    "source": "host",
+                    "recipient": "any"
+                },
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": {
+                            "ref": "$event.amount"
+                        }
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "a9be1058-0668-4938-8801-e9a98464651c",
+        "rarity": "common"
     },
     {
         "name": "Battlefield Forge",
@@ -93936,6 +94446,49 @@
         "power": 3,
         "toughness": 1,
         "id": "ae115587-012d-40ff-a20d-270fabf2f8c6",
+        "rarity": "common"
+    },
+    {
+        "name": "Saltwater Stalwart",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Merfolk",
+            "Warrior"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 1
+        },
+        "power": 2,
+        "toughness": 4,
+        "oracleText": "Whenever this creature deals damage to an opponent, target player draws a card.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "saltwater-stalwart-trigger",
+                "oracleText": "Whenever this creature deals damage to an opponent, target player draws a card.",
+                "head": {
+                    "kind": "damage-dealt",
+                    "source": "self",
+                    "recipient": "opponent"
+                },
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": {
+                            "target": 0
+                        },
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "ae11adef-57b1-4f39-951b-cd4d5c0a0b80",
         "rarity": "common"
     },
     {

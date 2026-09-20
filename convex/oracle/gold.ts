@@ -805,6 +805,8 @@ const TRIGGER_HEAD_EVENT: Record<CompiledTriggerHead["kind"], GameEventType> = {
     died: "CREATURE_DIED",
     attacks: "ATTACKERS_DECLARED",
     "combat-damage-to-player": "DAMAGE_DEALT",
+    "damage-dealt": "DAMAGE_DEALT",
+    "damage-taken": "DAMAGE_DEALT",
     phase: "PHASE_BEGIN",
     "spell-cast": "SPELL_CAST",
 };

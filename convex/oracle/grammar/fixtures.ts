@@ -1281,4 +1281,157 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             targetRequirement: { type: "spell", count: 1 },
         },
     },
+    // CR 120.3 + CR 603.2 — "Whenever this creature deals damage to an
+    // opponent, that player discards a card at random": "that player" is the
+    // damaged player, `DAMAGE_DEALT.damagedPlayer`. Exhibits a discard by an
+    // `$event` player, a recipient the canned smoke scenario cannot pick
+    // (issue #4131).
+    {
+        rule: "trigger head",
+        card: {
+            oracleId: "759af941-f6a3-4726-91f2-9b1e4e55ea71",
+            name: "Hypnotic Specter",
+            manaCost: "{1}{B}{B}",
+            typeLine: "Creature — Specter",
+            oracleText:
+                "Flying\nWhenever this creature deals damage to an opponent, that player discards a card at random.",
+            power: "2",
+            toughness: "2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Hypnotic Specter",
+            types: ["Creature"],
+            subtypes: ["Specter"],
+            manaCost: { X: 1, B: 2 },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "Flying\nWhenever this creature deals damage to an opponent, that player discards a card at random.",
+            staticAbilities: ["flying"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "hypnotic-specter-trigger",
+                    oracleText:
+                        "Whenever this creature deals damage to an opponent, that player discards a card at random.",
+                    head: {
+                        kind: "damage-dealt",
+                        source: "self",
+                        recipient: "opponent",
+                    },
+                    effects: [
+                        {
+                            op: "discardAtRandom",
+                            player: { ref: "$event.damagedPlayer" },
+                            count: 1,
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 120.3 + CR 608.2c — "Whenever this creature deals damage to an
+    // opponent, you draw a card and that opponent discards a card": the
+    // damaged player CHOOSES the discard (CR 701.9b). Exhibits the two forms
+    // the canned smoke scenario cannot build — a `choice` raised for an
+    // `$event` player, and the `discard` that consumes its binding
+    // (issue #4131).
+    {
+        rule: "trigger head",
+        card: {
+            oracleId: "9991941e-436f-42d4-8b0c-1ee84234774b",
+            name: "Fungal Shambler",
+            manaCost: "{4}{B}{G}{U}",
+            typeLine: "Creature — Fungus Beast",
+            oracleText:
+                "Trample\nWhenever this creature deals damage to an opponent, you draw a card and that opponent discards a card.",
+            power: "6",
+            toughness: "4",
+            layout: "normal",
+        },
+        expected: {
+            name: "Fungal Shambler",
+            types: ["Creature"],
+            subtypes: ["Fungus", "Beast"],
+            manaCost: { X: 4, U: 1, B: 1, G: 1 },
+            power: 6,
+            toughness: 4,
+            oracleText:
+                "Trample\nWhenever this creature deals damage to an opponent, you draw a card and that opponent discards a card.",
+            staticAbilities: ["trample"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "fungal-shambler-trigger",
+                    oracleText:
+                        "Whenever this creature deals damage to an opponent, you draw a card and that opponent discards a card.",
+                    head: {
+                        kind: "damage-dealt",
+                        source: "self",
+                        recipient: "opponent",
+                    },
+                    effects: [
+                        { op: "draw", player: "controller", count: 1 },
+                        {
+                            op: "choice",
+                            kind: "discard-hand",
+                            player: { ref: "$event.damagedPlayer" },
+                            zone: "hand",
+                            count: 1,
+                            prompt: "Discard a card.",
+                            bind: "$discard1",
+                        },
+                        {
+                            op: "discard",
+                            player: { ref: "$event.damagedPlayer" },
+                            cards: { ref: "$discard1" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 120.3 + CR 303.4b — "Whenever enchanted creature deals damage, you
+    // gain that much life": "that much" is the damage the event dealt,
+    // `DAMAGE_DEALT.amount`, a NUMBER field of the firing event. Exhibits an
+    // amount the canned smoke scenario cannot know (issue #4131).
+    {
+        rule: "trigger head",
+        card: {
+            oracleId: "c77ff526-c0a8-45c7-9730-2e306a0d01b8",
+            name: "Spirit Link",
+            manaCost: "{W}",
+            typeLine: "Enchantment — Aura",
+            oracleText:
+                "Enchant creature (Target a creature as you cast this. This card enters attached to that creature.)\nWhenever enchanted creature deals damage, you gain that much life.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Spirit Link",
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+            manaCost: { W: 1 },
+            oracleText:
+                "Enchant creature (Target a creature as you cast this. This card enters attached to that creature.)\nWhenever enchanted creature deals damage, you gain that much life.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "spirit-link-trigger",
+                    oracleText:
+                        "Whenever enchanted creature deals damage, you gain that much life.",
+                    head: {
+                        kind: "damage-dealt",
+                        source: "host",
+                        recipient: "any",
+                    },
+                    effects: [
+                        {
+                            op: "gainLife",
+                            player: "controller",
+                            amount: { ref: "$event.amount" },
+                        },
+                    ],
+                },
+            ],
+            targetRequirement: { type: "Creature", count: 1 },
+        },
+    },
 ]);

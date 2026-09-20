@@ -652,6 +652,15 @@ function resolveValue(
         return inner === undefined ? undefined : -inner;
     }
     if ("ref" in value) {
+        // CR 120.3 — `{ ref: "$event.amount" }`: a censused NUMBER field of the
+        // firing event ("you gain that much life"). Tried before the bindings
+        // below because the `$event.` prefix is reserved and can never be a
+        // binding name; a field of any other family reads `undefined` here, so
+        // the Op skips (CR 608.2b) instead of turning an object id into NaN.
+        if (isEventRef(value.ref)) {
+            const event = resolveEventRef(ctx, value.ref);
+            return event?.family === "number" ? Number(event.id) : undefined;
+        }
         // CR 107.1b / 107.3f (issue #1701) — a BARE ref in a numeric position
         // reads a NUMERIC binding: the amount a `payVariableMana` nomination
         // paid (`count: { ref: "$paid" }`). Tried first because a bare ref has

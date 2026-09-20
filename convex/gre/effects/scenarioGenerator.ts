@@ -180,6 +180,10 @@ const COMPILED_TRIGGER_SOURCE_SURVIVES: Record<
         !("scope" in head && (head.scope === "self" || head.scope === "host")),
     attacks: () => true,
     "combat-damage-to-player": () => true,
+    // CR 120.3 — the source is the DAMAGE dealer or recipient, and it is still
+    // on the battlefield when the trigger is put on the stack.
+    "damage-dealt": () => true,
+    "damage-taken": () => true,
     phase: () => true,
     "spell-cast": () => true,
 };

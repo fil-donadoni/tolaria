@@ -3544,6 +3544,115 @@ describe("validateAbilityEffectScript — $event.<field> refs (ADR 0049, issue #
         );
     });
 
+    // issue #4131 — the FIFTH family: a MAGNITUDE the event carries, whose one
+    // legal position is a numeric `EffectValue`. Neither direction may fail
+    // open: an id read as a number is NaN, a number read as an id names nothing.
+    describe("the number family (DAMAGE_DEALT.amount, issue #4131)", () => {
+        const gain = (amount: unknown) =>
+            abilityHost([
+                {
+                    op: "gainLife",
+                    player: "controller",
+                    amount: amount as never,
+                },
+            ]);
+
+        it("accepts $event.amount as a numeric amount at a DAMAGE_DEALT trigger site", () => {
+            expect(
+                validateAbilityEffectScript(
+                    gain({ ref: "$event.amount" }),
+                    "Test (id)",
+                    "DAMAGE_DEALT"
+                )
+            ).toEqual([]);
+        });
+
+        it("rejects $event.amount at an event that carries no amount", () => {
+            const errors = validateAbilityEffectScript(
+                gain({ ref: "$event.amount" }),
+                "Test (id)",
+                "BLOCKERS_CONFIRMED"
+            );
+            expect(errors.join("\n")).toContain(
+                'not a censused field for event "BLOCKERS_CONFIRMED"'
+            );
+        });
+
+        it("rejects $event.amount at a spell / activated site (no firing event)", () => {
+            const errors = validateAbilityEffectScript(
+                gain({ ref: "$event.amount" }),
+                "Test (id)",
+                undefined
+            );
+            expect(errors.join("\n")).toContain(
+                "only legal at a triggered-ability site"
+            );
+        });
+
+        it("rejects a number field in a PLAYER position and in an OBJECT position", () => {
+            const inPlayer = validateAbilityEffectScript(
+                abilityHost([
+                    {
+                        op: "loseLife",
+                        player: { ref: "$event.amount" },
+                        amount: 1,
+                    },
+                ]),
+                "Test (id)",
+                "DAMAGE_DEALT"
+            );
+            expect(inPlayer.join("\n")).toContain(
+                "number field in a player position"
+            );
+            const inObject = validateAbilityEffectScript(
+                abilityHost([
+                    { op: "destroy", target: { ref: "$event.amount" } },
+                ]),
+                "Test (id)",
+                "DAMAGE_DEALT"
+            );
+            expect(inObject.join("\n")).toContain(
+                "number field in a object position"
+            );
+        });
+
+        it("rejects an OBJECT / PLAYER field in a numeric position", () => {
+            for (const field of ["damagedPlayer", "damagedPermanent"]) {
+                const errors = validateAbilityEffectScript(
+                    gain({ ref: `$event.${field}` }),
+                    "Test (id)",
+                    "DAMAGE_DEALT"
+                );
+                expect(errors.join("\n"), field).toMatch(
+                    /field in a number position/
+                );
+            }
+        });
+
+        it("rejects a number field as a delayedTrigger CAPTURE source", () => {
+            const errors = validateAbilityEffectScript(
+                abilityHost([
+                    {
+                        op: "delayedTrigger",
+                        timing: "next-end-of-combat",
+                        oracleText: "gain life at end of combat",
+                        capture: { $n: { ref: "$event.amount" } },
+                        effects: [
+                            {
+                                op: "gainLife",
+                                player: "controller",
+                                amount: 1,
+                            },
+                        ],
+                    },
+                ]),
+                "Test (id)",
+                "DAMAGE_DEALT"
+            );
+            expect(errors.join("\n")).toContain("is a number field");
+        });
+    });
+
     // issue #3206 — the THIRD family: a SPELL on the stack, whose one legal
     // position is `counter.target`. Neither direction may fail open.
     describe("the stack-object family (SPELL_CAST, issue #3206)", () => {

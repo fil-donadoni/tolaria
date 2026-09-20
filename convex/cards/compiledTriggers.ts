@@ -46,6 +46,7 @@ import { getEventFieldRow } from "./eventFields";
 import type { Phase } from "../gre/types";
 import { attacksTrigger } from "./abilities/triggers/attacksTrigger";
 import { damageDealtTrigger } from "./abilities/triggers/damageDealtTrigger";
+import { damageTakenTrigger } from "./abilities/triggers/damageTakenTrigger";
 import { diedTrigger } from "./abilities/triggers/diedTrigger";
 import { enteredTrigger } from "./abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "./abilities/triggers/phaseTrigger";
@@ -91,6 +92,9 @@ export type CompiledTriggerCondition =
           readonly atLeast: number;
       };
 
+/** CR 205.2 — "to a creature": the damaged permanent's type. */
+const CREATURE_FILTER: PermanentFilter = { types: ["Creature"] };
+
 /** The trigger heads the compiler can emit (CR 603.2 / 603.6a). Closed. */
 export type CompiledTriggerHead =
     /** CR 603.6a — "when [this / another creature] enters". */
@@ -109,6 +113,19 @@ export type CompiledTriggerHead =
     | { readonly kind: "attacks" }
     /** CR 119.3 / 510.1 — "whenever this creature deals combat damage to a player". */
     | { readonly kind: "combat-damage-to-player" }
+    /**
+     * CR 120.3 / 603.2 — "whenever [this / enchanted] creature deals damage
+     * [to an opponent / to a creature]". Combat or not: the Oracle words do not
+     * narrow it, so neither does the head. `source: "host"` is CR 303.4b's
+     * Aura host.
+     */
+    | {
+          readonly kind: "damage-dealt";
+          readonly source: "self" | "host";
+          readonly recipient: "any" | "opponent" | "creature";
+      }
+    /** CR 120.3 / 303.4b — "whenever enchanted creature is dealt damage". */
+    | { readonly kind: "damage-taken"; readonly scope: "host" }
     /** CR 603.6a — "at the beginning of [your/each] <step>". */
     | {
           readonly kind: "phase";
@@ -268,6 +285,31 @@ export function resolveCompiledTrigger(
                 source: "self",
                 isCombat: true,
                 target: { kind: "player", player: { relation: "any" } },
+            });
+        case "damage-dealt":
+            return damageDealtTrigger({
+                ...common,
+                source: head.source,
+                ...(head.recipient === "opponent"
+                    ? {
+                          target: {
+                              kind: "player" as const,
+                              player: { relation: "opponent" as const },
+                          },
+                      }
+                    : head.recipient === "creature"
+                      ? {
+                            target: {
+                                kind: "permanent" as const,
+                                filter: CREATURE_FILTER,
+                            },
+                        }
+                      : {}),
+            });
+        case "damage-taken":
+            return damageTakenTrigger({
+                ...common,
+                target: { kind: "host" },
             });
         case "phase":
             return phaseTrigger({

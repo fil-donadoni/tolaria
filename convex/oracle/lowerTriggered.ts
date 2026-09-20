@@ -59,6 +59,14 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
             return { kind: "attacks" };
         case "combat-damage-to-player":
             return { kind: "combat-damage-to-player" };
+        case "damage-dealt":
+            return {
+                kind: "damage-dealt",
+                source: head.source,
+                recipient: head.recipient,
+            };
+        case "damage-taken":
+            return { kind: "damage-taken", scope: head.scope };
         case "phase":
             return { kind: "phase", phase: head.phase, scope: head.scope };
         case "spell-cast":
@@ -88,9 +96,23 @@ function namedPlayerField(head: TriggerHeadIR): string | null {
  */
 function headAntecedents(head: TriggerHeadIR): SiteAntecedents {
     const playerField = namedPlayerField(head);
+    // CR 102.2 — "deals damage to AN OPPONENT" names the damaged player, who
+    // is an opponent by the head's own words: both "that player" and "that
+    // opponent" read `DAMAGE_DEALT.damagedPlayer`.
+    const damagedOpponent =
+        head.kind === "damage-dealt" && head.recipient === "opponent"
+            ? { ref: "$event.damagedPlayer" }
+            : null;
     return {
         ...(playerField !== null
             ? { player: { ref: `$event.${playerField}` } }
+            : {}),
+        ...(damagedOpponent !== null
+            ? { player: damagedOpponent, opponent: damagedOpponent }
+            : {}),
+        // CR 120.3 — "that much" after a damage head is the damage dealt.
+        ...(head.kind === "damage-dealt" || head.kind === "damage-taken"
+            ? { amount: { ref: "$event.amount" } }
             : {}),
         ...(head.kind === "dies" ? { card: { ref: "$event.card" } } : {}),
     };
