@@ -321,6 +321,10 @@ import {
     resolveCastPermanentSelection,
     resolveKickerPayments,
 } from "./gre/kicker";
+// CR 601.2c (issue #4193) — which half of the effect each announced target of
+// a group receives, so the prompt can say it per slot instead of leaving the
+// caster to infer it from click order.
+import { announcedTargetRoles } from "./gre/targetRoles";
 import { spliceAugmentedDefinition } from "./gre/splice";
 import { liveSupertypesOf, countSnowLands } from "./gre/snow";
 import { computeSoloViewerId } from "./soloViewer";
@@ -5306,7 +5310,42 @@ function applyRequirementToPendingTarget(
     pt.zone = undefined;
     pt.divideTotal = undefined;
     pt.divideAmounts = undefined;
+    // CR 601.2c (issue #4193) — the per-Target roles belong to the group that
+    // derived them; an additional group carries none (see
+    // `announcedTargetRoleFields`), so leaking the primary group's would
+    // caption the wrong picks.
+    pt.announcedTargetRoles = undefined;
     Object.assign(pt, pendingTargetFiltersFromRequirement(req, chosenX));
+}
+
+/** CR 601.2c (issue #4193) — the `announcedTargetRoles` field of a PRIMARY
+ *  group's `PendingTarget`, or `{}` when the group's announced slots cannot be
+ *  told apart (every symmetric card, every single-target announcement, and
+ *  every script shape the derivation refuses to guess at).
+ *
+ *  Scoped to the primary group on purpose. The slot window a role derivation
+ *  needs is `[firstSlot, firstSlot + count)`, and only the FIRST group's
+ *  window is known here — a later group's offset depends on how many slots
+ *  the earlier ones actually announced, which a variable-count group does not
+ *  decide until its picks are in. An additional group therefore carries no
+ *  roles, and `applyRequirementToPendingTarget` clears the field when the walk
+ *  reaches one. That is exactly the scope the bug has: the count-widening
+ *  kicked announcement (CR 702.33g, `foldKickedWidening`) is always a card's
+ *  sole group. */
+function announcedTargetRoleFields(
+    cardDef: CardDefinition,
+    chosenMode: SpellMode | undefined,
+    count: PendingTarget["count"]
+): { announcedTargetRoles?: string[] } {
+    if (typeof count !== "number") return {};
+    // A modal body may live on the mode; `resolve()` cards have no script to
+    // read at all, and both fall through to "cannot tell".
+    const roles = announcedTargetRoles(
+        chosenMode ? chosenMode.effects : cardDef.effects,
+        0,
+        count
+    );
+    return roles ? { announcedTargetRoles: roles } : {};
 }
 
 /** CR 115.3 "another target" (issue #3236) — lowers a group's
@@ -7877,6 +7916,18 @@ export const announceCast = mutation({
                           ),
                       }
                     : {}),
+                // CR 601.2c (issue #4193) — when this group's announced slots
+                // receive DIFFERENT halves of the effect, say so per slot, so
+                // the caster is not telling them apart by click order alone
+                // (kicked Jilt returns slot 0 and burns slot 1). Derived from
+                // the script the resolution will actually run; `undefined`
+                // — no per-Target text at all — for every symmetric card and
+                // every shape the derivation cannot read (`targetRoles.ts`).
+                ...announcedTargetRoleFields(
+                    cardDef,
+                    chosenMode,
+                    resolvedCount!
+                ),
             };
 
             await saveGameState(

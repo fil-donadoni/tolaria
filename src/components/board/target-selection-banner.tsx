@@ -20,6 +20,7 @@ import {
     formatModeTargetProvenance,
     modeTargetProvenance,
 } from "~/lib/mode-target-provenance";
+import { announcedTargetRoleRows } from "~/lib/announced-target-roles";
 
 /** How the target COUNT reads on the prompt's chip.
  *
@@ -149,6 +150,14 @@ export default function TargetSelectionBanner({
         targetLabel
     );
     const showDone = typeof pendingTarget.count !== "number" && !maxReached;
+    // CR 601.2c (issue #4193) — when the announced targets of this group
+    // receive DIFFERENT halves of the effect (kicked Jilt: one is bounced, the
+    // other burned), the prompt must say which click buys which. Empty for
+    // every symmetric announcement, so their prompt is unchanged.
+    const roleRows = announcedTargetRoleRows(
+        pendingTarget.announcedTargetRoles,
+        pendingTarget.selected.length
+    );
 
     return (
         <div className={outerClassName} style={outerStyle}>
@@ -260,6 +269,31 @@ export default function TargetSelectionBanner({
                             {isCopyRetarget ? "Keep targets" : "Cancel"}
                         </Button>
                     </div>
+                    {roleRows.length > 0 && (
+                        <ol
+                            data-announced-target-roles
+                            className="flex flex-col gap-1 text-xs"
+                        >
+                            {roleRows.map((row) => (
+                                <li
+                                    key={row.slot}
+                                    data-target-role-slot={row.slot}
+                                    data-target-role-status={row.status}
+                                    className={
+                                        row.status === "current"
+                                            ? "text-signal-target-strong"
+                                            : "text-text-muted"
+                                    }
+                                >
+                                    <span className="tabular-nums">
+                                        {row.slot}.
+                                    </span>{" "}
+                                    {row.role}
+                                    {row.status === "current" && " — pick now"}
+                                </li>
+                            ))}
+                        </ol>
+                    )}
                     {divide.active && <DivideTargetList />}
                 </Panel>
             </div>
