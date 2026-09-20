@@ -110,40 +110,50 @@ export function describeOutcome(issue: number, outcome: DetachOutcome): string {
     }
 }
 
-/** The real reads and writes: the REST issue object and the sub-issue endpoint. */
-export const LIVE_DETACH_DEPS: DetachDeps = {
-    readIssue(issue) {
-        const raw = gh([
-            "api",
-            `repos/{owner}/{repo}/issues/${issue}`,
-            "--jq",
-            "{id, state, parent_issue_url}",
-        ]);
-        const j = JSON.parse(raw) as {
-            id?: number;
-            state?: string;
-            parent_issue_url?: string | null;
-        };
-        if (
-            typeof j.id !== "number" ||
-            (j.state !== "open" && j.state !== "closed")
-        )
-            throw new Error(`unexpected issue payload ${JSON.stringify(j)}`);
-        const parent = j.parent_issue_url?.match(/\/issues\/(\d+)$/)?.[1];
-        return {
-            id: j.id,
-            state: j.state,
-            parent: parent === undefined ? null : Number(parent),
-        };
-    },
-    removeSubIssue(parent, childId) {
-        gh([
-            "api",
-            "--method",
-            "DELETE",
-            `repos/{owner}/{repo}/issues/${parent}/sub_issue`,
-            "-F",
-            `sub_issue_id=${childId}`,
-        ]);
-    },
-};
+/** The reads and writes over a `gh` client — the REST issue object and the
+ *  sub-issue endpoint. `gh` is a parameter so a test can pin the payload shape
+ *  and the DELETE arguments without a network. */
+export function makeDetachDeps(
+    ghClient: (args: string[]) => string = gh
+): DetachDeps {
+    return {
+        readIssue(issue) {
+            const raw = ghClient([
+                "api",
+                `repos/{owner}/{repo}/issues/${issue}`,
+                "--jq",
+                "{id, state, parent_issue_url}",
+            ]);
+            const j = JSON.parse(raw) as {
+                id?: number;
+                state?: string;
+                parent_issue_url?: string | null;
+            };
+            if (
+                typeof j.id !== "number" ||
+                (j.state !== "open" && j.state !== "closed")
+            )
+                throw new Error(
+                    `unexpected issue payload ${JSON.stringify(j)}`
+                );
+            const parent = j.parent_issue_url?.match(/\/issues\/(\d+)$/)?.[1];
+            return {
+                id: j.id,
+                state: j.state,
+                parent: parent === undefined ? null : Number(parent),
+            };
+        },
+        removeSubIssue(parent, childId) {
+            ghClient([
+                "api",
+                "--method",
+                "DELETE",
+                `repos/{owner}/{repo}/issues/${parent}/sub_issue`,
+                "-F",
+                `sub_issue_id=${childId}`,
+            ]);
+        },
+    };
+}
+
+export const LIVE_DETACH_DEPS: DetachDeps = makeDetachDeps();

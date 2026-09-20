@@ -838,9 +838,9 @@ export function releaseClaimStep(branch: string): string | null {
  * child stops being that.
  *
  * Runs in the PRIMARY checkout for the reason `gapsSyncStep` does, AFTER it:
- * `gaps:sync` reads the parent edge this step deletes, and it also gives the
- * merge's `Closes #N` time to close the issue — the step never detaches one
- * that is still open. Non-gating: an outage leaves the closed child listed
+ * the gap sync does its network work first, which is what gives the merge's
+ * `Closes #N` time to close the issue (measured 1-2 s after `mergedAt`) — the
+ * step never detaches one that is still open, and says so loudly. Non-gating: an outage leaves the closed child listed
  * until `umbrella:detach` is run by hand. Returns null for a branch that names
  * no issue.
  */
@@ -1023,8 +1023,8 @@ export function postMergeHousekeepingSteps(
     // The claim outlives nothing: the PR is merged, the issue is closing.
     const release = releaseClaimStep(opts.branch);
     if (release !== null) steps.push(release);
-    // AFTER `gaps:sync` above (it reads the parent edge this deletes) and
-    // after the merge has had time to close the issue (issue #4235).
+    // AFTER `gaps:sync` above, whose network work is what gives the merge's
+    // `Closes #N` time to close the issue this step requires (issue #4235).
     const detach = umbrellaDetachStep(opts.primaryCheckout, opts.branch);
     if (detach !== null) steps.push(detach);
     // BEFORE the teardown below, which removes the worktree this command

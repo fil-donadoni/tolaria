@@ -6,6 +6,7 @@ import {
     censusedUmbrellas,
     describeOutcome,
     detachFromUmbrella,
+    makeDetachDeps,
     type DetachDeps,
     type IssueEdge,
 } from "../lib/umbrella-detach";
@@ -132,5 +133,68 @@ describe("detachFromUmbrella (issue #4235)", () => {
         expect(
             describeOutcome(4140, { kind: "open", parent: P0_GRAMMAR })
         ).toContain("bun run umbrella:detach 4140");
+    });
+});
+
+describe("makeDetachDeps — the shape of the real gh calls (issue #4235)", () => {
+    /** A `gh` that records its argv and answers with a canned payload. */
+    function fakeGh(answer: string) {
+        const calls: string[][] = [];
+        return {
+            calls,
+            gh: (args: string[]) => {
+                calls.push(args);
+                return answer;
+            },
+        };
+    }
+
+    it("reads id, state and the parent NUMBER off parent_issue_url", () => {
+        const { gh, calls } = fakeGh(
+            JSON.stringify({
+                id: 5506076630,
+                state: "closed",
+                parent_issue_url:
+                    "https://api.github.com/repos/fil-donadoni/tolaria/issues/4099",
+            })
+        );
+        expect(makeDetachDeps(gh).readIssue(4157)).toEqual({
+            id: 5506076630,
+            state: "closed",
+            parent: 4099,
+        });
+        expect(calls[0]).toEqual([
+            "api",
+            "repos/{owner}/{repo}/issues/4157",
+            "--jq",
+            "{id, state, parent_issue_url}",
+        ]);
+    });
+
+    it("reads a null parent_issue_url as no parent", () => {
+        const { gh } = fakeGh(
+            JSON.stringify({ id: 1, state: "open", parent_issue_url: null })
+        );
+        expect(makeDetachDeps(gh).readIssue(1).parent).toBeNull();
+    });
+
+    it("refuses a payload it does not understand rather than reading it as closed", () => {
+        const { gh } = fakeGh(JSON.stringify({ id: 1, state: "merged" }));
+        expect(() => makeDetachDeps(gh).readIssue(1)).toThrow(
+            /unexpected issue payload/
+        );
+    });
+
+    it("removes by DELETE on the PARENT's sub_issue endpoint with the child's database id", () => {
+        const { gh, calls } = fakeGh("");
+        makeDetachDeps(gh).removeSubIssue(4099, 5506076630);
+        expect(calls[0]).toEqual([
+            "api",
+            "--method",
+            "DELETE",
+            "repos/{owner}/{repo}/issues/4099/sub_issue",
+            "-F",
+            "sub_issue_id=5506076630",
+        ]);
     });
 });

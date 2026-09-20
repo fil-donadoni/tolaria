@@ -745,8 +745,9 @@ describe("land.ts — the locked command", () => {
     });
 
     it("detaches the landed issue from its band umbrella, AFTER gaps:sync and the claim release, non-gating (issue #4235)", () => {
-        // `gaps:sync` reads the parent edge this step deletes, so it must run
-        // first; and it runs past the merge, which is what closes the issue.
+        // The step needs the issue CLOSED, which the merge does a second or
+        // two after `mergedAt`; running past `gaps:sync`'s network work is what
+        // makes that true, and it is the last thing before the teardown.
         const cmd = buildLockedCommand(base);
         const step = umbrellaDetachStep("/repo", "fix/issue-2517");
         expect(step).not.toBeNull();
