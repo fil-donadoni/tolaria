@@ -61,9 +61,8 @@ const COUNTER_INSTANT: CardDefinition = {
     effects: [{ op: "counter", target: { target: 0 } }],
 };
 
-/** CR 702.10 — a 2/2 for three whose haste buys an attack into the generated
- *  position's untapped 2/2 blocker: not worth making, so the Bot holds the
- *  creature past combat rather than casting it first. */
+/** CR 702.10 — a 2/2 for three with printed haste. Into the generated
+ *  position's untapped 2/2 the Bot passes it precombat and casts it postcombat. */
 const HASTE_CREATURE: CardDefinition = {
     id: "bot-reach-test:haste",
     name: "Bot Reach Hasty Bear",
