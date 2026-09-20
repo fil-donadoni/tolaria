@@ -43,6 +43,14 @@ function compiled(card: ReturnType<typeof oracleCard>) {
     return outcome.definition;
 }
 
+/** The attributed SPAN of each gap a card that must NOT compile carries. */
+function refusedSpan(card: ReturnType<typeof oracleCard>) {
+    const outcome = compileCard(card);
+    if (outcome.state !== "unparsed")
+        throw new Error(`${card.name} compiled: ${outcome.state}`);
+    return outcome.gaps.map((g) => g.attribution?.span);
+}
+
 /** The single refusal reason a card that must NOT compile carries. */
 function refusalReason(card: ReturnType<typeof oracleCard>): string {
     const outcome = compileCard(card);
@@ -113,28 +121,44 @@ describe("wide announcement — 'up to two target …' (CR 601.2c)", () => {
         // CR 601.2c — "two target creatures" is a FIXED count: an appropriate
         // object is announced for EACH target the spell requires, which is a
         // different announcement, not a wider spelling of "up to two".
-        expect(compileCard(spell("Tap two target creatures.")).state).toBe(
-            "unparsed"
-        );
+        expect(refusedSpan(spell("Tap two target creatures."))).toEqual([
+            "two target creatures",
+        ]);
     });
 
     it("refuses a number that disagrees with its head", () => {
         // The count is printed twice ("up to TWO … CARDS"); reading one and
-        // defaulting the other is how a one-target spell announces two.
+        // defaulting the other is how a one-target spell announces two. The
+        // SPAN is pinned, not just the refusal: a card refused for some other
+        // reason would pass a bare "unparsed" assertion while the agreement
+        // guard did nothing.
         expect(
-            compileCard(
+            refusedSpan(
                 spell(
                     "Return up to two target creature card from your graveyard to your hand."
                 )
-            ).state
-        ).toBe("unparsed");
+            )
+        ).toEqual(["plural"]);
         expect(
-            compileCard(
+            refusedSpan(
                 spell(
                     "Return up to one target creature cards from your graveyard to your hand."
                 )
-            ).state
-        ).toBe("unparsed");
+            )
+        ).toEqual(["plural"]);
+    });
+
+    it("refuses a group AFTER a wide one — the later slot index would shift", () => {
+        // The flat announcement has no gaps, so a one-card pick leaves the
+        // creature at slot 1: the pump aimed at slot 2 would do nothing and
+        // the second `moveZone` would bounce the creature instead.
+        expect(
+            refusalReason(
+                spell(
+                    "Return up to two target creature cards from your graveyard to your hand. Another target creature gets -1/-1 until end of turn."
+                )
+            )
+        ).toMatch(/after a variable-width announcement/);
     });
 });
 
@@ -187,6 +211,21 @@ describe("second group — 'Another target …' (CR 115.3)", () => {
         ).toMatch(/names no earlier target/);
     });
 
+    it("refuses 'another' on a group no prior pick can exclude", () => {
+        // `excludePriorTargets` is applied by merging the earlier picks into
+        // `excludeInstanceIds`, and that merge keeps only `type: "permanent"`
+        // picks (`game.ts` — `excludingPriorTargets`). On a graveyard-card
+        // group the word would compile and never be honoured: the player
+        // could return the SAME card twice.
+        expect(
+            refusalReason(
+                spell(
+                    "Return target creature card from your graveyard to your hand. Return another target creature card from your graveyard to your hand."
+                )
+            )
+        ).toMatch(/honoured only against battlefield permanents/);
+    });
+
     it("refuses a second group that did not print the word", () => {
         // CR 115.3 lets two plain instances of "target" name the SAME object,
         // which `excludePriorTargets` would forbid — a narrower spell than the
@@ -229,6 +268,21 @@ describe("kicked swap — 'If this spell was kicked, … another target' (CR 702
         // The swap is not a second GROUP: there is one announcement, and the
         // kicked cast makes it wider.
         expect(def.additionalTargetRequirements).toBeUndefined();
+    });
+
+    it("refuses a group allocated after the swap — the width is no longer fixed", () => {
+        // The swap makes the announcement 1 slot unkicked and 2 kicked, so a
+        // third group's index cannot be written down: unkicked it would sit
+        // at slot 1, which the gated op already claims.
+        const card = landslide();
+        expect(
+            refusalReason(
+                oracleCard({
+                    ...card,
+                    oracleText: `${card.oracleText} Another target creature gets -2/-2 until end of turn.`,
+                })
+            )
+        ).toMatch(/after a variable-width announcement/);
     });
 
     it("refuses a gate naming a different set — there is no count to widen", () => {

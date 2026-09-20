@@ -125,6 +125,16 @@ export function lowerSpellModes(
     for (const [index, mode] of modes.entries()) {
         const body = lowerBody(mode.effects, site);
         if (!body.ok) return body;
+        // CR 702.33g — `SpellMode` has no `kickedTargetRequirement`, so a
+        // mode that folded one would declare fewer slots than its own ops
+        // reference. UNREACHABLE today (the modal slot refuses a kicked
+        // sentence inside a bullet) and kept as the third of the three site
+        // refusals `lowerActivated.ts` and `lowerTriggered.ts` already carry.
+        if (body.value.kickedTargetRequirement !== undefined)
+            return {
+                ok: false,
+                reason: "a mode cannot swap in a kicked target announcement (CR 702.33g)",
+            };
         // CR 201.5 — `normalize.ts` replaced the card's own name with
         // `SELF_MARKER` so the GRAMMAR could bind a REFERENT rather than a
         // string. These two fields are the only compiler output a PLAYER ever

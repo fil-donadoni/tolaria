@@ -221,6 +221,32 @@ export function destroysEveryLand(effects: readonly EffectOp[]): boolean {
     });
 }
 
+/** CR 601.2c — is this count's width decided by the card rather than the cast? */
+function fixedWidth(count: TargetRequirement["count"]): boolean {
+    if (typeof count === "number") return true;
+    if (count === "X") return false;
+    return count.min === count.max;
+}
+
+/**
+ * CR 115.3 — can an earlier group's picks actually exclude this one?
+ *
+ * `excludePriorTargets` is applied by merging the earlier picks into
+ * `excludeInstanceIds`, and that merge keeps only `type: "permanent"` picks.
+ * A group that selects anything else (a card in a graveyard, a player, a
+ * spell) would carry the directive and never feel it.
+ */
+function excludableByPriorPicks(requirement: TargetRequirement): boolean {
+    if (requirement.zone !== undefined && requirement.zone !== "battlefield")
+        return false;
+    const types = Array.isArray(requirement.type)
+        ? requirement.type
+        : [requirement.type];
+    return types.every(
+        (t) => t !== "player" && t !== "spell" && t !== "card" && t !== "any"
+    );
+}
+
 /**
  * Collects the ability's target GROUPS as the sentences are walked.
  *
@@ -254,6 +280,24 @@ export class TargetSlots {
      *     instances of "target" name the SAME object and nothing in this
      *     grammar's fixtures prints that yet: admitting it would be a second
      *     announcement no accepted form evidences (issue #3875 owns it).
+     *
+     * Two further refusals keep a LATER group honest, and both are about
+     * something the announcement cannot say rather than about the sentence:
+     *
+     *   - the flat slot list has NO GAPS, so every later group's index shifts
+     *     with how many targets an earlier VARIABLE-WIDTH group was actually
+     *     given. "Return up to two target creature cards … Another target
+     *     creature gets -2/-2" would put the pump at slot 2 while a one-card
+     *     pick leaves the creature AT slot 1 — the pump does nothing and the
+     *     second `moveZone` bounces the creature instead. A group may follow
+     *     only groups of fixed width.
+     *   - `excludePriorTargets` is a directive the engine applies by merging
+     *     the earlier picks into `excludeInstanceIds`, and that merge keeps
+     *     only `type: "permanent"` picks (`game.ts` —
+     *     `excludingPriorTargets`, mirrored in `gre/moves.ts` and
+     *     `gre/activation.ts`). On a graveyard-card, player or spell group
+     *     the word "another" would compile and then not be honoured — the
+     *     one thing a fail-closed compiler may not do with a printed word.
      */
     allocate(
         requirement: TargetRequirement,
@@ -275,6 +319,14 @@ export class TargetSlots {
                 return unlowerable(
                     'a second target group that is not "another target" is not in grammar v0 (CR 115.3)'
                 );
+            if (this.openEnded)
+                return unlowerable(
+                    "a target group after a variable-width announcement has no fixed positional slot (CR 601.2c)"
+                );
+            if (!excludableByPriorPicks(requirement))
+                return unlowerable(
+                    '"another target" is honoured only against battlefield permanents (CR 115.3)'
+                );
             // CR 115.3 — the exclusion is a DIRECTIVE on the later group
             // (`excludePriorTargets`, issue #3236): when the target walk
             // reaches it, every pick already made for an earlier group is
@@ -285,8 +337,18 @@ export class TargetSlots {
         }
         this.firsts.push(this.width);
         this.width += slots;
+        if (!fixedWidth(requirement.count)) this.openEnded = true;
         return lowered(this.firsts[this.firsts.length - 1]!);
     }
+
+    /**
+     * Is the announcement's total width already decided by the CARD rather
+     * than by the cast? A variable-width group ("up to two") and a kicked
+     * widening both make it depend on choices made at announcement, and a
+     * group allocated after either would be indexed from a width nobody can
+     * write down at compile time.
+     */
+    private openEnded = false;
 
     requirements(): readonly TargetRequirement[] {
         return this.groups;
@@ -345,9 +407,12 @@ export class TargetSlots {
         // The group is dropped but its slots are NOT reclaimed: the gated op
         // already points at index `baseSlots`, which only the kicked
         // announcement fills, and a later group reusing that index would
-        // collide with it.
+        // collide with it. The announcement is therefore OPEN-ENDED from here
+        // on — its width is 1 unkicked and 2 kicked — so nothing may be
+        // allocated after it (`allocate`).
         this.groups.pop();
         this.firsts.pop();
+        this.openEnded = true;
         return lowered(this.kicked);
     }
 
@@ -392,11 +457,17 @@ class ReplayedTargetSlots extends TargetSlots {
         // The base allocated the group, so the base's `excludePriorTargets`
         // is already on the recorded requirement; the replay's own span
         // carries the word again and must agree, which the equality below
-        // checks once the directive is applied the same way.
-        const asAllocated =
-            another && this.next > 0
-                ? { ...requirement, excludePriorTargets: true }
-                : requirement;
+        // checks once the directive is applied the same way. At group 0 there
+        // is nothing for it to exclude, and the base class refuses the word
+        // outright there — so the replay refuses it too rather than dropping
+        // it and letting the equality pass.
+        if (another && this.next === 0)
+            return unlowerable(
+                '"another target" names no earlier target here (CR 115.3)'
+            );
+        const asAllocated = another
+            ? { ...requirement, excludePriorTargets: true }
+            : requirement;
         if (
             prior === undefined ||
             JSON.stringify(prior) !== JSON.stringify(asAllocated)
@@ -547,9 +618,10 @@ function objectSelector(
  * from your graveyard to your hand" announces one group two slots wide, and
  * the Effect Script names each slot with its own op (`{ target: 0 }`,
  * `{ target: 1 }` — the shape the hand-written Force of Vigor already
- * writes). An unchosen slot resolves to nothing and its op is skipped
- * (CR 608.2b), so the same pair of ops is right for zero, one and two chosen
- * targets.
+ * writes). CR 601.2c — under an "up to N" head the player announces HOW MANY
+ * targets they will choose, so a slot they did not fill was never a target at
+ * all: its op finds nothing and does nothing, and the same pair of ops is
+ * right for zero, one and two chosen targets.
  */
 function objectSelectors(
     subject: SubjectIR,
@@ -856,7 +928,12 @@ function lowerSentenceBody(
                 slots,
                 site
             );
-            if (moved.ok)
+            // CR 608.2h — "that creature" names ONE object, so a WIDE group
+            // (an "up to N" head fanned out over several ops) leaves no
+            // referent: recording the first op's would name whichever target
+            // happened to be picked first. One op, one referent; more than
+            // one, none.
+            if (moved.ok && moved.value.length === 1)
                 recordActedOn(walk, sentence.subject, moved.value[0]!);
             return moved;
         }
@@ -1386,10 +1463,12 @@ function lowerMoveZone(
     }
     // CR 400.3 — an object can only ever reach its OWNER's hand, so "to your
     // hand" and "to its owner's hand" name the same zone exactly when the
-    // object is yours. A card in YOUR graveyard is (CR 404.1 — everything is
-    // put on top of its owner's graveyard); a permanent you merely control is
-    // NOT, and reading "to your hand" as `to: "hand"` there would compile a
-    // bounce into a theft that the engine would then silently undo.
+    // object is yours. A card in YOUR graveyard is: it got there as a
+    // countered, discarded, destroyed or sacrificed object, or as a resolved
+    // instant or sorcery, and CR 404.1 puts each of those on top of its
+    // OWNER's graveyard. A permanent you merely control is NOT, and reading
+    // "to your hand" as `to: "hand"` there would compile a bounce into a
+    // theft that the engine would then silently undo.
     const yourHand =
         zone.zone === "hand" &&
         zone.owner === "you" &&
@@ -1446,7 +1525,7 @@ export function declareTargets(
     groups: boolean = false
 ): string | null {
     if (requirements.length > 1 && !groups)
-        return `${requirements.length} targets were announced but this site declares at most one (CR 601.2c)`;
+        return `${requirements.length} target groups were announced but this site declares at most one (CR 601.2c)`;
     if (requirements.length === 0) return null;
     ability.targetRequirement = requirements[0];
     if (requirements.length > 1)
