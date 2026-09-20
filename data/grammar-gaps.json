@@ -18,11 +18,6 @@
             "issue": 3885
         },
         {
-            "key": "(op) › animate",
-            "op": "animate",
-            "issue": 3886
-        },
-        {
             "key": "(op) › armGraveyardRedirect",
             "op": "armGraveyardRedirect",
             "issue": 3887

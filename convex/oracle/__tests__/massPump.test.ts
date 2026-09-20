@@ -2,12 +2,12 @@
 // and a sweep that animates lands (issue #4132, CR 613.4c / 109.5 / 115.1 /
 // 207.2c / 205.1b).
 //
-//  1. GOLDENS — every accepted form is a real corpus card. The five whose
+//  1. GOLDENS — every accepted form is a real corpus card. The six whose
 //     scripts the canned smoke scenario cannot stage are `GOLDEN_FIXTURES`
 //     rows (compared whole by `goldenFixtures.test.ts`); here they must reach
 //     `ready`, and the neighbours that print the same form must follow them.
-//     Life's animation line has no corpus card that can reach `ready` yet (its
-//     Death half is issue #4136), so it is compared as a sentence.
+//     Natural Affinity is the fixture for the animation; Life // Death's own
+//     line (its Death half is issue #4136) is compared as a sentence.
 //  2. REFUSALS — the neighbours the rules must NOT read: a verb that disagrees
 //     with its subject, a plural with no controller, a qualifier a sweep
 //     selector cannot express, a Domain step that is not the printed ±1, and
@@ -43,6 +43,7 @@ const NAMES = [
     "Planar Despair",
     "Gaea's Might",
     "Drag Down",
+    "Natural Affinity",
 ];
 
 function spell(name: string, oracleText: string) {

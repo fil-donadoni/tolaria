@@ -1736,4 +1736,43 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             targetRequirement: { type: "Creature", count: 1 },
         },
     },
+    // CR 205.1b + CR 611.2c — "All lands become 2/2 creatures until end of turn. They're still lands.": a sweep that animates the set as it is when the spell resolves, KEEPING each land's types (the rider). Exhibits `animate` acting on a runtime-selected land, which the canned smoke scenario cannot stage; Life // Death prints the same clause for the controller's lands (issue #4132).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Natural Affinity",
+            manaCost: "{2}{G}",
+            typeLine: "Instant",
+            oracleText:
+                "All lands become 2/2 creatures until end of turn. They're still lands.",
+            oracleId: "09a1ab1b-d9f0-4a2a-a448-3190f85006e4",
+            layout: "normal",
+        },
+        expected: {
+            name: "Natural Affinity",
+            types: ["Instant"],
+            manaCost: { X: 2, G: 1 },
+            oracleText:
+                "All lands become 2/2 creatures until end of turn. They're still lands.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Land" },
+                    },
+                    effects: [
+                        {
+                            op: "animate",
+                            target: { ref: "$each" },
+                            power: 2,
+                            toughness: 2,
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);
