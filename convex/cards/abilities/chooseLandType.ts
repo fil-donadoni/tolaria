@@ -15,10 +15,14 @@
 // offers, and the printed lines offer three arities of one thing: all five
 // (CR 305.6 — "the basic land type of your choice", Dream Thrush), a named
 // pair ("a Plains or an Island", Tundra Kavu), or one ("a Forest", Kavu
-// Recluse). The one-type case emits the bare `setSubtype` and NO
-// `optionChoice`, because a choice with a single mode is a prompt with
-// nothing to decide (CR 608.2d offers a choice; a one-option offer is not
-// one) — and that is the shape the hand-written Kavu Recluse already ships.
+// Recluse). CR 608.2d is when the pick happens — announced while the effect
+// is applied, not as the ability goes on the stack.
+//
+// The one-type case emits the bare `setSubtype` and NO `optionChoice`: a
+// single-mode offer is a prompt with nothing to decide, and the project
+// convention is to auto-resolve a mandatory choice with no real option
+// (issue #2244) rather than show it. That is also the shape the hand-written
+// Kavu Recluse (sets/pls/red.ts) has shipped since issue #1083.
 
 import type { DurationSpec, EffectObjectSelector, EffectOp } from "../types";
 
@@ -43,6 +47,12 @@ export function landTypeChangeEffects(
     const become = (subtype: string): EffectOp[] => [
         { op: "setSubtype", target, subtypes: [subtype], duration },
     ];
+    // An EMPTY offer would build an `optionChoice` with no modes — a prompt
+    // the player cannot answer, which suspends the script forever. No caller
+    // can produce one today (the grammar's reader always returns at least one
+    // leg), and this is what keeps that true as callers are added.
+    if (offered.length === 0)
+        throw new Error("landTypeChangeEffects: `offered` names no land type");
     if (offered.length === 1) return become(offered[0]!);
     return [
         {

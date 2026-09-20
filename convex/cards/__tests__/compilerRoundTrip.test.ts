@@ -170,6 +170,14 @@ import {
 // Lowered 1557 -> 1555 by issue #4136 (life quantities): Tendrils of Agony and
 // Thunderscape Master round-trip once "Target player loses N life and you gain
 // N life" reads as a drain.
+//
+// Lowered 1555 -> 1551 by issue #4138 (land-type change): Dream Thrush, Kavu
+// Recluse, Sea Snidd and Slimy Kavu round-trip once "becomes <basic land
+// types> until end of turn" reads at all three printed arities — the free
+// choice among CR 305.6's five, a named pair, and one named type. Slimy Kavu
+// is in the list because the same change retired its `resolve()` closure to
+// the `setSubtype` Op its sibling Kavu Recluse had been using since issue
+// #1083.
 const BASELINE_CEILING = 1551;
 
 /**

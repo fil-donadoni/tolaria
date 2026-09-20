@@ -1106,8 +1106,21 @@ const SET_COLOR_CHOICE = /^(.+) becomes the color of your choice(?: (.+))?$/;
 const SET_LAND_TYPE = /^(.+) becomes (.+?) (until .+)$/;
 /** CR 305.6 / CR 608.2d — the free choice among all five basic land types. */
 const ANY_BASIC_LAND_TYPE = "the basic land type of your choice";
-/** One named basic land type, as the alternation spells each of its legs. */
-const A_BASIC_LAND_TYPE = /^an? ([A-Z][a-z]+)$/;
+/**
+ * CR 305.6 — each basic land type as a named leg spells it, ARTICLE included.
+ *
+ * A table rather than `/^an? (\w+)$/`, so the article has to be the one the
+ * card prints: "an Island" and "a Swamp", never "an Swamp". The lenient
+ * pattern would read a line no printer has ever set, which is the shape
+ * ADR 0105 § 2 refuses — the grammar reads printed English, not a
+ * near-English superset.
+ */
+const BASIC_LAND_TYPE_LEGS: ReadonlyMap<string, string> = new Map(
+    BASIC_LAND_SUBTYPE_ORDER.map((type) => [
+        `${/^[AEIOU]/.test(type) ? "an" : "a"} ${type}`,
+        type,
+    ])
+);
 const DRAW_SELF = /^Draw (\S+) cards?$/;
 const DRAW_PLAYER = /^(.+) draws (\S+) cards?$/;
 const LIFE = /^(.+) (gain|gains|lose|loses) (\S+|that much) life$/;
@@ -1284,22 +1297,27 @@ function withoutAbilityWord(span: string): string {
  * animation ("becomes a 3/3 creature"), the colour change and several static
  * clauses, and a failure here would refuse those before their own branch ran.
  * Everything the reader DOES accept is anchored on the vendored CR 305.6
- * table, so a land type Wizards has not printed, a creature type, a
- * three-legged list and an Oxford comma are all outside it and fall through
- * to be refused under their own Grammar Gap key.
+ * table and on the two printed arities, so a land type Wizards has not
+ * printed, a creature type, a three-legged list and an Oxford comma are
+ * all outside it and fall through to be refused under their own Grammar
+ * Gap key.
  */
 function readBasicLandTypes(span: string): readonly string[] | null {
     if (span === ANY_BASIC_LAND_TYPE) return BASIC_LAND_SUBTYPE_ORDER;
     const legs = span.split(" or ");
+    // The printed arities are ONE and TWO ("a Forest", "a Plains or an
+    // Island"). A longer list is a form no card sets, and a line that offered
+    // three of the five would be spelled with commas anyway — so it is
+    // refused here rather than read on the strength of the splitter
+    // accepting it.
+    if (legs.length > 2) return null;
     const types: string[] = [];
     for (const leg of legs) {
-        const named = leg.match(A_BASIC_LAND_TYPE);
-        if (named === null) return null;
-        const type = named[1]!;
         // CR 305.6 names five; every other CR 205.3i land type ("a Desert",
         // "a Gate") is a type a land can HAVE but not one this template ever
         // sets, and a repeated leg would offer the same mode twice.
-        if (!BASIC_LAND_SUBTYPE_ORDER.includes(type)) return null;
+        const type = BASIC_LAND_TYPE_LEGS.get(leg);
+        if (type === undefined) return null;
         if (types.includes(type)) return null;
         types.push(type);
     }

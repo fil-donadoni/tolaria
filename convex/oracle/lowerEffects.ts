@@ -879,6 +879,12 @@ function colorChangeSelector(
  * `$source` is refused for the same reason and one more: the ability's own
  * source is a land only on a card that prints one, nothing in this file can
  * check that, and no corpus card spells the self form.
+ *
+ * The `count` leg is the one axis no printed line can reach — a plural
+ * subject prints "become", which the rule's own pattern does not match — and
+ * it is here anyway, like the second line of `colorChangeSelector` above,
+ * because a fan-out this selector cannot express would otherwise lower to
+ * `{ target: 0 }` and silently drop every other announced land.
  */
 function landTypeChangeSelector(
     subject: SubjectIR,
@@ -886,15 +892,16 @@ function landTypeChangeSelector(
 ): Lowered<EffectObjectSelector> {
     if (subject.kind !== "target")
         return unlowerable(
-            "a land-type change is announced on a target land (CR 305.7)"
+            "a land-type change is read only on an announced target (CR 115.1)"
         );
     const requirement = subject.requirement;
     if (
         requirement.type !== "Land" ||
+        requirement.count !== 1 ||
         (requirement.zone !== undefined && requirement.zone !== "battlefield")
     )
         return unlowerable(
-            "only a land on the battlefield has land types (CR 305.7, CR 110.1)"
+            "a land-type change reaches ONE land on the battlefield (CR 110.1, CR 305.7)"
         );
     return slotFor(requirement, slots);
 }

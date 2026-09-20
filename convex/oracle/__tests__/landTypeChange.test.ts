@@ -7,13 +7,15 @@
 //     Definition below, for each of the three arities the template prints:
 //     the free choice among all five types (an activated ability, a spell,
 //     and a "you control" narrowing), the named PAIR, and the single named
-//     type — which emits no `optionChoice` at all, because a one-mode offer
-//     is not a choice (CR 608.2d).
+//     type — which emits no `optionChoice` at all: a one-mode offer is a
+//     prompt with nothing to decide (CR 608.2d is when the pick happens).
 //  2. REFUSALS — the neighbours this rule must NOT read: the ADD form
 //     ("in addition to its other types", CR 205.1b), a duration the shared
-//     sub-grammar does not know, a subject that is not a land, a CR 205.3i
-//     land type that is not one of CR 305.6's five, and a line with no
-//     duration at all. Each stays refused under its own Grammar Gap key.
+//     sub-grammar does not know, a subject that is not a land, the ability's
+//     own source, a land announced outside the battlefield, a CR 205.3i land
+//     type that is not one of CR 305.6's five, a three-legged alternation,
+//     the wrong article, and a line with no duration at all. Each stays
+//     refused under its own Grammar Gap key.
 //  3. The MODE ORDER, which is a compiled byte: the grammar's vendored
 //     CR 305.6 list and the catalogue's `BASIC_LAND_SUBTYPES` are asserted
 //     identical, so a reordering on either side reds here rather than
@@ -390,7 +392,7 @@ describe("becomes a basic land type — the neighbours it refuses", () => {
                 })
             )
         ).toEqual([
-            "only a land on the battlefield has land types (CR 305.7, CR 110.1)",
+            "a land-type change reaches ONE land on the battlefield (CR 110.1, CR 305.7)",
         ]);
     });
 
@@ -413,6 +415,96 @@ describe("becomes a basic land type — the neighbours it refuses", () => {
             )
         ).toEqual([
             "effect clause: Target land becomes a Desert until end of turn",
+        ]);
+    });
+
+    // CR 115.1 — a target is ANNOUNCED. The ability's own source is not, and
+    // nothing in the lowering can tell whether the card it sits on is a land,
+    // so the self form is refused rather than compiled into a `setSubtype` on
+    // `$source` that may be writing land types onto a creature.
+    it("refuses the ability's own source as the subject", () => {
+        expect(
+            refusedAt(
+                oracleCard({
+                    oracleId: "00000000-0000-4000-8000-000000000004",
+                    name: "Probe Self Terrain",
+                    manaCost: "{U}",
+                    typeLine: "Creature — Merfolk",
+                    oracleText:
+                        "{T}: This creature becomes a Forest until end of turn.",
+                    power: "1",
+                    toughness: "1",
+                })
+            )
+        ).toEqual([
+            "a land-type change is read only on an announced target (CR 115.1)",
+        ]);
+    });
+
+    // CR 110.1 — `setSubtype` writes on a PERMANENT, a card on the
+    // battlefield. A land card announced in a graveyard is a legal target
+    // this Op cannot reach, and lowering it would be an ability that is
+    // activated legally, targeted legally, and does nothing.
+    it("refuses a land announced outside the battlefield", () => {
+        expect(
+            refusedAt(
+                oracleCard({
+                    oracleId: "00000000-0000-4000-8000-000000000005",
+                    name: "Probe Graveyard Terrain",
+                    manaCost: "{U}",
+                    typeLine: "Creature — Merfolk",
+                    oracleText:
+                        "{T}: Target land card in your graveyard becomes a Forest until end of turn.",
+                    power: "1",
+                    toughness: "1",
+                })
+            )
+        ).toEqual([
+            "a land-type change reaches ONE land on the battlefield (CR 110.1, CR 305.7)",
+        ]);
+    });
+
+    // The printed arities are one and two. A third leg is a line no card
+    // sets, and the `" or "` splitter would happily read it — so the arity is
+    // capped rather than left to the splitter's appetite.
+    it("refuses a three-legged alternation", () => {
+        expect(
+            refusedAt(
+                oracleCard({
+                    oracleId: "00000000-0000-4000-8000-000000000006",
+                    name: "Probe Triple Terrain",
+                    manaCost: "{U}",
+                    typeLine: "Creature — Merfolk",
+                    oracleText:
+                        "{T}: Target land becomes a Plains or an Island or a Swamp until end of turn.",
+                    power: "1",
+                    toughness: "1",
+                })
+            )
+        ).toEqual([
+            "effect clause: Target land becomes a Plains or an Island or a Swamp until end of turn",
+        ]);
+    });
+
+    // The leg table carries the ARTICLE each type prints. "an Swamp" is
+    // near-English, and near-English is what a fail-closed grammar refuses
+    // (ADR 0105 § 2).
+    it("refuses the wrong article", () => {
+        expect(
+            refusedAt(
+                oracleCard({
+                    oracleId: "00000000-0000-4000-8000-000000000007",
+                    name: "Probe Article Terrain",
+                    manaCost: "{U}",
+                    typeLine: "Creature — Merfolk",
+                    oracleText:
+                        "{T}: Target land becomes an Swamp until end of turn.",
+                    power: "1",
+                    toughness: "1",
+                })
+            )
+        ).toEqual([
+            "effect clause: Target land becomes an Swamp until end of turn",
         ]);
     });
 
@@ -447,6 +539,13 @@ describe("becomes a basic land type — the mode order is a compiled byte", () =
     });
 });
 
+/** Distinct placeholder oracle ids for the "reaches ready" cases below. */
+const READY_IDS: Record<string, string> = {
+    "Reef Shaman": "01",
+    "Tundra Kavu": "02",
+    "Kavu Recluse": "03",
+};
+
 describe("becomes a basic land type — the graduates reach ready", () => {
     // A golden compares a definition; it says nothing about whether the
     // Effect Script it contains VALIDATES, or whether the smoke planner can
@@ -472,7 +571,10 @@ describe("becomes a basic land type — the graduates reach ready", () => {
         expect(
             state(
                 oracleCard({
-                    oracleId: `00000000-0000-4000-8000-00000000000${name.length}`,
+                    // A distinct placeholder per case: `compileCard` is pure,
+                    // but two cases sharing an id is a trap for the next
+                    // editor to add a third.
+                    oracleId: `00000000-0000-4000-8000-1000000000${READY_IDS[name]}`,
                     name,
                     manaCost: "{2}{R}",
                     typeLine,
