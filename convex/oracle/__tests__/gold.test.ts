@@ -123,7 +123,15 @@ describe("gold round-trip — precision", () => {
         // closure — so the card moves from "the compiler refuses it" into this
         // bucket rather than into `equal`. That is the bucket's stated
         // meaning, and `bun run oracle:behavioural` is what drains it.
-        expect(REPORT.incomparable.length).toBeLessThan(16);
+        //
+        // 16 -> 17 by issue #4137 (colour change): Sisay's Ingenuity grants a
+        // quoted activated ability ('Enchanted creature has "{2}{U}: Target
+        // creature becomes the color of your choice until end of turn."'),
+        // which the compiler now reads whole while the hand-written side is a
+        // closure — the same move Multani's Harmony made one line above, out
+        // of "the compiler refuses it" and into this bucket rather than into
+        // `equal`.
+        expect(REPORT.incomparable.length).toBeLessThan(17);
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");
