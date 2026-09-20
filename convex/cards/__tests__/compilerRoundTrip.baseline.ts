@@ -438,7 +438,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Disintegrate",
     "Displacer Kitten",
     "Disrupt",
-    "Disrupting Scepter",
     "Distorting Wake",
     "Divine Intervention",
     "Divine Offering",
@@ -970,7 +969,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Millstone",
     "Mind Bomb",
     "Mind Ravel",
-    "Mind Rot",
     "Mind Warp",
     "Mind Whip",
     "Mindstab Thrull",
@@ -1199,7 +1197,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Rasputin Dreamweaver",
     "Raucous Theater",
     "Raugrin Triome",
-    "Ravenous Rats",
     "Ray of Command",
     "Ray of Erasure",
     "Razing Snidd",
@@ -1708,7 +1705,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Ziatora's Proving Ground",
     "Zombie Master",
     "Zur's Weirding",
-    "Zuran Enchanter",
 ];
 
 /**

@@ -34,6 +34,7 @@ import {
     rule,
     type FailureTrace,
     type Rule,
+    type RuleResult,
     subGrammar,
 } from "../../rule";
 import { keywordVocabulary } from "./keywordVocabulary";
@@ -196,6 +197,34 @@ export type EffectSentenceIR =
           readonly kind: "discard-at-random";
           readonly player: PlayerRefIR;
           readonly count: AmountIR;
+      }
+    | {
+          /**
+           * CR 701.9a — "<player> discards N cards": by default the affected
+           * player CHOOSES which cards (CR 701.9b), the counterpart of
+           * `discard-at-random`, which lets the game pick.
+           */
+          readonly kind: "discard";
+          readonly player: PlayerRefIR;
+          readonly count: AmountIR;
+      }
+    | {
+          /**
+           * CR 608.2c — "You <verb phrase> and you <verb phrase>": two
+           * instructions in ONE printed sentence, carried out in the order
+           * printed. The repeated explicit "you" is what makes the second
+           * half an independent clause (a shared subject with an elided
+           * second one — "draws two cards and loses 2 life" — is a different
+           * printed form and is not read here).
+           *
+           * A WRAPPER over already-read sentences, like `optional` and
+           * `kicked`: each half is read by the SAME rule that reads it as a
+           * sentence of its own, so a half this grammar does not know fails
+           * the line instead of being skipped, and lowering walks the halves
+           * in order through the shared walk.
+           */
+          readonly kind: "conjunction";
+          readonly effects: readonly EffectSentenceIR[];
       }
     | {
           /**
@@ -821,6 +850,16 @@ const DRAW_PLAYER = /^(.+) draws (\S+) cards?$/;
 const LIFE = /^(.+) (gain|gains|lose|loses) (\S+) life$/;
 const COUNTERS = /^Put (\S+) (\S+) counters? on (.+)$/;
 const DISCARD_RANDOM = /^(.+) discards (\S+) cards? at random$/;
+/** CR 701.9b — "Target player discards two cards": the player's own choice. */
+const DISCARD_CHOICE = /^(.+) discards (\S+) cards?$/;
+/**
+ * CR 608.2c — "You draw a card and you lose 1 life": a draw, then a life
+ * loss, each with the explicit "you" the Oracle text prints. Anchored at both
+ * ends and pinned to exactly these two verbs: every other conjunction stays
+ * refused until a corpus card prints it (ADR 0137 anti-leniency).
+ */
+const YOU_DRAW_AND_LOSE_LIFE =
+    /^You (draw \S+ cards?) and (you lose \S+ life)$/;
 /** CR 121.1 + CR 701.9a — "Draw a card, then discard a card". */
 const LOOT = /^Draw (\S+) cards?, then discard (\S+) cards?$/;
 /** CR 608.2c — "If you control <A> and <B>, <body> instead" (either order). */
@@ -1123,7 +1162,10 @@ function libraryHalf(span: string) {
     return null;
 }
 
-function effectSentence(span: string, ctx: unknown) {
+function effectSentence(
+    span: string,
+    ctx: unknown
+): RuleResult<EffectSentenceIR> {
     // ── pump (CR 613.4c, layer 7c) ─────────────────────────────────────────
     const pump = span.match(PUMP);
     if (pump !== null) {
@@ -1205,6 +1247,19 @@ function effectSentence(span: string, ctx: unknown) {
             kind: "loot" as const,
             draw,
             discard,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── draw, and lose life (CR 608.2c) ────────────────────────────────────
+    const drawAndLose = span.match(YOU_DRAW_AND_LOSE_LIFE);
+    if (drawAndLose !== null) {
+        const draw = effectSentence(capitalise(drawAndLose[1]!), ctx);
+        if (!draw.ok) return draw;
+        const lose = effectSentence(capitalise(drawAndLose[2]!), ctx);
+        if (!lose.ok) return lose;
+        return ok({
+            kind: "conjunction" as const,
+            effects: [draw.value, lose.value],
         } satisfies EffectSentenceIR);
     }
 
@@ -1395,6 +1450,21 @@ function effectSentence(span: string, ctx: unknown) {
         if (count === null) return fail(`"${discard[2]}" is not a count`, span);
         return ok({
             kind: "discard-at-random" as const,
+            player,
+            count,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── discard, the player's choice (CR 701.9b) ───────────────────────────
+    const chosen = span.match(DISCARD_CHOICE);
+    if (chosen !== null) {
+        const player = playerSubject(chosen[1]!, ctx);
+        if (player === null)
+            return fail(`"${chosen[1]}" is not a player`, span);
+        const count = readAmount(chosen[2]!);
+        if (count === null) return fail(`"${chosen[2]}" is not a count`, span);
+        return ok({
+            kind: "discard" as const,
             player,
             count,
         } satisfies EffectSentenceIR);

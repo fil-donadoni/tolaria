@@ -130,7 +130,11 @@ import {
 // and Tsunami round-trip once "Destroy all …" reads as a sweep. Nevinyrral's
 // Disk and Tivadar's Crusade were corrected to the compiler's CR-faithful shape
 // (one destroy per permanent; a subtype filter with no card type beside it).
-const BASELINE_CEILING = 1606;
+//
+// Lowered 1606 -> 1602 by issue #4130 (player verbs with a count): Disrupting
+// Scepter, Mind Rot, Ravenous Rats and Zuran Enchanter round-trip once "target
+// player discards N cards" reads as the affected player's choice.
+const BASELINE_CEILING = 1602;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that
