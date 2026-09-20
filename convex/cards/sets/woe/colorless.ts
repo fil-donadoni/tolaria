@@ -57,9 +57,9 @@ import type { CardDefinition } from "../../types";
 // The Oracle compiler (PRD #2693) reads back none of the three lines: two are
 // continuous statics whose grammar it has no rule for, and the third is an
 // activated ability with a reflexive trigger nested in its own sentence.
-// compiler-gap: "You may spend mana as though it were mana of any color to activate abilities of creatures you control." (#2693)
-// compiler-gap: "Creatures you control with +1/+1 counters on them have all activated abilities of all creature cards exiled with {self}." (#2693)
-// compiler-gap: "{T}: Exile target card from a graveyard. When a creature card is exiled this way, put a +1/+1 counter on target creature you control." (#2693)
+// hand-tail: "You may spend mana as though it were mana of any color to activate abilities of creatures you control." (#4195)
+// hand-tail: "Creatures you control with +1/+1 counters on them have all activated abilities of all creature cards exiled with {self}." (#4195)
+// hand-tail: "{T}: Exile target card from a graveyard. When a creature card is exiled this way, put a +1/+1 counter on target creature you control." (#4195)
 export const agathasSoulCauldron: CardDefinition = {
     id: "019b51b0-e5c6-4208-922b-7736686dddcd", // WOE 242
     name: "Agatha's Soul Cauldron",

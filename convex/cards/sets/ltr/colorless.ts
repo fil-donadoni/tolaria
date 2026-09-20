@@ -26,7 +26,7 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 //     to total one characteristic across that bound set. Both are general —
 //     nothing in either names this card.
 //
-// compiler-gap: "Then target opponent may have you draw a card. If that player doesn't, you mill X cards, where X is the number of influence counters on Palantír of Orthanc, and that player loses life equal to the total mana value of those cards." (#2693)
+// hand-tail: "Then target opponent may have you draw a card. If that player doesn't, you mill X cards, where X is the number of influence counters on Palantír of Orthanc, and that player loses life equal to the total mana value of those cards." (#4195)
 export const palantirOfOrthanc: CardDefinition = {
     id: "6efb6a69-562c-4d95-858d-b067444cfd7e",
     name: "Palantír of Orthanc",

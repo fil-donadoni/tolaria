@@ -126,8 +126,8 @@ export const moxOpal: CardDefinition = {
 // +X/+0 (CR 608.2h; the card's own ruling).
 // X = 0 makes the pump +0/+0 and the damage a no-op, so the "if you do" gate
 // needs no separate branch.
-// compiler-gap: "When this creature enters, create four 1/1 colorless Myr artifact creature tokens." (#2693)
-// compiler-gap: "Whenever this creature attacks, you may tap X untapped Myr you control. If you do, this creature gets +X/+0 until end of turn and deals X damage to the player or planeswalker it's attacking." (#2693)
+// hand-tail: "When this creature enters, create four 1/1 colorless Myr artifact creature tokens." (#4195)
+// hand-tail: "Whenever this creature attacks, you may tap X untapped Myr you control. If you do, this creature gets +X/+0 until end of turn and deals X damage to the player or planeswalker it's attacking." (#4195)
 export const myrBattlesphere: CardDefinition = {
     id: "b0ae94ed-7314-470b-baba-f2f58bbc894a", // SOM 180
     name: "Myr Battlesphere",

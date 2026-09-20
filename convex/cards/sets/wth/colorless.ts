@@ -50,7 +50,7 @@ export const mindStone: CardDefinition = {
 //    Lantern shape (`thb/colorless.ts`), exiled through `moveZone` and
 //    followed by the plain `draw` Op.
 //
-// compiler-gap: {T}: Exile the bottom card of target player's graveyard. (#2693)
+// hand-tail: {T}: Exile the bottom card of target player's graveyard. (#4195)
 export const phyrexianFurnace: CardDefinition = {
     id: "e98bca31-8c05-430b-b5d7-331bdc55710a",
     name: "Phyrexian Furnace",

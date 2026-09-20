@@ -74,7 +74,7 @@ export const upheaval: CardDefinition = {
 // The Oracle compiler (PRD #2693) cannot read this line back: grammar v0 has
 // no sacrifice sentence at all, no cross-sentence "If you do" conditional, and
 // `playerRef.ts` refuses "that player" anaphora outright by design.
-// compiler-gap: "When a player casts a spell, sacrifice this enchantment. If you do, each of that player's opponents draws three cards." (#2693)
+// hand-tail: "When a player casts a spell, sacrifice this enchantment. If you do, each of that player's opponents draws three cards." (#4195)
 export const standstill: CardDefinition = {
     id: "3ede3f6f-e642-4fe4-aa37-0f01cdf4d149",
     name: "Standstill",

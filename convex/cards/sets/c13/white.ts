@@ -10,7 +10,7 @@ import { PERMANENT_TYPES } from "../../types";
 // the card's whole trick) and a library with fewer than X cards puts it on the
 // bottom. CR 400.3 sends it to its OWNER's library, whoever controls it.
 //
-// compiler-gap: "Put target nonland permanent into its owner's library just beneath the top X cards of that library." (#2693)
+// hand-tail: "Put target nonland permanent into its owner's library just beneath the top X cards of that library." (#4195)
 export const unexpectedlyAbsent: CardDefinition = {
     id: "6dff437b-ef68-48f7-afd3-3b72d3c56187",
     name: "Unexpectedly Absent",

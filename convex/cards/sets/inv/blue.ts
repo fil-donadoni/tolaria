@@ -1281,7 +1281,7 @@ export const swayOfIllusion: CardDefinition = {
 // restriction nor the "if a permanent's ability is countered this way" rider —
 // so the card is hand-written and declares the gap. The `draw` half compiles
 // fine; the marker names only what the grammar cannot consume.
-// compiler-gap: "Counter target spell or ability an opponent controls that targets a land you control. If a permanent's ability is countered this way, destroy that permanent." (#2693)
+// hand-tail: "Counter target spell or ability an opponent controls that targets a land you control. If a permanent's ability is countered this way, destroy that permanent." (#4195)
 export const teferisResponse: CardDefinition = {
     id: "f3bb2df8-c559-4a34-83b0-d48fbc694cc8",
     name: "Teferi's Response",

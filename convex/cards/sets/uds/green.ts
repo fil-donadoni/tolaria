@@ -38,7 +38,7 @@ function costIsBlack(cost: ManaCost | undefined): boolean {
 //
 // The "you may" is the cost-free `mayPay` decision (issue #680), Verduran
 // Enchantress's shape (lea/green.ts).
-// compiler-gap: "Whenever a black card is put into an opponent's graveyard from anywhere, you may draw a card." (#2693)
+// hand-tail: "Whenever a black card is put into an opponent's graveyard from anywhere, you may draw a card." (#4195)
 export const compost: CardDefinition = {
     id: "2523c403-0025-48c7-8ff1-e66ca27ee585", // UDS 102
     rarity: "uncommon",

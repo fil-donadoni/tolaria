@@ -122,7 +122,7 @@ export const shimmeringWings: CardDefinition = {
 // is put into its owner's graveyard: no search, no reveal, no shuffle. Nothing
 // is encoded for it here because that is the stack's job, not the script's.
 //
-// compiler-gap: "Search your library for three cards and reveal them. Target opponent chooses one. Put that card into your hand and the rest into your graveyard. Then shuffle." (#2693)
+// hand-tail: "Search your library for three cards and reveal them. Target opponent chooses one. Put that card into your hand and the rest into your graveyard. Then shuffle." (#4195)
 // The ENGINE capability is what this issue built; teaching the grammar to read
 // a four-clause search/reveal/foreign-choose/split-destination sentence is the
 // Oracle-compiler PRD's own scope, not this one's.
