@@ -8,7 +8,7 @@
 //     the two narrowed STACK phrases (an instant-or-sorcery spell, and
 //     CR 115.2's spell-or-permanent union), and the source itself. Each is the
 //     whole card, except Illusion — the front FACE of the split card
-//     Illusion // Reality (CR 712), asserted on its own because the split
+//     Illusion // Reality (CR 709.1), asserted on its own because the split
 //     layout is another rule's subject; the face compiles byte-identically
 //     inside the real card, which `goldenFixtures`-style whole-card evidence
 //     for the union is not needed twice for.
