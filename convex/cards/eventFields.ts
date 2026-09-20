@@ -202,7 +202,9 @@ export const EVENT_FIELD_REGISTRY: Record<
         amount: {
             family: "number",
             resolve: (e) =>
-                e.type === "DAMAGE_DEALT" ? String(e.amount) : undefined,
+                e.type === "DAMAGE_DEALT" && Number.isFinite(e.amount)
+                    ? String(e.amount)
+                    : undefined,
         },
     },
     // CR 603.6a — "at the beginning of [step]". `activePlayerId` is the player

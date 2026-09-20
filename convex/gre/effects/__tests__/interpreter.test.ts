@@ -18532,6 +18532,20 @@ describe("Effect Script value grammar: $event.<field> (ADR 0049, CR 603, issue #
             damageToPlayer("link", "p2")
         );
         expect(wrongFamily.players[0].life).toBe(20);
+        // A hand-edited event that omits its amount is "no such field", not the
+        // string "undefined" read back as NaN — a NaN life total would persist.
+        const noAmount = build();
+        const { amount: _omitted, ...bare } = damageToPlayer(
+            "link",
+            "p2"
+        ) as unknown as Record<string, unknown>;
+        fireTrigger(
+            noAmount,
+            { id: "link", controllerId: "p1" },
+            "link-gain",
+            bare as never
+        );
+        expect(noAmount.players[0].life).toBe(20);
     });
 
     it("object family as a delayedTrigger capture: destroys the blocker at end of combat", () => {
