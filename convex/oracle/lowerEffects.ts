@@ -574,6 +574,62 @@ export class SentenceWalk {
 }
 
 /**
+ * What an announced slot may hold, per KIND of verb — the allow-list
+ * `selectorsFor` checks a slot against (issue #4192).
+ *
+ * - `battlefield`: destroy, tap/untap, regenerate, pump, keyword grant and
+ *   counters. They read the characteristics of, and write to, a PERMANENT
+ *   (CR 110.1), so a slot a player can fill, or one that selects a card in
+ *   another zone, is a slot they cannot act on.
+ * - `zone-change`: `moveZone`. It reads a card in ANY zone (a graveyard return
+ *   is its commonest form), but a player is still not a thing that moves.
+ * - `damage`: CR 119.3 — damage is dealt to a creature, planeswalker, battle
+ *   OR player, so "any target" is exactly the slot it wants.
+ */
+type SlotReach = "battlefield" | "zone-change" | "damage";
+
+/** The card types a slot announces, however many the requirement lists. */
+function announcedTypes(requirement: TargetRequirement): ReadonlyArray<string> {
+    return Array.isArray(requirement.type)
+        ? requirement.type
+        : [requirement.type];
+}
+
+/**
+ * Why `reach` cannot act on this slot, or `null` when it can.
+ *
+ * Each refusal is its OWN string: `oracle:report --gap` ranks a refusal by the
+ * text it carries, so two reasons are two Grammar Gaps and one shared reason
+ * would size neither ("each stays refused under its own gap key",
+ * `targetFilter.ts`). Neither collides with the colour change's own pair
+ * (`colorChangeSelector`), whose subject is a different characteristic.
+ */
+function slotReachRefusal(
+    requirement: TargetRequirement,
+    reach: SlotReach
+): string | null {
+    if (reach === "damage") return null;
+    // CR 115.4 — "any target" (and a printed "creature or player" union) may
+    // be filled by a player, which is not an object (CR 109.1) and has none of
+    // the characteristics these verbs read or write. A scalar `"player"` was
+    // already refused, under its own reason, by the caller.
+    if (announcedTypes(requirement).some((t) => t === "any" || t === "player"))
+        return '"any target" may be a player, which is not an object (CR 115.4, CR 109.1)';
+    if (reach === "zone-change") return null;
+    // CR 400.1 / CR 110.1 — a permanent is a card ON THE BATTLEFIELD, and the
+    // battlefield verbs write there. A `zone` other than the battlefield, or
+    // the `"card"` type that only ever selects outside it, announces a slot
+    // whose object is somewhere the verb does not reach.
+    if (
+        (requirement.zone !== undefined &&
+            requirement.zone !== "battlefield") ||
+        announcedTypes(requirement).includes("card")
+    )
+        return "a card outside the battlefield is not a permanent (CR 110.1, CR 400.1)";
+    return null;
+}
+
+/**
  * CR 115.1 — the object(s) a verb acts on, and the ONE place a target group is
  * announced.
  *
@@ -582,11 +638,18 @@ export class SentenceWalk {
  * announcement instead of consuming a slot for it: acting on the first slot
  * and dropping the rest is the half-a-feature "up to two" used to be refused
  * for — the card would read as printed and do half of what it says.
+ *
+ * `reach` is the ALLOW-list of announced-slot shapes the calling verb can act
+ * on (`SlotReach`): a shape the verb has not been shown is refused rather than
+ * allocated, because the shape a refusal list forgets is the one that compiles
+ * to an ability that is activated legally, targeted legally, and then reaches
+ * an object that is not where it looks (issue #4192).
  */
 function selectorsFor(
     subject: SubjectIR,
     slots: TargetSlots,
-    single: boolean
+    single: boolean,
+    reach: SlotReach
 ): Lowered<EffectObjectSelector[]> {
     if (subject.kind === "self") return lowered([{ ref: "$source" }]);
     if (subject.kind === "player")
@@ -632,6 +695,8 @@ function selectorsFor(
         return unlowerable(
             "a spell is on the stack, not the battlefield (CR 112.1)"
         );
+    const refusal = slotReachRefusal(subject.requirement, reach);
+    if (refusal !== null) return unlowerable(refusal);
     const width = announcedSlots(subject.requirement.count);
     if (width === null)
         return unlowerable(
@@ -651,9 +716,10 @@ function selectorsFor(
 /** The single object a verb with no fan-out acts on (see `selectorsFor`). */
 function objectSelector(
     subject: SubjectIR,
-    slots: TargetSlots
+    slots: TargetSlots,
+    reach: SlotReach = "battlefield"
 ): Lowered<EffectObjectSelector> {
-    const one = selectorsFor(subject, slots, true);
+    const one = selectorsFor(subject, slots, true, reach);
     return one.ok ? lowered(one.value[0]!) : one;
 }
 
@@ -673,7 +739,7 @@ function objectSelectors(
     subject: SubjectIR,
     slots: TargetSlots
 ): Lowered<EffectObjectSelector[]> {
-    return selectorsFor(subject, slots, false);
+    return selectorsFor(subject, slots, false, "zone-change");
 }
 
 /**
@@ -809,7 +875,7 @@ function damageTarget(
         const player = playerRef(subject.player, slots, site);
         return player.ok ? lowered({ player: player.value }) : player;
     }
-    return objectSelector(subject, slots);
+    return objectSelector(subject, slots, "damage");
 }
 
 export function lowerSentence(
