@@ -39,6 +39,13 @@
  *
  * `--dry-run` prints the plan and performs no write of any kind.
  *
+ * `--band <P0|P1|P2|P3>` is the ORIGIN band of the work that triggered the run
+ * (issue #4158): `P0` files every partitioned gap it creates — and every
+ * homeless one — under its family's P0 umbrella, the one place nothing computed
+ * can reach (`lib/gap-issues.ts` § The ORIGIN band). Any other value changes
+ * nothing. `land` derives it from the issue the landed branch names and passes
+ * it; a P0 session running this by hand passes it itself.
+ *
  * `land` runs this post-merge, non-gating, from the PRIMARY checkout — like
  * this command run by hand. It commits + pushes the allowlist update
  * straight to the base branch when it wrote one: the write is a single
@@ -82,6 +89,7 @@ import {
     bandUmbrellaOf,
     buildGrammarGapFilings,
     GAP_TITLE_PREFIX,
+    originUmbrellaOf,
     PARTITIONED_KINDS,
     partitionCardIndex,
     RETIRED_UMBRELLAS,
@@ -94,6 +102,7 @@ import {
     type GapTracker,
     type TrackedIssue,
     type TrackedIssueSummary,
+    type UmbrellaBand,
     type UnlockSource,
 } from "./lib/gap-issues";
 import {
@@ -519,9 +528,47 @@ export function staleClaims(
     return out;
 }
 
+/** The bands `--band` accepts — the board's whole `Priority` axis. */
+const ORIGIN_BANDS: readonly UmbrellaBand[] = ["P0", "P1", "P2", "P3"];
+
+/**
+ * `--band <B>` / `--band=<B>` from `argv`, or `undefined` when absent. An
+ * unknown value THROWS: the flag is the only channel that puts a gap into a
+ * hand-set P0 umbrella, and a typo read as "no band" would file it one band
+ * too low without a word (the failure this flag exists to end).
+ */
+export function parseOriginBand(
+    argv: readonly string[]
+): UmbrellaBand | undefined {
+    const at = argv.findIndex((a) => a === "--band" || a.startsWith("--band="));
+    if (at === -1) return undefined;
+    const arg = argv[at]!;
+    const value = arg.includes("=")
+        ? arg.slice(arg.indexOf("=") + 1)
+        : argv[at + 1];
+    if (!ORIGIN_BANDS.includes(value as UmbrellaBand))
+        throw new Error(
+            `gaps:sync: --band takes one of ${ORIGIN_BANDS.join(", ")}, got ${value === undefined ? "nothing" : `"${value}"`}`
+        );
+    return value as UmbrellaBand;
+}
+
 function main(): void {
     const root = resolve(".");
     const dryRun = process.argv.includes("--dry-run");
+    let originBand: UmbrellaBand | undefined;
+    try {
+        originBand = parseOriginBand(process.argv.slice(2));
+    } catch (err) {
+        console.error((err as Error).message);
+        process.exit(2);
+    }
+    if (originBand !== undefined)
+        console.log(
+            originBand === "P0"
+                ? "origin     band P0 — every gap created (or homeless) in this run files under its family's P0 umbrella"
+                : `origin     band ${originBand} — no effect: only P0 overrides the computed band`
+        );
     if (!existsSync(join(root, LOCKFILE_PATH))) {
         console.error(`${LOCKFILE_PATH} missing — run: bun run oracle:compile`);
         process.exit(1);
@@ -574,7 +621,7 @@ function main(): void {
         const at =
             f.currentIssue === null ? "unfiled" : `issue #${f.currentIssue}`;
         console.log(
-            `residue    ${f.kind} \`${f.key}\` (${at}) — no ranked Target among the cards it reaches; no band umbrella: it keeps its parent (none, or a retired one: it moves to its family's P3 umbrella)`
+            `residue    ${f.kind} \`${f.key}\` (${at}) — no ranked Target among the cards it reaches; no band umbrella: it keeps its parent (none, or a retired one: it moves to its family's P3 umbrella — or its P0 umbrella when this run has --band P0)`
         );
     }
 
@@ -584,9 +631,14 @@ function main(): void {
                 filing.currentIssue === null
                     ? "would CREATE"
                     : `would reconcile issue #${filing.currentIssue}`;
+            const origin = originUmbrellaOf(filing, originBand);
             const umbrella = bandUmbrellaOf(filing);
             const band =
-                umbrella === null ? "" : ` [${filing.band} -> #${umbrella}]`;
+                origin !== null && filing.currentIssue === null
+                    ? ` [origin P0 -> #${origin}]`
+                    : umbrella === null
+                      ? ""
+                      : ` [${filing.band} -> #${umbrella}]`;
             console.log(
                 `${filing.kind.padEnd(10)} ${at}${band}: ${filing.title}`
             );
@@ -622,14 +674,21 @@ function main(): void {
         );
     }
 
-    const result = syncGaps(withUnlockBlockers(filings, blockers), tracker);
+    const result = syncGaps(
+        withUnlockBlockers(filings, blockers),
+        tracker,
+        originBand
+    );
 
     const counts = new Map<string, number>();
     for (const action of result.actions) {
         counts.set(action.action, (counts.get(action.action) ?? 0) + 1);
         if (action.action !== "noop") {
             console.log(
-                `${action.kind.padEnd(10)} ${action.action.padEnd(11)} ${action.key} -> issue #${action.issue}`
+                `${action.kind.padEnd(10)} ${action.action.padEnd(11)} ${action.key} -> issue #${action.issue}` +
+                    (action.parent === undefined
+                        ? ""
+                        : ` (parent #${action.parent})`)
             );
         }
     }
