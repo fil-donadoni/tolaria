@@ -470,8 +470,13 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                 { name: "Island", owner: "me", zone: "battlefield" },
                 { name: "Mountain", owner: "me", zone: "battlefield" },
                 { name: "Mountain", owner: "me", zone: "battlefield" },
-                { name: "Serra Angel", owner: "opp", zone: "battlefield" },
+                // Bears BEFORE Angel, deliberately: `combinations` walks the
+                // legal targets in board order, so the one tuple it used to
+                // emit is `[bears, angel]` — the WRONG assignment. An entry
+                // with the two swapped passes without the fix and proves
+                // nothing.
                 { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Serra Angel", owner: "opp", zone: "battlefield" },
             ],
             phase: "PRECOMBAT_MAIN",
             turn: 5,
