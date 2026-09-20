@@ -23,6 +23,12 @@
  * for the owner. Residue never falls into `P3` — "the rule abstained" and "the
  * owner ruled later" must not read the same.
  *
+ * Residue has a CAUSE (ADR 0143, issue #4229), read from the issue's own cards
+ * and nothing else — so it survives whichever later source bands the row:
+ * `undeclared` (no cards at all — nobody has looked) vs `off-road` (cards
+ * declared, none in a Target that lends a band — examined, and off the road).
+ * Collapsing them is the `P3` / unprioritized collapse issue #4051 red-flagged.
+ *
  * ── One level, never a fixpoint ─────────────────────────────────────────
  *
  * A neighbour (the issue an edge blocks, or the parent) is read by its SEED
@@ -378,7 +384,19 @@ export type TriageVerdict =
            *  `parent`, `fiat`). */
           readonly via: string;
       }
-    | { readonly kind: "residue" };
+    | { readonly kind: "residue"; readonly cause: ResidueCause };
+
+/** Why the rule abstained: no cards to read, or cards that band nothing. */
+export type ResidueCause = "undeclared" | "off-road";
+export const RESIDUE_CAUSES: readonly ResidueCause[] = [
+    "undeclared",
+    "off-road",
+];
+
+/** A residue issue's cause — a pure read of its cards, whatever else bands it. */
+export function residueCause(issue: TriageIssue): ResidueCause {
+    return issue.cards.length === 0 ? "undeclared" : "off-road";
+}
 
 /**
  * THE rule. Pure: the open issues with their parent and blocking edges, the
@@ -442,7 +460,10 @@ export function triage(
                 });
         }
         if (candidates.length === 0) {
-            verdicts.set(issue.number, { kind: "residue" });
+            verdicts.set(issue.number, {
+                kind: "residue",
+                cause: residueCause(issue),
+            });
             continue;
         }
         const best = candidates.reduce((a, b) =>
@@ -479,7 +500,9 @@ export interface TriageSummary {
         readonly number: number;
         readonly title: string;
         readonly board: BoardPriority | null;
+        readonly cause: ResidueCause;
     }[];
+    readonly perCause: Readonly<Record<ResidueCause, number>>;
 }
 
 export function summarize(
@@ -499,7 +522,12 @@ export function summarize(
         number: number;
         title: string;
         board: BoardPriority | null;
+        cause: ResidueCause;
     }[] = [];
+    const perCause: Record<ResidueCause, number> = {
+        undeclared: 0,
+        "off-road": 0,
+    };
     for (const issue of [...issues].sort((a, b) => a.number - b.number)) {
         const v = verdicts.get(issue.number);
         if (v === undefined) continue;
@@ -513,7 +541,9 @@ export function summarize(
                 number: issue.number,
                 title: issue.title,
                 board: now ?? null,
+                cause: v.cause,
             });
+            perCause[v.cause]++;
             continue;
         }
         const row = perBand[v.band];
@@ -523,7 +553,7 @@ export function summarize(
         else if (now === v.band) row.unchanged++;
         else row.change++;
     }
-    return { total: issues.length, p0, perBand, perSource, residue };
+    return { total: issues.length, p0, perBand, perSource, residue, perCause };
 }
 
 /** One board value the write side sets: `from` is what the board holds today
@@ -560,6 +590,12 @@ export function planWrites(
     return out.sort((a, b) => a.number - b.number);
 }
 
+const RESIDUE_CAUSE_LABEL: Readonly<Record<ResidueCause, string>> = {
+    undeclared: "undeclared (no cards at all — nobody has looked)",
+    "off-road":
+        "off-road (cards declared, none in a Target that lends a band — looked, and off the road)",
+};
+
 /** `null` = dry run; otherwise the writes the run applied. */
 export function renderReport(
     summary: TriageSummary,
@@ -595,13 +631,19 @@ export function renderReport(
         "",
         `by source: fiat ${s.fiat}, cards ${s.cards}, edge ${s.edge}, parent ${s.parent}`,
         "",
-        `residue (no source yields a band — stays unprioritized, the owner rules): ${summary.residue.length}` +
-            ` (${summary.residue.filter((r) => r.board !== null).length} hold a board value today)`
+        `residue (no source yields a band — stays unprioritized, the owner rules): ${summary.residue.length}`
     );
-    for (const r of summary.residue)
+    for (const cause of RESIDUE_CAUSES) {
+        const group = summary.residue.filter((r) => r.cause === cause);
         lines.push(
-            `  #${r.number}${r.board === null ? "" : ` [board ${r.board}]`} ${r.title}`
+            `residue — ${RESIDUE_CAUSE_LABEL[cause]}: ${summary.perCause[cause]}` +
+                ` (${group.filter((r) => r.board !== null).length} hold a board value today)`
         );
+        for (const r of group)
+            lines.push(
+                `  #${r.number}${r.board === null ? "" : ` [board ${r.board}]`} ${r.title}`
+            );
+    }
     lines.push(
         "",
         `## Cards residue (a declared line that bands nothing — fix the line): ${cardsResidue.length}`
