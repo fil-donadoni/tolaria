@@ -58,6 +58,7 @@ function hostDefinition(
         id: HOST_CARD,
         name: "Per-creature combat host",
         types: ["Enchantment"],
+        rarity: "common",
         manaCost: { X: 1 },
         triggeredAbilities: triggered,
     };
@@ -205,10 +206,11 @@ describe("per-blocker block triggers (CR 509.3a)", () => {
             ],
             activePlayerId: "p1",
             priorityPlayerId: "p1",
-            phase: "COMBAT",
+            phase: "DECLARE_BLOCKERS",
             combat: {
                 attackerIds: ["a1", "a2"],
                 confirmed: true,
+                blockersConfirmed: true,
                 blockerAssignments: { b1: ["a1", "a2"] },
             },
         });
