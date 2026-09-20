@@ -257,12 +257,15 @@ const ACTED_ON_PHRASE: Readonly<Record<ActedOnNounIR, string>> = {
  * `ref` here reads that capture; the Op is given the binding here, on demand,
  * so a sentence that never asks for the value adds no binding.
  *
- * "That permanent" additionally CONSTRAINS the antecedent: it is printed only
- * where the earlier sentence acted on a permanent (CR 110.4a), so an acted-on
- * object of any other kind — a card in a graveyard, a spell on the stack, a
- * player — is an antecedent the phrase does not name, and is refused rather
- * than read past. "Its" and "that card's" name whatever the sentence before
- * acted on, which is what makes the umbrella noun worth reading separately.
+ * "That permanent" additionally CONSTRAINS the antecedent: a permanent is a
+ * card or token ON THE BATTLEFIELD (CR 110.1) of a permanent card type
+ * (CR 110.4a), so BOTH facets of the recorded requirement are checked. The
+ * zone facet is the one with teeth — "Return target creature card from your
+ * graveyard to your hand" records a requirement whose type is `Creature` and
+ * whose zone is the graveyard, and a type-only check would read the umbrella
+ * noun off a card that was never a permanent. "Its" and "that card's" name
+ * whatever the sentence before acted on, which is what makes the umbrella
+ * noun worth reading separately.
  */
 function lowerActedOnManaValue(
     noun: ActedOnNounIR,
@@ -275,11 +278,14 @@ function lowerActedOnManaValue(
             `"${phrase} mana value" names no object acted on before it (CR 608.2h)`
         );
     if (noun === "permanent") {
-        const { type } = actedOn.requirement;
+        const { type, zone } = actedOn.requirement;
         const types = Array.isArray(type) ? type : [type];
-        if (!types.every((one) => ACTED_ON_PERMANENT_TYPES.has(one)))
+        if (
+            !types.every((one) => ACTED_ON_PERMANENT_TYPES.has(one)) ||
+            (zone !== undefined && zone !== "battlefield")
+        )
             return unlowerable(
-                `"that permanent" is not the ${JSON.stringify(type)} acted on before it (CR 110.4a)`
+                `"that permanent" is not the ${JSON.stringify(type)} in ${zone ?? "battlefield"} acted on before it (CR 110.1)`
             );
     }
     const bind = actedOn.op.bind ?? walk.nextBind("that");

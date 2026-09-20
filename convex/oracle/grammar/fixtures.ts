@@ -2046,4 +2046,88 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 202.3 + CR 608.2h — "that permanent's mana value": the mana value of
+    // the permanent an earlier sentence destroyed, read off the snapshot that
+    // `destroy` took before the object left the battlefield. The canned smoke
+    // scenario cannot plan an amount that only a runtime binding knows, so the
+    // two sites the phrase reaches each need their own evidence: the DAMAGE
+    // amount (Orim's Thunder, below, whose reading is also gated on the kicker
+    // — CR 702.33d) and the life LOSS amount (Feed the Swarm) are different Op
+    // skeletons and therefore different forms (issue #4221).
+    {
+        rule: "acted-on mana value",
+        card: {
+            oracleId: "380429d5-82db-449c-b9b9-3e82ab987972",
+            name: "Orim's Thunder",
+            manaCost: "{2}{W}",
+            typeLine: "Instant",
+            oracleText:
+                "Kicker {R} (You may pay an additional {R} as you cast this spell.)\nDestroy target artifact or enchantment. If this spell was kicked, it deals damage equal to that permanent's mana value to target creature.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Orim's Thunder",
+            types: ["Instant"],
+            manaCost: { X: 2, W: 1 },
+            oracleText:
+                "Kicker {R} (You may pay an additional {R} as you cast this spell.)\nDestroy target artifact or enchantment. If this spell was kicked, it deals damage equal to that permanent's mana value to target creature.",
+            kickers: [
+                { id: "kicker", description: "Kicker {R}", mana: { R: 1 } },
+            ],
+            effects: [
+                { op: "destroy", target: { target: 0 }, bind: "$that1" },
+                {
+                    op: "if",
+                    predicate: {
+                        left: { kickerCount: true },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "dealDamage",
+                            amount: { ref: "$that1.manaValue" },
+                            to: { target: 1 },
+                        },
+                    ],
+                },
+            ],
+            targetRequirement: { type: ["Artifact", "Enchantment"], count: 1 },
+            additionalTargetRequirements: [
+                { type: "Creature", count: 1, announcedOnlyIfKicked: true },
+            ],
+        },
+    },
+    {
+        rule: "acted-on mana value",
+        card: {
+            oracleId: "5825997b-10d7-4a36-972c-a80ddd90b8ed",
+            name: "Feed the Swarm",
+            manaCost: "{1}{B}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Destroy target creature or enchantment an opponent controls. You lose life equal to that permanent's mana value.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Feed the Swarm",
+            types: ["Sorcery"],
+            manaCost: { X: 1, B: 1 },
+            oracleText:
+                "Destroy target creature or enchantment an opponent controls. You lose life equal to that permanent's mana value.",
+            effects: [
+                { op: "destroy", target: { target: 0 }, bind: "$that1" },
+                {
+                    op: "loseLife",
+                    player: "controller",
+                    amount: { ref: "$that1.manaValue" },
+                },
+            ],
+            targetRequirement: {
+                type: ["Creature", "Enchantment"],
+                count: 1,
+                controller: "opponent",
+            },
+        },
+    },
 ]);
