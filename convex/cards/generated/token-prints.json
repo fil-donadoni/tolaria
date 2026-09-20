@@ -471,6 +471,12 @@
             "name": "Thopter"
         }
     ],
+    "42d1122a-099b-49bf-9b53-52429658816a": [
+        {
+            "scryfallId": "aae7bdfe-fe14-4a18-b2b0-16e9175a0441",
+            "name": "Soldier"
+        }
+    ],
     "44178ece-af31-4a94-88bc-c9ce43bb4573": [
         {
             "scryfallId": "28a7a9b0-d823-4b34-829f-ade81fc141e0",
@@ -571,6 +577,12 @@
         {
             "scryfallId": "0d287806-07bb-4709-9260-b9ef34fe2a13",
             "name": "Knight"
+        }
+    ],
+    "527dd5d4-5f72-40bb-8a9d-1f5ac3f81e2e": [
+        {
+            "scryfallId": "70f8a1de-cd4c-4afa-bf03-0245d375d42e",
+            "name": "Goblin"
         }
     ],
     "543d55cb-3a6b-4620-af25-10ae74ed32c4": [
@@ -998,6 +1010,12 @@
     "89f8ea28-7de1-4908-8e2d-b1aeff651015": [
         {
             "scryfallId": "7d13a93a-a43d-4cf5-8300-8341f3b7f1b1",
+            "name": "Human"
+        }
+    ],
+    "8a665794-513f-4f78-92c9-1844ec27c79c": [
+        {
+            "scryfallId": "94057dc6-e589-4a29-9bda-90f5bece96c4",
             "name": "Human"
         }
     ],

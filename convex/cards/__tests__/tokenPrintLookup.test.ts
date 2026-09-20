@@ -90,6 +90,8 @@ const NO_PRINTED_TOKEN_ALLOWLIST: Record<string, string> = {
     // compiled id (ADR 0108) — links no token in Scryfall's `all_parts`, so
     // `fetch-token-prints.mjs --compiled` has nothing to resolve. They render
     // via `TokenPlaceholder` until a pinned substitute exists for compiled cards.
+    "198ba150-f3fb-48a7-8c3d-bcb6b263b0a2:Saproling":
+        "Selesnya Guildmage (compiled) — first printing's all_parts links no Saproling token.",
     "6d3c539b-4039-45c2-8d43-80648d946e91:Knight":
         "Errand of Duty (compiled) — first printing's all_parts links no Knight token.",
     "9079b01a-d595-4085-9e75-59e31827efeb:Skeleton":
