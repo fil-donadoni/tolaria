@@ -166,7 +166,7 @@ const NOUN_PHRASE_FORMS: readonly {
                 count: 1,
             },
         },
-        // CR 605.1a — a mana ability does not use the stack.
+        // CR 605.3b — an activated mana ability does not use the stack.
         useStack: false,
     },
     {
@@ -309,8 +309,9 @@ describe("Tap-other cost — refused neighbours (fail-closed)", () => {
     });
 
     it("only permanents the payer controls, and only untapped ones", () => {
-        // The descriptor reads both of these; only the payer's own permanents
-        // can be tapped to pay (CR 118.3), so the cost refuses them itself.
+        // The descriptor reads both of these, but `tapOtherFilter` has no
+        // reading of them ("you control" is its only controller relation), so
+        // the cost refuses them itself.
         expect(
             costFor(
                 "Tap two untapped creatures an opponent controls",

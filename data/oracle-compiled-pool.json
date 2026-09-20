@@ -1176,6 +1176,53 @@
         "rarity": "common"
     },
     {
+        "name": "Dune Diviner",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Snake",
+            "Cleric"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 3,
+        "oracleText": "{1}, Tap an untapped Desert you control: You gain 1 life.",
+        "activatedAbilities": [
+            {
+                "id": "dune-diviner-ability",
+                "oracleText": "{1}, Tap an untapped Desert you control: You gain 1 life.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tapOtherFilter": {
+                        "filter": {
+                            "subtypes": [
+                                "Desert"
+                            ],
+                            "controllerRelation": "you"
+                        },
+                        "count": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 1
+                    }
+                ]
+            }
+        ],
+        "id": "01818188-e18e-4dc0-b7ef-34cedef64f7e",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Sentry of the Underworld",
         "types": [
             "Creature"
@@ -6217,6 +6264,66 @@
         "rarity": "common"
     },
     {
+        "name": "Tradewind Rider",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Spirit"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 4,
+        "oracleText": "Flying\n{T}, Tap two untapped creatures you control: Return target permanent to its owner's hand.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "tradewind-rider-ability",
+                "oracleText": "{T}, Tap two untapped creatures you control: Return target permanent to its owner's hand.",
+                "cost": {
+                    "tap": true,
+                    "tapOtherFilter": {
+                        "filter": {
+                            "types": [
+                                "Creature"
+                            ],
+                            "controllerRelation": "you"
+                        },
+                        "count": 2
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": [
+                        "Artifact",
+                        "Battle",
+                        "Creature",
+                        "Enchantment",
+                        "Land",
+                        "Planeswalker"
+                    ],
+                    "count": 1
+                }
+            }
+        ],
+        "id": "09412374-3645-4644-952e-2beaefb3104b",
+        "rarity": "rare"
+    },
+    {
         "name": "Ethercaste Knight",
         "types": [
             "Artifact",
@@ -10678,6 +10785,57 @@
         "rarity": "common"
     },
     {
+        "name": "Revelsong Horn",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 2
+        },
+        "oracleText": "{1}, {T}, Tap an untapped creature you control: Target creature gets +1/+1 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "revelsong-horn-ability",
+                "oracleText": "{1}, {T}, Tap an untapped creature you control: Target creature gets +1/+1 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true,
+                    "tapOtherFilter": {
+                        "filter": {
+                            "types": [
+                                "Creature"
+                            ],
+                            "controllerRelation": "you"
+                        },
+                        "count": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "target": 0
+                        },
+                        "power": 1,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "10a4801c-fa69-47a0-bdfa-f5f110fd0976",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Arashin Cleric",
         "types": [
             "Creature"
@@ -12514,6 +12672,70 @@
         ],
         "id": "135e258a-71d8-45dd-9307-91111aa34bde",
         "rarity": "common"
+    },
+    {
+        "name": "Sanctuary Lockdown",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "Humans you control get +1/+1.\n{2}, Tap two untapped Humans you control: Tap target creature an opponent controls.",
+        "activatedAbilities": [
+            {
+                "id": "sanctuary-lockdown-ability",
+                "oracleText": "{2}, Tap two untapped Humans you control: Tap target creature an opponent controls.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    },
+                    "tapOtherFilter": {
+                        "filter": {
+                            "subtypes": [
+                                "Human"
+                            ],
+                            "controllerRelation": "you"
+                        },
+                        "count": 2
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "tap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "controller": "opponent"
+                }
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "filter": {
+                    "types": [
+                        "Creature"
+                    ],
+                    "subtypes": [
+                        "Human"
+                    ],
+                    "controllerRelation": "you"
+                },
+                "power": 1,
+                "toughness": 1
+            }
+        ],
+        "id": "1387b7be-f69e-4919-9070-a89654c656f3",
+        "rarity": "uncommon"
     },
     {
         "name": "Sunspire Griffin",
@@ -17160,6 +17382,63 @@
         "rarity": "common"
     },
     {
+        "name": "Jaspera Sentinel",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elf",
+            "Rogue"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "Reach\n{T}, Tap an untapped creature you control: Add one mana of any color.",
+        "staticAbilities": [
+            "reach"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "jaspera-sentinel-mana",
+                "oracleText": "{T}, Tap an untapped creature you control: Add one mana of any color.",
+                "cost": {
+                    "tap": true,
+                    "tapOtherFilter": {
+                        "filter": {
+                            "types": [
+                                "Creature"
+                            ],
+                            "controllerRelation": "you"
+                        },
+                        "count": 1
+                    }
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "1a68615d-9808-479d-aa80-50651246954e",
+        "rarity": "common"
+    },
+    {
         "name": "Frost Ogre",
         "types": [
             "Creature"
@@ -20249,6 +20528,50 @@
             }
         ],
         "id": "1e4f4db7-913c-4dd2-931e-630d90eb98ab",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Diversionary Tactics",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "oracleText": "Tap two untapped creatures you control: Tap target creature.",
+        "activatedAbilities": [
+            {
+                "id": "diversionary-tactics-ability",
+                "oracleText": "Tap two untapped creatures you control: Tap target creature.",
+                "cost": {
+                    "tapOtherFilter": {
+                        "filter": {
+                            "types": [
+                                "Creature"
+                            ],
+                            "controllerRelation": "you"
+                        },
+                        "count": 2
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "tap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "1e5061e4-a76d-4a7c-b196-96c81f94e0e5",
         "rarity": "uncommon"
     },
     {
@@ -29142,6 +29465,50 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Ghirapur Aether Grid",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "oracleText": "Tap two untapped artifacts you control: This enchantment deals 1 damage to any target.",
+        "activatedAbilities": [
+            {
+                "id": "ghirapur-aether-grid-ability",
+                "oracleText": "Tap two untapped artifacts you control: This enchantment deals 1 damage to any target.",
+                "cost": {
+                    "tapOtherFilter": {
+                        "filter": {
+                            "types": [
+                                "Artifact"
+                            ],
+                            "controllerRelation": "you"
+                        },
+                        "count": 2
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 1,
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "2e4a0c29-a759-465f-9136-9d709b6f30fc",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Whip Sergeant",
         "types": [
             "Creature"
@@ -37983,6 +38350,75 @@
         },
         "id": "3ce0cef9-6de4-4a71-b76a-eb0198387294",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Grove of the Guardian",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {C}.\n{3}{G}{W}, {T}, Tap two untapped creatures you control, Sacrifice this land: Create an 8/8 green and white Elemental creature token with vigilance.",
+        "activatedAbilities": [
+            {
+                "id": "grove-of-the-guardian-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "grove-of-the-guardian-ability-2",
+                "oracleText": "{3}{G}{W}, {T}, Tap two untapped creatures you control, Sacrifice this land: Create an 8/8 green and white Elemental creature token with vigilance.",
+                "cost": {
+                    "mana": {
+                        "X": 3,
+                        "W": 1,
+                        "G": 1
+                    },
+                    "tap": true,
+                    "tapOtherFilter": {
+                        "filter": {
+                            "types": [
+                                "Creature"
+                            ],
+                            "controllerRelation": "you"
+                        },
+                        "count": 2
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Elemental",
+                            "types": [
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Elemental"
+                            ],
+                            "power": 8,
+                            "toughness": 8,
+                            "colors": [
+                                "G",
+                                "W"
+                            ],
+                            "staticAbilities": [
+                                "vigilance"
+                            ]
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "id": "3cf60ca0-e01f-499c-8d04-d59050f38c33",
+        "rarity": "rare"
     },
     {
         "name": "Hematite Golem",
@@ -58900,6 +59336,60 @@
         "rarity": "common"
     },
     {
+        "name": "Loam Dryad",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dryad",
+            "Horror"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "{T}, Tap an untapped creature you control: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "loam-dryad-mana",
+                "oracleText": "{T}, Tap an untapped creature you control: Add one mana of any color.",
+                "cost": {
+                    "tap": true,
+                    "tapOtherFilter": {
+                        "filter": {
+                            "types": [
+                                "Creature"
+                            ],
+                            "controllerRelation": "you"
+                        },
+                        "count": 1
+                    }
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "61c9441d-18d9-4ec6-859e-e9a7893b54e3",
+        "rarity": "common"
+    },
+    {
         "name": "Carrion Wall",
         "types": [
             "Creature"
@@ -60767,6 +61257,81 @@
         ],
         "id": "64975352-8d35-4d02-94ac-fa0c6ee12409",
         "rarity": "common"
+    },
+    {
+        "name": "Relic of Legends",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 3
+        },
+        "oracleText": "{T}: Add one mana of any color.\nTap an untapped legendary creature you control: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "relic-of-legends-mana",
+                "oracleText": "{T}: Add one mana of any color.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            },
+            {
+                "id": "relic-of-legends-mana-2",
+                "oracleText": "Tap an untapped legendary creature you control: Add one mana of any color.",
+                "cost": {
+                    "tapOtherFilter": {
+                        "filter": {
+                            "types": [
+                                "Creature"
+                            ],
+                            "supertypes": [
+                                "Legendary"
+                            ],
+                            "controllerRelation": "you"
+                        },
+                        "count": 1
+                    }
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "64a2809e-c441-416c-90ff-6fb1e246dff3",
+        "rarity": "uncommon"
     },
     {
         "name": "Wild Jhovall",
@@ -75786,6 +76351,48 @@
         "rarity": "common"
     },
     {
+        "name": "Volrath's Gardens",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "oracleText": "{2}, Tap an untapped creature you control: You gain 2 life. Activate only as a sorcery.",
+        "activatedAbilities": [
+            {
+                "id": "volrath-s-gardens-ability",
+                "oracleText": "{2}, Tap an untapped creature you control: You gain 2 life. Activate only as a sorcery.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    },
+                    "tapOtherFilter": {
+                        "filter": {
+                            "types": [
+                                "Creature"
+                            ],
+                            "controllerRelation": "you"
+                        },
+                        "count": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 2
+                    }
+                ],
+                "sorcerySpeedOnly": true
+            }
+        ],
+        "id": "7d74f7d8-10eb-4082-9b07-41de13359b8c",
+        "rarity": "rare"
+    },
+    {
         "name": "Haunted Guardian",
         "types": [
             "Artifact",
@@ -89904,6 +90511,67 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Selesnya Evangel",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elf",
+            "Shaman"
+        ],
+        "manaCost": {
+            "W": 1,
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "{1}, {T}, Tap an untapped creature you control: Create a 1/1 green Saproling creature token.",
+        "activatedAbilities": [
+            {
+                "id": "selesnya-evangel-ability",
+                "oracleText": "{1}, {T}, Tap an untapped creature you control: Create a 1/1 green Saproling creature token.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true,
+                    "tapOtherFilter": {
+                        "filter": {
+                            "types": [
+                                "Creature"
+                            ],
+                            "controllerRelation": "you"
+                        },
+                        "count": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Saproling",
+                            "types": [
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Saproling"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": [
+                                "G"
+                            ]
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "id": "940180bb-8781-425f-9eeb-7eb0fad7a188",
+        "rarity": "common"
+    },
+    {
         "name": "Shambling Goblin",
         "types": [
             "Creature"
@@ -91086,6 +91754,54 @@
         ],
         "id": "95a7e5ff-ba81-4b45-933e-0ac747525ab8",
         "rarity": "common"
+    },
+    {
+        "name": "Opposition",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 2
+        },
+        "oracleText": "Tap an untapped creature you control: Tap target artifact, creature, or land.",
+        "activatedAbilities": [
+            {
+                "id": "opposition-ability",
+                "oracleText": "Tap an untapped creature you control: Tap target artifact, creature, or land.",
+                "cost": {
+                    "tapOtherFilter": {
+                        "filter": {
+                            "types": [
+                                "Creature"
+                            ],
+                            "controllerRelation": "you"
+                        },
+                        "count": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "tap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": [
+                        "Artifact",
+                        "Creature",
+                        "Land"
+                    ],
+                    "count": 1
+                }
+            }
+        ],
+        "id": "95be2701-af7c-483e-8165-e8bd4b2774ed",
+        "rarity": "rare"
     },
     {
         "name": "Natural End",
@@ -102214,6 +102930,62 @@
         "rarity": "rare"
     },
     {
+        "name": "Citanul Stalwart",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elf",
+            "Druid",
+            "Soldier"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{T}, Tap an untapped artifact or creature you control: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "citanul-stalwart-mana",
+                "oracleText": "{T}, Tap an untapped artifact or creature you control: Add one mana of any color.",
+                "cost": {
+                    "tap": true,
+                    "tapOtherFilter": {
+                        "filter": {
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "controllerRelation": "you"
+                        },
+                        "count": 1
+                    }
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "a842a945-21d9-432c-b970-6da65b16f309",
+        "rarity": "common"
+    },
+    {
         "name": "Tukatongue Thallid",
         "types": [
             "Creature"
@@ -103733,6 +104505,78 @@
         "entersTapped": true,
         "id": "aa01f43b-d0b3-4cd5-9694-aed30a79462c",
         "rarity": "rare"
+    },
+    {
+        "name": "Gateway Shade",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Shade"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{B}: This creature gets +1/+1 until end of turn.\nTap an untapped Gate you control: This creature gets +2/+2 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "gateway-shade-ability",
+                "oracleText": "{B}: This creature gets +1/+1 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "B": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 1,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            },
+            {
+                "id": "gateway-shade-ability-2",
+                "oracleText": "Tap an untapped Gate you control: This creature gets +2/+2 until end of turn.",
+                "cost": {
+                    "tapOtherFilter": {
+                        "filter": {
+                            "subtypes": [
+                                "Gate"
+                            ],
+                            "controllerRelation": "you"
+                        },
+                        "count": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 2,
+                        "toughness": 2,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "aa33fc15-3a4f-48bc-be7c-fdec1cb49c10",
+        "rarity": "uncommon"
     },
     {
         "name": "Ogre Recluse",
@@ -114392,6 +115236,64 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Honor-Worn Shaku",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 3
+        },
+        "oracleText": "{T}: Add {C}.\nTap an untapped legendary permanent you control: Untap this artifact.",
+        "activatedAbilities": [
+            {
+                "id": "honor-worn-shaku-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "honor-worn-shaku-ability-2",
+                "oracleText": "Tap an untapped legendary permanent you control: Untap this artifact.",
+                "cost": {
+                    "tapOtherFilter": {
+                        "filter": {
+                            "types": [
+                                "Artifact",
+                                "Battle",
+                                "Creature",
+                                "Enchantment",
+                                "Land",
+                                "Planeswalker"
+                            ],
+                            "supertypes": [
+                                "Legendary"
+                            ],
+                            "controllerRelation": "you"
+                        },
+                        "count": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "ref": "$source"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "babe91f2-06be-4501-a95b-20968e906e1b",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Careless Celebrant",
         "types": [
             "Creature"
@@ -121745,6 +122647,65 @@
         "rarity": "common"
     },
     {
+        "name": "Survivors' Encampment",
+        "types": [
+            "Land"
+        ],
+        "subtypes": [
+            "Desert"
+        ],
+        "oracleText": "{T}: Add {C}.\n{T}, Tap an untapped creature you control: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "survivors-encampment-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "survivors-encampment-mana-2",
+                "oracleText": "{T}, Tap an untapped creature you control: Add one mana of any color.",
+                "cost": {
+                    "tap": true,
+                    "tapOtherFilter": {
+                        "filter": {
+                            "types": [
+                                "Creature"
+                            ],
+                            "controllerRelation": "you"
+                        },
+                        "count": 1
+                    }
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "c7b0404e-0f42-456b-91ce-f960195c4951",
+        "rarity": "common"
+    },
+    {
         "name": "Dual-Sun Adepts",
         "types": [
             "Creature"
@@ -125517,6 +126478,66 @@
         "rarity": "rare"
     },
     {
+        "name": "Gene Pollinator",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Robot",
+            "Insect"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "{T}, Tap an untapped permanent you control: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "gene-pollinator-mana",
+                "oracleText": "{T}, Tap an untapped permanent you control: Add one mana of any color.",
+                "cost": {
+                    "tap": true,
+                    "tapOtherFilter": {
+                        "filter": {
+                            "types": [
+                                "Artifact",
+                                "Battle",
+                                "Creature",
+                                "Enchantment",
+                                "Land",
+                                "Planeswalker"
+                            ],
+                            "controllerRelation": "you"
+                        },
+                        "count": 1
+                    }
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "ce7a8eec-a029-4ee1-b2d6-405d903d4640",
+        "rarity": "common"
+    },
+    {
         "name": "Quicksand",
         "types": [
             "Land"
@@ -125913,6 +126934,62 @@
         },
         "id": "cef584c5-6e2d-419b-9c11-a1b6c9c9ab2a",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Holdout Settlement",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {C}. ({C} represents colorless mana.)\n{T}, Tap an untapped creature you control: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "holdout-settlement-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "holdout-settlement-mana-2",
+                "oracleText": "{T}, Tap an untapped creature you control: Add one mana of any color.",
+                "cost": {
+                    "tap": true,
+                    "tapOtherFilter": {
+                        "filter": {
+                            "types": [
+                                "Creature"
+                            ],
+                            "controllerRelation": "you"
+                        },
+                        "count": 1
+                    }
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "cf08c317-6f2d-47e3-ab5b-8af73fd3e404",
+        "rarity": "common"
     },
     {
         "name": "Mirrodin's Core",
@@ -134059,6 +135136,85 @@
             "G": 1
         },
         "id": "ddf54317-4c08-4a66-9fd2-9983384e2374",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Scene of the Crime",
+        "types": [
+            "Artifact",
+            "Land"
+        ],
+        "subtypes": [
+            "Clue"
+        ],
+        "oracleText": "This land enters tapped.\n{T}: Add {C}.\n{T}, Tap an untapped creature you control: Add one mana of any color.\n{2}, Sacrifice this land: Draw a card.",
+        "activatedAbilities": [
+            {
+                "id": "scene-of-the-crime-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "scene-of-the-crime-mana-2",
+                "oracleText": "{T}, Tap an untapped creature you control: Add one mana of any color.",
+                "cost": {
+                    "tap": true,
+                    "tapOtherFilter": {
+                        "filter": {
+                            "types": [
+                                "Creature"
+                            ],
+                            "controllerRelation": "you"
+                        },
+                        "count": 1
+                    }
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            },
+            {
+                "id": "scene-of-the-crime-ability-3",
+                "oracleText": "{2}, Sacrifice this land: Draw a card.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "entersTapped": true,
+        "id": "de039992-631b-4feb-a522-acdb0a6d1f26",
         "rarity": "uncommon"
     },
     {
@@ -142843,6 +143999,54 @@
         "rarity": "common"
     },
     {
+        "name": "Glare of Subdual",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1,
+            "G": 1
+        },
+        "oracleText": "Tap an untapped creature you control: Tap target artifact or creature.",
+        "activatedAbilities": [
+            {
+                "id": "glare-of-subdual-ability",
+                "oracleText": "Tap an untapped creature you control: Tap target artifact or creature.",
+                "cost": {
+                    "tapOtherFilter": {
+                        "filter": {
+                            "types": [
+                                "Creature"
+                            ],
+                            "controllerRelation": "you"
+                        },
+                        "count": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "tap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": [
+                        "Artifact",
+                        "Creature"
+                    ],
+                    "count": 1
+                }
+            }
+        ],
+        "id": "ed6166c1-3c2e-47af-873e-d3b39f42bd27",
+        "rarity": "rare"
+    },
+    {
         "name": "Salt Marsh",
         "types": [
             "Land"
@@ -143927,6 +145131,62 @@
             "trample"
         ],
         "id": "ef2dc99b-083d-473e-b352-e8264353e85b",
+        "rarity": "common"
+    },
+    {
+        "name": "Saruli Caretaker",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dryad"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "power": 0,
+        "toughness": 3,
+        "oracleText": "Defender\n{T}, Tap an untapped creature you control: Add one mana of any color.",
+        "staticAbilities": [
+            "defender"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "saruli-caretaker-mana",
+                "oracleText": "{T}, Tap an untapped creature you control: Add one mana of any color.",
+                "cost": {
+                    "tap": true,
+                    "tapOtherFilter": {
+                        "filter": {
+                            "types": [
+                                "Creature"
+                            ],
+                            "controllerRelation": "you"
+                        },
+                        "count": 1
+                    }
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "ef3358cb-714c-49bf-b7e9-a69d02d7799e",
         "rarity": "common"
     },
     {
@@ -148364,6 +149624,67 @@
         "rarity": "rare"
     },
     {
+        "name": "Keeper of the Nine Gales",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Bird",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "Flying\n{T}, Tap two untapped Birds you control: Return target permanent to its owner's hand.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "keeper-of-the-nine-gales-ability",
+                "oracleText": "{T}, Tap two untapped Birds you control: Return target permanent to its owner's hand.",
+                "cost": {
+                    "tap": true,
+                    "tapOtherFilter": {
+                        "filter": {
+                            "subtypes": [
+                                "Bird"
+                            ],
+                            "controllerRelation": "you"
+                        },
+                        "count": 2
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": [
+                        "Artifact",
+                        "Battle",
+                        "Creature",
+                        "Enchantment",
+                        "Land",
+                        "Planeswalker"
+                    ],
+                    "count": 1
+                }
+            }
+        ],
+        "id": "f75eef50-b474-44bb-8222-3e473928304a",
+        "rarity": "rare"
+    },
+    {
         "name": "Goblin Striker",
         "types": [
             "Creature"
@@ -150020,6 +151341,54 @@
             "count": 1
         },
         "id": "fa56b15e-d02d-4306-82a6-ced778fee90f",
+        "rarity": "common"
+    },
+    {
+        "name": "Springleaf Drum",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 1
+        },
+        "oracleText": "{T}, Tap an untapped creature you control: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "springleaf-drum-mana",
+                "oracleText": "{T}, Tap an untapped creature you control: Add one mana of any color.",
+                "cost": {
+                    "tap": true,
+                    "tapOtherFilter": {
+                        "filter": {
+                            "types": [
+                                "Creature"
+                            ],
+                            "controllerRelation": "you"
+                        },
+                        "count": 1
+                    }
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "fa8b09d0-fbd2-4441-9d87-02450412e0db",
         "rarity": "common"
     },
     {
