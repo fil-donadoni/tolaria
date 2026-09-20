@@ -977,10 +977,10 @@ const OPTIONAL_COUNT_HEADS: ReadonlyMap<string, TargetRequirement["count"]> =
  * optionally under a CR 601.2c "up to N" head.
  *
  * A BARE plural ("two target creatures", "each target creature") is still
- * refused: the optional heads above announce a RANGE from zero, so a card that
- * finds too few legal targets still casts, whereas a fixed plural count makes
- * the whole spell uncastable below it (CR 601.2c) — a different announcement
- * rule, not a wider spelling of this one.
+ * refused: the optional heads above announce a RANGE from zero, whereas a
+ * fixed plural count demands an appropriate object for EACH target the spell
+ * requires (CR 601.2c) — a different announcement, not a wider spelling of
+ * this one.
  */
 /**
  * Does this span OPEN a target phrase (CR 115.1)?

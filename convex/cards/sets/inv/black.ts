@@ -1081,13 +1081,17 @@ export const recklessSpiteInv: CardPrint = {
 };
 
 // Recover — {2}{B} Sorcery. "Return target creature card from your
-// graveyard to your hand." (CR 400.7 zone change.) A plain spell target
-// (`zone: "graveyard", controller: "you"`) — no capability needed.
+// graveyard to your hand.\nDraw a card." (CR 400.7 zone change, CR 121.1
+// draw.) A plain spell target (`zone: "graveyard", controller: "you"`) — no
+// capability needed. The second printed line was missing from this definition
+// until the compiler's own twin disagreed with it (issue #4133): the card
+// shipped as a strictly worse Raise Dead.
 export const recover: CardDefinition = {
     id: "771e695b-24e1-4c65-81e0-1624bda646e7", // INV 122
     rarity: "common",
     name: "Recover",
-    oracleText: "Return target creature card from your graveyard to your hand.",
+    oracleText:
+        "Return target creature card from your graveyard to your hand.\nDraw a card.",
     manaCost: { X: 2, B: 1 },
     types: ["Sorcery"],
     targetRequirement: {
@@ -1096,7 +1100,10 @@ export const recover: CardDefinition = {
         zone: "graveyard",
         controller: "you",
     },
-    effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
+    effects: [
+        { op: "moveZone", target: { target: 0 }, to: "hand" },
+        { op: "draw", player: "controller", count: 1 },
+    ],
 };
 
 // Scavenged Weaponry — {2}{B} Aura. "Enchant creature. When this Aura

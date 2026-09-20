@@ -37,13 +37,6 @@ function compiled(card: ReturnType<typeof oracleCard>) {
     return outcome.definition;
 }
 
-function unparsedSpan(card: ReturnType<typeof oracleCard>) {
-    const outcome = compileCard(card);
-    if (outcome.state !== "unparsed")
-        throw new Error(`${card.name} compiled: ${outcome.state}`);
-    return outcome.gaps.map((g) => g.attribution?.span);
-}
-
 describe("pronoun subject — golden fixtures (CR 608.2h)", () => {
     it("activated, sacrifice cost: Mogg Fanatic's 'It deals 1 damage to any target'", () => {
         const card = oracleCard({

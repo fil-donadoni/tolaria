@@ -3867,6 +3867,63 @@
         "rarity": "common"
     },
     {
+        "name": "Treasure Hunter",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "When this creature enters, you may return target artifact card from your graveyard to your hand.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "treasure-hunter-trigger",
+                "oracleText": "When this creature enters, you may return target artifact card from your graveyard to your hand.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Artifact",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Return target artifact card from your graveyard to your hand?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "moveZone",
+                                "target": {
+                                    "target": 0
+                                },
+                                "to": "hand"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "06452630-621b-498e-8f25-ecfe544d4213",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Crystalline Sliver",
         "types": [
             "Creature"
@@ -4895,6 +4952,63 @@
         "rarity": "common"
     },
     {
+        "name": "Stoic Builder",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 3,
+        "oracleText": "When this creature enters, you may return target land card from your graveyard to your hand.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "stoic-builder-trigger",
+                "oracleText": "When this creature enters, you may return target land card from your graveyard to your hand.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Land",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Return target land card from your graveyard to your hand?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "moveZone",
+                                "target": {
+                                    "target": 0
+                                },
+                                "to": "hand"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "0820f17c-ab4a-4a14-84ff-4ea200bef112",
+        "rarity": "common"
+    },
+    {
         "name": "Scoured Barrens",
         "types": [
             "Land"
@@ -5265,6 +5379,56 @@
         "rarity": "common"
     },
     {
+        "name": "Pillardrop Rescuer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Spirit",
+            "Cleric"
+        ],
+        "manaCost": {
+            "X": 4,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Flying\nWhen this creature enters, return target creature card with mana value 3 or less from your graveyard to your hand.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "pillardrop-rescuer-trigger",
+                "oracleText": "When this creature enters, return target creature card with mana value 3 or less from your graveyard to your hand.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "mvFilter": {
+                        "max": 3
+                    },
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ]
+            }
+        ],
+        "id": "0884666e-8f9b-44b1-a1e3-c1c8941e2152",
+        "rarity": "common"
+    },
+    {
         "name": "Avacynian Priest",
         "types": [
             "Creature"
@@ -5527,6 +5691,64 @@
             "trample"
         ],
         "id": "090d678c-f0e4-4757-8900-93dfe67aefe9",
+        "rarity": "common"
+    },
+    {
+        "name": "Auramancer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "When this creature enters, you may return target enchantment card from your graveyard to your hand.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "auramancer-trigger",
+                "oracleText": "When this creature enters, you may return target enchantment card from your graveyard to your hand.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Enchantment",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Return target enchantment card from your graveyard to your hand?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "moveZone",
+                                "target": {
+                                    "target": 0
+                                },
+                                "to": "hand"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "090dd4cf-5087-4ed8-a944-f3794e5862d5",
         "rarity": "common"
     },
     {
@@ -5951,6 +6173,56 @@
         },
         "id": "09b2b263-34db-4961-bf41-1eaaba3701da",
         "rarity": "common"
+    },
+    {
+        "name": "Auriok Salvagers",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 4,
+        "oracleText": "{1}{W}: Return target artifact card with mana value 1 or less from your graveyard to your hand.",
+        "activatedAbilities": [
+            {
+                "id": "auriok-salvagers-ability",
+                "oracleText": "{1}{W}: Return target artifact card with mana value 1 or less from your graveyard to your hand.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "W": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Artifact",
+                    "count": 1,
+                    "mvFilter": {
+                        "max": 1
+                    },
+                    "zone": "graveyard",
+                    "controller": "you"
+                }
+            }
+        ],
+        "id": "09c9cd1b-9260-4f98-ac7a-25bb5ae3e06d",
+        "rarity": "uncommon"
     },
     {
         "name": "Azorius Cluestone",
@@ -8530,6 +8802,67 @@
         "rarity": "common"
     },
     {
+        "name": "Moriok Scavenger",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Rogue"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "power": 2,
+        "toughness": 3,
+        "oracleText": "When this creature enters, you may return target artifact creature card from your graveyard to your hand.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "moriok-scavenger-trigger",
+                "oracleText": "When this creature enters, you may return target artifact creature card from your graveyard to your hand.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": [
+                        "Artifact",
+                        "Creature"
+                    ],
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Return target artifact creature card from your graveyard to your hand?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "moveZone",
+                                "target": {
+                                    "target": 0
+                                },
+                                "to": "hand"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "0f27426b-3679-44e4-9249-f57b92baa3f3",
+        "rarity": "common"
+    },
+    {
         "name": "Silverstrike",
         "types": [
             "Instant"
@@ -10113,6 +10446,55 @@
             }
         ],
         "id": "113f58b1-d8d7-4544-8363-e2b96e9d2623",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Rites of Reaping",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 4,
+            "B": 1,
+            "G": 1
+        },
+        "oracleText": "Target creature gets +3/+3 until end of turn. Another target creature gets -3/-3 until end of turn.",
+        "effects": [
+            {
+                "op": "pump",
+                "target": {
+                    "target": 0
+                },
+                "power": 3,
+                "toughness": 3,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "pump",
+                "target": {
+                    "target": 1
+                },
+                "power": -3,
+                "toughness": -3,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "additionalTargetRequirements": [
+            {
+                "type": "Creature",
+                "count": 1,
+                "excludePriorTargets": true
+            }
+        ],
+        "id": "115d504f-3aec-4374-8cd8-732d56c448f2",
         "rarity": "uncommon"
     },
     {
@@ -12380,6 +12762,34 @@
         "rarity": "common"
     },
     {
+        "name": "Sage's Knowledge",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1
+        },
+        "oracleText": "Return target sorcery card from your graveyard to your hand.",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "hand"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Sorcery",
+            "count": 1,
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "id": "156d7c70-6c6d-4052-9d44-029ba1bb66e4",
+        "rarity": "common"
+    },
+    {
         "name": "Faerie Formation",
         "types": [
             "Creature"
@@ -13703,6 +14113,51 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Tortured Existence",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "B": 1
+        },
+        "oracleText": "{B}, Discard a creature card: Return target creature card from your graveyard to your hand.",
+        "activatedAbilities": [
+            {
+                "id": "tortured-existence-ability",
+                "oracleText": "{B}, Discard a creature card: Return target creature card from your graveyard to your hand.",
+                "cost": {
+                    "mana": {
+                        "B": 1
+                    },
+                    "discardFilter": {
+                        "filter": {
+                            "type": "Creature"
+                        },
+                        "count": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                }
+            }
+        ],
+        "id": "1754b92b-d6f9-4503-af01-dee03f72a048",
+        "rarity": "common"
+    },
+    {
         "name": "Swordwise Centaur",
         "types": [
             "Creature"
@@ -14270,6 +14725,33 @@
         ],
         "id": "180b1a4f-c071-4742-9c57-9d775be0ed4f",
         "rarity": "rare"
+    },
+    {
+        "name": "Return to Battle",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "B": 1
+        },
+        "oracleText": "Return target creature card from your graveyard to your hand.",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "hand"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "id": "1841e615-fdcd-4187-bd69-d07abde0e1ae",
+        "rarity": "common"
     },
     {
         "name": "Exorcist",
@@ -15985,6 +16467,66 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Cadaver Imp",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Imp"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 2
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Flying\nWhen this creature enters, you may return target creature card from your graveyard to your hand.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "cadaver-imp-trigger",
+                "oracleText": "When this creature enters, you may return target creature card from your graveyard to your hand.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Return target creature card from your graveyard to your hand?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "moveZone",
+                                "target": {
+                                    "target": 0
+                                },
+                                "to": "hand"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "1b2f83d5-9269-4297-b507-558c2bdec32b",
+        "rarity": "common"
+    },
+    {
         "name": "Keening Banshee",
         "types": [
             "Creature"
@@ -16547,6 +17089,40 @@
         "rarity": "common"
     },
     {
+        "name": "Boggart Birth Rite",
+        "types": [
+            "Kindred",
+            "Sorcery"
+        ],
+        "subtypes": [
+            "Goblin"
+        ],
+        "manaCost": {
+            "B": 1
+        },
+        "oracleText": "Return target Goblin card from your graveyard to your hand.",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "hand"
+            }
+        ],
+        "targetRequirement": {
+            "type": "card",
+            "count": 1,
+            "subtypeFilter": [
+                "Goblin"
+            ],
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "id": "1bb4916d-ab50-45c9-bf7e-e7a7e761aef4",
+        "rarity": "common"
+    },
+    {
         "name": "Zephyr Gull",
         "types": [
             "Creature"
@@ -16968,6 +17544,54 @@
             }
         ],
         "id": "1c2e7843-9a87-46cb-be06-6db58649db85",
+        "rarity": "common"
+    },
+    {
+        "name": "Leeching Bite",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "oracleText": "Target creature gets +1/+1 until end of turn. Another target creature gets -1/-1 until end of turn.",
+        "effects": [
+            {
+                "op": "pump",
+                "target": {
+                    "target": 0
+                },
+                "power": 1,
+                "toughness": 1,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "pump",
+                "target": {
+                    "target": 1
+                },
+                "power": -1,
+                "toughness": -1,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "additionalTargetRequirements": [
+            {
+                "type": "Creature",
+                "count": 1,
+                "excludePriorTargets": true
+            }
+        ],
+        "id": "1c3bdbeb-c376-42bd-af2a-251cd7ac704c",
         "rarity": "common"
     },
     {
@@ -17798,6 +18422,106 @@
             }
         ],
         "id": "1d8567c5-d068-42bb-a593-3849e65e29c0",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Sanctum Gargoyle",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Gargoyle"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 3,
+        "oracleText": "Flying\nWhen this creature enters, you may return target artifact card from your graveyard to your hand.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "sanctum-gargoyle-trigger",
+                "oracleText": "When this creature enters, you may return target artifact card from your graveyard to your hand.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Artifact",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Return target artifact card from your graveyard to your hand?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "moveZone",
+                                "target": {
+                                    "target": 0
+                                },
+                                "to": "hand"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "1da1a2d5-d1fe-4aa2-aa83-64d6c269f7bc",
+        "rarity": "common"
+    },
+    {
+        "name": "Sacred Excavation",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 1
+        },
+        "oracleText": "Return up to two target cards with cycling from your graveyard to your hand.",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "hand"
+            },
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 1
+                },
+                "to": "hand"
+            }
+        ],
+        "targetRequirement": {
+            "type": "card",
+            "count": {
+                "min": 0,
+                "max": 2
+            },
+            "requireAbility": "cycling",
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "id": "1dc2ab27-0f68-480c-99c9-53243c1ab0ac",
         "rarity": "uncommon"
     },
     {
@@ -18905,6 +19629,128 @@
         "rarity": "common"
     },
     {
+        "name": "Trading Post",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 4
+        },
+        "oracleText": "{1}, {T}, Discard a card: You gain 4 life.\n{1}, {T}, Pay 1 life: Create a 0/1 white Goat creature token.\n{1}, {T}, Sacrifice a creature: Return target artifact card from your graveyard to your hand.\n{1}, {T}, Sacrifice an artifact: Draw a card.",
+        "activatedAbilities": [
+            {
+                "id": "trading-post-ability",
+                "oracleText": "{1}, {T}, Discard a card: You gain 4 life.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true,
+                    "discardFilter": {
+                        "filter": {},
+                        "count": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 4
+                    }
+                ]
+            },
+            {
+                "id": "trading-post-ability-2",
+                "oracleText": "{1}, {T}, Pay 1 life: Create a 0/1 white Goat creature token.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true,
+                    "life": 1
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Goat",
+                            "types": [
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Goat"
+                            ],
+                            "power": 0,
+                            "toughness": 1,
+                            "colors": [
+                                "W"
+                            ]
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            },
+            {
+                "id": "trading-post-ability-3",
+                "oracleText": "{1}, {T}, Sacrifice a creature: Return target artifact card from your graveyard to your hand.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true,
+                    "sacrificeFilter": {
+                        "types": [
+                            "Creature"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Artifact",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                }
+            },
+            {
+                "id": "trading-post-ability-4",
+                "oracleText": "{1}, {T}, Sacrifice an artifact: Draw a card.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true,
+                    "sacrificeFilter": {
+                        "types": [
+                            "Artifact"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "20604b28-d096-40f8-a30c-3bc89e708676",
+        "rarity": "rare"
+    },
+    {
         "name": "Rakdos Guildgate",
         "types": [
             "Land"
@@ -18951,6 +19797,67 @@
         "toughness": 1,
         "id": "2094f2f6-8b38-47d6-973d-271986b5d982",
         "rarity": "common"
+    },
+    {
+        "name": "Strongarm Thug",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Mercenary"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "When this creature enters, you may return target Mercenary card from your graveyard to your hand.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "strongarm-thug-trigger",
+                "oracleText": "When this creature enters, you may return target Mercenary card from your graveyard to your hand.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "card",
+                    "count": 1,
+                    "subtypeFilter": [
+                        "Mercenary"
+                    ],
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Return target Mercenary card from your graveyard to your hand?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "moveZone",
+                                "target": {
+                                    "target": 0
+                                },
+                                "to": "hand"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "20aa9108-470c-484d-908a-c31cf6935765",
+        "rarity": "uncommon"
     },
     {
         "name": "Mass of Ghouls",
@@ -19931,6 +20838,47 @@
         "rarity": "common"
     },
     {
+        "name": "Phyrexian Reclamation",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "B": 1
+        },
+        "oracleText": "{1}{B}, Pay 2 life: Return target creature card from your graveyard to your hand.",
+        "activatedAbilities": [
+            {
+                "id": "phyrexian-reclamation-ability",
+                "oracleText": "{1}{B}, Pay 2 life: Return target creature card from your graveyard to your hand.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "B": 1
+                    },
+                    "life": 2
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                }
+            }
+        ],
+        "id": "228a2bb7-d9f0-47b5-a0d9-2adf1b33e995",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Venerable Lammasu",
         "types": [
             "Creature"
@@ -19993,6 +20941,50 @@
         ],
         "id": "229ba320-69c9-4400-a0d7-f0f79e8d9856",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Archaeomender",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1
+        },
+        "power": 2,
+        "toughness": 3,
+        "oracleText": "When this creature enters, return target artifact card from your graveyard to your hand.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "archaeomender-trigger",
+                "oracleText": "When this creature enters, return target artifact card from your graveyard to your hand.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Artifact",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ]
+            }
+        ],
+        "id": "22bb8779-ac19-43d6-b818-86eb8ee2f87d",
+        "rarity": "common"
     },
     {
         "name": "Mageta's Boon",
@@ -21346,6 +22338,66 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Honest Rutstein",
+        "types": [
+            "Creature"
+        ],
+        "supertypes": [
+            "Legendary"
+        ],
+        "subtypes": [
+            "Human",
+            "Warlock"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1,
+            "G": 1
+        },
+        "power": 3,
+        "toughness": 2,
+        "oracleText": "When Honest Rutstein enters, return target creature card from your graveyard to your hand.\nCreature spells you cast cost {1} less to cast.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "honest-rutstein-trigger",
+                "oracleText": "When {self} enters, return target creature card from your graveyard to your hand.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "cost-modifier",
+                "spells": {
+                    "types": [
+                        "Creature"
+                    ],
+                    "controller": "you"
+                },
+                "reduction": 1
+            }
+        ],
+        "id": "259ddf66-76af-4857-83c3-c812327a6e23",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Tormenting Voice",
         "types": [
             "Sorcery"
@@ -22516,6 +23568,51 @@
         "rarity": "common"
     },
     {
+        "name": "Monk Idealist",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Monk",
+            "Cleric"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "When this creature enters, return target enchantment card from your graveyard to your hand.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "monk-idealist-trigger",
+                "oracleText": "When this creature enters, return target enchantment card from your graveyard to your hand.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Enchantment",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ]
+            }
+        ],
+        "id": "285a867b-f82e-49cb-a59c-31a25129baf9",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Swiftblade Vindicator",
         "types": [
             "Creature"
@@ -22927,6 +24024,49 @@
         ],
         "id": "292326cd-4b90-40c6-88b1-f8560fde236c",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Tragic Poet",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{T}, Sacrifice this creature: Return target enchantment card from your graveyard to your hand.",
+        "activatedAbilities": [
+            {
+                "id": "tragic-poet-ability",
+                "oracleText": "{T}, Sacrifice this creature: Return target enchantment card from your graveyard to your hand.",
+                "cost": {
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Enchantment",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                }
+            }
+        ],
+        "id": "294aa7fc-12be-4722-b288-de14a28919b2",
+        "rarity": "common"
     },
     {
         "name": "Benthic Giant",
@@ -23420,6 +24560,58 @@
         ],
         "id": "29cd7064-3703-43e0-8702-d1ba13703fd8",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Cabal Surgeon",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Minion"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 2
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "{2}{B}{B}, {T}, Exile two cards from your graveyard: Return target creature card from your graveyard to your hand.",
+        "activatedAbilities": [
+            {
+                "id": "cabal-surgeon-ability",
+                "oracleText": "{2}{B}{B}, {T}, Exile two cards from your graveyard: Return target creature card from your graveyard to your hand.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "B": 2
+                    },
+                    "tap": true,
+                    "exileFromGraveyard": {
+                        "count": 2,
+                        "owner": "you"
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                }
+            }
+        ],
+        "id": "29ce55a2-d838-48ab-862e-d419b0cda3c9",
+        "rarity": "common"
     },
     {
         "name": "Charging Paladin",
@@ -24606,6 +25798,81 @@
             "flying"
         ],
         "id": "2bdb5850-df1e-4d8a-af7a-15cab080fb8f",
+        "rarity": "common"
+    },
+    {
+        "name": "Misery Charm",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "B": 1
+        },
+        "oracleText": "Choose one —\n• Destroy target Cleric.\n• Return target Cleric card from your graveyard to your hand.\n• Target player loses 2 life.",
+        "modes": [
+            {
+                "id": "misery-charm-mode-1",
+                "label": "Destroy target Cleric",
+                "oracleText": "Destroy target Cleric.",
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "subtypeFilter": [
+                        "Cleric"
+                    ]
+                }
+            },
+            {
+                "id": "misery-charm-mode-2",
+                "label": "Return target Cleric card from your graveyard to your hand",
+                "oracleText": "Return target Cleric card from your graveyard to your hand.",
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "card",
+                    "count": 1,
+                    "subtypeFilter": [
+                        "Cleric"
+                    ],
+                    "zone": "graveyard",
+                    "controller": "you"
+                }
+            },
+            {
+                "id": "misery-charm-mode-3",
+                "label": "Target player loses 2 life",
+                "oracleText": "Target player loses 2 life.",
+                "effects": [
+                    {
+                        "op": "loseLife",
+                        "player": {
+                            "target": 0
+                        },
+                        "amount": 2
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "2be66eaf-222b-4c40-a9fa-aad56b9218e0",
         "rarity": "common"
     },
     {
@@ -27796,6 +29063,55 @@
         "rarity": "common"
     },
     {
+        "name": "Groundskeeper",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Druid"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{1}{G}: Return target basic land card from your graveyard to your hand.",
+        "activatedAbilities": [
+            {
+                "id": "groundskeeper-ability",
+                "oracleText": "{1}{G}: Return target basic land card from your graveyard to your hand.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "G": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Land",
+                    "count": 1,
+                    "supertypeFilter": [
+                        "Basic"
+                    ],
+                    "zone": "graveyard",
+                    "controller": "you"
+                }
+            }
+        ],
+        "id": "31d9fe16-562a-4a86-84ed-15cd90b8afc0",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Maelstrom Colossus",
         "types": [
             "Artifact",
@@ -29272,6 +30588,44 @@
         "rarity": "common"
     },
     {
+        "name": "Soul Salvage",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "oracleText": "Return up to two target creature cards from your graveyard to your hand.",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "hand"
+            },
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 1
+                },
+                "to": "hand"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": {
+                "min": 0,
+                "max": 2
+            },
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "id": "347060c0-fef7-45da-b42e-8e11051b2c69",
+        "rarity": "common"
+    },
+    {
         "name": "Cavern Thoctar",
         "types": [
             "Creature"
@@ -29990,6 +31344,52 @@
         ],
         "id": "35d2ae77-b16c-4a01-84ce-5c78be5a54d8",
         "rarity": "common"
+    },
+    {
+        "name": "Malevolent Awakening",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 2
+        },
+        "oracleText": "{1}{B}{B}, Sacrifice a creature: Return target creature card from your graveyard to your hand.",
+        "activatedAbilities": [
+            {
+                "id": "malevolent-awakening-ability",
+                "oracleText": "{1}{B}{B}, Sacrifice a creature: Return target creature card from your graveyard to your hand.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "B": 2
+                    },
+                    "sacrificeFilter": {
+                        "types": [
+                            "Creature"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                }
+            }
+        ],
+        "id": "35d94052-aae3-4ced-9309-fc4a0d1f159d",
+        "rarity": "uncommon"
     },
     {
         "name": "Beast in Show",
@@ -37652,6 +39052,53 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Barrow Witches",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Warlock"
+        ],
+        "manaCost": {
+            "X": 4,
+            "B": 1
+        },
+        "power": 3,
+        "toughness": 4,
+        "oracleText": "When this creature enters, return target Knight card from your graveyard to your hand.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "barrow-witches-trigger",
+                "oracleText": "When this creature enters, return target Knight card from your graveyard to your hand.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "card",
+                    "count": 1,
+                    "subtypeFilter": [
+                        "Knight"
+                    ],
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ]
+            }
+        ],
+        "id": "45707c22-fce8-4dbd-9d19-73f08c68f449",
+        "rarity": "common"
+    },
+    {
         "name": "Alexi's Cloak",
         "types": [
             "Enchantment"
@@ -39369,6 +40816,72 @@
             }
         },
         "id": "48a90779-008e-401f-9877-be0a935d2ccd",
+        "rarity": "common"
+    },
+    {
+        "name": "Dwarven Landslide",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "R": 1
+        },
+        "oracleText": "Kicker—{2}{R}, Sacrifice a land. (You may pay {2}{R} and sacrifice a land in addition to any other costs as you cast this spell.)\nDestroy target land. If this spell was kicked, destroy another target land.",
+        "kickers": [
+            {
+                "id": "kicker",
+                "description": "Kicker—{2}{R}, Sacrifice a land",
+                "mana": {
+                    "X": 2,
+                    "R": 1
+                },
+                "permanent": {
+                    "action": "sacrifice",
+                    "filter": {
+                        "types": [
+                            "Land"
+                        ]
+                    },
+                    "count": 1
+                }
+            }
+        ],
+        "effects": [
+            {
+                "op": "destroy",
+                "target": {
+                    "target": 0
+                }
+            },
+            {
+                "op": "if",
+                "predicate": {
+                    "left": {
+                        "kickerCount": true
+                    },
+                    "op": "ge",
+                    "right": 1
+                },
+                "then": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "target": 1
+                        }
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Land",
+            "count": 1
+        },
+        "kickedTargetRequirement": {
+            "type": "Land",
+            "count": 2
+        },
+        "id": "48ab243e-d08d-4ece-9725-4bb5f67b1c92",
         "rarity": "common"
     },
     {
@@ -43325,6 +44838,111 @@
         "rarity": "common"
     },
     {
+        "name": "Nucklavee",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Beast"
+        ],
+        "manaCost": {
+            "X": 4,
+            "hybrid": [
+                [
+                    "U",
+                    "R"
+                ],
+                [
+                    "U",
+                    "R"
+                ]
+            ]
+        },
+        "power": 4,
+        "toughness": 4,
+        "oracleText": "When this creature enters, you may return target red sorcery card from your graveyard to your hand.\nWhen this creature enters, you may return target blue instant card from your graveyard to your hand.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "nucklavee-trigger",
+                "oracleText": "When this creature enters, you may return target red sorcery card from your graveyard to your hand.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Sorcery",
+                    "count": 1,
+                    "colorFilter": "R",
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Return target red sorcery card from your graveyard to your hand?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "moveZone",
+                                "target": {
+                                    "target": 0
+                                },
+                                "to": "hand"
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "id": "nucklavee-trigger-2",
+                "oracleText": "When this creature enters, you may return target blue instant card from your graveyard to your hand.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Instant",
+                    "count": 1,
+                    "colorFilter": "U",
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Return target blue instant card from your graveyard to your hand?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "moveZone",
+                                "target": {
+                                    "target": 0
+                                },
+                                "to": "hand"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "50f54b0a-b0e1-44f1-bb91-523cc9e1c298",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Goblin Balloon Brigade",
         "types": [
             "Creature"
@@ -44083,6 +45701,34 @@
         ],
         "id": "5279ac25-8175-44ad-ab7b-dfa17e359a10",
         "rarity": "common"
+    },
+    {
+        "name": "Recollect",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "oracleText": "Return target card from your graveyard to your hand.",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "hand"
+            }
+        ],
+        "targetRequirement": {
+            "type": "card",
+            "count": 1,
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "id": "52aa7f09-a2cc-4bef-857a-32bcccb7366a",
+        "rarity": "uncommon"
     },
     {
         "name": "Kranioceros",
@@ -45072,6 +46718,54 @@
             "count": 1
         },
         "id": "546c647d-8d0a-4b88-804e-ce0348eb772a",
+        "rarity": "common"
+    },
+    {
+        "name": "Steal Strength",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Target creature gets +1/+1 until end of turn. Another target creature gets -1/-1 until end of turn.",
+        "effects": [
+            {
+                "op": "pump",
+                "target": {
+                    "target": 0
+                },
+                "power": 1,
+                "toughness": 1,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "pump",
+                "target": {
+                    "target": 1
+                },
+                "power": -1,
+                "toughness": -1,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "additionalTargetRequirements": [
+            {
+                "type": "Creature",
+                "count": 1,
+                "excludePriorTargets": true
+            }
+        ],
+        "id": "5470b3bb-5061-4beb-9f44-b56c3b2fd816",
         "rarity": "common"
     },
     {
@@ -47277,6 +48971,52 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Salvage Scout",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Scout"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{W}, Sacrifice this creature: Return target artifact card from your graveyard to your hand.",
+        "activatedAbilities": [
+            {
+                "id": "salvage-scout-ability",
+                "oracleText": "{W}, Sacrifice this creature: Return target artifact card from your graveyard to your hand.",
+                "cost": {
+                    "mana": {
+                        "W": 1
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Artifact",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                }
+            }
+        ],
+        "id": "5909e77e-a930-4713-bca4-c6b265238c17",
+        "rarity": "common"
+    },
+    {
         "name": "Spiteful Motives",
         "types": [
             "Enchantment"
@@ -48064,6 +49804,53 @@
         ],
         "id": "5a391ada-e9e3-45db-ae84-17421ac6b44d",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Leonin Squire",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Cat",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "When this creature enters, return target artifact card with mana value 1 or less from your graveyard to your hand.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "leonin-squire-trigger",
+                "oracleText": "When this creature enters, return target artifact card with mana value 1 or less from your graveyard to your hand.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Artifact",
+                    "count": 1,
+                    "mvFilter": {
+                        "max": 1
+                    },
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ]
+            }
+        ],
+        "id": "5a5320ff-1fe6-492a-b27f-86a84a1768ed",
+        "rarity": "common"
     },
     {
         "name": "Sustenance",
@@ -48858,6 +50645,38 @@
             }
         ],
         "id": "5c0a4e6e-cc4e-43d5-aece-f009e117366a",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Dryad's Revival",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "oracleText": "Return target card from your graveyard to your hand.\nFlashback {4}{G} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "hand"
+            }
+        ],
+        "targetRequirement": {
+            "type": "card",
+            "count": 1,
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "flashback": {
+            "X": 4,
+            "G": 1
+        },
+        "id": "5c0aa3eb-0aa8-42da-b437-a3f336df585d",
         "rarity": "uncommon"
     },
     {
@@ -54561,6 +56380,71 @@
         "rarity": "rare"
     },
     {
+        "name": "Dross Skullbomb",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 1
+        },
+        "oracleText": "{1}, Sacrifice this artifact: Draw a card.\n{2}{B}, Sacrifice this artifact: Return target creature card from your graveyard to your hand. Draw a card. Activate only as a sorcery.",
+        "activatedAbilities": [
+            {
+                "id": "dross-skullbomb-ability",
+                "oracleText": "{1}, Sacrifice this artifact: Draw a card.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            },
+            {
+                "id": "dross-skullbomb-ability-2",
+                "oracleText": "{2}{B}, Sacrifice this artifact: Return target creature card from your graveyard to your hand. Draw a card. Activate only as a sorcery.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "B": 1
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    },
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "sorcerySpeedOnly": true
+            }
+        ],
+        "id": "66270dd2-9139-4329-9621-852962836688",
+        "rarity": "common"
+    },
+    {
         "name": "Jeskai Windscout",
         "types": [
             "Creature"
@@ -55145,6 +57029,34 @@
         ],
         "id": "672e2d34-1aae-47c7-8b7a-e3354bbbd662",
         "rarity": "common"
+    },
+    {
+        "name": "Auroral Procession",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "U": 1,
+            "G": 1
+        },
+        "oracleText": "Return target card from your graveyard to your hand.",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "hand"
+            }
+        ],
+        "targetRequirement": {
+            "type": "card",
+            "count": 1,
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "id": "672f94ad-65d6-4c7d-925d-165ef264626f",
+        "rarity": "uncommon"
     },
     {
         "name": "Veteran Cavalier",
@@ -60487,6 +62399,34 @@
         "rarity": "common"
     },
     {
+        "name": "Wildwood Rebirth",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "oracleText": "Return target creature card from your graveyard to your hand.",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "hand"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "id": "713a93a1-4442-4d5b-ad7a-136b87b5f7ab",
+        "rarity": "common"
+    },
+    {
         "name": "Illegitimate Business",
         "types": [
             "Land"
@@ -61542,6 +63482,33 @@
             "infect"
         ],
         "id": "73071a3b-9329-418e-9285-fa4765463d1f",
+        "rarity": "common"
+    },
+    {
+        "name": "Ritual of Restoration",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "oracleText": "Return target artifact card from your graveyard to your hand.",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "hand"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Artifact",
+            "count": 1,
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "id": "73142844-de7c-4427-8183-c2281bde6449",
         "rarity": "common"
     },
     {
@@ -63019,6 +64986,72 @@
         "rarity": "common"
     },
     {
+        "name": "Glissa, the Traitor",
+        "types": [
+            "Creature"
+        ],
+        "supertypes": [
+            "Legendary"
+        ],
+        "subtypes": [
+            "Phyrexian",
+            "Zombie",
+            "Elf"
+        ],
+        "manaCost": {
+            "B": 1,
+            "G": 2
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "First strike, deathtouch\nWhenever a creature an opponent controls dies, you may return target artifact card from your graveyard to your hand.",
+        "staticAbilities": [
+            "first strike",
+            "deathtouch"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "glissa-the-traitor-trigger",
+                "oracleText": "Whenever a creature an opponent controls dies, you may return target artifact card from your graveyard to your hand.",
+                "head": {
+                    "kind": "died",
+                    "scope": "opponents"
+                },
+                "targetRequirement": {
+                    "type": "Artifact",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Return target artifact card from your graveyard to your hand?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "moveZone",
+                                "target": {
+                                    "target": 0
+                                },
+                                "to": "hand"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "755e0fbf-4f00-4b05-a535-27e78e96d6b6",
+        "rarity": "mythic"
+    },
+    {
         "name": "Staggershock",
         "types": [
             "Instant"
@@ -63538,6 +65571,37 @@
         ],
         "id": "760a329c-e815-49d3-8df1-d052ce19b0c6",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Reaping the Graves",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "oracleText": "Return target creature card from your graveyard to your hand.\nStorm (When you cast this spell, copy it for each spell cast before it this turn. You may choose new targets for the copies.)",
+        "staticAbilities": [
+            "storm"
+        ],
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "hand"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "id": "760a66bd-2821-4710-8f02-3c30772dd884",
+        "rarity": "common"
     },
     {
         "name": "Spectral Reserves",
@@ -66235,6 +68299,35 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Revive",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "oracleText": "Return target green card from your graveyard to your hand.",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "hand"
+            }
+        ],
+        "targetRequirement": {
+            "type": "card",
+            "count": 1,
+            "colorFilter": "G",
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "id": "7b19b453-8393-424d-9578-3ab568c92882",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Fallen Ferromancer",
         "types": [
             "Creature"
@@ -66991,6 +69084,34 @@
         },
         "id": "7c5a6fa8-d422-4e56-9e7b-2ff2fc8aecfe",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Déjà Vu",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1
+        },
+        "oracleText": "Return target sorcery card from your graveyard to your hand.",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "hand"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Sorcery",
+            "count": 1,
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "id": "7c93d4e9-7fd6-4814-b86b-89b92d1dad3b",
+        "rarity": "common"
     },
     {
         "name": "Sylvok Replica",
@@ -68551,6 +70672,63 @@
         "rarity": "common"
     },
     {
+        "name": "Cartographer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "When this creature enters, you may return target land card from your graveyard to your hand.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "cartographer-trigger",
+                "oracleText": "When this creature enters, you may return target land card from your graveyard to your hand.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Land",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Return target land card from your graveyard to your hand?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "moveZone",
+                                "target": {
+                                    "target": 0
+                                },
+                                "to": "hand"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "7f2c2cc9-37ce-435e-9df2-083d5e3c8c5c",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Rorix Bladewing",
         "types": [
             "Creature"
@@ -69609,6 +71787,34 @@
         ],
         "id": "80bccca0-6425-4676-a98a-e0721a6beff7",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Elven Cache",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 2
+        },
+        "oracleText": "Return target card from your graveyard to your hand.",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "hand"
+            }
+        ],
+        "targetRequirement": {
+            "type": "card",
+            "count": 1,
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "id": "80fa078f-c74a-42b2-af97-7ca2c29dc316",
+        "rarity": "common"
     },
     {
         "name": "Tangletrap",
@@ -70972,6 +73178,49 @@
             }
         ],
         "id": "830d1980-f460-4be2-9379-c3f74c8318f3",
+        "rarity": "common"
+    },
+    {
+        "name": "Trusty Packbeast",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Beast"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 3,
+        "oracleText": "When this creature enters, return target artifact card from your graveyard to your hand.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "trusty-packbeast-trigger",
+                "oracleText": "When this creature enters, return target artifact card from your graveyard to your hand.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Artifact",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ]
+            }
+        ],
+        "id": "8320e35b-15b9-4f98-b9b8-9c951696408b",
         "rarity": "common"
     },
     {
@@ -73419,6 +75668,61 @@
         "rarity": "common"
     },
     {
+        "name": "Baloth Null",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Zombie",
+            "Beast"
+        ],
+        "manaCost": {
+            "X": 4,
+            "B": 1,
+            "G": 1
+        },
+        "power": 4,
+        "toughness": 5,
+        "oracleText": "When this creature enters, return up to two target creature cards from your graveyard to your hand.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "baloth-null-trigger",
+                "oracleText": "When this creature enters, return up to two target creature cards from your graveyard to your hand.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": {
+                        "min": 0,
+                        "max": 2
+                    },
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    },
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 1
+                        },
+                        "to": "hand"
+                    }
+                ]
+            }
+        ],
+        "id": "8811d210-23e2-4318-9730-7ee3b2021c68",
+        "rarity": "uncommon"
+    },
+    {
         "name": "TCRI Building",
         "types": [
             "Land"
@@ -75384,6 +77688,64 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Scrivener",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 4,
+            "U": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "When this creature enters, you may return target instant card from your graveyard to your hand.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "scrivener-trigger",
+                "oracleText": "When this creature enters, you may return target instant card from your graveyard to your hand.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Instant",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Return target instant card from your graveyard to your hand?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "moveZone",
+                                "target": {
+                                    "target": 0
+                                },
+                                "to": "hand"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "8b236bba-160a-4637-a83e-8456834ce59f",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Wall of Mulch",
         "types": [
             "Creature"
@@ -77039,6 +79401,56 @@
         "rarity": "common"
     },
     {
+        "name": "Angel of Flight Alabaster",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Angel"
+        ],
+        "manaCost": {
+            "X": 4,
+            "W": 1
+        },
+        "power": 4,
+        "toughness": 4,
+        "oracleText": "Flying\nAt the beginning of your upkeep, return target Spirit card from your graveyard to your hand.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "angel-of-flight-alabaster-trigger",
+                "oracleText": "At the beginning of your upkeep, return target Spirit card from your graveyard to your hand.",
+                "head": {
+                    "kind": "phase",
+                    "phase": "UPKEEP",
+                    "scope": "your"
+                },
+                "targetRequirement": {
+                    "type": "card",
+                    "count": 1,
+                    "subtypeFilter": [
+                        "Spirit"
+                    ],
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ]
+            }
+        ],
+        "id": "8dfe629f-485c-4619-9713-32d2ae406e63",
+        "rarity": "rare"
+    },
+    {
         "name": "Walking Corpse",
         "types": [
             "Creature"
@@ -77184,6 +79596,74 @@
         },
         "id": "8e48a2f3-9c30-4187-868e-33dbf5e279fc",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Tilling Treefolk",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Treefolk",
+            "Druid"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 3,
+        "oracleText": "When this creature enters, you may return up to two target land cards from your graveyard to your hand.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "tilling-treefolk-trigger",
+                "oracleText": "When this creature enters, you may return up to two target land cards from your graveyard to your hand.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Land",
+                    "count": {
+                        "min": 0,
+                        "max": 2
+                    },
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Return up to two target land cards from your graveyard to your hand?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "moveZone",
+                                "target": {
+                                    "target": 0
+                                },
+                                "to": "hand"
+                            },
+                            {
+                                "op": "moveZone",
+                                "target": {
+                                    "target": 1
+                                },
+                                "to": "hand"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "8e4a10d0-214d-4e7b-9683-c84034f8f6b7",
+        "rarity": "common"
     },
     {
         "name": "Pelakka Wurm",
@@ -79581,6 +82061,38 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Morgue Theft",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Return target creature card from your graveyard to your hand.\nFlashback {4}{B} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "hand"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "flashback": {
+            "X": 4,
+            "B": 1
+        },
+        "id": "937465ca-4cf7-4412-86eb-264efb0fdddd",
+        "rarity": "common"
+    },
+    {
         "name": "Elven Fortress",
         "types": [
             "Enchantment"
@@ -81107,6 +83619,49 @@
         "rarity": "common"
     },
     {
+        "name": "Urborg Uprising",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 4,
+            "B": 1
+        },
+        "oracleText": "Return up to two target creature cards from your graveyard to your hand.\nDraw a card.",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "hand"
+            },
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 1
+                },
+                "to": "hand"
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": {
+                "min": 0,
+                "max": 2
+            },
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "id": "961619e3-f48b-4099-8a33-ca1e294085dd",
+        "rarity": "common"
+    },
+    {
         "name": "Updraft Elemental",
         "types": [
             "Creature"
@@ -81985,6 +84540,44 @@
         "rarity": "common"
     },
     {
+        "name": "March of the Returned",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "oracleText": "Return up to two target creature cards from your graveyard to your hand.",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "hand"
+            },
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 1
+                },
+                "to": "hand"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": {
+                "min": 0,
+                "max": 2
+            },
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "id": "983f7521-16e3-4057-a482-7d86392daa57",
+        "rarity": "common"
+    },
+    {
         "name": "Azorius Guildgate",
         "types": [
             "Land"
@@ -82014,6 +84607,55 @@
         "entersTapped": true,
         "id": "984e37df-0734-493a-a958-f519a0c98580",
         "rarity": "common"
+    },
+    {
+        "name": "Schismotivate",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1,
+            "R": 1
+        },
+        "oracleText": "Target creature gets +4/+0 until end of turn. Another target creature gets -4/-0 until end of turn.",
+        "effects": [
+            {
+                "op": "pump",
+                "target": {
+                    "target": 0
+                },
+                "power": 4,
+                "toughness": 0,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "pump",
+                "target": {
+                    "target": 1
+                },
+                "power": -4,
+                "toughness": 0,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "additionalTargetRequirements": [
+            {
+                "type": "Creature",
+                "count": 1,
+                "excludePriorTargets": true
+            }
+        ],
+        "id": "98510af3-a884-417a-8cd9-991890d42919",
+        "rarity": "uncommon"
     },
     {
         "name": "Gruul Nodorog",
@@ -83132,6 +85774,33 @@
         },
         "id": "999440a5-9659-4218-8594-1950f1155975",
         "rarity": "rare"
+    },
+    {
+        "name": "Disentomb",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "B": 1
+        },
+        "oracleText": "Return target creature card from your graveyard to your hand.",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "hand"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "id": "99a329a0-a14a-49b9-adcd-397b566211ee",
+        "rarity": "common"
     },
     {
         "name": "Beast Walkers",
@@ -84603,6 +87272,68 @@
         "power": 4,
         "toughness": 5,
         "id": "9c699b5f-a2de-4c87-a7bc-16be4bc0a8cd",
+        "rarity": "common"
+    },
+    {
+        "name": "Corpse Cur",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Phyrexian",
+            "Dog"
+        ],
+        "manaCost": {
+            "X": 4
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Infect (This creature deals damage to creatures in the form of -1/-1 counters and to players in the form of poison counters.)\nWhen this creature enters, you may return target creature card with infect from your graveyard to your hand.",
+        "staticAbilities": [
+            "infect"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "corpse-cur-trigger",
+                "oracleText": "When this creature enters, you may return target creature card with infect from your graveyard to your hand.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "requireAbility": "infect",
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Return target creature card with infect from your graveyard to your hand?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "moveZone",
+                                "target": {
+                                    "target": 0
+                                },
+                                "to": "hand"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "9c6e19a1-b9ea-4724-96d6-63c4b4967257",
         "rarity": "common"
     },
     {
@@ -86432,6 +89163,65 @@
         "rarity": "rare"
     },
     {
+        "name": "Jilt",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "oracleText": "Kicker {1}{R} (You may pay an additional {1}{R} as you cast this spell.)\nReturn target creature to its owner's hand. If this spell was kicked, it deals 2 damage to another target creature.",
+        "kickers": [
+            {
+                "id": "kicker",
+                "description": "Kicker {1}{R}",
+                "mana": {
+                    "X": 1,
+                    "R": 1
+                }
+            }
+        ],
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "hand"
+            },
+            {
+                "op": "if",
+                "predicate": {
+                    "left": {
+                        "kickerCount": true
+                    },
+                    "op": "ge",
+                    "right": 1
+                },
+                "then": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 2,
+                        "to": {
+                            "target": 1
+                        }
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "kickedTargetRequirement": {
+            "type": "Creature",
+            "count": 2
+        },
+        "id": "a010d2b1-960d-4032-a47a-61fe0998bee3",
+        "rarity": "common"
+    },
+    {
         "name": "Briarpack Alpha",
         "types": [
             "Creature"
@@ -86652,6 +89442,75 @@
         ],
         "id": "a0811f91-ed92-4a8e-badd-ae5054e7707d",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Wort, Boggart Auntie",
+        "types": [
+            "Creature"
+        ],
+        "supertypes": [
+            "Legendary"
+        ],
+        "subtypes": [
+            "Goblin",
+            "Shaman"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1,
+            "R": 1
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "Fear (This creature can't be blocked except by artifact creatures and/or black creatures.)\nAt the beginning of your upkeep, you may return target Goblin card from your graveyard to your hand.",
+        "staticAbilities": [
+            "fear"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "wort-boggart-auntie-trigger",
+                "oracleText": "At the beginning of your upkeep, you may return target Goblin card from your graveyard to your hand.",
+                "head": {
+                    "kind": "phase",
+                    "phase": "UPKEEP",
+                    "scope": "your"
+                },
+                "targetRequirement": {
+                    "type": "card",
+                    "count": 1,
+                    "subtypeFilter": [
+                        "Goblin"
+                    ],
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Return target Goblin card from your graveyard to your hand?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "moveZone",
+                                "target": {
+                                    "target": 0
+                                },
+                                "to": "hand"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "a08a1377-dede-47c8-8447-c9df125f3b14",
+        "rarity": "rare"
     },
     {
         "name": "Sisay's Ring",
@@ -87608,6 +90467,64 @@
         },
         "id": "a2908ed1-517e-4f1a-94e5-b06fb033c1a6",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Anarchist",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 4,
+            "R": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "When this creature enters, you may return target sorcery card from your graveyard to your hand.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "anarchist-trigger",
+                "oracleText": "When this creature enters, you may return target sorcery card from your graveyard to your hand.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Sorcery",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Return target sorcery card from your graveyard to your hand?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "moveZone",
+                                "target": {
+                                    "target": 0
+                                },
+                                "to": "hand"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "a298df66-2075-40a7-bced-457656b6b788",
+        "rarity": "common"
     },
     {
         "name": "Crush",
@@ -89515,6 +92432,83 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Odunos River Trawler",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Zombie"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "When this creature enters, return target enchantment creature card from your graveyard to your hand.\n{W}, Sacrifice this creature: Return target enchantment creature card from your graveyard to your hand.",
+        "activatedAbilities": [
+            {
+                "id": "odunos-river-trawler-ability",
+                "oracleText": "{W}, Sacrifice this creature: Return target enchantment creature card from your graveyard to your hand.",
+                "cost": {
+                    "mana": {
+                        "W": 1
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": [
+                        "Enchantment",
+                        "Creature"
+                    ],
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                }
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "odunos-river-trawler-trigger",
+                "oracleText": "When this creature enters, return target enchantment creature card from your graveyard to your hand.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": [
+                        "Enchantment",
+                        "Creature"
+                    ],
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ]
+            }
+        ],
+        "id": "a5d1eda4-ac34-4905-9022-59f91d38dbb3",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Gin'tak Charge",
         "types": [
             "Sorcery"
@@ -89638,6 +92632,49 @@
         ],
         "id": "a60313ca-10cc-4c33-a557-1401c5721e3b",
         "rarity": "rare"
+    },
+    {
+        "name": "Rootwater Diver",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Merfolk"
+        ],
+        "manaCost": {
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{T}, Sacrifice this creature: Return target artifact card from your graveyard to your hand.",
+        "activatedAbilities": [
+            {
+                "id": "rootwater-diver-ability",
+                "oracleText": "{T}, Sacrifice this creature: Return target artifact card from your graveyard to your hand.",
+                "cost": {
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Artifact",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                }
+            }
+        ],
+        "id": "a6315323-cf82-46c0-b164-e6ea1bf809f4",
+        "rarity": "uncommon"
     },
     {
         "name": "Sugar Rush",
@@ -97004,6 +100041,54 @@
         "rarity": "rare"
     },
     {
+        "name": "Dowsing Shaman",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Centaur",
+            "Shaman"
+        ],
+        "manaCost": {
+            "X": 4,
+            "G": 1
+        },
+        "power": 3,
+        "toughness": 4,
+        "oracleText": "{2}{G}, {T}: Return target enchantment card from your graveyard to your hand.",
+        "activatedAbilities": [
+            {
+                "id": "dowsing-shaman-ability",
+                "oracleText": "{2}{G}, {T}: Return target enchantment card from your graveyard to your hand.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "G": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Enchantment",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                }
+            }
+        ],
+        "id": "b34ac5bd-2d2f-4c44-8f2d-aaa8fa18e81a",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Scar",
         "types": [
             "Instant"
@@ -98198,6 +101283,52 @@
         ],
         "id": "b562c7d0-60f6-4db3-a427-f553aefdd86d",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Griffin Dreamfinder",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Griffin"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 2
+        },
+        "power": 1,
+        "toughness": 4,
+        "oracleText": "Flying\nWhen this creature enters, return target enchantment card from your graveyard to your hand.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "griffin-dreamfinder-trigger",
+                "oracleText": "When this creature enters, return target enchantment card from your graveyard to your hand.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Enchantment",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ]
+            }
+        ],
+        "id": "b569fadd-d9ca-4b0d-bee2-9d45574e56f0",
+        "rarity": "common"
     },
     {
         "name": "Flowstone Infusion",
@@ -100615,6 +103746,63 @@
         "rarity": "common"
     },
     {
+        "name": "Gravedigger",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Zombie"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "When this creature enters, you may return target creature card from your graveyard to your hand.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "gravedigger-trigger",
+                "oracleText": "When this creature enters, you may return target creature card from your graveyard to your hand.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Return target creature card from your graveyard to your hand?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "moveZone",
+                                "target": {
+                                    "target": 0
+                                },
+                                "to": "hand"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "b979d70e-d514-420f-886c-f60e2bb1861f",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Memorial to Genius",
         "types": [
             "Land"
@@ -101749,6 +104937,92 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Golgari Guildmage",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elf",
+            "Shaman"
+        ],
+        "manaCost": {
+            "hybrid": [
+                [
+                    "B",
+                    "G"
+                ],
+                [
+                    "B",
+                    "G"
+                ]
+            ]
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{4}{B}, Sacrifice a creature: Return target creature card from your graveyard to your hand.\n{4}{G}: Put a +1/+1 counter on target creature.",
+        "activatedAbilities": [
+            {
+                "id": "golgari-guildmage-ability",
+                "oracleText": "{4}{B}, Sacrifice a creature: Return target creature card from your graveyard to your hand.",
+                "cost": {
+                    "mana": {
+                        "X": 4,
+                        "B": 1
+                    },
+                    "sacrificeFilter": {
+                        "types": [
+                            "Creature"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                }
+            },
+            {
+                "id": "golgari-guildmage-ability-2",
+                "oracleText": "{4}{G}: Put a +1/+1 counter on target creature.",
+                "cost": {
+                    "mana": {
+                        "X": 4,
+                        "G": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "counters",
+                        "action": "add",
+                        "counter": "+1/+1",
+                        "target": {
+                            "target": 0
+                        },
+                        "count": 1
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "bb60bf3f-d81f-46d7-b171-b8bba9969aa9",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Symbiotic Beast",
         "types": [
             "Creature"
@@ -102768,6 +106042,44 @@
             }
         ],
         "id": "bd641b1d-dab8-415b-9655-09e033df761d",
+        "rarity": "common"
+    },
+    {
+        "name": "Morbid Plunder",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 2
+        },
+        "oracleText": "Return up to two target creature cards from your graveyard to your hand.",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "hand"
+            },
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 1
+                },
+                "to": "hand"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": {
+                "min": 0,
+                "max": 2
+            },
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "id": "bd6a8817-05fc-400e-9464-b7d925c5c312",
         "rarity": "common"
     },
     {
@@ -107021,6 +110333,65 @@
         ],
         "id": "c59b3653-5a50-48f2-bcf1-ab305ef30902",
         "rarity": "common"
+    },
+    {
+        "name": "Woebearer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Zombie"
+        ],
+        "manaCost": {
+            "X": 4,
+            "B": 1
+        },
+        "power": 2,
+        "toughness": 3,
+        "oracleText": "Fear (This creature can't be blocked except by artifact creatures and/or black creatures.)\nWhenever this creature deals combat damage to a player, you may return target creature card from your graveyard to your hand.",
+        "staticAbilities": [
+            "fear"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "woebearer-trigger",
+                "oracleText": "Whenever this creature deals combat damage to a player, you may return target creature card from your graveyard to your hand.",
+                "head": {
+                    "kind": "combat-damage-to-player"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Return target creature card from your graveyard to your hand?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "moveZone",
+                                "target": {
+                                    "target": 0
+                                },
+                                "to": "hand"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "c5a6e960-169d-431a-9ebd-c4413aa67377",
+        "rarity": "uncommon"
     },
     {
         "name": "Avengers Hangar",
@@ -114605,6 +117976,44 @@
         "rarity": "common"
     },
     {
+        "name": "Dutiful Return",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "oracleText": "Return up to two target creature cards from your graveyard to your hand.",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "hand"
+            },
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 1
+                },
+                "to": "hand"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": {
+                "min": 0,
+                "max": 2
+            },
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "id": "d5f83b3a-ce34-4179-8745-059181dd79b8",
+        "rarity": "common"
+    },
+    {
         "name": "Asgardian Citadel",
         "types": [
             "Land"
@@ -115072,6 +118481,47 @@
         "rarity": "common"
     },
     {
+        "name": "Unmake the Graves",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 4,
+            "B": 1
+        },
+        "oracleText": "Convoke (Your creatures can help cast this spell. Each creature you tap while casting this spell pays for {1} or one mana of that creature's color.)\nReturn up to two target creature cards from your graveyard to your hand.",
+        "staticAbilities": [
+            "convoke"
+        ],
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "hand"
+            },
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 1
+                },
+                "to": "hand"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": {
+                "min": 0,
+                "max": 2
+            },
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "id": "d6fd00bb-b247-45b7-9cb2-0d65b92c0360",
+        "rarity": "common"
+    },
+    {
         "name": "Pillarfield Ox",
         "types": [
             "Creature"
@@ -115146,6 +118596,49 @@
             "defender"
         ],
         "id": "d71db75c-c896-4887-ba18-92416fa6cbd5",
+        "rarity": "common"
+    },
+    {
+        "name": "Pull from the Grave",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "oracleText": "Return up to two target creature cards from your graveyard to your hand. You gain 2 life.",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "hand"
+            },
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 1
+                },
+                "to": "hand"
+            },
+            {
+                "op": "gainLife",
+                "player": "controller",
+                "amount": 2
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": {
+                "min": 0,
+                "max": 2
+            },
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "id": "d73612fe-8992-4650-a7e3-c7b662da6a03",
         "rarity": "common"
     },
     {
@@ -118300,6 +121793,79 @@
         "rarity": "common"
     },
     {
+        "name": "Drooling Groodion",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Beast"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 2,
+            "G": 1
+        },
+        "power": 4,
+        "toughness": 3,
+        "oracleText": "{2}{B}{G}, Sacrifice a creature: Target creature gets +2/+2 until end of turn. Another target creature gets -2/-2 until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "drooling-groodion-ability",
+                "oracleText": "{2}{B}{G}, Sacrifice a creature: Target creature gets +2/+2 until end of turn. Another target creature gets -2/-2 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "B": 1,
+                        "G": 1
+                    },
+                    "sacrificeFilter": {
+                        "types": [
+                            "Creature"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "target": 0
+                        },
+                        "power": 2,
+                        "toughness": 2,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    },
+                    {
+                        "op": "pump",
+                        "target": {
+                            "target": 1
+                        },
+                        "power": -2,
+                        "toughness": -2,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                },
+                "additionalTargetRequirements": [
+                    {
+                        "type": "Creature",
+                        "count": 1,
+                        "excludePriorTargets": true
+                    }
+                ]
+            }
+        ],
+        "id": "de33c222-0d74-4eb5-8794-39f3601eb8f4",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Bargain",
         "types": [
             "Sorcery"
@@ -120142,6 +123708,44 @@
             }
         ],
         "id": "e1a866e6-4108-4290-9680-8f1652fbcf77",
+        "rarity": "common"
+    },
+    {
+        "name": "Fight On!",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "oracleText": "Return up to two target creature cards from your graveyard to your hand.",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "hand"
+            },
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 1
+                },
+                "to": "hand"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": {
+                "min": 0,
+                "max": 2
+            },
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "id": "e1b0739a-dcc4-4034-96d7-69e551b2f36b",
         "rarity": "common"
     },
     {
@@ -123919,6 +127523,53 @@
         "rarity": "common"
     },
     {
+        "name": "Lotus-Eye Mystics",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Monk"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "power": 3,
+        "toughness": 2,
+        "oracleText": "Prowess (Whenever you cast a noncreature spell, this creature gets +1/+1 until end of turn.)\nWhen this creature enters, return target enchantment card from your graveyard to your hand.",
+        "staticAbilities": [
+            "prowess"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "lotus-eye-mystics-trigger",
+                "oracleText": "When this creature enters, return target enchantment card from your graveyard to your hand.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Enchantment",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ]
+            }
+        ],
+        "id": "e8bf97a0-2b90-4006-8a54-7795dbc0dba1",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Mandroid Squadron",
         "types": [
             "Artifact",
@@ -123986,6 +127637,55 @@
         },
         "id": "e8fe0c8e-f361-4eac-8c2c-ca6602dad352",
         "rarity": "common"
+    },
+    {
+        "name": "Buried Ruin",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {C}.\n{2}, {T}, Sacrifice this land: Return target artifact card from your graveyard to your hand.",
+        "activatedAbilities": [
+            {
+                "id": "buried-ruin-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "buried-ruin-ability-2",
+                "oracleText": "{2}, {T}, Sacrifice this land: Return target artifact card from your graveyard to your hand.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Artifact",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                }
+            }
+        ],
+        "id": "e910cf59-f7aa-44b1-bb8a-c2211179137c",
+        "rarity": "uncommon"
     },
     {
         "name": "Candlelight Vigil",
@@ -124946,6 +128646,52 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Petrified Field",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {C}.\n{T}, Sacrifice this land: Return target land card from your graveyard to your hand.",
+        "activatedAbilities": [
+            {
+                "id": "petrified-field-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "petrified-field-ability-2",
+                "oracleText": "{T}, Sacrifice this land: Return target land card from your graveyard to your hand.",
+                "cost": {
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Land",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                }
+            }
+        ],
+        "id": "eaeaf9f2-d196-4607-a704-06f2315d8cc5",
+        "rarity": "rare"
+    },
+    {
         "name": "Somnomancer",
         "types": [
             "Creature"
@@ -125447,6 +129193,57 @@
         ],
         "id": "ebacbf23-4b69-481c-aaf7-5de7b4a6db6f",
         "rarity": "common"
+    },
+    {
+        "name": "Memorial to Folly",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "This land enters tapped.\n{T}: Add {B}.\n{2}{B}, {T}, Sacrifice this land: Return target creature card from your graveyard to your hand.",
+        "activatedAbilities": [
+            {
+                "id": "memorial-to-folly-mana",
+                "oracleText": "{T}: Add {B}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "B": 1
+                }
+            },
+            {
+                "id": "memorial-to-folly-ability-2",
+                "oracleText": "{2}{B}, {T}, Sacrifice this land: Return target creature card from your graveyard to your hand.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "B": 1
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                }
+            }
+        ],
+        "entersTapped": true,
+        "id": "ebbe56f2-aec5-4e8b-8003-1bf1ca7f5659",
+        "rarity": "uncommon"
     },
     {
         "name": "Skeletal Crocodile",
@@ -127549,6 +131346,55 @@
         },
         "id": "f00192e0-439d-43b2-882c-90a2d52103f8",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Consume Strength",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1,
+            "G": 1
+        },
+        "oracleText": "Target creature gets +2/+2 until end of turn. Another target creature gets -2/-2 until end of turn.",
+        "effects": [
+            {
+                "op": "pump",
+                "target": {
+                    "target": 0
+                },
+                "power": 2,
+                "toughness": 2,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "pump",
+                "target": {
+                    "target": 1
+                },
+                "power": -2,
+                "toughness": -2,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "additionalTargetRequirements": [
+            {
+                "type": "Creature",
+                "count": 1,
+                "excludePriorTargets": true
+            }
+        ],
+        "id": "f005fc90-7e81-4bd4-a479-438337110979",
+        "rarity": "common"
     },
     {
         "name": "Rubble Slinger",
@@ -130007,6 +133853,57 @@
         "rarity": "mythic"
     },
     {
+        "name": "Undertaker",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Spellshaper"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{B}, {T}, Discard a card: Return target creature card from your graveyard to your hand.",
+        "activatedAbilities": [
+            {
+                "id": "undertaker-ability",
+                "oracleText": "{B}, {T}, Discard a card: Return target creature card from your graveyard to your hand.",
+                "cost": {
+                    "mana": {
+                        "B": 1
+                    },
+                    "tap": true,
+                    "discardFilter": {
+                        "filter": {},
+                        "count": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                }
+            }
+        ],
+        "id": "f615f531-e8af-4f7b-a4ea-fb962149093f",
+        "rarity": "common"
+    },
+    {
         "name": "Mask of Intolerance",
         "types": [
             "Artifact"
@@ -131695,6 +135592,52 @@
         ],
         "id": "f8805db2-5a26-43cf-9b74-f882c283e5e4",
         "rarity": "common"
+    },
+    {
+        "name": "Sibsig Muckdraggers",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Zombie"
+        ],
+        "manaCost": {
+            "X": 8,
+            "B": 1
+        },
+        "power": 3,
+        "toughness": 6,
+        "oracleText": "Delve (Each card you exile from your graveyard while casting this spell pays for {1}.)\nWhen this creature enters, return target creature card from your graveyard to your hand.",
+        "staticAbilities": [
+            "delve"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "sibsig-muckdraggers-trigger",
+                "oracleText": "When this creature enters, return target creature card from your graveyard to your hand.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ]
+            }
+        ],
+        "id": "f88297c1-c612-47bf-80b7-374099b00e07",
+        "rarity": "uncommon"
     },
     {
         "name": "Failed Inspection",

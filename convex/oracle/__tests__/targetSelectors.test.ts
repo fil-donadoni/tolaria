@@ -110,9 +110,9 @@ describe("wide announcement — 'up to two target …' (CR 601.2c)", () => {
     });
 
     it("refuses a bare plural count — the head is what makes it optional", () => {
-        // CR 601.2c — "two target creatures" is a FIXED count: too few legal
-        // targets makes the whole spell uncastable, which is a different
-        // announcement rule, not a wider spelling of "up to two".
+        // CR 601.2c — "two target creatures" is a FIXED count: an appropriate
+        // object is announced for EACH target the spell requires, which is a
+        // different announcement, not a wider spelling of "up to two".
         expect(compileCard(spell("Tap two target creatures.")).state).toBe(
             "unparsed"
         );
