@@ -9,6 +9,7 @@
  * kinds built on top of it and the orphan-card pass.
  */
 
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { cardBandIndex, strongestCardBand } from "../lib/backlog-triage";
 import {
@@ -1456,6 +1457,19 @@ describe("gaps:sync --band — the origin band files a P0 run's gaps under P0 (i
             new RegExp(`#${BOTS.P0} holds ${SUB_ISSUE_CAP} sub-issues`)
         );
         expect(tracker.created).toEqual([]);
+    });
+});
+
+describe("gaps-sync main hands the parsed origin band to syncGaps", () => {
+    // `main()` reads the network, so the one argument that carries the band
+    // from `parseOriginBand` into `syncGaps` cannot be run under test; a flag
+    // parsed and then dropped is exactly the failure issue #4158 exists to end.
+    // Pinned by SHAPE, the same way `land.test.ts` pins the locked command.
+    it("passes `originBand` as syncGaps's third argument", () => {
+        const source = readFileSync("scripts/gaps-sync.ts", "utf8");
+        expect(source).toMatch(
+            /syncGaps\(\s*withUnlockBlockers\(filings, blockers\),\s*tracker,\s*originBand\s*\)/
+        );
     });
 });
 
