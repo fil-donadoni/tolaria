@@ -63,6 +63,14 @@ export interface MassSubjectIR {
     readonly select: PermanentSweepSelector;
     /** CR 202.3 + CR 107.3 — "… with mana value X or less". */
     readonly manaValueAtMostX: boolean;
+    /**
+     * CR 115.1 + CR 109.5 — "creatures TARGET PLAYER controls": whose
+     * battlefield is swept is an announced player, so the LOWERING allocates
+     * that target slot and writes it as the selector's `controller`. The
+     * selector this sub-grammar builds carries no controller in that case —
+     * the slot does not exist until the sentence walk assigns it.
+     */
+    readonly targetPlayerControls?: true;
 }
 
 /** " with mana value X or less" — the one bound this sub-grammar reads. */
@@ -238,5 +246,62 @@ export const massSubjectRule: Rule<MassSubjectIR> = subGrammar(
         );
         if (!selector.ok) return fail(selector.reason, selector.fragment);
         return ok({ select: selector.value, manaValueAtMostX: bounded });
+    })
+);
+
+/** " target player controls" — the announced-player controller qualifier. */
+const TARGET_PLAYER_CONTROLS = / target player controls$/;
+
+/**
+ * A plural descriptor QUALIFIED by whose permanents it names, with no
+ * determiner: "Creatures you control", "Zombie creatures you control",
+ * "Creatures target player controls" (CR 109.5).
+ *
+ * This is the shape a group pump is printed in, and it is a fourth mass
+ * subject beside the three determiners above — not a widening of them: the
+ * qualifier is REQUIRED. "Creatures get +1/+1" with no controller is a
+ * different sentence (every creature on the battlefield) that nothing prints
+ * and that a determiner-less rule would let through by omission, so the bare
+ * plural is refused rather than read as "all".
+ *
+ * The span may open capitalised ("Zombie creatures you control get …" opens a
+ * sentence, and "Zombie" is a CR 205.3 subtype whose capital carries meaning),
+ * so the descriptor is tried lowercased first — the sentence-initial function
+ * word — and as printed second.
+ */
+export const controlledPluralRule: Rule<MassSubjectIR> = subGrammar(
+    MASS_SUBJECT,
+    rule(MASS_SUBJECT, (span, ctx) => {
+        const targeted = TARGET_PLAYER_CONTROLS.test(span);
+        const noun = targeted ? span.replace(TARGET_PLAYER_CONTROLS, "") : span;
+        const lower =
+            noun.length === 0 ? noun : noun[0]!.toLowerCase() + noun.slice(1);
+        const read = descriptorRule.run(conjunctionToDisjunction(lower), ctx);
+        const descriptor = read.ok
+            ? read
+            : descriptorRule.run(conjunctionToDisjunction(noun), ctx);
+        if (!descriptor.ok) return descriptor;
+        if (descriptor.value.plural !== true)
+            return fail("a qualified mass subject is a plural noun", span);
+        if (targeted) {
+            if (descriptor.value.controller !== undefined)
+                return fail("two controller clauses", span);
+        } else if (descriptor.value.controller !== "you") {
+            return fail(
+                'a plural subject without "all" names whose permanents: "you control" or "target player controls"',
+                span
+            );
+        }
+        const selector = sweepSelector(
+            descriptor.value,
+            false,
+            /, | and | or /.test(noun)
+        );
+        if (!selector.ok) return fail(selector.reason, selector.fragment);
+        return ok({
+            select: selector.value,
+            manaValueAtMostX: false,
+            ...(targeted ? { targetPlayerControls: true as const } : {}),
+        });
     })
 );

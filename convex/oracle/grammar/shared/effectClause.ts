@@ -27,6 +27,7 @@
 
 import type { TargetRequirement } from "../../../cards/types";
 import type { KeywordIR } from "../ir";
+import type { CardType } from "../../../cards/types";
 import type { Phase } from "../../../gre/types";
 import {
     fail,
@@ -50,8 +51,16 @@ import {
     type ConditionIR,
     type KickedRefIR,
 } from "./condition";
-import { massSubjectRule, type MassSubjectIR } from "./massSubject";
-import { opensTargetPhrase, targetFilterRule } from "./targetFilter";
+import {
+    controlledPluralRule,
+    massSubjectRule,
+    type MassSubjectIR,
+} from "./massSubject";
+import {
+    descriptorRule,
+    opensTargetPhrase,
+    targetFilterRule,
+} from "./targetFilter";
 import { zoneRefRule, type ZoneRefIR } from "./zoneRef";
 import { CREATURE_SUBTYPES } from "./subtypes";
 import { createTokenRule, type CreateTokenIR } from "./tokenSpec";
@@ -153,6 +162,33 @@ export type EffectSentenceIR =
           readonly power: number;
           readonly toughness: number;
           readonly duration: DurationIR;
+          /**
+           * CR 207.2c — "… for each basic land type among lands you control":
+           * the printed ±1 is a per-tally step, so each stat is that step
+           * times the controller's Domain. Pinned to a step of exactly ±1 on
+           * both stats (the one form the corpus prints); any other magnitude
+           * stays refused rather than read as a multiplier nobody evidenced.
+           */
+          readonly perDomain?: true;
+      }
+    | {
+          /**
+           * CR 205.1b + CR 613.1d/f — "All lands you control become 1/1
+           * creatures until end of turn. They're still lands.": every member
+           * of a sweep gains the Creature type and a base P/T for a duration,
+           * KEEPING the types it has. The keeping is the rider's, not the first
+           * sentence's — without "They're still lands" the sentence would
+           * replace the types, which is a different effect the `animate` Op
+           * does not express — so `retainsTypes` is set only by folding the
+           * rider in (`assembleSentences`), and lowering refuses an animate
+           * that never got it.
+           */
+          readonly kind: "animate";
+          readonly subject: SubjectIR;
+          readonly power: number;
+          readonly toughness: number;
+          readonly duration: DurationIR;
+          readonly retainsTypes?: true;
       }
     | {
           /**
@@ -445,7 +481,10 @@ export type RestrictionIR =
     | { readonly kind: "any-player" };
 
 /** A sentence that modifies the sentence before it rather than acting itself. */
-export type ModifierIR = { readonly kind: "cant-be-regenerated" };
+export type ModifierIR =
+    | { readonly kind: "cant-be-regenerated" }
+    /** CR 205.1b — "They're still lands.": the animated set keeps its types. */
+    | { readonly kind: "still-types"; readonly types: readonly CardType[] };
 
 export type SentenceIR =
     | { readonly role: "effect"; readonly effect: EffectSentenceIR }
@@ -604,6 +643,40 @@ export function assembleSentences(
             effects[effects.length - 1] = replaced;
             continue;
         }
+        if (
+            sentence.role === "modifier" &&
+            sentence.modifier.kind === "still-types"
+        ) {
+            const previous = effects[effects.length - 1];
+            const swept =
+                previous !== undefined &&
+                previous.kind === "animate" &&
+                previous.subject.kind === "mass"
+                    ? previous.subject.select.filter?.type
+                    : undefined;
+            const named = [...sentence.modifier.types].sort();
+            const sweptTypes = (
+                swept === undefined
+                    ? []
+                    : Array.isArray(swept)
+                      ? [...swept]
+                      : [swept]
+            ).sort();
+            // CR 205.1b — "They're still lands" restates the swept set's own
+            // types; a rider naming any other type keeps nothing that was asked.
+            if (
+                previous === undefined ||
+                previous.kind !== "animate" ||
+                previous.retainsTypes === true ||
+                JSON.stringify(named) !== JSON.stringify(sweptTypes)
+            )
+                return {
+                    ok: false,
+                    reason: '"They\'re still <types>." follows no animation of those types',
+                };
+            effects[effects.length - 1] = { ...previous, retainsTypes: true };
+            continue;
+        }
         if (sentence.role === "modifier") {
             const previous = effects[effects.length - 1];
             if (previous === undefined || previous.kind !== "destroy")
@@ -725,6 +798,23 @@ function sweepableSubject(span: string, ctx: unknown) {
             : mass;
     }
     return subjectRule.run(span, ctx);
+}
+
+/**
+ * The subject of a GROUP verb ("get", "become"): a sweep and nothing else —
+ * "all <plural>", "each <singular>" or a plural qualified by whose permanents
+ * it names ("Creatures you control", "Creatures target player controls").
+ * A single object is not a group, and the verb's number says so.
+ */
+function groupSubject(span: string, ctx: unknown): RuleResult<SubjectIR> {
+    const probe = uncapitalise(span);
+    const mass =
+        probe.startsWith("all ") || probe.startsWith("each ")
+            ? massSubjectRule.run(probe, ctx)
+            : controlledPluralRule.run(span, ctx);
+    return mass.ok
+        ? ok({ kind: "mass" as const, ...mass.value } as SubjectIR)
+        : mass;
 }
 
 /** Lowercase a sentence-initial capital, leaving the rest of the span alone. */
@@ -909,7 +999,21 @@ function playerSubject(span: string, ctx: unknown): PlayerRefIR | null {
 
 // ── Sentence patterns ──────────────────────────────────────────────────────
 
-const PUMP = /^(.+) gets ([+-]\d+)\/([+-]\d+) (.+)$/;
+/**
+ * CR 613.4c — "<subject> gets +N/+N <tail>" (one object) and "<subject> get
+ * +N/+N <tail>" (a group). The verb's number is the subject's: `get` is read
+ * only over a sweep and `gets` only over one object, so a sentence that
+ * disagrees is a line we have misread. "an additional" (CR 613.4c stacks the
+ * bonus with the one an earlier sentence gave) is read only behind the group
+ * verb, the one form the corpus prints.
+ */
+const PUMP = /^(.+) (gets|get) (an additional )?([+-]\d+)\/([+-]\d+) (.+)$/;
+/** CR 207.2c — the Domain tally a per-step pump scales by. */
+const PUMP_PER_DOMAIN = / for each basic land type among lands you control$/;
+/** CR 205.1b — "All lands you control become 1/1 creatures until end of turn". */
+const ANIMATE = /^(.+) become (\d+)\/(\d+) creatures (.+)$/;
+/** CR 205.1b — the rider that keeps the animated set's types. */
+const STILL_TYPES = /^They(?:'|’)re still (.+)$/;
 const DAMAGE = /^(.+) deals (\S+) damage to (.+)$/;
 const DRAW_SELF = /^Draw (\S+) cards?$/;
 const DRAW_PLAYER = /^(.+) draws (\S+) cards?$/;
@@ -1091,6 +1195,29 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
                 role: "modifier" as const,
                 modifier: { kind: "cant-be-regenerated" as const },
             });
+        const still = span.match(STILL_TYPES);
+        if (still !== null) {
+            const noun = descriptorRule.run(still[1]!, ctx);
+            if (!noun.ok) return noun;
+            if (
+                noun.value.plural !== true ||
+                noun.value.types === undefined ||
+                Object.keys(noun.value).some(
+                    (k) => !["types", "plural"].includes(k)
+                )
+            )
+                return fail(
+                    '"They\'re still" names bare plural card types',
+                    span
+                );
+            return ok({
+                role: "modifier" as const,
+                modifier: {
+                    kind: "still-types" as const,
+                    types: noun.value.types as readonly CardType[],
+                },
+            });
+        }
 
         if (INSTEAD.test(span)) return insteadRule.run(span, ctx);
 
@@ -1329,15 +1456,52 @@ function effectSentence(
     // ── pump (CR 613.4c, layer 7c) ─────────────────────────────────────────
     const pump = span.match(PUMP);
     if (pump !== null) {
-        const subject = subjectRule.run(pump[1]!, ctx);
+        const group = pump[2] === "get";
+        if (pump[3] !== undefined && !group)
+            return fail(
+                '"an additional" is read behind the group verb only',
+                span
+            );
+        const subject = group
+            ? groupSubject(pump[1]!, ctx)
+            : subjectRule.run(pump[1]!, ctx);
         if (!subject.ok) return subject;
-        const duration = durationRule.run(pump[4]!, ctx);
+        const power = Number(pump[4]);
+        const toughness = Number(pump[5]);
+        let tail = pump[6]!;
+        const perDomain = PUMP_PER_DOMAIN.test(tail);
+        if (perDomain) {
+            tail = tail.replace(PUMP_PER_DOMAIN, "");
+            if (Math.abs(power) !== 1 || Math.abs(toughness) !== 1)
+                return fail(
+                    "a per-basic-land-type pump is read for a step of exactly one on each stat",
+                    span
+                );
+        }
+        const duration = durationRule.run(tail, ctx);
         if (!duration.ok) return duration;
         return ok({
             kind: "pump" as const,
             subject: subject.value,
-            power: Number(pump[2]),
-            toughness: Number(pump[3]),
+            power,
+            toughness,
+            duration: duration.value,
+            ...(perDomain ? { perDomain: true as const } : {}),
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── animate a sweep (CR 205.1b, layers 4 and 7b) ───────────────────────
+    const animate = span.match(ANIMATE);
+    if (animate !== null) {
+        const subject = groupSubject(animate[1]!, ctx);
+        if (!subject.ok) return subject;
+        const duration = durationRule.run(animate[4]!, ctx);
+        if (!duration.ok) return duration;
+        return ok({
+            kind: "animate" as const,
+            subject: subject.value,
+            power: Number(animate[2]),
+            toughness: Number(animate[3]),
             duration: duration.value,
         } satisfies EffectSentenceIR);
     }
