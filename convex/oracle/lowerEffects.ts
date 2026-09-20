@@ -19,6 +19,7 @@ import type {
     CardType,
     Color,
     EffectCardFilter,
+    EffectCountSpec,
     EffectPlayerRef,
     EffectPredicate,
     EffectSignedValue,
@@ -41,6 +42,7 @@ import {
 import { announcedSlots } from "./grammar/shared/targetFilter";
 import { SELF_MARKER } from "./normalize";
 import type { PlayerRefIR } from "./grammar/shared/playerRef";
+import type { CountedSetIR } from "./grammar/shared/quantity";
 import type { ZoneRefIR } from "./grammar/shared/zoneRef";
 
 /**
@@ -137,11 +139,87 @@ function lowerAmount(
         return site.antecedents?.amount !== undefined
             ? lowered(site.antecedents.amount)
             : unlowerable('"that much" names no amount at this site');
+    if (amount.kind === "counted" || amount.kind === "acted-on-mana-value")
+        return unlowerable(
+            `a ${amount.kind} amount is read only at a life-change site`
+        );
     return site.allowX
         ? lowered({ X: true })
         : unlowerable(
               "an effect reads X but its source announces no {X} (CR 107.3)"
           );
+}
+
+/**
+ * CR 107.1 — the set a life-change amount counts, as the `count` construct.
+ *
+ * A permanent set is the CONTROLLER's permanents, narrowed by card type and/or
+ * one subtype, and nothing else: every other descriptor clause (a colour, a
+ * tapped state, "on the battlefield") is refused rather than dropped, because
+ * a dropped clause counts permanents the card does not mean.
+ */
+function lowerCountedSet(
+    set: CountedSetIR,
+    slots: TargetSlots,
+    site: SiteOptions
+): Lowered<EffectCountSpec> {
+    if (set.kind === "cards-in-hand") {
+        const controller = playerRef(set.player, slots, site);
+        return controller.ok
+            ? lowered({ zone: "hand", controller: controller.value })
+            : controller;
+    }
+    const { descriptor } = set;
+    if (descriptor.controller !== "you")
+        return unlowerable('a counted set must be permanents "you control"');
+    const filter: EffectCardFilter = {};
+    for (const [key, value] of Object.entries(descriptor)) {
+        if (value === undefined || key === "controller") continue;
+        if (key === "types") filter.type = [...(value as CardType[])];
+        else if (key === "subtypes" && (value as string[]).length === 1)
+            filter.subtype = (value as string[])[0]!;
+        else
+            return unlowerable(
+                `a "${key}" clause has no resolution-time count here`
+            );
+    }
+    return lowered({ zone: "battlefield", controller: "controller", filter });
+}
+
+/**
+ * The amount of a life change (CR 119.3): everything `lowerAmount` reads, plus
+ * a counted set and the mana value of the object the sentence before acted on.
+ * Only this site resolves them — the sets need the target slots and the
+ * acted-on object lives on the walk.
+ */
+function lowerLifeAmount(
+    amount: AmountIR,
+    walk: SentenceWalk,
+    site: SiteOptions
+): Lowered<EffectValue> {
+    if (amount.kind === "counted") {
+        const spec = lowerCountedSet(amount.set, walk.targets, site);
+        if (!spec.ok) return spec;
+        return lowered({
+            count:
+                amount.times === 1
+                    ? spec.value
+                    : { ...spec.value, times: amount.times },
+        });
+    }
+    if (amount.kind === "acted-on-mana-value") {
+        // CR 608.2h — the object's characteristics as it was when the earlier
+        // Op acted on it, snapshotted by that Op's `bind`.
+        const actedOn = walk.actedOn;
+        if (actedOn === null)
+            return unlowerable(
+                '"its mana value" names no object acted on before it (CR 608.2h)'
+            );
+        const bind = actedOn.op.bind ?? walk.nextBind("that");
+        actedOn.op.bind = bind;
+        return lowered({ ref: `${bind}.manaValue` });
+    }
+    return lowerAmount(amount, site);
 }
 
 /**
@@ -1098,7 +1176,7 @@ function lowerSentenceBody(
         case "life": {
             const player = playerRef(sentence.player, slots, site);
             if (!player.ok) return player;
-            const amount = lowerAmount(sentence.amount, site);
+            const amount = lowerLifeAmount(sentence.amount, walk, site);
             if (!amount.ok) return amount;
             return lowered([
                 sentence.action === "gain"
