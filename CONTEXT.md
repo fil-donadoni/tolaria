@@ -1475,6 +1475,34 @@ _Avoid_: Deck list (the tabular form), carousel, grid
 The user-facing label of a **Manual Game** — a free table, any printed card, the players call the rules. Picking it filters the deck list to **Manual Decks** and swaps the action set (Solo table · Open a table). A label, not a domain term. ADR 0101.
 _Avoid_: Tabletop, manual mode (in UI copy — the domain term stays **Manual Game**), free play
 
+## Rules Consultant
+
+An adjacent service, not part of the engine (ADR 0142). These are the terms Tolaria uses where it meets it; the service owns their full definition.
+
+**Rules Consultant**:
+The service that answers a rules question by consulting printed sources — the vendored CR, a card's Oracle text, its **Rulings** — and never by recall. It reads no Tolaria code and holds no authority over play: it advises, and every claim it makes is traceable to text it printed.
+_Avoid_: Judge (that role carries real authority), rules bot, oracle (taken — see **Oracle Compiler**), assistant
+
+**Consultation**:
+One thread of question and follow-ups between a person and the **Rules Consultant**, owned by the pair of **Issuer** and subject and bounded in length. It holds the questions and the **Advisories**, never the consultant's working steps.
+_Avoid_: Conversation, session, chat, thread
+
+**Advisory**:
+One answer the **Rules Consultant** gives inside a **Consultation**: the question as it understood it, its conclusion, the **Rendered Citations** that support it, and what it could not establish. Never a **Verdict** — that word is the Bot's — and never a **Ruling**.
+_Avoid_: Verdict, ruling, judgement, opinion, answer
+
+**Ruling**:
+A note about one card published by Wizards or by Scryfall, carrying its source and date. Wizards' are official; Scryfall's are that site's own commentary and are never presented as official. The **Rules Consultant** cites Rulings; it never produces one.
+_Avoid_: Errata, FAQ, clarification, official answer
+
+**Rendered Citation**:
+A reference to a source — a CR subrule, a **Ruling**, a line of Oracle text — that the **Rules Consultant** writes as a handle and the server replaces with the printed text, stamped with the CR revision and a hash of what was printed. It is what makes an **Advisory** checkable: a handle that resolves to nothing is a claim from memory, and the stamp is why the same handle cannot come to mean something else in silence.
+_Avoid_: Citation (unqualified — that is the code's CR citations and their ledger), quote, source link, reference
+
+**Issuer**:
+A registered client of the **Rules Consultant** that authenticates its own users and vouches for them with a short signed token carrying an opaque subject and a tier. Tolaria is the first. The consultant knows an Issuer's users only by that subject, never by account, nickname or email.
+_Avoid_: Tenant, app, consumer, client (too vague)
+
 ## Example Dialogue
 
 > **Dev**: "When a creature dies, we need to move it."
