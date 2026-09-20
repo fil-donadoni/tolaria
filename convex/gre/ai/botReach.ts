@@ -48,7 +48,7 @@ import { getLegalActions } from "../rules";
 import { allocInstanceId, type GameState } from "../state";
 import { manaValue } from "../constants";
 import { basicLandsForColors, getCardColors } from "../../cards/colors";
-import type { CardDefinition } from "../../cards/types";
+import type { CardDefinition, EffectForEachSelector } from "../../cards/types";
 import { castShape } from "./botReachForm";
 export { castShape } from "./botReachForm";
 
@@ -67,6 +67,78 @@ function needsStackTarget(def: CardDefinition): boolean {
         .some((t) => t === "spell" || t === "spell-or-permanent");
 }
 import type { ScenarioCard, ScenarioSpec } from "../../debugScenarioSpec";
+
+/** The permanent types the generated position can give the opponent a surplus
+ *  of — one per filler the position seeds. */
+const SWEEPABLE_TYPES = [
+    "Creature",
+    "Artifact",
+    "Enchantment",
+    "Land",
+] as const;
+type SweepableType = (typeof SWEEPABLE_TYPES)[number];
+
+/** Does anything under `node` destroy? — an `op: "destroy"` at any depth. */
+function destroysSomething(node: unknown): boolean {
+    if (Array.isArray(node)) return node.some(destroysSomething);
+    if (node === null || typeof node !== "object") return false;
+    const record = node as Record<string, unknown>;
+    return (
+        record.op === "destroy" || Object.values(record).some(destroysSomething)
+    );
+}
+
+/**
+ * The permanent types the card's SPELL script destroys on every player's
+ * battlefield — a `forEach` over `set: "permanents"` with no `controller` (an
+ * omitted controller selects every player's battlefield) whose body destroys.
+ * Wrath of God destroys creatures, Tranquility enchantments, Armageddon lands,
+ * and a sweep with no filter at all destroys them all. Empty when the card
+ * sweeps nothing.
+ *
+ * What it does NOT model, each one leaving the symmetric pose:
+ *  - a sweep whose body does not destroy (a `-1/-1` or a `+1/+1` to every
+ *    creature, an animate): the pose is a claim that the opponent LOSES more
+ *    than the holder, which only a destroying body makes; a mass buff posed
+ *    that way would argue against casting it;
+ *  - a filter on anything but `type` (`excludeType`, `subtype`, …): not read,
+ *    so no claim is made rather than a wrong one;
+ *  - a sweep hosted by a triggered or activated ability — only `effects` and
+ *    `modes`, the spell's own script, are read.
+ *
+ * Lives HERE for the same reason as `needsStackTarget`: it decides what the
+ * generated position CONTAINS, so it is a verdict input and must be inside the
+ * Bot hash.
+ */
+function sweptTypes(def: CardDefinition): ReadonlySet<SweepableType> {
+    const swept = new Set<SweepableType>();
+    const visit = (node: unknown): void => {
+        if (Array.isArray(node)) return node.forEach(visit);
+        if (node === null || typeof node !== "object") return;
+        const record = node as Record<string, unknown>;
+        const select = record.select as EffectForEachSelector | undefined;
+        if (
+            record.op === "forEach" &&
+            select?.set === "permanents" &&
+            select.controller === undefined &&
+            destroysSomething(record.effects)
+        ) {
+            const named =
+                select.filter === undefined
+                    ? SWEEPABLE_TYPES
+                    : select.filter.type === undefined
+                      ? []
+                      : [select.filter.type].flat();
+            for (const t of named)
+                if ((SWEEPABLE_TYPES as readonly string[]).includes(t))
+                    swept.add(t as SweepableType);
+        }
+        Object.values(record).forEach(visit);
+    };
+    visit(def.effects);
+    visit(def.modes);
+    return swept;
+}
 
 export type BotReachOutcome = "played" | "ignored" | "frozen";
 
@@ -141,11 +213,20 @@ const MAX_FOLLOW_THROUGH_STEPS = 12;
  *  mana value does not count (kicker, an activation after the cast). */
 const EXTRA_LANDS = 2;
 
+/** How many MORE of each swept type the opponent holds than the holder. A
+ *  sweep costs the holder the card itself and everything of its own it
+ *  destroys; the opponent's surplus is what pays for both. Only the SWEPT types
+ *  get a surplus: an unswept filler is not inert (Castle gives its controller's
+ *  untapped creatures +0/+2, so three spare Castles kept the opponent's
+ *  creatures alive through a -4/-4 sweep and read as a bad cast). */
+const SWEEP_SURPLUS = 3;
+
 /** The card every generated position seeds as the object a target, a
  *  sacrifice or a discard can use — a real catalogue creature, both sides, in
  *  every zone a target requirement names. */
 const FILLER_CREATURE = "Grizzly Bears";
-/** A noncreature artifact, for artifact targets. */
+/** An artifact, for artifact targets. NOT a noncreature one: Ornithopter is
+ *  an artifact CREATURE, so a surplus of it is a surplus of bodies too. */
 const FILLER_ARTIFACT = "Ornithopter";
 /** A global enchantment, for enchantment targets. */
 const FILLER_ENCHANTMENT = "Castle";
@@ -179,6 +260,46 @@ export function botReachSpec(def: CardDefinition): ScenarioSpec {
         cards.push({ name: FILLER_ARTIFACT, owner, zone: "battlefield" });
         cards.push({ name: FILLER_ENCHANTMENT, owner, zone: "battlefield" });
         cards.push({ name: FILLER_CREATURE, owner, zone: "graveyard" });
+    }
+    const swept = sweptTypes(def);
+    const surplus: Record<Exclude<SweepableType, "Land">, string> = {
+        Creature: FILLER_CREATURE,
+        Artifact: FILLER_ARTIFACT,
+        Enchantment: FILLER_ENCHANTMENT,
+    };
+    if (swept.size > 0 && !swept.has("Creature")) {
+        // What the sweep leaves standing is the holder's: a wipe of lands or
+        // enchantments is the obvious play from ahead on the board, and a
+        // position where the bodies are level does not pose it. (An artifact
+        // sweep is the exception that is not exercised: its surplus is
+        // Ornithopter, a body, so it poses the bodies level. No shipped card.)
+        cards.push({
+            name: FILLER_CREATURE,
+            owner: "me",
+            zone: "battlefield",
+            count: SWEEP_SURPLUS,
+        });
+    }
+    for (const type of SWEEPABLE_TYPES) {
+        if (!swept.has(type)) continue;
+        if (type === "Land") {
+            // A land sweep needs lands on the opponent's side to destroy; the
+            // holder's own are its cost, so the opponent's exceed them by the
+            // surplus.
+            for (let i = 0; i < landCount + SWEEP_SURPLUS; i++)
+                cards.push({
+                    name: cycle[i % cycle.length]!,
+                    owner: "opp",
+                    zone: "battlefield",
+                });
+        } else {
+            cards.push({
+                name: surplus[type],
+                owner: "opp",
+                zone: "battlefield",
+                count: SWEEP_SURPLUS,
+            });
+        }
     }
     const stack = needsStackTarget(def);
     return {
