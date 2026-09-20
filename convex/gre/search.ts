@@ -3637,6 +3637,43 @@ function isManaDorkCast(state: GameState, move: Move, botId?: string): boolean {
     return isCreature(card) && hasManaAbility(card);
 }
 
+/** Whether `move` casts an UNTARGETED, NON-CREATURE ARTIFACT or ENCHANTMENT at
+ *  sorcery speed — a permanent whose worth is what it does once it is in play
+ *  (a held removal ability, an engine, a static effect), with nothing for the
+ *  opponent to answer at announcement. The third development class of the
+ *  free-development tie-break (issue #4070), and the same rationale as the two
+ *  above: a sorcery-speed permanent carries NO option value to holding — no
+ *  bluff, no instant-speed window to wait for — so deferring it while outcome-
+ *  equal is never right. It is outcome-equal for a structural reason: the
+ *  `pass` edge's own rollouts cast the card later in the same turn (the default
+ *  policy is optimistic about the deferred play), so casting now and casting
+ *  after combat reach one position and the pick falls to the material
+ *  tie-break, which chose `pass` at every budget measured (three Seals, 48 to
+ *  400 iterations, never cast).
+ *
+ *  Deliberately NOT covered, each with its own seam: a creature (its realised
+ *  body already out-rewards the discounted card in hand, so it wins on mean
+ *  reward and never reaches the tie-break), a Flash permanent (an instant-speed
+ *  option — `hold-trick`), and a targeted permanent such as an Aura (its
+ *  variants are ranked by `announcement-variant`, which `find` below would
+ *  bypass). While the caster holds a castable instant the mana may be
+ *  reserved for a reactive answer, so nothing here fires. `caster` is `botId`
+ *  when known, else the active player. Pure. */
+function isSorcerySpeedPermanentCast(
+    state: GameState,
+    move: Move,
+    botId?: string
+): boolean {
+    if (move.kind !== "cast-spell" || move.targets.length > 0) return false;
+    const casterId = botId ?? state.activePlayerId;
+    const caster = state.players.find((p) => p.id === casterId);
+    const card = caster?.hand.find((c) => c.id === move.cardInstanceId);
+    if (!card || isCreature(card) || hasInstantSpeed(card)) return false;
+    if (!card.types.some((t) => t === "Artifact" || t === "Enchantment"))
+        return false;
+    return !hasCastableInstant(state, casterId);
+}
+
 // --- Self-harm removal guard (issue #365) ----------------------------------
 // A one-sided removal / destruction Spell (Disenchant, Swords to Plowshares,
 // any `destroy-target` effect) aimed at the caster's OWN beneficial Permanent
@@ -4474,7 +4511,8 @@ export function selectRootMove(
     }
 
     // Free-development tie-break (ADR 0020 §1, issue #206; extended for free
-    // mana sources and mana dorks). A land — and likewise a FREE MANA SOURCE (a
+    // mana sources and mana dorks, and for untargeted sorcery-speed
+    // non-creature permanents — issue #4070). A land — and likewise a FREE MANA SOURCE (a
     // Mox, Black Lotus, a 0-cost mana artifact; `isFreeManaSourceCast`) or a MANA
     // DORK (Birds of Paradise, Llanowar Elves; `isManaDorkCast`) — has no option
     // cost in this engine: there is no bluff or hidden-information value to
@@ -4499,14 +4537,25 @@ export function selectRootMove(
     // would then silently drop it — exactly the mana-screwed case where the bot
     // sat on its only land rather than developing it.
     if (best.move.kind === "pass" && ruleOn("free-development")) {
-        const develop = pool.find(
-            (e) =>
-                mean(e) >= bestMean - weights.outcomeEps &&
-                (e.move.kind === "play-land" ||
-                    (!!rootState &&
-                        (isFreeManaSourceCast(rootState, e.move, botId) ||
-                            isManaDorkCast(rootState, e.move, botId))))
-        );
+        const outcomeEqual = (e: Edge) =>
+            mean(e) >= bestMean - weights.outcomeEps;
+        // Mana development first: a land or a mana source is strictly the
+        // earlier play, whatever else the pool holds outcome-equal.
+        const develop =
+            pool.find(
+                (e) =>
+                    outcomeEqual(e) &&
+                    (e.move.kind === "play-land" ||
+                        (!!rootState &&
+                            (isFreeManaSourceCast(rootState, e.move, botId) ||
+                                isManaDorkCast(rootState, e.move, botId))))
+            ) ??
+            pool.find(
+                (e) =>
+                    outcomeEqual(e) &&
+                    !!rootState &&
+                    isSorcerySpeedPermanentCast(rootState, e.move, botId)
+            );
         if (develop)
             return finish(develop, "free-development", develop !== best);
     }
