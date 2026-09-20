@@ -51,6 +51,12 @@
             "name": "Centaur"
         }
     ],
+    "08ef4383-11e7-4426-a04a-058570f46e47": [
+        {
+            "scryfallId": "8894949b-f190-461e-996a-cf2b39f08a5d",
+            "name": "Human"
+        }
+    ],
     "0bef3905-24f8-419b-aeca-396adfc6d0dc": [
         {
             "scryfallId": "39b36f22-21f9-44fe-8a49-bdc859503342",
@@ -405,6 +411,12 @@
             "name": "Beast"
         }
     ],
+    "35e109ea-8b86-4432-b15e-5a6201caf2aa": [
+        {
+            "scryfallId": "6bee4081-5d74-4cc2-ba2f-887bc8799513",
+            "name": "Spirit"
+        }
+    ],
     "38421179-615e-4aba-91a4-503bfee05403": [
         {
             "scryfallId": "248ade83-ac57-42d6-985c-1e4cc3639f36",
@@ -427,6 +439,12 @@
         {
             "scryfallId": "cf4c245f-af2f-46a7-81f3-670a04940901",
             "name": "Skeleton"
+        }
+    ],
+    "3dd1d130-98e7-4898-9f13-2bb58fa4777b": [
+        {
+            "scryfallId": "248ade83-ac57-42d6-985c-1e4cc3639f36",
+            "name": "Saproling"
         }
     ],
     "3e11ad33-b9d7-43ef-840a-61955683b599": [
