@@ -583,8 +583,9 @@ export class SentenceWalk {
  *   another zone, is a slot they cannot act on.
  * - `zone-change`: `moveZone`. It reads a card in ANY zone (a graveyard return
  *   is its commonest form), but a player is still not a thing that moves.
- * - `damage`: CR 119.3 — damage is dealt to a creature, planeswalker, battle
- *   OR player, so "any target" is exactly the slot it wants.
+ * - `damage`: CR 115.4 / CR 120.3 — damage is dealt to a creature,
+ *   planeswalker, battle OR player, so "any target" is exactly the slot it
+ *   wants.
  */
 type SlotReach = "battlefield" | "zone-change" | "damage";
 

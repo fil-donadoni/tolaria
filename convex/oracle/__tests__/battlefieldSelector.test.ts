@@ -105,12 +105,12 @@ describe("the allow-list keeps what it was shown", () => {
             expect(parses(sentence("target creature"))).toBe(true);
         });
 
-    // CR 119.3 — damage takes "any target": a player is exactly what it wants.
+    // CR 115.4 — damage takes "any target": a player is exactly what it wants.
     it("damage still reads 'any target'", () => {
         expect(parses("Probe deals 3 damage to any target.")).toBe(true);
     });
 
-    // CR 400.7 — a zone change out of a graveyard is the graveyard verb.
+    // CR 400.1 — a zone change out of a graveyard reads a graveyard card.
     it("a graveyard return still reads a graveyard card", () => {
         expect(
             parses(
