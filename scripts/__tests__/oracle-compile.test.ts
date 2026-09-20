@@ -144,8 +144,8 @@ const DOUBLE_TRIP: CorpusCard[] = [
         power: undefined,
         toughness: undefined,
         oracleText:
-            "Test Echo deals 3 damage to any target.\n" +
-            "Test Echo deals 3 damage to any target.",
+            "Test Echo unravels the weave of time.\n" +
+            "Test Echo unravels the weave of time.",
     }),
 ];
 
