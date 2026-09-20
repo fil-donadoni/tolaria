@@ -20548,6 +20548,51 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Lost in the Mist",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 2
+        },
+        "oracleText": "Counter target spell. Return target permanent to its owner's hand.",
+        "effects": [
+            {
+                "op": "counter",
+                "target": {
+                    "target": 0
+                }
+            },
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 1
+                },
+                "to": "hand"
+            }
+        ],
+        "targetRequirement": {
+            "type": "spell",
+            "count": 1
+        },
+        "additionalTargetRequirements": [
+            {
+                "type": [
+                    "Artifact",
+                    "Battle",
+                    "Creature",
+                    "Enchantment",
+                    "Land",
+                    "Planeswalker"
+                ],
+                "count": 1
+            }
+        ],
+        "id": "1e5fc39d-590a-436b-ab90-a1741d2ae3da",
+        "rarity": "common"
+    },
+    {
         "name": "Darklit Gargoyle",
         "types": [
             "Artifact",
@@ -23746,6 +23791,70 @@
         "rarity": "rare"
     },
     {
+        "name": "How to Start a Riot",
+        "types": [
+            "Instant"
+        ],
+        "subtypes": [
+            "Lesson"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "oracleText": "Target creature gains menace until end of turn. (It can't be blocked except by two or more creatures.)\nCreatures target player controls get +2/+0 until end of turn.",
+        "effects": [
+            {
+                "op": "grantAbility",
+                "target": {
+                    "target": 0
+                },
+                "ability": "menace",
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "filter": {
+                        "type": "Creature"
+                    },
+                    "controller": {
+                        "target": 1
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$each"
+                        },
+                        "power": 2,
+                        "toughness": 0,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "additionalTargetRequirements": [
+            {
+                "type": "player",
+                "count": 1
+            }
+        ],
+        "id": "23b3bf1e-ea85-47f5-8473-4d16615f68d7",
+        "rarity": "common"
+    },
+    {
         "name": "Bee Sting",
         "types": [
             "Sorcery"
@@ -24105,6 +24214,56 @@
         ],
         "id": "245357c6-b4cd-40f3-b7c2-413eee767239",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Cruel Revival",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 4,
+            "B": 1
+        },
+        "oracleText": "Destroy target non-Zombie creature. It can't be regenerated. Return up to one target Zombie card from your graveyard to your hand.",
+        "effects": [
+            {
+                "op": "destroy",
+                "target": {
+                    "target": 0
+                },
+                "cantBeRegenerated": true
+            },
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 1
+                },
+                "to": "hand"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "excludeSubtypes": [
+                "Zombie"
+            ]
+        },
+        "additionalTargetRequirements": [
+            {
+                "type": "card",
+                "count": {
+                    "min": 0,
+                    "max": 1
+                },
+                "subtypeFilter": [
+                    "Zombie"
+                ],
+                "zone": "graveyard",
+                "controller": "you"
+            }
+        ],
+        "id": "245aba23-2abb-4084-b4cb-d06e46de2108",
+        "rarity": "common"
     },
     {
         "name": "Desert Drake",
@@ -34512,6 +34671,53 @@
             }
         ],
         "id": "368ee06f-9021-4b65-9f53-9c326bf3a27f",
+        "rarity": "common"
+    },
+    {
+        "name": "Martial Glory",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "W": 1,
+            "R": 1
+        },
+        "oracleText": "Target creature gets +3/+0 until end of turn.\nTarget creature gets +0/+3 until end of turn.",
+        "effects": [
+            {
+                "op": "pump",
+                "target": {
+                    "target": 0
+                },
+                "power": 3,
+                "toughness": 0,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "pump",
+                "target": {
+                    "target": 1
+                },
+                "power": 0,
+                "toughness": 3,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "additionalTargetRequirements": [
+            {
+                "type": "Creature",
+                "count": 1
+            }
+        ],
+        "id": "3690c96c-70a3-45e5-84d7-5c82809a8f45",
         "rarity": "common"
     },
     {
@@ -54295,6 +54501,50 @@
         "rarity": "common"
     },
     {
+        "name": "Common Bond",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1,
+            "G": 1
+        },
+        "oracleText": "Put a +1/+1 counter on target creature.\nPut a +1/+1 counter on target creature.",
+        "effects": [
+            {
+                "op": "counters",
+                "action": "add",
+                "counter": "+1/+1",
+                "target": {
+                    "target": 0
+                },
+                "count": 1
+            },
+            {
+                "op": "counters",
+                "action": "add",
+                "counter": "+1/+1",
+                "target": {
+                    "target": 1
+                },
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "additionalTargetRequirements": [
+            {
+                "type": "Creature",
+                "count": 1
+            }
+        ],
+        "id": "59965953-1522-4103-9a6c-5534205d34d9",
+        "rarity": "common"
+    },
+    {
         "name": "Thundermare",
         "types": [
             "Creature"
@@ -56366,6 +56616,44 @@
             "count": 1
         },
         "id": "5d0b4f29-ada4-41d2-8292-b5af537c6fd2",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Into the Maw of Hell",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 4,
+            "R": 2
+        },
+        "oracleText": "Destroy target land. Into the Maw of Hell deals 13 damage to target creature.",
+        "effects": [
+            {
+                "op": "destroy",
+                "target": {
+                    "target": 0
+                }
+            },
+            {
+                "op": "dealDamage",
+                "amount": 13,
+                "to": {
+                    "target": 1
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Land",
+            "count": 1
+        },
+        "additionalTargetRequirements": [
+            {
+                "type": "Creature",
+                "count": 1
+            }
+        ],
+        "id": "5d188d9b-7a12-4eaf-855b-af4f0204dc5a",
         "rarity": "uncommon"
     },
     {
@@ -118262,6 +118550,68 @@
         "rarity": "common"
     },
     {
+        "name": "Seeds of Strength",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "W": 1,
+            "G": 1
+        },
+        "oracleText": "Target creature gets +1/+1 until end of turn.\nTarget creature gets +1/+1 until end of turn.\nTarget creature gets +1/+1 until end of turn.",
+        "effects": [
+            {
+                "op": "pump",
+                "target": {
+                    "target": 0
+                },
+                "power": 1,
+                "toughness": 1,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "pump",
+                "target": {
+                    "target": 1
+                },
+                "power": 1,
+                "toughness": 1,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "pump",
+                "target": {
+                    "target": 2
+                },
+                "power": 1,
+                "toughness": 1,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "additionalTargetRequirements": [
+            {
+                "type": "Creature",
+                "count": 1
+            },
+            {
+                "type": "Creature",
+                "count": 1
+            }
+        ],
+        "id": "bfa1ac13-adbd-439a-90b2-9c506aec0836",
+        "rarity": "common"
+    },
+    {
         "name": "Axebane Stag",
         "types": [
             "Creature"
@@ -133082,6 +133432,49 @@
         "rarity": "common"
     },
     {
+        "name": "Lethal Protection",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "oracleText": "Destroy target creature. Return up to one target creature card from your graveyard to your hand.",
+        "effects": [
+            {
+                "op": "destroy",
+                "target": {
+                    "target": 0
+                }
+            },
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 1
+                },
+                "to": "hand"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "additionalTargetRequirements": [
+            {
+                "type": "Creature",
+                "count": {
+                    "min": 0,
+                    "max": 1
+                },
+                "zone": "graveyard",
+                "controller": "you"
+            }
+        ],
+        "id": "d98f0e44-f5c7-4e08-8a4a-d0280f22d132",
+        "rarity": "rare"
+    },
+    {
         "name": "Riptide Laboratory",
         "types": [
             "Land"
@@ -137433,6 +137826,53 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Agony Warp",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "U": 1,
+            "B": 1
+        },
+        "oracleText": "Target creature gets -3/-0 until end of turn.\nTarget creature gets -0/-3 until end of turn.",
+        "effects": [
+            {
+                "op": "pump",
+                "target": {
+                    "target": 0
+                },
+                "power": -3,
+                "toughness": 0,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "pump",
+                "target": {
+                    "target": 1
+                },
+                "power": 0,
+                "toughness": -3,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "additionalTargetRequirements": [
+            {
+                "type": "Creature",
+                "count": 1
+            }
+        ],
+        "id": "e246294f-7614-48e9-a655-647faf0bf697",
+        "rarity": "common"
+    },
+    {
         "name": "Brood Weaver",
         "types": [
             "Creature"
@@ -141555,6 +141995,68 @@
         "rarity": "common"
     },
     {
+        "name": "Bounty of Might",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 4,
+            "G": 2
+        },
+        "oracleText": "Target creature gets +3/+3 until end of turn.\nTarget creature gets +3/+3 until end of turn.\nTarget creature gets +3/+3 until end of turn.",
+        "effects": [
+            {
+                "op": "pump",
+                "target": {
+                    "target": 0
+                },
+                "power": 3,
+                "toughness": 3,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "pump",
+                "target": {
+                    "target": 1
+                },
+                "power": 3,
+                "toughness": 3,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "pump",
+                "target": {
+                    "target": 2
+                },
+                "power": 3,
+                "toughness": 3,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "additionalTargetRequirements": [
+            {
+                "type": "Creature",
+                "count": 1
+            },
+            {
+                "type": "Creature",
+                "count": 1
+            }
+        ],
+        "id": "e9a950d8-e6e2-42d6-83d7-a60c15d2035d",
+        "rarity": "rare"
+    },
+    {
         "name": "Anaba Spirit Crafter",
         "types": [
             "Creature"
@@ -143718,6 +144220,59 @@
         "entersTapped": true,
         "id": "ed64934b-0e64-4b2f-97aa-c3fb7e6ce0b0",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Crawl from the Cellar",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "B": 1
+        },
+        "oracleText": "Return target creature card from your graveyard to your hand. Put a +1/+1 counter on up to one target Zombie you control.\nFlashback {3}{B} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "hand"
+            },
+            {
+                "op": "counters",
+                "action": "add",
+                "counter": "+1/+1",
+                "target": {
+                    "target": 1
+                },
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "additionalTargetRequirements": [
+            {
+                "type": "Creature",
+                "count": {
+                    "min": 0,
+                    "max": 1
+                },
+                "subtypeFilter": [
+                    "Zombie"
+                ],
+                "controller": "you"
+            }
+        ],
+        "flashback": {
+            "X": 3,
+            "B": 1
+        },
+        "id": "ed6c8942-d43e-4456-ac98-3220cb954c65",
+        "rarity": "common"
     },
     {
         "name": "Scarwood Treefolk",
@@ -150710,6 +151265,48 @@
         },
         "id": "f9b2ff2a-6dfe-4635-8da2-22d525e82b94",
         "rarity": "common"
+    },
+    {
+        "name": "Vibrant Outburst",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "U": 1,
+            "R": 1
+        },
+        "oracleText": "Vibrant Outburst deals 3 damage to any target. Tap up to one target creature.",
+        "effects": [
+            {
+                "op": "dealDamage",
+                "amount": 3,
+                "to": {
+                    "target": 0
+                }
+            },
+            {
+                "op": "tapUntap",
+                "action": "tap",
+                "target": {
+                    "target": 1
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "any",
+            "count": 1
+        },
+        "additionalTargetRequirements": [
+            {
+                "type": "Creature",
+                "count": {
+                    "min": 0,
+                    "max": 1
+                }
+            }
+        ],
+        "id": "f9ba68ef-6efc-4249-8b74-e33f47173902",
+        "rarity": "uncommon"
     },
     {
         "name": "Frenzied Rage",

@@ -648,6 +648,16 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Agony Warp",
+        "scryfallId": "e246294f-7614-48e9-a655-647faf0bf697",
+        "oracleId": "377c217b-ddad-4e1a-9122-f347113d3dfa",
+        "firstSet": "ala",
+        "firstPrintId": "e246294f-7614-48e9-a655-647faf0bf697",
+        "firstPrintSet": "ala",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Air Elemental",
         "scryfallId": "69c3b2a3-0daa-4d42-832d-fcdfda6555ea",
         "oracleId": "7744bae4-a8b7-44a5-9b4c-0048ad4cc448",
@@ -5980,6 +5990,16 @@
         "source": "compiled"
     },
     {
+        "name": "Bounty of Might",
+        "scryfallId": "e9a950d8-e6e2-42d6-83d7-a60c15d2035d",
+        "oracleId": "6f067bfd-1c59-463f-99e1-61161b43b405",
+        "firstSet": "grn",
+        "firstPrintId": "e9a950d8-e6e2-42d6-83d7-a60c15d2035d",
+        "firstPrintSet": "grn",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Braidwood Cup",
         "scryfallId": "c2e783b7-9bd1-4f82-bf20-5d201413f5e8",
         "oracleId": "d52b72ff-a82d-430e-94c7-675c83b43e50",
@@ -8868,6 +8888,16 @@
         "firstPrintSet": "mkm"
     },
     {
+        "name": "Common Bond",
+        "scryfallId": "59965953-1522-4103-9a6c-5534205d34d9",
+        "oracleId": "d52e9255-62e7-479f-8def-e92b96efdb89",
+        "firstSet": "rtr",
+        "firstPrintId": "59965953-1522-4103-9a6c-5534205d34d9",
+        "firstPrintSet": "rtr",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Commune with Evil",
         "scryfallId": "9ab94ebe-b51b-4c6f-af43-0ed80e2808a3",
         "oracleId": "0248bf01-14e0-4a39-ba3a-5177fe272fe9",
@@ -9612,6 +9642,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Crawl from the Cellar",
+        "scryfallId": "ed6c8942-d43e-4456-ac98-3220cb954c65",
+        "oracleId": "16c99713-f19e-4b25-9b03-6a8d8203adfe",
+        "firstSet": "mid",
+        "firstPrintId": "ed6c8942-d43e-4456-ac98-3220cb954c65",
+        "firstPrintSet": "mid",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Crazed Skirge",
         "scryfallId": "816272de-f134-45fa-ac1f-70d35d30c7e1",
         "oracleId": "72a53d9e-0645-4024-a90f-73b05c2284c6",
@@ -9852,6 +9892,16 @@
         "firstSet": "anb",
         "firstPrintId": "343bba3d-d235-4855-8ab2-cb715f29fb60",
         "firstPrintSet": "anb",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Cruel Revival",
+        "scryfallId": "245aba23-2abb-4084-b4cb-d06e46de2108",
+        "oracleId": "836d074a-8888-42a0-8dce-11ffce00d2f5",
+        "firstSet": "ons",
+        "firstPrintId": "245aba23-2abb-4084-b4cb-d06e46de2108",
+        "firstPrintSet": "ons",
         "rarity": "common",
         "source": "compiled"
     },
@@ -23080,6 +23130,16 @@
         "source": "compiled"
     },
     {
+        "name": "How to Start a Riot",
+        "scryfallId": "23b3bf1e-ea85-47f5-8473-4d16615f68d7",
+        "oracleId": "268d0056-0d3e-438a-ab17-625a6f5ec68a",
+        "firstSet": "tla",
+        "firstPrintId": "23b3bf1e-ea85-47f5-8473-4d16615f68d7",
+        "firstPrintSet": "tla",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Howl from Beyond",
         "scryfallId": "67ec17e1-174b-4d07-a27f-91a333c4b2fb",
         "oracleId": "403cf6ae-48a9-4ea9-894e-7135cfca4e1b",
@@ -24384,6 +24444,16 @@
         "firstSet": "mmq",
         "firstPrintId": "1b9e1724-91cf-422e-909b-ddb69a6f9f76",
         "firstPrintSet": "mmq",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Into the Maw of Hell",
+        "scryfallId": "5d188d9b-7a12-4eaf-855b-af4f0204dc5a",
+        "oracleId": "5f0e8fd5-9db9-4507-a42f-cb99080b89e2",
+        "firstSet": "isd",
+        "firstPrintId": "5d188d9b-7a12-4eaf-855b-af4f0204dc5a",
+        "firstPrintSet": "isd",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -27330,6 +27400,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Lethal Protection",
+        "scryfallId": "d98f0e44-f5c7-4e08-8a4a-d0280f22d132",
+        "oracleId": "49a7c053-81e9-47b7-af5c-c62cd0389ed4",
+        "firstSet": "spe",
+        "firstPrintId": "d98f0e44-f5c7-4e08-8a4a-d0280f22d132",
+        "firstPrintSet": "spe",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Letter of Acceptance",
         "scryfallId": "34750231-34aa-401c-b192-47b56588923a",
         "oracleId": "e0cb503e-9814-4280-9c29-4eff3379bc24",
@@ -28190,6 +28270,16 @@
         "firstSet": "mh2",
         "firstPrintId": "985bdb0c-ce6c-4506-8163-76f3b2fdf5fb",
         "firstPrintSet": "mh2"
+    },
+    {
+        "name": "Lost in the Mist",
+        "scryfallId": "1e5fc39d-590a-436b-ab90-a1741d2ae3da",
+        "oracleId": "98014ad2-7a2b-45f5-808c-edd4d0b2c597",
+        "firstSet": "isd",
+        "firstPrintId": "1e5fc39d-590a-436b-ab90-a1741d2ae3da",
+        "firstPrintSet": "isd",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Lost Leonin",
@@ -29429,6 +29519,16 @@
         "firstPrintId": "04d1fbb7-aa02-4f56-8be7-88a3ba55f7d2",
         "firstPrintSet": "eve",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Martial Glory",
+        "scryfallId": "3690c96c-70a3-45e5-84d7-5c82809a8f45",
+        "oracleId": "e8aa12f8-8922-41ed-8cdb-219c9e4b9e36",
+        "firstSet": "gtc",
+        "firstPrintId": "3690c96c-70a3-45e5-84d7-5c82809a8f45",
+        "firstPrintSet": "gtc",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -41510,6 +41610,16 @@
         "source": "compiled"
     },
     {
+        "name": "Seeds of Strength",
+        "scryfallId": "bfa1ac13-adbd-439a-90b2-9c506aec0836",
+        "oracleId": "dd3d4d96-1e88-49e1-8276-7f62c22ad91a",
+        "firstSet": "rav",
+        "firstPrintId": "bfa1ac13-adbd-439a-90b2-9c506aec0836",
+        "firstPrintSet": "rav",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Seeker",
         "scryfallId": "df608b59-cc07-4e1d-b6d6-f15e69b15b92",
         "oracleId": "ca00eb17-e5c3-42c8-a665-431f5f95b67f",
@@ -52800,6 +52910,16 @@
         "firstSet": "ecl",
         "firstPrintId": "b9f71c3b-0840-475f-9c17-fdacbc7f3213",
         "firstPrintSet": "ecl"
+    },
+    {
+        "name": "Vibrant Outburst",
+        "scryfallId": "f9ba68ef-6efc-4249-8b74-e33f47173902",
+        "oracleId": "a0cbb1ba-73b1-4418-bbe3-5d1a02007c08",
+        "firstSet": "sos",
+        "firstPrintId": "f9ba68ef-6efc-4249-8b74-e33f47173902",
+        "firstPrintSet": "sos",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Vibrating Sphere",
