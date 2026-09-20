@@ -103,7 +103,10 @@ export function lowerActivatedAbility(input: {
     };
     // CR 702.33g — the kicked SWAP is a card-level field on a spell
     // (`kickedTargetRequirement`); an ability has no twin, so a gate that
-    // announced one here has nowhere to declare it.
+    // announced one here has nowhere to declare it. UNREACHABLE today and
+    // deliberately kept, the `spellSelector` case: the grammar refuses "If
+    // this spell was kicked" at this site before lowering sees it, and this is
+    // the second line, on the side that stays right if it ever reads one.
     if (walk.targets.kickedRequirement() !== undefined)
         return {
             ok: false,

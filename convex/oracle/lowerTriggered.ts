@@ -177,8 +177,9 @@ export function lowerTriggeredAbility(input: {
         ops.push(...result.value);
     }
 
-    // CR 702.33g — as on the activated site: no `kickedTargetRequirement`
-    // twin on a triggered ability, so the swap has nowhere to land.
+    // CR 702.33g — as on the activated site, and unreachable for the same
+    // reason: no `kickedTargetRequirement` twin on a triggered ability, so the
+    // swap has nowhere to land if the grammar ever reads one here.
     if (walk.targets.kickedRequirement() !== undefined)
         return {
             ok: false,

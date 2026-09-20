@@ -1434,4 +1434,93 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             targetRequirement: { type: "Creature", count: 1 },
         },
     },
+    // CR 601.2c — "Return up to two target creature cards from your graveyard
+    // to your hand": ONE announced group two slots wide, with the verb fanned
+    // out over both ({ target: 0 } / { target: 1 }, the hand-written Force of
+    // Vigor shape). Exhibits the "moveZone changes zones on a zone the canned
+    // generator does not model" form, whose slot zone is the GRAVEYARD — so
+    // this fixture is the evidence that a graveyard-slot bounce is emitted as
+    // the catalogue writes it.
+    {
+        rule: "target filter",
+        card: {
+            oracleId: "882d3be7-1c0f-4d2b-8f2e-32369488ef82",
+            name: "Urborg Uprising",
+            manaCost: "{4}{B}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Return up to two target creature cards from your graveyard to your hand.\nDraw a card.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Urborg Uprising",
+            types: ["Sorcery"],
+            manaCost: { X: 4, B: 1 },
+            oracleText:
+                "Return up to two target creature cards from your graveyard to your hand.\nDraw a card.",
+            effects: [
+                { op: "moveZone", target: { target: 0 }, to: "hand" },
+                { op: "moveZone", target: { target: 1 }, to: "hand" },
+                { op: "draw", player: "controller", count: 1 },
+            ],
+            targetRequirement: {
+                type: "Creature",
+                count: { min: 0, max: 2 },
+                zone: "graveyard",
+                controller: "you",
+            },
+        },
+    },
+    // CR 702.33g — "Destroy target land. If this spell was kicked, destroy
+    // another target land": the gate's target is announced only on a kicked
+    // cast, which the engine says with the swapped-in
+    // `kickedTargetRequirement` (the Magma Burst / Falling Timber count
+    // widening). Exhibits the "reads the spell's kicker count" form over a
+    // `destroy` — a different op skeleton from Dismantling Blow's `draw`, so
+    // its own evidence — and shows the swap itself, which no ready card can.
+    {
+        rule: "target filter",
+        card: {
+            oracleId: "5231a7d6-b6cf-4fa8-8da8-f0ecf023e054",
+            name: "Dwarven Landslide",
+            manaCost: "{3}{R}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Kicker—{2}{R}, Sacrifice a land. (You may pay {2}{R} and sacrifice a land in addition to any other costs as you cast this spell.)\nDestroy target land. If this spell was kicked, destroy another target land.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Dwarven Landslide",
+            types: ["Sorcery"],
+            manaCost: { X: 3, R: 1 },
+            oracleText:
+                "Kicker—{2}{R}, Sacrifice a land. (You may pay {2}{R} and sacrifice a land in addition to any other costs as you cast this spell.)\nDestroy target land. If this spell was kicked, destroy another target land.",
+            kickers: [
+                {
+                    id: "kicker",
+                    description: "Kicker—{2}{R}, Sacrifice a land",
+                    mana: { X: 2, R: 1 },
+                    permanent: {
+                        action: "sacrifice",
+                        filter: { types: ["Land"] },
+                        count: 1,
+                    },
+                },
+            ],
+            effects: [
+                { op: "destroy", target: { target: 0 } },
+                {
+                    op: "if",
+                    predicate: {
+                        left: { kickerCount: true },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [{ op: "destroy", target: { target: 1 } }],
+                },
+            ],
+            targetRequirement: { type: "Land", count: 1 },
+            kickedTargetRequirement: { type: "Land", count: 2 },
+        },
+    },
 ]);
