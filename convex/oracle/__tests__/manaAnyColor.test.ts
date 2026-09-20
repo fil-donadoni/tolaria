@@ -182,7 +182,7 @@ describe("refusals — every neighbour that restricts or counts the offered set"
         expect(outcome.state).toBe("unparsed");
     });
 
-    // CR 605.1a / 122.6 — the counter-removal leg, which only the TAP
+    // CR 605.1a / 118.3 — the counter-removal leg, which only the TAP
     // mutations pay on the mana path. Pentad Prism is the hand-written proof:
     // it declares itself `useStack: true` precisely because the stackless path
     // would add the mana and never remove the counter (issue #2785).

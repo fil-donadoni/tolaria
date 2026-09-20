@@ -149,7 +149,7 @@ import {
 // Reconstruction, Recover, Regrowth, Rushing River and Skull of Orm round-trip
 // once "up to two target", "another target" and a graveyard return "to your
 // hand" read.
-const BASELINE_CEILING = 1583;
+const BASELINE_CEILING = 1569;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that

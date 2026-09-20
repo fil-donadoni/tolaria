@@ -70,23 +70,28 @@ describe("attribution — one real card per slot names the sub-grammar that fail
         });
     });
 
-    it("mana-ability: a production the mana grammar cannot read (Orochi Leafcaller)", () => {
+    it("mana-ability: a production the mana grammar cannot read (Gaea's Cradle)", () => {
         // The activated slot reads the same line one sub-grammar over — its
-        // effect clause refuses "Add one mana of any color" — and loses on the
-        // shorter span the mana production could not consume.
+        // effect clause refuses the "Add" sentence — and loses on the shorter
+        // span the mana production could not consume.
+        //
+        // The fixture was Orochi Leafcaller ("{G}: Add one mana of any
+        // color.") until issue #4134 taught the production that span; a
+        // "for each" COUNT still needs a descriptor the grammar does not emit,
+        // so it is what carries this diagnostic now.
         expect(
             attributionOf({
-                name: "Orochi Leafcaller",
-                manaCost: "{G}",
-                typeLine: "Creature — Snake Shaman",
-                oracleText: "{G}: Add one mana of any color.",
-                power: "1",
-                toughness: "1",
+                name: "Gaea's Cradle",
+                manaCost: "",
+                typeLine: "Legendary Land",
+                oracleText: "{T}: Add {G} for each creature you control.",
+                power: undefined,
+                toughness: undefined,
             })
         ).toEqual({
             slot: "mana-ability",
             path: [MANA_PRODUCTION],
-            span: "one mana of any color",
+            span: "{G} for each creature you control",
         });
     });
 
@@ -114,8 +119,13 @@ describe("attribution — one real card per slot names the sub-grammar that fail
 
     it('mana-ability: never the activated slot\'s effect clause for an "Add" sentence (Ancient Ziggurat)', () => {
         // Both slots refuse at the same depth and progress, and the activated
-        // slot's span ("Add one mana of any color") is the SHORTER one — the
-        // shape that blamed the wrong slot on 340 corpus cards.
+        // slot's span ("Add one mana of any color. Spend this mana only to
+        // cast a creature spell") is the SHORTER one — the shape that blamed
+        // the wrong slot on 340 corpus cards.
+        //
+        // Since issue #4134 the production itself is read, so the blame is one
+        // sentence further in: the RIDER the grammar has no rule for. Still
+        // the mana slot, which is what this test is about.
         expect(
             attributionOf({
                 name: "Ancient Ziggurat",
@@ -128,8 +138,8 @@ describe("attribution — one real card per slot names the sub-grammar that fail
             })
         ).toEqual({
             slot: "mana-ability",
-            path: [MANA_PRODUCTION],
-            span: "one mana of any color. Spend this mana only to cast a creature spell",
+            path: [MANA_ABILITY_RIDER],
+            span: "Spend this mana only to cast a creature spell",
         });
     });
 

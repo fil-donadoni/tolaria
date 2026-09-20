@@ -177,7 +177,7 @@ export function lowerManaAbility(input: {
             reason: `mana ability cost leg "${unpayable[0]}" has no payment site on the CR 605.1a stackless path`,
         };
     }
-    // CR 605.1a / 122.6 (issue #4134) — the COUNTER-removal leg, which is
+    // CR 605.1a / 118.3 (issue #4134) — the COUNTER-removal leg, which is
     // payable on the mana path only by the TAP mutations: `tapUntap` and
     // `tapSourceIntoPayment` both route it through
     // `applyManaAbilityRemoveCounterCost`. An ability with neither a `tap` nor
