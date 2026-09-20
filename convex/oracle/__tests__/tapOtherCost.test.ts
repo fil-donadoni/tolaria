@@ -175,12 +175,17 @@ describe("Tap-other cost — refused neighbours (fail-closed)", () => {
     });
 
     it("only permanents the payer controls, and only untapped ones", () => {
+        // The descriptor reads both of these; only the payer's own permanents
+        // can be tapped to pay (CR 118.3), so the cost refuses them itself.
         expect(
             costFor(
-                "Tap two untapped creatures your opponents control",
+                "Tap two untapped creatures an opponent controls",
                 "Enchantment"
             ).ok
         ).toBe(false);
+        expect(costFor("Tap two untapped creatures", "Enchantment").ok).toBe(
+            false
+        );
         expect(
             costFor("Tap two tapped creatures you control", "Enchantment").ok
         ).toBe(false);
