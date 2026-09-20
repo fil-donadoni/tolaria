@@ -138,7 +138,12 @@ import {
 // Lowered 1602 -> 1598 by issue #4129 (counterspell forms): Absorb,
 // Counterspell, Dromar's Charm and Ertai, the Corrupted round-trip once
 // "Counter target spell" reads.
-const BASELINE_CEILING = 1598;
+//
+// Lowered 1598 -> 1593 by issue #4131 (damage trigger heads): Armadillo Cloak,
+// El-Hajjâj, Horned Cheetah, Hypnotic Specter and Spirit Link round-trip once
+// "whenever [this / enchanted] creature deals damage" reads, with "that much"
+// and "that player" bound to the damage event.
+const BASELINE_CEILING = 1593;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that
