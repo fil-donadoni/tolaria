@@ -28,6 +28,7 @@ import {
     planWrites,
     parseCards,
     renderReport,
+    residueCause,
     resolveDeclaredCards,
     suggestCards,
     summarize,
@@ -191,6 +192,7 @@ describe("backlog-triage — the rule (issue #3851 decision 3)", () => {
     it("no source → residue, unprioritized — never P3", () => {
         expect(verdictOf([issue(1, { cards: [CARDS.Loose] })])).toEqual({
             kind: "residue",
+            cause: "off-road",
         });
         const issues = [issue(1)];
         const s = summarize(issues, triage(issues, index, {}, 9999), {});
@@ -198,9 +200,49 @@ describe("backlog-triage — the rule (issue #3851 decision 3)", () => {
         expect(s.perBand.P3.hold).toBe(0);
     });
 
+    it("residue has a cause: no cards = undeclared, cards in no ranked Target = off-road, a ranked-Target card = neither", () => {
+        expect(verdictOf([issue(1, { cards: [] })])).toEqual({
+            kind: "residue",
+            cause: "undeclared",
+        });
+        expect(verdictOf([issue(1, { cards: [CARDS.Loose] })])).toEqual({
+            kind: "residue",
+            cause: "off-road",
+        });
+        expect(verdictOf([issue(1, { cards: [CARDS.Meta] })]).kind).toBe(
+            "band"
+        );
+    });
+
+    it("the cause is read from the issue's own cards, whatever bands the row or its neighbours", () => {
+        // #1 declares nothing but blocks a ranked issue → banded by edge, out
+        // of the residue; its cause is still computable and still undeclared.
+        // #2 has off-road cards and a parent lending nothing → stays residue.
+        // #3 has NO cards but a parent that lends P1 → banded; #4 keeps its
+        // own cause next to it.
+        const issues = [
+            issue(1, { blocks: [5] }),
+            issue(2, { cards: [CARDS.Loose], parent: 60 }),
+            issue(3, { parent: 50 }),
+            issue(4, { cards: [CARDS.Loose], parent: 50 }),
+            issue(5, { cards: [CARDS.Meta] }),
+            issue(60),
+        ];
+        const v = triage(issues, index, { 50: "P1" }, 9999);
+        expect(v.get(1)).toMatchObject({ kind: "band", source: "edge" });
+        expect(v.get(3)).toMatchObject({ kind: "band", source: "parent" });
+        expect(v.get(4)).toMatchObject({ kind: "band", source: "parent" });
+        expect(v.get(2)).toEqual({ kind: "residue", cause: "off-road" });
+        expect(v.get(60)).toEqual({ kind: "residue", cause: "undeclared" });
+        // The cause is a function of the issue alone: banded rows keep theirs.
+        expect(residueCause(issues[0]!)).toBe("undeclared");
+        expect(residueCause(issues[3]!)).toBe("off-road");
+    });
+
     it("an edge pointing at residue contributes nothing", () => {
         expect(verdictOf([issue(1, { blocks: [2] }), issue(2)])).toEqual({
             kind: "residue",
+            cause: "undeclared",
         });
     });
 
@@ -213,19 +255,19 @@ describe("backlog-triage — the rule (issue #3851 decision 3)", () => {
         ];
         const v = triage(issues, index, {}, 9999);
         expect(v.get(2)).toMatchObject({ band: "P1", source: "edge" });
-        expect(v.get(1)).toEqual({ kind: "residue" });
+        expect(v.get(1)).toEqual({ kind: "residue", cause: "undeclared" });
         // A cycle terminates and bands nothing out of thin air.
         const cycle = [issue(1, { blocks: [2] }), issue(2, { blocks: [1] })];
         expect([...triage(cycle, index, {}, 9999).values()]).toEqual([
-            { kind: "residue" },
-            { kind: "residue" },
+            { kind: "residue", cause: "undeclared" },
+            { kind: "residue", cause: "undeclared" },
         ]);
     });
 
     it("a blocked issue's board value (short of P0) lends nothing — only its seed does", () => {
         expect(
             verdictOf([issue(1, { blocks: [2] }), issue(2)], { 2: "P1" })
-        ).toEqual({ kind: "residue" });
+        ).toEqual({ kind: "residue", cause: "undeclared" });
         // A hand-set P0 lends P1: the script never writes P0.
         expect(
             verdictOf([issue(1, { blocks: [2] }), issue(2)], { 2: "P0" })
@@ -282,7 +324,10 @@ describe("backlog-triage — cards named or unlocked", () => {
             byName
         );
         expect(cards).toEqual([]);
-        expect(verdictOf([issue(1, { cards })])).toEqual({ kind: "residue" });
+        expect(verdictOf([issue(1, { cards })])).toEqual({
+            kind: "residue",
+            cause: "undeclared",
+        });
         expect(
             cardsNamedByEngineTitle(
                 "[engine] Mayhem keyword — blocks Carnage, Crimson Chaos",
@@ -481,7 +526,8 @@ describe("backlog-triage — summary", () => {
             issue(1, { cards: [CARDS.Meta] }), // gain P1
             issue(2, { cards: [CARDS.Meta] }), // change P2 → P1
             issue(3, { cards: [CARDS.Cube] }), // unchanged P2
-            issue(4, { title: "orphan" }), // residue, board P3
+            issue(4, { title: "orphan" }), // residue (undeclared), board P3
+            issue(5, { title: "off the road", cards: [CARDS.Loose] }), // residue (off-road), unprioritized
         ];
         const board: Record<number, BoardPriority> = {
             2: "P2",
@@ -502,9 +548,36 @@ describe("backlog-triage — summary", () => {
             unchanged: 1,
         });
         expect(s.residue).toEqual([
-            { number: 4, title: "orphan", board: "P3" },
+            { number: 4, title: "orphan", board: "P3", cause: "undeclared" },
+            {
+                number: 5,
+                title: "off the road",
+                board: null,
+                cause: "off-road",
+            },
         ]);
+        expect(s.perCause).toEqual({ undeclared: 1, "off-road": 1 });
         expect(s.perSource.cards).toBe(3);
+    });
+
+    it("renderReport prints the two causes apart, each with its own count and board-held figure", () => {
+        const issues = [
+            issue(1, { title: "orphan A" }),
+            issue(2, { title: "orphan B" }),
+            issue(3, { title: "off the road", cards: [CARDS.Loose] }),
+        ];
+        const board: Record<number, BoardPriority> = { 1: "P3", 3: "P2" };
+        const report = renderReport(
+            summarize(issues, triage(issues, index, board, 9999), board)
+        );
+        const [head, rest] = report.split("residue — off-road");
+        expect(head).toMatch(/residue — undeclared .*: 2 \(1 hold a board/);
+        expect(head).toContain("#1 [board P3] orphan A");
+        expect(head).toContain("#2 orphan B");
+        expect(head).not.toContain("off the road");
+        expect(rest).toMatch(/^ .*: 1 \(1 hold a board/);
+        expect(rest).toContain("#3 [board P2] off the road");
+        expect(rest).not.toContain("orphan");
     });
 });
 
@@ -601,6 +674,10 @@ describe("backlog-triage — runTriage", () => {
         );
         expect(report).toMatch(/residue .*: 1 /);
         expect(report).toContain("#8 nothing");
+        // #8 declares nothing (its backticked names are prose, not a claim).
+        expect(report).toMatch(
+            /residue — undeclared .*: 1 [^]*#8 nothing[^]*residue — off-road .*: 0 /
+        );
         // #9 is banded by its declared card; its typo is reported, not dropped.
         expect(report).not.toContain("#9 declares its cards");
         expect(report).toContain("by source: fiat 0, cards 1");
@@ -683,8 +760,8 @@ describe("backlog-triage — planWrites", () => {
     it("a p0 or residue verdict owes no write — not P3, not a clear", () => {
         const verdicts = new Map([
             [1, { kind: "p0" } as const],
-            [2, { kind: "residue" } as const],
-            [3, { kind: "residue" } as const],
+            [2, { kind: "residue", cause: "undeclared" } as const],
+            [3, { kind: "residue", cause: "off-road" } as const],
         ]);
         expect(planWrites(verdicts, { 1: "P0", 2: "P2" })).toEqual([]);
     });
