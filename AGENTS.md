@@ -325,8 +325,9 @@ per landing — `land` only appends the tip and detaches the batch decision. It
 refuses a PR whose base is not the base branch. Worktrees come from `bun run wt:new <N>`
 (branches from `origin/<base>`). `deny-guard.sh` § 1 denies a
 hand-typed `gh pr merge` in every directory; if only the MERGE failed, retry
-`bun scripts/pr-merge.ts <PR#>` — never a second `land`, which re-pays the whole
-gate. Per-command hatch: `TOLARIA_ALLOW_MANUAL_MERGE=1`. A `skin`-lane PR owes
+`bun scripts/pr-merge.ts <PR#>` (a second `land` re-pays the gate), **then
+re-run `land`**: on a MERGED PR it runs only the housekeeping `pr-merge` skips
+(#4159). Per-command hatch: `TOLARIA_ALLOW_MANUAL_MERGE=1`. A `skin`-lane PR owes
 a byte-exact `check:ui` receipt only if its diff can reach the DOM — a
 test-only `src/**` diff is exempt (ADR 0110 §4).
 

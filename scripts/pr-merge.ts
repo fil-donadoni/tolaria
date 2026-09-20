@@ -140,6 +140,47 @@ export function mergeArgs(pr: number): string[] {
     return ["pr", "merge", String(pr), "--squash"];
 }
 
+/**
+ * What a HAND-RUN `pr-merge` still owes when it succeeds (issue #4159).
+ *
+ * This script is the raw primitive: it merges, and that is all it has ever
+ * done. `land` wraps it in a post-merge step list — record the landing,
+ * fast-forward the primary checkout, seed the PR's preset scenario, `gaps:sync`,
+ * release the claim, tear the worktree down — and CLAUDE.md § Merging sends a
+ * session HERE when only the merge failed, precisely so the (expensive) lane
+ * gate is not re-paid. The cost of that advice was silence: the PR landed and
+ * every one of those steps was skipped with nothing said, which is a
+ * regression path straight back into issue #3253 (an unseeded scenario is lost
+ * without a word — 10 of 14 specs in 80 PRs). Observed on PR #4153, 2026-09-19.
+ *
+ * So say it. `land` now re-enters on an already-MERGED PR and runs exactly the
+ * housekeeping, so the follow-up is one command and it is cheap.
+ *
+ * Empty when `land` is the caller (`--from-land`): it is about to run the very
+ * steps this would be telling it to run, and a line telling the merge-train to
+ * run the merge-train is the kind of noise that trains a reader to skip the
+ * tail of a green landing (issue #2877, same lesson).
+ */
+export function followUpNotice(pr: number, fromLand: boolean): string[] {
+    if (fromLand) return [];
+    return [
+        `pr-merge: merged ONLY — the post-merge housekeeping has NOT run ` +
+            `(landing record, primary-checkout fast-forward, preset-scenario seed, gaps:sync, claim release, worktree teardown).`,
+        `pr-merge: run it from the PR's worktree — it costs no rebase and no lane gate on an already-merged PR:`,
+        `pr-merge:     TOLARIA_GATE_RUN_KEY=land-${pr} bun run gate:run land ${pr}`,
+    ];
+}
+
+/** `--from-land` is `land`'s own marker (see `followUpNotice`); everything
+ *  else on the argv is ignored, and the PR number is the first positional. */
+export function parseArgs(argv: string[]): { pr: number; fromLand: boolean } {
+    const positional = argv.filter((a) => !a.startsWith("--"));
+    return {
+        pr: Number((positional[0] ?? "").replace(/^#/, "")),
+        fromLand: argv.includes("--from-land"),
+    };
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // Plumbing
 // ─────────────────────────────────────────────────────────────────────────
@@ -211,16 +252,19 @@ function attemptMerge(pr: number): string | null {
 }
 
 async function main(): Promise<void> {
-    const raw = (process.argv[2] ?? "").replace(/^#/, "");
-    const pr = Number(raw);
+    const { pr, fromLand } = parseArgs(process.argv.slice(2));
     if (!Number.isInteger(pr) || pr <= 0) {
-        fail("usage: bun scripts/pr-merge.ts <PR#>");
+        fail("usage: bun scripts/pr-merge.ts <PR#> [--from-land]");
     }
+    const sayWhatIsOwed = (): void => {
+        for (const line of followUpNotice(pr, fromLand)) console.log(line);
+    };
 
     for (let attempt = 1; attempt <= MERGE_ATTEMPTS; attempt++) {
         const verdict = await settle(pr);
         if (verdict.kind === "merged") {
             console.log(`pr-merge: PR #${pr} is merged`);
+            sayWhatIsOwed();
             return;
         }
         if (verdict.kind === "blocked") fail(verdict.reason);
@@ -228,6 +272,7 @@ async function main(): Promise<void> {
         const failure = attemptMerge(pr);
         if (failure === null) {
             console.log(`pr-merge: PR #${pr} merged (attempt ${attempt})`);
+            sayWhatIsOwed();
             return;
         }
         if (!isTransientMergeRefusal(failure)) {
@@ -244,6 +289,7 @@ async function main(): Promise<void> {
     // the attempt whose response we classified as a refusal.
     if (settleVerdict(readPr(pr)).kind === "merged") {
         console.log(`pr-merge: PR #${pr} is merged`);
+        sayWhatIsOwed();
         return;
     }
     fail(

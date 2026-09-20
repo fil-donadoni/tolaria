@@ -3,6 +3,8 @@ import {
     settleVerdict,
     isTransientMergeRefusal,
     mergeArgs,
+    followUpNotice,
+    parseArgs,
     type PrSettleView,
 } from "../pr-merge";
 
@@ -142,3 +144,60 @@ describe("pr-merge.ts — mergeArgs", () => {
         expect(mergeArgs(2536)).not.toContain("--delete-branch");
     });
 });
+
+// Issue #4159. `pr-merge` is the raw primitive: it merges, and `land` wraps it
+// in a post-merge step list. CLAUDE.md § Merging sends a session here when only
+// the MERGE failed, precisely so the lane gate is not re-paid — and the cost of
+// that advice was silence: the PR landed and every housekeeping step was
+// skipped with nothing said, which is issue #3253's loss (an unseeded scenario
+// disappears without a word) reintroduced through the back door. Observed on
+// PR #4153, 2026-09-19.
+describe("pr-merge.ts — followUpNotice", () => {
+    it("names what a hand-run merge still owes, and the one command that runs it", () => {
+        const lines = followUpNotice(4153, false);
+        expect(lines.length).toBeGreaterThan(0);
+        const text = lines.join("\n");
+        // The four steps whose silent absence is the bug, by the names a
+        // reader can grep for.
+        expect(text).toMatch(/preset-scenario seed/);
+        expect(text).toMatch(/gaps:sync/);
+        expect(text).toMatch(/fast-forward/);
+        expect(text).toMatch(/landing record/);
+        // The follow-up is `land` itself — which, on an already-MERGED PR,
+        // runs the housekeeping and nothing else.
+        expect(text).toContain("bun run gate:run land 4153");
+        // Keyed on the run key `land` is always invoked with, so the
+        // re-attach documented in /next-issue §5 works from anywhere.
+        expect(text).toContain("TOLARIA_GATE_RUN_KEY=land-4153");
+    });
+
+    it("says nothing when `land` is the caller — it is about to run those very steps", () => {
+        expect(followUpNotice(4153, true)).toEqual([]);
+    });
+});
+
+describe("pr-merge.ts — parseArgs", () => {
+    it("reads the PR number from the first positional, `#` and flags alike", () => {
+        expect(parseArgs(["4153"])).toEqual({ pr: 4153, fromLand: false });
+        expect(parseArgs(["#4153"])).toEqual({ pr: 4153, fromLand: false });
+        expect(parseArgs(["4153", "--from-land"])).toEqual({
+            pr: 4153,
+            fromLand: true,
+        });
+    });
+
+    it("is what `land`'s own merge step passes — the flag never shifts the PR number", () => {
+        // `buildLockedCommand` emits `bun <pr-merge.ts> <pr> --from-land`.
+        // A parser reading `process.argv[2]` positionally would still work
+        // here; one reading the LAST argument would not, and this pins which.
+        expect(parseArgs(["4153", "--from-land"]).pr).toBe(4153);
+    });
+});
+
+// Proof-of-failure: made `followUpNotice` return `[]` unconditionally (the
+// pre-#4159 silence) — "names what a hand-run merge still owes" went red.
+// Reverted.
+//
+// Proof-of-failure: made `parseArgs` read `argv[argv.length - 1]` instead of
+// the first positional — both `parseArgs` cases went red, because `land`
+// passes `<pr> --from-land`. Reverted.

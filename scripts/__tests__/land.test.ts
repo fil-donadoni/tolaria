@@ -11,7 +11,11 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
     refusalReason,
+    landMode,
     buildLockedCommand,
+    buildHousekeepingCommand,
+    postMergeHousekeepingSteps,
+    seedScenarioStep,
     rebaseStep,
     remoteBranchDeleteStep,
     primaryBranchFastForwardStep,
@@ -32,6 +36,7 @@ import {
     isTestOnlySrcDiff,
     type LandFacts,
     type LockedCommandOptions,
+    type HousekeepingOptions,
 } from "../land";
 import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "../lib/branches";
 import { classifyLane } from "../check-lane";
@@ -172,13 +177,81 @@ describe("land.ts — refusal matrix", () => {
         ).toMatch(/not found/);
     });
 
-    it("refuses when the PR is not open", () => {
-        expect(refusalReason({ ...clean, prState: "MERGED" })).toMatch(
-            /not open/
-        );
+    it("refuses when the PR is not open — but MERGED is the housekeeping mode, not a refusal (issue #4159)", () => {
         expect(refusalReason({ ...clean, prState: "CLOSED" })).toMatch(
             /not open/
         );
+        // A merged PR still owes its post-merge housekeeping, which the
+        // `pr-merge` recovery path cannot run. Refusing here is what made
+        // that work unreachable.
+        expect(refusalReason({ ...clean, prState: "MERGED" })).toBeNull();
+    });
+
+    // Issue #4159 — the housekeeping mode keeps every STRUCTURAL refusal (a
+    // dirty tree is destroyed by the teardown; a PR merged into some other
+    // base must not drag the primary checkout's base branch around) and drops
+    // the three BODY facts, which are pre-merge gates that can now only refuse
+    // to clean up after a PR already sitting on the base branch.
+    describe("housekeeping mode (a MERGED PR)", () => {
+        const merged: LandFacts = { ...clean, prState: "MERGED" };
+
+        it("still refuses a dirty tree — the teardown would discard it", () => {
+            expect(refusalReason({ ...merged, dirty: true })).toMatch(/dirty/);
+        });
+
+        it("still refuses from the base branch and on a head-branch mismatch", () => {
+            expect(refusalReason({ ...merged, branch: BASE_BRANCH })).toMatch(
+                /land runs from the PR's own branch/
+            );
+            expect(
+                refusalReason({ ...merged, prHeadRefName: "someone-else" })
+            ).toMatch(/head branch/);
+        });
+
+        it("still refuses a PR that merged into some other base, without telling it to retarget", () => {
+            const reason = refusalReason({
+                ...merged,
+                prBaseRefName: RELEASE_BRANCH,
+            });
+            expect(reason).toMatch(/PR targets/);
+            // `gh pr edit --base` is a no-op on a PR that has already merged
+            // — advice the caller cannot take (review round 1, finding 1).
+            expect(reason).not.toMatch(/retarget/);
+            expect(
+                refusalReason({ ...clean, prBaseRefName: RELEASE_BRANCH })
+            ).toMatch(/retarget/);
+        });
+
+        it("drops the three body facts — they are PRE-merge gates", () => {
+            expect(
+                refusalReason({ ...merged, skinReceiptInvalid: true })
+            ).toBeNull();
+            expect(
+                refusalReason({ ...merged, scenarioRefusal: "no scenario" })
+            ).toBeNull();
+            expect(
+                refusalReason({ ...merged, retirementRefusal: "no note" })
+            ).toBeNull();
+        });
+
+        it("keeps every one of those three a refusal while the PR is OPEN", () => {
+            expect(
+                refusalReason({ ...clean, skinReceiptInvalid: true })
+            ).not.toBeNull();
+            expect(
+                refusalReason({ ...clean, scenarioRefusal: "no scenario" })
+            ).not.toBeNull();
+            expect(
+                refusalReason({ ...clean, retirementRefusal: "no note" })
+            ).not.toBeNull();
+        });
+
+        it("selects the mode from the PR state alone", () => {
+            expect(landMode("MERGED")).toBe("housekeeping");
+            expect(landMode("OPEN")).toBe("full");
+            expect(landMode("CLOSED")).toBe("full");
+            expect(landMode(null)).toBe("full");
+        });
     });
 
     it("refuses when the PR head branch does not match the current branch", () => {
@@ -798,6 +871,189 @@ describe("land.ts — the locked command", () => {
     // Proof-of-failure (#2536): moved the remote-ref delete back OUTSIDE the
     // `if (opts.teardown)` block — "--keep leaves the REMOTE branch alone
     // too" went red. Reverted.
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Issue #4159 — the post-merge housekeeping is ONE list with TWO entry
+// points, and the recovery path cannot drift from `land`'s own.
+//
+// The old shape pushed every housekeeping step inline inside
+// `buildLockedCommand`, so the only way to run any of them was to run `land`
+// from the top. When the merge step failed, the documented recovery
+// (`bun scripts/pr-merge.ts <PR#>`, never a second `land`) merged the PR and
+// skipped ALL of them in silence — a regression path back into issue #3253,
+// observed on PR #4153 on 2026-09-19: the fast-forward, the scenario seed and
+// `gaps:sync` never ran, and the seed run by hand afterwards from the stale
+// checkout was rejected with `Unknown card name(s): Squee's Embrace`.
+//
+// The existing step-order tests above pin RELATIVE order (`seedIdx >
+// mergeIdx`). What they cannot catch is a step added to one path and not the
+// other, which is the whole failure mode this issue is about — hence the
+// byte-exact join below rather than a per-step `toContain` sweep.
+// ─────────────────────────────────────────────────────────────────────────
+describe("land.ts — post-merge housekeeping is the same list in both paths", () => {
+    const housekeeping: HousekeepingOptions = {
+        branch: "fix/issue-4159",
+        pr: 4159,
+        primaryCheckout: "/repo",
+        worktree: "/repo-issue-4159",
+        teardown: true,
+    };
+    const locked: LockedCommandOptions = {
+        ...housekeeping,
+        gatedGreen: [],
+        laneRecordDir: null,
+        merge: true,
+    };
+
+    for (const teardown of [true, false]) {
+        it(`is byte-identical in the land path and the recovery path (teardown: ${teardown})`, () => {
+            const steps = postMergeHousekeepingSteps({
+                ...housekeeping,
+                teardown,
+            }).join(" && ");
+            expect(steps).not.toBe("");
+            // Both commands must contain the SAME contiguous run of steps. A
+            // step that exists in only one path breaks this, whichever path
+            // gained it.
+            expect(buildLockedCommand({ ...locked, teardown })).toContain(
+                steps
+            );
+            expect(
+                buildHousekeepingCommand({ ...housekeeping, teardown })
+            ).toContain(steps);
+        });
+    }
+
+    // BOTH commands must END on the shared list, and the symmetry is the
+    // point: `toContain` above catches a step added INSIDE the shared list or
+    // dropped from it, but a step appended to EITHER builder past the spread
+    // would still contain the run and slip through. One `endsWith` per entry
+    // point closes that, in both directions (review round 1, finding 3).
+    it("ends the locked command — nothing in the land path runs past the shared list", () => {
+        // It also pins that the teardown (which removes the worktree the
+        // command runs from) stays last.
+        const cmd = buildLockedCommand(locked);
+        expect(
+            cmd.endsWith(postMergeHousekeepingSteps(housekeeping).join(" && "))
+        ).toBe(true);
+    });
+
+    it("ends the recovery command too — no housekeeping-only tail", () => {
+        const cmd = buildHousekeepingCommand(housekeeping);
+        expect(
+            cmd.endsWith(postMergeHousekeepingSteps(housekeeping).join(" && "))
+        ).toBe(true);
+    });
+
+    it("carries gaps:sync's origin band into the recovery path too (issue #4158 × #4159)", () => {
+        // `gapsSyncStep` takes the band of the issue the branch closes, so a
+        // gap born of P0 work files under its family's P0 umbrella. The
+        // recovery path runs the SAME sync, so dropping the band here would
+        // file the same gap under a different umbrella depending on which
+        // entry point happened to run it — a silent, invisible difference.
+        const banded = { ...housekeeping, originBand: "P0" as const };
+        expect(buildHousekeepingCommand(banded)).toContain("--band P0");
+        expect(buildLockedCommand({ ...locked, ...banded })).toContain(
+            "--band P0"
+        );
+        // Absent band: no flag at all, in both paths — `gaps:sync` keeps its
+        // own computed band, exactly as before #4158.
+        expect(buildHousekeepingCommand(housekeeping)).not.toContain("--band");
+        expect(buildLockedCommand(locked)).not.toContain("--band");
+    });
+
+    it("the recovery path neither rebases, nor gates the lane, nor merges", () => {
+        const cmd = buildHousekeepingCommand(housekeeping);
+        expect(cmd).not.toContain("git rebase");
+        expect(cmd).not.toContain("check:lane");
+        expect(cmd).not.toContain("check:pr");
+        expect(cmd).not.toContain("--force-with-lease");
+        expect(cmd).not.toContain("pr-merge.ts");
+    });
+
+    it("fetches the base branch first — every step below reads the MERGED tip", () => {
+        // `recordLandingStep` does `git rev-parse origin/<base>` and the
+        // fast-forward merges `origin/<base>`: nothing has fetched since the
+        // API merge landed, so without this they would both read the
+        // pre-merge tip and the ledger would record the wrong sha.
+        const cmd = buildHousekeepingCommand(housekeeping);
+        const fetchIdx = cmd.indexOf(`git fetch origin ${BASE_BRANCH}`);
+        expect(fetchIdx).toBeGreaterThan(-1);
+        expect(cmd.indexOf("rev-parse")).toBeGreaterThan(fetchIdx);
+        expect(cmd.indexOf("merge --ff-only")).toBeGreaterThan(fetchIdx);
+    });
+
+    it("unsets GITHUB_TOKEN first, like the locked command does", () => {
+        expect(
+            buildHousekeepingCommand(housekeeping).startsWith(
+                "unset GITHUB_TOKEN"
+            )
+        ).toBe(true);
+    });
+
+    it("carries every housekeeping step the land path has — named, so a reader sees what the recovery runs", () => {
+        const cmd = buildHousekeepingCommand(housekeeping);
+        expect(cmd).toContain("health-cadence.ts' record"); // the landing ledger
+        expect(cmd).toContain("merge --ff-only"); // primary checkout catches up
+        expect(cmd).toContain(seedScenarioStep("/repo", 4159)); // ADR 0044
+        expect(cmd).toContain("gaps-sync.ts"); // ADR 0137
+        expect(cmd).toContain("--remove-label in-progress"); // the claim
+        expect(cmd).toContain("health-cadence.ts' spawn"); // the batch decision
+        expect(cmd).toContain("worktree remove --force"); // teardown
+    });
+
+    it("is syntactically valid shell, with and without teardown", () => {
+        for (const teardown of [true, false]) {
+            const cmd = buildHousekeepingCommand({
+                ...housekeeping,
+                teardown,
+            });
+            const r = spawnSync("sh", ["-n", "-c", cmd], { encoding: "utf8" });
+            expect(r.status, r.stderr).toBe(0);
+        }
+    });
+
+    // Proof-of-failure: appended `steps.push("echo drift")` to
+    // `buildLockedCommand` after the `steps.push(...postMergeHousekeepingSteps(opts))`
+    // line — the drift this issue is about, in the direction `land` would
+    // drift. "ends the locked command" went red. Reverted.
+    //
+    // Proof-of-failure: made the recovery path spread
+    // `postMergeHousekeepingSteps(opts).slice(1)` — drift in the other
+    // direction, the recovery path running a SUBSET. Both "byte-identical"
+    // cases went red. Reverted.
+    //
+    // Proof-of-failure: dropped `seedScenarioStep(...)` from
+    // `postMergeHousekeepingSteps` — "carries every housekeeping step" went
+    // red on the seed step. Reverted. (Note this is the break the
+    // "byte-identical" pair CANNOT catch — dropping from the shared list
+    // changes both paths identically — which is why both tests exist.)
+    //
+    // Proof-of-failure: removed the `git fetch origin <base> -q` step from
+    // `buildHousekeepingCommand` — "fetches the base branch first" went red.
+    // Reverted.
+    //
+    // Proof-of-failure (the refusal matrix above): restored the pre-#4159
+    // `if (facts.prState !== "OPEN")` — the whole "housekeeping mode" block
+    // went red (4 cases). Reverted.
+    //
+    // Proof-of-failure (review round 1, finding 3): appended
+    // `"echo recovery-only drift"` to `buildHousekeepingCommand`'s array past
+    // the shared spread — the drift shape every earlier test missed, since
+    // `toContain` still matched. "ends the recovery command too" went red.
+    // Reverted.
+    //
+    // Proof-of-failure (rebase onto issue #4158): made the shared list pass
+    // `gapsSyncStep(opts.primaryCheckout, null)` — "carries gaps:sync's origin
+    // band into the recovery path too" went red. Reverted.
+    //
+    // Proof-of-failure (review round 1, finding 1, in the refusal matrix
+    // above): forced the wrong-base refusal back to one message for both
+    // modes (`return mode === "housekeeping"` → `return false`) — "without
+    // telling it to retarget" went red. Reverted. The first attempt at this
+    // break did not apply, and the test passed vacuously; the patch is
+    // asserted applied before the red is believed.
 });
 
 describe("land.ts — lockedEnv (review round 2, B1)", () => {

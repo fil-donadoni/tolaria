@@ -388,9 +388,35 @@ export interface LandFacts {
 }
 
 /**
+ * What this `land` invocation is FOR (issue #4159).
+ *
+ * `full` — the ordinary landing: rebase, lane gate, push, merge, housekeeping.
+ * `housekeeping` — the PR is ALREADY MERGED, so the only work left is the
+ * post-merge step list, which the `pr-merge` recovery path cannot run. Keyed
+ * on the PR state alone and nothing else: the state is the one fact that says
+ * whether a merge still has to happen, and deriving the mode from a flag the
+ * caller passes would let a session ask for a merge-free `land` on an OPEN PR
+ * — which is `--no-merge`, a different thing entirely.
+ */
+export type LandMode = "full" | "housekeeping";
+
+export function landMode(prState: string | null): LandMode {
+    return prState === "MERGED" ? "housekeeping" : "full";
+}
+
+/**
  * Named refusal reason, or null when `land` may proceed. Checked cheapest /
  * most-fundamental first, so a session that is on `main` (or dirty) never
  * pays for a `gh pr view` round trip it could never have used anyway.
+ *
+ * A MERGED PR is not a refusal any more (issue #4159): it selects the
+ * housekeeping mode. The structural facts still apply to it — a dirty tree
+ * would be destroyed by the teardown, and a PR merged into some OTHER base
+ * must not drag the primary checkout's base branch around — but the three
+ * BODY facts below do not: they are PRE-merge gates (does this diff owe a
+ * `check:ui` receipt, a preset scenario, a retirement note?) and re-asking
+ * them after the merge could only refuse to clean up after a PR that is
+ * already on the base branch, which is the silence this issue removes.
  */
 export function refusalReason(facts: LandFacts): string | null {
     if (facts.branch === BASE_BRANCH || facts.branch === RELEASE_BRANCH) {
@@ -402,7 +428,8 @@ export function refusalReason(facts: LandFacts): string | null {
     if (facts.prState === null) {
         return "PR not found";
     }
-    if (facts.prState !== "OPEN") {
+    const mode = landMode(facts.prState);
+    if (mode === "full" && facts.prState !== "OPEN") {
         return `PR is not open (state: ${facts.prState})`;
     }
     if (facts.prHeadRefName !== facts.branch) {
@@ -413,8 +440,19 @@ export function refusalReason(facts: LandFacts): string | null {
         // against the release branch (a stale habit, or a `gh pr create`
         // run before the default branch moved) would ship to production
         // unreleased — refuse before the lock, and name the one-line fix.
-        return `PR targets \`${facts.prBaseRefName}\` — land merges only into the base branch \`${BASE_BRANCH}\` (tolaria.config.json); retarget with \`gh pr edit <PR#> --base ${BASE_BRANCH}\``;
+        //
+        // The EXIT differs by mode, and only the full path has one: `gh pr
+        // edit --base` is a no-op on a PR that has already merged, so telling
+        // a housekeeping caller to retarget would be advice it cannot take.
+        // What it needs instead is to know the housekeeping is not `land`'s
+        // to run — the fast-forward and the ledger are about THIS base branch,
+        // and the merge went somewhere else.
+        const head = `PR targets \`${facts.prBaseRefName}\` — land merges only into the base branch \`${BASE_BRANCH}\` (tolaria.config.json)`;
+        return mode === "housekeeping"
+            ? `${head}; it has already merged there, so its post-merge housekeeping is not \`${BASE_BRANCH}\`'s to run`
+            : `${head}; retarget with \`gh pr edit <PR#> --base ${BASE_BRANCH}\``;
     }
+    if (mode === "housekeeping") return null;
     if (facts.skinReceiptInvalid) {
         return (
             "landing diff is `skin` and its pasted check:ui receipt failed verification " +
@@ -482,8 +520,36 @@ export function resolveGeneratedArtifactsStep(): string {
 // by a step that never appears in the string the lock wraps.
 // ─────────────────────────────────────────────────────────────────────────
 
-export interface LockedCommandOptions {
+/**
+ * What the post-merge housekeeping needs, and nothing more (issue #4159).
+ *
+ * Its own interface rather than a slice of `LockedCommandOptions`, because the
+ * recovery entry point has no gate to run and therefore no `gatedGreen` /
+ * `laneRecordDir` / `merge` to speak of — and a housekeeping step that started
+ * reading one of those would be a step the recovery path could not run.
+ */
+export interface HousekeepingOptions {
     branch: string;
+    pr: number;
+    /** The main checkout — where green-sha lives and teardown runs from. */
+    primaryCheckout: string;
+    /** The worktree `land` runs from — removed on teardown. */
+    worktree: string;
+    /** false for `--keep`: skip worktree teardown after a successful merge. */
+    teardown: boolean;
+    /**
+     * The priority band of the issue this branch closes (issue #4158), passed
+     * to `gaps:sync --band`. Omitted / null when it could not be determined.
+     *
+     * Housekeeping, not gating (issue #4159): `gapsSyncStep` is in the shared
+     * post-merge list, so the recovery path needs this as much as the landing
+     * path does — a gap filed by a recovery run must land under the same
+     * umbrella it would have under `land`.
+     */
+    originBand?: BoardPriority | null;
+}
+
+export interface LockedCommandOptions extends HousekeepingOptions {
     /**
      * The (head, base) pairs a `check:lane` run was recorded green on — read
      * BEFORE the lock by `readGreenLaneRuns`. The locked command skips the
@@ -496,20 +562,8 @@ export interface LockedCommandOptions {
      * format, so a retried `land` of the same tree skips it; null writes none.
      */
     laneRecordDir: string | null;
-    pr: number;
-    /** The main checkout — where green-sha lives and teardown runs from. */
-    primaryCheckout: string;
-    /** The worktree `land` runs from — removed on teardown. */
-    worktree: string;
     /** false for `--no-merge`: gate and push, never merge. */
     merge: boolean;
-    /** false for `--keep`: skip worktree teardown after a successful merge. */
-    teardown: boolean;
-    /**
-     * The priority band of the issue this branch closes (issue #4158), passed
-     * to `gaps:sync --band`. Omitted / null when it could not be determined.
-     */
-    originBand?: BoardPriority | null;
 }
 
 function shQuote(s: string): string {
@@ -862,6 +916,145 @@ export function healthDetachStep(primaryCheckout: string): string {
     );
 }
 
+/**
+ * Register the PR's preset scenario in the local Convex deployment (ADR 0044)
+ * — the step ADR 0110 dropped when it retired the orchestrator and CLAUDE.md
+ * § step 7 still names. In the PRIMARY checkout (a linked worktree has no
+ * `.env.local`, so no `CONVEX_DEPLOYMENT`), and NON-GATING like the rest of
+ * the housekeeping: no local deployment, a stopped `convex dev` or a spec
+ * naming a since-renamed card must never turn a merged PR into a reported
+ * failure. The pre-merge `scenarioRefusal` is what actually enforces that a
+ * spec EXISTS and loads; this only writes it.
+ */
+export function seedScenarioStep(primaryCheckout: string, pr: number): string {
+    return `(cd ${shQuote(primaryCheckout)} && bun ${shQuote(SEED_SCENARIO)} ${pr} || true)`;
+}
+
+/**
+ * What `land` does AFTER the merge has landed — extracted as ONE named list so
+ * the recovery path can run exactly it (issue #4159).
+ *
+ * WHY IT IS ITS OWN FUNCTION. Every step below used to be pushed inline inside
+ * `buildLockedCommand`, reachable only by running `land` from the top. When
+ * the MERGE step failed, the documented recovery was `bun scripts/pr-merge.ts
+ * <PR#>` and never a second `land` (which would re-pay the whole gate) — but
+ * `pr-merge` only merges, so the recovery landed the PR and silently skipped
+ * ALL of this. That is not a new failure mode: it is a regression path back
+ * into issue #3253, whose whole finding was that an unseeded scenario is lost
+ * in silence (10 of the 14 specs in 80 PRs never reached the deployment).
+ * Observed on PR #4153 (2026-09-19): stale `CONFLICTING` right after `land`'s
+ * own force-push, `pr-merge` retried alone, and the fast-forward, the seed and
+ * `gaps:sync` never ran.
+ *
+ * RE-ENTRY IS SAFE, by construction rather than by hope — which is what lets
+ * `land` run this list against an already-MERGED PR:
+ *  - `recordLandingStep` → `recordLanding` is idempotent on the tip already at
+ *    the tail of the ledger (`lib/health-cadence.ts`);
+ *  - the fast-forward is `--ff-only` and guarded on the primary checkout being
+ *    on the base branch;
+ *  - the seed is upsert-by-label (`lib/seed-scenario-run.ts` constraint 2);
+ *  - `gaps:sync` reconciles rather than appends;
+ *  - the claim release, the ref cleanup and the teardown are all `|| true` and
+ *    already no-ops once they have run.
+ *
+ * ORDER IS LOAD-BEARING and is asserted by the step-order tests, not by this
+ * comment: fast-forward BEFORE the seed (issue #3253 — the seed resolves card
+ * names server-side against the bundle it pushes from the primary checkout's
+ * DISK, so seeding a pre-merge tree can never resolve the PR's own new card),
+ * and the health detach BEFORE the teardown that removes the worktree this
+ * command runs from.
+ */
+export function postMergeHousekeepingSteps(
+    opts: HousekeepingOptions
+): string[] {
+    const steps: string[] = [
+        // The landing counter the batch health gate reads (ADR 0136 §6). A
+        // landing still pays the LANE gate only; the FULL gate runs once per
+        // BATCH — five landings, or two hours — detached below, never inside
+        // the lock.
+        recordLandingStep(opts.primaryCheckout),
+        // Local `main` catches up with the tip the API merge just created —
+        // unconditional of `--keep`, which is about the WORKTREE, not about
+        // leaving the checkout every session branches from one commit stale.
+        //
+        // BEFORE the seed below, and that order is load-bearing (issue #3253).
+        // `seedScenarioDirect` resolves every card name SERVER-SIDE against
+        // the deployed bundle, and the bundle can only ever contain what is on
+        // DISK in the primary checkout. Seeding first meant seeding against
+        // the PRE-merge tree, so a scenario naming the PR's own new card could
+        // never resolve — not a race, an ordering bug, and it silently lost 10
+        // of the 14 specs in the 80 PRs before 2026-09-09. The seed's own
+        // `--push` (`lib/seed-scenario-run.ts`) is the other half: it deploys
+        // what this fast-forward just wrote instead of waiting on a `convex
+        // dev` watcher that may be seconds behind or not running at all.
+        primaryBranchFastForwardStep(opts.primaryCheckout),
+        seedScenarioStep(opts.primaryCheckout, opts.pr),
+        // File/reconcile Grammar and Bot Gap issues (ADR 0137, issue #3829) —
+        // beside the preset-scenario seeding just above, non-gating for the
+        // same reason.
+        gapsSyncStep(opts.primaryCheckout, opts.originBand ?? null),
+    ];
+    // The claim outlives nothing: the PR is merged, the issue is closing.
+    const release = releaseClaimStep(opts.branch);
+    if (release !== null) steps.push(release);
+    // BEFORE the teardown below, which removes the worktree this command
+    // runs from. `spawn` is synchronous and creates nothing but a process
+    // — the health worktree is created minutes later, by the detached
+    // decision, once it has the mutex — so there is nothing here to
+    // contend with the `worktree remove`, and everything to lose by
+    // running after it.
+    steps.push(healthDetachStep(opts.primaryCheckout));
+    // Ref cleanup — cosmetic, not gating. `(… || true)` so a failure here
+    // (stale remote state, an already-deleted branch, …) can never turn
+    // a MERGED PR's landing into a reported failure.
+    //
+    // ALL of it sits behind `--keep`, the remote ref included (#2536):
+    // deleting the upstream of a worktree the user asked to keep leaves
+    // that worktree's branch with no remote to push to — teardown means
+    // teardown, and `--keep` means none of it.
+    if (opts.teardown) {
+        steps.push(remoteBranchDeleteStep(opts.branch));
+        steps.push(
+            `(git -C ${shQuote(opts.primaryCheckout)} worktree remove --force ${shQuote(opts.worktree)} || true)`
+        );
+        steps.push(
+            `(git -C ${shQuote(opts.primaryCheckout)} branch -D ${shQuote(opts.branch)} || true)`
+        );
+    }
+    return steps;
+}
+
+/**
+ * The RECOVERY entry point (issue #4159): the post-merge housekeeping, and
+ * nothing else, for a PR that merged OUTSIDE `land` — i.e. through the
+ * documented `bun scripts/pr-merge.ts <PR#>` retry after `land`'s own merge
+ * step lost the race with GitHub's post-force-push settle.
+ *
+ * NO rebase, NO `check:lane`, NO merge — the tree is already on the base
+ * branch and re-paying the lane gate is the exact cost the `pr-merge` retry
+ * exists to avoid (CLAUDE.md § Merging, ADR 0136 §2). What is left is the
+ * housekeeping, which never ran.
+ *
+ * `git fetch` first, because everything downstream reads the MERGED tip:
+ * `recordLandingStep` does `git rev-parse origin/<base>` and the fast-forward
+ * merges `origin/<base>` into the primary checkout. In the `land` path that
+ * fetch is the post-merge re-fetch; here nothing has fetched at all since the
+ * merge landed through the API. `-q`, and NOT wrapped in `|| true`: a fetch
+ * that fails means every tip below is stale, and recording a stale sha as this
+ * landing's is worse than stopping.
+ *
+ * `UNSET_GITHUB_TOKEN` leads for the same reason it leads `buildLockedCommand`
+ * — see the CREDENTIALS header comment; the `gh` call in the claim release is
+ * downstream of it.
+ */
+export function buildHousekeepingCommand(opts: HousekeepingOptions): string {
+    return [
+        UNSET_GITHUB_TOKEN,
+        `git fetch origin ${BASE_BRANCH} -q`,
+        ...postMergeHousekeepingSteps(opts),
+    ].join(" && ");
+}
+
 export function buildLockedCommand(opts: LockedCommandOptions): string {
     // The LANE gate, not the full gate (ADR 0110): `check:lane` runs exactly
     // the checks the classified diff owes (degrading to `check:pr` verbatim
@@ -889,74 +1082,22 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
         // transient refusal WITHOUT re-running the gate; a real conflict
         // still fails loudly. It stays inside this string, hence inside the
         // one lock, for the reason the merge was put here at all.
-        steps.push(`bun ${shQuote(PR_MERGE)} ${opts.pr}`);
+        // `--from-land` silences `pr-merge`'s follow-up notice (issue #4159):
+        // that notice exists for a HAND-RUN merge, and the housekeeping it
+        // names is the very next thing this command does.
+        steps.push(`bun ${shQuote(PR_MERGE)} ${opts.pr} --from-land`);
         // `gh pr merge` lands via the API — it does not update this worktree's
         // local `origin/main`, so re-fetch before reading the new tip.
         steps.push(`git fetch origin ${BASE_BRANCH} -q`);
         steps.push(VERIFY_MERGED_TIP);
-        // The landing counter the batch health gate reads (ADR 0136 §6). A
-        // landing still pays the LANE gate only; the FULL gate runs once per
-        // BATCH — five landings, or two hours — detached below, never inside
-        // this lock.
-        steps.push(recordLandingStep(opts.primaryCheckout));
-        // Local `main` catches up with the tip the API merge just created —
-        // unconditional of `--keep`, which is about the WORKTREE, not about
-        // leaving the checkout every session branches from one commit stale.
-        //
-        // BEFORE the seed below, and that order is load-bearing (issue #3253).
-        // `seedScenarioDirect` resolves every card name SERVER-SIDE against
-        // the deployed bundle, and the bundle can only ever contain what is on
-        // DISK in the primary checkout. Seeding first meant seeding against
-        // the PRE-merge tree, so a scenario naming the PR's own new card could
-        // never resolve — not a race, an ordering bug, and it silently lost 10
-        // of the 14 specs in the 80 PRs before 2026-09-09. The seed's own
-        // `--push` (`lib/seed-scenario-run.ts`) is the other half: it deploys
-        // what this fast-forward just wrote instead of waiting on a `convex
-        // dev` watcher that may be seconds behind or not running at all.
-        steps.push(primaryBranchFastForwardStep(opts.primaryCheckout));
-        // Register the PR's preset scenario in the local Convex deployment
-        // (ADR 0044) — the step ADR 0110 dropped when it retired the
-        // orchestrator CLAUDE.md § step 7 still names. Post-merge, in the
-        // PRIMARY checkout (a linked worktree has no `.env.local`, so no
-        // `CONVEX_DEPLOYMENT`), and NON-GATING like the rest of the
-        // housekeeping: no local deployment, a stopped `convex dev` or a spec
-        // naming a since-renamed card must never turn a merged PR into a
-        // reported failure. The pre-merge `scenarioRefusal` is what actually
-        // enforces that a spec EXISTS and loads; this only writes it.
-        steps.push(
-            `(cd ${shQuote(opts.primaryCheckout)} && bun ${shQuote(SEED_SCENARIO)} ${opts.pr} || true)`
-        );
-        // File/reconcile Grammar and Bot Gap issues (ADR 0137, issue #3829) —
-        // beside the preset-scenario seeding just above, non-gating for the
-        // same reason.
-        steps.push(gapsSyncStep(opts.primaryCheckout, opts.originBand ?? null));
-        // The claim outlives nothing: the PR is merged, the issue is closing.
-        const release = releaseClaimStep(opts.branch);
-        if (release !== null) steps.push(release);
-        // BEFORE the teardown below, which removes the worktree this command
-        // runs from. `spawn` is synchronous and creates nothing but a process
-        // — the health worktree is created minutes later, by the detached
-        // decision, once it has the mutex — so there is nothing here to
-        // contend with the `worktree remove`, and everything to lose by
-        // running after it.
-        steps.push(healthDetachStep(opts.primaryCheckout));
-        // Ref cleanup — cosmetic, not gating. `(… || true)` so a failure here
-        // (stale remote state, an already-deleted branch, …) can never turn
-        // a MERGED PR's landing into a reported failure.
-        //
-        // ALL of it sits behind `--keep`, the remote ref included (#2536):
-        // deleting the upstream of a worktree the user asked to keep leaves
-        // that worktree's branch with no remote to push to — teardown means
-        // teardown, and `--keep` means none of it.
-        if (opts.teardown) {
-            steps.push(remoteBranchDeleteStep(opts.branch));
-            steps.push(
-                `(git -C ${shQuote(opts.primaryCheckout)} worktree remove --force ${shQuote(opts.worktree)} || true)`
-            );
-            steps.push(
-                `(git -C ${shQuote(opts.primaryCheckout)} branch -D ${shQuote(opts.branch)} || true)`
-            );
-        }
+        // Everything past the merge verification is the SHARED housekeeping
+        // list (issue #4159) — the same steps, in the same order, that
+        // `buildHousekeepingCommand` runs on its own when the merge happened
+        // outside `land`. Never inline a step here: a step that exists in one
+        // path and not the other is exactly the drift that made the `pr-merge`
+        // recovery lose the seed in silence, and `land.test.ts` pins the two
+        // lists as one string.
+        steps.push(...postMergeHousekeepingSteps(opts));
     }
     return steps.join(" && ");
 }
@@ -1083,34 +1224,74 @@ function main(): void {
         );
     }
 
+    // The RECOVERY mode (issue #4159): a PR that merged outside `land` — the
+    // documented `bun scripts/pr-merge.ts <PR#>` retry after `land`'s own
+    // merge step lost the post-force-push settle race — still owes every
+    // post-merge step, and until now nothing could run them. It costs no lane
+    // gate and no rebase: the tree is already on the base branch, and ADR 0136
+    // §2's whole point is that a tree gated once is not gated again.
+    //
+    // Still inside `gate.ts heavy`, exactly like the full path: the seed
+    // pushes the primary checkout's bundle and the fast-forward moves its base
+    // branch, and those are the writes the machine-wide mutex exists to
+    // serialise against another session's `land`.
+    const mode = landMode(prState);
+
     // Read BEFORE the lock and the merge, while the issue is still open and the
     // board still shows it; non-gating — an unreadable band is a warning and a
     // `gaps:sync` that keeps its computed band (issue #4158).
-    // `--no-merge` never runs the sync, so it neither reads the board nor warns.
-    const origin: OriginBand = merge
-        ? originBandForBranch(branch)
-        : { band: null };
+    //
+    // The condition is "will the sync run?", not "will we merge?" (issue
+    // #4159): `--no-merge` never reaches the sync, but the housekeeping mode
+    // ALWAYS does — it exists to run exactly that list on a PR that merged
+    // elsewhere — so keying this on `merge` alone would hand the recovery path
+    // a null band and file its gaps under a different umbrella than the
+    // landing path would have.
+    const origin: OriginBand =
+        mode === "housekeeping" || merge
+            ? originBandForBranch(branch)
+            : { band: null };
     if (origin.reason !== undefined)
         console.warn(`land: gaps:sync gets no --band (${origin.reason})`);
 
     const runRoot = gateRunRoot(process.env);
-    const command = buildLockedCommand({
+    const housekeeping: HousekeepingOptions = {
         branch,
-        gatedGreen: readGreenLaneRuns(runRoot),
-        laneRecordDir: join(runRoot, `land-lane-${pr}`),
         pr,
         primaryCheckout: primary,
         worktree: cwd,
-        merge,
         teardown,
         originBand: origin.band,
-    });
+    };
+    const command =
+        mode === "housekeeping"
+            ? buildHousekeepingCommand(housekeeping)
+            : buildLockedCommand({
+                  ...housekeeping,
+                  gatedGreen: readGreenLaneRuns(runRoot),
+                  laneRecordDir: join(runRoot, `land-lane-${pr}`),
+                  merge,
+              });
 
     console.log(
-        `land: gating PR #${pr} on ${branch} — one heavy lock, ${
-            merge ? "with" : "without"
-        } merge`
+        mode === "housekeeping"
+            ? `land: PR #${pr} is already MERGED — running the post-merge housekeeping only (no rebase, no lane gate, no merge)`
+            : `land: gating PR #${pr} on ${branch} — one heavy lock, ${
+                  merge ? "with" : "without"
+              } merge`
     );
+    // `--no-merge` means "gate and push, never merge", and there is nothing
+    // left here to withhold: the merge already happened. Say so rather than
+    // running a full housekeeping pass under a flag the caller read as
+    // "touch nothing" — the housekeeping WRITES (the ledger, the primary
+    // checkout's base branch, the deployment's scenario row, `gh` labels),
+    // and a silent write under a flag that reads as restraint is the same
+    // class of surprise this issue is about.
+    if (mode === "housekeeping" && !merge) {
+        console.warn(
+            `land: --no-merge has no effect on an already-MERGED PR — the housekeeping below still runs and still writes (landing ledger, local ${BASE_BRANCH}, scenario seed, gaps:sync, claim, teardown). Ctrl-C now if that is not what you wanted.`
+        );
+    }
     const result = spawnSync("bun", [GATE, "heavy", command], {
         stdio: "inherit",
         cwd,
