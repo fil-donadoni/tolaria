@@ -108,6 +108,9 @@ interface Accumulator {
     hostNouns: HostNoun[];
     /** CR 113.1a — abilities granted in quotation marks, by template id. */
     grantTemplates: ActivatedAbility[];
+    /** CR 113.1a / 614.1c — the TRIGGERED twin of `grantTemplates` above, as
+     *  compiled descriptors (see `CardDefinition.compiledTriggeredGrantTemplates`). */
+    triggeredGrantTemplates: CompiledTriggeredAbility[];
     /** CR 702.16n — "This effect doesn't remove this Aura." */
     exemptFromProtectionDetach?: true;
     /** Every id this card has handed out, so a second one is never minted. */
@@ -210,28 +213,58 @@ function mintId(acc: Accumulator, base: string): string {
 
 /**
  * CR 113.1a — an ability granted in quotation marks, lowered into the
- * template the `activated-grant` descriptor names.
+ * template the `activated-grant` / `triggered-grant` descriptor names.
  *
  * "This creature" inside the quote is the HOST, because the ability is the
  * host's (the engine resolves a granted ability with the host as its source —
- * `StaticActivatedGrant`), and the ordinary `$source` lowering already says
- * exactly that. The census a printed ability pays is paid here too.
+ * `StaticActivatedGrant` / `StaticTriggeredGrant`), and the ordinary `$source`
+ * lowering already says exactly that. The census a printed ability pays is
+ * paid here too.
+ *
+ * A TRIGGERED grant (CR 614.1c — Necravolver's "… and with 'Whenever this
+ * creature deals damage, you gain that much life.'") lowers to a
+ * `CompiledTriggeredAbility` DESCRIPTOR, not a real `TriggeredAbility`:
+ * `matches` is a required closure and the compiler emits JSON only (see
+ * `compiledTriggeredAbilities`'s own doc comment) — the descriptor is
+ * rebuilt at the `expandDefinition` seam by `expandCompiledTriggers`, through
+ * the SAME `resolveCompiledTrigger` a printed trigger uses.
  */
 function lowerQuotedAbility(
     quoted: NonNullable<LoweredStatic["quotedAbilities"]>[number],
     card: OracleCard,
     acc: Accumulator
-): { ok: true; ability: ActivatedAbility } | { ok: false; reason: string } {
+):
+    | { ok: true; kind: "activated"; ability: ActivatedAbility }
+    | { ok: true; kind: "triggered"; ability: CompiledTriggeredAbility }
+    | { ok: false; reason: string } {
     const ir = quoted.ability;
-    if (ir.kind === "mana-ability")
-        return lowerManaAbility({
+    if (ir.kind === "mana-ability") {
+        const lowered = lowerManaAbility({
             id: quoted.id,
             oracleText: quoted.text,
             cost: ir.cost,
             produces: ir.produces,
         });
+        return lowered.ok
+            ? { ok: true, kind: "activated", ability: lowered.ability }
+            : lowered;
+    }
+    if (ir.kind === "triggered") {
+        censusGrantedKeywords(ir.effects, acc);
+        const lowered = lowerTriggeredAbility({
+            id: quoted.id,
+            oracleText: quoted.text,
+            cardName: card.name,
+            head: ir.head,
+            ...(ir.condition !== undefined ? { condition: ir.condition } : {}),
+            effects: ir.effects,
+        });
+        return lowered.ok
+            ? { ok: true, kind: "triggered", ability: lowered.ability }
+            : lowered;
+    }
     censusGrantedKeywords(ir.effects, acc);
-    return lowerActivatedAbility({
+    const lowered = lowerActivatedAbility({
         id: quoted.id,
         oracleText: quoted.text,
         cardName: card.name,
@@ -239,6 +272,9 @@ function lowerQuotedAbility(
         effects: ir.effects,
         restrictions: ir.restrictions,
     });
+    return lowered.ok
+        ? { ok: true, kind: "activated", ability: lowered.ability }
+        : lowered;
 }
 
 function lowerLine(
@@ -370,12 +406,17 @@ function lowerLine(
             // BEFORE anything is committed to `acc`, so a refusal here leaves
             // the card with no half-applied line.
             const templates: ActivatedAbility[] = [];
+            const triggeredTemplates: CompiledTriggeredAbility[] = [];
             for (const quoted of out.quotedAbilities ?? []) {
                 const template = lowerQuotedAbility(quoted, card, acc);
                 if (!template.ok) return template.reason;
-                templates.push(template.ability);
+                if (template.kind === "triggered")
+                    triggeredTemplates.push(template.ability);
+                else templates.push(template.ability);
             }
             if (templates.length > 0) acc.grantTemplates.push(...templates);
+            if (triggeredTemplates.length > 0)
+                acc.triggeredGrantTemplates.push(...triggeredTemplates);
             acc.compiledStaticEffects.push(...(out.effects ?? []));
             if (out.host !== undefined) acc.hostNouns.push(out.host);
             if (out.exemptFromProtectionDetach === true)
@@ -553,6 +594,7 @@ export function lowerCard(
         ungrantableKeywords: [],
         hostNouns: [],
         grantTemplates: [],
+        triggeredGrantTemplates: [],
         mintedIds: new Set(),
     };
     // CR 702.33e — a kicker's linked abilities "can refer only to those
@@ -726,6 +768,9 @@ export function lowerCard(
     }
     if (acc.grantTemplates.length > 0)
         definition.grantTemplates = acc.grantTemplates;
+    if (acc.triggeredGrantTemplates.length > 0)
+        definition.compiledTriggeredGrantTemplates =
+            acc.triggeredGrantTemplates;
     if (acc.exemptFromProtectionDetach === true)
         definition.exemptFromProtectionDetach = true;
     if (acc.enchantRequirement !== undefined) {

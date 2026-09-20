@@ -228,6 +228,58 @@ const GOLDEN: readonly (readonly [OracleCard, CompiledDefinition])[] = [
             ],
         },
     ],
+    // CR 113.1a — the TRIGGERED twin of the `activated-grant` case above
+    // (issue #4139): a quoted ability the triggered slot reads lowers to a
+    // `compiledTriggeredGrantTemplates[]` descriptor, never `grantTemplates[]`
+    // (`TriggeredAbility.matches` is a required closure). Also exercises a
+    // restriction pair ALONGSIDE a grant on the same host.
+    [
+        aura(
+            "Pillory of the Sleepless",
+            "{1}{W}{B}",
+            'Enchant creature\nEnchanted creature can\'t attack or block.\nEnchanted creature has "At the beginning of your upkeep, you lose 1 life."',
+            "74776491-29c3-46e6-989b-cf9a00bbfcef"
+        ),
+        {
+            ...CREATURE_AURA,
+            name: "Pillory of the Sleepless",
+            manaCost: { X: 1, W: 1, B: 1 },
+            oracleText:
+                'Enchant creature\nEnchanted creature can\'t attack or block.\nEnchanted creature has "At the beginning of your upkeep, you lose 1 life."',
+            compiledStaticEffects: [
+                {
+                    kind: "attack-restriction",
+                    id: "pillory-of-the-sleepless-cant-attack",
+                    oracleText: "Enchanted creature can't attack or block.",
+                },
+                {
+                    kind: "block-restriction",
+                    id: "pillory-of-the-sleepless-cant-block",
+                    oracleText: "Enchanted creature can't attack or block.",
+                },
+                {
+                    kind: "triggered-grant",
+                    appliesTo: "host",
+                    abilityId: "pillory-of-the-sleepless-granted",
+                },
+            ],
+            compiledTriggeredGrantTemplates: [
+                {
+                    id: "pillory-of-the-sleepless-granted",
+                    oracleText:
+                        "At the beginning of your upkeep, you lose 1 life.",
+                    head: { kind: "phase", phase: "UPKEEP", scope: "your" },
+                    effects: [
+                        {
+                            op: "loseLife",
+                            player: "controller",
+                            amount: 1,
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
     // CR 613.1b — a layer-2 control change on the host.
     [
         aura(
@@ -399,8 +451,6 @@ describe("Aura statics — refusals", () => {
         // A predicate the frame does not read.
         "Enchanted creature gets +2/+2 and is goaded.",
         "Enchanted creature gets +2/+2 and attacks each combat if able.",
-        // A quoted TRIGGERED ability is a `triggered-grant`, not this form.
-        'Enchanted creature has "At the beginning of your upkeep, you lose 1 life."',
         // "enchanted permanent" names no host type for a quoted ability.
         'Enchanted permanent has "{T}: Draw a card."',
         // "this Aura" inside a quote is the AURA, not the host (CR 201.5a).

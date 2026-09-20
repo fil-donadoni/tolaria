@@ -426,6 +426,148 @@ describe("kicked entry riders that also grant an ability (CR 614.1c / 702.33e–
             ],
         });
     });
+
+    // CR 614.1c / 113.1a — the TRIGGERED twin of the activated-grant case
+    // above (issue #4139): the "and with …" tail's quoted ability is read by
+    // the SAME `readQuotedAbilityIn` dispatch, now including the triggered
+    // slot, and lowers to a `compiledTriggeredGrantTemplates[]` descriptor
+    // rather than `grantTemplates[]` — `matches` is a required closure and the
+    // compiler emits JSON only (see `CardDefinition.compiledTriggeredGrantTemplates`).
+    const GAIN_THAT_MUCH = [
+        {
+            op: "gainLife",
+            player: "controller",
+            amount: { ref: "$event.amount" },
+        },
+    ];
+
+    it("per-kicker id, counters + quoted TRIGGERED ability on the second rider (Necravolver)", () => {
+        const text =
+            'Kicker {1}{G} and/or {W}\nIf this creature was kicked with its {1}{G} kicker, it enters with two +1/+1 counters on it and with trample.\nIf this creature was kicked with its {W} kicker, it enters with a +1/+1 counter on it and with "Whenever this creature deals damage, you gain that much life."';
+        expect(compiled(creature("Necravolver", "{2}{B}", text))).toEqual({
+            name: "Necravolver",
+            types: ["Creature"],
+            manaCost: { X: 2, B: 1 },
+            power: 2,
+            toughness: 2,
+            oracleText: text,
+            kickers: [
+                {
+                    id: "kicker-g",
+                    description: "Kicker {1}{G}",
+                    mana: { X: 1, G: 1 },
+                },
+                { id: "kicker-w", description: "Kicker {W}", mana: { W: 1 } },
+            ],
+            entersWith: {
+                counters: [
+                    {
+                        type: "+1/+1",
+                        count: { additionalCostPaid: "kicker-g" },
+                    },
+                    {
+                        type: "+1/+1",
+                        count: { additionalCostPaid: "kicker-g" },
+                    },
+                    {
+                        type: "+1/+1",
+                        count: { additionalCostPaid: "kicker-w" },
+                    },
+                ],
+            },
+            compiledStaticEffects: [
+                {
+                    kind: "keyword-grant",
+                    keyword: "trample",
+                    appliesTo: "self-if-kicked",
+                    kickerId: "kicker-g",
+                },
+                {
+                    kind: "triggered-grant",
+                    abilityId: "necravolver-kicked",
+                    appliesTo: "self-if-kicked",
+                    kickerId: "kicker-w",
+                },
+            ],
+            compiledTriggeredGrantTemplates: [
+                {
+                    id: "necravolver-kicked",
+                    oracleText:
+                        "Whenever this creature deals damage, you gain that much life.",
+                    head: {
+                        kind: "damage-dealt",
+                        source: "self",
+                        recipient: "any",
+                    },
+                    effects: GAIN_THAT_MUCH,
+                },
+            ],
+        });
+    });
+
+    it("per-kicker id, quoted TRIGGERED ability on the first rider + keyword on the second (Rakavolver)", () => {
+        const text =
+            'Kicker {1}{W} and/or {U}\nIf this creature was kicked with its {1}{W} kicker, it enters with two +1/+1 counters on it and with "Whenever this creature deals damage, you gain that much life."\nIf this creature was kicked with its {U} kicker, it enters with a +1/+1 counter on it and with flying.';
+        expect(compiled(creature("Rakavolver", "{2}{R}", text))).toEqual({
+            name: "Rakavolver",
+            types: ["Creature"],
+            manaCost: { X: 2, R: 1 },
+            power: 2,
+            toughness: 2,
+            oracleText: text,
+            kickers: [
+                {
+                    id: "kicker-w",
+                    description: "Kicker {1}{W}",
+                    mana: { X: 1, W: 1 },
+                },
+                { id: "kicker-u", description: "Kicker {U}", mana: { U: 1 } },
+            ],
+            entersWith: {
+                counters: [
+                    {
+                        type: "+1/+1",
+                        count: { additionalCostPaid: "kicker-w" },
+                    },
+                    {
+                        type: "+1/+1",
+                        count: { additionalCostPaid: "kicker-w" },
+                    },
+                    {
+                        type: "+1/+1",
+                        count: { additionalCostPaid: "kicker-u" },
+                    },
+                ],
+            },
+            compiledStaticEffects: [
+                {
+                    kind: "triggered-grant",
+                    abilityId: "rakavolver-kicked",
+                    appliesTo: "self-if-kicked",
+                    kickerId: "kicker-w",
+                },
+                {
+                    kind: "keyword-grant",
+                    keyword: "flying",
+                    appliesTo: "self-if-kicked",
+                    kickerId: "kicker-u",
+                },
+            ],
+            compiledTriggeredGrantTemplates: [
+                {
+                    id: "rakavolver-kicked",
+                    oracleText:
+                        "Whenever this creature deals damage, you gain that much life.",
+                    head: {
+                        kind: "damage-dealt",
+                        source: "self",
+                        recipient: "any",
+                    },
+                    effects: GAIN_THAT_MUCH,
+                },
+            ],
+        });
+    });
 });
 
 describe("Kicker gold over the hand-written catalogue", () => {
@@ -492,16 +634,11 @@ describe("Kicker refusals — grammar", () => {
 });
 
 describe("Kicker refusals — kicked entry riders the engine still has no surface for", () => {
-    // The "and with …" tail grants a keyword list or ONE activated/mana
-    // ability (issue #3864). A quoted TRIGGERED or STATIC ability has no
-    // self-grant reader, so each must leave the card unparsed — never
-    // compiled to its counters alone.
+    // The "and with …" tail grants a keyword list or ONE activated/mana/
+    // triggered ability (issue #3864, widened to triggered by issue #4139). A
+    // quoted STATIC ability has no self-grant reader, so it must leave the
+    // card unparsed — never compiled to its counters alone.
     it.each([
-        [
-            "Necravolver",
-            'Kicker {1}{G} and/or {W}\nIf this creature was kicked with its {1}{G} kicker, it enters with two +1/+1 counters on it and with trample.\nIf this creature was kicked with its {W} kicker, it enters with a +1/+1 counter on it and with "Whenever this creature deals damage, you gain that much life."',
-            'If this creature was kicked with its {W} kicker, it enters with a +1/+1 counter on it and with "Whenever this creature deals damage, you gain that much life."',
-        ],
         [
             "Prison Barricade",
             'Defender\nKicker {1}{W}\nIf this creature was kicked, it enters with a +1/+1 counter on it and with "This creature can attack as though it didn\'t have defender."',

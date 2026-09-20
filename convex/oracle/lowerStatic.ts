@@ -397,6 +397,20 @@ function lowerKickedRider(
                 });
                 break;
             }
+            case "triggered-grant": {
+                const id = nextId("kicked");
+                quotedAbilities.push({
+                    id,
+                    text: grant.text,
+                    ability: grant.ability,
+                });
+                effects.push({
+                    kind: "triggered-grant",
+                    abilityId: id,
+                    ...gate,
+                });
+                break;
+            }
             default: {
                 const never: never = grant;
                 return {
@@ -494,6 +508,20 @@ function lowerHostClause(
                 });
                 effects.push({
                     kind: "activated-grant",
+                    appliesTo: "host",
+                    abilityId: id,
+                });
+                break;
+            }
+            case "triggered-grant": {
+                const id = nextId("granted");
+                quotedAbilities.push({
+                    id,
+                    text: effect.text,
+                    ability: effect.ability,
+                });
+                effects.push({
+                    kind: "triggered-grant",
                     appliesTo: "host",
                     abilityId: id,
                 });

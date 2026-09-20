@@ -71,6 +71,7 @@ import { keywordVocabulary } from "./keywordVocabulary";
 import type { KeywordIR, SlotIR } from "../ir";
 import { activatedSlot } from "../slots/activated";
 import { manaAbilitySlot } from "../slots/manaAbility";
+import { triggeredSlot } from "../slots/triggered";
 import type { ParseContext } from "../../types";
 import type { CardType, ManaCost } from "../../../cards/types";
 import { readManaCost } from "../../manaCost";
@@ -181,19 +182,23 @@ export type StaticClauseIR =
       };
 
 /** What a kicked entry rider's "and with …" tail grants the permanent itself
- *  — the two host-effect shapes that name an ABILITY (CR 614.1c). */
+ *  — the three host-effect shapes that name an ABILITY (CR 614.1c). */
 export type SelfGrantIR = Extract<
     HostEffectIR,
-    { kind: "keyword-grant" } | { kind: "activated-grant" }
+    | { kind: "keyword-grant" }
+    | { kind: "activated-grant" }
+    | { kind: "triggered-grant" }
 >;
 
 /** What "enchanted <noun>" names: a card type, or any permanent. */
 export type HostNoun = CardType | "permanent";
 
-/** An ability printed in quotation marks: an activated or a mana ability. */
+/** An ability printed in quotation marks: an activated, mana or triggered
+ *  ability (CR 614.1c — "… and with '<ability>'", Necravolver's "Whenever
+ *  this creature deals damage, you gain that much life."). */
 export type QuotedAbilityIR = Extract<
     SlotIR,
-    { kind: "activated" } | { kind: "mana-ability" }
+    { kind: "activated" } | { kind: "mana-ability" } | { kind: "triggered" }
 >;
 
 /** One effect a host frame applies to the enchanted permanent. */
@@ -211,6 +216,17 @@ export type HostEffectIR =
           readonly kind: "activated-grant";
           /** The quoted text, full stop included — the granted ability's
            *  own Oracle text. */
+          readonly text: string;
+          readonly ability: QuotedAbilityIR;
+      }
+    /** CR 113.1a / 613.1f — the TRIGGERED twin of `activated-grant` above,
+     *  for a quoted ability the triggered slot reads (issue #4139 —
+     *  Necravolver's "Whenever this creature deals damage, you gain that
+     *  much life."). Kept as its own member, never folded into
+     *  `activated-grant`, because the two lower onto different card-level
+     *  destinations (`grantTemplates[]` vs `triggeredGrantTemplates[]`). */
+    | {
+          readonly kind: "triggered-grant";
           readonly text: string;
           readonly ability: QuotedAbilityIR;
       }
@@ -877,7 +893,10 @@ function readSelfGrants(
         if (!ability.ok) return ability;
         return ok([
             {
-                kind: "activated-grant" as const,
+                kind:
+                    ability.value.kind === "triggered"
+                        ? ("triggered-grant" as const)
+                        : ("activated-grant" as const),
                 text: quoted[1]!,
                 ability: ability.value,
             },
@@ -1091,15 +1110,19 @@ function readQuotedAbilityIn(
 ): RuleResult<QuotedAbilityIR> {
     const hits: QuotedAbilityIR[] = [];
     const misses: string[] = [];
-    for (const slot of [activatedSlot, manaAbilitySlot]) {
+    for (const slot of [activatedSlot, manaAbilitySlot, triggeredSlot]) {
         const r = slot.run(text, ctx);
         if (!r.ok) {
             misses.push(r.reason);
             continue;
         }
-        if (r.value.kind !== "activated" && r.value.kind !== "mana-ability")
+        if (
+            r.value.kind !== "activated" &&
+            r.value.kind !== "mana-ability" &&
+            r.value.kind !== "triggered"
+        )
             return fail(
-                "a quoted ability that is not an activated ability",
+                "a quoted ability that is not an activated, mana or triggered ability",
                 text
             );
         hits.push(r.value);
@@ -1133,7 +1156,10 @@ function readHostPredicate(
         if (!ability.ok) return ability;
         return ok([
             {
-                kind: "activated-grant" as const,
+                kind:
+                    ability.value.kind === "triggered"
+                        ? ("triggered-grant" as const)
+                        : ("activated-grant" as const),
                 text: quoted[1]!,
                 ability: ability.value,
             },
