@@ -163,6 +163,8 @@ import { determinize } from "./determinize";
 import { deckColorsForSearch, type DeckKnowledgeBySeat } from "./deckKnowledge";
 import { makeRng } from "./rng";
 import { hasCastableInstantHint } from "./heldInteraction";
+import { getEffectiveActivatedAbilities } from "./activatedAbilities";
+import { hasCardSelfFlashPermission } from "../cards/castRestrictions";
 import {
     isCreature,
     hasManaAbility,
@@ -3637,6 +3639,70 @@ function isManaDorkCast(state: GameState, move: Move, botId?: string): boolean {
     return isCreature(card) && hasManaAbility(card);
 }
 
+/** Whether `move` casts an UNTARGETED, NON-CREATURE ARTIFACT or ENCHANTMENT at
+ *  sorcery speed whose worth is an ACTIVATED ABILITY its controller holds — a
+ *  removal option that waits on the battlefield, an engine to crank (issue
+ *  #4070). The third development class of the free-development tie-break.
+ *
+ *  WHY the tie-break is the right seam for this class: casting it now and
+ *  casting it after combat reach the SAME leaves — the `pass` edge's own
+ *  rollouts cast the card later in the same turn — so no evaluation term can
+ *  separate the two, and the material tie-break chose `pass` at every budget
+ *  measured (three Seals, 48 to 400 iterations, never cast). Holding a
+ *  sorcery-speed permanent buys nothing: no bluff, no instant-speed window to
+ *  wait for.
+ *
+ *  WHY the activated-ability clause: outcome-equality alone is not enough. A
+ *  permanent whose effect lives PAST the rollout horizon is outcome-equal to
+ *  `pass` whether it helps or hurts, so a rule keyed only on outcome-equality
+ *  would deploy a symmetric lock (untap caps on every land) or a symmetric
+ *  gift (each player draws) every time. An ability only the controller can
+ *  activate is the controller's own option — the cast cannot hand the
+ *  opponent anything — which is what makes deploying it never worse than
+ *  holding it.
+ *
+ *  Deliberately NOT covered: a creature (an artifact creature included — its
+ *  body is the search's business), a targeted permanent such as an Aura (its
+ *  variants are `announcement-variant`'s), and an instant-speed permanent (a
+ *  Flash card or one castable "as though it had flash": `hold-trick`).
+ *  Not modelled: flash granted to the PLAYER by another permanent or effect.
+ *
+ *  The caster's OWN instant-speed options are respected precisely: the cast is
+ *  refused only when it would leave the caster unable to cast an instant it
+ *  could cast now (the mana is the option). `caster` is `botId` when known,
+ *  else the active player. Pure. */
+function isSorcerySpeedPermanentCast(
+    state: GameState,
+    move: Move,
+    botId?: string
+): boolean {
+    if (move.kind !== "cast-spell" || move.targets.length > 0) return false;
+    const casterId = botId ?? state.activePlayerId;
+    const caster = state.players.find((p) => p.id === casterId);
+    const card = caster?.hand.find((c) => c.id === move.cardInstanceId);
+    if (!card || isCreature(card)) return false;
+    if (hasInstantSpeed(card) || hasCardSelfFlashPermission(card)) return false;
+    if (!card.types.some((t) => t === "Artifact" || t === "Enchantment"))
+        return false;
+    const heldByController = getEffectiveActivatedAbilities(card).some(
+        ({ ability: a }) =>
+            !a.activatableByOpponentsOnly &&
+            !a.activateFromHand &&
+            !a.activateFromGraveyard &&
+            (a.useStack === true ||
+                !(a.manaProduced || a.manaChoices || a.manaColorSource))
+    );
+    if (!heldByController) return false;
+    if (!hasCastableInstant(state, casterId)) return true;
+    const probe = cloneGameState(state);
+    try {
+        applyMoveInSearch(probe, casterId, move);
+    } catch {
+        return false;
+    }
+    return hasCastableInstant(probe, casterId);
+}
+
 // --- Self-harm removal guard (issue #365) ----------------------------------
 // A one-sided removal / destruction Spell (Disenchant, Swords to Plowshares,
 // any `destroy-target` effect) aimed at the caster's OWN beneficial Permanent
@@ -4680,9 +4746,9 @@ export function selectRootMove(
     //
     // ORDER. Both holds require `best` to be a cast/activation, and it is
     // `pass` here, so neither can collide. Two rules can: `free-development`
-    // above returns on an outcome-equal land drop and is deliberately left
-    // AHEAD — an untaken land drop is a turn the cheat-into-play line still
-    // has — and `last-window-fire` below credits an ACTIVATION where this
+    // above returns on an outcome-equal land drop, mana source or dork and is
+    // deliberately left AHEAD — an untaken land drop is a turn the
+    // cheat-into-play line still has — and `last-window-fire` below credits an ACTIVATION where this
     // credits a `cast-spell`, so the two are disjoint per EDGE but not per
     // POSITION. With a qualifying cast and a qualifying last-window activation
     // both outcome-equal, this placement takes the cast: the deferred
@@ -4703,6 +4769,31 @@ export function selectRootMove(
                 resolvedMarginDelta(rootState, e.move, botId, weights) > 0
         );
         if (payoff) return finish(payoff, "resolved-payoff", payoff !== best);
+    }
+
+    // Free-development, third class (issue #4070): an untargeted sorcery-speed
+    // artifact or enchantment whose worth is an activated ability its
+    // controller holds (`isSorcerySpeedPermanentCast` carries the argument).
+    // Placed AFTER `resolved-payoff` on purpose: a cast with a measured
+    // positive payoff must win over one that is merely outcome-equal, and this
+    // class carries no payoff of its own to compare. Same mechanism name as
+    // the land / mana-source / dork class above — one rule, one allowlist row —
+    // split in code only because that class returns before `resolved-payoff`
+    // and this one must not.
+    //
+    // Several outcome-equal variants of the ONE card (a tap plan, an X) all
+    // qualify; the choice among them is the material tie-break's own ranking,
+    // `meanMargin`, not the pool's insertion order.
+    if (rootState && best.move.kind === "pass" && ruleOn("free-development")) {
+        let develop: Edge | undefined;
+        for (const e of pool) {
+            if (mean(e) < bestMean - weights.outcomeEps) continue;
+            if (!isSorcerySpeedPermanentCast(rootState, e.move, botId))
+                continue;
+            if (!develop || meanMargin(e) > meanMargin(develop)) develop = e;
+        }
+        if (develop)
+            return finish(develop, "free-development", develop !== best);
     }
 
     // Last-window FIRE (issue #2939) — the mirror of the hold rule above, and

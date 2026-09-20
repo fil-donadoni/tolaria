@@ -115,7 +115,7 @@ export const ROOT_RULE_ALLOWLIST: Record<
     "free-development": {
         kind: "rule",
         issue: 206,
-        why: "a land drop / free mana source / mana dork has no option cost, and its development washes out of the rollout (ADR 0020 §1)",
+        why: "a land drop / free mana source / mana dork / untargeted sorcery-speed artifact or enchantment with a controller-held activated ability: deploying and deferring reach the same rollout leaves (the pass edge casts it later the same turn), so no evaluation term separates them (ADR 0020 §1, issue #4070)",
     },
     "hold-trick": {
         kind: "rule",

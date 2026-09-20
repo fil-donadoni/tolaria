@@ -3,8 +3,12 @@
 // multi-step line that greedy 1-ply misses. Plus the contract checks: the move
 // is always legal, the search is deterministic given a seed, and it respects
 // the budget bound. See `convex/gre/search.ts`.
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards";
+import { withTemporaryDefinition } from "../../cards/registry";
+import type { ActivatedAbility, CardDefinition } from "../../cards/types";
 import {
     search,
     searchWithTrace,
@@ -1300,6 +1304,296 @@ describe("selectRootMove — mana dork tie-break", () => {
         expect(
             selectRootMove(root, [PASS, CAST_BIRDS], rootState(), "p1").kind
         ).toBe("pass");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Free-development tie-break, extended to UNTARGETED SORCERY-SPEED ARTIFACTS
+// AND ENCHANTMENTS (issue #4070). Casting one now and casting it after combat
+// reach the same position (the `pass` edge's own rollouts cast it later), so
+// the two are outcome-equal and the material tie-break chose `pass` at every
+// budget: the Bot never deployed a Seal. Synthetic-edge tests with a
+// `rootState` carrying the card in hand so `isSorcerySpeedPermanentCast`
+// resolves it.
+// ---------------------------------------------------------------------------
+describe("selectRootMove — sorcery-speed permanent tie-break (issue #4070)", () => {
+    const SEAL = getCardByName("Seal of Doom").id; // {2}{B} enchantment, no cast target
+    const TOME = getCardByName("Jayemdae Tome").id; // {4} artifact, no cast target
+    const SPECTER = getCardByName("Hypnotic Specter").id; // creature
+    const ORNITHOPTER = getCardByName("Ornithopter").id; // artifact creature
+    const WINTER_ORB = getCardByName("Winter Orb").id; // symmetric untap lock, no ability
+    const HOWLING_MINE = getCardByName("Howling Mine").id; // each player draws, no ability
+    const AURA = getCardByName("Wild Growth").id; // enchant land: targets at cast
+    // Each synthetic carries a controller-usable activated ability, so the
+    // ONLY thing that can keep it out of the class is the property it names.
+    const ABILITY: ActivatedAbility = {
+        id: "issue-4070-ability",
+        oracleText: "Sacrifice this enchantment: draw a card.",
+        cost: { sacrifice: true },
+        useStack: true,
+        effects: [{ op: "draw", player: "controller", count: 1 }],
+    };
+    const synthetic = (
+        key: string,
+        over: Partial<CardDefinition>
+    ): CardDefinition => ({
+        id: `issue-4070:${key}`,
+        name: `Issue 4070 ${key}`,
+        rarity: "common",
+        manaCost: { W: 1 },
+        types: ["Enchantment"],
+        activatedAbilities: [ABILITY],
+        ...over,
+    });
+    const FLASH_ENCHANTMENT = synthetic("flash", {
+        staticAbilities: ["flash"],
+    });
+    const AS_THOUGH_FLASH_ENCHANTMENT = synthetic("as-though-flash", {
+        castAsThoughFlash: true,
+    });
+    const OPPONENTS_ONLY_ENCHANTMENT = synthetic("opponents-only", {
+        activatedAbilities: [{ ...ABILITY, activatableByOpponentsOnly: true }],
+    });
+    const ABILITY_CREATURE = synthetic("creature", {
+        types: ["Artifact", "Creature"],
+        power: 1,
+        toughness: 1,
+    });
+    const SYNTHETICS = {
+        creature: ABILITY_CREATURE,
+        flash: FLASH_ENCHANTMENT,
+        "as-though-flash": AS_THOUGH_FLASH_ENCHANTMENT,
+        "opponents-only": OPPONENTS_ONLY_ENCHANTMENT,
+    } as const;
+    const PASS: Move = { kind: "pass" };
+    const LAND: Move = { kind: "play-land", cardInstanceId: "forest" };
+    const cast = (
+        cardInstanceId: string,
+        targets: unknown[] = [],
+        tapped: string[] = []
+    ): Move =>
+        ({
+            kind: "cast-spell",
+            cardInstanceId,
+            targets,
+            tapPlan: tapped.map((id) => ({ cardInstanceId: id })),
+        }) as unknown as Move;
+
+    function rootState(
+        extraHand: string[] = [],
+        synthetics: (keyof typeof SYNTHETICS)[] = []
+    ): GameState {
+        const inHand = (id: string, cardId: string) =>
+            makeInstance(cardId, {
+                id,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            });
+        return makeState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        inHand("seal", SEAL),
+                        inHand("tome", TOME),
+                        inHand("specter", SPECTER),
+                        inHand("ornithopter", ORNITHOPTER),
+                        inHand("orb", WINTER_ORB),
+                        inHand("mine", HOWLING_MINE),
+                        inHand("aura", AURA),
+                        ...synthetics.map((key) =>
+                            inHand(key, SYNTHETICS[key].id)
+                        ),
+                        ...extraHand.map((id) => inHand(id, BOLT)),
+                    ],
+                    battlefield: ["mountain", "mountain2"].map((id) =>
+                        makeInstance(MOUNTAIN, {
+                            id,
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "battlefield",
+                        })
+                    ),
+                }),
+                makePlayer("p2", {}),
+            ],
+        });
+    }
+
+    function rootOf(
+        edges: { move: Move; meanReward: number; meanMargin: number }[]
+    ): Node {
+        const children = new Map<string, Edge>();
+        edges.forEach((e, i) => {
+            const visits = 100;
+            children.set(`${e.move.kind}:${i}`, {
+                move: e.move,
+                key: `${e.move.kind}:${i}`,
+                mover: "p1",
+                node: { children: new Map() },
+                visits,
+                totalReward: e.meanReward * visits,
+                totalMargin: e.meanMargin * visits,
+                avail: visits,
+            });
+        });
+        return { children };
+    }
+
+    /** `pass` edges `moveEdge` on accumulated margin at an equal mean reward —
+     *  the shape of the reported trace — and the rule is asked who decides. */
+    function pickAmong(
+        candidate: Move,
+        state: GameState,
+        reward = 0.6
+    ): string {
+        const root = rootOf([
+            { move: PASS, meanReward: 0.6, meanMargin: 200 },
+            { move: candidate, meanReward: reward, meanMargin: 190 },
+        ]);
+        return selectRootMove(root, [PASS, candidate], state, "p1").kind;
+    }
+
+    it("FIRE: casts an enchantment whose deferral is outcome-equal", () => {
+        expect(pickAmong(cast("seal"), rootState())).toBe("cast-spell");
+    });
+
+    it("FIRE: casts an artifact whose deferral is outcome-equal", () => {
+        expect(pickAmong(cast("tome"), rootState())).toBe("cast-spell");
+    });
+
+    it("NO-FIRE: leaves a creature to the search (a beater held back can carry sequencing value)", () => {
+        expect(pickAmong(cast("specter"), rootState())).toBe("pass");
+    });
+
+    it("NO-FIRE: leaves a creature that HAS a controller-held ability to the search too", () => {
+        withTemporaryDefinition(ABILITY_CREATURE, () => {
+            expect(
+                pickAmong(cast("creature"), rootState([], ["creature"]))
+            ).toBe("pass");
+        });
+    });
+
+    it("NO-FIRE: leaves a TARGETED permanent (an Aura) to announcement-variant ranking", () => {
+        expect(
+            pickAmong(
+                cast("aura", [{ type: "permanent", id: "forest" }]),
+                rootState()
+            )
+        ).toBe("pass");
+    });
+
+    it.each(["flash", "as-though-flash"] as const)(
+        "NO-FIRE: leaves an instant-speed permanent (%s) to hold-trick",
+        (key) => {
+            withTemporaryDefinition(SYNTHETICS[key], () => {
+                expect(pickAmong(cast(key), rootState([], [key]))).toBe("pass");
+            });
+        }
+    );
+
+    it("NO-FIRE: an ability only the OPPONENT may activate is not the controller's option", () => {
+        withTemporaryDefinition(OPPONENTS_ONLY_ENCHANTMENT, () => {
+            expect(
+                pickAmong(
+                    cast("opponents-only"),
+                    rootState([], ["opponents-only"])
+                )
+            ).toBe("pass");
+        });
+    });
+
+    it("FIRE (control for the three above): the same synthetic with a plain ability deploys", () => {
+        const plain = synthetic("plain", {});
+        withTemporaryDefinition(plain, () => {
+            const state = rootState();
+            state.players[0]!.hand.push(
+                makeInstance(plain.id, {
+                    id: "plain",
+                    controllerId: "p1",
+                    ownerId: "p1",
+                    zone: "hand",
+                })
+            );
+            expect(pickAmong(cast("plain"), state)).toBe("cast-spell");
+        });
+    });
+
+    it("NO-FIRE: leaves a permanent with NO ability of its own (Winter Orb, a symmetric lock) to the search", () => {
+        expect(pickAmong(cast("orb"), rootState())).toBe("pass");
+    });
+
+    it("NO-FIRE: leaves a symmetric gift (Howling Mine, each player draws) to the search", () => {
+        expect(pickAmong(cast("mine"), rootState())).toBe("pass");
+    });
+
+    it("NO-FIRE: keeps the mana when the cast would leave a castable instant uncastable", () => {
+        // Bolt costs {R}; both Mountains are open and the cast taps both.
+        expect(
+            pickAmong(
+                cast("seal", [], ["mountain", "mountain2"]),
+                rootState(["bolt"])
+            )
+        ).toBe("pass");
+    });
+
+    it("FIRE: deploys when an open source still pays for the instant afterwards", () => {
+        expect(
+            pickAmong(cast("seal", [], ["mountain"]), rootState(["bolt"]))
+        ).toBe("cast-spell");
+    });
+
+    it("NO-FIRE: keeps pass when the permanent is genuinely worse (not outcome-equal)", () => {
+        expect(pickAmong(cast("seal"), rootState(), 0.4)).toBe("pass");
+    });
+
+    it("VARIANT: among outcome-equal variants of the card the higher meanMargin wins, not the pool's first", () => {
+        const first = cast("seal", [], ["mountain"]);
+        const second = cast("seal", [], ["mountain2"]);
+        const root = rootOf([
+            { move: PASS, meanReward: 0.6, meanMargin: 200 },
+            { move: first, meanReward: 0.6, meanMargin: 180 },
+            { move: second, meanReward: 0.6, meanMargin: 195 },
+        ]);
+        const chosen = selectRootMove(
+            root,
+            [PASS, first, second],
+            rootState(),
+            "p1"
+        ) as unknown as { tapPlan: { cardInstanceId: string }[] };
+        expect(chosen.tapPlan[0]?.cardInstanceId).toBe("mountain2");
+    });
+
+    it("ORDER: the ability-permanent class is consulted AFTER resolved-payoff", () => {
+        // A source-position guard, the same instrument `rootRuleMoratorium`
+        // uses for its `ruleOn` sweep: a behavioural pair needs a cast whose
+        // resolution is confined to the mover's side AND pays (the
+        // cheat-into-play shape), which no cheap fixture here builds. A cast
+        // with a measured payoff must not lose to one that is merely
+        // outcome-equal, so this class's lookup must sit below the
+        // resolved-payoff return.
+        const source = readFileSync(resolve(__dirname, "../search.ts"), "utf8");
+        const payoff = source.indexOf('finish(payoff, "resolved-payoff"');
+        const permanent = source.indexOf(
+            "isSorcerySpeedPermanentCast(rootState, e.move, botId)"
+        );
+        expect(payoff).toBeGreaterThan(0);
+        expect(permanent).toBeGreaterThan(payoff);
+    });
+
+    it("ORDER: a land drop outcome-equal to the permanent goes first, whatever the pool order", () => {
+        const root = rootOf([
+            { move: PASS, meanReward: 0.6, meanMargin: 200 },
+            { move: cast("seal"), meanReward: 0.6, meanMargin: 190 },
+            { move: LAND, meanReward: 0.6, meanMargin: 190 },
+        ]);
+        expect(
+            selectRootMove(root, [PASS, cast("seal"), LAND], rootState(), "p1")
+                .kind
+        ).toBe("play-land");
     });
 });
 
