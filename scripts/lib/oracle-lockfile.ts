@@ -195,6 +195,13 @@ const DRIVER_FILES = [
     // file. Same reason the driver files above are here, and the same reason
     // the Mechanics Registry has `registryHash`.
     "convex/cards/abilities/chooseColor.ts",
+    // The SECOND such module (issue #4138) — `lowerEffects.ts` builds every
+    // "becomes <basic land type> until …" script by calling
+    // `landTypeChangeEffects`, so the mode order, each mode's `id`/`label`
+    // and the one-type case's missing `optionChoice` wrapper are baked into
+    // every compiled definition the land-type rule emits, for the same reason
+    // and with the same staleness hazard as the colour builder above.
+    "convex/cards/abilities/chooseLandType.ts",
 ] as const;
 
 /**

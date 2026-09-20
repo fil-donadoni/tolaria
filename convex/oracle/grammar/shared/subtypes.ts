@@ -79,6 +79,33 @@ export const LAND_SUBTYPES: ReadonlySet<string> = set(
         "Planet,Power-Plant,Sphere,Swamp,Tower,Town,Urza's"
 );
 
+/**
+ * CR 305.6 — the five basic land types, in the ORDER the rule prints them.
+ *
+ * A LIST rather than a set, and ordered rather than alphabetical, because
+ * this is what "the basic land type of your choice" (CR 608.2d) lowers to:
+ * one `optionChoice` mode per entry, in this order. The order is therefore a
+ * compiled byte, not a presentation detail — reordering it rewrites every
+ * definition the land-type rule emits.
+ *
+ * It is the grammar's own copy of the catalogue's `BASIC_LAND_SUBTYPES`
+ * (`cards/types.ts`) for the reason the tables above are vendored — the
+ * compiler's source must live where `compilerHash` walks (`convex/oracle/**`,
+ * `scripts/lib/oracle-lockfile.ts` § DRIVER_FILES), and the catalogue's card
+ * type module is not somewhere a lockfile can be pinned to without going
+ * stale on every unrelated card edit. `landTypeChange.test.ts` asserts the
+ * two lists are identical, so a divergence is a red test rather than a
+ * silent one-mode-out-of-order difference between a compiled card and the
+ * hand-written one beside it (issue #4138).
+ */
+export const BASIC_LAND_SUBTYPE_ORDER: readonly string[] = [
+    "Plains",
+    "Island",
+    "Swamp",
+    "Mountain",
+    "Forest",
+];
+
 /** CR 205.3g — artifact types. */
 export const ARTIFACT_SUBTYPES: ReadonlySet<string> = set(
     "Attraction,Blood,Bobblehead,Book,Clue,Contraption,Equipment,Food," +

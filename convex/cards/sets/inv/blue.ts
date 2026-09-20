@@ -71,6 +71,7 @@ import {
     chooseColorEffects,
     colorChoiceModes,
 } from "../../abilities/chooseColor";
+import { landTypeChangeEffects } from "../../abilities/chooseLandType";
 import { manaCostForCardId } from "../../manaCostLookup";
 
 /** Colors (CR 202.2, layer 5 colorOverride, issue #1083) of a battlefield
@@ -881,6 +882,10 @@ export const distortingWake: CardDefinition = {
 // closures composed as a DSL Op. The "choose the basic land type" half reuses
 // the pre-existing `optionChoice` Op, one mode per `BASIC_LAND_SUBTYPES`
 // entry, exactly like `chooseColorEffects`'s "choose a color" shape.)
+//
+// The modes are built by the shared `landTypeChangeEffects` (issue #4138) —
+// the Oracle compiler's land-type rule is the second caller, and the two have
+// to agree byte for byte or this card stops round-tripping under Guard C.
 export const dreamThrush: CardDefinition = {
     id: "258217df-ae88-4d93-895a-3fd242baacd1",
     name: "Dream Thrush",
@@ -901,24 +906,12 @@ export const dreamThrush: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "Land", count: 1 },
-            effects: [
-                {
-                    op: "optionChoice",
-                    prompt: "Choose a basic land type (Dream Thrush).",
-                    modes: BASIC_LAND_SUBTYPES.map((subtype) => ({
-                        id: subtype,
-                        label: subtype,
-                        effects: [
-                            {
-                                op: "setSubtype" as const,
-                                target: { target: 0 },
-                                subtypes: [subtype],
-                                duration: { phase: "end-of-turn" as const },
-                            },
-                        ],
-                    })),
-                },
-            ],
+            effects: landTypeChangeEffects(
+                { target: 0 },
+                BASIC_LAND_SUBTYPES,
+                { phase: "end-of-turn" },
+                "Choose a basic land type (Dream Thrush)."
+            ),
         },
     ],
 };

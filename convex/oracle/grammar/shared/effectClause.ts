@@ -62,7 +62,7 @@ import {
     targetFilterRule,
 } from "./targetFilter";
 import { zoneRefRule, type ZoneRefIR } from "./zoneRef";
-import { CREATURE_SUBTYPES } from "./subtypes";
+import { BASIC_LAND_SUBTYPE_ORDER, CREATURE_SUBTYPES } from "./subtypes";
 import { createTokenRule, type CreateTokenIR } from "./tokenSpec";
 
 export const EFFECT_CLAUSE = "effect clause";
@@ -248,6 +248,33 @@ export type EffectSentenceIR =
           readonly kind: "set-color-choice";
           readonly subject: SubjectIR;
           readonly duration?: DurationIR;
+      }
+    | {
+          /**
+           * CR 305.7 — layer 4 (CR 613.1d): the subject's land types are SET
+           * to a basic land type, REPLACING the ones it had, for a printed
+           * duration.
+           *
+           * `offered` is what the line puts on the table, in printed order,
+           * and the three printed arities are one production, not three
+           * rules: all five (CR 305.6 — "the basic land type of your
+           * choice", Dream Thrush), a named pair ("a Plains or an Island",
+           * Tundra Kavu) and a single named type ("a Forest", Kavu Recluse).
+           * The pick itself is CR 608.2d — announced as the effect applies,
+           * not as the ability goes on the stack — which is why a two-mode
+           * offer and a five-mode one differ only in `offered.length`.
+           *
+           * The duration is REQUIRED, unlike the colour change above, and
+           * that too is the printed distinction rather than a default: every
+           * land-type change in the corpus prints one. Reading an absent
+           * duration as "until end of turn" would invent it, and reading it
+           * as indefinite would ship a permanent land-type change nobody
+           * printed (CR 611.2a), so the form without one stays refused.
+           */
+          readonly kind: "set-land-type";
+          readonly subject: SubjectIR;
+          readonly offered: readonly string[];
+          readonly duration: DurationIR;
       }
     | {
           readonly kind: "deal-damage";
@@ -1071,6 +1098,16 @@ const DAMAGE = /^(.+) deals (\S+) damage to (.+)$/;
  * group is a DURATION or nothing.
  */
 const SET_COLOR_CHOICE = /^(.+) becomes the color of your choice(?: (.+))?$/;
+// CR 305.7 — "<subject> becomes <land types> <duration>". The duration half is
+// spelled into the pattern rather than left to a trailing `(.+)`: every
+// land-type change in the corpus prints one, and a pattern that made it
+// optional would read "Target land becomes a Forest" — a form nobody prints —
+// as an indefinite change (CR 611.2a).
+const SET_LAND_TYPE = /^(.+) becomes (.+?) (until .+)$/;
+/** CR 305.6 / CR 608.2d — the free choice among all five basic land types. */
+const ANY_BASIC_LAND_TYPE = "the basic land type of your choice";
+/** One named basic land type, as the alternation spells each of its legs. */
+const A_BASIC_LAND_TYPE = /^an? ([A-Z][a-z]+)$/;
 const DRAW_SELF = /^Draw (\S+) cards?$/;
 const DRAW_PLAYER = /^(.+) draws (\S+) cards?$/;
 const LIFE = /^(.+) (gain|gains|lose|loses) (\S+|that much) life$/;
@@ -1236,6 +1273,37 @@ function withoutAbilityWord(span: string): string {
     return ABILITY_WORDS.has(head)
         ? span.slice(at + ABILITY_WORD_SEPARATOR.length)
         : span;
+}
+
+/**
+ * CR 305.6 — the basic land types a "becomes …" clause puts on the table, in
+ * printed order, or `null` when the span is not a land-type phrase at all.
+ *
+ * `null` rather than a failure, because this reader is a DISPATCH test: the
+ * same "<subject> becomes <something> <duration>" shape spells the P/T
+ * animation ("becomes a 3/3 creature"), the colour change and several static
+ * clauses, and a failure here would refuse those before their own branch ran.
+ * Everything the reader DOES accept is anchored on the vendored CR 305.6
+ * table, so a land type Wizards has not printed, a creature type, a
+ * three-legged list and an Oxford comma are all outside it and fall through
+ * to be refused under their own Grammar Gap key.
+ */
+function readBasicLandTypes(span: string): readonly string[] | null {
+    if (span === ANY_BASIC_LAND_TYPE) return BASIC_LAND_SUBTYPE_ORDER;
+    const legs = span.split(" or ");
+    const types: string[] = [];
+    for (const leg of legs) {
+        const named = leg.match(A_BASIC_LAND_TYPE);
+        if (named === null) return null;
+        const type = named[1]!;
+        // CR 305.6 names five; every other CR 205.3i land type ("a Desert",
+        // "a Gate") is a type a land can HAVE but not one this template ever
+        // sets, and a repeated leg would offer the same mode twice.
+        if (!BASIC_LAND_SUBTYPE_ORDER.includes(type)) return null;
+        if (types.includes(type)) return null;
+        types.push(type);
+    }
+    return types;
 }
 
 /**
@@ -1631,6 +1699,28 @@ function effectSentence(
             subject: subject.value,
             duration: duration.value,
         } satisfies EffectSentenceIR);
+    }
+
+    // ── land-type change, chosen on resolution (CR 305.7, layer 4) ─────────
+    //
+    // Entered only when the middle of the sentence reads as a CR 305.6 land
+    // type list, so "becomes a 3/3 creature until end of turn" and every other
+    // "becomes …" template falls through to its own branch (`readBasicLandTypes`).
+    const setLandType = span.match(SET_LAND_TYPE);
+    if (setLandType !== null) {
+        const offered = readBasicLandTypes(setLandType[2]!);
+        if (offered !== null) {
+            const subject = subjectRule.run(setLandType[1]!, ctx);
+            if (!subject.ok) return subject;
+            const duration = durationRule.run(setLandType[3]!, ctx);
+            if (!duration.ok) return duration;
+            return ok({
+                kind: "set-land-type" as const,
+                subject: subject.value,
+                offered,
+                duration: duration.value,
+            } satisfies EffectSentenceIR);
+        }
     }
 
     // ── anti-prevention lock (CR 615.12) ───────────────────────────────────

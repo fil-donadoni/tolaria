@@ -877,13 +877,17 @@ export const skizzik: CardDefinition = {
 };
 
 // Slimy Kavu — {2}{R} Creature — Kavu, 2/2. "{T}: Target land becomes a
-// Swamp until end of turn." (CR 305.7 land-type change. NOT DSL-migratable,
-// ADR 0045 — the Orcish Farmer (ice/red.ts) / Vision Charm (vis/blue.ts)
-// precedent: a land-type change has no Effect Script Op wrapper around the
-// existing SpellContext primitive `setSubtypesUntil` (no "setSubtype" Op is
-// registered). Same execution path as both precedents — only the duration
-// differs, "until end of turn" here vs. "until its controller's next untap
-// step" / "until end of turn" there.)
+// Swamp until end of turn." (CR 305.7 land-type change, layer 4 — CR 613.1d.)
+//
+// MIGRATED to the DSL 2026-09-20 (issue #4138). The old marker said "NOT
+// DSL-migratable, ADR 0045 — a land-type change has no Effect Script Op
+// wrapper around the existing SpellContext primitive `setSubtypesUntil` (no
+// `setSubtype` Op is registered)". WRONG at HEAD: issue #1083 shipped exactly
+// that Op, and the sibling Kavu Recluse (pls/red.ts) has been written with it
+// since. Same execution path either way — the Op is a skin over the same
+// primitive — but the closure kept the card out of the gold harness's
+// structural comparison, where it now sits as the Oracle compiler's land-type
+// rule reads the printed line into this very script.
 export const slimyKavu: CardDefinition = {
     id: "8e82044d-88cd-4ee4-8ec9-e71a0a85ed46",
     rarity: "common",
@@ -901,11 +905,14 @@ export const slimyKavu: CardDefinition = {
             cost: { tap: true },
             useStack: true,
             targetRequirement: { type: "Land", count: 1 },
-            resolve: (ctx: SpellContext) => {
-                const t = ctx.targets[0];
-                if (t?.type !== "permanent") return;
-                ctx.setSubtypesUntil(t, ["Swamp"], { phase: "end-of-turn" });
-            },
+            effects: [
+                {
+                    op: "setSubtype",
+                    target: { target: 0 },
+                    subtypes: ["Swamp"],
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 };

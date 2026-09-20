@@ -31,6 +31,7 @@ import type {
 } from "../cards/types";
 import type { PermanentFilter } from "../cards/filters";
 import { chooseColorEffects } from "../cards/abilities/chooseColor";
+import { landTypeChangeEffects } from "../cards/abilities/chooseLandType";
 import type { KickedRefIR } from "./grammar/shared/condition";
 import { durationSpec } from "./grammar/shared/duration";
 import {
@@ -863,6 +864,41 @@ function colorChangeSelector(
     return slotFor(requirement, slots);
 }
 
+/**
+ * CR 305.7 — the object a layer-4 land-type change acts on.
+ *
+ * An ALLOW-list of ONE shape, and the narrowest selector in this file,
+ * because the rule it serves is narrow in the CR itself: CR 305.7 is written
+ * about a LAND, and the sentence it reads never announces anything else. A
+ * `setSubtype` pointed at a creature would write "Island" into that
+ * creature's subtype line — CR 305.7's mana ability comes with the LAND card
+ * type (CR 305.6), so the permanent would take the name and none of the
+ * meaning, and the card would be legally activated, legally targeted, and
+ * quietly wrong (the shape issue #4192 exists to refuse).
+ *
+ * `$source` is refused for the same reason and one more: the ability's own
+ * source is a land only on a card that prints one, nothing in this file can
+ * check that, and no corpus card spells the self form.
+ */
+function landTypeChangeSelector(
+    subject: SubjectIR,
+    slots: TargetSlots
+): Lowered<EffectObjectSelector> {
+    if (subject.kind !== "target")
+        return unlowerable(
+            "a land-type change is announced on a target land (CR 305.7)"
+        );
+    const requirement = subject.requirement;
+    if (
+        requirement.type !== "Land" ||
+        (requirement.zone !== undefined && requirement.zone !== "battlefield")
+    )
+        return unlowerable(
+            "only a land on the battlefield has land types (CR 305.7, CR 110.1)"
+        );
+    return slotFor(requirement, slots);
+}
+
 /** Announce `requirement` and point an Op at the slot it took (CR 601.2c). */
 function slotFor(
     requirement: TargetRequirement,
@@ -1061,6 +1097,25 @@ function lowerSentenceBody(
                         ? undefined
                         : durationSpec(sentence.duration),
                     `Choose a color (${site.selfName}).`
+                )
+            );
+        }
+        // CR 305.7 / CR 613.1d — the land types the line offers, each mode a
+        // single `setSubtype` (ADR 0045 "generalize, don't add": the pick is
+        // the pre-existing `optionChoice` Op, no choice-kind construct). The
+        // builder is the catalogue's own `landTypeChangeEffects`, imported
+        // rather than re-derived, so the hand-written Dream Thrush and Kavu
+        // Recluse round-trip instead of diverging by a mode ordering nobody
+        // would notice.
+        case "set-land-type": {
+            const target = landTypeChangeSelector(sentence.subject, slots);
+            if (!target.ok) return target;
+            return lowered(
+                landTypeChangeEffects(
+                    target.value,
+                    sentence.offered,
+                    durationSpec(sentence.duration),
+                    `Choose a basic land type (${site.selfName}).`
                 )
             );
         }
