@@ -18535,10 +18535,11 @@ describe("Effect Script value grammar: $event.<field> (ADR 0049, CR 603, issue #
         // A hand-edited event that omits its amount is "no such field", not the
         // string "undefined" read back as NaN — a NaN life total would persist.
         const noAmount = build();
-        const { amount: _omitted, ...bare } = damageToPlayer(
-            "link",
-            "p2"
-        ) as unknown as Record<string, unknown>;
+        const bare = { ...damageToPlayer("link", "p2") } as unknown as Record<
+            string,
+            unknown
+        >;
+        delete bare.amount;
         fireTrigger(
             noAmount,
             { id: "link", controllerId: "p1" },
