@@ -350,15 +350,24 @@ describe("mass P/T — upgrades (CR 608.2c)", () => {
 });
 
 describe("mass P/T — lowering (CR 115.1, CR 601.2c)", () => {
-    it("refuses two announced targets in one spell — a player sweep shares the one-target ceiling", () => {
-        expect(
-            refused(
-                spell(
-                    "Test",
-                    "Target creature gets -1/-1 until end of turn. Creatures target player controls get +1/+1 until end of turn."
-                )
+    it("announces a creature AND a player as two groups, the player slot after the creature's (CR 601.2c, issue #3875)", () => {
+        const outcome = compileCard(
+            spell(
+                "Test",
+                "Target creature gets -1/-1 until end of turn. Creatures target player controls get +1/+1 until end of turn."
             )
-        ).toBe(true);
+        );
+        if (outcome.state === "unparsed") throw new Error("unparsed");
+        expect(outcome.definition.targetRequirement).toEqual({
+            type: "Creature",
+            count: 1,
+        });
+        expect(outcome.definition.additionalTargetRequirements).toEqual([
+            { type: "player", count: 1 },
+        ]);
+        expect(JSON.stringify(outcome.definition.effects)).toContain(
+            '"controller":{"target":1}'
+        );
     });
 
     it("allocates the player slot in sentence order, beside an untargeted sweep", () => {

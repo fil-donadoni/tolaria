@@ -364,7 +364,7 @@ describe("targets are announced, not invented (CR 603.3d)", () => {
                 "When this creature enters, destroy target creature. Tap target land."
             )
         ).toMatch(
-            /a second target group that is not "another target"|targets were announced/
+            /2 target groups were announced but this site declares at most one/
         );
     });
 });

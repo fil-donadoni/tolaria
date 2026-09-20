@@ -163,9 +163,7 @@ describe("spell slot — plain spell text (CR 113.3a)", () => {
 
     it("folds a THIRD Oracle line into the same body, in print order", () => {
         // Untargeted sentences either side of the targeted one: the point is
-        // the THIRD line, not a second target (grammar v0 caps a site at one
-        // target regardless of line count — `TargetSlots.allocate`, unrelated
-        // to this fix).
+        // the THIRD line, not a second target.
         const def = compiled(
             spellCard({
                 typeLine: "Sorcery",
@@ -180,28 +178,25 @@ describe("spell slot — plain spell text (CR 113.3a)", () => {
         ]);
     });
 
-    it("still refuses a SECOND target across two lines (CR 601.2c), attributed to the second", () => {
-        // The line the plain single-line "up to one target" test above
-        // guards is unrelated: THIS asserts that merging lines into one body
-        // does not also merge their target allocators into something that
-        // silently accepts two. A second instance of the word "target" is an
-        // independent group now (CR 115.3, issue #4133), but only when the
-        // card PRINTS "another target" — these two lines do not, so the
-        // second is still the one that trips it.
-        const outcome = compileCard(
+    it("reads a SECOND target across two lines as its own group (CR 601.2c, issue #3875)", () => {
+        // Merging lines into one body merges their target allocators too, so
+        // the second line's "target" is a second instance of the word (CR
+        // 115.3) — announced as its own group, indexed after the first.
+        const def = compiled(
             spellCard({
                 typeLine: "Sorcery",
                 oracleText:
                     "Destroy target artifact.\nDestroy target creature.",
             })
         );
-        expect(outcome.state).toBe("unparsed");
-        if (outcome.state !== "unparsed") return;
-        expect(outcome.gaps).toHaveLength(1);
-        expect(outcome.gaps[0]!.reason).toMatch(
-            /a second target group that is not "another target"/
-        );
-        expect(outcome.gaps[0]!.fragment).toBe("Destroy target creature.");
+        expect(def.effects).toEqual([
+            { op: "destroy", target: { target: 0 } },
+            { op: "destroy", target: { target: 1 } },
+        ]);
+        expect(def.targetRequirement).toEqual({ type: "Artifact", count: 1 });
+        expect(def.additionalTargetRequirements).toEqual([
+            { type: "Creature", count: 1 },
+        ]);
     });
 });
 

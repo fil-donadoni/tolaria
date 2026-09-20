@@ -60,7 +60,7 @@
 import { readNumberWord } from "./quantity";
 import { isSelfPhrase } from "./cost";
 import { controlsRule, type ConditionIR } from "./condition";
-import { uncapitalise } from "./effectClause";
+import { signedModifier, uncapitalise } from "./effectClause";
 import {
     descriptorRule,
     staticFilterFromDescriptor,
@@ -332,13 +332,6 @@ function uniqueSplit<T>(
 // ── Frame: anthem / lord P/T (CR 613.4c) ───────────────────────────────────
 
 const PT_MODIFIER = /^([+-]\d+)\/([+-]\d+)$/;
-
-/** A printed signed modifier as a number. "-0" ("gets -2/-0") is zero: the
- *  `+ 0` folds IEEE negative zero, which JSON would print as `0` anyway and
- *  which a structural comparison would otherwise tell apart from it. */
-function signedModifier(printed: string): number {
-    return Number(printed) + 0;
-}
 
 export const anthemRule: Rule<StaticClauseIR> = rule(
     "anthem",
