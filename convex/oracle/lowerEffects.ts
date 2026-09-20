@@ -347,6 +347,36 @@ function objectSelector(
         return unlowerable("a sweep is not a single object (CR 110.1)");
     if (subject.requirement.type === "player")
         return unlowerable("a player is not an object (CR 109.1)");
+    // CR 112.1 / CR 110.1 — a SPELL is a card on the STACK; a permanent is a
+    // card on the battlefield. Every verb reaching this helper acts on the
+    // battlefield, so a spell target here is a line misread, not a narrower
+    // one: "Return target spell to its owner's hand" is CR 400.7's stack
+    // departure, which has an Op of its own (`moveSpellFromStack`, issue
+    // #2605) precisely because it is NOT a permanent bounce and NOT a counter
+    // (CR 113.6g). Lowering it as `moveZone` compiled Reprieve into a spell
+    // that does something else. The stack verbs read their own selector.
+    if (subject.requirement.type === "spell")
+        return unlowerable(
+            "a spell is on the stack, not the battlefield (CR 112.1)"
+        );
+    const index = slots.allocate(subject.requirement);
+    return index.ok ? lowered({ target: index.value }) : index;
+}
+
+/**
+ * CR 112.1 — the announced SPELL a stack verb acts on.
+ *
+ * `objectSelector`'s twin one zone over, and separate for the reason that
+ * helper refuses a spell at all: the two sets of verbs are disjoint, and a
+ * single selector serving both would make every battlefield verb able to read
+ * a stack object by accident.
+ */
+function spellSelector(
+    subject: SubjectIR,
+    slots: TargetSlots
+): Lowered<{ target: number }> {
+    if (subject.kind !== "target" || subject.requirement.type !== "spell")
+        return unlowerable("a stack verb names an announced spell (CR 112.1)");
     const index = slots.allocate(subject.requirement);
     return index.ok ? lowered({ target: index.value }) : index;
 }
@@ -503,7 +533,7 @@ function lowerSentenceBody(
         // CR 701.6a — counter the announced spell, with CR 118.12a's punisher
         // when the sentence prints one.
         case "counter": {
-            const target = objectSelector(sentence.subject, slots);
+            const target = spellSelector(sentence.subject, slots);
             if (!target.ok) return target;
             const counter: EffectOp = { op: "counter", target: target.value };
             if (sentence.unlessPays === undefined) return lowered([counter]);
@@ -522,7 +552,7 @@ function lowerSentenceBody(
                     op: "mayPay",
                     // CR 118.12a — the taxed player is the spell's controller.
                     player: {
-                        controllerOf: target.value as { target: number },
+                        controllerOf: target.value,
                     },
                     cost: {
                         genericEqualTo: {
