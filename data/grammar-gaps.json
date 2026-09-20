@@ -696,8 +696,18 @@
         },
         {
             "kind": "scenario",
+            "key": "smoke-scenario › Op \"choice\" reads ref \"$event.activePlayerId\" — depends on a runtime binding",
+            "issue": 4171
+        },
+        {
+            "kind": "scenario",
             "key": "smoke-scenario › Op \"counters\" targets $source/$each — covered by the card's own per-card test",
             "issue": 4023
+        },
+        {
+            "kind": "scenario",
+            "key": "smoke-scenario › Op \"discard\" consumes a choice binding, a hand filter, or discards the whole hand — covered by the card's own suspension/resume or per-card test",
+            "issue": 4172
         },
         {
             "kind": "scenario",
