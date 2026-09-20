@@ -70,7 +70,9 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
         case "phase":
             return { kind: "phase", phase: head.phase, scope: head.scope };
         case "spell-cast":
-            return { kind: "spell-cast", scope: head.scope };
+            return head.filter !== undefined
+                ? { kind: "spell-cast", scope: head.scope, filter: head.filter }
+                : { kind: "spell-cast", scope: head.scope };
     }
 }
 
