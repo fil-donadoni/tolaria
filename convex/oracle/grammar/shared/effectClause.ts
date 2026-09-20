@@ -51,12 +51,15 @@ import {
     type KickedRefIR,
 } from "./condition";
 import { massSubjectRule, type MassSubjectIR } from "./massSubject";
-import { targetFilterRule } from "./targetFilter";
+import { opensTargetPhrase, targetFilterRule } from "./targetFilter";
 import { zoneRefRule, type ZoneRefIR } from "./zoneRef";
 import { CREATURE_SUBTYPES } from "./subtypes";
 import { createTokenRule, type CreateTokenIR } from "./tokenSpec";
 
 export const EFFECT_CLAUSE = "effect clause";
+
+/** CR 115.3 — the head that marks an announcement as excluding an earlier one. */
+const ANOTHER_HEAD = "another target ";
 
 /**
  * CR 107.3 — an effect's MAGNITUDE: a printed number, or the announced {X}.
@@ -93,7 +96,25 @@ export type SubjectIR =
     /** The object the ability is printed on (CR 109.2). */
     | { readonly kind: "self" }
     /** An announced target (CR 115.1) — object OR player. */
-    | { readonly kind: "target"; readonly requirement: TargetRequirement }
+    | {
+          readonly kind: "target";
+          readonly requirement: TargetRequirement;
+          /**
+           * CR 115.3 — the sentence printed "ANOTHER target …": this
+           * announcement may not name an object an EARLIER instance of the
+           * word "target" on the same spell already named.
+           *
+           * A marker rather than a `TargetRequirement` field, because the
+           * word has two readings and only the LOWERING can tell them apart:
+           * against an earlier announcement it is `excludePriorTargets` on a
+           * later group, and on a permanent's own ability ("{T}: Another
+           * target creature you control gains …") it is `excludeSource`
+           * instead — the same word, a different exclusion, a different
+           * field. The lowering reads the walk, finds which one the site can
+           * mean, and refuses the site that can mean neither.
+           */
+          readonly another?: true;
+      }
     /** A player named without targeting (CR 109.5 — "you"). */
     | { readonly kind: "player"; readonly player: PlayerRefIR }
     /**
@@ -662,18 +683,22 @@ export const subjectRule: Rule<SubjectIR> = rule<SubjectIR>(
         const probe = uncapitalise(span);
         if (isSelfPhrase(probe)) return ok({ kind: "self" as const });
         if (probe === "that card") return ok({ kind: "that-card" as const });
-        if (
-            probe === "any target" ||
-            probe.startsWith("target ") ||
-            // CR 601.2c — "up to one target …" is the same announced slot with
-            // a `{ min: 0, max: 1 }` count; `targetFilterRule` owns the head.
-            probe.startsWith("up to one target ")
-        ) {
-            const requirement = targetFilterRule.run(probe, ctx);
+        // CR 115.3 — "Another target creature …" is an ordinary target phrase
+        // under an EXCLUSION the sentence alone cannot resolve (see
+        // `SubjectIR`), so the head is peeled off here and the rest is read by
+        // the one target rule. The word is kept as a marker, never dropped: a
+        // dropped "another" is a spell that may name one creature twice.
+        const another = probe.startsWith(ANOTHER_HEAD);
+        const phrase = another ? probe.slice("another ".length) : probe;
+        // CR 601.2c — the "up to N target …" heads are `targetFilterRule`'s
+        // own; `opensTargetPhrase` is the single list both dispatch on.
+        if (opensTargetPhrase(phrase)) {
+            const requirement = targetFilterRule.run(phrase, ctx);
             if (!requirement.ok) return requirement;
             return ok({
                 kind: "target" as const,
                 requirement: requirement.value,
+                ...(another ? { another: true as const } : {}),
             });
         }
         const player = playerRefRule.run(span, ctx);

@@ -766,6 +766,29 @@ function finish(
 // ── Derived shapes ─────────────────────────────────────────────────────────
 
 /**
+ * CR 601.2c — how many announcement SLOTS one target requirement occupies.
+ *
+ * The flat positional list an Effect Script indexes (`{ target: 0 }`,
+ * `{ target: 1 }`, … — `gre/moves.ts`'s "FLAT concatenation") is the
+ * concatenation of every group's slots, so a group's WIDTH is what the next
+ * group's first index is measured from and what a per-target fan-out iterates.
+ * It is the count's MAXIMUM: "up to two" announces at most two, and an
+ * unchosen slot resolves to nothing and skips its op (CR 608.2b).
+ *
+ * `"X"` at either position is refused by returning `null`: the width is then a
+ * fact about the cast, not about the sentence, and neither the fan-out nor the
+ * next group's index can be written down at compile time.
+ */
+export function announcedSlots(
+    count: TargetRequirement["count"]
+): number | null {
+    if (count === "X") return null;
+    if (typeof count === "number") return count;
+    if (count.max === undefined || count.max === "X") return null;
+    return count.max;
+}
+
+/**
  * Descriptor → `TargetRequirement` (CR 115.1).
  *
  * A descriptor naming a zone other than the battlefield only makes sense with
@@ -776,8 +799,19 @@ export function targetRequirementFromDescriptor(
     descriptor: DescriptorIR,
     count: TargetRequirement["count"] = 1
 ): RuleResult<TargetRequirement> {
-    if (descriptor.plural === true)
-        return fail("a plural target descriptor needs a count", "plural");
+    // CR 601.2c — the descriptor's NUMBER and the head's count are one fact
+    // printed twice ("up to TWO target creature CARDS"), so they are checked
+    // against each other rather than trusted separately: a plural noun under a
+    // one-slot head is a count the head did not print, and a singular noun
+    // under a two-slot head is a head the noun did not agree with. Either way
+    // the reading is wrong, and a wrong count is a spell that announces the
+    // wrong number of targets — never a narrower one.
+    const slots = announcedSlots(count);
+    if (slots === null || (descriptor.plural === true) !== slots > 1)
+        return fail(
+            "a target descriptor's number must match its count",
+            "plural"
+        );
     if (descriptor.anyTarget === true) return ok({ type: "any", count });
     if (descriptor.player !== undefined) {
         const requirement: Record<string, unknown> = {
@@ -914,28 +948,56 @@ export function permanentFilterFromDescriptor(
 }
 
 /**
- * CR 601.2c — the one optional-count head grammar v0 reads.
+ * CR 601.2c — the optional-count heads grammar v0 reads, head → count.
  *
  * "Up to one target creature" announces between zero and one target, so the
  * whole of its lowering is `TargetRequirement.count` — the ops downstream still
  * reference ONE positional slot (`{ target: 0 }`) and the interpreter already
- * skips an op whose slot resolved to nothing (CR 608.2b). Every larger head
- * ("up to two target creatures", "up to X target …") is a PLURAL phrase whose
- * effect has to fan out per target as well, which is the half-a-feature
- * `descriptorRule`'s `plural` refusal exists to forbid — so exactly this one
- * spelling is admitted, and "up to two" falls through to the `"target "`
- * prefix test below and fails there as it did before.
+ * skips an op whose slot resolved to nothing (CR 608.2b). "Up to two" is the
+ * same count with a WIDTH: it occupies two positional slots, its noun is
+ * plural to say so, and the verb it heads has to fan its op out over both
+ * (`lowerEffects.ts` — `objectSelectors`). A verb with no fan-out refuses it
+ * rather than acting on the first slot only, which is the half-a-feature this
+ * grammar used to forbid by refusing the head itself.
+ *
+ * "Up to X target …" stays out: its width is a fact about the CAST (the
+ * announced X), not about the sentence, so neither the fan-out nor a later
+ * group's first index can be written down at compile time (`announcedSlots`).
  */
-const UP_TO_ONE_HEAD = "up to one target ";
+const OPTIONAL_COUNT_HEADS: ReadonlyMap<string, TargetRequirement["count"]> =
+    new Map<string, TargetRequirement["count"]>([
+        ["up to one target ", { min: 0, max: 1 }],
+        ["up to two target ", { min: 0, max: 2 }],
+    ]);
 
 /**
  * `"target creature you control"`, `"any target"`, `"up to one target
- * creature or planeswalker"` — a descriptor introduced by the word "target"
- * (CR 115.1), optionally under the CR 601.2c "up to one" head. Singular only
- * in grammar v0: a plural target phrase carries a count ("two target
- * creatures") whose lowering has to reach `TargetRequirement.count` AND the
- * effect's per-target ops, and half of that is worse than none.
+ * creature or planeswalker"`, `"up to two target creature cards from your
+ * graveyard"` — a descriptor introduced by the word "target" (CR 115.1),
+ * optionally under a CR 601.2c "up to N" head.
+ *
+ * A BARE plural ("two target creatures", "each target creature") is still
+ * refused: the optional heads above announce a RANGE from zero, so a card that
+ * finds too few legal targets still casts, whereas a fixed plural count makes
+ * the whole spell uncastable below it (CR 601.2c) — a different announcement
+ * rule, not a wider spelling of this one.
  */
+/**
+ * Does this span OPEN a target phrase (CR 115.1)?
+ *
+ * Exported because `subjectRule` dispatches on the same openings and must not
+ * keep its own copy of them: a head added to `OPTIONAL_COUNT_HEADS` that a
+ * second prefix list did not learn is a phrase this file reads and the subject
+ * cascade hands to the player-reference rule instead, which is a refusal
+ * attributed to the wrong span.
+ */
+export function opensTargetPhrase(span: string): boolean {
+    if (span === "any target" || span.startsWith("target ")) return true;
+    for (const head of OPTIONAL_COUNT_HEADS.keys())
+        if (span.startsWith(head)) return true;
+    return false;
+}
+
 export const targetFilterRule: Rule<TargetRequirement> = subGrammar(
     TARGET_FILTER,
     rule(TARGET_FILTER, (span, ctx) => {
@@ -952,16 +1014,11 @@ export const targetFilterRule: Rule<TargetRequirement> = subGrammar(
         // cannot express, and each stays refused under its own gap key.
         if (span === "target spell")
             return ok({ type: "spell", count: 1 } as TargetRequirement);
-        if (span.startsWith(UP_TO_ONE_HEAD)) {
-            const descriptor = descriptorRule.run(
-                span.slice(UP_TO_ONE_HEAD.length),
-                ctx
-            );
+        for (const [head, count] of OPTIONAL_COUNT_HEADS) {
+            if (!span.startsWith(head)) continue;
+            const descriptor = descriptorRule.run(span.slice(head.length), ctx);
             if (!descriptor.ok) return descriptor;
-            return targetRequirementFromDescriptor(descriptor.value, {
-                min: 0,
-                max: 1,
-            });
+            return targetRequirementFromDescriptor(descriptor.value, count);
         }
         if (!span.startsWith("target "))
             return fail('a target filter starts with "target "', span);

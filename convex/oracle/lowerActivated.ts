@@ -101,7 +101,22 @@ export function lowerActivatedAbility(input: {
         useStack: true,
         effects: ops,
     };
-    const targetError = declareTargets(ability, walk.targets.requirements());
+    // CR 702.33g — the kicked SWAP is a card-level field on a spell
+    // (`kickedTargetRequirement`); an ability has no twin, so a gate that
+    // announced one here has nowhere to declare it.
+    if (walk.targets.kickedRequirement() !== undefined)
+        return {
+            ok: false,
+            reason: "an ability cannot swap in a kicked target announcement (CR 702.33g)",
+        };
+    // CR 601.2c — `ActivatedAbility` carries its own
+    // `additionalTargetRequirements` (Oko's -5), so a second instance of the
+    // word "target" has a field here exactly as it does on a spell.
+    const targetError = declareTargets(
+        ability,
+        walk.targets.requirements(),
+        true
+    );
     if (targetError !== null) return { ok: false, reason: targetError };
 
     const restrictionError = applyRestrictions(ability, input.restrictions);

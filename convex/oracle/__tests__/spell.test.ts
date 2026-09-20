@@ -184,9 +184,10 @@ describe("spell slot — plain spell text (CR 113.3a)", () => {
         // The line the plain single-line "up to one target" test above
         // guards is unrelated: THIS asserts that merging lines into one body
         // does not also merge their target allocators into something that
-        // silently accepts two — `TargetSlots.allocate` still caps a site at
-        // one target, now enforced across the WHOLE body rather than per
-        // line, and the second line is the one that trips it.
+        // silently accepts two. A second instance of the word "target" is an
+        // independent group now (CR 115.3, issue #4133), but only when the
+        // card PRINTS "another target" — these two lines do not, so the
+        // second is still the one that trips it.
         const outcome = compileCard(
             spellCard({
                 typeLine: "Sorcery",
@@ -197,7 +198,9 @@ describe("spell slot — plain spell text (CR 113.3a)", () => {
         expect(outcome.state).toBe("unparsed");
         if (outcome.state !== "unparsed") return;
         expect(outcome.gaps).toHaveLength(1);
-        expect(outcome.gaps[0]!.reason).toMatch(/one target per effect site/);
+        expect(outcome.gaps[0]!.reason).toMatch(
+            /a second target group that is not "another target"/
+        );
         expect(outcome.gaps[0]!.fragment).toBe("Destroy target creature.");
     });
 });

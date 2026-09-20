@@ -177,6 +177,13 @@ export function lowerTriggeredAbility(input: {
         ops.push(...result.value);
     }
 
+    // CR 702.33g — as on the activated site: no `kickedTargetRequirement`
+    // twin on a triggered ability, so the swap has nowhere to land.
+    if (walk.targets.kickedRequirement() !== undefined)
+        return {
+            ok: false,
+            reason: "an ability cannot swap in a kicked target announcement (CR 702.33g)",
+        };
     // CR 603.3d — a triggered ability's targets are announced as it goes on
     // the stack. `declareTargets` writes at most one and REFUSES more, which
     // is the same ceiling and the same refusal the activated site pays.

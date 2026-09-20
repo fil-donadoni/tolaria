@@ -48,6 +48,18 @@ export type LowerSpellResult<T> =
 export interface LoweredSpellBody {
     readonly effects: EffectOp[];
     readonly targetRequirement?: TargetRequirement;
+    /**
+     * CR 115.3 — the announcement's SECOND and later instances of the word
+     * "target" ("Target creature gets +2/+2 … Another target creature gets
+     * -2/-2"), each an independent group chosen after the one before it.
+     */
+    readonly additionalTargetRequirements?: TargetRequirement[];
+    /**
+     * CR 702.33g — the announcement the spell makes INSTEAD when it was
+     * kicked ("Destroy target land. If this spell was kicked, destroy another
+     * target land."). See `TargetSlots.foldKickedWidening`.
+     */
+    readonly kickedTargetRequirement?: TargetRequirement;
 }
 
 /**
@@ -69,9 +81,18 @@ function lowerBody(
         if (!lowered.ok) return { ok: false, reason: lowered.reason };
         ops.push(...lowered.value);
     }
-    const body: { effects: EffectOp[]; targetRequirement?: TargetRequirement } =
-        { effects: ops };
-    const error = declareTargets(body, walk.targets.requirements());
+    const body: {
+        effects: EffectOp[];
+        targetRequirement?: TargetRequirement;
+        additionalTargetRequirements?: TargetRequirement[];
+        kickedTargetRequirement?: TargetRequirement;
+    } = { effects: ops };
+    const kicked = walk.targets.kickedRequirement();
+    if (kicked !== undefined) body.kickedTargetRequirement = kicked;
+    // CR 601.2c — a spell (and each of its modes) writes its groups onto
+    // `targetRequirement` + `additionalTargetRequirements`, the pair the
+    // cast-time target walk reads as one flat announcement.
+    const error = declareTargets(body, walk.targets.requirements(), true);
     if (error !== null) return { ok: false, reason: error };
     return { ok: true, value: body };
 }
@@ -126,6 +147,9 @@ export function lowerSpellModes(
         };
         if (body.value.targetRequirement !== undefined)
             lowered.targetRequirement = body.value.targetRequirement;
+        if (body.value.additionalTargetRequirements !== undefined)
+            lowered.additionalTargetRequirements =
+                body.value.additionalTargetRequirements;
         out.push(lowered);
     }
     return { ok: true, value: out };
