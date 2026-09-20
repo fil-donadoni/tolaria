@@ -80,6 +80,47 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             },
         },
     },
+    // CR 701.9b — "Target player discards two cards": the affected player
+    // picks (`choice` kind `discard-hand`; the interpreter clamps the pick to
+    // the hand), then a `discard` Op consumes the picks binding. Exhibits the
+    // "discard consumes a choice binding" form the canned smoke scenario
+    // cannot answer, so this fixture is the evidence the pair is emitted as
+    // the hand-written Mind Rot (sets/por/black.ts) writes it — the same
+    // card, whose own per-card test covers the suspension and resume.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "ad44cf74-b717-48fb-9fa2-77512024d76a",
+            name: "Mind Rot",
+            manaCost: "{2}{B}",
+            typeLine: "Sorcery",
+            oracleText: "Target player discards two cards.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Mind Rot",
+            types: ["Sorcery"],
+            manaCost: { X: 2, B: 1 },
+            oracleText: "Target player discards two cards.",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "discard-hand",
+                    player: { target: 0 },
+                    zone: "hand",
+                    count: 2,
+                    prompt: "Discard two cards.",
+                    bind: "$discard1",
+                },
+                {
+                    op: "discard",
+                    player: { target: 0 },
+                    cards: { ref: "$discard1" },
+                },
+            ],
+            targetRequirement: { type: "player", count: 1 },
+        },
+    },
     // CR 111.1 + CR 608.2h — "Create X <token>s, where X is that creature's
     // mana value": X is read off the snapshot the previous sentence's Op
     // binds before the object leaves the battlefield. Exhibits two forms the

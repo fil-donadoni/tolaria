@@ -652,6 +652,53 @@ function lowerSentenceBody(
                 },
             ]);
         }
+        case "discard": {
+            // CR 701.9b — the affected player CHOOSES. The interpreter clamps
+            // the pick to the hand. The choice / discard pair is the one every
+            // hand-written "target player discards N cards" writes (Mind
+            // Rot), the choice raised for the player who discards.
+            //
+            // "you" is refused: the controller's own choice is the loot's
+            // `choose-hand-card`, a different Pending Choice kind the Bot
+            // values differently, and Oracle never prints "you discards".
+            if (sentence.player.kind === "you")
+                return unlowerable(
+                    "a discard by the controller is not the affected-player discard"
+                );
+            const player = playerRef(sentence.player, slots, site);
+            if (!player.ok) return player;
+            const count = lowerAmount(sentence.count, site);
+            if (!count.ok) return count;
+            if (typeof count.value !== "number")
+                return unlowerable("a discard names a printed number of cards");
+            const bind = walk.nextBind("discard");
+            return lowered([
+                {
+                    op: "choice",
+                    kind: "discard-hand",
+                    player: player.value,
+                    zone: "hand",
+                    count: count.value,
+                    prompt:
+                        count.value === 1
+                            ? "Discard a card."
+                            : `Discard ${countWord(count.value)} cards.`,
+                    bind,
+                },
+                { op: "discard", player: player.value, cards: { ref: bind } },
+            ]);
+        }
+        case "conjunction": {
+            // CR 608.2c — the halves in the order printed, each through the
+            // shared walk so a target announced in one is allocated once.
+            const ops: EffectOp[] = [];
+            for (const effect of sentence.effects) {
+                const half = lowerSentence(effect, walk, site);
+                if (!half.ok) return half;
+                ops.push(...half.value);
+            }
+            return lowered(ops);
+        }
         case "look-distribute":
             return lowerLookDistribute(sentence, site);
         case "look-reorder": {

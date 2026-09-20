@@ -5517,6 +5517,75 @@
         "rarity": "common"
     },
     {
+        "name": "Necrogen Spellbomb",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 1
+        },
+        "oracleText": "{B}, Sacrifice this artifact: Target player discards a card.\n{1}, Sacrifice this artifact: Draw a card.",
+        "activatedAbilities": [
+            {
+                "id": "necrogen-spellbomb-ability",
+                "oracleText": "{B}, Sacrifice this artifact: Target player discards a card.",
+                "cost": {
+                    "mana": {
+                        "B": 1
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "discard-hand",
+                        "player": {
+                            "target": 0
+                        },
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": {
+                            "target": 0
+                        },
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                }
+            },
+            {
+                "id": "necrogen-spellbomb-ability-2",
+                "oracleText": "{1}, Sacrifice this artifact: Draw a card.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "0950bfe7-2600-4e01-8f54-f03a5c023520",
+        "rarity": "common"
+    },
+    {
         "name": "Phyrexian Vault",
         "types": [
             "Artifact"
@@ -8056,6 +8125,31 @@
         },
         "id": "0dffa444-92ff-41d8-8b55-8896808bbfab",
         "rarity": "common"
+    },
+    {
+        "name": "Ambition's Cost",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "oracleText": "You draw three cards and you lose 3 life.",
+        "effects": [
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 3
+            },
+            {
+                "op": "loseLife",
+                "player": "controller",
+                "amount": 3
+            }
+        ],
+        "id": "0e0b1613-e879-4c28-b27e-f3997b9ebccd",
+        "rarity": "rare"
     },
     {
         "name": "Serpent's Gift",
@@ -11063,6 +11157,63 @@
         "rarity": "common"
     },
     {
+        "name": "Cryptwailing",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "oracleText": "{1}, Exile two creature cards from your graveyard: Target player discards a card. Activate only as a sorcery.",
+        "activatedAbilities": [
+            {
+                "id": "cryptwailing-ability",
+                "oracleText": "{1}, Exile two creature cards from your graveyard: Target player discards a card. Activate only as a sorcery.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "exileFromGraveyard": {
+                        "count": 2,
+                        "cardType": "Creature",
+                        "owner": "you"
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "discard-hand",
+                        "player": {
+                            "target": 0
+                        },
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": {
+                            "target": 0
+                        },
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                },
+                "sorcerySpeedOnly": true
+            }
+        ],
+        "id": "13337c99-7d9e-4464-905b-87e8deb072ac",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Kraul Raider",
         "types": [
             "Creature"
@@ -12655,6 +12806,45 @@
             "vigilance"
         ],
         "id": "162754cc-cf00-4de5-ad88-845ed1ddea40",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Fugue",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 2
+        },
+        "oracleText": "Target player discards three cards.",
+        "effects": [
+            {
+                "op": "choice",
+                "kind": "discard-hand",
+                "player": {
+                    "target": 0
+                },
+                "zone": "hand",
+                "count": 3,
+                "prompt": "Discard three cards.",
+                "bind": "$discard1"
+            },
+            {
+                "op": "discard",
+                "player": {
+                    "target": 0
+                },
+                "cards": {
+                    "ref": "$discard1"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "player",
+            "count": 1
+        },
+        "id": "1629cd63-95aa-40b6-aa57-7fb88f569e59",
         "rarity": "uncommon"
     },
     {
@@ -14406,6 +14596,62 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Liliana's Steward",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Zombie"
+        ],
+        "manaCost": {
+            "B": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "{T}, Sacrifice this creature: Target opponent discards a card. Activate only as a sorcery.",
+        "activatedAbilities": [
+            {
+                "id": "liliana-s-steward-ability",
+                "oracleText": "{T}, Sacrifice this creature: Target opponent discards a card. Activate only as a sorcery.",
+                "cost": {
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "discard-hand",
+                        "player": {
+                            "target": 0
+                        },
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": {
+                            "target": 0
+                        },
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1,
+                    "controller": "opponent"
+                },
+                "sorcerySpeedOnly": true
+            }
+        ],
+        "id": "1945fc78-8aa4-46fb-9571-eaa1c4729e3d",
+        "rarity": "common"
+    },
+    {
         "name": "Garenbrig Carver",
         "types": [
             "Creature"
@@ -15936,6 +16182,48 @@
         "toughness": 2,
         "id": "1b87dc27-3cea-4101-aec5-ca0b96978476",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Waking Nightmare",
+        "types": [
+            "Sorcery"
+        ],
+        "subtypes": [
+            "Arcane"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "oracleText": "Target player discards two cards.",
+        "effects": [
+            {
+                "op": "choice",
+                "kind": "discard-hand",
+                "player": {
+                    "target": 0
+                },
+                "zone": "hand",
+                "count": 2,
+                "prompt": "Discard two cards.",
+                "bind": "$discard1"
+            },
+            {
+                "op": "discard",
+                "player": {
+                    "target": 0
+                },
+                "cards": {
+                    "ref": "$discard1"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "player",
+            "count": 1
+        },
+        "id": "1b892f31-816e-47c0-98b9-d71008bb6af4",
+        "rarity": "common"
     },
     {
         "name": "Ayula's Influence",
@@ -19144,6 +19432,59 @@
         "rarity": "common"
     },
     {
+        "name": "Scepter of Fugue",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "B": 2
+        },
+        "oracleText": "{1}{B}, {T}: Target player discards a card. Activate only during your turn.",
+        "activatedAbilities": [
+            {
+                "id": "scepter-of-fugue-ability",
+                "oracleText": "{1}{B}, {T}: Target player discards a card. Activate only during your turn.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "B": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "discard-hand",
+                        "player": {
+                            "target": 0
+                        },
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": {
+                            "target": 0
+                        },
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                },
+                "controllerTurnOnly": true
+            }
+        ],
+        "id": "21f7e17c-45df-45e9-8dcf-7fc90fa4d65d",
+        "rarity": "rare"
+    },
+    {
         "name": "Rustvale Bridge",
         "types": [
             "Artifact",
@@ -21419,6 +21760,71 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Aspect of Lamprey",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "oracleText": "Enchant creature you control\nWhen this Aura enters, target opponent discards two cards.\nEnchanted creature has lifelink.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "aspect-of-lamprey-trigger",
+                "oracleText": "When this Aura enters, target opponent discards two cards.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1,
+                    "controller": "opponent"
+                },
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "discard-hand",
+                        "player": {
+                            "target": 0
+                        },
+                        "zone": "hand",
+                        "count": 2,
+                        "prompt": "Discard two cards.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": {
+                            "target": 0
+                        },
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "appliesTo": "host",
+                "keyword": "lifelink"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "controller": "you"
+        },
+        "id": "27157f01-8aed-4485-9f0f-9e7486492e6e",
+        "rarity": "common"
+    },
+    {
         "name": "Nurturing Peatland",
         "types": [
             "Land"
@@ -22390,6 +22796,31 @@
         "rarity": "common"
     },
     {
+        "name": "Succumb to Temptation",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 2
+        },
+        "oracleText": "You draw two cards and you lose 2 life.",
+        "effects": [
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 2
+            },
+            {
+                "op": "loseLife",
+                "player": "controller",
+                "amount": 2
+            }
+        ],
+        "id": "2974e18b-be17-4059-9f29-7afe1d1a51eb",
+        "rarity": "common"
+    },
+    {
         "name": "Tibalt's Rager",
         "types": [
             "Creature"
@@ -22940,6 +23371,62 @@
             "hexproof"
         ],
         "id": "2a1aed7d-4236-4d44-9366-ee03e15469bc",
+        "rarity": "common"
+    },
+    {
+        "name": "Dying Wail",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Enchant creature\nWhen enchanted creature dies, target player discards two cards.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "dying-wail-trigger",
+                "oracleText": "When enchanted creature dies, target player discards two cards.",
+                "head": {
+                    "kind": "died",
+                    "scope": "host"
+                },
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "discard-hand",
+                        "player": {
+                            "target": 0
+                        },
+                        "zone": "hand",
+                        "count": 2,
+                        "prompt": "Discard two cards.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": {
+                            "target": 0
+                        },
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "2a25a472-495e-4062-b66f-c37f148b494f",
         "rarity": "common"
     },
     {
@@ -23533,6 +24020,62 @@
         ],
         "id": "2b60eb23-cb9a-4203-86fb-60e47dbd870b",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Deadbridge Shaman",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elf",
+            "Shaman"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "power": 3,
+        "toughness": 1,
+        "oracleText": "When this creature dies, target opponent discards a card.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "deadbridge-shaman-trigger",
+                "oracleText": "When this creature dies, target opponent discards a card.",
+                "head": {
+                    "kind": "died",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1,
+                    "controller": "opponent"
+                },
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "discard-hand",
+                        "player": {
+                            "target": 0
+                        },
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": {
+                            "target": 0
+                        },
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "2b62a4c2-e66d-4fc3-8703-a90b84f567bf",
+        "rarity": "common"
     },
     {
         "name": "Goblin Chirurgeon",
@@ -26843,6 +27386,47 @@
             }
         ],
         "id": "316d25ae-7ac6-4f5b-93ab-0e0e28ec104b",
+        "rarity": "common"
+    },
+    {
+        "name": "Dusk Legion Zealot",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Vampire",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "When this creature enters, you draw a card and you lose 1 life.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "dusk-legion-zealot-trigger",
+                "oracleText": "When this creature enters, you draw a card and you lose 1 life.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "loseLife",
+                        "player": "controller",
+                        "amount": 1
+                    }
+                ]
+            }
+        ],
+        "id": "3190cea3-fbea-464f-999b-4b4473be745e",
         "rarity": "common"
     },
     {
@@ -30203,6 +30787,31 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Ancient Craving",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "oracleText": "You draw three cards and you lose 3 life.",
+        "effects": [
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 3
+            },
+            {
+                "op": "loseLife",
+                "player": "controller",
+                "amount": 3
+            }
+        ],
+        "id": "37ee59a7-0f41-4d5d-b049-71ca1ba335b1",
+        "rarity": "rare"
+    },
+    {
         "name": "Soulmender",
         "types": [
             "Creature"
@@ -32342,6 +32951,47 @@
         "rarity": "common"
     },
     {
+        "name": "Tithebearer Giant",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Giant",
+            "Warrior"
+        ],
+        "manaCost": {
+            "X": 5,
+            "B": 1
+        },
+        "power": 4,
+        "toughness": 5,
+        "oracleText": "When this creature enters, you draw a card and you lose 1 life.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "tithebearer-giant-trigger",
+                "oracleText": "When this creature enters, you draw a card and you lose 1 life.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "loseLife",
+                        "player": "controller",
+                        "amount": 1
+                    }
+                ]
+            }
+        ],
+        "id": "3c305ccb-62f5-496a-a205-e818e34ead82",
+        "rarity": "common"
+    },
+    {
         "name": "Sawtooth Thresher",
         "types": [
             "Artifact",
@@ -33165,6 +33815,47 @@
             }
         ],
         "id": "3dfa866b-93e2-4365-91b0-f12d1f7c5395",
+        "rarity": "rare"
+    },
+    {
+        "name": "Baleful Force",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elemental"
+        ],
+        "manaCost": {
+            "X": 5,
+            "B": 3
+        },
+        "power": 7,
+        "toughness": 7,
+        "oracleText": "At the beginning of each upkeep, you draw a card and you lose 1 life.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "baleful-force-trigger",
+                "oracleText": "At the beginning of each upkeep, you draw a card and you lose 1 life.",
+                "head": {
+                    "kind": "phase",
+                    "phase": "UPKEEP",
+                    "scope": "each"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "loseLife",
+                        "player": "controller",
+                        "amount": 1
+                    }
+                ]
+            }
+        ],
+        "id": "3dff363d-7e9f-4764-a9ee-ec2f23239df6",
         "rarity": "rare"
     },
     {
@@ -34977,6 +35668,48 @@
         ],
         "entersTapped": true,
         "id": "428df1ff-e13e-48a3-bcc9-301bdc9470fb",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Three Tragedies",
+        "types": [
+            "Sorcery"
+        ],
+        "subtypes": [
+            "Arcane"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 2
+        },
+        "oracleText": "Target player discards three cards.",
+        "effects": [
+            {
+                "op": "choice",
+                "kind": "discard-hand",
+                "player": {
+                    "target": 0
+                },
+                "zone": "hand",
+                "count": 3,
+                "prompt": "Discard three cards.",
+                "bind": "$discard1"
+            },
+            {
+                "op": "discard",
+                "player": {
+                    "target": 0
+                },
+                "cards": {
+                    "ref": "$discard1"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "player",
+            "count": 1
+        },
+        "id": "42acaa44-15d5-4760-9aa8-b44eda9ed98a",
         "rarity": "uncommon"
     },
     {
@@ -37539,6 +38272,47 @@
         "rarity": "common"
     },
     {
+        "name": "Phyrexian Gargantua",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Phyrexian",
+            "Horror"
+        ],
+        "manaCost": {
+            "X": 4,
+            "B": 2
+        },
+        "power": 4,
+        "toughness": 4,
+        "oracleText": "When this creature enters, you draw two cards and you lose 2 life.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "phyrexian-gargantua-trigger",
+                "oracleText": "When this creature enters, you draw two cards and you lose 2 life.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 2
+                    },
+                    {
+                        "op": "loseLife",
+                        "player": "controller",
+                        "amount": 2
+                    }
+                ]
+            }
+        ],
+        "id": "47c80cdd-4287-4ecb-992b-f265cd422098",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Malamet Brawler",
         "types": [
             "Creature"
@@ -37765,6 +38539,50 @@
             }
         ],
         "id": "47f1eedd-7021-4cce-a808-2e9384a5ef15",
+        "rarity": "common"
+    },
+    {
+        "name": "Moriok Replica",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Warrior"
+        ],
+        "manaCost": {
+            "X": 3
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{1}{B}, Sacrifice this creature: You draw two cards and you lose 2 life.",
+        "activatedAbilities": [
+            {
+                "id": "moriok-replica-ability",
+                "oracleText": "{1}{B}, Sacrifice this creature: You draw two cards and you lose 2 life.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "B": 1
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 2
+                    },
+                    {
+                        "op": "loseLife",
+                        "player": "controller",
+                        "amount": 2
+                    }
+                ]
+            }
+        ],
+        "id": "480311ae-b9af-4fb7-881b-35566598cf07",
         "rarity": "common"
     },
     {
@@ -58169,6 +58987,71 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Consult the Necrosages",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1,
+            "B": 1
+        },
+        "oracleText": "Choose one —\n• Target player draws two cards.\n• Target player discards two cards.",
+        "modes": [
+            {
+                "id": "consult-the-necrosages-mode-1",
+                "label": "Target player draws two cards",
+                "oracleText": "Target player draws two cards.",
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": {
+                            "target": 0
+                        },
+                        "count": 2
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                }
+            },
+            {
+                "id": "consult-the-necrosages-mode-2",
+                "label": "Target player discards two cards",
+                "oracleText": "Target player discards two cards.",
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "discard-hand",
+                        "player": {
+                            "target": 0
+                        },
+                        "zone": "hand",
+                        "count": 2,
+                        "prompt": "Discard two cards.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": {
+                            "target": 0
+                        },
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "6f51484b-3bad-4332-87f8-61924e153799",
+        "rarity": "common"
+    },
+    {
         "name": "Timeless Lotus",
         "types": [
             "Artifact"
@@ -59483,6 +60366,66 @@
         "rarity": "common"
     },
     {
+        "name": "Vodalian Hypnotist",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Merfolk",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{2}{B}, {T}: Target player discards a card. Activate only as a sorcery.",
+        "activatedAbilities": [
+            {
+                "id": "vodalian-hypnotist-ability",
+                "oracleText": "{2}{B}, {T}: Target player discards a card. Activate only as a sorcery.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "B": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "discard-hand",
+                        "player": {
+                            "target": 0
+                        },
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": {
+                            "target": 0
+                        },
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                },
+                "sorcerySpeedOnly": true
+            }
+        ],
+        "id": "721fd877-0a28-4002-8b47-058bac4ac44d",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Hoar Shade",
         "types": [
             "Creature"
@@ -59798,6 +60741,68 @@
             "count": 1
         },
         "id": "72ab91ab-2bcf-4617-bec3-2bf040d4997c",
+        "rarity": "common"
+    },
+    {
+        "name": "Dementia Bat",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Phyrexian",
+            "Bat"
+        ],
+        "manaCost": {
+            "X": 4,
+            "B": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Flying\n{4}{B}, Sacrifice this creature: Target player discards two cards.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "dementia-bat-ability",
+                "oracleText": "{4}{B}, Sacrifice this creature: Target player discards two cards.",
+                "cost": {
+                    "mana": {
+                        "X": 4,
+                        "B": 1
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "discard-hand",
+                        "player": {
+                            "target": 0
+                        },
+                        "zone": "hand",
+                        "count": 2,
+                        "prompt": "Discard two cards.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": {
+                            "target": 0
+                        },
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "72ae22c3-2dea-463e-894a-188657849909",
         "rarity": "common"
     },
     {
@@ -65525,6 +66530,47 @@
         "rarity": "common"
     },
     {
+        "name": "Raven's Crime",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "B": 1
+        },
+        "oracleText": "Target player discards a card.\nRetrace (You may cast this card from your graveyard by discarding a land card in addition to paying its other costs.)",
+        "staticAbilities": [
+            "retrace"
+        ],
+        "effects": [
+            {
+                "op": "choice",
+                "kind": "discard-hand",
+                "player": {
+                    "target": 0
+                },
+                "zone": "hand",
+                "count": 1,
+                "prompt": "Discard a card.",
+                "bind": "$discard1"
+            },
+            {
+                "op": "discard",
+                "player": {
+                    "target": 0
+                },
+                "cards": {
+                    "ref": "$discard1"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "player",
+            "count": 1
+        },
+        "id": "7ced5797-5de0-43ca-9dc9-e48912333a70",
+        "rarity": "common"
+    },
+    {
         "name": "Twin-Silk Spider",
         "types": [
             "Creature"
@@ -68465,6 +69511,81 @@
         "rarity": "common"
     },
     {
+        "name": "Pain // Suffering",
+        "manaCost": {
+            "B": 1,
+            "R": 1,
+            "X": 3
+        },
+        "types": [
+            "Sorcery"
+        ],
+        "splitHalves": [
+            {
+                "name": "Pain",
+                "manaCost": {
+                    "B": 1
+                },
+                "types": [
+                    "Sorcery"
+                ],
+                "oracleText": "Target player discards a card.",
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "discard-hand",
+                        "player": {
+                            "target": 0
+                        },
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": {
+                            "target": 0
+                        },
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                }
+            },
+            {
+                "name": "Suffering",
+                "manaCost": {
+                    "X": 3,
+                    "R": 1
+                },
+                "types": [
+                    "Sorcery"
+                ],
+                "oracleText": "Destroy target land.",
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Land",
+                    "count": 1
+                }
+            }
+        ],
+        "oracleText": "Target player discards a card.\nDestroy target land.",
+        "id": "81be27d6-e16f-4158-b2b6-66a0f3315327",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Advance Scout",
         "types": [
             "Creature"
@@ -69846,6 +70967,42 @@
         "rarity": "common"
     },
     {
+        "name": "Phyrexian Arena",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 2
+        },
+        "oracleText": "At the beginning of your upkeep, you draw a card and you lose 1 life.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "phyrexian-arena-trigger",
+                "oracleText": "At the beginning of your upkeep, you draw a card and you lose 1 life.",
+                "head": {
+                    "kind": "phase",
+                    "phase": "UPKEEP",
+                    "scope": "your"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "loseLife",
+                        "player": "controller",
+                        "amount": 1
+                    }
+                ]
+            }
+        ],
+        "id": "84e19975-e3e1-453b-b902-a1b1fc1d8504",
+        "rarity": "rare"
+    },
+    {
         "name": "Ithilien Kingfisher",
         "types": [
             "Creature"
@@ -70525,6 +71682,98 @@
         ],
         "id": "868067ce-3415-4239-b7c3-d3ad4c03fb8d",
         "rarity": "common"
+    },
+    {
+        "name": "Dimir Guildmage",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "hybrid": [
+                [
+                    "U",
+                    "B"
+                ],
+                [
+                    "U",
+                    "B"
+                ]
+            ]
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "({U/B} can be paid with either {U} or {B}.)\n{3}{U}: Target player draws a card. Activate only as a sorcery.\n{3}{B}: Target player discards a card. Activate only as a sorcery.",
+        "activatedAbilities": [
+            {
+                "id": "dimir-guildmage-ability",
+                "oracleText": "{3}{U}: Target player draws a card. Activate only as a sorcery.",
+                "cost": {
+                    "mana": {
+                        "X": 3,
+                        "U": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": {
+                            "target": 0
+                        },
+                        "count": 1
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                },
+                "sorcerySpeedOnly": true
+            },
+            {
+                "id": "dimir-guildmage-ability-2",
+                "oracleText": "{3}{B}: Target player discards a card. Activate only as a sorcery.",
+                "cost": {
+                    "mana": {
+                        "X": 3,
+                        "B": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "discard-hand",
+                        "player": {
+                            "target": 0
+                        },
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": {
+                            "target": 0
+                        },
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                },
+                "sorcerySpeedOnly": true
+            }
+        ],
+        "id": "86970c36-306f-48b9-b506-1178b05f5e48",
+        "rarity": "uncommon"
     },
     {
         "name": "Daybreak Combatants",
@@ -77427,6 +78676,60 @@
         "rarity": "common"
     },
     {
+        "name": "Rottenheart Ghoul",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Zombie"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "power": 2,
+        "toughness": 4,
+        "oracleText": "When this creature dies, target player discards a card.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "rottenheart-ghoul-trigger",
+                "oracleText": "When this creature dies, target player discards a card.",
+                "head": {
+                    "kind": "died",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "discard-hand",
+                        "player": {
+                            "target": 0
+                        },
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": {
+                            "target": 0
+                        },
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "933f0504-c611-4557-b1e6-f5be72154805",
+        "rarity": "common"
+    },
+    {
         "name": "Corridor Monitor",
         "types": [
             "Artifact",
@@ -77717,6 +79020,48 @@
         "rarity": "common"
     },
     {
+        "name": "Skull Fracture",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "B": 1
+        },
+        "oracleText": "Target player discards a card.\nFlashback {3}{B} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+        "effects": [
+            {
+                "op": "choice",
+                "kind": "discard-hand",
+                "player": {
+                    "target": 0
+                },
+                "zone": "hand",
+                "count": 1,
+                "prompt": "Discard a card.",
+                "bind": "$discard1"
+            },
+            {
+                "op": "discard",
+                "player": {
+                    "target": 0
+                },
+                "cards": {
+                    "ref": "$discard1"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "player",
+            "count": 1
+        },
+        "flashback": {
+            "X": 3,
+            "B": 1
+        },
+        "id": "93e3c013-319f-4a77-a55e-11323468b8ea",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Shambling Goblin",
         "types": [
             "Creature"
@@ -77763,6 +79108,63 @@
         "rarity": "common"
     },
     {
+        "name": "Abyssal Horror",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Horror"
+        ],
+        "manaCost": {
+            "X": 4,
+            "B": 2
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Flying\nWhen this creature enters, target player discards two cards.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "abyssal-horror-trigger",
+                "oracleText": "When this creature enters, target player discards two cards.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "discard-hand",
+                        "player": {
+                            "target": 0
+                        },
+                        "zone": "hand",
+                        "count": 2,
+                        "prompt": "Discard two cards.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": {
+                            "target": 0
+                        },
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "94396d26-cede-4a61-b30a-50aecc730407",
+        "rarity": "rare"
+    },
+    {
         "name": "Resentful Revelation",
         "types": [
             "Sorcery"
@@ -77787,6 +79189,145 @@
             "B": 1
         },
         "id": "945006ea-c6a1-4ee5-abb2-387c2b6d3123",
+        "rarity": "common"
+    },
+    {
+        "name": "Augur of Skulls",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Skeleton",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{1}{B}: Regenerate this creature.\nSacrifice this creature: Target player discards two cards. Activate only during your upkeep.",
+        "activatedAbilities": [
+            {
+                "id": "augur-of-skulls-ability",
+                "oracleText": "{1}{B}: Regenerate this creature.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "B": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "ref": "$source"
+                        }
+                    }
+                ]
+            },
+            {
+                "id": "augur-of-skulls-ability-2",
+                "oracleText": "Sacrifice this creature: Target player discards two cards. Activate only during your upkeep.",
+                "cost": {
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "discard-hand",
+                        "player": {
+                            "target": 0
+                        },
+                        "zone": "hand",
+                        "count": 2,
+                        "prompt": "Discard two cards.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": {
+                            "target": 0
+                        },
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                },
+                "activationPhaseRestriction": [
+                    "UPKEEP"
+                ],
+                "controllerTurnOnly": true
+            }
+        ],
+        "id": "945404d5-9e44-45e7-84fd-5f8c893e7d27",
+        "rarity": "common"
+    },
+    {
+        "name": "Cat Burglar",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Kor",
+            "Rogue",
+            "Minion"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{2}{B}, {T}: Target player discards a card. Activate only as a sorcery.",
+        "activatedAbilities": [
+            {
+                "id": "cat-burglar-ability",
+                "oracleText": "{2}{B}, {T}: Target player discards a card. Activate only as a sorcery.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "B": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "discard-hand",
+                        "player": {
+                            "target": 0
+                        },
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": {
+                            "target": 0
+                        },
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                },
+                "sorcerySpeedOnly": true
+            }
+        ],
+        "id": "947109f9-7035-4a2a-bbc2-a2958f8c5d01",
         "rarity": "common"
     },
     {
@@ -79845,6 +81386,66 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Sadistic Hypnotist",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Minion"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 2
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Sacrifice a creature: Target player discards two cards. Activate only as a sorcery.",
+        "activatedAbilities": [
+            {
+                "id": "sadistic-hypnotist-ability",
+                "oracleText": "Sacrifice a creature: Target player discards two cards. Activate only as a sorcery.",
+                "cost": {
+                    "sacrificeFilter": {
+                        "types": [
+                            "Creature"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "discard-hand",
+                        "player": {
+                            "target": 0
+                        },
+                        "zone": "hand",
+                        "count": 2,
+                        "prompt": "Discard two cards.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": {
+                            "target": 0
+                        },
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                },
+                "sorcerySpeedOnly": true
+            }
+        ],
+        "id": "98a6fba0-e5fc-4fa8-9895-8e4b8272bebe",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Thundering Giant",
         "types": [
             "Creature"
@@ -81489,6 +83090,66 @@
         "rarity": "common"
     },
     {
+        "name": "Metalspinner's Puzzleknot",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 2
+        },
+        "oracleText": "When this artifact enters, you draw a card and you lose 1 life.\n{2}{B}, Sacrifice this artifact: You draw a card and you lose 1 life.",
+        "activatedAbilities": [
+            {
+                "id": "metalspinner-s-puzzleknot-ability",
+                "oracleText": "{2}{B}, Sacrifice this artifact: You draw a card and you lose 1 life.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "B": 1
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "loseLife",
+                        "player": "controller",
+                        "amount": 1
+                    }
+                ]
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "metalspinner-s-puzzleknot-trigger",
+                "oracleText": "When this artifact enters, you draw a card and you lose 1 life.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "loseLife",
+                        "player": "controller",
+                        "amount": 1
+                    }
+                ]
+            }
+        ],
+        "id": "9b1639c3-f22d-4246-9252-219a4b2b2999",
+        "rarity": "common"
+    },
+    {
         "name": "Bigfin Bouncer",
         "types": [
             "Creature"
@@ -82805,6 +84466,62 @@
         "rarity": "common"
     },
     {
+        "name": "Corrupt Court Official",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Advisor"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "When this creature enters, target opponent discards a card.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "corrupt-court-official-trigger",
+                "oracleText": "When this creature enters, target opponent discards a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1,
+                    "controller": "opponent"
+                },
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "discard-hand",
+                        "player": {
+                            "target": 0
+                        },
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": {
+                            "target": 0
+                        },
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "9d3ba2e3-e680-47cd-81c5-555deea7d00f",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Thornglint Bridge",
         "types": [
             "Artifact",
@@ -83094,6 +84811,56 @@
             }
         ],
         "id": "9d9574f6-40b3-4fe2-950c-234bc358ecf6",
+        "rarity": "common"
+    },
+    {
+        "name": "Infernal Idol",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 3
+        },
+        "oracleText": "{T}: Add {B}.\n{1}{B}{B}, {T}, Sacrifice this artifact: You draw two cards and you lose 2 life.",
+        "activatedAbilities": [
+            {
+                "id": "infernal-idol-mana",
+                "oracleText": "{T}: Add {B}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "B": 1
+                }
+            },
+            {
+                "id": "infernal-idol-ability-2",
+                "oracleText": "{1}{B}{B}, {T}, Sacrifice this artifact: You draw two cards and you lose 2 life.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "B": 2
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 2
+                    },
+                    {
+                        "op": "loseLife",
+                        "player": "controller",
+                        "amount": 2
+                    }
+                ]
+            }
+        ],
+        "id": "9d986229-c8d5-462c-bf74-ae94326a5aa0",
         "rarity": "common"
     },
     {
@@ -85907,6 +87674,82 @@
         "rarity": "common"
     },
     {
+        "name": "Esper Charm",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "W": 1,
+            "U": 1,
+            "B": 1
+        },
+        "oracleText": "Choose one —\n• Destroy target enchantment.\n• Draw two cards.\n• Target player discards two cards.",
+        "modes": [
+            {
+                "id": "esper-charm-mode-1",
+                "label": "Destroy target enchantment",
+                "oracleText": "Destroy target enchantment.",
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Enchantment",
+                    "count": 1
+                }
+            },
+            {
+                "id": "esper-charm-mode-2",
+                "label": "Draw two cards",
+                "oracleText": "Draw two cards.",
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 2
+                    }
+                ]
+            },
+            {
+                "id": "esper-charm-mode-3",
+                "label": "Target player discards two cards",
+                "oracleText": "Target player discards two cards.",
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "discard-hand",
+                        "player": {
+                            "target": 0
+                        },
+                        "zone": "hand",
+                        "count": 2,
+                        "prompt": "Discard two cards.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": {
+                            "target": 0
+                        },
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "a3d70a07-8d91-462c-aa96-901cc9a81531",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Skeletal Kathari",
         "types": [
             "Creature"
@@ -86671,6 +88514,47 @@
         ],
         "entersTapped": true,
         "id": "a53baf25-1782-427b-a9dd-fc9b8dc6444f",
+        "rarity": "common"
+    },
+    {
+        "name": "Novice Occultist",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "When this creature dies, you draw a card and you lose 1 life.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "novice-occultist-trigger",
+                "oracleText": "When this creature dies, you draw a card and you lose 1 life.",
+                "head": {
+                    "kind": "died",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "loseLife",
+                        "player": "controller",
+                        "amount": 1
+                    }
+                ]
+            }
+        ],
+        "id": "a541ac79-a969-42b4-b989-f6e37572ec90",
         "rarity": "common"
     },
     {
@@ -95580,6 +97464,52 @@
         "rarity": "common"
     },
     {
+        "name": "Tendrils of Despair",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "B": 1
+        },
+        "oracleText": "As an additional cost to cast this spell, sacrifice a creature.\nTarget opponent discards two cards.",
+        "effects": [
+            {
+                "op": "choice",
+                "kind": "discard-hand",
+                "player": {
+                    "target": 0
+                },
+                "zone": "hand",
+                "count": 2,
+                "prompt": "Discard two cards.",
+                "bind": "$discard1"
+            },
+            {
+                "op": "discard",
+                "player": {
+                    "target": 0
+                },
+                "cards": {
+                    "ref": "$discard1"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "player",
+            "count": 1,
+            "controller": "opponent"
+        },
+        "additionalCosts": {
+            "sacrificeFilter": {
+                "types": [
+                    "Creature"
+                ]
+            }
+        },
+        "id": "b5d73ddb-bd3c-4625-9f75-ba2079553915",
+        "rarity": "common"
+    },
+    {
         "name": "Segovian Angel",
         "types": [
             "Creature"
@@ -97271,6 +99201,50 @@
         ],
         "id": "b88ab58b-918b-478a-8c6b-a213e2bc87ab",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Unhinge",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "oracleText": "Target player discards a card.\nDraw a card.",
+        "effects": [
+            {
+                "op": "choice",
+                "kind": "discard-hand",
+                "player": {
+                    "target": 0
+                },
+                "zone": "hand",
+                "count": 1,
+                "prompt": "Discard a card.",
+                "bind": "$discard1"
+            },
+            {
+                "op": "discard",
+                "player": {
+                    "target": 0
+                },
+                "cards": {
+                    "ref": "$discard1"
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "player",
+            "count": 1
+        },
+        "id": "b89deafd-cb7c-4da7-ab9b-8f795554a705",
+        "rarity": "common"
     },
     {
         "name": "Appetite for the Unnatural",
@@ -100151,6 +102125,46 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Deception",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "oracleText": "Target opponent discards two cards.",
+        "effects": [
+            {
+                "op": "choice",
+                "kind": "discard-hand",
+                "player": {
+                    "target": 0
+                },
+                "zone": "hand",
+                "count": 2,
+                "prompt": "Discard two cards.",
+                "bind": "$discard1"
+            },
+            {
+                "op": "discard",
+                "player": {
+                    "target": 0
+                },
+                "cards": {
+                    "ref": "$discard1"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "player",
+            "count": 1,
+            "controller": "opponent"
+        },
+        "id": "bdb63768-2d8a-4a74-a312-b981dd462cdc",
+        "rarity": "common"
+    },
+    {
         "name": "Deadapult",
         "types": [
             "Enchantment"
@@ -101551,6 +103565,47 @@
         "rarity": "common"
     },
     {
+        "name": "Phyrexian Rager",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Phyrexian",
+            "Horror"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "When this creature enters, you draw a card and you lose 1 life.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "phyrexian-rager-trigger",
+                "oracleText": "When this creature enters, you draw a card and you lose 1 life.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "loseLife",
+                        "player": "controller",
+                        "amount": 1
+                    }
+                ]
+            }
+        ],
+        "id": "c0a29ba4-fe8b-442f-a8b5-8cce7c765011",
+        "rarity": "common"
+    },
+    {
         "name": "Ogre Warrior",
         "types": [
             "Creature"
@@ -101819,6 +103874,69 @@
         ],
         "id": "c0ee9e09-c4b1-4133-90a3-350677f0b72a",
         "rarity": "common"
+    },
+    {
+        "name": "Nezumi Bone-Reader",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Rat",
+            "Shaman"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{B}, Sacrifice a creature: Target player discards a card. Activate only as a sorcery.",
+        "activatedAbilities": [
+            {
+                "id": "nezumi-bone-reader-ability",
+                "oracleText": "{B}, Sacrifice a creature: Target player discards a card. Activate only as a sorcery.",
+                "cost": {
+                    "mana": {
+                        "B": 1
+                    },
+                    "sacrificeFilter": {
+                        "types": [
+                            "Creature"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "discard-hand",
+                        "player": {
+                            "target": 0
+                        },
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": {
+                            "target": 0
+                        },
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                },
+                "sorcerySpeedOnly": true
+            }
+        ],
+        "id": "c0f27ff7-c7e4-4099-b3ac-6560c6ccba41",
+        "rarity": "uncommon"
     },
     {
         "name": "Attended Knight",
@@ -104130,6 +106248,54 @@
             "reach"
         ],
         "id": "c5f0d87a-8f37-4598-9106-c3545dadf6fd",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Foulmire Knight",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Zombie",
+            "Knight"
+        ],
+        "manaCost": {
+            "B": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Deathtouch",
+        "staticAbilities": [
+            "deathtouch"
+        ],
+        "insetSpell": {
+            "kind": "adventure",
+            "name": "Profane Insight",
+            "manaCost": {
+                "X": 2,
+                "B": 1
+            },
+            "types": [
+                "Instant"
+            ],
+            "subtypes": [
+                "Adventure"
+            ],
+            "oracleText": "You draw a card and you lose 1 life. (Then exile this card. You may cast the creature later from exile.)",
+            "effects": [
+                {
+                    "op": "draw",
+                    "player": "controller",
+                    "count": 1
+                },
+                {
+                    "op": "loseLife",
+                    "player": "controller",
+                    "amount": 1
+                }
+            ]
+        },
+        "id": "c5f6c745-e46a-42eb-8eca-b7b74ab1245e",
         "rarity": "uncommon"
     },
     {
@@ -110283,6 +112449,68 @@
             }
         ],
         "id": "d2897635-b387-485d-932f-5655244a381f",
+        "rarity": "common"
+    },
+    {
+        "name": "Wall of Distortion",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Wall"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 2
+        },
+        "power": 1,
+        "toughness": 3,
+        "oracleText": "Defender (This creature can't attack.)\n{2}{B}, {T}: Target player discards a card. Activate only as a sorcery.",
+        "staticAbilities": [
+            "defender"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "wall-of-distortion-ability",
+                "oracleText": "{2}{B}, {T}: Target player discards a card. Activate only as a sorcery.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "B": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "discard-hand",
+                        "player": {
+                            "target": 0
+                        },
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": {
+                            "target": 0
+                        },
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                },
+                "sorcerySpeedOnly": true
+            }
+        ],
+        "id": "d2b2d07a-9ea1-430d-b432-ae507f4fe73b",
         "rarity": "common"
     },
     {
@@ -117086,6 +119314,46 @@
         "rarity": "common"
     },
     {
+        "name": "Audacious Thief",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Rogue"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Whenever this creature attacks, you draw a card and you lose 1 life.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "audacious-thief-trigger",
+                "oracleText": "Whenever this creature attacks, you draw a card and you lose 1 life.",
+                "head": {
+                    "kind": "attacks"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "loseLife",
+                        "player": "controller",
+                        "amount": 1
+                    }
+                ]
+            }
+        ],
+        "id": "e1ff5e66-4718-43c3-8a58-1a0a8e788f83",
+        "rarity": "common"
+    },
+    {
         "name": "Cloudkin Seer",
         "types": [
             "Creature"
@@ -122823,6 +125091,40 @@
         ],
         "id": "ecf47c52-4065-4b81-acdc-878e74767bba",
         "rarity": "common"
+    },
+    {
+        "name": "Dark Prophecy",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "B": 3
+        },
+        "oracleText": "Whenever a creature you control dies, you draw a card and you lose 1 life.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "dark-prophecy-trigger",
+                "oracleText": "Whenever a creature you control dies, you draw a card and you lose 1 life.",
+                "head": {
+                    "kind": "died",
+                    "scope": "yours"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "loseLife",
+                        "player": "controller",
+                        "amount": 1
+                    }
+                ]
+            }
+        ],
+        "id": "ecf82c3b-7a35-43dd-8bf3-ebc68dc1b8fc",
+        "rarity": "rare"
     },
     {
         "name": "Charge Through",
