@@ -327,7 +327,12 @@ describe("life quantities — goldens (issue #4136)", () => {
 describe("life quantities — refusals stay fail-closed (issue #4136)", () => {
     /** [line, what it is, the refusal's reason — so a refusal for the WRONG
      *  reason (a typo in the wrapper, an unrelated gap) cannot pass]. */
-    const REFUSED: readonly [string, string, RegExp][] = [
+    const REFUSED: readonly [
+        string,
+        string,
+        RegExp,
+        { path: string[]; span: string }?,
+    ][] = [
         // A drain whose loser is not one announced target: the lowering has no
         // single player to point at for "each opponent" (CR 101.4).
         [
@@ -353,6 +358,10 @@ describe("life quantities — refusals stay fail-closed (issue #4136)", () => {
             "You gain 2 life for each creature target player controls.",
             "another player's permanents",
             /no slot consumed/,
+            {
+                path: ["effect clause", "counted set", "object descriptor"],
+                span: "creature target player controls",
+            },
         ],
         [
             "You gain 1 life for each attacking creature you control.",
@@ -363,6 +372,10 @@ describe("life quantities — refusals stay fail-closed (issue #4136)", () => {
             "You gain 1 life for each creature on the battlefield.",
             "no controller",
             /no slot consumed/,
+            {
+                path: ["effect clause", "counted set", "object descriptor"],
+                span: "creature on the battlefield",
+            },
         ],
         // A zone the count does not name.
         [
@@ -384,12 +397,21 @@ describe("life quantities — refusals stay fail-closed (issue #4136)", () => {
         ],
     ];
 
-    for (const [line, why, reason] of REFUSED) {
+    for (const [line, why, reason, at] of REFUSED) {
         it(`refuses ${why}: ${line}`, () => {
             const outcome = compileCard(sorcery("Wrapper", "{2}{B}", line));
             expect(outcome.state).toBe("unparsed");
             if (outcome.state !== "unparsed") return;
             expect(outcome.gaps[0]!.reason).toMatch(reason);
+            // A generic "no slot consumed" is what ANY unparsed line says, so
+            // pin WHERE it was refused: the spell slot, down the sub-grammar
+            // path, on exactly this span.
+            if (reason.source.includes("no slot consumed"))
+                expect(outcome.gaps[0]!.attribution).toMatchObject({
+                    slot: "spell",
+                    path: at?.path ?? ["effect clause"],
+                    span: at?.span ?? line.replace(/\.$/, ""),
+                });
         });
     }
 

@@ -1895,7 +1895,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
     // with one subtype. Exhibits the "count set applies a multiplier" form: the
     // canned smoke predictor does not model `times`, so this fixture is the
     // evidence that the `count` the grammar emits is the one the hand-written
-    // catalogue writes (Price of Progress' `times`, Last Stand's per-land loss).
+    // catalogue writes (Price of Progress' `times`).
     {
         rule: "effect clause",
         card: {
