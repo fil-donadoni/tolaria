@@ -41219,6 +41219,7 @@
         {"id":"704.5m","line":"// the CR 303.4c / 704.5m sweep can no longer see, and bins the Aura one","sites":1,"status":"baseline"},
         {"id":"704.5m","line":"// the CR 704.5m Aura SBA). No per-card code.","sites":1,"status":"baseline"},
         {"id":"704.5m","line":"// the leaver, snapshotted before the attachment SBA (CR 704.5m) detaches","sites":1,"status":"baseline"},
+        {"id":"704.5m","line":"// the wrong fixture here (CR 704.5m bins it).","sites":1,"status":"confirmed","ruleHash":"586dc93d703666e3"},
         {"id":"704.5m","line":"// — an Aura attached to nothing dies to the SBA (CR 704.5m). That is","sites":1,"status":"baseline"},
         {"id":"704.5m","line":"1. **Detach outcome.** An illegal Aura goes to the graveyard (CR 704.5m); an","sites":1,"status":"baseline"},
         {"id":"704.5m","line":"An **Enchantment** **Attachment**. If its **Host** becomes illegal or it ends up unattached, it is put into its owner's **Graveyard** (CR 704.5m/704.5n) — with one exception, a **Bestowed Permanent**, which stays on the **Battlefield** and becomes a **Creature** instead.","sites":1,"status":"baseline"},
