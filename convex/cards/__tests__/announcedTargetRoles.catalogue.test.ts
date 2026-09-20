@@ -26,7 +26,9 @@
 import { describe, it, expect } from "vitest";
 import { getAllCatalogueCards } from "../index";
 import type { CardDefinition, EffectOp, TargetRequirement } from "../types";
+import { adventureCastAltCostId } from "../../gre/adventure";
 import { castSubjectDefinition } from "../../gre/castMode";
+import { splitCastAltCostId } from "../../gre/splitCast";
 import {
     announcedTargetRoles,
     announcedTargetSlotsDiffer,
@@ -51,15 +53,22 @@ function sitesOf(card: CardDefinition): Site[] {
             effects: card.effects,
         },
     ];
-    // CR 715.3a/b (ADR 0120 §4) — each alternative cast mode whose SUBJECT is
-    // a different definition announces that definition's requirement out of
-    // that definition's script. Identity for every ordinary alt cost, which
-    // the `!== card` filter drops.
-    for (const alt of card.alternativeCosts ?? []) {
-        const subject = castSubjectDefinition(card, alt.id);
+    // CR 715.3a (ADR 0120 §4) — a cast whose SUBJECT is a different
+    // definition (an Adventure half, a split half) announces THAT
+    // definition's requirement out of THAT definition's script. Those ids are
+    // synthesized per mechanic rather than declared in `alternativeCosts`,
+    // which is why they are named here; every ordinary alt cost keeps the
+    // printed card as its subject and is dropped by the `!== card` filter.
+    const subjectIds = [
+        adventureCastAltCostId(card),
+        splitCastAltCostId(card, "left"),
+        splitCastAltCostId(card, "right"),
+    ];
+    for (const id of subjectIds) {
+        const subject = castSubjectDefinition(card, id);
         if (!subject || subject === card) continue;
         sites.push({
-            where: `cast subject ${alt.id}`,
+            where: `cast subject ${id}`,
             requirement: subject.targetRequirement,
             effects: subject.effects,
         });
@@ -112,6 +121,19 @@ describe("announced target roles — catalogue guard (CR 601.2c, issue #4193)", 
             }
         }
         expect(offenders).toEqual([]);
+    });
+
+    it("actually reaches the cast subjects (the sweep is not printed-card-only)", () => {
+        // No catalogue half is asymmetric today, so the subject branch of the
+        // sweep above is silent — and a silent branch that stopped running
+        // would look exactly the same. Pin that it runs: an Adventure or split
+        // half IS a distinct definition and the sweep visits it. Without this
+        // the guard would keep the blind spot that let the announcement pair
+        // one half's requirement with the printed card's script.
+        const subjectSites = getAllCatalogueCards().flatMap((card) =>
+            sitesOf(card).filter((s) => s.where.startsWith("cast subject "))
+        );
+        expect(subjectSites.length).toBeGreaterThan(0);
     });
 
     it("Jilt, the card the mechanism was built for, names both halves", () => {
