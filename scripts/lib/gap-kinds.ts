@@ -510,7 +510,7 @@ export function buildMigrationFilings(
  */
 const BOT_CAUSE_TEXT: Readonly<Record<string, string>> = {
     "never-chosen":
-        "**A valuation gap.** The move that plays each card below is legal and affordable, and the search never picks it — seam 3 of the Bot reachability walk (`OP_VALUERS` + `OP_BENEFICENCE`, `docs/guides/bot-reachability.md`): the Bot does not WANT to play the card, because what its Ops do is valued at nothing or less.",
+        "**A card the search never picks.** The move that plays each card below is legal and affordable, and the search picks another move in BOTH main phases of the turn (`REACH_WINDOWS`, `convex/gre/ai/botReach.ts`). Read the DecisionTrace before assuming a cause: it may be a valuation gap — seam 3 of the Bot reachability walk (`OP_VALUERS` + `OP_BENEFICENCE`, `docs/guides/bot-reachability.md`), the Bot does not WANT the card because what its Ops do is valued at nothing or less — or a timing preference the sweep's positions do not yet pose.",
     "position-unmodelled":
         "**A gap in the sweep's harness, not in the Bot's judgement.** The generated position could not pose these cards at all — the engine refuses a human the cast too (no legal target, an additional cost the seeded board cannot pay, a mana cost the seeded lands cannot produce). The work is teaching the sweep's position (`botReachSpec`, `convex/gre/ai/botReach.ts`) the shape; the Bot may well play the card once posed.",
     "no-progress":
