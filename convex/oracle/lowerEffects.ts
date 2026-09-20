@@ -753,8 +753,17 @@ function selectorsFor(
     site: SiteOptions
 ): Lowered<EffectObjectSelector[]> {
     if (subject.kind === "self") return lowered([{ ref: "$source" }]);
-    // CR 608.2h — "it" names whatever the SITE printed before the sentence.
+    // CR 608.2h — "it" names whatever the SITE printed before the sentence…
     if (subject.kind === "pronoun") {
+        // …unless the script has announced a target first, in which case THAT
+        // is the nearer antecedent ("Destroy target creature. It …" names the
+        // creature, not the head's subject) and the site's referent is the
+        // wrong one. Refused rather than guessed — the same rule the
+        // intervening-if pronoun guard applies one layer up.
+        if (slots.requirements().length > 0)
+            return unlowerable(
+                '"it" follows an announced target, which is the nearer antecedent (CR 608.2h)'
+            );
         const object = site.antecedents?.object;
         return object !== undefined
             ? lowered([object])

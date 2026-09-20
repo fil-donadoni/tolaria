@@ -842,10 +842,22 @@ export const subjectRule: Rule<SubjectIR> = rule<SubjectIR>(
         const probe = uncapitalise(span);
         if (isSelfPhrase(probe)) return ok({ kind: "self" as const });
         if (probe === "that card") return ok({ kind: "that-card" as const });
-        // CR 608.2h — the bound pronoun marker, written by
-        // `objectPronounListRule`. Never printed on a card, so no Oracle line
-        // can reach this branch by accident.
-        if (probe === PRONOUN_MARKER) return ok({ kind: "pronoun" as const });
+        // CR 608.2h — the pronoun, in its two reachable spellings.
+        //
+        // `{it}` is the marker `objectPronounListRule` writes over the
+        // SENTENCE-LEADING "It" of a site's FIRST sentence, where the slot has
+        // already checked the head names a referent at all.
+        //
+        // The bare, LOWERCASE word is the same pronoun sitting in an object
+        // position INSIDE a sentence ("this enchantment deals 2 damage to
+        // it"), which no rewrite reaches. The case is load-bearing, not
+        // incidental: a capitalised "It" here would be a LATER sentence's
+        // subject, whose antecedent is the object the sentence before it named
+        // and not the site's ("… put a +1/+1 counter on target creature you
+        // control. It gains lifelink") — so that one stays unread, exactly as
+        // it was before this branch existed.
+        if (probe === PRONOUN_MARKER || span === "it")
+            return ok({ kind: "pronoun" as const });
         // CR 115.3 — "Another target creature …" is an ordinary target phrase
         // under an EXCLUSION the sentence alone cannot resolve (see
         // `SubjectIR`), so the head is peeled off here and the rest is read by
