@@ -1086,7 +1086,10 @@ function main(): void {
     // Read BEFORE the lock and the merge, while the issue is still open and the
     // board still shows it; non-gating — an unreadable band is a warning and a
     // `gaps:sync` that keeps its computed band (issue #4158).
-    const origin = originBandForBranch(branch);
+    // `--no-merge` never runs the sync, so it neither reads the board nor warns.
+    const origin: OriginBand = merge
+        ? originBandForBranch(branch)
+        : { band: null };
     if (origin.reason !== undefined)
         console.warn(`land: gaps:sync gets no --band (${origin.reason})`);
 

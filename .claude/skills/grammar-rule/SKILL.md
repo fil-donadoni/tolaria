@@ -217,7 +217,7 @@ sweep's read-back the day #3830 lands.
 **The gaps `land` files inherit this ticket's band, automatically.** `land`
 reads the band of the issue the branch names (its own board `Priority` or its
 parent umbrella's — `queue:plan`'s rule) and runs `gaps:sync --band <band>`; a
-Grammar Rule under a P0 umbrella therefore files the Bot Gaps, Op gaps and
+Grammar Rule under a P0 umbrella therefore files the Grammar, Bot and
 mechanic gaps it creates under the family's **P0** umbrella, not the P1 its
 Target computes (issue #4158). Nothing to pass or fix by hand after `land`;
 when the band could not be read `land` prints `gaps:sync gets no --band (…)`

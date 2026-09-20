@@ -196,6 +196,7 @@ describe("syncGaps", () => {
                 kind: "grammar",
                 key: ADD_MANA_KEY,
                 issue: 5000,
+                parent: KIND_FALLBACK.grammar,
             },
         ]);
         expect(result.updatedRows.get(ADD_MANA_ROW)).toBe(5000);

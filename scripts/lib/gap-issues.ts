@@ -40,7 +40,8 @@
  * same rule that computes the band and the partition cannot drift from the
  * axis it partitions (issue #3851 decision 7). An open issue whose band is
  * recomputed MOVES to its new band's umbrella — up or down, the board follows
- * the Target List — except out of a `P0` umbrella, which is hand-set only.
+ * the Target List — except out of a `P0` umbrella, which nothing moves an
+ * issue OUT of (see the origin band below for how one gets INTO it).
  *
  * ── The ORIGIN band (issue #4158) ──────────────────────────────────────
  *
@@ -119,8 +120,9 @@ export const PARTITIONED_KINDS: Readonly<
 export type UmbrellaBand = "P0" | Band;
 
 /**
- * One umbrella per (family, band). `P0` umbrellas are the owner's: nothing is
- * filed into one and nothing is moved out of one. The umbrella's board
+ * One umbrella per (family, band). `P0` umbrellas are the owner's: no COMPUTED
+ * band files into one — only a run told its origin band is `P0` does (issue
+ * #4158) — and nothing is ever moved out of one. The umbrella's board
  * `Priority` IS its band — set by hand once, at creation, and inherited by its
  * children (issue #3212).
  */
@@ -386,6 +388,9 @@ export type GapSyncAction = {
     readonly kind: GapKind;
     readonly key: string;
     readonly issue: number;
+    /** The umbrella a `create` filed the issue under — so a run says where
+     *  each gap landed, which an origin-band run needs (issue #4158). */
+    readonly parent?: number;
 };
 
 /** One re-parent the partition performed (issue #4056). */
@@ -560,7 +565,12 @@ export function syncGaps(
             const settled = filing.body(issue);
             if (settled !== filing.body(0)) tracker.updateBody(issue, settled);
             updatedRows.set(id, issue);
-            actions.push({ action: "create", ...common, issue });
+            actions.push({
+                action: "create",
+                ...common,
+                issue,
+                parent: parents.get(id)!,
+            });
             continue;
         }
         const issue = filing.currentIssue!;

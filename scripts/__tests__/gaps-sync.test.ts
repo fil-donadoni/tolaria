@@ -1441,6 +1441,27 @@ describe("gaps:sync --band — the origin band files a P0 run's gaps under P0 (i
         }
     });
 
+    it("a HOMELESS gap WITH a computed band goes to P0 in a P0 run — the origin outranks the band; to its band otherwise", () => {
+        for (const parent of [undefined, PRD_ISSUE]) {
+            const p0 = new StubTracker();
+            const plain = new StubTracker();
+            for (const t of [p0, plain]) {
+                t.issues.set(4702, { state: "OPEN", body: "x" });
+                if (parent !== undefined) t.parents.set(4702, parent);
+            }
+            syncGaps([gap("bot", "P1", 4702)], p0, "P0");
+            syncGaps([gap("bot", "P1", 4702)], plain);
+            expect(p0.parents.get(4702)).toBe(BOTS.P0);
+            expect(plain.parents.get(4702)).toBe(BOTS.P1);
+        }
+    });
+
+    it("a create reports the umbrella it was filed under", () => {
+        const tracker = new StubTracker();
+        const { actions } = syncGaps([gap("bot", "P1")], tracker, "P0");
+        expect(actions[0]).toMatchObject({ action: "create", parent: BOTS.P0 });
+    });
+
     it("kinds outside the partition — scenario, migration, hand-tail — ignore the band", () => {
         for (const kind of ["scenario", "migration", "hand-tail"] as const) {
             expect(originUmbrellaOf(gap(kind, undefined), "P0")).toBeNull();

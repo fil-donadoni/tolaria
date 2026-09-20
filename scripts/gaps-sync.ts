@@ -621,7 +621,7 @@ function main(): void {
         const at =
             f.currentIssue === null ? "unfiled" : `issue #${f.currentIssue}`;
         console.log(
-            `residue    ${f.kind} \`${f.key}\` (${at}) — no ranked Target among the cards it reaches; no band umbrella: it keeps its parent (none, or a retired one: it moves to its family's P3 umbrella)`
+            `residue    ${f.kind} \`${f.key}\` (${at}) — no ranked Target among the cards it reaches; no band umbrella: it keeps its parent (none, or a retired one: it moves to its family's P3 umbrella — or its P0 umbrella when this run has --band P0)`
         );
     }
 
@@ -685,7 +685,10 @@ function main(): void {
         counts.set(action.action, (counts.get(action.action) ?? 0) + 1);
         if (action.action !== "noop") {
             console.log(
-                `${action.kind.padEnd(10)} ${action.action.padEnd(11)} ${action.key} -> issue #${action.issue}`
+                `${action.kind.padEnd(10)} ${action.action.padEnd(11)} ${action.key} -> issue #${action.issue}` +
+                    (action.parent === undefined
+                        ? ""
+                        : ` (parent #${action.parent})`)
             );
         }
     }
