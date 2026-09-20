@@ -15964,6 +15964,16 @@
         "source": "compiled"
     },
     {
+        "name": "Feed the Swarm",
+        "scryfallId": "f6b2eba7-862a-4efd-9f65-065fb2070855",
+        "oracleId": "5825997b-10d7-4a36-972c-a80ddd90b8ed",
+        "firstSet": "znr",
+        "firstPrintId": "f6b2eba7-862a-4efd-9f65-065fb2070855",
+        "firstPrintSet": "znr",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Feedback",
         "scryfallId": "0eb8f591-d763-49bf-8ef9-86265aaa72f7",
         "oracleId": "2ff92886-5c17-47a4-a02b-a97432d9203e",
@@ -33836,6 +33846,16 @@
         "firstSet": "pls",
         "firstPrintId": "055afa78-b969-498f-a3ad-c792426e5ee6",
         "firstPrintSet": "pls"
+    },
+    {
+        "name": "Orim's Thunder",
+        "scryfallId": "d00bf192-4baf-46ba-947b-a22d07635b04",
+        "oracleId": "380429d5-82db-449c-b9b9-3e82ab987972",
+        "firstSet": "apc",
+        "firstPrintId": "d00bf192-4baf-46ba-947b-a22d07635b04",
+        "firstPrintSet": "apc",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Orim's Touch",
