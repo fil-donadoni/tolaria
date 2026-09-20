@@ -2604,6 +2604,51 @@
         "rarity": "common"
     },
     {
+        "name": "Dwarven Patrol",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dwarf"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "power": 4,
+        "toughness": 2,
+        "oracleText": "This creature doesn't untap during your untap step.\nWhenever you cast a nonred spell, untap this creature.",
+        "staticAbilities": [
+            "does-not-untap"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "dwarven-patrol-trigger",
+                "oracleText": "Whenever you cast a nonred spell, untap this creature.",
+                "head": {
+                    "kind": "spell-cast",
+                    "scope": "you",
+                    "filter": {
+                        "excludeColors": [
+                            "R"
+                        ]
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "ref": "$source"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "03c08df5-f5e7-4498-ac80-25ccbe304b26",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Oreskos Swiftclaw",
         "types": [
             "Creature"
@@ -31102,6 +31147,84 @@
         "rarity": "common"
     },
     {
+        "name": "Safehold Duo",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elf",
+            "Warrior",
+            "Shaman"
+        ],
+        "manaCost": {
+            "X": 3,
+            "hybrid": [
+                [
+                    "G",
+                    "W"
+                ]
+            ]
+        },
+        "power": 2,
+        "toughness": 4,
+        "oracleText": "Whenever you cast a green spell, this creature gets +1/+1 until end of turn.\nWhenever you cast a white spell, this creature gains vigilance until end of turn.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "safehold-duo-trigger",
+                "oracleText": "Whenever you cast a green spell, this creature gets +1/+1 until end of turn.",
+                "head": {
+                    "kind": "spell-cast",
+                    "scope": "you",
+                    "filter": {
+                        "colors": [
+                            "G"
+                        ]
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 1,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            },
+            {
+                "id": "safehold-duo-trigger-2",
+                "oracleText": "Whenever you cast a white spell, this creature gains vigilance until end of turn.",
+                "head": {
+                    "kind": "spell-cast",
+                    "scope": "you",
+                    "filter": {
+                        "colors": [
+                            "W"
+                        ]
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "ability": "vigilance",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "32b70339-9918-4f7e-9cd0-d4ce36b65997",
+        "rarity": "common"
+    },
+    {
         "name": "Terrain Elemental",
         "types": [
             "Creature"
@@ -38123,6 +38246,52 @@
             }
         ],
         "id": "3f1e9c54-134b-41da-8c3d-ec699d96778a",
+        "rarity": "common"
+    },
+    {
+        "name": "Bog Gnarr",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Beast"
+        ],
+        "manaCost": {
+            "X": 4,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Whenever a player casts a black spell, this creature gets +2/+2 until end of turn.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "bog-gnarr-trigger",
+                "oracleText": "Whenever a player casts a black spell, this creature gets +2/+2 until end of turn.",
+                "head": {
+                    "kind": "spell-cast",
+                    "scope": "any",
+                    "filter": {
+                        "colors": [
+                            "B"
+                        ]
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 2,
+                        "toughness": 2,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "3f230831-023c-41aa-832e-16ac81e68588",
         "rarity": "common"
     },
     {
@@ -85995,6 +86164,66 @@
         "rarity": "common"
     },
     {
+        "name": "Zuko, Avatar Hunter",
+        "types": [
+            "Creature"
+        ],
+        "supertypes": [
+            "Legendary"
+        ],
+        "subtypes": [
+            "Human",
+            "Noble"
+        ],
+        "manaCost": {
+            "X": 3,
+            "R": 2
+        },
+        "power": 4,
+        "toughness": 5,
+        "oracleText": "Reach (This creature can block creatures with flying.)\nWhenever you cast a red spell, create a 2/2 red Soldier creature token.",
+        "staticAbilities": [
+            "reach"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "zuko-avatar-hunter-trigger",
+                "oracleText": "Whenever you cast a red spell, create a 2/2 red Soldier creature token.",
+                "head": {
+                    "kind": "spell-cast",
+                    "scope": "you",
+                    "filter": {
+                        "colors": [
+                            "R"
+                        ]
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Soldier",
+                            "types": [
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Soldier"
+                            ],
+                            "power": 2,
+                            "toughness": 2,
+                            "colors": [
+                                "R"
+                            ]
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "id": "90b5d4f1-273b-4293-8bc4-fcb29331e9da",
+        "rarity": "rare"
+    },
+    {
         "name": "Marsh Lurker",
         "types": [
             "Creature"
@@ -93084,6 +93313,84 @@
         ],
         "id": "9cc9ecfd-6cf0-4488-a14a-afec1bc0d253",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Emberstrike Duo",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elemental",
+            "Warrior",
+            "Shaman"
+        ],
+        "manaCost": {
+            "X": 1,
+            "hybrid": [
+                [
+                    "B",
+                    "R"
+                ]
+            ]
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Whenever you cast a black spell, this creature gets +1/+1 until end of turn.\nWhenever you cast a red spell, this creature gains first strike until end of turn.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "emberstrike-duo-trigger",
+                "oracleText": "Whenever you cast a black spell, this creature gets +1/+1 until end of turn.",
+                "head": {
+                    "kind": "spell-cast",
+                    "scope": "you",
+                    "filter": {
+                        "colors": [
+                            "B"
+                        ]
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 1,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            },
+            {
+                "id": "emberstrike-duo-trigger-2",
+                "oracleText": "Whenever you cast a red spell, this creature gains first strike until end of turn.",
+                "head": {
+                    "kind": "spell-cast",
+                    "scope": "you",
+                    "filter": {
+                        "colors": [
+                            "R"
+                        ]
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "ability": "first strike",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "9ccd4374-5339-4529-99f3-f7dcc939e874",
+        "rarity": "common"
     },
     {
         "name": "Tasseled Dromedary",
@@ -114095,6 +114402,131 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Fable of Wolf and Owl",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 3,
+            "hybrid": [
+                [
+                    "G",
+                    "U"
+                ],
+                [
+                    "G",
+                    "U"
+                ],
+                [
+                    "G",
+                    "U"
+                ]
+            ]
+        },
+        "oracleText": "Whenever you cast a green spell, you may create a 2/2 green Wolf creature token.\nWhenever you cast a blue spell, you may create a 1/1 blue Bird creature token with flying.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "fable-of-wolf-and-owl-trigger",
+                "oracleText": "Whenever you cast a green spell, you may create a 2/2 green Wolf creature token.",
+                "head": {
+                    "kind": "spell-cast",
+                    "scope": "you",
+                    "filter": {
+                        "colors": [
+                            "G"
+                        ]
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Create a 2/2 green Wolf creature token?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "createToken",
+                                "token": {
+                                    "name": "Wolf",
+                                    "types": [
+                                        "Creature"
+                                    ],
+                                    "subtypes": [
+                                        "Wolf"
+                                    ],
+                                    "power": 2,
+                                    "toughness": 2,
+                                    "colors": [
+                                        "G"
+                                    ]
+                                },
+                                "controller": "controller"
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "id": "fable-of-wolf-and-owl-trigger-2",
+                "oracleText": "Whenever you cast a blue spell, you may create a 1/1 blue Bird creature token with flying.",
+                "head": {
+                    "kind": "spell-cast",
+                    "scope": "you",
+                    "filter": {
+                        "colors": [
+                            "U"
+                        ]
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Create a 1/1 blue Bird creature token with flying?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "createToken",
+                                "token": {
+                                    "name": "Bird",
+                                    "types": [
+                                        "Creature"
+                                    ],
+                                    "subtypes": [
+                                        "Bird"
+                                    ],
+                                    "power": 1,
+                                    "toughness": 1,
+                                    "colors": [
+                                        "U"
+                                    ],
+                                    "staticAbilities": [
+                                        "flying"
+                                    ]
+                                },
+                                "controller": "controller"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "be364b69-aa59-420c-a613-b1d0b303a4e5",
+        "rarity": "rare"
+    },
+    {
         "name": "Patagia Tiger",
         "types": [
             "Creature"
@@ -126270,6 +126702,84 @@
         "rarity": "common"
     },
     {
+        "name": "Thistledown Duo",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Kithkin",
+            "Soldier",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 2,
+            "hybrid": [
+                [
+                    "W",
+                    "U"
+                ]
+            ]
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Whenever you cast a white spell, this creature gets +1/+1 until end of turn.\nWhenever you cast a blue spell, this creature gains flying until end of turn.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "thistledown-duo-trigger",
+                "oracleText": "Whenever you cast a white spell, this creature gets +1/+1 until end of turn.",
+                "head": {
+                    "kind": "spell-cast",
+                    "scope": "you",
+                    "filter": {
+                        "colors": [
+                            "W"
+                        ]
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 1,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            },
+            {
+                "id": "thistledown-duo-trigger-2",
+                "oracleText": "Whenever you cast a blue spell, this creature gains flying until end of turn.",
+                "head": {
+                    "kind": "spell-cast",
+                    "scope": "you",
+                    "filter": {
+                        "colors": [
+                            "U"
+                        ]
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "ability": "flying",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "d57ba0ce-0390-42fd-9473-2436fac53631",
+        "rarity": "common"
+    },
+    {
         "name": "Torch Fiend",
         "types": [
             "Creature"
@@ -127530,6 +128040,41 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Warmth",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "Whenever an opponent casts a red spell, you gain 2 life.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "warmth-trigger",
+                "oracleText": "Whenever an opponent casts a red spell, you gain 2 life.",
+                "head": {
+                    "kind": "spell-cast",
+                    "scope": "opponent",
+                    "filter": {
+                        "colors": [
+                            "R"
+                        ]
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 2
+                    }
+                ]
+            }
+        ],
+        "id": "d7dbeea8-06b0-4482-bdae-aa82b9db8856",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Cat-Owl",
         "types": [
             "Creature"
@@ -128374,6 +128919,51 @@
             }
         ],
         "id": "d943b877-805d-4bc8-a3ae-abec00fa51a6",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Titania's Chosen",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elf",
+            "Archer"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Whenever a player casts a green spell, put a +1/+1 counter on this creature.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "titania-s-chosen-trigger",
+                "oracleText": "Whenever a player casts a green spell, put a +1/+1 counter on this creature.",
+                "head": {
+                    "kind": "spell-cast",
+                    "scope": "any",
+                    "filter": {
+                        "colors": [
+                            "G"
+                        ]
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "counters",
+                        "action": "add",
+                        "counter": "+1/+1",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "d9450340-2c29-4573-8da2-0d3cae9759c1",
         "rarity": "uncommon"
     },
     {
@@ -139252,6 +139842,52 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Glade Gnarr",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Beast"
+        ],
+        "manaCost": {
+            "X": 5,
+            "G": 1
+        },
+        "power": 4,
+        "toughness": 4,
+        "oracleText": "Whenever a player casts a blue spell, this creature gets +2/+2 until end of turn.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "glade-gnarr-trigger",
+                "oracleText": "Whenever a player casts a blue spell, this creature gets +2/+2 until end of turn.",
+                "head": {
+                    "kind": "spell-cast",
+                    "scope": "any",
+                    "filter": {
+                        "colors": [
+                            "U"
+                        ]
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 2,
+                        "toughness": 2,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "ee38eeae-918b-4d19-b37a-175ac5db37a4",
+        "rarity": "common"
+    },
+    {
         "name": "Sungold Barrage",
         "types": [
             "Instant"
@@ -141656,6 +142292,84 @@
         ],
         "id": "f2d93d05-98bc-4504-9045-dedb925895ae",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Gravelgill Duo",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Merfolk",
+            "Rogue",
+            "Warrior"
+        ],
+        "manaCost": {
+            "X": 2,
+            "hybrid": [
+                [
+                    "U",
+                    "B"
+                ]
+            ]
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "Whenever you cast a blue spell, this creature gets +1/+1 until end of turn.\nWhenever you cast a black spell, this creature gains fear until end of turn. (It can't be blocked except by artifact creatures and/or black creatures.)",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "gravelgill-duo-trigger",
+                "oracleText": "Whenever you cast a blue spell, this creature gets +1/+1 until end of turn.",
+                "head": {
+                    "kind": "spell-cast",
+                    "scope": "you",
+                    "filter": {
+                        "colors": [
+                            "U"
+                        ]
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 1,
+                        "toughness": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            },
+            {
+                "id": "gravelgill-duo-trigger-2",
+                "oracleText": "Whenever you cast a black spell, this creature gains fear until end of turn.",
+                "head": {
+                    "kind": "spell-cast",
+                    "scope": "you",
+                    "filter": {
+                        "colors": [
+                            "B"
+                        ]
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "ability": "fear",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "f2fd4959-bfff-46dc-b568-b6d69ef8eac9",
+        "rarity": "common"
     },
     {
         "name": "Kill Shot",

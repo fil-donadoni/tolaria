@@ -31,7 +31,7 @@
 
 import { getEffectiveColors } from "./effectiveColors";
 import { matchesPermanentFilter } from "./filters";
-import type { PermanentFilter } from "./filters";
+import type { PermanentFilter, SpellFilter } from "./filters";
 import type {
     EffectOp,
     GameEvent,
@@ -132,10 +132,11 @@ export type CompiledTriggerHead =
           readonly phase: Phase;
           readonly scope: TriggerScope;
       }
-    /** CR 603.2 — "whenever [you / an opponent / a player] casts a spell". */
+    /** CR 603.2 — "whenever [you / an opponent / a player] casts a [black / nonred] spell". */
     | {
           readonly kind: "spell-cast";
           readonly scope: "you" | "opponent" | "any";
+          readonly filter?: SpellFilter;
       };
 
 /**
@@ -321,6 +322,7 @@ export function resolveCompiledTrigger(
             return spellCastTrigger({
                 ...common,
                 scope: head.scope === "opponent" ? "opponents" : head.scope,
+                ...(head.filter !== undefined ? { filter: head.filter } : {}),
             });
         default: {
             const never: never = head;

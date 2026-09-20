@@ -28,9 +28,11 @@
  * grammars cannot disagree about what "this" means.
  */
 
+import type { SpellFilter } from "../../../cards/filters";
 import type { Phase } from "../../../gre/types";
 import { fail, ok, rule, type Rule, subGrammar } from "../../rule";
 import { isSelfPhrase } from "./cost";
+import { COLOR_WORDS } from "./targetFilter";
 
 export const TRIGGER_HEAD = "trigger head";
 
@@ -96,11 +98,53 @@ export type TriggerHeadIR =
            */
           readonly namesPlayer?: true;
       }
-    /** CR 603.2 — "whenever [you / an opponent / a player] casts a spell". */
+    /**
+     * CR 603.2 — "whenever [you / an opponent / a player] casts a spell", with
+     * the colour narrowing of CR 105.2 when the words carry one ("a black
+     * spell" / "a nonred spell"). Absent = every spell.
+     */
     | {
           readonly kind: "spell-cast";
           readonly scope: "you" | "opponent" | "any";
+          readonly filter?: SpellFilter;
       };
+
+/**
+ * CR 603.2 + 105.2 — "whenever <caster> casts a <colour> spell" and its
+ * negative "a non<colour> spell": one row per (caster, colour word, polarity),
+ * generated from the ONE colour vocabulary the target grammar already reads
+ * (`COLOR_WORDS`, CR 105.1), so the two grammars cannot disagree about what
+ * "blue" is. The row set is still an exact table — the span must BE a key — so
+ * a neighbour the rows do not spell ("a multicolored spell", "a black spell
+ * from your hand", "a blue spell or an Island you control enters") stays
+ * `unparsed`. "Nonred" excludes the colour (CR 105.2): a colourless spell
+ * (CR 105.2c) is a nonred spell, which is why the negative is `excludeColors`
+ * and never "any of the other four".
+ */
+function colourSpellCastHeads(): [string, TriggerHeadIR][] {
+    const casters = [
+        ["you cast", "you"],
+        ["an opponent casts", "opponent"],
+        ["a player casts", "any"],
+    ] as const;
+    const rows: [string, TriggerHeadIR][] = [];
+    for (const [phrase, scope] of casters)
+        for (const [word, color] of COLOR_WORDS) {
+            rows.push([
+                `whenever ${phrase} a ${word} spell`,
+                { kind: "spell-cast", scope, filter: { colors: [color] } },
+            ]);
+            rows.push([
+                `whenever ${phrase} a non${word} spell`,
+                {
+                    kind: "spell-cast",
+                    scope,
+                    filter: { excludeColors: [color] },
+                },
+            ]);
+        }
+    return rows;
+}
 
 /**
  * Heads whose subject is NOT the source. Exact phrases, lowercase.
@@ -201,6 +245,7 @@ export const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
         { kind: "spell-cast", scope: "opponent" },
     ],
     ["whenever a player casts a spell", { kind: "spell-cast", scope: "any" }],
+    ...colourSpellCastHeads(),
 ]);
 
 /** Self-subject heads: `<opener> <self phrase> <tail>` (CR 109.2). */
