@@ -1585,6 +1585,47 @@
         "rarity": "common"
     },
     {
+        "name": "Slith Ascendant",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Slith"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 2
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Flying\nWhenever this creature deals combat damage to a player, put a +1/+1 counter on it.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "slith-ascendant-trigger",
+                "oracleText": "Whenever this creature deals combat damage to a player, put a +1/+1 counter on it.",
+                "head": {
+                    "kind": "combat-damage-to-player"
+                },
+                "effects": [
+                    {
+                        "op": "counters",
+                        "action": "add",
+                        "counter": "+1/+1",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "0286b42a-295b-467c-a1d8-0b31774b7ac5",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Chorus of Woe",
         "types": [
             "Sorcery"
@@ -11703,6 +11744,48 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Markov Blademaster",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Vampire",
+            "Warrior"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 2
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Double strike (This creature deals both first-strike and regular combat damage.)\nWhenever this creature deals combat damage to a player, put a +1/+1 counter on it.",
+        "staticAbilities": [
+            "double strike"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "markov-blademaster-trigger",
+                "oracleText": "Whenever this creature deals combat damage to a player, put a +1/+1 counter on it.",
+                "head": {
+                    "kind": "combat-damage-to-player"
+                },
+                "effects": [
+                    {
+                        "op": "counters",
+                        "action": "add",
+                        "counter": "+1/+1",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "122163dd-e070-48af-8036-e9850541d138",
+        "rarity": "rare"
+    },
+    {
         "name": "Pearl Medallion",
         "types": [
             "Artifact"
@@ -12957,6 +13040,46 @@
             "count": 1
         },
         "id": "145c3ebd-7a67-4606-8427-f3b91ab26b84",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Slith Predator",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Slith"
+        ],
+        "manaCost": {
+            "G": 2
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Trample\nWhenever this creature deals combat damage to a player, put a +1/+1 counter on it.",
+        "staticAbilities": [
+            "trample"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "slith-predator-trigger",
+                "oracleText": "Whenever this creature deals combat damage to a player, put a +1/+1 counter on it.",
+                "head": {
+                    "kind": "combat-damage-to-player"
+                },
+                "effects": [
+                    {
+                        "op": "counters",
+                        "action": "add",
+                        "counter": "+1/+1",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "14bae45c-eaa8-4c6d-8042-df5cf26e294f",
         "rarity": "uncommon"
     },
     {
@@ -22461,6 +22584,64 @@
             }
         ],
         "id": "229ba320-69c9-4400-a0d7-f0f79e8d9856",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Slith Bloodletter",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Slith"
+        ],
+        "manaCost": {
+            "B": 2
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Whenever this creature deals combat damage to a player, put a +1/+1 counter on it.\n{1}{B}: Regenerate this creature.",
+        "activatedAbilities": [
+            {
+                "id": "slith-bloodletter-ability",
+                "oracleText": "{1}{B}: Regenerate this creature.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "B": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "ref": "$source"
+                        }
+                    }
+                ]
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "slith-bloodletter-trigger",
+                "oracleText": "Whenever this creature deals combat damage to a player, put a +1/+1 counter on it.",
+                "head": {
+                    "kind": "combat-damage-to-player"
+                },
+                "effects": [
+                    {
+                        "op": "counters",
+                        "action": "add",
+                        "counter": "+1/+1",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "22a04ccb-cb57-4548-81db-e1b77b09f5da",
         "rarity": "uncommon"
     },
     {
@@ -39625,6 +39806,63 @@
             }
         ],
         "id": "4079ca90-dcc3-4184-9dfc-a626e0776332",
+        "rarity": "rare"
+    },
+    {
+        "name": "Operations Officer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Officer"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Lifelink (Damage dealt by this creature also causes you to gain that much life.)\nWhen this creature enters, draw a card.\nWhenever this creature attacks, put a +1/+1 counter on it.",
+        "staticAbilities": [
+            "lifelink"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "operations-officer-trigger",
+                "oracleText": "When this creature enters, draw a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            },
+            {
+                "id": "operations-officer-trigger-2",
+                "oracleText": "Whenever this creature attacks, put a +1/+1 counter on it.",
+                "head": {
+                    "kind": "attacks"
+                },
+                "effects": [
+                    {
+                        "op": "counters",
+                        "action": "add",
+                        "counter": "+1/+1",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "40a37274-af28-4019-86fc-197e764e9e3e",
         "rarity": "rare"
     },
     {
@@ -69709,6 +69947,46 @@
         "rarity": "common"
     },
     {
+        "name": "Slith Firewalker",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Slith"
+        ],
+        "manaCost": {
+            "R": 2
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Haste\nWhenever this creature deals combat damage to a player, put a +1/+1 counter on it.",
+        "staticAbilities": [
+            "haste"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "slith-firewalker-trigger",
+                "oracleText": "Whenever this creature deals combat damage to a player, put a +1/+1 counter on it.",
+                "head": {
+                    "kind": "combat-damage-to-player"
+                },
+                "effects": [
+                    {
+                        "op": "counters",
+                        "action": "add",
+                        "counter": "+1/+1",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "73ff7383-71da-46ae-849f-349c40815a29",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Bramble Creeper",
         "types": [
             "Creature"
@@ -71747,6 +72025,47 @@
         ],
         "entersTapped": true,
         "id": "7690e624-93c1-46f4-8f33-e28d881787d3",
+        "rarity": "common"
+    },
+    {
+        "name": "Erdwal Ripper",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Vampire"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 2
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "Haste\nWhenever this creature deals combat damage to a player, put a +1/+1 counter on it.",
+        "staticAbilities": [
+            "haste"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "erdwal-ripper-trigger",
+                "oracleText": "Whenever this creature deals combat damage to a player, put a +1/+1 counter on it.",
+                "head": {
+                    "kind": "combat-damage-to-player"
+                },
+                "effects": [
+                    {
+                        "op": "counters",
+                        "action": "add",
+                        "counter": "+1/+1",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "769ea5e9-6d05-4bc6-8f14-00eb2532c8b5",
         "rarity": "common"
     },
     {
@@ -107937,6 +108256,39 @@
         "rarity": "common"
     },
     {
+        "name": "Powerstone Minefield",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1,
+            "R": 1
+        },
+        "oracleText": "Whenever a creature attacks or blocks, this enchantment deals 2 damage to it.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "powerstone-minefield-trigger",
+                "oracleText": "Whenever a creature attacks or blocks, this enchantment deals 2 damage to it.",
+                "head": {
+                    "kind": "attacks-or-blocks",
+                    "scope": "any"
+                },
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 2,
+                        "to": {
+                            "ref": "$event.combatant"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "b17807b9-8feb-48ac-813a-829577f5b9e8",
+        "rarity": "rare"
+    },
+    {
         "name": "Crossroads Consecrator",
         "types": [
             "Creature"
@@ -113249,6 +113601,49 @@
         },
         "id": "b9b28f37-d6b8-4d35-95e9-9533aea0a071",
         "rarity": "common"
+    },
+    {
+        "name": "Falkenrath Marauders",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Vampire",
+            "Warrior"
+        ],
+        "manaCost": {
+            "X": 3,
+            "R": 2
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Flying\nHaste (This creature can attack and {T} as soon as it comes under your control.)\nWhenever this creature deals combat damage to a player, put two +1/+1 counters on it.",
+        "staticAbilities": [
+            "flying",
+            "haste"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "falkenrath-marauders-trigger",
+                "oracleText": "Whenever this creature deals combat damage to a player, put two +1/+1 counters on it.",
+                "head": {
+                    "kind": "combat-damage-to-player"
+                },
+                "effects": [
+                    {
+                        "op": "counters",
+                        "action": "add",
+                        "counter": "+1/+1",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "count": 2
+                    }
+                ]
+            }
+        ],
+        "id": "b9c09887-6d2b-48b4-a483-16b8a45babd0",
+        "rarity": "rare"
     },
     {
         "name": "Utopia Mycon",
@@ -123439,6 +123834,63 @@
         "rarity": "common"
     },
     {
+        "name": "Havengul Vampire",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Vampire"
+        ],
+        "manaCost": {
+            "X": 3,
+            "R": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Whenever this creature deals combat damage to a player, put a +1/+1 counter on it.\nWhenever another creature dies, put a +1/+1 counter on this creature.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "havengul-vampire-trigger",
+                "oracleText": "Whenever this creature deals combat damage to a player, put a +1/+1 counter on it.",
+                "head": {
+                    "kind": "combat-damage-to-player"
+                },
+                "effects": [
+                    {
+                        "op": "counters",
+                        "action": "add",
+                        "counter": "+1/+1",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "count": 1
+                    }
+                ]
+            },
+            {
+                "id": "havengul-vampire-trigger-2",
+                "oracleText": "Whenever another creature dies, put a +1/+1 counter on this creature.",
+                "head": {
+                    "kind": "died",
+                    "scope": "any-other"
+                },
+                "effects": [
+                    {
+                        "op": "counters",
+                        "action": "add",
+                        "counter": "+1/+1",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "cbc09839-1463-40b8-86bd-fb96797b2633",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Carrion Ants",
         "types": [
             "Creature"
@@ -129398,6 +129850,44 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Fervent Charge",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1,
+            "B": 1,
+            "R": 1
+        },
+        "oracleText": "Whenever a creature you control attacks, it gets +2/+2 until end of turn.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "fervent-charge-trigger",
+                "oracleText": "Whenever a creature you control attacks, it gets +2/+2 until end of turn.",
+                "head": {
+                    "kind": "attacks",
+                    "scope": "yours"
+                },
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$event.combatant"
+                        },
+                        "power": 2,
+                        "toughness": 2,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "d610a9d5-c650-45ad-a9b0-b55113701e05",
+        "rarity": "rare"
+    },
+    {
         "name": "Masked Blackguard",
         "types": [
             "Creature"
@@ -130731,6 +131221,45 @@
         ],
         "id": "d85ad08d-1120-411a-8bbe-ac93a56476bd",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Stromkirk Patrol",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Vampire",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 4,
+            "B": 1
+        },
+        "power": 4,
+        "toughness": 3,
+        "oracleText": "Whenever this creature deals combat damage to a player, put a +1/+1 counter on it.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "stromkirk-patrol-trigger",
+                "oracleText": "Whenever this creature deals combat damage to a player, put a +1/+1 counter on it.",
+                "head": {
+                    "kind": "combat-damage-to-player"
+                },
+                "effects": [
+                    {
+                        "op": "counters",
+                        "action": "add",
+                        "counter": "+1/+1",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "d86634a1-7016-4500-8857-924d51857bad",
+        "rarity": "common"
     },
     {
         "name": "Ant Queen",

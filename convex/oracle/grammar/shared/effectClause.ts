@@ -1835,7 +1835,8 @@ function effectSentence(
     // ── damage (CR 119.3) ──────────────────────────────────────────────────
     const damage = span.match(DAMAGE);
     if (damage !== null) {
-        // CR 608.2 — the SOURCE of the damage. Grammar v0 reads the source's
+        // CR 120.1 — "An object that deals damage is the source of that
+        // damage", and the Op names no other: grammar v0 reads the source's
         // own name and the bound pronoun; "that creature deals" is anaphora
         // whose referent lives in another sentence.
         const dealer = uncapitalise(damage[1]!);

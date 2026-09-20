@@ -1167,7 +1167,7 @@ function lowerSentenceBody(
             );
         }
         case "deal-damage": {
-            // CR 119.3 / 608.2h — `dealDamage` deals from the ability's own
+            // CR 120.1 / 608.2h — `dealDamage` deals from the ability's own
             // source and has no field for another dealer, so "IT deals N
             // damage" is readable exactly when the site's "it" IS that source
             // (Pitchburn Devils' dies head). Behind a head that names another
@@ -1176,7 +1176,7 @@ function lowerSentenceBody(
             // object.
             if (sentence.sourceIsPronoun === true && !pronounIsSource(site))
                 return unlowerable(
-                    '"it deals damage" names a dealer that is not this ability\'s source (CR 119.3)'
+                    '"it deals damage" names a dealer that is not this ability\'s source (CR 120.1)'
                 );
             const to = damageTarget(sentence.to, slots, site);
             if (!to.ok) return to;

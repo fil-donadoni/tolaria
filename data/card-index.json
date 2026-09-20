@@ -14872,6 +14872,16 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Erdwal Ripper",
+        "scryfallId": "769ea5e9-6d05-4bc6-8f14-00eb2532c8b5",
+        "oracleId": "6a207599-188f-49fc-8932-1974fc716f0b",
+        "firstSet": "dka",
+        "firstPrintId": "769ea5e9-6d05-4bc6-8f14-00eb2532c8b5",
+        "firstPrintSet": "dka",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Erg Raiders",
         "scryfallId": "35c73a97-531d-4dd5-8236-39b89c183c38",
         "oracleId": "7feba745-7d27-4225-bc9d-9b7a8692872d",
@@ -15614,6 +15624,16 @@
         "firstPrintSet": "dka"
     },
     {
+        "name": "Falkenrath Marauders",
+        "scryfallId": "b9c09887-6d2b-48b4-a483-16b8a45babd0",
+        "oracleId": "f819b134-24cd-4863-a46a-0a068e34ca9e",
+        "firstSet": "isd",
+        "firstPrintId": "b9c09887-6d2b-48b4-a483-16b8a45babd0",
+        "firstPrintSet": "isd",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Falkenrath Reaver",
         "scryfallId": "cd2023b3-5999-44b1-a67f-3f2a76cb2d14",
         "oracleId": "6cfd9d88-f450-4408-bbe2-94a2d295b24a",
@@ -16172,6 +16192,16 @@
         "firstSet": "usg",
         "firstPrintId": "091dda35-59e5-456d-8804-61513a610aed",
         "firstPrintSet": "usg"
+    },
+    {
+        "name": "Fervent Charge",
+        "scryfallId": "d610a9d5-c650-45ad-a9b0-b55113701e05",
+        "oracleId": "6226db2b-d1a8-4c41-b802-67d3f65d2ca3",
+        "firstSet": "apc",
+        "firstPrintId": "d610a9d5-c650-45ad-a9b0-b55113701e05",
+        "firstPrintSet": "apc",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Fervent Denial",
@@ -21698,6 +21728,16 @@
         "firstSet": "atq",
         "firstPrintId": "a2f6ef2f-a3a2-4e1f-b7eb-59abc8414114",
         "firstPrintSet": "atq"
+    },
+    {
+        "name": "Havengul Vampire",
+        "scryfallId": "cbc09839-1463-40b8-86bd-fb96797b2633",
+        "oracleId": "616b3ee0-4678-4562-a21a-5f2d31b9964c",
+        "firstSet": "avr",
+        "firstPrintId": "cbc09839-1463-40b8-86bd-fb96797b2633",
+        "firstPrintSet": "avr",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Havenwood Battleground",
@@ -29152,6 +29192,16 @@
         "source": "compiled"
     },
     {
+        "name": "Markov Blademaster",
+        "scryfallId": "122163dd-e070-48af-8036-e9850541d138",
+        "oracleId": "774e474a-f2a1-4b62-8cfe-40ad509f9062",
+        "firstSet": "dka",
+        "firstPrintId": "122163dd-e070-48af-8036-e9850541d138",
+        "firstPrintSet": "dka",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Markov Dreadknight",
         "scryfallId": "fa3ed9d2-9053-4583-a226-0ab49bbdab6e",
         "oracleId": "73e2d8aa-3a23-4458-8cae-e9209a102197",
@@ -33340,6 +33390,16 @@
         "source": "compiled"
     },
     {
+        "name": "Operations Officer",
+        "scryfallId": "40a37274-af28-4019-86fc-197e764e9e3e",
+        "oracleId": "c8ed45e6-ae4f-4c44-9f73-45793f30acd6",
+        "firstSet": "trc",
+        "firstPrintId": "40a37274-af28-4019-86fc-197e764e9e3e",
+        "firstPrintSet": "trc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Opportunity",
         "scryfallId": "63a09767-a15d-42b0-aaa3-794a4e11037a",
         "oracleId": "1f544a9f-c238-4858-be19-d6cd7d023dcc",
@@ -35719,6 +35779,16 @@
         "firstPrintId": "2323301f-565a-4c0f-bffd-18386ccd1f7a",
         "firstPrintSet": "bro",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Powerstone Minefield",
+        "scryfallId": "b17807b9-8feb-48ac-813a-829577f5b9e8",
+        "oracleId": "3a8a67ad-e4ff-4b55-9976-a2f13cc9b41b",
+        "firstSet": "apc",
+        "firstPrintId": "b17807b9-8feb-48ac-813a-829577f5b9e8",
+        "firstPrintSet": "apc",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -43794,6 +43864,46 @@
         "source": "compiled"
     },
     {
+        "name": "Slith Ascendant",
+        "scryfallId": "0286b42a-295b-467c-a1d8-0b31774b7ac5",
+        "oracleId": "72f5095f-b4ba-45ba-82e5-9a22bddd544b",
+        "firstSet": "mrd",
+        "firstPrintId": "0286b42a-295b-467c-a1d8-0b31774b7ac5",
+        "firstPrintSet": "mrd",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Slith Bloodletter",
+        "scryfallId": "22a04ccb-cb57-4548-81db-e1b77b09f5da",
+        "oracleId": "fbad6038-93ed-4a28-b1f0-ada54608758b",
+        "firstSet": "mrd",
+        "firstPrintId": "22a04ccb-cb57-4548-81db-e1b77b09f5da",
+        "firstPrintSet": "mrd",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Slith Firewalker",
+        "scryfallId": "73ff7383-71da-46ae-849f-349c40815a29",
+        "oracleId": "ea1af948-686d-4b40-ad4e-cb48a0258269",
+        "firstSet": "mrd",
+        "firstPrintId": "73ff7383-71da-46ae-849f-349c40815a29",
+        "firstPrintSet": "mrd",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Slith Predator",
+        "scryfallId": "14bae45c-eaa8-4c6d-8042-df5cf26e294f",
+        "oracleId": "fd9c984e-daa2-414c-bb90-ecc41aaa896d",
+        "firstSet": "mrd",
+        "firstPrintId": "14bae45c-eaa8-4c6d-8042-df5cf26e294f",
+        "firstPrintSet": "mrd",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Sliver Construct",
         "scryfallId": "3129645a-221c-4eb5-88fd-12cc742a1dfe",
         "oracleId": "7d592d5b-95cf-4416-9ade-1c23a8ba01d1",
@@ -46326,6 +46436,16 @@
         "firstSet": "ice",
         "firstPrintId": "6ac6fa0c-753e-4fbc-8a70-0f956503cf4e",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Stromkirk Patrol",
+        "scryfallId": "d86634a1-7016-4500-8857-924d51857bad",
+        "oracleId": "5c5fbb54-f0e3-4afe-9158-ff9eadaa338d",
+        "firstSet": "isd",
+        "firstPrintId": "d86634a1-7016-4500-8857-924d51857bad",
+        "firstPrintSet": "isd",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Strongarm Thug",
