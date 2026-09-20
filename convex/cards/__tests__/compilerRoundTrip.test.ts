@@ -149,6 +149,13 @@ import {
 // Reconstruction, Recover, Regrowth, Rushing River and Skull of Orm round-trip
 // once "up to two target", "another target" and a graveyard return "to your
 // hand" read.
+//
+// Lowered 1583 -> 1569 by issue #4134 ("Add one mana of any color"):
+// Archaeological Dig, Birds of Paradise, Celestial Prism, Lotus Guardian,
+// Lotus Petal, Mana Confluence, Mana Cylix, Multani's Harmony, Nomadic Elf,
+// Phyrexian Altar, Phyrexian Lens, Standing Stones, Sylvan Caryatid and Utopia
+// Tree round-trip once the five-colour production reads — the shape they all
+// already ship as `manaChoices` (CR 106.1a).
 const BASELINE_CEILING = 1569;
 
 /**

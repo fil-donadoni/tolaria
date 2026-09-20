@@ -9,6 +9,7 @@
  */
 
 import type { ActivatedAbility, EffectOp, ManaCost } from "../cards/types";
+import { hasFilteredGiveUpCost } from "../gre/constants";
 import {
     lowerActivationCost,
     type ActivationCostIR,
@@ -144,6 +145,18 @@ const MANA_ABILITY_UNPAYABLE_COST_LEGS: ReadonlySet<string> = new Set([
     "returnThisToHand",
 ]);
 
+/** CR 605.1a / 118.3 — the ONLY legs `activateManaAbility` (`convex/game.ts`)
+ *  pays, i.e. what a mana ability may cost when its shape routes there: no
+ *  `tap`, no self-`sacrifice`, no filtered give-up leg. Read against that
+ *  handler, not guessed — it pays `cost.tapOtherFilter`
+ *  (`payTapOtherAbilityCost`) and `cost.mana` (`payManaCostWithRiders`) and
+ *  then resolves; the bot's mirror `applyTapPlan` does the same. Every other
+ *  leg on that route is silently free. */
+const MANA_ABILITY_NON_TAP_PAYABLE_COST_LEGS: ReadonlySet<string> = new Set([
+    "mana",
+    "tapOtherFilter",
+]);
+
 /**
  * Mana-ability IR → `ActivatedAbility` (CR 605.1a). Shared by the mana slot
  * and by a granted ability ('Enchanted land has "{T}: Add …"', issue #3833),
@@ -177,28 +190,43 @@ export function lowerManaAbility(input: {
             reason: `mana ability cost leg "${unpayable[0]}" has no payment site on the CR 605.1a stackless path`,
         };
     }
-    // CR 605.1a / 118.3 (issue #4134) — the COUNTER-removal leg, which is
-    // payable on the mana path only by the TAP mutations: `tapUntap` and
-    // `tapSourceIntoPayment` both route it through
-    // `applyManaAbilityRemoveCounterCost`. An ability with neither a `tap` nor
-    // a self-`sacrifice` leg is not in `getManaTapOptionsDetailed`'s list at
-    // all and goes to `activateManaAbility`, which pays `cost.mana`,
-    // `cost.tapOtherFilter` and the filtered give-up costs — and has no
-    // counter leg. Lowering one would emit a permanent that adds mana WITHOUT
-    // ever removing the counter, i.e. unbounded mana, which is precisely why
-    // the hand-written Pentad Prism declares itself `useStack: true` instead
-    // (`cards/sets/5dn/colorless.ts`, tracked-by issue #2785). Same
-    // fail-closed shape as the leg set above, but conditional on the rest of
-    // the cost, so it cannot live in that flat key set.
+    // CR 605.1a / 118.3 (issue #4134) — the stackless NO-TAP path, classified
+    // by ROUTE rather than leg by leg, because which mutation pays a mana
+    // ability is decided by its cost's SHAPE:
+    //
+    //   A. a `tap` or self-`sacrifice` leg → `getManaTapOptionsDetailed`'s
+    //      list → `tapUntap` / `tapSourceIntoPayment`, which pay mana, life,
+    //      the counter leg (`applyManaAbilityRemoveCounterCost`) and the
+    //      discard;
+    //   B. no tap/sacrifice but a FILTERED give-up leg → the cost-pick window
+    //      (`beginNonStackFilterCostActivation`), whose commit pays every leg;
+    //   C. none of those → `activateManaAbility`, which pays exactly
+    //      `cost.tapOtherFilter` and `cost.mana` and NOTHING else.
+    //
+    // Only route C is a hole, and it is the one this rule newly populates:
+    // "{B}, Pay 1 life: Add one mana of any color" (Blood Celebrant) would be
+    // lowered into an ability that adds a colour of the activator's choosing —
+    // including {B} — while the LIFE is never deducted, i.e. free, repeatable,
+    // unbounded. Same for a counter-removal leg (the shape the hand-written
+    // Pentad Prism declares `useStack: true` to avoid, tracked-by issue
+    // #2785), and for the exile / random-discard legs the cost sub-grammar can
+    // emit but no corpus card prints on this route today. So route C admits
+    // the two legs its mutation pays and refuses the rest — fail CLOSED, and
+    // by construction, rather than one leg at a time.
     if (
-        cost.value.removeCounter !== undefined &&
         cost.value.tap !== true &&
-        cost.value.sacrifice !== true
+        cost.value.sacrifice !== true &&
+        !hasFilteredGiveUpCost(cost.value)
     ) {
-        return {
-            ok: false,
-            reason: 'mana ability cost leg "removeCounter" has no payment site on the CR 605.1a stackless path without a tap or sacrifice leg',
-        };
+        const unpayableHere = Object.keys(cost.value).filter(
+            (leg) => !MANA_ABILITY_NON_TAP_PAYABLE_COST_LEGS.has(leg)
+        );
+        if (unpayableHere.length > 0) {
+            return {
+                ok: false,
+                reason: `mana ability cost leg "${unpayableHere[0]}" has no payment site on the CR 605.1a stackless path: with no tap, sacrifice or filtered give-up leg the ability routes to activateManaAbility, which pays only mana and tapOtherFilter`,
+            };
+        }
     }
     const ability: ActivatedAbility = {
         id: input.id,

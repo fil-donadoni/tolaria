@@ -182,24 +182,53 @@ describe("refusals — every neighbour that restricts or counts the offered set"
         expect(outcome.state).toBe("unparsed");
     });
 
-    // CR 605.1a / 118.3 — the counter-removal leg, which only the TAP
-    // mutations pay on the mana path. Pentad Prism is the hand-written proof:
-    // it declares itself `useStack: true` precisely because the stackless path
-    // would add the mana and never remove the counter (issue #2785).
-    it("a counter-removal cost with no tap or sacrifice leg is refused (Gemstone Array — unbounded mana otherwise)", () => {
+    // CR 605.1a / 118.3 — the stackless NO-TAP route (`activateManaAbility`)
+    // pays `cost.mana` and `cost.tapOtherFilter` and nothing else, so every
+    // other leg on it is free mana, repeatable, unbounded. Two printed shapes
+    // reach it through this production; both must stay refused. Pentad Prism
+    // is the hand-written proof of the first: it declares itself
+    // `useStack: true` precisely to avoid it (issue #2785).
+    it.each([
+        [
+            "a counter-removal leg (Gemstone Array — the counter would never be removed)",
+            "{2}: Put a charge counter on this artifact.\nRemove a charge counter from this artifact: Add one mana of any color.",
+        ],
+        [
+            "a life leg (Blood Celebrant — pay {B}, take {B} back, life never deducted)",
+            "{B}, Pay 1 life: Add one mana of any color.",
+        ],
+    ])("%s is refused", (_label, oracleText) => {
         const outcome = compileCard(
             oracleCard({
-                oracleId: "gemstone-array",
-                name: "Gemstone Array",
+                oracleId: "payment-hole-fixture",
+                name: "Payment Hole Fixture",
                 manaCost: "{4}",
                 typeLine: "Artifact",
-                oracleText:
-                    "{2}: Put a charge counter on this artifact.\nRemove a charge counter from this artifact: Add one mana of any color.",
+                oracleText,
                 power: undefined,
                 toughness: undefined,
             })
         );
-        expect(outcome.state).not.toBe("ready");
+        expect(outcome.state).toBe("unparsed");
+    });
+
+    it("the same life leg BESIDE a tap leg is payable and stays ready (Mana Confluence — the tap route pays life)", () => {
+        const compiled = compiledOf(
+            land(
+                "Mana Confluence",
+                "{T}, Pay 1 life: Add one mana of any color.",
+                "3a9a8d9e-1e0e-4b3e-8b6a-6a3a1d9e0b11"
+            )
+        );
+        expect(compiled.activatedAbilities).toEqual([
+            {
+                id: "mana-confluence-mana",
+                oracleText: "{T}, Pay 1 life: Add one mana of any color.",
+                cost: { tap: true, life: 1 },
+                useStack: false,
+                manaChoices: ANY_COLOR,
+            },
+        ]);
     });
 
     it("the SAME counter leg beside a tap leg is payable and stays ready (Channeler Initiate)", () => {
