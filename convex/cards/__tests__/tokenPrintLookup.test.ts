@@ -116,6 +116,8 @@ const NO_PRINTED_TOKEN_ALLOWLIST: Record<string, string> = {
         "Thallid Shell-Dweller (compiled) — first printing's all_parts links no Saproling token.",
     "1131c187-8fc3-4cee-9422-355ef6622de7:Elemental":
         "Wand of the Elements (compiled) — first printing's all_parts links no Elemental token.",
+    "940180bb-8781-425f-9eeb-7eb0fad7a188:Saproling":
+        "Selesnya Evangel (compiled) — first printing's all_parts links no Saproling token.",
 };
 
 /** Recursively collects every `createToken` Op's token spec out of an Op

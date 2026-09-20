@@ -1093,7 +1093,12 @@ function readQuotedAbility(
         return fail("a granted ability naming the Aura itself", text);
     return readQuotedAbilityIn(text, {
         ...ctx,
-        typeLine: { types: [host], supertypes: [], subtypes: [] },
+        typeLine: {
+            types: [host],
+            supertypes: [],
+            subtypes: [],
+            hostTypeOnly: true,
+        },
     });
 }
 

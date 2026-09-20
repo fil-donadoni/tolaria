@@ -164,6 +164,10 @@ export interface ParsedTypeLine {
     readonly types: readonly CardType[];
     readonly supertypes: readonly CardSupertype[];
     readonly subtypes: readonly string[];
+    /** True when ONLY `types` is known: a granted ability's host is named by
+     *  its type alone ("Enchanted creature"), so an empty `supertypes` /
+     *  `subtypes` means "unknown", not "none". */
+    readonly hostTypeOnly?: true;
 }
 
 /**
