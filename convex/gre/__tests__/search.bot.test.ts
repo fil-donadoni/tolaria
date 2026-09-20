@@ -8,7 +8,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards";
 import { withTemporaryDefinition } from "../../cards/registry";
-import type { CardDefinition } from "../../cards/types";
+import type { ActivatedAbility, CardDefinition } from "../../cards/types";
 import {
     search,
     searchWithTrace,
@@ -1326,13 +1326,13 @@ describe("selectRootMove — sorcery-speed permanent tie-break (issue #4070)", (
     const AURA = getCardByName("Wild Growth").id; // enchant land: targets at cast
     // Each synthetic carries a controller-usable activated ability, so the
     // ONLY thing that can keep it out of the class is the property it names.
-    const ABILITY = {
+    const ABILITY: ActivatedAbility = {
         id: "issue-4070-ability",
         oracleText: "Sacrifice this enchantment: draw a card.",
         cost: { sacrifice: true },
         useStack: true,
         effects: [{ op: "draw", player: "controller", count: 1 }],
-    } as const;
+    };
     const synthetic = (
         key: string,
         over: Partial<CardDefinition>
