@@ -473,11 +473,12 @@ export function runGates(input: GateInput): GateResult {
             validateAbilityEffectScript(
                 ability,
                 definition.name,
-                // CR 603.2 — an array-`event` ability spans several event
-                // types, so no single census applies and `$event` is not
-                // legal at that site (ADR 0049); passing undefined is what
-                // says so.
-                typeof ability.event === "string" ? ability.event : undefined
+                // CR 603.2 — every event type the ability fires on, scalar or
+                // array. A multi-event line's `$event.<field>` ref is legal
+                // exactly when the field is censused for ALL of them with one
+                // family (ADR 0049), which the validator can only decide when
+                // it is handed all of them.
+                ability.event
             )
         ),
     ];

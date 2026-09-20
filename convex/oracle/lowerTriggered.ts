@@ -21,10 +21,18 @@ import type {
     CompiledTriggerHead,
     CompiledTriggeredAbility,
 } from "../cards/compiledTriggers";
-import type { EffectOp, KickerCost, TargetRequirement } from "../cards/types";
+import type {
+    EffectObjectSelector,
+    EffectOp,
+    KickerCost,
+    TargetRequirement,
+} from "../cards/types";
 import type { TriggerConditionIR } from "./grammar/shared/condition";
 import type { EffectSentenceIR } from "./grammar/shared/effectClause";
-import type { TriggerHeadIR } from "./grammar/shared/triggerHead";
+import {
+    headPronounReferent,
+    type TriggerHeadIR,
+} from "./grammar/shared/triggerHead";
 import {
     declareTargets,
     lowerSentence,
@@ -56,7 +64,16 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
             // thing to get wrong.
             return { kind: "died", scope: head.scope };
         case "attacks":
-            return { kind: "attacks" };
+            // CR 508.3a — `self` is the head as it shipped before the scoped
+            // reading existed, and the field is OMITTED there rather than
+            // written: a compiled "whenever this creature attacks" must stay
+            // the same descriptor it has always been, byte for byte, or every
+            // such card churns in the lockfile for no behaviour change.
+            return head.scope === "self"
+                ? { kind: "attacks" }
+                : { kind: "attacks", scope: head.scope };
+        case "attacks-or-blocks":
+            return { kind: "attacks-or-blocks", scope: head.scope };
         case "combat-damage-to-player":
             return { kind: "combat-damage-to-player" };
         case "damage-dealt":
@@ -117,6 +134,27 @@ function headAntecedents(head: TriggerHeadIR): SiteAntecedents {
             ? { amount: { ref: "$event.amount" } }
             : {}),
         ...(head.kind === "dies" ? { card: { ref: "$event.card" } } : {}),
+        // CR 608.2h — "it". `headPronounReferent` is the ONE authority on
+        // which object the head named (the grammar refuses the pronoun behind
+        // a head that named none), and this turns its answer into the
+        // selector: the source, or the attacking / blocking creature the
+        // per-creature firing named (CR 508.3a / 509.3a — the censused
+        // `$event.combatant` row, ADR 0049).
+        ...pronounAntecedent(head),
+    };
+}
+
+/** The `object` antecedent a head supplies, if any (see `headAntecedents`). */
+function pronounAntecedent(head: TriggerHeadIR): {
+    readonly object?: EffectObjectSelector;
+} {
+    const referent = headPronounReferent(head);
+    if (referent === null) return {};
+    return {
+        object:
+            referent === "source"
+                ? { ref: "$source" }
+                : { ref: "$event.combatant" },
     };
 }
 
@@ -164,15 +202,26 @@ export function lowerTriggeredAbility(input: {
             : undefined;
     if (typeof condition === "string") return { ok: false, reason: condition };
     const antecedents = headAntecedents(input.head);
+    // CR 608.2h — the head's "it" reaches the FIRST sentence and no further.
+    // Every later sentence has a nearer antecedent by construction — the
+    // object the sentence before it created, drew, moved or acted on ("…,
+    // create a 1/1 Soldier token. Destroy it") — and the lowering can see only
+    // some of those (an ANNOUNCED target, `selectorsFor`). Reading past the
+    // first sentence would therefore bind "it" to the head's referent in
+    // exactly the cases where it means something else, so the referent is
+    // dropped instead and the pronoun is refused: the fail-closed half of
+    // ADR 0105 § 2, a form earning its way back in with a rule and a fixture.
+    const laterAntecedents: SiteAntecedents = { ...antecedents };
+    delete (laterAntecedents as { object?: unknown }).object;
     const walk = new SentenceWalk();
     const ops: EffectOp[] = [];
-    for (const sentence of input.effects) {
+    for (const [index, sentence] of input.effects.entries()) {
         // CR 107.3 — a triggered ability has no cost and announces nothing,
         // so an X in its body has no value to read.
         const result = lowerSentence(sentence, walk, {
             allowX: false,
             selfName: input.cardName,
-            antecedents,
+            antecedents: index === 0 ? antecedents : laterAntecedents,
             ...(input.kickers !== undefined ? { kickers: input.kickers } : {}),
         });
         if (!result.ok) return { ok: false, reason: result.reason };

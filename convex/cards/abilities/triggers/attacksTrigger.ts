@@ -71,6 +71,15 @@ export interface AttacksTriggerArgs {
      *  matching attacker, because the engine emits one event per declaration
      *  (CR 508.1m). */
     scope: PermanentScope;
+    /** CR 508.3a — fire once per MATCHING DECLARED ATTACKER instead of once
+     *  per declaration, each firing carrying a synthetic single-attacker
+     *  event so the body can name its own creature as
+     *  `{ ref: "$event.combatant" }`. Forwarded verbatim to
+     *  `TriggeredAbility.perAttacker`, where the fan-out lives
+     *  (`gre/triggers.ts`): the factory only declares which counting rule the
+     *  head printed. Opt-in — "whenever one or more creatures you control
+     *  attack" (CR 508.3d) is the batch reading and must stay one firing. */
+    perAttacker?: true;
     /** CR 603.4 check-time predicate, evaluated once when the event fires
      *  after `scope` passes. Use for shapes `scope` cannot express (a
      *  cardinality test over the whole batch). */
@@ -100,9 +109,12 @@ export interface AttacksTriggerArgs {
     maxTriggersPerTurn?: number;
     /** Effect Script (ADR 0045) — the DSL-first default. Rides straight to the
      *  interpreter with the source's controller and `$source` bound. The
-     *  declaration payload is NOT reachable from the script, so an effect that
-     *  must inspect WHICH creatures attacked still needs a `resolve` callback.
-     *  Mutually exclusive with `resolve`. */
+     *  declaration payload is reachable only through the censused
+     *  `$event.<field>` rows (ADR 0049), and only as far as they flatten it:
+     *  under `perAttacker` the firing event names ONE creature, which
+     *  `$event.combatant` reads, and an effect that must inspect the whole
+     *  batch still needs a `resolve` callback. Mutually exclusive with
+     *  `resolve`. */
     effects?: EffectOp[];
     /** CR 603.3c / 700.2b — announce-time mode list for a MODAL attack trigger
      *  ("Whenever this creature attacks, choose one — • … • …",
@@ -170,6 +182,7 @@ export function attacksTrigger(args: AttacksTriggerArgs): TriggeredAbility {
         ...(args.maxTriggersPerTurn !== undefined
             ? { maxTriggersPerTurn: args.maxTriggersPerTurn }
             : {}),
+        ...(args.perAttacker === true ? { perAttacker: true as const } : {}),
         matches: (event: GameEvent, self, state) => {
             if (event.type !== "ATTACKERS_DECLARED") return false;
             if (matched(event, self).length === 0) return false;

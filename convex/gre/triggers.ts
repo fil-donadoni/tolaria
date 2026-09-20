@@ -376,6 +376,50 @@ export function triggerHandlesEventType(
         : ability.event === type;
 }
 
+/**
+ * CR 508.3a — the events ONE ability is offered, given how its head counts.
+ *
+ * `ATTACKERS_DECLARED` carries the whole declare-attackers batch as a single
+ * event (CR 508.1m), which is what "Whenever [a player] attacks" (CR 508.3d)
+ * and "whenever one or more creatures you control attack" want: one firing
+ * however many creatures were declared. "Whenever [a creature] attacks"
+ * (CR 508.3a) wants one firing PER creature, each naming its own — so a
+ * `perAttacker` ability is handed one SYNTHETIC single-attacker
+ * `ATTACKERS_DECLARED` per declared attacker instead.
+ *
+ * The synthetic event is the same shape the batch already has with a length-1
+ * `attackerIds`, which is exactly what the `combatant` / `soleAttacker`
+ * `EVENT_FIELD_REGISTRY` rows flatten (ADR 0049) — the same construction the
+ * `until-next-turn-creature-attacks-you` delayed timing uses below, rather
+ * than a second spelling of it. The ability's own `matches` then does the
+ * scope test per attacker with no change: it already filters `attackerIds`.
+ *
+ * Every other event passes through untouched, so a `perAttacker` ability with
+ * an array `event` ("attacks or blocks") still sees its per-creature
+ * `BLOCKER_DECLARED` events as emitted — that side is already one per creature
+ * (CR 509.3a), so there is nothing to fan out.
+ */
+function firingEvents(
+    ability: TriggeredAbility,
+    events: GameEvent[]
+): GameEvent[] {
+    if (ability.perAttacker !== true) return events;
+    const out: GameEvent[] = [];
+    for (const event of events) {
+        if (event.type !== "ATTACKERS_DECLARED") {
+            out.push(event);
+            continue;
+        }
+        for (const attackerId of event.attackerIds)
+            out.push({
+                type: "ATTACKERS_DECLARED",
+                attackingPlayerId: event.attackingPlayerId,
+                attackerIds: [attackerId],
+            });
+    }
+    return out;
+}
+
 /** True if `ability` has already triggered its per-turn maximum on this exact
  *  source object (CR 603.2 — "this ability triggers only twice each turn").
  *  Uncapped abilities (the overwhelming majority) always return false. The
@@ -554,7 +598,12 @@ export function collectTriggers(
                     }
                     continue;
                 }
-                for (const event of events) {
+                // CR 508.3a — a per-attacker ability sees the declaration
+                // fanned out into one synthetic single-attacker event per
+                // declared creature, so the loop below fires it once per
+                // attacker and each firing names its own (`$event.combatant`).
+                // Every other ability sees the batch exactly as emitted.
+                for (const event of firingEvents(ability, events)) {
                     if (!triggerHandlesEventType(ability, event.type)) continue;
                     // CR 603.2 — "this ability triggers only N times each turn"
                     // (Nadu, Winged Wisdom). The cap is checked BEFORE

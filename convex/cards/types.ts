@@ -10120,6 +10120,7 @@ export type GameEventType =
     | "ATTACKERS_DECLARED"
     | "BLOCKERS_CONFIRMED"
     | "ATTACKER_UNBLOCKED"
+    | "BLOCKER_DECLARED"
     | "CARD_DRAWN"
     | "CARD_DISCARDED"
     | "CARD_MILLED"
@@ -10662,6 +10663,31 @@ export interface AttackerUnblockedEvent {
     attackerSubtypes: ReadonlyArray<string>;
 }
 
+/** CR 509.3a — a creature DECLARED AS A BLOCKER, emitted once per blocking
+ *  creature alongside the per-pair `BLOCKERS_CONFIRMED` events (phases.ts).
+ *
+ *  `BLOCKERS_CONFIRMED` is one event per attacker/blocker PAIR, which is the
+ *  right shape for "blocks or becomes blocked BY a creature" (CR 509.3b/509.3d
+ *  — once for each creature on the other side) and the wrong one for
+ *  CR 509.3a's "Whenever [a creature] blocks", which "generally triggers only
+ *  once each combat for that creature, even if it blocks multiple creatures".
+ *  Deduping the pair stream at every reading site would put that rule in as
+ *  many places as there are readers; emitting the per-creature event once, at
+ *  the choke point that already knows the whole block graph, puts it in one —
+ *  the same shape `ATTACKER_UNBLOCKED` (CR 509.1h) already uses for the other
+ *  per-creature fact the pair stream cannot state.
+ *
+ *  Carries the blocker alone: an event that named an attacker too would be the
+ *  pair event again, and the creature this event is ABOUT would stop being
+ *  unambiguous (which is exactly what `$event.combatant` reads off it). */
+export interface BlockerDeclaredEvent {
+    type: "BLOCKER_DECLARED";
+    blockerId: string;
+    blockerControllerId: string;
+    blockerTypes: ReadonlyArray<CardType>;
+    blockerSubtypes: ReadonlyArray<string>;
+}
+
 /** Emitted whenever a player draws one or more cards (CR 121.1 — "draws a
  *  card"). One event per draw batch carries the drawing player's id and the
  *  count of cards actually moved from library to hand (an empty library draws
@@ -11191,6 +11217,7 @@ export type GameEvent =
     | AttackersDeclaredEvent
     | BlockersConfirmedEvent
     | AttackerUnblockedEvent
+    | BlockerDeclaredEvent
     | CardDrawnEvent
     | CardDiscardedEvent
     | CardMilledEvent
@@ -11520,9 +11547,13 @@ export interface TriggeredAbility {
      *  `type` equals the scalar or is a member of the array; `matches()` still
      *  discriminates per firing event. One ability = one Oracle line, shown
      *  once on the stack / in the inspector — never N near-duplicate entries.
-     *  An Effect Script cannot read the firing event, so an array-`event`
-     *  ability whose effect must inspect `$event` (ADR 0049) stays scalar +
-     *  imperative. */
+     *  An array-`event` Effect Script MAY read `$event.<field>` (ADR 0049),
+     *  but only a field censused for EVERY member type with ONE family — the
+     *  firing event is a different member each time ("whenever a creature
+     *  attacks or blocks" reads `$event.combatant` off either
+     *  `ATTACKERS_DECLARED` or `BLOCKER_DECLARED`). A field censused for only
+     *  some of them is a static validation failure (`validate.ts`), never a
+     *  runtime skip. */
     event: GameEventType | GameEventType[];
     /** CR 603.3d (issue #1193) — a triggered ability's targets are chosen when
      *  it is PUT ON THE STACK (unlike a spell/activated ability, which chooses
@@ -11619,6 +11650,24 @@ export interface TriggeredAbility {
         self: PermanentView,
         state?: TriggerStateView
     ) => boolean;
+    /** CR 508.3a — this ability triggers once for EACH declared attacker that
+     *  matches it, not once per `ATTACKERS_DECLARED` event.
+     *
+     *  The declare-attackers step emits ONE batch event carrying every
+     *  attacker (`AttackersDeclaredEvent.attackerIds`), which is the shape
+     *  CR 508.3d's "Whenever [a player] attacks" wants — one firing however
+     *  many creatures were declared. CR 508.3a's "Whenever [a creature]
+     *  attacks" wants the opposite: one firing per creature, each naming its
+     *  own. With this flag set, `collectTriggers` (gre/triggers.ts) expands
+     *  the batch into one SYNTHETIC single-attacker `ATTACKERS_DECLARED` per
+     *  declared attacker and runs `matches` against each, so the body reads
+     *  that one creature as `{ ref: "$event.combatant" }`
+     *  (`EVENT_FIELD_REGISTRY`, ADR 0049).
+     *
+     *  Opt-in: every attack trigger shipped before it reads the whole batch
+     *  ("whenever one or more creatures you control attack", Raging River),
+     *  and firing those once per attacker would multiply their effect. */
+    perAttacker?: true;
     /** CR 603.3b — for "whenever one or more X happen(s), ..." wording: when
      *  a single game action emits several events of `event`'s type that all
      *  `matches` this ability in the SAME `collectTriggers` batch (e.g. a

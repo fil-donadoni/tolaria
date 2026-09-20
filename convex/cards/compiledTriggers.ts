@@ -45,6 +45,7 @@ import { countDomain } from "./types";
 import { getEventFieldRow } from "./eventFields";
 import type { Phase } from "../gre/types";
 import { attacksTrigger } from "./abilities/triggers/attacksTrigger";
+import { attacksOrBlocksTrigger } from "./abilities/triggers/attacksOrBlocksTrigger";
 import { damageDealtTrigger } from "./abilities/triggers/damageDealtTrigger";
 import { damageTakenTrigger } from "./abilities/triggers/damageTakenTrigger";
 import { diedTrigger } from "./abilities/triggers/diedTrigger";
@@ -109,8 +110,18 @@ export type CompiledTriggerHead =
           readonly scope: PermanentScope;
           readonly filter?: PermanentFilter;
       }
-    /** CR 508.1 — "whenever this creature attacks". */
-    | { readonly kind: "attacks" }
+    /**
+     * CR 508.3a — "whenever [this creature / a creature you control] attacks".
+     * `scope` absent is the source itself, the only reading before issue #4151
+     * and the one a hand-written `attacksTrigger({ scope: "self" })` writes.
+     */
+    | { readonly kind: "attacks"; readonly scope?: PermanentScope }
+    /**
+     * CR 508.3a / 509.3a — "whenever a creature attacks or blocks": ONE Oracle
+     * line spanning two events, firing once per attacking or blocking
+     * creature and naming it `$event.combatant`.
+     */
+    | { readonly kind: "attacks-or-blocks"; readonly scope: PermanentScope }
     /** CR 119.3 / 510.1 — "whenever this creature deals combat damage to a player". */
     | { readonly kind: "combat-damage-to-player" }
     /**
@@ -274,7 +285,22 @@ export function resolveCompiledTrigger(
                 ...(head.filter !== undefined ? { filter: head.filter } : {}),
             });
         case "attacks":
-            return attacksTrigger({ ...common, scope: "self" });
+            // CR 508.3a — the rule is per CREATURE, so a non-self scope fires
+            // once per matching declared attacker and names it
+            // `$event.combatant`. Under `self` the fan-out is a no-op (exactly
+            // one attacker can match), and the flag is left OFF there so a
+            // compiled "whenever this creature attacks" stays byte-identical
+            // to the hand-written `attacksTrigger({ scope: "self" })` the gold
+            // harness compares it against (`oracle/gold.ts`).
+            return attacksTrigger({
+                ...common,
+                scope: head.scope ?? "self",
+                ...(head.scope !== undefined && head.scope !== "self"
+                    ? { perAttacker: true as const }
+                    : {}),
+            });
+        case "attacks-or-blocks":
+            return attacksOrBlocksTrigger({ ...common, scope: head.scope });
         case "combat-damage-to-player":
             // CR 510.1 — combat damage only, dealt BY this permanent, to a
             // player. `relation: "any"` because "a player" is symmetric: in a

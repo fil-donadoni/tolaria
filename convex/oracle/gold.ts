@@ -804,6 +804,10 @@ const TRIGGER_HEAD_EVENT: Record<CompiledTriggerHead["kind"], GameEventType> = {
     entered: "PERMANENT_ENTERED",
     died: "CREATURE_DIED",
     attacks: "ATTACKERS_DECLARED",
+    // CR 603.2 — the head spans two events; the pairing key names the first,
+    // which is what `eventsOf` below compares a scalar against. A hand-written
+    // twin of this head declares the same array, so its first member matches.
+    "attacks-or-blocks": "ATTACKERS_DECLARED",
     "combat-damage-to-player": "DAMAGE_DEALT",
     "damage-dealt": "DAMAGE_DEALT",
     "damage-taken": "DAMAGE_DEALT",

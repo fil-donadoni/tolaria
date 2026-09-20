@@ -1962,4 +1962,88 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 508.3a — "Whenever a creature you control attacks, IT gets …".
+    // Exhibits the "the Op's subject is an object the canned scenario cannot
+    // seed" form: the pumped creature is named by the FIRING EVENT
+    // (`$event.combatant`), which no canned board can conjure, so the smoke
+    // run has no outcome to prove. The evidence the rule needs is therefore
+    // this fixture — that the per-attacker head and the site-bound pronoun
+    // together compile to a pump of the attacking creature, and not of the
+    // enchantment the line is printed on.
+    {
+        rule: "trigger head",
+        card: {
+            oracleId: "6226db2b-d1a8-4c41-b802-67d3f65d2ca3",
+            name: "Fervent Charge",
+            manaCost: "{1}{R}{W}{B}",
+            typeLine: "Enchantment",
+            oracleText:
+                "Whenever a creature you control attacks, it gets +2/+2 until end of turn.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Fervent Charge",
+            types: ["Enchantment"],
+            manaCost: { X: 1, W: 1, B: 1, R: 1 },
+            oracleText:
+                "Whenever a creature you control attacks, it gets +2/+2 until end of turn.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "fervent-charge-trigger",
+                    oracleText:
+                        "Whenever a creature you control attacks, it gets +2/+2 until end of turn.",
+                    head: { kind: "attacks", scope: "yours" },
+                    effects: [
+                        {
+                            op: "pump",
+                            target: { ref: "$event.combatant" },
+                            power: 2,
+                            toughness: 2,
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 508.3a / 509.3a — "Whenever a creature attacks or blocks, this
+    // enchantment deals 2 damage to IT". The same unseedable-subject form on
+    // the other side: ONE Oracle line over two events, with "it" in a
+    // mid-sentence object position. The fixture is what proves the line stays
+    // one triggered ability reading one censused field on both of them, rather
+    // than two abilities or a damage that finds nobody.
+    {
+        rule: "trigger head",
+        card: {
+            oracleId: "3a8a67ad-e4ff-4b55-9976-a2f13cc9b41b",
+            name: "Powerstone Minefield",
+            manaCost: "{2}{R}{W}",
+            typeLine: "Enchantment",
+            oracleText:
+                "Whenever a creature attacks or blocks, this enchantment deals 2 damage to it.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Powerstone Minefield",
+            types: ["Enchantment"],
+            manaCost: { X: 2, W: 1, R: 1 },
+            oracleText:
+                "Whenever a creature attacks or blocks, this enchantment deals 2 damage to it.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "powerstone-minefield-trigger",
+                    oracleText:
+                        "Whenever a creature attacks or blocks, this enchantment deals 2 damage to it.",
+                    head: { kind: "attacks-or-blocks", scope: "any" },
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: 2,
+                            to: { ref: "$event.combatant" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);

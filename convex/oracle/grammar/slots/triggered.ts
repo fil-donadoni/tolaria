@@ -63,10 +63,14 @@ import {
     kickedInsteadSentenceRule,
     optionalSentenceRule,
     sentenceRule,
-    sourcePronounListRule,
+    objectPronounListRule,
     type SentenceIR,
 } from "../shared/effectClause";
-import { triggerHeadRule, type TriggerHeadIR } from "../shared/triggerHead";
+import {
+    headPronounReferent,
+    triggerHeadRule,
+    type TriggerHeadIR,
+} from "../shared/triggerHead";
 import type { SlotIR } from "../ir";
 
 export const TRIGGERED_SLOT = "triggered";
@@ -91,12 +95,13 @@ const triggerSentence: Rule<SentenceIR> = kickedInsteadSentenceRule(
 interface TailIR {
     readonly condition?: TriggerConditionIR;
     readonly sentences: readonly SentenceIR[];
-    /** The first sentence opened on "it", read as the source (CR 608.2h). */
+    /** The first sentence opened on "it", read as the head's referent
+     *  (CR 608.2h — `headPronounReferent` says which object that is). */
     readonly boundPronoun: boolean;
 }
 
 const plainTail: Rule<TailIR> = rule("trigger effects", (span, ctx) => {
-    const parsed = sourcePronounListRule(
+    const parsed = objectPronounListRule(
         listOf("effect sentences", ". ", triggerSentence)
     ).run(span, ctx);
     return parsed.ok
@@ -158,13 +163,16 @@ const triggeredBody: Rule<SlotIR> = rule("triggered body", (span, ctx) => {
     ).run(span, ctx);
     if (!parsed.ok) return parsed;
     // CR 608.2h — "Whenever this creature attacks, it gets +1/+1 …". The
-    // pronoun names the head's subject, which is the source only on a
-    // self-subject head; "Whenever another creature you control enters, it
-    // gets …" names the ENTERING creature, a referent this grammar does not
-    // bind, so the line stays unread rather than pumping the wrong object.
-    if (parsed.value.tail.boundPronoun && !headNamesSource(parsed.value.head))
+    // pronoun names the head's subject, and only some heads name an object at
+    // all: "Whenever another creature you control enters, it gets …" names the
+    // ENTERING creature, a referent this grammar does not bind, so the line
+    // stays unread rather than pumping the wrong object.
+    if (
+        parsed.value.tail.boundPronoun &&
+        headPronounReferent(parsed.value.head) === null
+    )
         return fail(
-            '"it" opens the effect but the trigger\'s subject is not the source',
+            '"it" opens the effect but the trigger\'s head names no object',
             span
         );
     // CR 702.33e — "If it was kicked" names the permanent the trigger is
@@ -205,25 +213,6 @@ const triggeredBody: Rule<SlotIR> = rule("triggered body", (span, ctx) => {
         effects: assembled.effects,
     });
 });
-
-/** The head's subject is the object the ability is printed on (CR 109.2). */
-function headNamesSource(head: TriggerHeadIR): boolean {
-    switch (head.kind) {
-        case "enters":
-        case "dies":
-            return head.scope === "self";
-        case "attacks":
-        case "combat-damage-to-player":
-            return true;
-        // CR 303.4b — "enchanted creature" names the Aura's host, not the Aura.
-        case "damage-dealt":
-            return head.source === "self";
-        case "damage-taken":
-        case "phase":
-        case "spell-cast":
-            return false;
-    }
-}
 
 /** CR 113.3c — the ability's own full stop closes the line. */
 export const triggeredSlot: Rule<SlotIR> = terminated(".", triggeredBody);
