@@ -441,6 +441,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Sorcery › forEach+pump",
+            "issue": 4191
+        },
+        {
+            "kind": "bot",
             "key": "no-progress › follow-through",
             "issue": 4189
         },
