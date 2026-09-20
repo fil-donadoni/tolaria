@@ -293,6 +293,14 @@ describe("mass P/T — refusals (fail-closed, ADR 0105)", () => {
             "Creatures you control get +2/+2 until end of turn for each basic land type among lands you control.",
         ],
         [
+            "a Domain step with mixed signs",
+            "Target creature gets +1/-1 until end of turn for each basic land type among lands you control.",
+        ],
+        [
+            "'each' behind the group verb",
+            "Each creature you control get +1/+1 until end of turn.",
+        ],
+        [
             "a Domain step on one stat only",
             "Target creature gets +1/+0 until end of turn for each basic land type among lands you control.",
         ],
@@ -320,6 +328,24 @@ describe("mass P/T — refusals (fail-closed, ADR 0105)", () => {
         ],
     ])("refuses an animation with %s", (_what, text) => {
         expect(refused(spell("Test", text))).toBe(true);
+    });
+});
+
+describe("mass P/T — upgrades (CR 608.2c)", () => {
+    it("refuses a flat '+5/+5 instead' over a per-basic-land-type base — the flag would eat the magnitude", () => {
+        expect(
+            refused(
+                oracleCard({
+                    name: "Test Upgrade",
+                    manaCost: "{1}{U}",
+                    typeLine: "Enchantment",
+                    oracleText:
+                        "At the beginning of your upkeep, if you control a blue or black permanent, target creature gets +1/+1 until end of turn for each basic land type among lands you control. If you control a blue permanent and a black permanent, that creature gets +5/+5 until end of turn instead.",
+                    power: undefined,
+                    toughness: undefined,
+                })
+            )
+        ).toBe(true);
     });
 });
 
