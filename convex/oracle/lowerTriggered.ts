@@ -202,15 +202,26 @@ export function lowerTriggeredAbility(input: {
             : undefined;
     if (typeof condition === "string") return { ok: false, reason: condition };
     const antecedents = headAntecedents(input.head);
+    // CR 608.2h — the head's "it" reaches the FIRST sentence and no further.
+    // Every later sentence has a nearer antecedent by construction — the
+    // object the sentence before it created, drew, moved or acted on ("…,
+    // create a 1/1 Soldier token. Destroy it") — and the lowering can see only
+    // some of those (an ANNOUNCED target, `selectorsFor`). Reading past the
+    // first sentence would therefore bind "it" to the head's referent in
+    // exactly the cases where it means something else, so the referent is
+    // dropped instead and the pronoun is refused: the fail-closed half of
+    // ADR 0105 § 2, a form earning its way back in with a rule and a fixture.
+    const laterAntecedents: SiteAntecedents = { ...antecedents };
+    delete (laterAntecedents as { object?: unknown }).object;
     const walk = new SentenceWalk();
     const ops: EffectOp[] = [];
-    for (const sentence of input.effects) {
+    for (const [index, sentence] of input.effects.entries()) {
         // CR 107.3 — a triggered ability has no cost and announces nothing,
         // so an X in its body has no value to read.
         const result = lowerSentence(sentence, walk, {
             allowX: false,
             selfName: input.cardName,
-            antecedents,
+            antecedents: index === 0 ? antecedents : laterAntecedents,
             ...(input.kickers !== undefined ? { kickers: input.kickers } : {}),
         });
         if (!result.ok) return { ok: false, reason: result.reason };

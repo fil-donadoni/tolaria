@@ -273,6 +273,32 @@ describe("pronoun subject — refusals (no antecedent is the source)", () => {
         ).toEqual(["It"]);
     });
 
+    // CR 608.2h — the head's referent reaches the FIRST sentence only. A later
+    // sentence always has a nearer antecedent (the object the sentence before
+    // it created, drew or moved), and the lowering can see only the announced
+    // ones — so the head's "it" is dropped after sentence one rather than
+    // bound to the wrong object. Review of PR #4215 found both lines below
+    // compiling to `destroy $source`.
+    it("a token created by the previous sentence is the nearer antecedent", () => {
+        const outcome = compileCard(
+            oracleCard({
+                oracleText:
+                    "When this creature enters, create a 1/1 white Soldier creature token. Destroy it.",
+            })
+        );
+        expect(outcome.state).toBe("unparsed");
+    });
+
+    it("a card drawn by the previous sentence is the nearer antecedent", () => {
+        const outcome = compileCard(
+            oracleCard({
+                oracleText:
+                    "When this creature enters, draw a card. Destroy it.",
+            })
+        );
+        expect(outcome.state).toBe("unparsed");
+    });
+
     it("after a kicked condition 'it' is the spell only as a damage source", () => {
         expect(
             reason(
