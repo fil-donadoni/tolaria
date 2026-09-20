@@ -1,7 +1,8 @@
 ---
 title: A kicked count-widening decides which target gets which effect by pick ORDER, with no per-slot affordance
 discoveredBy: 4133
-status: draft
+status: triaged
+issue: 4193
 confidence: medium
 ---
 
@@ -28,3 +29,9 @@ enumerator), or the compiler stops using the widening for asymmetric bodies and
 needs an encoding that does not exist. A line on whichever ticket next touches
 the target-selection banner is likelier the right home than a ticket of its own —
 unless a second asymmetric card lands, which is the signal to promote it.
+
+**Triaged to issue #4193** (P0, under the Grammar Rules umbrella #4091): the
+maintainer promoted it without waiting for a second card. The issue pins the
+OUTCOME — the player can tell which announced Target receives which half before
+confirming — and leaves the two directions above open, naming ADR 0094 /
+issue #2264's Mode-instance provenance as the precedent to follow one level down.
