@@ -177,6 +177,29 @@ export function lowerManaAbility(input: {
             reason: `mana ability cost leg "${unpayable[0]}" has no payment site on the CR 605.1a stackless path`,
         };
     }
+    // CR 605.1a / 122.6 (issue #4134) — the COUNTER-removal leg, which is
+    // payable on the mana path only by the TAP mutations: `tapUntap` and
+    // `tapSourceIntoPayment` both route it through
+    // `applyManaAbilityRemoveCounterCost`. An ability with neither a `tap` nor
+    // a self-`sacrifice` leg is not in `getManaTapOptionsDetailed`'s list at
+    // all and goes to `activateManaAbility`, which pays `cost.mana`,
+    // `cost.tapOtherFilter` and the filtered give-up costs — and has no
+    // counter leg. Lowering one would emit a permanent that adds mana WITHOUT
+    // ever removing the counter, i.e. unbounded mana, which is precisely why
+    // the hand-written Pentad Prism declares itself `useStack: true` instead
+    // (`cards/sets/5dn/colorless.ts`, tracked-by issue #2785). Same
+    // fail-closed shape as the leg set above, but conditional on the rest of
+    // the cost, so it cannot live in that flat key set.
+    if (
+        cost.value.removeCounter !== undefined &&
+        cost.value.tap !== true &&
+        cost.value.sacrifice !== true
+    ) {
+        return {
+            ok: false,
+            reason: 'mana ability cost leg "removeCounter" has no payment site on the CR 605.1a stackless path without a tap or sacrifice leg',
+        };
+    }
     const ability: ActivatedAbility = {
         id: input.id,
         oracleText: input.oracleText,

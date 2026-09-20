@@ -182,6 +182,51 @@ describe("refusals — every neighbour that restricts or counts the offered set"
         expect(outcome.state).toBe("unparsed");
     });
 
+    // CR 605.1a / 122.6 — the counter-removal leg, which only the TAP
+    // mutations pay on the mana path. Pentad Prism is the hand-written proof:
+    // it declares itself `useStack: true` precisely because the stackless path
+    // would add the mana and never remove the counter (issue #2785).
+    it("a counter-removal cost with no tap or sacrifice leg is refused (Gemstone Array — unbounded mana otherwise)", () => {
+        const outcome = compileCard(
+            oracleCard({
+                oracleId: "gemstone-array",
+                name: "Gemstone Array",
+                manaCost: "{4}",
+                typeLine: "Artifact",
+                oracleText:
+                    "{2}: Put a charge counter on this artifact.\nRemove a charge counter from this artifact: Add one mana of any color.",
+                power: undefined,
+                toughness: undefined,
+            })
+        );
+        expect(outcome.state).not.toBe("ready");
+    });
+
+    it("the SAME counter leg beside a tap leg is payable and stays ready (Channeler Initiate)", () => {
+        const compiled = compiledOf(
+            oracleCard({
+                oracleId: "8b6c7ee5-9c0f-4e5c-9b9d-4c7a4e5e6f70",
+                name: "Channeler Initiate",
+                manaCost: "{1}{G}",
+                typeLine: "Creature — Human Druid",
+                oracleText:
+                    "{T}, Remove a -1/-1 counter from this creature: Add one mana of any color.",
+                power: "0",
+                toughness: "0",
+            })
+        );
+        expect(compiled.activatedAbilities).toEqual([
+            {
+                id: "channeler-initiate-mana",
+                oracleText:
+                    "{T}, Remove a -1/-1 counter from this creature: Add one mana of any color.",
+                cost: { tap: true, removeCounter: { type: "-1/-1", count: 1 } },
+                useStack: false,
+                manaChoices: ANY_COLOR,
+            },
+        ]);
+    });
+
     it("the production is not read inside a longer span (fail-closed on the exact wording)", () => {
         const outcome = compileCard(
             land(
