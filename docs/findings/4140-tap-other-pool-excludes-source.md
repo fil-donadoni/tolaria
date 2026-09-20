@@ -29,3 +29,9 @@ last blocker for them: dropping the exclusion means a `includeSource`-style
 field on `tapOtherFilter` plus the three scans above and the client picker
 (`src/lib/tap-other-progress.ts`), after which `sourceCouldPayItself` is
 deleted and the three creatures re-enter the grammar.
+
+**Not modelled by the grammar's refusal.** `sourceCouldPayItself` judges the
+source by its PRINTED type line (plus "a Vehicle is a creature"). A non-Vehicle
+permanent that an effect makes a creature (an animated land, Opalescence) can
+tap itself to pay, and the compiled cost would refuse that activation; the
+engine change above removes the whole class.

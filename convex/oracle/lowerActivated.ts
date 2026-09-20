@@ -190,6 +190,25 @@ export function lowerManaAbility(input: {
             reason: `mana ability cost leg "${unpayable[0]}" has no payment site on the CR 605.1a stackless path`,
         };
     }
+    // CR 605.1a — `cost.tapOtherFilter` is paid on route C below ONLY
+    // (`activateManaAbility`, `payTapOtherAbilityCost`). Routes A and B never
+    // read it: `activateManaAbility` throws "Use tapUntap" for a `tap` /
+    // `sacrifice` cost and `tapUntap` pays mana, life, counters and discard
+    // but no tap-other pick, so "{T}, Tap an untapped creature you control:
+    // Add one mana of any color" would tap the source, tap nothing else, and
+    // produce mana. Fail CLOSED until those routes have a tap-other leg
+    // (docs/findings/4140-mana-tap-route-pays-no-tap-other.md).
+    if (
+        cost.value.tapOtherFilter !== undefined &&
+        (cost.value.tap === true ||
+            cost.value.sacrifice === true ||
+            hasFilteredGiveUpCost(cost.value))
+    ) {
+        return {
+            ok: false,
+            reason: `mana ability cost leg "tapOtherFilter" has no payment site beside a tap, sacrifice or filtered give-up leg: those routes never pick the permanents to tap`,
+        };
+    }
     // CR 605.1a / 118.3 (issue #4134) — the stackless NO-TAP path, classified
     // by ROUTE rather than leg by leg, because which mutation pays a mana
     // ability is decided by its cost's SHAPE:

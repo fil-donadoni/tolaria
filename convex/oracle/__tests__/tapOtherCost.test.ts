@@ -153,23 +153,6 @@ const NOUN_PHRASE_FORMS: readonly {
         useStack: true,
     },
     {
-        name: "Springleaf Drum",
-        manaCost: "{1}",
-        typeLine: "Artifact",
-        oracleText:
-            "{T}, Tap an untapped creature you control: Add one mana of any color.",
-        ability: 0,
-        cost: {
-            tap: true,
-            tapOtherFilter: {
-                filter: { types: ["Creature"], controllerRelation: "you" },
-                count: 1,
-            },
-        },
-        // CR 605.3b — an activated mana ability does not use the stack.
-        useStack: false,
-    },
-    {
         name: "Relic of Legends",
         manaCost: "{3}",
         typeLine: "Artifact",
@@ -189,15 +172,13 @@ const NOUN_PHRASE_FORMS: readonly {
         useStack: false,
     },
     {
-        name: "Gene Pollinator",
-        manaCost: "{G}",
-        typeLine: "Artifact Creature — Robot Insect",
-        power: "1",
+        name: "Honor-Worn Shaku",
+        manaCost: "{3}",
+        typeLine: "Artifact",
         oracleText:
-            "{T}, Tap an untapped permanent you control: Add one mana of any color.",
-        ability: 0,
+            "{T}: Add {C}.\nTap an untapped legendary permanent you control: Untap this artifact.",
+        ability: 1,
         cost: {
-            tap: true,
             tapOtherFilter: {
                 // "permanent" is every permanent type (CR 110.4).
                 filter: {
@@ -209,12 +190,13 @@ const NOUN_PHRASE_FORMS: readonly {
                         "Land",
                         "Planeswalker",
                     ],
+                    supertypes: ["Legendary"],
                     controllerRelation: "you",
                 },
                 count: 1,
             },
         },
-        useStack: false,
+        useStack: true,
     },
 ];
 
@@ -240,6 +222,115 @@ describe("Tap-other cost — the other noun phrases and the mana slot", () => {
             expect(ability?.useStack).toBe(form.useStack);
         }
     );
+});
+
+describe("Tap-other cost — the mana slot pays it only without {T} (CR 605.1a)", () => {
+    // `activateManaAbility` pays a tap-other pick; the `{T}` route
+    // (`tapUntap`) does not, so "{T}, Tap an untapped creature you control:
+    // Add one mana" would tap the source, tap nothing else and produce mana.
+    // Refused until that route has a tap-other leg
+    // (docs/findings/4140-mana-tap-route-pays-no-tap-other.md).
+    it.each([
+        {
+            name: "Springleaf Drum",
+            manaCost: "{1}",
+            typeLine: "Artifact",
+            oracleText:
+                "{T}, Tap an untapped creature you control: Add one mana of any color.",
+        },
+        {
+            name: "Gene Pollinator",
+            manaCost: "{G}",
+            typeLine: "Artifact Creature — Robot Insect",
+            oracleText:
+                "{T}, Tap an untapped permanent you control: Add one mana of any color.",
+        },
+    ])("$name stays unparsed", (row) => {
+        const creature = row.typeLine.includes("Creature");
+        const outcome = compileCard(
+            oracleCard({
+                ...row,
+                power: creature ? "1" : undefined,
+                toughness: creature ? "2" : undefined,
+            })
+        );
+        expect(outcome.state).toBe("unparsed");
+    });
+});
+
+describe("Tap-other cost — could the source pay with itself? (supertypes, exclusions, grants)", () => {
+    it("a supertype the source shares decides it: legendary vs not", () => {
+        // Legendary creature tapping "a legendary creature": itself qualifies.
+        expect(
+            costFor(
+                "Tap an untapped legendary creature you control",
+                "Legendary Creature — Elf"
+            ).ok
+        ).toBe(false);
+        // Same filter, source is a creature but not legendary: it cannot.
+        expect(
+            costFor(
+                "Tap an untapped legendary creature you control",
+                "Creature — Elf"
+            ).ok
+        ).toBe(true);
+        // Honor-Worn Shaku's shape: a non-legendary artifact, legendary filter.
+        expect(
+            costFor(
+                "Tap an untapped legendary permanent you control",
+                "Artifact"
+            ).ok
+        ).toBe(true);
+    });
+
+    it("an excluded type the source has rules it out: nonartifact creature", () => {
+        expect(
+            costFor(
+                "Tap an untapped nonartifact creature you control",
+                "Artifact Creature — Golem"
+            ).ok
+        ).toBe(true);
+        expect(
+            costFor(
+                "Tap an untapped nonartifact creature you control",
+                "Creature — Elf"
+            ).ok
+        ).toBe(false);
+    });
+
+    it.each([
+        "Tap an untapped legendary creature you control: Draw a card.",
+        "Tap two untapped Goblins you control: Draw a card.",
+        "Tap an untapped creature you control: Draw a card.",
+    ])(
+        "a granted ability knows its host by TYPE only, so it is refused: %s",
+        (quoted) => {
+            // "Enchanted creature" may be legendary or a Goblin and so tap
+            // itself; the granted ability's type line carries no subtypes or
+            // supertypes to say otherwise (`hostTypeOnly`).
+            const outcome = compileCard(
+                permanent(
+                    "Grantor",
+                    "{1}{U}",
+                    "Enchantment — Aura",
+                    `Enchant creature\nEnchanted creature has "${quoted}"`
+                )
+            );
+            expect(outcome.state).toBe("unparsed");
+        }
+    );
+
+    it("a granted ability with {T} beside the cost is fine: the host is tapped", () => {
+        const outcome = compileCard(
+            permanent(
+                "Grantor",
+                "{1}{U}",
+                "Enchantment — Aura",
+                'Enchant creature\nEnchanted creature has "{T}, Tap an untapped legendary creature you control: Draw a card."'
+            )
+        );
+        expect(outcome.state).toBe("ready");
+    });
 });
 
 describe("Tap-other cost — refused neighbours (fail-closed)", () => {
@@ -308,7 +399,7 @@ describe("Tap-other cost — refused neighbours (fail-closed)", () => {
         ).toBe(false);
     });
 
-    it("only permanents the payer controls, and only untapped ones", () => {
+    it("only permanents the payer controls; 'tapped' fails the atom's own head", () => {
         // The descriptor reads both of these, but `tapOtherFilter` has no
         // reading of them ("you control" is its only controller relation), so
         // the cost refuses them itself.

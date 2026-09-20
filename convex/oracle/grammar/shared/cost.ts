@@ -60,8 +60,9 @@ export type CostAtomIR =
       }
     /** CR 118.3 / 701.26a — "Tap two untapped creatures you control": tap
      *  `count` OTHER untapped permanents matching `filter`. The source is never
-     *  a candidate (`gre/tapOtherCost.ts`), so `activationCostRule` refuses
-     *  the line whenever the source could have paid with itself. */
+     *  a candidate (`tapOtherCostCandidates`, `gre/activation.ts`), so
+     *  `activationCostRule` refuses the line whenever the source could have
+     *  paid with itself. */
     | {
           readonly kind: "tap-other";
           readonly filter: PermanentFilter;
@@ -163,11 +164,11 @@ function readTapOtherAtom(
     if (count === null) return fail(`"${match[1]}" is not a count`, span);
     const descriptor = descriptorRule.run(match[2]!, ctx);
     if (!descriptor.ok) return descriptor;
-    const { controller, tapped, ...rest } = descriptor.value;
+    // `tapped` is always "untapped" here (`TAP_OTHER` requires the word), and
+    // the engine's pool is untapped-only by construction, so it is dropped.
+    const { controller, tapped: _untapped, ...rest } = descriptor.value;
     if (controller !== "you")
         return fail("a tap cost taps permanents its payer controls", span);
-    if (tapped !== "untapped")
-        return fail("a tap cost taps untapped permanents", span);
     if ((rest.plural === true) !== count > 1)
         return fail(`"${match[1]}" does not agree with the noun`, span);
     const filter = permanentFilterFromDescriptor(rest);
@@ -188,7 +189,12 @@ function readTapOtherAtom(
  * would silently refuse legal activations, so the cost is refused instead.
  * Conservative on purpose: any type, subtype or supertype the source shares
  * with the filter counts, and a Vehicle counts as a creature (CR 301.7 — it is
- * one whenever crewed).
+ * one whenever crewed). A type line that names only the host's TYPE (a granted
+ * ability's host, `hostTypeOnly`) says nothing about its subtypes and
+ * supertypes, so those terms can neither rule the source in nor out: the
+ * source may be a Goblin or legendary, and the line is refused. Printed type
+ * lines only — an effect that makes a non-Vehicle permanent a creature is not
+ * modelled (docs/findings/4140-tap-other-pool-excludes-source.md).
  */
 function sourceCouldPayItself(
     filter: PermanentFilter,
@@ -197,25 +203,30 @@ function sourceCouldPayItself(
     const types: readonly string[] = typeLine.subtypes.includes("Vehicle")
         ? [...typeLine.types, "Creature"]
         : typeLine.types;
+    const unknown = typeLine.hostTypeOnly === true;
     const shares = (
         wanted: string | readonly string[] | undefined,
-        have: readonly string[]
+        have: readonly string[],
+        haveIsKnown = true
     ): boolean =>
         wanted === undefined ||
+        !haveIsKnown ||
         [wanted].flat().some((word) => have.includes(word));
     const excluded = (
         unwanted: string | readonly string[] | undefined,
-        have: readonly string[]
+        have: readonly string[],
+        haveIsKnown = true
     ): boolean =>
+        haveIsKnown &&
         unwanted !== undefined &&
         [unwanted].flat().some((word) => have.includes(word));
     return (
         shares(filter.types, types) &&
-        shares(filter.subtypes, typeLine.subtypes) &&
-        shares(filter.supertypes, typeLine.supertypes) &&
+        shares(filter.subtypes, typeLine.subtypes, !unknown) &&
+        shares(filter.supertypes, typeLine.supertypes, !unknown) &&
         !excluded(filter.excludeTypes, types) &&
-        !excluded(filter.excludeSubtypes, typeLine.subtypes) &&
-        !excluded(filter.excludeSupertypes, typeLine.supertypes)
+        !excluded(filter.excludeSubtypes, typeLine.subtypes, !unknown) &&
+        !excluded(filter.excludeSupertypes, typeLine.supertypes, !unknown)
     );
 }
 
