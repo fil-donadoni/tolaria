@@ -280,6 +280,16 @@ Parallax Replenish reached 21/21 and stayed unplayable as a preset. It is
 upsert-by-slug and idempotent, so running it on a slice that completed
 nothing costs one line of output. Not a gate:`presetDecks` is
   deployment-local, so no deployment means nothing owed.
+- **`land` files the computed Gap issues under the BAND of the issue you
+  closed** (issue #4158). It reads that band before the merge — the stronger
+  of the issue's own board `Priority` and its parent umbrella's, the rule
+  `queue:plan` orders by — and passes it to `gaps:sync --band`; under a P0
+  umbrella every Bot / Op / mechanic gap the landing creates goes into the
+  family's **P0** umbrella instead of the band its Target computes. Nothing
+  to do by hand. If `land` prints `gaps:sync gets no --band (…)` the band
+  could not be read: say so in §6 and move the new gaps yourself
+  (`gh issue edit <gap> --parent <P0 umbrella>`; umbrellas in
+  `docs/agents/issue-tracker.md`).
 - Issue not auto-closed by the merge → close it with a one-line comment.
   On abort: remove `in-progress`, remove the worktree.
 

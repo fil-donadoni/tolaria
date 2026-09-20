@@ -16,6 +16,7 @@ import {
     BAND_UMBRELLAS,
     KIND_FALLBACK,
     buildGrammarGapFilings,
+    originUmbrellaOf,
     partitionCardIndex,
     PRD_ISSUE,
     planUnlockEdges,
@@ -45,7 +46,7 @@ import {
     type Graduate,
     type KindInputs,
 } from "../lib/gap-kinds";
-import { staleClaims } from "../gaps-sync";
+import { parseOriginBand, staleClaims } from "../gaps-sync";
 import { botGapKey } from "../lib/oracle-bot-reach";
 import type { CardRow, FragmentRow, Lockfile } from "../lib/oracle-lockfile";
 import {
@@ -1343,5 +1344,131 @@ describe("umbrellas partition by band — the triage's cards source picks the pa
         for (const parent of Object.values(KIND_FALLBACK))
             expect(RETIRED_UMBRELLAS.has(parent)).toBe(false);
         expect(RETIRED_UMBRELLAS.has(PRD_ISSUE)).toBe(true);
+    });
+});
+
+// ── the ORIGIN band — a gap born of P0 work files under P0 (issue #4158) ──
+
+describe("gaps:sync --band — the origin band files a P0 run's gaps under P0 (issue #4158)", () => {
+    const GRAMMAR = BAND_UMBRELLAS["grammar-rules"];
+    const OPS = BAND_UMBRELLAS.ops;
+    const BOTS = BAND_UMBRELLAS["bot-gaps"];
+
+    /** A filing of `kind` with a COMPUTED band, unfiled unless `currentIssue`. */
+    function gap(
+        kind: GapFiling["kind"],
+        band: GapFiling["band"],
+        currentIssue: number | null = null
+    ): GapFiling {
+        return {
+            kind,
+            key: `${kind}-key`,
+            currentIssue,
+            title: `${kind} gap`,
+            labels: ["ready-for-agent"],
+            parentSetCode: null,
+            fallbackParent: KIND_FALLBACK[kind],
+            ...(band === undefined ? {} : { band }),
+            body: () => "x",
+        };
+    }
+
+    const PARTITIONED = [
+        gap("grammar", "P1"),
+        gap("mechanic", "P2"),
+        gap("bot", "P1"),
+    ];
+
+    it("P0: a created bot, grammar and mechanic gap each lands in its OWN family's P0 umbrella, whatever band was computed", () => {
+        const tracker = new StubTracker();
+        syncGaps(PARTITIONED, tracker, "P0");
+        expect(tracker.created.map((c) => [c.title, c.parent])).toEqual([
+            ["grammar gap", GRAMMAR.P0],
+            ["mechanic gap", OPS.P0],
+            ["bot gap", BOTS.P0],
+        ]);
+    });
+
+    it("P0: a residue gap (no computed band) of P0 work files under P0 too — not the family's P3", () => {
+        const tracker = new StubTracker();
+        syncGaps([gap("bot", null)], tracker, "P0");
+        expect(tracker.created[0]!.parent).toBe(BOTS.P0);
+    });
+
+    it("a second run with NO band leaves the gap in P0 — nothing moves out of a P0 umbrella", () => {
+        const tracker = new StubTracker();
+        const first = syncGaps([gap("bot", "P1")], tracker, "P0");
+        const issue = [...first.updatedRows.values()][0]!;
+        const second = syncGaps([gap("bot", "P1", issue)], tracker);
+        expect(second.moves).toEqual([]);
+        expect(tracker.parents.get(issue)).toBe(BOTS.P0);
+    });
+
+    it("no band, and every non-P0 band, is today's behaviour: the computed band's umbrella", () => {
+        for (const band of [undefined, "P1", "P2", "P3"] as const) {
+            const tracker = new StubTracker();
+            syncGaps(PARTITIONED, tracker, band);
+            expect(tracker.created.map((c) => c.parent)).toEqual([
+                GRAMMAR.P1,
+                OPS.P2,
+                BOTS.P1,
+            ]);
+        }
+    });
+
+    it("an existing open gap sitting in a P1 umbrella is NOT pulled up by a P0 run", () => {
+        const tracker = new StubTracker();
+        tracker.issues.set(4700, { state: "OPEN", body: "x" });
+        tracker.parents.set(4700, BOTS.P1);
+        const result = syncGaps([gap("bot", "P1", 4700)], tracker, "P0");
+        expect(result.moves).toEqual([]);
+        expect(tracker.parents.get(4700)).toBe(BOTS.P1);
+    });
+
+    it("a HOMELESS gap — no parent, or one under a retired umbrella — goes to P0 in a P0 run, to its fallback otherwise", () => {
+        for (const parent of [undefined, PRD_ISSUE]) {
+            const p0 = new StubTracker();
+            const plain = new StubTracker();
+            for (const t of [p0, plain]) {
+                t.issues.set(4701, { state: "OPEN", body: "x" });
+                if (parent !== undefined) t.parents.set(4701, parent);
+            }
+            syncGaps([gap("bot", null, 4701)], p0, "P0");
+            syncGaps([gap("bot", null, 4701)], plain);
+            expect(p0.parents.get(4701)).toBe(BOTS.P0);
+            expect(plain.parents.get(4701)).toBe(BOTS.P3);
+        }
+    });
+
+    it("kinds outside the partition — scenario, migration, hand-tail — ignore the band", () => {
+        for (const kind of ["scenario", "migration", "hand-tail"] as const) {
+            expect(originUmbrellaOf(gap(kind, undefined), "P0")).toBeNull();
+            const tracker = new StubTracker();
+            syncGaps([gap(kind, undefined)], tracker, "P0");
+            expect(tracker.created[0]!.parent).toBe(KIND_FALLBACK[kind]);
+        }
+    });
+
+    it("the P0 umbrella counts against GitHub's sub-issue cap like any other parent", () => {
+        const tracker = new StubTracker();
+        tracker.childCounts.set(BOTS.P0, SUB_ISSUE_CAP);
+        expect(() => syncGaps([gap("bot", "P1")], tracker, "P0")).toThrow(
+            new RegExp(`#${BOTS.P0} holds ${SUB_ISSUE_CAP} sub-issues`)
+        );
+        expect(tracker.created).toEqual([]);
+    });
+});
+
+describe("parseOriginBand — the flag is the only channel into a hand-set P0 umbrella", () => {
+    it("reads `--band P0` and `--band=P0`; absent is undefined", () => {
+        expect(parseOriginBand(["--band", "P0"])).toBe("P0");
+        expect(parseOriginBand(["--dry-run", "--band=P2"])).toBe("P2");
+        expect(parseOriginBand(["--dry-run"])).toBeUndefined();
+    });
+
+    it("refuses an unknown or missing value — a typo read as `no band` would file one band too low, silently", () => {
+        expect(() => parseOriginBand(["--band", "p0"])).toThrow(/got "p0"/);
+        expect(() => parseOriginBand(["--band=P9"])).toThrow(/got "P9"/);
+        expect(() => parseOriginBand(["--band"])).toThrow(/got nothing/);
     });
 });

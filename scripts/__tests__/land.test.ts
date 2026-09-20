@@ -19,6 +19,7 @@ import {
     releaseClaimStep,
     recordLandingStep,
     gapsSyncStep,
+    originBandForBranch,
     healthDetachStep,
     lockedEnv,
     laneStep,
@@ -472,6 +473,75 @@ describe("land.ts — the locked command", () => {
         expect(gapsIdx).toBeGreaterThan(
             cmd.indexOf(`$OLD_TIP..${ORIGIN_BASE}`)
         );
+    });
+
+    it("passes the origin band to gaps:sync when the landed issue's band is known (issue #4158)", () => {
+        const cmd = buildLockedCommand({ ...base, originBand: "P0" });
+        const step = gapsSyncStep("/repo", "P0");
+        expect(cmd).toContain(step);
+        expect(step).toMatch(/gaps-sync\.ts' --band P0 \|\|/);
+        // Still non-gating, still in the primary checkout.
+        expect(step.startsWith("(cd '/repo' && ")).toBe(true);
+        expect(step.endsWith("; true)")).toBe(true);
+    });
+
+    it("passes no --band when it could not be determined: gaps:sync keeps its computed band (issue #4158)", () => {
+        expect(gapsSyncStep("/repo")).not.toContain("--band");
+        expect(gapsSyncStep("/repo", null)).not.toContain("--band");
+        expect(buildLockedCommand({ ...base, originBand: null })).not.toContain(
+            "--band"
+        );
+        expect(buildLockedCommand(base)).not.toContain("--band");
+    });
+
+    it("originBandForBranch: the band of the issue the branch names, by queue:plan's own rule (issue #4158)", () => {
+        const board = { 4099: "P0", 4200: "P2", 4300: "P3" } as const;
+        const deps = (parents: Record<number, number | null>) => ({
+            readParent: (n: number) => parents[n] ?? null,
+            readBoard: () => ({ ...board }),
+        });
+        // Own priority.
+        expect(
+            originBandForBranch("feat/issue-4200", deps({ 4200: null })).band
+        ).toBe("P2");
+        // Inherited from the parent PRD — the grammar-rule shape: the issue
+        // carries no Priority of its own, its umbrella is P0.
+        expect(
+            originBandForBranch("feat/issue-4128", deps({ 4128: 4099 })).band
+        ).toBe("P0");
+        // The stronger wins, never the parent unconditionally.
+        expect(
+            originBandForBranch("fix/issue-4200", deps({ 4200: 4099 })).band
+        ).toBe("P0");
+        expect(
+            originBandForBranch("fix/issue-4099", deps({ 4099: 4300 })).band
+        ).toBe("P0");
+    });
+
+    it("originBandForBranch: never throws — a branch naming no issue, an unprioritised issue and an unreadable board are a null band plus a reason (issue #4158)", () => {
+        const ok = { readParent: () => null, readBoard: () => ({}) };
+        const noIssue = originBandForBranch("main", ok);
+        expect(noIssue.band).toBeNull();
+        expect(noIssue.reason).toMatch(/names no issue/);
+        const unranked = originBandForBranch("feat/issue-1", ok);
+        expect(unranked.band).toBeNull();
+        expect(unranked.reason).toMatch(/carry no board Priority/);
+        const boardDown = originBandForBranch("feat/issue-1", {
+            readParent: () => null,
+            readBoard: () => {
+                throw new Error("rate limited");
+            },
+        });
+        expect(boardDown.band).toBeNull();
+        expect(boardDown.reason).toMatch(/board Priority \(rate limited\)/);
+        const parentDown = originBandForBranch("feat/issue-1", {
+            readParent: () => {
+                throw new Error("gh exploded");
+            },
+            readBoard: () => ({}),
+        });
+        expect(parentDown.band).toBeNull();
+        expect(parentDown.reason).toMatch(/parent of issue #1 \(gh exploded\)/);
     });
 
     it("does not sync gaps without a merge (--no-merge gates and pushes only)", () => {

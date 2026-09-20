@@ -108,8 +108,18 @@ bounded, ordered slice of the backlog, so the cap stops being reachable.
   key as `botGap` for a Bot Gap. `gaps:sync` files under that band's umbrella
   and MOVES an open issue whose band was recomputed; the table lives in code
   as `BAND_UMBRELLAS` (`scripts/lib/gap-issues.ts`).
-- **P0 is hand-set only.** No rule computes it; `gaps:sync` never files into
-  a P0 umbrella and never moves an issue out of one.
+- **P0 is never COMPUTED — it is hand-set, or inherited from the work that
+  spawned the gap** (issue #4158). No rule derives it from a Target, so the
+  computed band never files into a P0 umbrella and nothing moves an issue out
+  of one. What can: `gaps:sync --band P0`, the ORIGIN band of the run. A gap
+  that run CREATES (or finds homeless) files under its family's P0 umbrella,
+  because a gap born of P0 work is P0 work (an umbrella closes only when its
+  last child does, issue #3212). `land` derives the band from the issue the
+  landed branch names — the stronger of its board `Priority` and its parent's,
+  the rule `queue:plan` orders by — and passes it; nobody types it after a
+  landing. A P0 session running `gaps:sync` by hand passes `--band P0`. Only
+  `P0` acts; any other value leaves the computed band in charge, and an
+  existing issue is never pulled up.
 - **Residue** — no ranked Target among its cards — files under its family's
   **P3** umbrella: an unranked gap is deliberately-later work (issue #4110).
   An existing one keeps a parent placed by hand; `gaps:sync` lists it.

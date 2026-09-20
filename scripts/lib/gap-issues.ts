@@ -42,6 +42,20 @@
  * recomputed MOVES to its new band's umbrella — up or down, the board follows
  * the Target List — except out of a `P0` umbrella, which is hand-set only.
  *
+ * ── The ORIGIN band (issue #4158) ──────────────────────────────────────
+ *
+ * The computed band answers "which Target needs this gap?", not "which work
+ * spawned it?". A gap born of P0 work (a Grammar Rule landing under a P0
+ * umbrella) is P0 too — an umbrella closes only when its last child does, and
+ * `effectivePriority` already says children inherit their parent's urgency
+ * (issue #3212). A P0 umbrella is hand-set, so nothing computed can put a gap
+ * there; the RUN can, because whoever launches it knows which band the work
+ * belonged to: `gaps:sync --band P0` (and `land`, which derives the band from
+ * the issue the landed branch names). Only `P0` acts — for every other value
+ * the computed band stays the authority — and only on a gap this run CREATES
+ * or one with no home (no parent, or a retired one): an existing issue is
+ * never pulled up, and `planMove` never moves one back out of a P0 umbrella.
+ *
  * A partitioned gap with NO computed band is residue: filed under its
  * family's P3 umbrella (`KIND_FALLBACK`, issue #4110), and an existing one
  * keeps its current parent — `gaps-sync.ts` lists it. The exception is a
@@ -403,9 +417,30 @@ export function bandUmbrellaOf(filing: GapFiling): number | null {
     return BAND_UMBRELLAS[family][filing.band];
 }
 
-/** The parent to file `filing` under — its band umbrella, else its Target's
- *  set umbrella, else the kind's own fallback (`KIND_FALLBACK`). */
-function parentOf(filing: GapFiling, tracker: GapTracker): number {
+/**
+ * The family's P0 umbrella when the run's origin band is `P0` and `filing`'s
+ * kind is partitioned, else null (issue #4158). The ONE place the origin band
+ * acts — see the header. Any other band, or no band, is a null.
+ */
+export function originUmbrellaOf(
+    filing: GapFiling,
+    originBand: UmbrellaBand | undefined
+): number | null {
+    if (originBand !== "P0") return null;
+    const family = PARTITIONED_KINDS[filing.kind];
+    return family === undefined ? null : BAND_UMBRELLAS[family].P0;
+}
+
+/** The parent to file `filing` under — the origin band's P0 umbrella, else its
+ *  band umbrella, else its Target's set umbrella, else the kind's own
+ *  fallback (`KIND_FALLBACK`). */
+function parentOf(
+    filing: GapFiling,
+    tracker: GapTracker,
+    originBand: UmbrellaBand | undefined
+): number {
+    const origin = originUmbrellaOf(filing, originBand);
+    if (origin !== null) return origin;
     const umbrella = bandUmbrellaOf(filing);
     if (umbrella !== null) return umbrella;
     if (filing.parentSetCode === null) return filing.fallbackParent;
@@ -421,19 +456,26 @@ function parentOf(filing: GapFiling, tracker: GapTracker): number {
  *     family's hand-set `P0` umbrella;
  *   - residue (or an unpartitioned kind) → nowhere, unless it has no parent
  *     or its parent is a retired umbrella, in which case the kind's fallback
- *     (`KIND_FALLBACK`, its lowest band).
+ *     (`KIND_FALLBACK`, its lowest band) — or, when the run's origin band is
+ *     `P0`, its family's P0 umbrella (issue #4158): a homeless gap of P0 work
+ *     is P0 work.
  */
 export function planMove(
     filing: GapFiling,
-    parent: number | null
+    parent: number | null,
+    originBand?: UmbrellaBand
 ): number | null {
+    const homeless = parent === null || RETIRED_UMBRELLAS.has(parent);
+    if (homeless) {
+        const origin = originUmbrellaOf(filing, originBand);
+        if (origin !== null) return origin;
+    }
     const target = bandUmbrellaOf(filing);
     if (target === null) {
         // No parent at all is a create whose parent write failed — as much a
         // gap with nowhere to live as one under a retired umbrella.
         // A fallback is never retired (`KIND_FALLBACK`'s test), so this can
         // never move an issue onto the parent it already has.
-        const homeless = parent === null || RETIRED_UMBRELLAS.has(parent);
         return homeless ? filing.fallbackParent : null;
     }
     if (parent === target) return null;
@@ -449,10 +491,15 @@ export function planMove(
  * sub-issue cap: an issue created and then left unparented is the failure
  * this guards (issue #3974), and a run spans several parents, so the count is
  * per parent.
+ *
+ * `originBand` is the band of the work that triggered the run (issue #4158):
+ * `P0` files every partitioned create, and every homeless gap, under its
+ * family's P0 umbrella; anything else changes nothing.
  */
 export function syncGaps(
     filings: readonly GapFiling[],
-    tracker: GapTracker
+    tracker: GapTracker,
+    originBand?: UmbrellaBand
 ): GapSyncResult {
     const existing = new Map<string, TrackedIssue | null>();
     for (const filing of filings) {
@@ -476,12 +523,12 @@ export function syncGaps(
         const id = claimId(filing.kind, filing.key);
         let parent: number | null;
         if (isCreate(filing)) {
-            parent = parentOf(filing, tracker);
+            parent = parentOf(filing, tracker, originBand);
             parents.set(id, parent);
         } else {
             const current = existing.get(id)!;
             if (current.state === "CLOSED") continue;
-            parent = planMove(filing, current.parent ?? null);
+            parent = planMove(filing, current.parent ?? null, originBand);
             if (parent === null) continue;
             moveTo.set(id, parent);
         }

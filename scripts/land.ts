@@ -106,6 +106,13 @@ import { join, resolve } from "node:path";
 import { gh, netEnv } from "./lib/gh";
 import { primaryCheckout } from "./lib/primary-checkout";
 import {
+    LIVE_ORIGIN_BAND_DEPS,
+    originBandOfIssue,
+    type OriginBand,
+    type OriginBandDeps,
+} from "./lib/origin-band";
+import type { BoardPriority } from "./lib/board-priority";
+import {
     classifyScenarioSection,
     owesScenario,
     scenarioRefusal,
@@ -498,6 +505,11 @@ export interface LockedCommandOptions {
     merge: boolean;
     /** false for `--keep`: skip worktree teardown after a successful merge. */
     teardown: boolean;
+    /**
+     * The priority band of the issue this branch closes (issue #4158), passed
+     * to `gaps:sync --band`. Omitted / null when it could not be determined.
+     */
+    originBand?: BoardPriority | null;
 }
 
 function shQuote(s: string): string {
@@ -732,6 +744,23 @@ export function issueOfBranch(branch: string): number | null {
 }
 
 /**
+ * The origin band `gaps:sync --band` is told for `branch` (issue #4158): the
+ * band of the issue the branch names, by the rule `queue:plan` orders by. A
+ * branch naming no issue, or a band that cannot be read, is a null band and a
+ * reason — never a throw: the sync is post-merge housekeeping. `deps` is the
+ * test seam; the real reads are the default.
+ */
+export function originBandForBranch(
+    branch: string,
+    deps: OriginBandDeps = LIVE_ORIGIN_BAND_DEPS
+): OriginBand {
+    const issue = issueOfBranch(branch);
+    if (issue === null)
+        return { band: null, reason: `branch ${branch} names no issue` };
+    return originBandOfIssue(issue, deps);
+}
+
+/**
  * Release the `in-progress` claim on the issue the landed branch names
  * (issue #3130). The claim is added at pick time and, before this, nothing
  * removed it on the success path: `claim-sweep.sh` runs at SessionEnd and
@@ -761,10 +790,19 @@ export function releaseClaimStep(branch: string): string | null {
  * rate limit or a network blip must never turn a merged PR into a reported
  * failure — the allowlist just stays stale until the next landing retries it.
  */
-export function gapsSyncStep(primaryCheckout: string): string {
+export function gapsSyncStep(
+    primaryCheckout: string,
+    originBand: BoardPriority | null = null
+): string {
     const p = shQuote(primaryCheckout);
+    // The ORIGIN band of the work just merged (issue #4158): a gap born of P0
+    // work files under its family's P0 umbrella, which nothing computed can
+    // reach. Derived by `originBandOfIssue` before the lock, from the issue the
+    // branch names; absent when it could not be read — `gaps:sync` then keeps
+    // its computed band, exactly as before.
+    const band = originBand === null ? "" : ` --band ${originBand}`;
     return (
-        `(cd ${p} && bun ${shQuote(GAPS_SYNC)} || ` +
+        `(cd ${p} && bun ${shQuote(GAPS_SYNC)}${band} || ` +
         `echo "land: gaps:sync failed — Grammar/Bot Gap issues may be stale" >&2; true)`
     );
 }
@@ -891,7 +929,7 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
         // File/reconcile Grammar and Bot Gap issues (ADR 0137, issue #3829) —
         // beside the preset-scenario seeding just above, non-gating for the
         // same reason.
-        steps.push(gapsSyncStep(opts.primaryCheckout));
+        steps.push(gapsSyncStep(opts.primaryCheckout, opts.originBand ?? null));
         // The claim outlives nothing: the PR is merged, the issue is closing.
         const release = releaseClaimStep(opts.branch);
         if (release !== null) steps.push(release);
@@ -1045,6 +1083,13 @@ function main(): void {
         );
     }
 
+    // Read BEFORE the lock and the merge, while the issue is still open and the
+    // board still shows it; non-gating — an unreadable band is a warning and a
+    // `gaps:sync` that keeps its computed band (issue #4158).
+    const origin = originBandForBranch(branch);
+    if (origin.reason !== undefined)
+        console.warn(`land: gaps:sync gets no --band (${origin.reason})`);
+
     const runRoot = gateRunRoot(process.env);
     const command = buildLockedCommand({
         branch,
@@ -1055,6 +1100,7 @@ function main(): void {
         worktree: cwd,
         merge,
         teardown,
+        originBand: origin.band,
     });
 
     console.log(
