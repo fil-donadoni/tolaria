@@ -257,9 +257,11 @@ describe("spell-cast colour heads — the table (issue #4135)", () => {
             );
             if (negative) {
                 expect(head.filter?.colors).toBeUndefined();
+                expect(Array.isArray(head.filter?.excludeColors)).toBe(true);
                 expect(head.filter?.excludeColors).toHaveLength(1);
             } else {
                 expect(head.filter?.excludeColors).toBeUndefined();
+                expect(Array.isArray(head.filter?.colors)).toBe(true);
                 expect(head.filter?.colors).toHaveLength(1);
             }
         }
