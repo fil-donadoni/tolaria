@@ -1318,6 +1318,7 @@ describe("selectRootMove — sorcery-speed permanent tie-break (issue #4070)", (
     const SEAL = getCardByName("Seal of Doom").id; // {2}{B} enchantment, no cast target
     const TOME = getCardByName("Jayemdae Tome").id; // {4} artifact, no cast target
     const SPECTER = getCardByName("Hypnotic Specter").id; // creature
+    const ORNITHOPTER = getCardByName("Ornithopter").id; // artifact creature
     const AURA = getCardByName("Wild Growth").id; // enchant land: targets at cast
     const FLASH_ENCHANTMENT: CardDefinition = {
         id: "issue-4070:flash-enchantment",
@@ -1355,6 +1356,7 @@ describe("selectRootMove — sorcery-speed permanent tie-break (issue #4070)", (
                         inHand("seal", SEAL),
                         inHand("tome", TOME),
                         inHand("specter", SPECTER),
+                        inHand("ornithopter", ORNITHOPTER),
                         inHand("aura", AURA),
                         ...(withFlash
                             ? [inHand("flash", FLASH_ENCHANTMENT.id)]
@@ -1419,6 +1421,10 @@ describe("selectRootMove — sorcery-speed permanent tie-break (issue #4070)", (
 
     it("NO-FIRE: leaves a creature to the search (a beater held back can carry sequencing value)", () => {
         expect(pickAmong(cast("specter"), rootState())).toBe("pass");
+    });
+
+    it("NO-FIRE: leaves an artifact CREATURE to the search too (its body, not its type line, is what it is)", () => {
+        expect(pickAmong(cast("ornithopter"), rootState())).toBe("pass");
     });
 
     it("NO-FIRE: leaves a TARGETED permanent (an Aura) to announcement-variant ranking", () => {
