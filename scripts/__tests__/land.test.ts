@@ -21,6 +21,7 @@ import {
     primaryBranchFastForwardStep,
     issueOfBranch,
     releaseClaimStep,
+    umbrellaDetachStep,
     recordLandingStep,
     gapsSyncStep,
     originBandForBranch,
@@ -741,6 +742,35 @@ describe("land.ts — the locked command", () => {
         expect(buildLockedCommand({ ...base, merge: false })).not.toContain(
             "--remove-label in-progress"
         );
+    });
+
+    it("detaches the landed issue from its band umbrella, AFTER gaps:sync and the claim release, non-gating (issue #4235)", () => {
+        // `gaps:sync` reads the parent edge this step deletes, so it must run
+        // first; and it runs past the merge, which is what closes the issue.
+        const cmd = buildLockedCommand(base);
+        const step = umbrellaDetachStep("/repo", "fix/issue-2517");
+        expect(step).not.toBeNull();
+        expect(cmd).toContain(step!);
+        expect(step).toMatch(/bun '[^']*umbrella-detach\.ts' 2517 \|\|/);
+        expect(step!.startsWith("(cd '/repo' && ")).toBe(true);
+        expect(step!.endsWith("; true)")).toBe(true);
+        expect(cmd.indexOf(step!)).toBeGreaterThan(cmd.indexOf("gaps-sync.ts"));
+        expect(cmd.indexOf(step!)).toBeGreaterThan(
+            cmd.indexOf(releaseClaimStep("fix/issue-2517")!)
+        );
+        // The teardown removes the worktree the command runs from: last.
+        expect(cmd.indexOf(step!)).toBeLessThan(cmd.indexOf("worktree remove"));
+        // Never without a merge — the issue is still open then.
+        expect(buildLockedCommand({ ...base, merge: false })).not.toContain(
+            "umbrella-detach.ts"
+        );
+    });
+
+    it("adds no umbrella step for a branch outside the issue-N convention (issue #4235)", () => {
+        expect(umbrellaDetachStep("/repo", "docs/adr-0116")).toBeNull();
+        expect(
+            buildLockedCommand({ ...base, branch: "docs/adr-0116" })
+        ).not.toContain("umbrella-detach.ts");
     });
 
     it("names no issue for a branch outside the issue-N convention, and adds no step", () => {

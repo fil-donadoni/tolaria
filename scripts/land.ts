@@ -311,6 +311,7 @@ const HEALTH_CADENCE_REL = "scripts/health-cadence.ts";
 const SEED_SCENARIO = resolve(__dirname, "seed-scenario.ts");
 const RESOLVE_ARTIFACTS = resolve(__dirname, "resolve-generated-artifacts.ts");
 const GAPS_SYNC = resolve(__dirname, "gaps-sync.ts");
+const UMBRELLA_DETACH = resolve(__dirname, "umbrella-detach.ts");
 
 // Computed the same way scripts/__tests__/gate.test.ts computes it (from a
 // FILE's own directory, not from `import.meta.dir`, which is bun-only and
@@ -831,6 +832,31 @@ export function releaseClaimStep(branch: string): string | null {
 }
 
 /**
+ * Detach the landed issue from its band umbrella once it is closed (issue
+ * #4235) — `bun run umbrella:detach <issue>`, whose header carries the rule.
+ * The umbrella lists the OPEN work of its band, and the merge is the moment a
+ * child stops being that.
+ *
+ * Runs in the PRIMARY checkout for the reason `gapsSyncStep` does, AFTER it:
+ * `gaps:sync` reads the parent edge this step deletes, and it also gives the
+ * merge's `Closes #N` time to close the issue — the step never detaches one
+ * that is still open. Non-gating: an outage leaves the closed child listed
+ * until `umbrella:detach` is run by hand. Returns null for a branch that names
+ * no issue.
+ */
+export function umbrellaDetachStep(
+    primaryCheckout: string,
+    branch: string
+): string | null {
+    const issue = issueOfBranch(branch);
+    if (issue === null) return null;
+    return (
+        `(cd ${shQuote(primaryCheckout)} && bun ${shQuote(UMBRELLA_DETACH)} ${issue} || ` +
+        `echo "land: umbrella:detach failed — issue #${issue} may still be listed under its umbrella" >&2; true)`
+    );
+}
+
+/**
  * `gaps:sync` post-merge (ADR 0137, issue #3829) — files or reconciles one
  * issue per Grammar/Bot Gap allowlist row, "beside the preset-scenario
  * seeding [`land`] already does" (issue #3829). Runs in the PRIMARY
@@ -997,6 +1023,10 @@ export function postMergeHousekeepingSteps(
     // The claim outlives nothing: the PR is merged, the issue is closing.
     const release = releaseClaimStep(opts.branch);
     if (release !== null) steps.push(release);
+    // AFTER `gaps:sync` above (it reads the parent edge this deletes) and
+    // after the merge has had time to close the issue (issue #4235).
+    const detach = umbrellaDetachStep(opts.primaryCheckout, opts.branch);
+    if (detach !== null) steps.push(detach);
     // BEFORE the teardown below, which removes the worktree this command
     // runs from. `spawn` is synchronous and creates nothing but a process
     // — the health worktree is created minutes later, by the detached
