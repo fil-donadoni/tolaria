@@ -166,12 +166,15 @@ function readTapOtherAtom(
     if (!descriptor.ok) return descriptor;
     // `tapped` is always "untapped" here (`TAP_OTHER` requires the word), and
     // the engine's pool is untapped-only by construction, so it is dropped.
-    const { controller, tapped: _untapped, ...rest } = descriptor.value;
+    const { controller, ...rest } = descriptor.value;
     if (controller !== "you")
         return fail("a tap cost taps permanents its payer controls", span);
     if ((rest.plural === true) !== count > 1)
         return fail(`"${match[1]}" does not agree with the noun`, span);
-    const filter = permanentFilterFromDescriptor(rest);
+    const filter = permanentFilterFromDescriptor({
+        ...rest,
+        tapped: undefined,
+    });
     if (!filter.ok) return filter;
     return ok({
         kind: "tap-other" as const,
