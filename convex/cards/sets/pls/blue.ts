@@ -369,10 +369,17 @@ export const planeswalkersMischief: CardDefinition = {
 // "sacrifice"`, ADR 0079/#1937 — the same shape as Arctic Merfolk's return
 // leg above, just the other action.) The kick is ADDITIVE (2 targets instead
 // of 1), not a widened filter, so `kickedTargetRequirement` bumps `count`
-// only; `forEach { set: "targets" }` (the Distorting Wake / #1083
-// X-multi-target shape, `inv/blue.ts`) then bounces WHICHEVER targets were
-// actually announced — 1 unkicked, 2 kicked — with one Op, no runtime
-// kicker-count branch needed.
+// only — the Magma Burst / Falling Timber shape in this same set.
+//
+// The second bounce is the SECOND printed sentence, so it is written as that
+// sentence: one `moveZone` on `{ target: 1 }` behind the standard
+// `{ kickerCount: true } >= 1` gate, exactly as its two siblings write their
+// gated halves. It was a `forEach { set: "targets" }` sweep (the Distorting
+// Wake / #1083 X-multi-target shape) until issue #4133: both encodings bounce
+// 1 unkicked and 2 kicked, and the sweep was the only card in the family
+// writing ONE Op for two sentences — which read as a card whose text the
+// compiler could not reproduce (gold round-trip) rather than as the choice it
+// was.
 export const rushingRiver: CardDefinition = {
     id: "52ddf7bf-de9c-4657-8d5b-79869d36fa63", // PLS 30
     rarity: "common",
@@ -403,10 +410,11 @@ export const rushingRiver: CardDefinition = {
         excludeTypes: "Land",
     },
     effects: [
+        { op: "moveZone", target: { target: 0 }, to: "hand" },
         {
-            op: "forEach",
-            select: { set: "targets" },
-            effects: [{ op: "moveZone", target: { ref: "$each" }, to: "hand" }],
+            op: "if",
+            predicate: { left: { kickerCount: true }, op: "ge", right: 1 },
+            then: [{ op: "moveZone", target: { target: 1 }, to: "hand" }],
         },
     ],
 };

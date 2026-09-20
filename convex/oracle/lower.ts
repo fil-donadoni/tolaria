@@ -96,6 +96,11 @@ interface Accumulator {
      *  `spellEffects` is always this list lowered as one body. */
     spellSentences?: EffectSentenceIR[];
     spellTargetRequirement?: TargetRequirement;
+    /** CR 115.3 — the spell's SECOND and later target groups ("… Another
+     *  target creature gets -2/-2"), chosen after the primary one. */
+    spellAdditionalTargetRequirements?: TargetRequirement[];
+    /** CR 702.33g — the announcement a kicked cast swaps in. */
+    spellKickedTargetRequirement?: TargetRequirement;
     /** CR 702.5a — the Aura's printed enchant restriction, at most one. */
     enchantRequirement?: TargetRequirement;
     /** CR 303.4b — every "enchanted <noun>" a static line named, checked
@@ -452,6 +457,12 @@ function lowerLine(
             acc.spellEffects = body.value.effects;
             if (body.value.targetRequirement !== undefined)
                 acc.spellTargetRequirement = body.value.targetRequirement;
+            if (body.value.additionalTargetRequirements !== undefined)
+                acc.spellAdditionalTargetRequirements =
+                    body.value.additionalTargetRequirements;
+            if (body.value.kickedTargetRequirement !== undefined)
+                acc.spellKickedTargetRequirement =
+                    body.value.kickedTargetRequirement;
             return null;
         }
         case "spell-modal": {
@@ -744,6 +755,11 @@ export function lowerCard(
     }
     if (acc.spellTargetRequirement !== undefined)
         definition.targetRequirement = acc.spellTargetRequirement;
+    if (acc.spellAdditionalTargetRequirements !== undefined)
+        definition.additionalTargetRequirements =
+            acc.spellAdditionalTargetRequirements;
+    if (acc.spellKickedTargetRequirement !== undefined)
+        definition.kickedTargetRequirement = acc.spellKickedTargetRequirement;
     if (acc.spellModes !== undefined) definition.modes = acc.spellModes;
     if (acc.additionalCosts !== undefined)
         definition.additionalCosts = acc.additionalCosts;

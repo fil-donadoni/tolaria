@@ -143,7 +143,13 @@ import {
 // El-Hajjâj, Horned Cheetah, Hypnotic Specter and Spirit Link round-trip once
 // "whenever [this / enchanted] creature deals damage" reads, with "that much"
 // and "that player" bound to the damage event.
-const BASELINE_CEILING = 1593;
+//
+// Lowered 1593 -> 1583 by issue #4133 (target selectors): Adun Oakenshield,
+// Argivian Archaeologist, Darigaaz's Charm, Eternal Witness, Raise Dead,
+// Reconstruction, Recover, Regrowth, Rushing River and Skull of Orm round-trip
+// once "up to two target", "another target" and a graveyard return "to your
+// hand" read.
+const BASELINE_CEILING = 1583;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that

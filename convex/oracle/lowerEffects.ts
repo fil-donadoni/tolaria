@@ -36,6 +36,7 @@ import {
     type EffectSentenceIR,
     type SubjectIR,
 } from "./grammar/shared/effectClause";
+import { announcedSlots } from "./grammar/shared/targetFilter";
 import { SELF_MARKER } from "./normalize";
 import type { PlayerRefIR } from "./grammar/shared/playerRef";
 import type { ZoneRefIR } from "./grammar/shared/zoneRef";
@@ -220,24 +221,204 @@ export function destroysEveryLand(effects: readonly EffectOp[]): boolean {
     });
 }
 
-/** Collects the ability's target requirements as the sentences are walked. */
-export class TargetSlots {
-    private readonly slots: TargetRequirement[] = [];
+/** CR 601.2c — is this count's width decided by the card rather than the cast? */
+function fixedWidth(count: TargetRequirement["count"]): boolean {
+    if (typeof count === "number") return true;
+    if (count === "X") return false;
+    return count.min === count.max;
+}
 
-    /** Announce a target, returning its positional index (CR 601.2c). */
-    allocate(requirement: TargetRequirement): Lowered<number> {
-        if (this.slots.length > 0)
-            // Reached from every ability site and from the spell and per-mode
-            // sites, so the reason names the LIMIT rather than one site.
+/**
+ * CR 115.3 — can an earlier group's picks actually exclude this one?
+ *
+ * `excludePriorTargets` is applied by merging the earlier picks into
+ * `excludeInstanceIds`, and that merge keeps only `type: "permanent"` picks.
+ * A group that selects anything else (a card in a graveyard, a player, a
+ * spell) would carry the directive and never feel it.
+ */
+function excludableByPriorPicks(requirement: TargetRequirement): boolean {
+    if (requirement.zone !== undefined && requirement.zone !== "battlefield")
+        return false;
+    const types = Array.isArray(requirement.type)
+        ? requirement.type
+        : [requirement.type];
+    return types.every(
+        (t) => t !== "player" && t !== "spell" && t !== "card" && t !== "any"
+    );
+}
+
+/**
+ * Collects the ability's target GROUPS as the sentences are walked.
+ *
+ * A group is one instance of the word "target" (CR 115.3) and occupies as many
+ * positional slots as its count announces (`announcedSlots`); an Effect Script
+ * indexes the FLAT concatenation of every group's slots, which is the shape
+ * `gre/moves.ts` builds and `game.ts` commits onto the stack item. So the two
+ * numbers this class hands out are different things and are kept apart: the
+ * GROUP index is what `requirements()` is ordered by and what a replay counts,
+ * the SLOT index is what `{ target: N }` carries.
+ */
+export class TargetSlots {
+    private readonly groups: TargetRequirement[] = [];
+    /** The first positional slot of each group, parallel to `groups`. */
+    private readonly firsts: number[] = [];
+    private width = 0;
+
+    /**
+     * Announce a target, returning its FIRST positional index (CR 601.2c).
+     *
+     * `another` is the sentence's printed "ANOTHER target …" (CR 115.3). It
+     * decides nothing about the filter and everything about which groups may
+     * coexist:
+     *
+     *   - the FIRST group can never be "another" — there is no earlier
+     *     instance of the word "target" for it to exclude, and the reading it
+     *     would have instead ("another" than the SOURCE, `excludeSource`) is a
+     *     permanent's ability talking about itself, which this walk cannot
+     *     tell apart from the spell case and so refuses rather than guesses;
+     *   - a LATER group must be one, because CR 115.3 lets two plain
+     *     instances of "target" name the SAME object and nothing in this
+     *     grammar's fixtures prints that yet: admitting it would be a second
+     *     announcement no accepted form evidences (issue #3875 owns it).
+     *
+     * Two further refusals keep a LATER group honest, and both are about
+     * something the announcement cannot say rather than about the sentence:
+     *
+     *   - the flat slot list has NO GAPS, so every later group's index shifts
+     *     with how many targets an earlier VARIABLE-WIDTH group was actually
+     *     given. "Return up to two target creature cards … Another target
+     *     creature gets -2/-2" would put the pump at slot 2 while a one-card
+     *     pick leaves the creature AT slot 1 — the pump does nothing and the
+     *     second `moveZone` bounces the creature instead. A group may follow
+     *     only groups of fixed width.
+     *   - `excludePriorTargets` is a directive the engine applies by merging
+     *     the earlier picks into `excludeInstanceIds`, and that merge keeps
+     *     only `type: "permanent"` picks (`game.ts` —
+     *     `excludingPriorTargets`, mirrored in `gre/moves.ts` and
+     *     `gre/activation.ts`). On a graveyard-card, player or spell group
+     *     the word "another" would compile and then not be honoured — the
+     *     one thing a fail-closed compiler may not do with a printed word.
+     */
+    allocate(
+        requirement: TargetRequirement,
+        another: boolean = false
+    ): Lowered<number> {
+        const slots = announcedSlots(requirement.count);
+        if (slots === null)
             return unlowerable(
-                "grammar v0 allows one target per effect site (CR 601.2c)"
+                "a variable target count has no positional slot (CR 601.2c)"
             );
-        this.slots.push(requirement);
-        return lowered(this.slots.length - 1);
+        if (this.groups.length === 0) {
+            if (another)
+                return unlowerable(
+                    '"another target" names no earlier target here (CR 115.3)'
+                );
+            this.groups.push(requirement);
+        } else {
+            if (!another)
+                return unlowerable(
+                    'a second target group that is not "another target" is not in grammar v0 (CR 115.3)'
+                );
+            if (this.openEnded)
+                return unlowerable(
+                    "a target group after a variable-width announcement has no fixed positional slot (CR 601.2c)"
+                );
+            if (!excludableByPriorPicks(requirement))
+                return unlowerable(
+                    '"another target" is honoured only against battlefield permanents (CR 115.3)'
+                );
+            // CR 115.3 — the exclusion is a DIRECTIVE on the later group
+            // (`excludePriorTargets`, issue #3236): when the target walk
+            // reaches it, every pick already made for an earlier group is
+            // merged into `excludeInstanceIds`, which is the filter
+            // `getLegalTargets`, `selectTarget` and the client's highlight
+            // already read.
+            this.groups.push({ ...requirement, excludePriorTargets: true });
+        }
+        this.firsts.push(this.width);
+        this.width += slots;
+        if (!fixedWidth(requirement.count)) this.openEnded = true;
+        return lowered(this.firsts[this.firsts.length - 1]!);
     }
 
+    /**
+     * Is the announcement's total width already decided by the CARD rather
+     * than by the cast? A variable-width group ("up to two") and a kicked
+     * widening both make it depend on choices made at announcement, and a
+     * group allocated after either would be indexed from a width nobody can
+     * write down at compile time.
+     */
+    private openEnded = false;
+
     requirements(): readonly TargetRequirement[] {
-        return this.slots;
+        return this.groups;
+    }
+
+    /** The first positional slot of group `index` (see the class header). */
+    firstSlotOf(index: number): number | undefined {
+        return this.firsts[index];
+    }
+
+    private kicked?: TargetRequirement;
+
+    /**
+     * CR 702.33g — fold a group announced INSIDE a kicker gate into the
+     * announcement the spell makes only when it was kicked.
+     *
+     * The gate's target is chosen "only if that spell was kicked", which a
+     * card-level `targetRequirement` cannot say — so the engine says it with a
+     * second requirement the announcement SWAPS IN
+     * (`CardDefinition.kickedTargetRequirement`), and the catalogue writes the
+     * swap as the base requirement with a wider COUNT (Magma Burst, Falling
+     * Timber: "any target" 1 → 2). That encoding carries the exclusion for
+     * free: CR 601.2c forbids naming one object twice for a single instance of
+     * the word "target", so a count of 2 is already "another".
+     *
+     * Which is exactly why the fold is admitted ONLY for a gate that printed
+     * the word "another" over the SAME descriptor the base announced. A gate
+     * naming a different set ("destroy target land … destroy another target
+     * creature") has no count to widen, and one that omits "another" means the
+     * two picks MAY coincide — neither is this encoding, and both stay refused
+     * rather than being rounded to it.
+     */
+    foldKickedWidening(before: number): Lowered<TargetRequirement> {
+        if (this.kicked !== undefined)
+            return unlowerable(
+                "two kicker gates each announce a target (CR 702.33g)"
+            );
+        const base = this.groups[before - 1];
+        const gated = this.groups[before];
+        if (before !== 1 || base === undefined || this.groups.length !== 2)
+            return unlowerable(
+                "a target announced only if the spell was kicked has no encoding (CR 702.33g)"
+            );
+        const baseSlots = announcedSlots(base.count);
+        const gatedSlots = announcedSlots(gated!.count);
+        if (
+            baseSlots === null ||
+            gatedSlots === null ||
+            JSON.stringify({ ...base, excludePriorTargets: true }) !==
+                JSON.stringify(gated)
+        )
+            return unlowerable(
+                "a kicked target that is not another of the same (CR 702.33g)"
+            );
+        this.kicked = { ...base, count: baseSlots + gatedSlots };
+        // The group is dropped but its slots are NOT reclaimed: the gated op
+        // already points at index `baseSlots`, which only the kicked
+        // announcement fills, and a later group reusing that index would
+        // collide with it. The announcement is therefore OPEN-ENDED from here
+        // on — its width is 1 unkicked and 2 kicked — so nothing may be
+        // allocated after it (`allocate`).
+        this.groups.pop();
+        this.firsts.pop();
+        this.openEnded = true;
+        return lowered(this.kicked);
+    }
+
+    /** CR 702.33g — the swapped-in announcement, if a gate folded one. */
+    kickedRequirement(): TargetRequirement | undefined {
+        return this.kicked;
     }
 }
 
@@ -268,20 +449,45 @@ class ReplayedTargetSlots extends TargetSlots {
         this.source = source;
         this.next = from;
     }
-    override allocate(requirement: TargetRequirement): Lowered<number> {
+    override allocate(
+        requirement: TargetRequirement,
+        another: boolean = false
+    ): Lowered<number> {
         const prior = this.source.requirements()[this.next];
+        // The base allocated the group, so the base's `excludePriorTargets`
+        // is already on the recorded requirement; the replay's own span
+        // carries the word again and must agree, which the equality below
+        // checks once the directive is applied the same way. At group 0 there
+        // is nothing for it to exclude, and the base class refuses the word
+        // outright there — so the replay refuses it too rather than dropping
+        // it and letting the equality pass.
+        if (another && this.next === 0)
+            return unlowerable(
+                '"another target" names no earlier target here (CR 115.3)'
+            );
+        const asAllocated = another
+            ? { ...requirement, excludePriorTargets: true }
+            : requirement;
         if (
             prior === undefined ||
-            JSON.stringify(prior) !== JSON.stringify(requirement)
+            JSON.stringify(prior) !== JSON.stringify(asAllocated)
         )
             return unlowerable(
                 "the replacement names a target its base effect did not (CR 601.2c)"
             );
+        const first = this.source.firstSlotOf(this.next);
+        if (first === undefined)
+            return unlowerable(
+                "the replacement names a target its base effect did not (CR 601.2c)"
+            );
         this.next += 1;
-        return lowered(this.next - 1);
+        return lowered(first);
     }
     override requirements(): readonly TargetRequirement[] {
         return this.source.requirements();
+    }
+    override firstSlotOf(index: number): number | undefined {
+        return this.source.firstSlotOf(index);
     }
     /** How many of the source's slots the replay has read back. */
     consumed(): number {
@@ -338,11 +544,22 @@ export class SentenceWalk {
     }
 }
 
-function objectSelector(
+/**
+ * CR 115.1 — the object(s) a verb acts on, and the ONE place a target group is
+ * announced.
+ *
+ * `single` is what the two exported shapes differ by, and it is checked
+ * BEFORE the allocation so a verb that cannot fan out refuses a wide
+ * announcement instead of consuming a slot for it: acting on the first slot
+ * and dropping the rest is the half-a-feature "up to two" used to be refused
+ * for — the card would read as printed and do half of what it says.
+ */
+function selectorsFor(
     subject: SubjectIR,
-    slots: TargetSlots
-): Lowered<EffectObjectSelector> {
-    if (subject.kind === "self") return lowered({ ref: "$source" });
+    slots: TargetSlots,
+    single: boolean
+): Lowered<EffectObjectSelector[]> {
+    if (subject.kind === "self") return lowered([{ ref: "$source" }]);
     if (subject.kind === "player")
         return unlowerable("a player is not an object (CR 109.1)");
     // CR 400.7e — "that card" is a card in a graveyard, which only a zone
@@ -369,8 +586,48 @@ function objectSelector(
         return unlowerable(
             "a spell is on the stack, not the battlefield (CR 112.1)"
         );
-    const index = slots.allocate(subject.requirement);
-    return index.ok ? lowered({ target: index.value }) : index;
+    const width = announcedSlots(subject.requirement.count);
+    if (width === null)
+        return unlowerable(
+            "a variable target count has no positional slot (CR 601.2c)"
+        );
+    if (single && width !== 1)
+        return unlowerable(
+            "this verb acts on one object, and the sentence announced more (CR 601.2c)"
+        );
+    const first = slots.allocate(subject.requirement, subject.another === true);
+    if (!first.ok) return first;
+    return lowered(
+        Array.from({ length: width }, (_, i) => ({ target: first.value + i }))
+    );
+}
+
+/** The single object a verb with no fan-out acts on (see `selectorsFor`). */
+function objectSelector(
+    subject: SubjectIR,
+    slots: TargetSlots
+): Lowered<EffectObjectSelector> {
+    const one = selectorsFor(subject, slots, true);
+    return one.ok ? lowered(one.value[0]!) : one;
+}
+
+/**
+ * CR 601.2c — every positional slot ONE announced target group occupies.
+ *
+ * `objectSelector`'s fan-out twin: "Return up to two target creature cards
+ * from your graveyard to your hand" announces one group two slots wide, and
+ * the Effect Script names each slot with its own op (`{ target: 0 }`,
+ * `{ target: 1 }` — the shape the hand-written Force of Vigor already
+ * writes). CR 601.2c — under an "up to N" head the player announces HOW MANY
+ * targets they will choose, so a slot they did not fill was never a target at
+ * all: its op finds nothing and does nothing, and the same pair of ops is
+ * right for zero, one and two chosen targets.
+ */
+function objectSelectors(
+    subject: SubjectIR,
+    slots: TargetSlots
+): Lowered<EffectObjectSelector[]> {
+    return selectorsFor(subject, slots, false);
 }
 
 /**
@@ -394,7 +651,7 @@ function spellSelector(
 ): Lowered<{ target: number }> {
     if (subject.kind !== "target" || subject.requirement.type !== "spell")
         return unlowerable("a stack verb names an announced spell (CR 112.1)");
-    const index = slots.allocate(subject.requirement);
+    const index = slots.allocate(subject.requirement, subject.another === true);
     return index.ok ? lowered({ target: index.value }) : index;
 }
 
@@ -671,7 +928,12 @@ function lowerSentenceBody(
                 slots,
                 site
             );
-            if (moved.ok)
+            // CR 608.2h — "that creature" names ONE object, so a WIDE group
+            // (an "up to N" head fanned out over several ops) leaves no
+            // referent: recording the first op's would name whichever target
+            // happened to be picked first. One op, one referent; more than
+            // one, none.
+            if (moved.ok && moved.value.length === 1)
                 recordActedOn(walk, sentence.subject, moved.value[0]!);
             return moved;
         }
@@ -847,15 +1109,17 @@ function lowerSentenceBody(
         case "kicked": {
             // CR 702.33g — a target inside the gate is chosen only if the
             // spell was kicked; a card-level `targetRequirement` would demand
-            // it on every cast. Measured on the walk, so a target allocated
-            // by the inner sentence is seen however it was reached.
+            // it on every cast, so the announcement SWAPS one in instead
+            // (`foldKickedWidening`, which refuses every shape but the one
+            // that swap can express). Measured on the walk, so a target
+            // allocated by the inner sentence is seen however it was reached.
             const before = walk.targets.requirements().length;
             const inner = gatedSentence(sentence.effect, walk, site);
             if (!inner.ok) return inner;
-            if (walk.targets.requirements().length !== before)
-                return unlowerable(
-                    "a target announced only if the spell was kicked has no encoding (CR 702.33g)"
-                );
+            if (walk.targets.requirements().length !== before) {
+                const folded = walk.targets.foldKickedWidening(before);
+                if (!folded.ok) return folded;
+            }
             const left = kickedValue(sentence.kicked, site.kickers ?? []);
             if (!left.ok) return left;
             return lowered([
@@ -1197,16 +1461,31 @@ function lowerMoveZone(
             );
         return lowered([{ op: "moveZone", target: card, to: "hand" }]);
     }
-    const target = objectSelector(subject, slots);
-    if (!target.ok) return target;
-    if (zone.zone === "hand" && zone.owner === "its-owner")
-        return lowered([{ op: "moveZone", target: target.value, to: "hand" }]);
+    // CR 400.3 — an object can only ever reach its OWNER's hand, so "to your
+    // hand" and "to its owner's hand" name the same zone exactly when the
+    // object is yours. A card in YOUR graveyard is: it got there as a
+    // countered, discarded, destroyed or sacrificed object, or as a resolved
+    // instant or sorcery, and CR 404.1 puts each of those on top of its
+    // OWNER's graveyard. A permanent you merely control is NOT, and reading
+    // "to your hand" as `to: "hand"` there would compile a bounce into a
+    // theft that the engine would then silently undo.
+    const yourHand =
+        zone.zone === "hand" &&
+        zone.owner === "you" &&
+        subject.kind === "target" &&
+        subject.requirement.zone === "graveyard" &&
+        subject.requirement.controller === "you";
+    const targets = objectSelectors(subject, slots);
+    if (!targets.ok) return targets;
+    const each = (to: "hand" | "graveyard" | "exile"): Lowered<EffectOp[]> =>
+        lowered(
+            targets.value.map((target) => ({ op: "moveZone", target, to }))
+        );
+    if (zone.zone === "hand" && (zone.owner === "its-owner" || yourHand))
+        return each("hand");
     if (zone.zone === "graveyard" && zone.owner === "its-owner")
-        return lowered([
-            { op: "moveZone", target: target.value, to: "graveyard" },
-        ]);
-    if (zone.zone === "exile")
-        return lowered([{ op: "moveZone", target: target.value, to: "exile" }]);
+        return each("graveyard");
+    if (zone.zone === "exile") return each("exile");
     return unlowerable(
         `"${zone.zone}" is not a zone destination in grammar v0`
     );
@@ -1224,17 +1503,32 @@ function lowerMoveZone(
  * `allocate` ever stops being the first. Injecting the list makes the branch
  * reachable now rather than when #2698's anaphora work allocates twice.
  *
- * >1 is UNLOWERABLE, not a silent drop: the ops already reference `{target: 0}`
- * and `{target: 1}` positionally, so dropping the requirements would emit a
- * definition whose script points at targets nothing declares. An unparsed card
- * costs nothing; a dangling target ref is a card that is broken on the stack.
+ * A group the site cannot DECLARE is UNLOWERABLE, never a silent drop: the ops
+ * already reference `{target: 0}` and `{target: 1}` positionally, so dropping
+ * the requirements would emit a definition whose script points at targets
+ * nothing declares. An unparsed card costs nothing; a dangling target ref is a
+ * card that is broken on the stack.
+ *
+ * `groups` is the site's own answer to "can I carry a SECOND instance of the
+ * word target?" (CR 115.3), and it is a fact about the engine shape the site
+ * writes onto, not about the sentence: a spell and an activated ability each
+ * have an `additionalTargetRequirements` list, a TRIGGERED ability has no such
+ * field (`gre/state.ts` — no twin on a triggered ability), so the trigger site
+ * keeps the one-group ceiling and says so by omitting the flag.
  */
 export function declareTargets(
-    ability: { targetRequirement?: TargetRequirement },
-    requirements: readonly TargetRequirement[]
+    ability: {
+        targetRequirement?: TargetRequirement;
+        additionalTargetRequirements?: TargetRequirement[];
+    },
+    requirements: readonly TargetRequirement[],
+    groups: boolean = false
 ): string | null {
+    if (requirements.length > 1 && !groups)
+        return `${requirements.length} target groups were announced but this site declares at most one (CR 601.2c)`;
+    if (requirements.length === 0) return null;
+    ability.targetRequirement = requirements[0];
     if (requirements.length > 1)
-        return `${requirements.length} targets were announced but grammar v0 declares at most one (CR 601.2c)`;
-    if (requirements.length === 1) ability.targetRequirement = requirements[0];
+        ability.additionalTargetRequirements = requirements.slice(1);
     return null;
 }

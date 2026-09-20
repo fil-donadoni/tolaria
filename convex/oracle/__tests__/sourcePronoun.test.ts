@@ -9,8 +9,9 @@
 //     cost names the source (a sacrifice, a counter removal), and the
 //     triggered site whose head's subject is the source (attacks, dies).
 //  2. The kicked spell — "If this spell was kicked, it deals …" binds the
-//     pronoun to the spell; Jilt is still unparsed, but on its SECOND target,
-//     not on the pronoun.
+//     pronoun to the spell. Jilt was unparsed on its SECOND target until the
+//     target-selector rule (issue #4133) taught the gate to swap in a wider
+//     announcement; it now compiles, and the pronoun is the spell throughout.
 //  3. REFUSALS — every neighbour whose antecedent is not the source: a cost
 //     that names no object, a trigger head about another creature, a tail
 //     behind an intervening-if, a kicked "it" that is not dealing damage, and
@@ -34,13 +35,6 @@ function compiled(card: ReturnType<typeof oracleCard>) {
             `${card.name} unparsed: ${JSON.stringify(outcome.gaps)}`
         );
     return outcome.definition;
-}
-
-function unparsedSpan(card: ReturnType<typeof oracleCard>) {
-    const outcome = compileCard(card);
-    if (outcome.state !== "unparsed")
-        throw new Error(`${card.name} compiled: ${outcome.state}`);
-    return outcome.gaps.map((g) => g.attribution?.span);
 }
 
 describe("pronoun subject — golden fixtures (CR 608.2h)", () => {
@@ -207,7 +201,7 @@ describe("pronoun subject — golden fixtures (CR 608.2h)", () => {
 });
 
 describe("pronoun subject — the kicked spell (CR 702.33e)", () => {
-    it("Jilt: 'it deals' is read as the spell; the gap moves to the second target", () => {
+    it("Jilt: 'it deals' is read as the spell, gated on the kicker tally", () => {
         const card = oracleCard({
             name: "Jilt",
             manaCost: "{1}{U}",
@@ -217,7 +211,14 @@ describe("pronoun subject — the kicked spell (CR 702.33e)", () => {
             power: undefined,
             toughness: undefined,
         });
-        expect(unparsedSpan(card)).toEqual(["another target creature"]);
+        expect(compiled(card).effects).toEqual([
+            { op: "moveZone", target: { target: 0 }, to: "hand" },
+            {
+                op: "if",
+                predicate: { left: { kickerCount: true }, op: "ge", right: 1 },
+                then: [{ op: "dealDamage", amount: 2, to: { target: 1 } }],
+            },
+        ]);
     });
 });
 
