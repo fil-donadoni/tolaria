@@ -96,13 +96,15 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         // Issue #4157. A symmetric wipe on a symmetric board is CORRECT to
         // pass on (it costs the card and destroys as much of the holder's as
         // of the opponent's), so the generated position gives the opponent a
-        // surplus of whatever the card can sweep. One sweep per swept type:
-        // creatures, enchantments, and lands (no filler land on the
-        // opponent's side otherwise — Armageddon read as a pure loss).
+        // surplus of whatever the card sweeps: creatures, enchantments, lands.
+        // Languish is the trap fixture — a -4/-4 sweep, and the filler
+        // enchantment (Castle) gives its controller's creatures +0/+2, so a
+        // surplus of the UNSWEPT type kept the opponent's creatures alive.
         for (const name of [
             "Day of Judgment",
             "Tranquility",
             "Armageddon",
+            "Languish",
         ] as const) {
             expect(playTwice(getCardByName(name)), name).toEqual({
                 outcome: "played",
@@ -110,26 +112,35 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         }
     });
 
-    it("a sweep's position puts the opponent ahead; any other card's stays symmetric", () => {
-        // Non-land permanents: the holder's lands are its own cost, not part
-        // of what the position poses to the card.
-        const nonLand = (name: string, seat: 0 | 1) => {
+    it("a sweep's position puts the opponent ahead in the swept type, the holder ahead in bodies", () => {
+        const count = (
+            name: string,
+            seat: 0 | 1,
+            type: "Creature" | "Enchantment" | "Land",
+            own: boolean
+        ) => {
             const { state, holderId } = buildBotReachState(
                 getCardByName(name),
                 seat
             );
-            const count = (own: boolean) =>
-                state.players
-                    .find((p) => (p.id === holderId) === own)!
-                    .battlefield.filter((c) => !c.types.includes("Land"))
-                    .length;
-            return { mine: count(true), theirs: count(false) };
+            return state.players
+                .find((p) => (p.id === holderId) === own)!
+                .battlefield.filter((c) => c.types.includes(type)).length;
         };
         for (const seat of [0, 1] as const) {
-            const sweep = nonLand("Day of Judgment", seat);
-            expect(sweep.theirs).toBeGreaterThan(sweep.mine);
-            const plain = nonLand("Grizzly Bears", seat);
-            expect(plain.theirs).toBe(plain.mine);
+            const ahead = (
+                name: string,
+                type: "Creature" | "Enchantment" | "Land"
+            ) => count(name, seat, type, false) - count(name, seat, type, true);
+            expect(ahead("Day of Judgment", "Creature")).toBeGreaterThan(0);
+            expect(ahead("Day of Judgment", "Enchantment")).toBe(0);
+            expect(ahead("Tranquility", "Enchantment")).toBeGreaterThan(0);
+            // What the sweep leaves standing is the holder's.
+            expect(ahead("Tranquility", "Creature")).toBeLessThan(0);
+            expect(ahead("Armageddon", "Land")).toBeGreaterThan(0);
+            expect(ahead("Armageddon", "Creature")).toBeLessThan(0);
+            // Any other card's position stays symmetric.
+            expect(ahead("Grizzly Bears", "Creature")).toBe(0);
         }
     });
 

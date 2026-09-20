@@ -68,30 +68,55 @@ function needsStackTarget(def: CardDefinition): boolean {
 }
 import type { ScenarioCard, ScenarioSpec } from "../../debugScenarioSpec";
 
+/** The permanent types the generated position can give the opponent a surplus
+ *  of — one per filler the position seeds. */
+const SWEEPABLE_TYPES = [
+    "Creature",
+    "Artifact",
+    "Enchantment",
+    "Land",
+] as const;
+type SweepableType = (typeof SWEEPABLE_TYPES)[number];
+
 /**
- * Does the card's spell script SWEEP the battlefield of every player — a
- * `forEach` over `set: "permanents"` with no `controller` (CR 109.5 — an
- * omitted controller is every player's)? Wrath of God, Armageddon, Tranquility.
- * A sweep that hits both sides is the obvious play only when the opponent has
- * more to lose than the holder, so {@link botReachSpec} poses it that way. Lives
- * HERE for the same reason as `needsStackTarget`: it decides what the generated
- * position CONTAINS, so it is a verdict input and must be inside the Bot hash.
+ * The permanent types the card's script SWEEPS on every player's battlefield —
+ * a `forEach` over `set: "permanents"` with no `controller` (CR 109.5 — an
+ * omitted controller is every player's). Wrath of God sweeps creatures,
+ * Tranquility enchantments, Armageddon lands, and an untyped filter sweeps them
+ * all. Empty when the card sweeps nothing. Lives HERE for the same reason as
+ * `needsStackTarget`: it decides what the generated position CONTAINS, so it is
+ * a verdict input and must be inside the Bot hash.
  */
-function sweepsEveryBattlefield(def: CardDefinition): boolean {
-    const walk = (node: unknown): boolean => {
-        if (Array.isArray(node)) return node.some(walk);
-        if (node === null || typeof node !== "object") return false;
+function sweptTypes(def: CardDefinition): ReadonlySet<SweepableType> {
+    const swept = new Set<SweepableType>();
+    const walk = (node: unknown): void => {
+        if (Array.isArray(node)) return node.forEach(walk);
+        if (node === null || typeof node !== "object") return;
         const record = node as Record<string, unknown>;
-        const select = record.select as Record<string, unknown> | undefined;
+        const select = record.select as
+            | {
+                  set?: string;
+                  controller?: unknown;
+                  filter?: { type?: unknown };
+              }
+            | undefined;
         if (
             record.op === "forEach" &&
             select?.set === "permanents" &&
             select.controller === undefined
-        )
-            return true;
-        return Object.values(record).some(walk);
+        ) {
+            const named = select.filter?.type;
+            const types =
+                named === undefined ? SWEEPABLE_TYPES : [named].flat();
+            for (const t of types)
+                if ((SWEEPABLE_TYPES as readonly unknown[]).includes(t))
+                    swept.add(t as SweepableType);
+        }
+        Object.values(record).forEach(walk);
     };
-    return walk(def.effects) || walk(def.modes);
+    walk(def.effects);
+    walk(def.modes);
+    return swept;
 }
 
 export type BotReachOutcome = "played" | "ignored" | "frozen";
@@ -167,12 +192,12 @@ const MAX_FOLLOW_THROUGH_STEPS = 12;
  *  mana value does not count (kicker, an activation after the cast). */
 const EXTRA_LANDS = 2;
 
-/** How many MORE of every filler (and land) the opponent holds than the holder
- *  when the card sweeps every battlefield. A sweep costs the holder the card
- *  itself and everything of its own it destroys; the opponent's surplus is what
- *  pays for both. Three enchantments — the cheapest filler — outweigh a card in
- *  hand (measured, `botReach.bot.test.ts`), so the surplus is not a tuned
- *  margin but the smallest whole number that makes every sweep shape pay. */
+/** How many MORE of each swept type the opponent holds than the holder. A
+ *  sweep costs the holder the card itself and everything of its own it
+ *  destroys; the opponent's surplus is what pays for both. Only the SWEPT types
+ *  get a surplus: an unswept filler is not inert (Castle gives its controller's
+ *  untapped creatures +0/+2, so three spare Castles kept the opponent's
+ *  creatures alive through a -4/-4 sweep and read as a bad cast). */
 const SWEEP_SURPLUS = 3;
 
 /** The card every generated position seeds as the object a target, a
@@ -214,26 +239,43 @@ export function botReachSpec(def: CardDefinition): ScenarioSpec {
         cards.push({ name: FILLER_ENCHANTMENT, owner, zone: "battlefield" });
         cards.push({ name: FILLER_CREATURE, owner, zone: "graveyard" });
     }
-    if (sweepsEveryBattlefield(def)) {
-        // The opponent is ahead in everything the card can sweep — lands too.
-        // Armageddon-shaped cards find no land on an opponent's side otherwise.
-        for (const name of [
-            FILLER_CREATURE,
-            FILLER_ARTIFACT,
-            FILLER_ENCHANTMENT,
-        ])
+    const swept = sweptTypes(def);
+    const surplus: Record<Exclude<SweepableType, "Land">, string> = {
+        Creature: FILLER_CREATURE,
+        Artifact: FILLER_ARTIFACT,
+        Enchantment: FILLER_ENCHANTMENT,
+    };
+    if (swept.size > 0 && !swept.has("Creature")) {
+        // What the sweep leaves standing is the holder's: a wipe of lands or
+        // enchantments is the obvious play from ahead on the board, and a
+        // position where the bodies are level does not pose it.
+        cards.push({
+            name: FILLER_CREATURE,
+            owner: "me",
+            zone: "battlefield",
+            count: SWEEP_SURPLUS,
+        });
+    }
+    for (const type of SWEEPABLE_TYPES) {
+        if (!swept.has(type)) continue;
+        if (type === "Land") {
+            // CR 305.1 — a land sweep needs lands on the opponent's side to
+            // destroy; the holder's own are its cost, so the opponent's exceed
+            // them by the surplus.
+            for (let i = 0; i < landCount + SWEEP_SURPLUS; i++)
+                cards.push({
+                    name: cycle[i % cycle.length]!,
+                    owner: "opp",
+                    zone: "battlefield",
+                });
+        } else {
             cards.push({
-                name,
+                name: surplus[type],
                 owner: "opp",
                 zone: "battlefield",
                 count: SWEEP_SURPLUS,
             });
-        for (let i = 0; i < landCount + SWEEP_SURPLUS; i++)
-            cards.push({
-                name: cycle[i % cycle.length]!,
-                owner: "opp",
-                zone: "battlefield",
-            });
+        }
     }
     const stack = needsStackTarget(def);
     return {
