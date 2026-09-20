@@ -116,8 +116,6 @@ export type SubjectIR =
  */
 export type CounterTaxIR = {
     readonly kind: "per-domain";
-    /** The GENERIC mana charged per basic land type ("{1} for each …"). */
-    readonly per: number;
 };
 
 export type EffectSentenceIR =
@@ -925,18 +923,35 @@ const ROUTE_REST: ReadonlyMap<
     ["into your graveyard", "graveyard"],
 ]);
 
-/** CR 701.6a — the keyword action, at the casing a sentence head prints. */
+/**
+ * CR 701.6a — the keyword action, at PROBE casing.
+ *
+ * Lowercase, unlike the `"Destroy "` / `"Tap "` literals beside it, because
+ * this branch is entered through `uncapitalise`: `optionalSentenceRule` hands
+ * its inner rule the clause UNCAPITALISED ("you may counter target spell"),
+ * and Frilled Mystic prints exactly that. The casing convention lives one
+ * level up and is inconsistent there — `kickedSentenceRule` re-capitalises
+ * its tail, `optionalSentenceRule` does not — so the probe is what this
+ * branch can rely on.
+ */
 const COUNTER_VERB = "counter ";
 /** CR 118.12a — where a counter's punisher clause begins. */
 const UNLESS_PAYS = " unless its controller pays ";
 /**
- * CR 118.12a + CR 207.2c — the Domain tax, whole: "{N} for each basic land
+ * CR 118.12a + CR 207.2c — the Domain tax, whole: "{1} for each basic land
  * type among lands you control". Anchored over the REST of the sentence, so a
  * tax this grammar does not price fails the counter rather than being dropped
  * — a counter that silently forgot its "unless" is a free counterspell.
+ *
+ * The price is the LITERAL {1}, not `\{(\d+)\}`: Evasive Action is the only
+ * card in the corpus that prints a per-basic-land-type tax, so a captured
+ * amount would be an accepted form with no fixture behind it (ADR 0105 § 2)
+ * — and a captured {0} lowers to a tax anyone pays, i.e. a counterspell that
+ * never counters. The day a second amount prints, capture it and give the
+ * capture its own fixture.
  */
 const COUNTER_DOMAIN_TAX =
-    /^ unless its controller pays \{(\d+)\} for each basic land type among lands you control$/;
+    /^ unless its controller pays \{1\} for each basic land type among lands you control$/;
 
 /** CR 615.12 — the printed sentence, whole, without its full stop. */
 const SUPPRESS_DAMAGE_PREVENTION = "Damage can't be prevented this turn";
@@ -1451,7 +1466,7 @@ function effectSentence(
         return ok({
             kind: "counter" as const,
             subject: subject.value,
-            unlessPays: { kind: "per-domain", per: Number(tax[1]) },
+            unlessPays: { kind: "per-domain" },
         } satisfies EffectSentenceIR);
     }
 

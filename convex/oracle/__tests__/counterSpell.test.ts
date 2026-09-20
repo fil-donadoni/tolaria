@@ -59,6 +59,26 @@ function refusal(card: ReturnType<typeof oracleCard>) {
     return outcome.gaps;
 }
 
+/**
+ * WHERE the compiler gave up on a card it refuses — the reason, or the
+ * furthest sub-grammar path and the span it could not read.
+ *
+ * Asserted instead of "it refused somehow", because "somehow" passes for the
+ * wrong reason: a refusal test whose card happens to contain a SECOND unread
+ * sentence goes on passing after the thing it guards stops guarding.
+ */
+function refusedAt(card: ReturnType<typeof oracleCard>) {
+    const gaps = refusal(card);
+    if (gaps.length !== 1)
+        throw new Error(
+            `${card.name}: expected one gap, got ${JSON.stringify(gaps)}`
+        );
+    const gap = gaps[0]!;
+    return gap.attribution === undefined
+        ? gap.reason
+        : `${gap.attribution.path.join(" > ")}: ${gap.attribution.span}`;
+}
+
 describe("counter target spell (CR 701.6a)", () => {
     it("compiles the bare spell — Counterspell, whole", () => {
         expect(
@@ -165,86 +185,127 @@ describe("the neighbours this rule refuses (fail-closed, ADR 0105 § 2)", () => 
     // creature you control" is an existential no predicate expresses.
     it("refuses a counter gated on a resolution condition — Jaded Response", () => {
         expect(
-            refusal(
+            refusedAt(
                 instant(
                     "Jaded Response",
                     "{1}{U}",
                     "Counter target spell if it shares a color with a creature you control."
                 )
             )
-        ).not.toEqual([]);
+        ).toBe(
+            "effect clause > target filter > object descriptor: spell if it shares a color with a creature you control"
+        );
     });
 
     // A second announced target: `TargetSlots` allows one per effect site
-    // (CR 601.2c), so the compound is refused rather than half-read.
+    // (CR 601.2c), so the compound is refused rather than half-read. The
+    // printed text names the card; `compileCard` is what replaces it with the
+    // self marker, so the fixture goes in as printed.
     it("refuses a counter with a second target — Suffocating Blast", () => {
         expect(
-            refusal(
+            refusedAt(
                 instant(
                     "Suffocating Blast",
                     "{1}{U}{U}{R}",
-                    "Counter target spell and {self} deals 3 damage to target creature."
+                    "Counter target spell and Suffocating Blast deals 3 damage to target creature."
                 )
             )
-        ).not.toEqual([]);
+        ).toBe(
+            "effect clause: Counter target spell and {self} deals 3 damage to target creature"
+        );
     });
 
     // A FLAT tax is a different `mayPay` cost leg (a literal `ManaCost`), so
     // the Domain form is no evidence for it.
     it("refuses a flat tax — Mana Leak", () => {
         expect(
-            refusal(
+            refusedAt(
                 instant(
                     "Mana Leak",
                     "{1}{U}",
                     "Counter target spell unless its controller pays {3}."
                 )
             )
-        ).not.toEqual([]);
+        ).toBe(
+            "effect clause: Counter target spell unless its controller pays {3}"
+        );
+    });
+
+    // The Domain tax's PRICE is the literal {1} — the one amount printed. A
+    // captured amount would be an accepted form with no fixture, and {0}
+    // would lower to a counterspell that never counters.
+    it("refuses a per-land-type tax at any other price", () => {
+        expect(
+            refusedAt(
+                instant(
+                    "Evasive Action",
+                    "{1}{U}",
+                    "Counter target spell unless its controller pays {2} for each basic land type among lands you control."
+                )
+            )
+        ).toBe(
+            "effect clause: Counter target spell unless its controller pays {2} for each basic land type among lands you control"
+        );
     });
 
     // CR 112.1 — a spell is a CARD on the stack; an activated or triggered
     // ability on the stack (CR 113.7a) is not one, so it is not what this
     // rule's `{ type: "spell" }` slot announces.
-    it("refuses countering an ability — 'target activated or triggered ability'", () => {
+    it("refuses countering an ability — Stifle", () => {
         expect(
-            refusal(
+            refusedAt(
                 instant(
                     "Stifle",
                     "{U}",
                     "Counter target activated or triggered ability."
                 )
             )
-        ).not.toEqual([]);
+        ).toBe(
+            "effect clause > target filter > object descriptor: activated or triggered ability"
+        );
     });
 
-    // A NARROWED spell target ("with mana value 3 or less") announces a
-    // smaller set than `{ type: "spell" }` describes.
-    it("refuses a narrowed spell target — 'target spell with mana value 3 or less'", () => {
+    // A NARROWED spell target announces a smaller set than
+    // `{ type: "spell" }` describes.
+    it("refuses a narrowed spell target — Thoughtbind", () => {
         expect(
-            refusal(
+            refusedAt(
                 instant(
-                    "Hindering Light",
-                    "{U}",
-                    "Counter target spell with mana value 3 or less."
+                    "Thoughtbind",
+                    "{2}{U}",
+                    "Counter target spell with mana value 4 or less."
                 )
             )
-        ).not.toEqual([]);
+        ).toBe(
+            "effect clause > target filter > object descriptor: spell with mana value 4 or less"
+        );
     });
+});
 
-    // CR 112.1 / CR 400.7 — a spell leaving the stack WITHOUT being countered
-    // is `moveSpellFromStack` (issue #2605), not a permanent's `moveZone`.
-    // Reading it as one compiled Reprieve into a different spell.
-    it("refuses a battlefield verb on a spell target — Reprieve's bounce", () => {
-        expect(
-            refusal(
-                instant(
-                    "Reprieve",
-                    "{1}{W}",
-                    "Return target spell to its owner's hand.\nDraw a card."
-                )
-            )
-        ).not.toEqual([]);
+// CR 112.1 / CR 110.1 — teaching the target grammar the phrase "target spell"
+// handed EVERY verb a stack object, and gold caught the first casualty:
+// Reprieve compiled its CR 400.7 stack departure (`moveSpellFromStack`, issue
+// #2605) as a permanent's `moveZone`. The refusal lives at `objectSelector`,
+// the one chokepoint every battlefield verb passes — so the guard is written
+// over the CLASS, not over the card that exposed it.
+describe("no battlefield verb reads a spell (CR 112.1)", () => {
+    const ON_THE_STACK =
+        "a spell is on the stack, not the battlefield (CR 112.1)";
+
+    it.each([
+        ["destroy", "Destroy target spell."],
+        ["tap", "Tap target spell."],
+        ["untap", "Untap target spell."],
+        ["regenerate", "Regenerate target spell."],
+        ["bounce", "Return target spell to its owner's hand."],
+        ["pump", "Target spell gets +1/+1 until end of turn."],
+        ["grant", "Target spell gains flying until end of turn."],
+        ["counters", "Put two +1/+1 counters on target spell."],
+        ["damage", "Bolt Probe deals 2 damage to target spell."],
+    ])("refuses %s", (_verb, oracleText) => {
+        expect(refusedAt(instant("Bolt Probe", "{1}{U}", oracleText))).toBe(
+            ON_THE_STACK
+        );
     });
 });
 
