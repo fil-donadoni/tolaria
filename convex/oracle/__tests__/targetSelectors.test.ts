@@ -307,7 +307,7 @@ describe("plain second group — 'Target …' twice (CR 115.3, CR 601.2c, issue 
             { type: "Creature", count: 1 },
         ]);
         expect(
-            def.effects.map((e) => (e as { target: unknown }).target)
+            def.effects!.map((e) => (e as { target: unknown }).target)
         ).toEqual([{ target: 0 }, { target: 1 }, { target: 2 }]);
     });
 
@@ -323,7 +323,7 @@ describe("plain second group — 'Target …' twice (CR 115.3, CR 601.2c, issue 
             { type: "Creature", count: 1 },
         ]);
         expect(
-            def.effects.map((e) => (e as { target: unknown }).target)
+            def.effects!.map((e) => (e as { target: unknown }).target)
         ).toEqual([{ target: 0 }, { target: 1 }]);
     });
 
