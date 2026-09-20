@@ -1927,7 +1927,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
-    // CR 402.2 + CR 119.3 — "You gain 2 life for each card in your hand": the
+    // CR 402.3 + CR 119.3 — "You gain 2 life for each card in your hand": the
     // size of a hand, a hidden zone whose CARDINALITY is public. Exhibits the
     // "count set counts a HAND" form (and the multiplier again): the canned
     // generator's hand contents belong to the cast filler, so this fixture is

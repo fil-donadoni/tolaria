@@ -2,7 +2,7 @@
 // life"), a life change per counted set ("You gain 2 life for each Plains you
 // control", "… for each card in target opponent's hand"), and a loss equal to
 // the acted-on object's mana value ("You lose life equal to its mana value")
-// (issue #4136, CR 119.3 / 107.1 / 402.2 / 202.3 / 608.2h).
+// (issue #4136, CR 119.3 / 107.1 / 402.3 / 202.3 / 608.2h).
 //
 //  1. GOLDENS — real corpus cards compiled whole and compared with `sortKeys`
 //     equality. Where NO whole real card compiles yet (the trigger's target
@@ -158,7 +158,7 @@ describe("life quantities — goldens (issue #4136)", () => {
         );
     });
 
-    it("Gerrard's Wisdom: a hand's size, times the multiplier (CR 402.2)", () => {
+    it("Gerrard's Wisdom: a hand's size, times the multiplier (CR 402.3)", () => {
         expect(
             effectsOf(
                 sorcery(

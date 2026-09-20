@@ -102,17 +102,17 @@ export const quantityRule: Rule<QuantityIR> = subGrammar(
 );
 
 /**
- * The SET an effect site counts (CR 107.1, CR 122) — the noun phrase behind
+ * The SET an effect site counts (CR 107.1) — the noun phrase behind
  * "N life for each …". Two shapes, and only the two the corpus prints at a
  * life-change site: the controller's permanents a descriptor names ("for each
  * Swamp you control"), and the cards in a hand ("for each card in target
- * opponent's hand" — a hidden zone whose SIZE is public, CR 402.2).
+ * opponent's hand" — a hidden zone whose SIZE is public, CR 402.3).
  */
 export type CountedSetIR =
     | { readonly kind: "permanents"; readonly descriptor: DescriptorIR }
     | { readonly kind: "cards-in-hand"; readonly player: PlayerRefIR };
 
-/** CR 402.2 — the two hands a count is printed over. */
+/** CR 402.3 — the two hands a count is printed over. */
 const CARDS_IN_HAND = /^for each card in (your|target opponent's) hand$/;
 
 /**
