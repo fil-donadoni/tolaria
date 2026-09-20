@@ -28,6 +28,7 @@ import {
     planWrites,
     parseCards,
     renderReport,
+    residueCause,
     resolveDeclaredCards,
     suggestCards,
     summarize,
@@ -213,17 +214,29 @@ describe("backlog-triage — the rule (issue #3851 decision 3)", () => {
         );
     });
 
-    it("the cause is read from the issue's own cards, not from what its neighbours lend", () => {
-        // A lent band takes the row OUT of the residue; the cause of a row that
-        // stays is still its own cards — an edge to residue lends nothing.
+    it("the cause is read from the issue's own cards, whatever bands the row or its neighbours", () => {
+        // #1 declares nothing but blocks a ranked issue → banded by edge, out
+        // of the residue; its cause is still computable and still undeclared.
+        // #2 has off-road cards and a parent lending nothing → stays residue.
+        // #3 has NO cards but a parent that lends P1 → banded; #4 keeps its
+        // own cause next to it.
         const issues = [
-            issue(1, { cards: [CARDS.Loose], blocks: [3] }),
-            issue(2, { blocks: [3] }),
-            issue(3),
+            issue(1, { blocks: [5] }),
+            issue(2, { cards: [CARDS.Loose], parent: 60 }),
+            issue(3, { parent: 50 }),
+            issue(4, { cards: [CARDS.Loose], parent: 50 }),
+            issue(5, { cards: [CARDS.Meta] }),
+            issue(60),
         ];
-        const v = triage(issues, index, {}, 9999);
-        expect(v.get(1)).toEqual({ kind: "residue", cause: "off-road" });
-        expect(v.get(2)).toEqual({ kind: "residue", cause: "undeclared" });
+        const v = triage(issues, index, { 50: "P1" }, 9999);
+        expect(v.get(1)).toMatchObject({ kind: "band", source: "edge" });
+        expect(v.get(3)).toMatchObject({ kind: "band", source: "parent" });
+        expect(v.get(4)).toMatchObject({ kind: "band", source: "parent" });
+        expect(v.get(2)).toEqual({ kind: "residue", cause: "off-road" });
+        expect(v.get(60)).toEqual({ kind: "residue", cause: "undeclared" });
+        // The cause is a function of the issue alone: banded rows keep theirs.
+        expect(residueCause(issues[0]!)).toBe("undeclared");
+        expect(residueCause(issues[3]!)).toBe("off-road");
     });
 
     it("an edge pointing at residue contributes nothing", () => {
