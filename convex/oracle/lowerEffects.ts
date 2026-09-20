@@ -116,6 +116,8 @@ export interface SiteOptions {
 export interface SiteAntecedents {
     /** "that player". */
     readonly player?: EffectPlayerRef;
+    /** "that opponent" — set only by a head that names an OPPONENT. */
+    readonly opponent?: EffectPlayerRef;
     /** "that card" — a card a zone change put into a graveyard (CR 400.7e). */
     readonly card?: EffectObjectSelector;
 }
@@ -400,16 +402,24 @@ function playerRef(
             return lowered("controller");
         // The player the site's head named; none, no binding.
         case "that-player":
+        case "that-opponent": {
+            const word =
+                ref.kind === "that-player" ? "that player" : "that opponent";
             // A player the body itself introduced ("target opponent … That
             // player …") is the nearer antecedent; binding the head's would
             // name the wrong player, so the line is refused instead.
             if (slots.requirements().some((r) => r.type === "player"))
                 return unlowerable(
-                    '"that player" may name the announced target, not the head\'s player'
+                    `"${word}" may name the announced target, not the head's player`
                 );
-            return site.antecedents?.player !== undefined
-                ? lowered(site.antecedents.player)
-                : unlowerable('"that player" names no player at this site');
+            const named =
+                ref.kind === "that-player"
+                    ? site.antecedents?.player
+                    : site.antecedents?.opponent;
+            return named !== undefined
+                ? lowered(named)
+                : unlowerable(`"${word}" names no player at this site`);
+        }
         case "target": {
             const requirement: TargetRequirement = ref.opponent
                 ? { type: "player", count: 1, controller: "opponent" }

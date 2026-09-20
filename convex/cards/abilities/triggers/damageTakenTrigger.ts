@@ -5,6 +5,7 @@
 
 import type {
     DamageDealtEvent,
+    EffectOp,
     GameEvent,
     PermanentView,
     SpellContext,
@@ -46,6 +47,10 @@ import {
  *  that reads as supported. Add it with its first real caller and its test. */
 export type DamageTakenTargetSpec =
     | { kind: "permanent"; filter?: PermanentFilter }
+    /** CR 303.4b — the Aura's host: "whenever ENCHANTED creature is dealt
+     *  damage". Not a `PermanentFilter`: a filter answers "what is the
+     *  recipient", and the host is "whom is THIS permanent attached to". */
+    | { kind: "host" }
     | { kind: "player"; player: PlayerFilter }
     | { kind: "any" };
 
@@ -74,8 +79,12 @@ export interface DamageTakenTriggerArgs {
         self: PermanentView,
         state?: TriggerStateView
     ) => boolean;
-    /** Effect to run when the trigger resolves. */
-    resolve: (
+    /** Effect Script (ADR 0045) — the DSL-first default, as on
+     *  `damageDealtTrigger`. Mutually exclusive with `resolve`. */
+    effects?: EffectOp[];
+    /** Effect to run when the trigger resolves. Mutually exclusive with
+     *  `effects`. */
+    resolve?: (
         ctx: SpellContext,
         event: DamageDealtEvent,
         damage: DamageTriggerPayload
@@ -94,8 +103,15 @@ export function damageTakenTrigger(
         isCombat,
         condition,
         interveningIf,
+        effects,
         resolve,
     } = args;
+
+    if (effects === undefined && resolve === undefined) {
+        throw new Error(
+            `damageTakenTrigger("${id}"): declare either effects[] or resolve — neither was given`
+        );
+    }
 
     function targetPasses(
         event: DamageDealtEvent,
@@ -122,6 +138,12 @@ export function damageTakenTrigger(
                     self,
                     state,
                     target.filter
+                );
+            case "host":
+                return (
+                    event.target.type === "permanent" &&
+                    self.attachedTo !== undefined &&
+                    event.target.id === self.attachedTo
                 );
             default: {
                 const exhaustive: never = target;
@@ -152,10 +174,14 @@ export function damageTakenTrigger(
         oracleText,
         event: "DAMAGE_DEALT",
         matches,
-        resolve: (ctx: SpellContext, event: GameEvent) => {
-            if (!isDamageDealtEvent(event)) return;
-            resolve(ctx, event, buildDamagePayload(event));
-        },
+        ...(effects
+            ? { effects }
+            : {
+                  resolve: (ctx: SpellContext, event: GameEvent) => {
+                      if (!isDamageDealtEvent(event)) return;
+                      resolve!(ctx, event, buildDamagePayload(event));
+                  },
+              }),
     };
     if (interveningIf) {
         ability.interveningIf = (

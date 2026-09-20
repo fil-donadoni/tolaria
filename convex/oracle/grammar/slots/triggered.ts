@@ -215,6 +215,10 @@ function headNamesSource(head: TriggerHeadIR): boolean {
         case "attacks":
         case "combat-damage-to-player":
             return true;
+        // CR 303.4b — "enchanted creature" names the Aura's host, not the Aura.
+        case "damage-dealt":
+            return head.source === "self";
+        case "damage-taken":
         case "phase":
         case "spell-cast":
             return false;

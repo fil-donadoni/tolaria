@@ -68,6 +68,19 @@ export type TriggerHeadIR =
     | { readonly kind: "attacks" }
     /** CR 510.1 — "whenever this creature deals combat damage to a player". */
     | { readonly kind: "combat-damage-to-player" }
+    /**
+     * CR 120.3 — "whenever [this / enchanted] creature deals damage
+     * [to an opponent / to a creature]": damage of ANY kind (the words do not
+     * say "combat"), to the recipient the words name. `source: "host"` is
+     * CR 303.4b's Aura host.
+     */
+    | {
+          readonly kind: "damage-dealt";
+          readonly source: "self" | "host";
+          readonly recipient: "any" | "opponent" | "creature";
+      }
+    /** CR 120.3 / 303.4b — "whenever enchanted creature is dealt damage". */
+    | { readonly kind: "damage-taken"; readonly scope: "host" }
     /** CR 603.6a — "at the beginning of [your/each] <step>". */
     | {
           readonly kind: "phase";
@@ -141,6 +154,17 @@ export const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
     // trigger looks back in time, so the Aura (put into the graveyard by the
     // SBA only afterwards, CR 704.5m) still sees what it enchanted.
     ["when enchanted creature dies", { kind: "dies", scope: "host" }],
+    // CR 120.3 / 303.4b — the Aura host dealing or being dealt damage. Only the
+    // forms the corpus prints: "…deals damage to an opponent" on an Aura is a
+    // different recipient scope and earns its own row when a card needs it.
+    [
+        "whenever enchanted creature deals damage",
+        { kind: "damage-dealt", source: "host", recipient: "any" },
+    ],
+    [
+        "whenever enchanted creature is dealt damage",
+        { kind: "damage-taken", scope: "host" },
+    ],
     // CR 603.6a — step boundaries (CR 500.1).
     [
         "at the beginning of your upkeep",
@@ -196,6 +220,22 @@ export const SELF_HEADS: readonly {
         opener: "whenever ",
         tail: " deals combat damage to a player",
         ir: { kind: "combat-damage-to-player" },
+    },
+    // CR 120.3 — damage of any kind, to the recipient the tail names.
+    {
+        opener: "whenever ",
+        tail: " deals damage",
+        ir: { kind: "damage-dealt", source: "self", recipient: "any" },
+    },
+    {
+        opener: "whenever ",
+        tail: " deals damage to an opponent",
+        ir: { kind: "damage-dealt", source: "self", recipient: "opponent" },
+    },
+    {
+        opener: "whenever ",
+        tail: " deals damage to a creature",
+        ir: { kind: "damage-dealt", source: "self", recipient: "creature" },
     },
 ];
 
