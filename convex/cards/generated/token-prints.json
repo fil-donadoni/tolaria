@@ -1049,6 +1049,12 @@
             "name": "Elf Warrior"
         }
     ],
+    "90b5d4f1-273b-4293-8bc4-fcb29331e9da": [
+        {
+            "scryfallId": "83313791-7d33-42bf-8ee7-05f17f88940a",
+            "name": "Soldier"
+        }
+    ],
     "90cef94d-d941-4e08-afec-a116626b74fb": [
         {
             "scryfallId": "4f736760-60d5-412d-9877-753eb7b5f926",
@@ -1405,6 +1411,16 @@
         {
             "scryfallId": "1666cae8-8750-4091-8e45-259e76268db9",
             "name": "Faerie Rogue"
+        }
+    ],
+    "be364b69-aa59-420c-a613-b1d0b303a4e5": [
+        {
+            "scryfallId": "d453ee89-6122-4d51-989c-e78b046a9de3",
+            "name": "Bird"
+        },
+        {
+            "scryfallId": "9c138bf9-8be6-4f1a-a82c-a84938ab84f5",
+            "name": "Wolf"
         }
     ],
     "bf736de9-9bc4-49df-ae60-672ed4f83f32": [
