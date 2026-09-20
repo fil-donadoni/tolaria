@@ -298,7 +298,7 @@ describe("mass P/T — refusals (fail-closed, ADR 0105)", () => {
         ],
         [
             "'each' behind the group verb",
-            "Each creature you control get +1/+1 until end of turn.",
+            "Each creature get +1/+1 until end of turn.",
         ],
         [
             "a Domain step on one stat only",
