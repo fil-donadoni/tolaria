@@ -5,6 +5,8 @@
 // the budget bound. See `convex/gre/search.ts`.
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../cards";
+import { withTemporaryDefinition } from "../../cards/registry";
+import type { CardDefinition } from "../../cards/types";
 import {
     search,
     searchWithTrace,
@@ -1300,6 +1302,158 @@ describe("selectRootMove — mana dork tie-break", () => {
         expect(
             selectRootMove(root, [PASS, CAST_BIRDS], rootState(), "p1").kind
         ).toBe("pass");
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Free-development tie-break, extended to UNTARGETED SORCERY-SPEED ARTIFACTS
+// AND ENCHANTMENTS (issue #4070). Casting one now and casting it after combat
+// reach the same position (the `pass` edge's own rollouts cast it later), so
+// the two are outcome-equal and the material tie-break chose `pass` at every
+// budget: the Bot never deployed a Seal. Synthetic-edge tests with a
+// `rootState` carrying the card in hand so `isSorcerySpeedPermanentCast`
+// resolves it.
+// ---------------------------------------------------------------------------
+describe("selectRootMove — sorcery-speed permanent tie-break (issue #4070)", () => {
+    const SEAL = getCardByName("Seal of Doom").id; // {2}{B} enchantment, no cast target
+    const TOME = getCardByName("Jayemdae Tome").id; // {4} artifact, no cast target
+    const SPECTER = getCardByName("Hypnotic Specter").id; // creature
+    const AURA = getCardByName("Wild Growth").id; // enchant land: targets at cast
+    const FLASH_ENCHANTMENT: CardDefinition = {
+        id: "issue-4070:flash-enchantment",
+        name: "Issue 4070 Flash Enchantment",
+        rarity: "common",
+        manaCost: { W: 1 },
+        types: ["Enchantment"],
+        staticAbilities: ["flash"],
+    };
+    const PASS: Move = { kind: "pass" };
+    const LAND: Move = { kind: "play-land", cardInstanceId: "forest" };
+    const cast = (cardInstanceId: string, targets: unknown[] = []): Move =>
+        ({
+            kind: "cast-spell",
+            cardInstanceId,
+            targets,
+            tapPlan: [],
+        }) as unknown as Move;
+
+    function rootState(extraHand: string[] = [], withFlash = false): GameState {
+        const inHand = (id: string, cardId: string) =>
+            makeInstance(cardId, {
+                id,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            });
+        return makeState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+            players: [
+                makePlayer("p1", {
+                    hand: [
+                        inHand("seal", SEAL),
+                        inHand("tome", TOME),
+                        inHand("specter", SPECTER),
+                        inHand("aura", AURA),
+                        ...(withFlash
+                            ? [inHand("flash", FLASH_ENCHANTMENT.id)]
+                            : []),
+                        ...extraHand.map((id) => inHand(id, BOLT)),
+                    ],
+                    battlefield: [
+                        makeInstance(MOUNTAIN, {
+                            id: "mountain",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "battlefield",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {}),
+            ],
+        });
+    }
+
+    function rootOf(
+        edges: { move: Move; meanReward: number; meanMargin: number }[]
+    ): Node {
+        const children = new Map<string, Edge>();
+        edges.forEach((e, i) => {
+            const visits = 100;
+            children.set(`${e.move.kind}:${i}`, {
+                move: e.move,
+                key: `${e.move.kind}:${i}`,
+                mover: "p1",
+                node: { children: new Map() },
+                visits,
+                totalReward: e.meanReward * visits,
+                totalMargin: e.meanMargin * visits,
+                avail: visits,
+            });
+        });
+        return { children };
+    }
+
+    /** `pass` edges `moveEdge` on accumulated margin at an equal mean reward —
+     *  the shape of the reported trace — and the rule is asked who decides. */
+    function pickAmong(
+        candidate: Move,
+        state: GameState,
+        reward = 0.6
+    ): string {
+        const root = rootOf([
+            { move: PASS, meanReward: 0.6, meanMargin: 200 },
+            { move: candidate, meanReward: reward, meanMargin: 190 },
+        ]);
+        return selectRootMove(root, [PASS, candidate], state, "p1").kind;
+    }
+
+    it("FIRE: casts an enchantment whose deferral is outcome-equal", () => {
+        expect(pickAmong(cast("seal"), rootState())).toBe("cast-spell");
+    });
+
+    it("FIRE: casts an artifact whose deferral is outcome-equal", () => {
+        expect(pickAmong(cast("tome"), rootState())).toBe("cast-spell");
+    });
+
+    it("NO-FIRE: leaves a creature to the search (a beater held back can carry sequencing value)", () => {
+        expect(pickAmong(cast("specter"), rootState())).toBe("pass");
+    });
+
+    it("NO-FIRE: leaves a TARGETED permanent (an Aura) to announcement-variant ranking", () => {
+        expect(
+            pickAmong(
+                cast("aura", [{ type: "permanent", id: "forest" }]),
+                rootState()
+            )
+        ).toBe("pass");
+    });
+
+    it("NO-FIRE: leaves a Flash permanent to hold-trick (it keeps an instant-speed option)", () => {
+        withTemporaryDefinition(FLASH_ENCHANTMENT, () => {
+            expect(pickAmong(cast("flash"), rootState([], true))).toBe("pass");
+        });
+    });
+
+    it("NO-FIRE: keeps the mana while the caster holds a castable instant", () => {
+        expect(pickAmong(cast("seal"), rootState(["bolt"]))).toBe("pass");
+    });
+
+    it("NO-FIRE: keeps pass when the permanent is genuinely worse (not outcome-equal)", () => {
+        expect(pickAmong(cast("seal"), rootState(), 0.4)).toBe("pass");
+    });
+
+    it("ORDER: a land drop outcome-equal to the permanent goes first, whatever the pool order", () => {
+        const root = rootOf([
+            { move: PASS, meanReward: 0.6, meanMargin: 200 },
+            { move: cast("seal"), meanReward: 0.6, meanMargin: 190 },
+            { move: LAND, meanReward: 0.6, meanMargin: 190 },
+        ]);
+        expect(
+            selectRootMove(root, [PASS, cast("seal"), LAND], rootState(), "p1")
+                .kind
+        ).toBe("play-land");
     });
 });
 
