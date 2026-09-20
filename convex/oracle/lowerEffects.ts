@@ -29,6 +29,7 @@ import type {
     ManaCost,
     TargetRequirement,
 } from "../cards/types";
+import { PERMANENT_TYPES } from "../cards/types";
 import type { PermanentFilter } from "../cards/filters";
 import { chooseColorEffects } from "../cards/abilities/chooseColor";
 import { landTypeChangeEffects } from "../cards/abilities/chooseLandType";
@@ -36,6 +37,7 @@ import type { KickedRefIR } from "./grammar/shared/condition";
 import { durationSpec } from "./grammar/shared/duration";
 import {
     capitalise,
+    type ActedOnNounIR,
     type AmountIR,
     type EffectSentenceIR,
     type SubjectIR,
@@ -228,19 +230,61 @@ function lowerLifeAmount(
                     : { ...spec.value, times: amount.times },
         });
     }
-    if (amount.kind === "acted-on-mana-value") {
-        // CR 608.2h — the object's characteristics as it was when the earlier
-        // Op acted on it, snapshotted by that Op's `bind`.
-        const actedOn = walk.actedOn;
-        if (actedOn === null)
-            return unlowerable(
-                '"its mana value" names no object acted on before it (CR 608.2h)'
-            );
-        const bind = actedOn.op.bind ?? walk.nextBind("that");
-        actedOn.op.bind = bind;
-        return lowered({ ref: `${bind}.manaValue` });
-    }
+    if (amount.kind === "acted-on-mana-value")
+        return lowerActedOnManaValue(amount.noun, walk);
     return lowerAmount(amount, site);
+}
+
+/** CR 110.4a — the card types "that permanent" can name. */
+const ACTED_ON_PERMANENT_TYPES: ReadonlySet<string> = new Set(PERMANENT_TYPES);
+
+/** The phrase a noun was printed as, for a refusal a reader can find. */
+const ACTED_ON_PHRASE: Readonly<Record<ActedOnNounIR, string>> = {
+    it: "its",
+    card: "that card's",
+    permanent: "that permanent's",
+};
+
+/**
+ * CR 202.3 + CR 608.2h — "<phrase> mana value": the PRINTED mana value of the
+ * object an earlier sentence acted on, read off the snapshot that sentence's
+ * Op took.
+ *
+ * The snapshot is the whole point. By the time this value is read the object
+ * has left the battlefield — destroyed, or returned to a hand — so a live
+ * read would find nothing and the effect would silently be worth 0. `bind` on
+ * the acting Op captures the object as it last existed (CR 608.2h), and the
+ * `ref` here reads that capture; the Op is given the binding here, on demand,
+ * so a sentence that never asks for the value adds no binding.
+ *
+ * "That permanent" additionally CONSTRAINS the antecedent: it is printed only
+ * where the earlier sentence acted on a permanent (CR 110.4a), so an acted-on
+ * object of any other kind — a card in a graveyard, a spell on the stack, a
+ * player — is an antecedent the phrase does not name, and is refused rather
+ * than read past. "Its" and "that card's" name whatever the sentence before
+ * acted on, which is what makes the umbrella noun worth reading separately.
+ */
+function lowerActedOnManaValue(
+    noun: ActedOnNounIR,
+    walk: SentenceWalk
+): Lowered<EffectValue> {
+    const phrase = ACTED_ON_PHRASE[noun];
+    const actedOn = walk.actedOn;
+    if (actedOn === null)
+        return unlowerable(
+            `"${phrase} mana value" names no object acted on before it (CR 608.2h)`
+        );
+    if (noun === "permanent") {
+        const { type } = actedOn.requirement;
+        const types = Array.isArray(type) ? type : [type];
+        if (!types.every((one) => ACTED_ON_PERMANENT_TYPES.has(one)))
+            return unlowerable(
+                `"that permanent" is not the ${JSON.stringify(type)} acted on before it (CR 110.4a)`
+            );
+    }
+    const bind = actedOn.op.bind ?? walk.nextBind("that");
+    actedOn.op.bind = bind;
+    return lowered({ ref: `${bind}.manaValue` });
 }
 
 /**
@@ -1245,7 +1289,13 @@ function lowerSentenceBody(
                 );
             const to = damageTarget(sentence.to, slots, site);
             if (!to.ok) return to;
-            const amount = lowerAmount(sentence.amount, site);
+            // CR 202.3 — the magnitude may be the mana value of the object an
+            // earlier sentence acted on, which only the walk can resolve
+            // (Orim's Thunder, issue #4221).
+            const amount =
+                sentence.amount.kind === "acted-on-mana-value"
+                    ? lowerActedOnManaValue(sentence.amount.noun, walk)
+                    : lowerAmount(sentence.amount, site);
             if (!amount.ok) return amount;
             return lowered([
                 { op: "dealDamage", amount: amount.value, to: to.value },

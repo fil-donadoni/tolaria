@@ -102,12 +102,46 @@ export type AmountIR =
           readonly set: CountedSetIR;
       }
     /**
-     * CR 202.3 + CR 608.2h — "its mana value" / "that card's mana value": the
-     * object the sentence BEFORE acted on. Read here as words; bound by the
-     * lowering to the announced object that sentence recorded, and refused by
-     * a site whose earlier sentences acted on none.
+     * CR 202.3 + CR 608.2h — "its mana value" / "that card's mana value" /
+     * "that permanent's mana value": the object the sentence BEFORE acted on.
+     * Read here as words; bound by the lowering to the announced object that
+     * sentence recorded, and refused by a site whose earlier sentences acted
+     * on none.
+     *
+     * The head NOUN is kept rather than folded away because it constrains
+     * which antecedent the phrase may name: "that permanent" is printed only
+     * where the earlier sentence acted on a permanent (CR 110.4a), and reading
+     * it off a card in a graveyard or a hand would be an object the sentence
+     * never pointed at. The lowering does that check — only it can see the
+     * recorded requirement.
      */
-    | { readonly kind: "acted-on-mana-value" };
+    | {
+          readonly kind: "acted-on-mana-value";
+          readonly noun: ActedOnNounIR;
+      };
+
+/**
+ * CR 202.3 — the head noun of "<phrase> mana value": the pronoun, a card, or a
+ * permanent. Three printed words, three different antecedents, so the noun
+ * travels to the lowering instead of being swallowed by the pattern.
+ */
+export type ActedOnNounIR = "it" | "card" | "permanent";
+
+/** The three possessive phrases, printed exactly (CR 202.3 + CR 608.2h). */
+const ACTED_ON_NOUNS: ReadonlyMap<string, ActedOnNounIR> = new Map([
+    ["its", "it"],
+    ["that card's", "card"],
+    ["that permanent's", "permanent"],
+]);
+
+/** The alternation `ACTED_ON_NOUNS` keys, for the patterns that read it. */
+const ACTED_ON_NOUN_ALTERNATION = "(its|that card's|that permanent's)";
+
+/** `"its"` / `"that card's"` / `"that permanent's"` → the amount it names. */
+function readActedOnManaValue(possessive: string): AmountIR | null {
+    const noun = ACTED_ON_NOUNS.get(possessive);
+    return noun === undefined ? null : { kind: "acted-on-mana-value", noun };
+}
 
 /** A count word at an effect site: a cardinal, `X` (CR 107.3), or "that much". */
 export function readAmount(word: string): AmountIR | null {
@@ -1215,9 +1249,24 @@ const LIFE = /^(.+) (gain|gains|lose|loses) (\S+|that much) life$/;
  * grammar does not read.
  */
 const LIFE_FOR_EACH = /^(.+) (gain|gains|lose|loses) (\S+) life (for each .+)$/;
-/** CR 202.3 — "You lose life equal to its mana value" (or "that card's"). */
-const LIFE_EQUAL_MANA_VALUE =
-    /^(.+) (lose|loses) life equal to (?:its|that card's) mana value$/;
+/** CR 202.3 — "You lose life equal to its mana value" (or "that card's", or
+ *  "that permanent's" — Feed the Swarm). */
+const LIFE_EQUAL_MANA_VALUE = new RegExp(
+    `^(.+) (lose|loses) life equal to ${ACTED_ON_NOUN_ALTERNATION} mana value$`
+);
+/**
+ * CR 119.3 + CR 202.3 — "{self} deals damage equal to that permanent's mana
+ * value to target creature" (Orim's Thunder, issue #4221).
+ *
+ * The neighbouring `DAMAGE` template reads its magnitude as ONE token, so a
+ * multi-word amount needs its own pattern rather than a widened `(\S+)`: the
+ * amount phrase and the recipient are both open spans, and a single pattern
+ * loose enough to hold either would read "deals 3 damage to target creature"
+ * as an amount phrase.
+ */
+const DAMAGE_EQUAL_MANA_VALUE = new RegExp(
+    `^(.+) deals damage equal to ${ACTED_ON_NOUN_ALTERNATION} mana value to (.+)$`
+);
 /**
  * CR 608.2c — a drain: "Target player loses 2 life and you gain 2 life". The
  * loss reads through `LIFE` like any other, and the gain is pinned to exactly
@@ -1832,6 +1881,29 @@ function effectSentence(
             kind: "suppress-damage-prevention" as const,
         } satisfies EffectSentenceIR);
 
+    // ── damage equal to the acted-on object's mana value (CR 202.3) ────────
+    const damageMv = span.match(DAMAGE_EQUAL_MANA_VALUE);
+    if (damageMv !== null) {
+        const dealer = uncapitalise(damageMv[1]!);
+        const dealerIsPronoun = dealer === PRONOUN_MARKER;
+        if (!dealerIsPronoun && !isSelfPhrase(dealer))
+            return fail(
+                `"${damageMv[1]}" is not a damage source this grammar knows`,
+                span
+            );
+        const amount = readActedOnManaValue(damageMv[2]!);
+        if (amount === null)
+            return fail(`"${damageMv[2]}" names no acted-on object`, span);
+        const to = subjectRule.run(damageMv[3]!, ctx);
+        if (!to.ok) return to;
+        return ok({
+            kind: "deal-damage" as const,
+            amount,
+            to: to.value,
+            ...(dealerIsPronoun ? { sourceIsPronoun: true as const } : {}),
+        } satisfies EffectSentenceIR);
+    }
+
     // ── damage (CR 119.3) ──────────────────────────────────────────────────
     const damage = span.match(DAMAGE);
     if (damage !== null) {
@@ -2038,11 +2110,14 @@ function effectSentence(
         const player = playerSubject(lifeMv[1]!, ctx);
         if (player === null)
             return fail(`"${lifeMv[1]}" is not a player`, span);
+        const amount = readActedOnManaValue(lifeMv[3]!);
+        if (amount === null)
+            return fail(`"${lifeMv[3]}" names no acted-on object`, span);
         return ok({
             kind: "life" as const,
             action: "lose" as const,
             player,
-            amount: { kind: "acted-on-mana-value" as const },
+            amount,
         } satisfies EffectSentenceIR);
     }
 
