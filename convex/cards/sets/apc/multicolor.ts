@@ -69,8 +69,8 @@ export const vindicate: CardDefinition = {
 // template ("All lands you control become …") has no lowering at all, and the
 // reanimation line's "You lose life equal to its mana value." rider is the
 // bound-snapshot shape the grammar cannot yet express.
-// compiler-gap: "All lands you control become 1/1 creatures until end of turn. They're still lands." (#2693)
-// compiler-gap: "Return target creature card from your graveyard to the battlefield. You lose life equal to its mana value." (#2693)
+// hand-tail: "All lands you control become 1/1 creatures until end of turn. They're still lands." (#4195)
+// hand-tail: "Return target creature card from your graveyard to the battlefield. You lose life equal to its mana value." (#4195)
 export const lifeDeath: CardDefinition = defineSplitCard({
     id: "7ab75cdb-93a1-4f78-b404-37566295c321",
     rarity: "uncommon",

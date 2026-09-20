@@ -52,8 +52,8 @@ import { SPIRIT_SPIRITS_ONLY_COMBAT_TOKEN } from "../../sharedTokens";
 // included, so the ETB resolving makes two Spirits. Scry, surveil and other
 // reorders never trigger it (the official ruling).
 //
-// compiler-gap: "When Wan Shi Tong enters, target nonland permanent's owner puts it into their library second from the top or on the bottom." (#2693)
-// compiler-gap: "Whenever one or more cards are put into a library from anywhere, create two 1/1 colorless Spirit creature tokens" (#2693)
+// hand-tail: "When Wan Shi Tong enters, target nonland permanent's owner puts it into their library second from the top or on the bottom." (#4195)
+// hand-tail: "Whenever one or more cards are put into a library from anywhere, create two 1/1 colorless Spirit creature tokens" (#4195)
 export const wanShiTongAllKnowing: CardDefinition = {
     id: "777fcc21-2856-4181-8ecd-c272f9769e36",
     name: "Wan Shi Tong, All-Knowing",

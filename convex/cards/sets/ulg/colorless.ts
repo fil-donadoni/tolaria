@@ -19,7 +19,7 @@ import { makeTapForMana } from "../../abilities";
 //    "It's still a land" is exactly what `animate` already does by ADDING the
 //    Creature type rather than setting it.
 //
-// compiler-gap: {1}{U}: This land becomes a 2/1 blue Faerie creature with flying until end of turn. It's still a land. (#2693)
+// hand-tail: {1}{U}: This land becomes a 2/1 blue Faerie creature with flying until end of turn. It's still a land. (#4195)
 export const faerieConclave: CardDefinition = {
     id: "ae3ede87-b026-4781-81ab-8652664f8e41",
     name: "Faerie Conclave",
@@ -206,7 +206,7 @@ export const memoryJar: CardDefinition = {
 //    creature, and "It's still a land" is exactly what `animate` already does
 //    by ADDING the Creature type rather than setting it.
 //
-// compiler-gap: {1}{G}: This land becomes a 3/3 green Ape creature with trample until end of turn. It's still a land. (#2693)
+// hand-tail: {1}{G}: This land becomes a 3/3 green Ape creature with trample until end of turn. It's still a land. (#4195)
 export const treetopVillage: CardDefinition = {
     id: "02212bd8-0c0f-4e8e-99f1-a8477476c03a",
     name: "Treetop Village",

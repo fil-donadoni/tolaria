@@ -25,7 +25,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // filter is the bare subtype — "a Goblin CARD", any type, not just a
 // creature (Goblin Grenade and the Goblin lands are legal finds).
 //
-// compiler-gap: When this creature enters, you may search your library for a Goblin card, reveal that card, put it into your hand, then shuffle. (#2693)
+// hand-tail: When this creature enters, you may search your library for a Goblin card, reveal that card, put it into your hand, then shuffle. (#4195)
 export const goblinMatron: CardDefinition = {
     id: "f99dc21c-8600-49bf-b0a3-c981f7ec7ac3", // P02 100
     rarity: "uncommon",

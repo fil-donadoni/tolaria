@@ -38,7 +38,7 @@ import type { CardDefinition } from "../../types";
 // CR 613.6 keeps the layer-7 part of an ability whose EARLIER-layer part
 // already applied, which this engine cannot yet tell apart because one Oracle
 // line becomes several independent per-layer `StaticEffect` entries.
-// compiler-gap: All creatures lose all abilities and have base power and toughness 1/1. (#2693)
+// hand-tail: All creatures lose all abilities and have base power and toughness 1/1. (#4195)
 export const humility: CardDefinition = {
     id: "a2fb7128-806b-4148-80fe-eb967f248021",
     rarity: "rare",

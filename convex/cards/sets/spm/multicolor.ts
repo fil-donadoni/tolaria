@@ -58,8 +58,8 @@ import type { CardDefinition, PermanentView } from "../../types";
 // Guard C (issue #2701): the grammar consumes neither the ability-word
 // prefix (a line prefixed with any "<Word> —" fails even when the clause
 // after it parses) nor the battlefield-scanned enters-tapped static.
-// compiler-gap: "Venom Blast —" ability-word prefix (#2693)
-// compiler-gap: "Artifacts and creatures your opponents control enter tapped." (#2693)
+// hand-tail: "Venom Blast —" ability-word prefix (#4195)
+// hand-tail: "Artifacts and creatures your opponents control enter tapped." (#4195)
 export const spiderWomanStunningSavior: CardDefinition = {
     id: "bc9b2a76-3cce-4fd0-a4ef-932747cb11b2",
     name: "Spider-Woman, Stunning Savior",

@@ -76,8 +76,8 @@ export const shiftingWoodland: CardDefinition = {
 // an until-end-of-turn layer-6 haste grant (CR 611.2c) — the piece with no
 // precedent, since `dynamicCantBeCountered` dies with its stack item.
 //
-// compiler-gap: "This land enters tapped unless you control a Mountain." (#3214)
-// compiler-gap: "{R}, {T}, Exert this land: Add {R}{R}. If that mana is spent on a creature spell, it gains haste until end of turn." (#3214)
+// hand-tail: "This land enters tapped unless you control a Mountain." (#4195)
+// hand-tail: "{R}, {T}, Exert this land: Add {R}{R}. If that mana is spent on a creature spell, it gains haste until end of turn." (#4195)
 export const arenaOfGlory: CardDefinition = {
     id: "dd148edc-9e43-41aa-bb50-f912115d3e72",
     rarity: "rare",

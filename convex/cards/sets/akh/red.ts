@@ -24,7 +24,7 @@ import type { CardDefinition } from "../../types";
 // own id, which is exactly that scope — no other permanent's exert, and no
 // exert paid as an activation cost elsewhere on the board, can fire it.
 //
-// compiler-gap: "You may exert this creature as it attacks. When you do, it deals 4 damage to target non-Dragon creature an opponent controls." (#3214)
+// hand-tail: "You may exert this creature as it attacks. When you do, it deals 4 damage to target non-Dragon creature an opponent controls." (#4195)
 export const glorybringer: CardDefinition = {
     id: "3277ad99-5682-4baa-b106-de15721876a6",
     name: "Glorybringer",
