@@ -92,6 +92,47 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         });
     });
 
+    it("played — a sweep of every battlefield is posed with the opponent ahead", () => {
+        // Issue #4157. A symmetric wipe on a symmetric board is CORRECT to
+        // pass on (it costs the card and destroys as much of the holder's as
+        // of the opponent's), so the generated position gives the opponent a
+        // surplus of whatever the card can sweep. One sweep per swept type:
+        // creatures, enchantments, and lands (no filler land on the
+        // opponent's side otherwise — Armageddon read as a pure loss).
+        for (const name of [
+            "Day of Judgment",
+            "Tranquility",
+            "Armageddon",
+        ] as const) {
+            expect(playTwice(getCardByName(name)), name).toEqual({
+                outcome: "played",
+            });
+        }
+    });
+
+    it("a sweep's position puts the opponent ahead; any other card's stays symmetric", () => {
+        // Non-land permanents: the holder's lands are its own cost, not part
+        // of what the position poses to the card.
+        const nonLand = (name: string, seat: 0 | 1) => {
+            const { state, holderId } = buildBotReachState(
+                getCardByName(name),
+                seat
+            );
+            const count = (own: boolean) =>
+                state.players
+                    .find((p) => (p.id === holderId) === own)!
+                    .battlefield.filter((c) => !c.types.includes("Land"))
+                    .length;
+            return { mine: count(true), theirs: count(false) };
+        };
+        for (const seat of [0, 1] as const) {
+            const sweep = nonLand("Day of Judgment", seat);
+            expect(sweep.theirs).toBeGreaterThan(sweep.mine);
+            const plain = nonLand("Grizzly Bears", seat);
+            expect(plain.theirs).toBe(plain.mine);
+        }
+    });
+
     it("frozen — the engine offers the action and no Move uses the card", () => {
         // The discriminator, on two REAL positions. No shipped card exhibits
         // the frozen arm today (`legalActions` and the enumerator agree on
