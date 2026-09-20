@@ -108,6 +108,140 @@ describe("Tap-other cost — golden fixtures (CR 118.3, 701.26a)", () => {
     });
 });
 
+/** The other forms this rule reads — same cost atom, different noun phrase or
+ *  slot — each a real corpus row, asserted on the ability's cost and stack use
+ *  (the whole-definition goldens above pin the surrounding lowering). */
+const NOUN_PHRASE_FORMS: readonly {
+    name: string;
+    manaCost: string;
+    typeLine: string;
+    power?: string;
+    oracleText: string;
+    ability: number;
+    cost: object;
+    useStack: boolean;
+}[] = [
+    {
+        name: "Ghirapur Aether Grid",
+        manaCost: "{2}{R}",
+        typeLine: "Enchantment",
+        oracleText:
+            "Tap two untapped artifacts you control: This enchantment deals 1 damage to any target.",
+        ability: 0,
+        cost: {
+            tapOtherFilter: {
+                filter: { types: ["Artifact"], controllerRelation: "you" },
+                count: 2,
+            },
+        },
+        useStack: true,
+    },
+    {
+        name: "Dune Diviner",
+        manaCost: "{2}{G}",
+        typeLine: "Creature — Snake Cleric",
+        power: "2",
+        oracleText: "{1}, Tap an untapped Desert you control: You gain 1 life.",
+        ability: 0,
+        cost: {
+            mana: { X: 1 },
+            tapOtherFilter: {
+                filter: { subtypes: ["Desert"], controllerRelation: "you" },
+                count: 1,
+            },
+        },
+        useStack: true,
+    },
+    {
+        name: "Springleaf Drum",
+        manaCost: "{1}",
+        typeLine: "Artifact",
+        oracleText:
+            "{T}, Tap an untapped creature you control: Add one mana of any color.",
+        ability: 0,
+        cost: {
+            tap: true,
+            tapOtherFilter: {
+                filter: { types: ["Creature"], controllerRelation: "you" },
+                count: 1,
+            },
+        },
+        // CR 605.1a — a mana ability does not use the stack.
+        useStack: false,
+    },
+    {
+        name: "Relic of Legends",
+        manaCost: "{3}",
+        typeLine: "Artifact",
+        oracleText:
+            "{T}: Add one mana of any color.\nTap an untapped legendary creature you control: Add one mana of any color.",
+        ability: 1,
+        cost: {
+            tapOtherFilter: {
+                filter: {
+                    types: ["Creature"],
+                    supertypes: ["Legendary"],
+                    controllerRelation: "you",
+                },
+                count: 1,
+            },
+        },
+        useStack: false,
+    },
+    {
+        name: "Gene Pollinator",
+        manaCost: "{G}",
+        typeLine: "Artifact Creature — Robot Insect",
+        power: "1",
+        oracleText:
+            "{T}, Tap an untapped permanent you control: Add one mana of any color.",
+        ability: 0,
+        cost: {
+            tap: true,
+            tapOtherFilter: {
+                // "permanent" is every permanent type (CR 110.4).
+                filter: {
+                    types: [
+                        "Artifact",
+                        "Battle",
+                        "Creature",
+                        "Enchantment",
+                        "Land",
+                        "Planeswalker",
+                    ],
+                    controllerRelation: "you",
+                },
+                count: 1,
+            },
+        },
+        useStack: false,
+    },
+];
+
+describe("Tap-other cost — the other noun phrases and the mana slot", () => {
+    it.each(NOUN_PHRASE_FORMS)(
+        "$name reads its cost into cost.tapOtherFilter",
+        (form) => {
+            const outcome = compileCard(
+                oracleCard({
+                    name: form.name,
+                    manaCost: form.manaCost,
+                    typeLine: form.typeLine,
+                    oracleText: form.oracleText,
+                    power: form.power,
+                    toughness: form.power === undefined ? undefined : "2",
+                })
+            );
+            expect(outcome.state).toBe("ready");
+            if (outcome.state !== "ready") return;
+            const ability =
+                outcome.definition.activatedAbilities?.[form.ability];
+            expect(ability?.cost).toEqual(form.cost);
+            expect(ability?.useStack).toBe(form.useStack);
+        }
+    );
+});
+
 describe("Tap-other cost — refused neighbours (fail-closed)", () => {
     it("a creature source without {T} could tap itself: refused (Root-Kin Ally)", () => {
         const outcome = compileCard(
