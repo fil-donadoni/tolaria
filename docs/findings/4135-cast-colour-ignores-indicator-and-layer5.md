@@ -5,7 +5,7 @@ status: draft
 confidence: medium
 ---
 
-**What is wrong.** `emitSpellCastEvent` sets `spellColors` from `getColorsFromCost(def.manaCost)` (`convex/gre/state.ts:12174`). A spell whose colour comes from a colour indicator (CR 202.2b, e.g. a suspended Ancestral Vision cast from exile) or from a layer-5 effect reads as colourless, so "whenever a player casts a blue spell" misses it and "a nonblue spell" fires on it.
+**What is wrong.** `emitSpellCastEvent` sets `spellColors` from `getColorsFromCost(def.manaCost)` (`convex/gre/state.ts:12174`). A spell whose colour comes from a colour indicator (CR 105.2, e.g. a suspended Ancestral Vision cast from exile) or from a layer-5 effect reads as colourless, so "whenever a player casts a blue spell" misses it and "a nonblue spell" fires on it.
 
 **Evidence.** Surfaced by the review of PR #4194, which makes 30 more phrases reach this filter through the compiler. The same hole already sits under Ugin's `excludeColors` (`convex/cards/sets/tdm/colorless.ts:128`).
 
