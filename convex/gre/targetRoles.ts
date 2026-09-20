@@ -53,7 +53,9 @@ interface SlotReference {
     readonly phrase: string | undefined;
 }
 
-/** CR 400.7 — how a `moveZone` destination reads to the player being asked. A
+/** CR 400.1 — how each zone a `moveZone` can name reads to the player being
+ *  asked (the seven zones of that rule, less the ones no announced target is
+ *  ever sent to). A
  *  destination absent from this table is unlabelled, so the whole derivation
  *  fails closed rather than printing a zone name raw. */
 const MOVE_ZONE_PHRASE: Record<string, string> = {
