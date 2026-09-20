@@ -236,6 +236,15 @@ export function lowerTriggeredAbility(input: {
             ok: false,
             reason: "an ability cannot swap in a kicked target announcement (CR 702.33g)",
         };
+    // CR 702.33g (issue #4220) — the OTHER encoding, refused here for the same
+    // reason: only a SPELL's announcement filters its group list by the kicker
+    // payment (`castAnnouncedTargetGroups`), so a gated group declared at this
+    // site would be announced on every activation.
+    if (walk.targets.hasKickerGatedGroup())
+        return {
+            ok: false,
+            reason: "an ability cannot announce a target only if kicked (CR 702.33g)",
+        };
     // CR 603.3d — a triggered ability's targets are announced as it goes on
     // the stack. `declareTargets` writes at most one and REFUSES more, which
     // is the same ceiling and the same refusal the activated site pays.

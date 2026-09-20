@@ -290,7 +290,7 @@ export type TargetKind = "permanent" | "spell" | "player" | "card";
 
 /** The `TargetRequirement` fields that are NOT a per-candidate filter — they
  *  do not get a `REGISTRY` entry, and are excluded from `FilterKey` below by
- *  `Omit`. Every one of the six is here because it fails the same test: it
+ *  `Omit`. Every one of them is here because it fails the same test: it
  *  is never passed to a `FilterDescriptor.checks` predicate against a
  *  candidate. Audited field-by-field against the CURRENT `TargetRequirement`
  *  (`cards/types.ts`) as part of this slice — this list intentionally
@@ -330,6 +330,11 @@ type StructuralKey =
     // (the real, registered filter) — never itself checked against a
     // candidate.
     | "excludePriorTargets"
+    // CR 702.33g / 601.2c (issue #4220) — a declaration read at ANNOUNCEMENT,
+    // deciding whether this group is announced AT ALL on this cast
+    // (`castAnnouncedTargetGroups`, `gre/kicker.ts`). A group it drops is
+    // never opened, so no candidate is ever tested against it.
+    | "announcedOnlyIfKicked"
     // A directive read by `raiseTriggerTargetSelection` that tells it to
     // dynamically POPULATE `spellTargetsInstanceIds` (the real, registered
     // filter) from the trigger source — never itself checked against a

@@ -982,6 +982,44 @@ export interface TargetRequirement {
      *  itself (`enumerateTargetGroupTuples`, `gre/moves.ts`). Meaningless on a
      *  primary requirement (no earlier group). */
     excludePriorTargets?: boolean;
+    /** CR 702.33g / 601.2c — this GROUP is announced only if the spell was
+     *  KICKED. "If part of a spell's ability has its effect only if that
+     *  spell was kicked, and that part of the ability includes any targets,
+     *  the spell's controller chooses those targets only if that spell was
+     *  kicked. Otherwise, the spell is cast as if it did not have those
+     *  targets" (CR 702.33g), which CR 601.2c states generally: "A spell may
+     *  require some targets only if an alternative or additional cost (such
+     *  as a kicker cost) ... was chosen for it".
+     *
+     *  The OTHER encoding of that rule is `kickedTargetRequirement` — the
+     *  base requirement with a WIDER count swapped in at announcement — and
+     *  it can only say "another of the SAME" (Magma Burst, Jilt: the widened
+     *  count IS the second announcement, and CR 601.2c's ban on naming one
+     *  object twice for a single instance of "target" supplies the
+     *  "another"). This flag is the shape for a kicked half announcing
+     *  something ELSE: Orim's Thunder's "Destroy target artifact or
+     *  enchantment. If this spell was kicked, it deals damage ... to target
+     *  creature" has no count to widen — widening would offer two artifacts,
+     *  a different spell. The two encodings coexist; neither replaces the
+     *  other.
+     *
+     *  Declared ONLY on an `additionalTargetRequirements` entry, never on a
+     *  `targetRequirement` (`kickerGatedGroups.catalogue.test.ts`). The
+     *  primary field is the group every cast announces; a card whose ONLY
+     *  target sits inside the gate (Probe: "Draw three cards, then discard
+     *  two cards. If this spell was kicked, target player discards two
+     *  cards") declares NO `targetRequirement` and one gated additional
+     *  group — the announcement builds its group list before choosing which
+     *  group opens the selection (`castAnnouncedTargetGroups`, `gre/kicker.ts`).
+     *
+     *  Read at ANNOUNCEMENT, off the kicker payments CR 601.2b already fixed
+     *  by then — the same moment `kickedTargetRequirement` is swapped in. A
+     *  group it drops is never queued, so the caster is not asked for it on an
+     *  unkicked cast (CR 702.33g's "as if it did not have those targets") and
+     *  the Effect Script's positional slots are the kicked-cast ones only
+     *  when the kicked branch runs. Meaningless on a card with no `kickers`
+     *  (same guard). */
+    announcedOnlyIfKicked?: boolean;
     /** CROSS-SLOT same-controller constraint spanning the announced target
      *  slots of THIS requirement (CR 601.2c, issue #1104 — Barrin's Spite:
      *  "Choose two target creatures controlled by the same player"). Every

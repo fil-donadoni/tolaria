@@ -443,7 +443,18 @@ export class TargetSlots {
                 );
             this.groups.push(requirement);
         } else {
-            if (!another)
+            // CR 702.33g (issue #4220) — inside a kicker gate the sentence is
+            // a part of the ability that "has its effect only if that spell
+            // was kicked", so its target is a NEW instance of the word
+            // "target" whether or not the card printed "another": CR 115.3
+            // lets it name an object an earlier group already named, and the
+            // announcement expresses it as its own group rather than as a
+            // widened count (`announcedOnlyIfKicked`). Outside a gate that
+            // shape is still refused — a second plain "target" over a
+            // different descriptor is a second announcement no accepted form
+            // evidences yet (issue #3875 owns it).
+            const kickerGated = !another && this.kickerGateDepth > 0;
+            if (!another && !kickerGated)
                 return unlowerable(
                     'a second target group that is not "another target" is not in grammar v0 (CR 115.3)'
                 );
@@ -451,7 +462,7 @@ export class TargetSlots {
                 return unlowerable(
                     "a target group after a variable-width announcement has no fixed positional slot (CR 601.2c)"
                 );
-            if (!excludableByPriorPicks(requirement))
+            if (!kickerGated && !excludableByPriorPicks(requirement))
                 return unlowerable(
                     '"another target" is honoured only against battlefield permanents (CR 115.3)'
                 );
@@ -461,7 +472,11 @@ export class TargetSlots {
             // merged into `excludeInstanceIds`, which is the filter
             // `getLegalTargets`, `selectTarget` and the client's highlight
             // already read.
-            this.groups.push({ ...requirement, excludePriorTargets: true });
+            this.groups.push(
+                kickerGated
+                    ? requirement
+                    : { ...requirement, excludePriorTargets: true }
+            );
         }
         this.firsts.push(this.width);
         this.width += slots;
@@ -488,65 +503,108 @@ export class TargetSlots {
     }
 
     private kicked?: TargetRequirement;
+    private kickerGateDepth = 0;
+    private kickerGatedGroups = 0;
+
+    /** CR 702.33g — a sentence whose effect happens "only if that spell was
+     *  kicked" is being walked. A target allocated while this is open is
+     *  chosen only on a kicked cast, which is what {@link allocate} needs to
+     *  know to admit a second plain instance of the word "target". */
+    openKickerGate(): void {
+        this.kickerGateDepth += 1;
+    }
+
+    closeKickerGate(): void {
+        this.kickerGateDepth -= 1;
+    }
 
     /**
-     * CR 702.33g — fold a group announced INSIDE a kicker gate into the
-     * announcement the spell makes only when it was kicked.
+     * CR 702.33g — settle the group(s) a kicker gate announced, into one of
+     * the TWO encodings the engine has for "the spell's controller chooses
+     * those targets only if that spell was kicked".
      *
-     * The gate's target is chosen "only if that spell was kicked", which a
-     * card-level `targetRequirement` cannot say — so the engine says it with a
-     * second requirement the announcement SWAPS IN
-     * (`CardDefinition.kickedTargetRequirement`), and the catalogue writes the
-     * swap as the base requirement with a wider COUNT (Magma Burst, Falling
-     * Timber: "any target" 1 → 2). That encoding carries the exclusion for
-     * free: CR 601.2c forbids naming one object twice for a single instance of
-     * the word "target", so a count of 2 is already "another".
+     * 1. **The count-widening swap** (`CardDefinition.kickedTargetRequirement`)
+     *    — the base requirement with a WIDER count, swapped in at
+     *    announcement. The catalogue writes Magma Burst and Falling Timber
+     *    ("any target" 1 → 2) this way, and the encoding carries the exclusion
+     *    for free: CR 601.2c forbids naming one object twice for a single
+     *    instance of the word "target", so a count of 2 is already "another".
+     *    Admitted ONLY for a gate that printed "another" over the SAME
+     *    descriptor the base announced — a wider count is the only thing it
+     *    can say. PREFERRED when it applies, so every card already on it keeps
+     *    its behaviour and its prompt (issue #4220).
+     * 2. **The gated GROUP** (`TargetRequirement.announcedOnlyIfKicked`, issue
+     *    #4220) — an independent group with its own descriptor and its own
+     *    count, announced only on a kicked cast. This is the shape for a gate
+     *    naming a DIFFERENT set ("Destroy target artifact or enchantment. If
+     *    this spell was kicked, it deals damage ... to target creature"),
+     *    which has no count to widen: widening would offer two artifacts, a
+     *    different spell.
      *
-     * Which is exactly why the fold is admitted ONLY for a gate that printed
-     * the word "another" over the SAME descriptor the base announced. A gate
-     * naming a different set ("destroy target land … destroy another target
-     * creature") has no count to widen, and one that omits "another" means the
-     * two picks MAY coincide — neither is this encoding, and both stay refused
-     * rather than being rounded to it.
+     * Either way the announcement is OPEN-ENDED afterwards — its width now
+     * depends on the kicker decision, so a later group's positional slot could
+     * not be written down (`allocate` refuses one).
      */
-    foldKickedWidening(before: number): Lowered<TargetRequirement> {
-        if (this.kicked !== undefined)
+    foldKickerGatedTargets(before: number): Lowered<true> {
+        if (this.kicked !== undefined || this.kickerGatedGroups > 0)
             return unlowerable(
                 "two kicker gates each announce a target (CR 702.33g)"
             );
+        if (this.groups.length !== before + 1)
+            return unlowerable(
+                "one kicker gate announces more than one target group (CR 702.33g)"
+            );
         const base = this.groups[before - 1];
-        const gated = this.groups[before];
-        if (before !== 1 || base === undefined || this.groups.length !== 2)
+        const gated = this.groups[before]!;
+        const gatedSlots = announcedSlots(gated.count);
+        if (gatedSlots === null)
             return unlowerable(
-                "a target announced only if the spell was kicked has no encoding (CR 702.33g)"
+                "a variable target count has no positional slot (CR 601.2c)"
             );
-        const baseSlots = announcedSlots(base.count);
-        const gatedSlots = announcedSlots(gated!.count);
+        const baseSlots =
+            base === undefined ? null : announcedSlots(base.count);
         if (
-            baseSlots === null ||
-            gatedSlots === null ||
-            JSON.stringify({ ...base, excludePriorTargets: true }) !==
+            before === 1 &&
+            base !== undefined &&
+            baseSlots !== null &&
+            JSON.stringify({ ...base, excludePriorTargets: true }) ===
                 JSON.stringify(gated)
-        )
-            return unlowerable(
-                "a kicked target that is not another of the same (CR 702.33g)"
-            );
-        this.kicked = { ...base, count: baseSlots + gatedSlots };
-        // The group is dropped but its slots are NOT reclaimed: the gated op
-        // already points at index `baseSlots`, which only the kicked
-        // announcement fills, and a later group reusing that index would
-        // collide with it. The announcement is therefore OPEN-ENDED from here
-        // on — its width is 1 unkicked and 2 kicked — so nothing may be
-        // allocated after it (`allocate`).
-        this.groups.pop();
-        this.firsts.pop();
+        ) {
+            // Encoding 1. The group is dropped but its slots are NOT
+            // reclaimed: the gated op already points at index `baseSlots`,
+            // which only the kicked announcement fills, and a later group
+            // reusing that index would collide with it.
+            this.kicked = { ...base, count: baseSlots + gatedSlots };
+            this.groups.pop();
+            this.firsts.pop();
+            this.openEnded = true;
+            return lowered(true);
+        }
+        // Encoding 2. The group stays where it was allocated, carrying the
+        // gate as a declaration the announcement reads (CR 601.2c — "A spell
+        // may require some targets only if an alternative or additional cost
+        // (such as a kicker cost) ... was chosen for it"). Its slots keep the
+        // indices `allocate` handed the gated ops, because on a kicked cast
+        // every earlier group is announced in full before it.
+        this.groups[before] = { ...gated, announcedOnlyIfKicked: true };
+        this.kickerGatedGroups += 1;
         this.openEnded = true;
-        return lowered(this.kicked);
+        return lowered(true);
     }
 
     /** CR 702.33g — the swapped-in announcement, if a gate folded one. */
     kickedRequirement(): TargetRequirement | undefined {
         return this.kicked;
+    }
+
+    /** CR 702.33g (issue #4220) — did a gate declare a group announced only on
+     *  a kicked cast? The SECOND of the two encodings, and like the first it
+     *  is a SPELL's announcement: only `announceCast` filters its group list
+     *  by the kicker payment, so a site whose targets are chosen anywhere else
+     *  (an activated ability, a triggered ability, a mode) must refuse it
+     *  rather than emit a group nothing would ever drop. */
+    hasKickerGatedGroup(): boolean {
+        return this.kickerGatedGroups > 0;
     }
 }
 
@@ -1519,15 +1577,21 @@ function lowerSentenceBody(
         case "kicked": {
             // CR 702.33g — a target inside the gate is chosen only if the
             // spell was kicked; a card-level `targetRequirement` would demand
-            // it on every cast, so the announcement SWAPS one in instead
-            // (`foldKickedWidening`, which refuses every shape but the one
-            // that swap can express). Measured on the walk, so a target
-            // allocated by the inner sentence is seen however it was reached.
+            // it on every cast, so the announcement either SWAPS a wider one
+            // in (`kickedTargetRequirement`) or declares the gate on the group
+            // itself (`announcedOnlyIfKicked`). `foldKickerGatedTargets` picks
+            // between them. The gate is OPEN across the inner walk so
+            // `allocate` knows a second plain "target" here is a second
+            // instance of the word, not the shape it refuses; measured on the
+            // walk, so a target allocated by the inner sentence is seen
+            // however it was reached.
             const before = walk.targets.requirements().length;
+            walk.targets.openKickerGate();
             const inner = gatedSentence(sentence.effect, walk, site);
+            walk.targets.closeKickerGate();
             if (!inner.ok) return inner;
             if (walk.targets.requirements().length !== before) {
-                const folded = walk.targets.foldKickedWidening(before);
+                const folded = walk.targets.foldKickerGatedTargets(before);
                 if (!folded.ok) return folded;
             }
             const left = kickedValue(sentence.kicked, site.kickers ?? []);
@@ -1937,6 +2001,18 @@ export function declareTargets(
     if (requirements.length > 1 && !groups)
         return `${requirements.length} target groups were announced but this site declares at most one (CR 601.2c)`;
     if (requirements.length === 0) return null;
+    // CR 702.33g / 601.2c (issue #4220) — `targetRequirement` is the group
+    // EVERY cast announces, so a kicker-gated group may never sit there: a
+    // card whose only target is inside the gate (Probe) declares none and puts
+    // its one group on `additionalTargetRequirements`, which is the list the
+    // announcement filters before choosing which group opens the selection
+    // (`castAnnouncedTargetGroups`, `gre/kicker.ts`). The catalogue guard
+    // (`kickerGatedGroups.catalogue.test.ts`) asserts the same invariant over
+    // hand-written cards.
+    if (requirements[0]!.announcedOnlyIfKicked) {
+        ability.additionalTargetRequirements = [...requirements];
+        return null;
+    }
     ability.targetRequirement = requirements[0];
     if (requirements.length > 1)
         ability.additionalTargetRequirements = requirements.slice(1);

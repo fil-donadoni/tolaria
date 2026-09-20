@@ -315,6 +315,7 @@ import {
     buildCastHandCostChoice,
     buildCastPermanentCostChoice,
     canPayKickerLegs,
+    castAnnouncedTargetGroups,
     foldKickerCosts,
     kickedCountOfPayments,
     kickerLifeCost,
@@ -5330,7 +5331,8 @@ function applyRequirementToPendingTarget(
  *  decide until its picks are in. An additional group therefore carries no
  *  roles, and `applyRequirementToPendingTarget` clears the field when the walk
  *  reaches one. That is exactly the scope the bug has: the count-widening
- *  kicked announcement (CR 702.33g, `foldKickedWidening`) is always a card's
+ *  kicked announcement (CR 702.33g, the count-widening half of
+ *  `foldKickerGatedTargets`) is always a card's
  *  sole group.
  *
  *  `subjectDef` is the cast SUBJECT (CR 715.3a/b, ADR 0120 §4), the same
@@ -7710,27 +7712,63 @@ export const announceCast = mutation({
         // requirement for non-modal spells — a kicked spell with a
         // `kickedTargetRequirement` (Bloodchief's Thirst, Tear Asunder) targets
         // its wider/different set (CR 702.33).
-        // CR 702.96b — an overloaded cast requires no targets AT ALL, so it
-        // outranks even a chosen mode's requirement: "target" was replaced
-        // throughout the spell's text (CR 702.96a), including inside a mode.
-        const activeTargetRequirement = isOverloadCost
-            ? undefined
+        // CR 601.2c / 702.33g (issue #4220) — the announcement is a LIST of
+        // groups, and which groups it has is decided HERE, before any of them
+        // is opened: "A spell may require some targets only if an alternative
+        // or additional cost (such as a kicker cost) ... was chosen for it;
+        // otherwise, the spell is cast as though it did not require those
+        // targets" (CR 601.2c). A group carrying `announcedOnlyIfKicked` is
+        // dropped on an unkicked cast by the shared authority
+        // (`castAnnouncedTargetGroups`, `gre/kicker.ts`) — the SAME one the
+        // Bot's enumerator reads, so the move it announces is one this
+        // mutation accepts.
+        //
+        // Building the list BEFORE picking the group that opens the selection
+        // is what lets the gate own the FIRST group too (Probe: "Draw three
+        // cards, then discard two cards. If this spell was kicked, target
+        // player discards two cards" — no printed `targetRequirement` at all,
+        // one gated additional group). The primary field is never gated
+        // (`kickerGatedGroups.catalogue.test.ts`); the gate lives on the
+        // additional entries, so an unkicked cast of such a card announces
+        // nothing and falls through to the no-target path below.
+        const announcedGroups: TargetRequirement[] = isOverloadCost
+            ? // CR 702.96b — an overloaded cast requires no targets AT ALL, so
+              // it outranks even a chosen mode's requirement: "target" was
+              // replaced throughout the spell's text (CR 702.96a), including
+              // inside a mode.
+              []
             : multiModeGroups
-              ? multiModeGroups[0]?.requirement
-              : (chosenMode?.targetRequirement ??
-                // CR 715.3a / 715.3b — the SUBJECT, not the printed card: an
-                // Adventure spell "has only its alternative characteristics",
-                // and its target requirement is one of them. Identity for every
-                // non-adventurer card, and the twin declares no kicker, bestow,
-                // morph or overload, so every branch inside falls through to its
-                // own `targetRequirement` (ADR 0120 §4).
-                castAdjustedTargetRequirement(
-                    castSubjectDef,
-                    kickerPayments,
-                    isBestowCost,
-                    isMorphCost,
-                    isOverloadCost
-                ));
+              ? multiModeGroups.map((g) => g.requirement)
+              : castAnnouncedTargetGroups(
+                    [
+                        chosenMode?.targetRequirement ??
+                            // CR 715.3a / 715.3b — the SUBJECT, not the printed
+                            // card: an Adventure spell "has only its
+                            // alternative characteristics", and its target
+                            // requirement is one of them. Identity for every
+                            // non-adventurer card, and the twin declares no
+                            // kicker, bestow, morph or overload, so every
+                            // branch inside falls through to its own
+                            // `targetRequirement` (ADR 0120 §4).
+                            castAdjustedTargetRequirement(
+                                castSubjectDef,
+                                kickerPayments,
+                                isBestowCost,
+                                isMorphCost,
+                                isOverloadCost
+                            ),
+                        ...(chosenMode?.additionalTargetRequirements ??
+                            cardDef.additionalTargetRequirements ??
+                            []),
+                    ],
+                    // ADR 0085 — "kicked" is CR 702.33d, over KICKER costs
+                    // alone: an Offspring payment leaves the announcement
+                    // alone. Same split function `castAdjustedTargetRequirement`
+                    // asks, for the same reason — this runs BEFORE the payment
+                    // record is partitioned onto the stack item.
+                    kickedCountOfPayments(castSubjectDef, kickerPayments) > 0
+                );
+        const activeTargetRequirement = announcedGroups[0];
 
         // Check if the card requires targets (CR 601.2c). When `count: "X"`
         // resolves to 0 (X chosen as 0), the spell takes no targets — fall
@@ -7813,11 +7851,10 @@ export const announceCast = mutation({
             // prefers `chosenMode.targetRequirement` — a modal card keeps its
             // card-level requirements undefined by convention, so the `??`
             // chain reduces to the card-level list for every non-modal spell.
-            const additionalRequirements = multiModeGroups
-                ? multiModeGroups.slice(1).map((g) => g.requirement)
-                : (chosenMode?.additionalTargetRequirements ??
-                  cardDef.additionalTargetRequirements ??
-                  []);
+            // Issue #4220 — the tail of the ONE list built above, so a
+            // kicker-gated group (CR 702.33g) is dropped from the queue by the
+            // same decision that dropped it from the primary slot.
+            const additionalRequirements = announcedGroups.slice(1);
             for (const [g, extra] of additionalRequirements.entries()) {
                 const extraLegal = getLegalTargets(
                     state,

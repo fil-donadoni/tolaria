@@ -682,13 +682,36 @@ describe("Kicker refusals — lowering invariants", () => {
         return r.reason;
     }
 
-    it("refuses a gated target (CR 702.33g)", () => {
+    it("a gated target becomes a gated GROUP (CR 702.33g, issue #4220)", () => {
+        // CR 601.2c — "A spell may require some targets only if an
+        // alternative or additional cost (such as a kicker cost) ... was
+        // chosen for it; otherwise, the spell is cast as though it did not
+        // require those targets." The base half announces nothing, so the
+        // gated group is the card's ONLY group and there is no primary
+        // requirement to put it in.
+        const r = lowerOn("Instant", [
+            "Kicker {1}{R}",
+            "You gain 1 life. If this spell was kicked, destroy target land.",
+        ]);
+        expect(r.ok).toBe(true);
+        if (!r.ok) return;
+        expect(r.definition.targetRequirement).toBeUndefined();
+        expect(r.definition.additionalTargetRequirements).toEqual([
+            { type: "Land", count: 1, announcedOnlyIfKicked: true },
+        ]);
+    });
+
+    it("refuses a SECOND kicker gate announcing a target (CR 601.2c)", () => {
+        // Issue #4220 — the first gate makes the announcement's width depend
+        // on the kicker decision (1 unkicked, 2 kicked), so the second gate's
+        // group has no positional slot that can be written down: unkicked it
+        // would sit at the index the first gate's op already claims.
         expect(
             refusal("Instant", [
                 "Kicker {1}{R}",
-                "You gain 1 life. If this spell was kicked, destroy target land.",
+                "If this spell was kicked, destroy target land. If this spell was kicked, destroy target creature.",
             ])
-        ).toMatch(/702\.33g/);
+        ).toMatch(/after a variable-width announcement/);
     });
 
     it("refuses a kicked gate on a card with no kicker (CR 702.33e)", () => {

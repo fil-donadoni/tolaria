@@ -113,6 +113,15 @@ export function lowerActivatedAbility(input: {
             ok: false,
             reason: "an ability cannot swap in a kicked target announcement (CR 702.33g)",
         };
+    // CR 702.33g (issue #4220) — the OTHER encoding, refused here for the same
+    // reason: only a SPELL's announcement filters its group list by the kicker
+    // payment (`castAnnouncedTargetGroups`), so a gated group declared at this
+    // site would be announced on every activation.
+    if (walk.targets.hasKickerGatedGroup())
+        return {
+            ok: false,
+            reason: "an ability cannot announce a target only if kicked (CR 702.33g)",
+        };
     // CR 601.2c — `ActivatedAbility` carries its own
     // `additionalTargetRequirements` (Oko's -5), so a second instance of the
     // word "target" has a field here exactly as it does on a spell.

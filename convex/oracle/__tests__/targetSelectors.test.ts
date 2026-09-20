@@ -285,38 +285,88 @@ describe("kicked swap — 'If this spell was kicked, … another target' (CR 702
         ).toMatch(/after a variable-width announcement/);
     });
 
-    it("refuses a gate naming a different set — there is no count to widen", () => {
+    it("a gate naming a DIFFERENT set becomes its own gated group (CR 702.33g)", () => {
+        // Issue #4220 — there is no count to widen here: widening to 2 would
+        // offer two lands, which is a different spell. The gate gets its own
+        // group instead, with its own descriptor and its own count, announced
+        // only on a kicked cast.
         const card = landslide();
-        expect(
-            refusalReason(
-                oracleCard({
-                    ...card,
-                    oracleText: card.oracleText.replace(
-                        "destroy another target land.",
-                        "destroy another target creature."
-                    ),
-                })
-            )
-        ).toMatch(/not another of the same/);
+        const def = compiled(
+            oracleCard({
+                ...card,
+                oracleText: card.oracleText.replace(
+                    "destroy another target land.",
+                    "destroy another target creature."
+                ),
+            })
+        );
+        expect(def.targetRequirement).toEqual({ type: "Land", count: 1 });
+        expect(def.additionalTargetRequirements).toEqual([
+            {
+                type: "Creature",
+                count: 1,
+                excludePriorTargets: true,
+                announcedOnlyIfKicked: true,
+            },
+        ]);
+        // The swap encoding is NOT also emitted — the two are alternatives.
+        expect(def.kickedTargetRequirement).toBeUndefined();
+        expect(def.effects).toEqual([
+            { op: "destroy", target: { target: 0 } },
+            {
+                op: "if",
+                predicate: { left: { kickerCount: true }, op: "ge", right: 1 },
+                then: [{ op: "destroy", target: { target: 1 } }],
+            },
+        ]);
     });
 
-    it("refuses a gate that omitted 'another' — the picks may coincide", () => {
-        // CR 601.2c — a count of 2 on ONE requirement forbids naming the same
-        // land twice, which is what "another" says. Without the word the two
-        // instances of "target" may name one object, and the widened count
-        // would silently forbid it.
+    it("a gate that omitted 'another' is still a gated group (CR 115.3)", () => {
+        // CR 115.3 — two instances of the word "target" may name ONE object,
+        // which is exactly what the widened count cannot say (CR 601.2c
+        // forbids naming one object twice for a SINGLE instance). Before issue
+        // #4220 that left the form unencodable; the gated group says it
+        // precisely, carrying no `excludePriorTargets`.
         const card = landslide();
-        expect(
-            refusalReason(
-                oracleCard({
-                    ...card,
-                    oracleText: card.oracleText.replace(
-                        "destroy another target land.",
-                        "destroy target land."
-                    ),
-                })
-            )
-        ).toMatch(/a second target group that is not "another target"/);
+        const def = compiled(
+            oracleCard({
+                ...card,
+                oracleText: card.oracleText.replace(
+                    "destroy another target land.",
+                    "destroy target land."
+                ),
+            })
+        );
+        expect(def.targetRequirement).toEqual({ type: "Land", count: 1 });
+        expect(def.additionalTargetRequirements).toEqual([
+            { type: "Land", count: 1, announcedOnlyIfKicked: true },
+        ]);
+        expect(def.kickedTargetRequirement).toBeUndefined();
+    });
+
+    it("a gate announcing the ONLY target declares no base group (CR 601.2c)", () => {
+        // Probe — "Draw three cards, then discard two cards. If this spell was
+        // kicked, target player discards two cards." CR 601.2c: "A spell may
+        // require some targets only if an alternative or additional cost (such
+        // as a kicker cost) ... was chosen for it". `targetRequirement` is the
+        // group EVERY cast announces, so the gated group goes on the
+        // additional list and the card declares no primary at all.
+        const def = compiled(
+            oracleCard({
+                name: "Probe",
+                manaCost: "{2}{U}",
+                typeLine: "Sorcery",
+                oracleText:
+                    "Kicker {3}{B} (You may pay an additional {3}{B} as you cast this spell.)\nDraw three cards, then discard two cards. If this spell was kicked, target player discards two cards.",
+                power: undefined,
+                toughness: undefined,
+            })
+        );
+        expect(def.targetRequirement).toBeUndefined();
+        expect(def.additionalTargetRequirements).toEqual([
+            { type: "player", count: 1, announcedOnlyIfKicked: true },
+        ]);
+        expect(def.kickedTargetRequirement).toBeUndefined();
     });
 });
 
