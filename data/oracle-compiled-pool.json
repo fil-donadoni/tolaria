@@ -1456,6 +1456,54 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Ornithopter of Paradise",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Thopter"
+        ],
+        "manaCost": {
+            "X": 2
+        },
+        "power": 0,
+        "toughness": 2,
+        "oracleText": "Flying\n{T}: Add one mana of any color.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "ornithopter-of-paradise-mana",
+                "oracleText": "{T}: Add one mana of any color.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "025b0f0f-daf6-4071-82e7-39c015447ce4",
+        "rarity": "common"
+    },
+    {
         "name": "Dazzling Angel",
         "types": [
             "Creature"
@@ -3477,6 +3525,56 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Henge of Ramos",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {C}.\n{2}, {T}: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "henge-of-ramos-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "henge-of-ramos-mana-2",
+                "oracleText": "{2}, {T}: Add one mana of any color.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    },
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "0582b42f-5ae5-4be2-ba2d-ed62b3cb20c5",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Collective Nightmare",
         "types": [
             "Instant"
@@ -4323,6 +4421,69 @@
         ],
         "id": "070f0a21-8e06-46ec-9d84-c65067b23893",
         "rarity": "common"
+    },
+    {
+        "name": "Spinning Wheel",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 3
+        },
+        "oracleText": "{T}: Add one mana of any color.\n{5}, {T}: Tap target creature.",
+        "activatedAbilities": [
+            {
+                "id": "spinning-wheel-mana",
+                "oracleText": "{T}: Add one mana of any color.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            },
+            {
+                "id": "spinning-wheel-ability-2",
+                "oracleText": "{5}, {T}: Tap target creature.",
+                "cost": {
+                    "mana": {
+                        "X": 5
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "tap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "070ff479-9d87-4ab6-aaaa-e96b9df0bac4",
+        "rarity": "uncommon"
     },
     {
         "name": "Skittering Heartstopper",
@@ -12096,6 +12257,56 @@
         "rarity": "rare"
     },
     {
+        "name": "School of the Unseen",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {C}.\n{2}, {T}: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "school-of-the-unseen-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "school-of-the-unseen-mana-2",
+                "oracleText": "{2}, {T}: Add one mana of any color.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    },
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "1438606d-556d-4b96-9662-fcac051af045",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Insatiable Harpy",
         "types": [
             "Creature"
@@ -14451,6 +14662,45 @@
         "rarity": "common"
     },
     {
+        "name": "Manalith",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 3
+        },
+        "oracleText": "{T}: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "manalith-mana",
+                "oracleText": "{T}: Add one mana of any color.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "17bf5f25-82b4-460c-94da-b84daa8a53d9",
+        "rarity": "common"
+    },
+    {
         "name": "Daysquad Marshal",
         "types": [
             "Creature"
@@ -14914,6 +15164,55 @@
             }
         ],
         "id": "188adefd-a808-4991-80be-53249c24df8f",
+        "rarity": "common"
+    },
+    {
+        "name": "Bog Wreckage",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "This land enters tapped.\n{T}: Add {B}.\n{T}, Sacrifice this land: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "bog-wreckage-mana",
+                "oracleText": "{T}: Add {B}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "B": 1
+                }
+            },
+            {
+                "id": "bog-wreckage-mana-2",
+                "oracleText": "{T}, Sacrifice this land: Add one mana of any color.",
+                "cost": {
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "entersTapped": true,
+        "id": "189b4925-b34b-43bd-869e-1b1db99450e6",
         "rarity": "common"
     },
     {
@@ -15918,6 +16217,55 @@
         ],
         "id": "1a4b87ff-42a9-4ea0-a79e-1208ca35ffb2",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Llanowar Envoy",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elf",
+            "Scout"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "power": 3,
+        "toughness": 2,
+        "oracleText": "{1}{G}: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "llanowar-envoy-mana",
+                "oracleText": "{1}{G}: Add one mana of any color.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "G": 1
+                    }
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "1a667bba-ecf0-4212-8ca3-75d4db6abce2",
+        "rarity": "common"
     },
     {
         "name": "Frost Ogre",
@@ -18047,6 +18395,87 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Captivating Cave",
+        "types": [
+            "Land"
+        ],
+        "subtypes": [
+            "Cave"
+        ],
+        "oracleText": "{T}: Add {C}.\n{1}, {T}: Add one mana of any color.\n{4}, {T}, Sacrifice this land: Put two +1/+1 counters on target creature. Activate only as a sorcery.",
+        "activatedAbilities": [
+            {
+                "id": "captivating-cave-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "captivating-cave-mana-2",
+                "oracleText": "{1}, {T}: Add one mana of any color.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            },
+            {
+                "id": "captivating-cave-ability-3",
+                "oracleText": "{4}, {T}, Sacrifice this land: Put two +1/+1 counters on target creature. Activate only as a sorcery.",
+                "cost": {
+                    "mana": {
+                        "X": 4
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "counters",
+                        "action": "add",
+                        "counter": "+1/+1",
+                        "target": {
+                            "target": 0
+                        },
+                        "count": 2
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                },
+                "sorcerySpeedOnly": true
+            }
+        ],
+        "id": "1d1a645e-85c7-4044-b817-6e24744d245e",
+        "rarity": "common"
+    },
+    {
         "name": "Human Frailty",
         "types": [
             "Instant"
@@ -19796,6 +20225,52 @@
         "power": 2,
         "toughness": 1,
         "id": "2094f2f6-8b38-47d6-973d-271986b5d982",
+        "rarity": "common"
+    },
+    {
+        "name": "Xenobotanist",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Vulcan",
+            "Scientist"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 3,
+        "oracleText": "{T}: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "xenobotanist-mana",
+                "oracleText": "{T}: Add one mana of any color.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "20a97cda-42b2-44f1-8e77-f64dd1c98f6f",
         "rarity": "common"
     },
     {
@@ -21867,6 +22342,56 @@
             }
         ],
         "id": "2428f13f-c445-4eb4-bab1-309f27cab208",
+        "rarity": "common"
+    },
+    {
+        "name": "Wild Cantor",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Druid"
+        ],
+        "manaCost": {
+            "hybrid": [
+                [
+                    "R",
+                    "G"
+                ]
+            ]
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "({R/G} can be paid with either {R} or {G}.)\nSacrifice this creature: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "wild-cantor-mana",
+                "oracleText": "Sacrifice this creature: Add one mana of any color.",
+                "cost": {
+                    "sacrifice": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "242dc29e-d8f5-4207-abbf-cf5425f08551",
         "rarity": "common"
     },
     {
@@ -27108,6 +27633,66 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Vivid Creek",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "This land enters tapped with two charge counters on it.\n{T}: Add {U}.\n{T}, Remove a charge counter from this land: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "vivid-creek-mana",
+                "oracleText": "{T}: Add {U}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "U": 1
+                }
+            },
+            {
+                "id": "vivid-creek-mana-2",
+                "oracleText": "{T}, Remove a charge counter from this land: Add one mana of any color.",
+                "cost": {
+                    "tap": true,
+                    "removeCounter": {
+                        "type": "charge",
+                        "count": 1
+                    }
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "entersTapped": true,
+        "entersWith": {
+            "counters": [
+                {
+                    "type": "charge",
+                    "count": 2
+                }
+            ]
+        },
+        "id": "2e3c2935-84ee-446d-b247-2f574ea84a8f",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Brindle Shoat",
         "types": [
             "Creature"
@@ -27641,6 +28226,104 @@
             "haste"
         ],
         "id": "2f2b7fd3-a139-49ea-8a89-b64261e868ef",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Courier's Briefcase",
+        "types": [
+            "Artifact"
+        ],
+        "subtypes": [
+            "Treasure"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "oracleText": "When this artifact enters, create a 1/1 green and white Citizen creature token.\n{T}, Sacrifice this artifact: Add one mana of any color.\n{W}{U}{B}{R}{G}, {T}, Sacrifice this artifact: Draw three cards.",
+        "activatedAbilities": [
+            {
+                "id": "courier-s-briefcase-mana",
+                "oracleText": "{T}, Sacrifice this artifact: Add one mana of any color.",
+                "cost": {
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            },
+            {
+                "id": "courier-s-briefcase-ability-2",
+                "oracleText": "{W}{U}{B}{R}{G}, {T}, Sacrifice this artifact: Draw three cards.",
+                "cost": {
+                    "mana": {
+                        "W": 1,
+                        "U": 1,
+                        "B": 1,
+                        "R": 1,
+                        "G": 1
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 3
+                    }
+                ]
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "courier-s-briefcase-trigger",
+                "oracleText": "When this artifact enters, create a 1/1 green and white Citizen creature token.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Citizen",
+                            "types": [
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Citizen"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": [
+                                "G",
+                                "W"
+                            ]
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "id": "2f375674-7ae2-4430-b1f3-c26fa5b201d1",
         "rarity": "uncommon"
     },
     {
@@ -28256,6 +28939,46 @@
         ],
         "id": "302d62d6-8abf-4693-974c-bef6841b394f",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Tarnished Citadel",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {C}.\n{T}: Add one mana of any color. This land deals 3 damage to you.",
+        "activatedAbilities": [
+            {
+                "id": "tarnished-citadel-mana",
+                "oracleText": "{T}: Add {C}.\n{T}: Add one mana of any color. This land deals 3 damage to you.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "C": 1
+                    },
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ],
+                "dealsDamageToControllerOnColoredTap": 3
+            }
+        ],
+        "id": "30375d24-ccfe-47a2-babd-1bda0a6298fe",
+        "rarity": "rare"
     },
     {
         "name": "Pavel Maliki",
@@ -29109,6 +29832,66 @@
             }
         ],
         "id": "31d9fe16-562a-4a86-84ed-15cd90b8afc0",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Vivid Marsh",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "This land enters tapped with two charge counters on it.\n{T}: Add {B}.\n{T}, Remove a charge counter from this land: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "vivid-marsh-mana",
+                "oracleText": "{T}: Add {B}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "B": 1
+                }
+            },
+            {
+                "id": "vivid-marsh-mana-2",
+                "oracleText": "{T}, Remove a charge counter from this land: Add one mana of any color.",
+                "cost": {
+                    "tap": true,
+                    "removeCounter": {
+                        "type": "charge",
+                        "count": 1
+                    }
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "entersTapped": true,
+        "entersWith": {
+            "counters": [
+                {
+                    "type": "charge",
+                    "count": 2
+                }
+            ]
+        },
+        "id": "31f806c7-0063-4270-b37c-5363c41a7621",
         "rarity": "uncommon"
     },
     {
@@ -30667,6 +31450,64 @@
             }
         ],
         "id": "34748acb-7045-42b6-a93f-a3f11a1bc839",
+        "rarity": "common"
+    },
+    {
+        "name": "Letter of Acceptance",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 3
+        },
+        "oracleText": "{T}: Add one mana of any color.\n{2}, {T}, Sacrifice this artifact: Draw a card.",
+        "activatedAbilities": [
+            {
+                "id": "letter-of-acceptance-mana",
+                "oracleText": "{T}: Add one mana of any color.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            },
+            {
+                "id": "letter-of-acceptance-ability-2",
+                "oracleText": "{2}, {T}, Sacrifice this artifact: Draw a card.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "34750231-34aa-401c-b192-47b56588923a",
         "rarity": "common"
     },
     {
@@ -32544,6 +33385,73 @@
         "rarity": "common"
     },
     {
+        "name": "Patriar's Seal",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 3
+        },
+        "oracleText": "{T}: Add one mana of any color.\n{1}, {T}: Untap target legendary creature you control.",
+        "activatedAbilities": [
+            {
+                "id": "patriar-s-seal-mana",
+                "oracleText": "{T}: Add one mana of any color.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            },
+            {
+                "id": "patriar-s-seal-ability-2",
+                "oracleText": "{1}, {T}: Untap target legendary creature you control.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "untap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "supertypeFilter": [
+                        "Legendary"
+                    ],
+                    "controller": "you"
+                }
+            }
+        ],
+        "id": "37f920f0-4dfc-477b-af7e-a17dfc9ba455",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Withering Torment",
         "types": [
             "Instant"
@@ -33030,6 +33938,76 @@
         "power": 7,
         "toughness": 3,
         "id": "3928bbce-87b7-4b28-9af4-20362935c909",
+        "rarity": "common"
+    },
+    {
+        "name": "Unbridled Growth",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "oracleText": "Enchant land\nEnchanted land has \"{T}: Add one mana of any color.\"\nSacrifice this Aura: Draw a card.",
+        "activatedAbilities": [
+            {
+                "id": "unbridled-growth-ability",
+                "oracleText": "Sacrifice this Aura: Draw a card.",
+                "cost": {
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "unbridled-growth-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "unbridled-growth-granted",
+                "oracleText": "{T}: Add one mana of any color.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Land",
+            "count": 1
+        },
+        "id": "393fc419-a6ce-447d-9994-744cf41f9a27",
         "rarity": "common"
     },
     {
@@ -33683,6 +34661,58 @@
             "count": 1
         },
         "id": "3a3e2b45-b086-4ffd-aa1a-1d03046e0d61",
+        "rarity": "common"
+    },
+    {
+        "name": "Helionaut",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "Flying\n{1}, {T}: Add one mana of any color.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "helionaut-mana",
+                "oracleText": "{1}, {T}: Add one mana of any color.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "3a4d395e-d7d6-4e93-9761-b0bae63b7b1c",
         "rarity": "common"
     },
     {
@@ -36547,6 +37577,53 @@
         "rarity": "common"
     },
     {
+        "name": "Prismite",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Golem"
+        ],
+        "manaCost": {
+            "X": 2
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "{2}: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "prismite-mana",
+                "oracleText": "{2}: Add one mana of any color.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    }
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "40475e96-0283-445f-97fb-1da008707399",
+        "rarity": "common"
+    },
+    {
         "name": "Sunblade Angel",
         "types": [
             "Creature"
@@ -39277,6 +40354,77 @@
         "rarity": "common"
     },
     {
+        "name": "Urban Utopia",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "oracleText": "Enchant land\nWhen this Aura enters, draw a card.\nEnchanted land has \"{T}: Add one mana of any color.\"",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "urban-utopia-trigger",
+                "oracleText": "When this Aura enters, draw a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "urban-utopia-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "urban-utopia-granted",
+                "oracleText": "{T}: Add one mana of any color.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Land",
+            "count": 1
+        },
+        "id": "45d7ab0e-db37-4051-86dd-3ab09c047a2b",
+        "rarity": "common"
+    },
+    {
         "name": "Scourge Servant",
         "types": [
             "Creature"
@@ -41342,6 +42490,55 @@
             }
         ],
         "id": "4942068c-ffde-4a6b-849e-8acf05e1d2e1",
+        "rarity": "common"
+    },
+    {
+        "name": "Abandoned Outpost",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "This land enters tapped.\n{T}: Add {W}.\n{T}, Sacrifice this land: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "abandoned-outpost-mana",
+                "oracleText": "{T}: Add {W}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "W": 1
+                }
+            },
+            {
+                "id": "abandoned-outpost-mana-2",
+                "oracleText": "{T}, Sacrifice this land: Add one mana of any color.",
+                "cost": {
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "entersTapped": true,
+        "id": "4945031e-1158-474c-9e50-1ec817acc767",
         "rarity": "common"
     },
     {
@@ -43549,6 +44746,66 @@
         "rarity": "rare"
     },
     {
+        "name": "Rootrider Faun",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Satyr",
+            "Scout"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 3,
+        "oracleText": "{T}: Add {G}.\n{1}, {T}: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "rootrider-faun-mana",
+                "oracleText": "{T}: Add {G}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "G": 1
+                }
+            },
+            {
+                "id": "rootrider-faun-mana-2",
+                "oracleText": "{1}, {T}: Add one mana of any color.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "4e87db5a-1a70-42df-83a2-c0f71fe8533a",
+        "rarity": "common"
+    },
+    {
         "name": "Silverback Shaman",
         "types": [
             "Creature"
@@ -44838,6 +46095,59 @@
         "rarity": "common"
     },
     {
+        "name": "Prismatic Lens",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 2
+        },
+        "oracleText": "{T}: Add {C}.\n{1}, {T}: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "prismatic-lens-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "prismatic-lens-mana-2",
+                "oracleText": "{1}, {T}: Add one mana of any color.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "50f058a7-c3c7-4bdf-a66c-a2636a8bd9db",
+        "rarity": "common"
+    },
+    {
         "name": "Nucklavee",
         "types": [
             "Creature"
@@ -45208,6 +46518,69 @@
         "rarity": "common"
     },
     {
+        "name": "Drover of the Mighty",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Druid"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "This creature gets +2/+2 as long as you control a Dinosaur.\n{T}: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "drover-of-the-mighty-mana",
+                "oracleText": "{T}: Add one mana of any color.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "self",
+                "power": 2,
+                "toughness": 2,
+                "condition": {
+                    "kind": "controls",
+                    "filter": {
+                        "subtypes": [
+                            "Dinosaur"
+                        ]
+                    },
+                    "atLeast": 1
+                }
+            }
+        ],
+        "id": "51fdf2fc-d948-4c64-a34e-2f90eab83212",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Obelisk of Grixis",
         "types": [
             "Artifact"
@@ -45501,6 +46874,88 @@
             "count": 1
         },
         "id": "5247d0b0-660e-4f27-8e76-62effbe12221",
+        "rarity": "common"
+    },
+    {
+        "name": "Golden Egg",
+        "types": [
+            "Artifact"
+        ],
+        "subtypes": [
+            "Food"
+        ],
+        "manaCost": {
+            "X": 2
+        },
+        "oracleText": "When this artifact enters, draw a card.\n{1}, {T}, Sacrifice this artifact: Add one mana of any color.\n{2}, {T}, Sacrifice this artifact: You gain 3 life.",
+        "activatedAbilities": [
+            {
+                "id": "golden-egg-mana",
+                "oracleText": "{1}, {T}, Sacrifice this artifact: Add one mana of any color.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            },
+            {
+                "id": "golden-egg-ability-2",
+                "oracleText": "{2}, {T}, Sacrifice this artifact: You gain 3 life.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 3
+                    }
+                ]
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "golden-egg-trigger",
+                "oracleText": "When this artifact enters, draw a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "525142c3-f17c-4e02-a02d-fa385215aa12",
         "rarity": "common"
     },
     {
@@ -46140,6 +47595,66 @@
             }
         ],
         "id": "5366900b-2abf-4e5c-8507-f51aca9c7ce8",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Vivid Crag",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "This land enters tapped with two charge counters on it.\n{T}: Add {R}.\n{T}, Remove a charge counter from this land: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "vivid-crag-mana",
+                "oracleText": "{T}: Add {R}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "R": 1
+                }
+            },
+            {
+                "id": "vivid-crag-mana-2",
+                "oracleText": "{T}, Remove a charge counter from this land: Add one mana of any color.",
+                "cost": {
+                    "tap": true,
+                    "removeCounter": {
+                        "type": "charge",
+                        "count": 1
+                    }
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "entersTapped": true,
+        "entersWith": {
+            "counters": [
+                {
+                    "type": "charge",
+                    "count": 2
+                }
+            ]
+        },
+        "id": "539001dc-69f0-42c0-b5c3-37d7b12eb79e",
         "rarity": "uncommon"
     },
     {
@@ -54009,6 +55524,48 @@
         "rarity": "rare"
     },
     {
+        "name": "Darksteel Ingot",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 3
+        },
+        "oracleText": "Indestructible (Effects that say \"destroy\" don't destroy this artifact.)\n{T}: Add one mana of any color.",
+        "staticAbilities": [
+            "indestructible"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "darksteel-ingot-mana",
+                "oracleText": "{T}: Add one mana of any color.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "62190d2d-16fc-4d71-84fd-abdf52bb5af5",
+        "rarity": "rare"
+    },
+    {
         "name": "Organ Grinder",
         "types": [
             "Creature"
@@ -54421,6 +55978,76 @@
             "count": 1
         },
         "id": "62ba90b8-3a30-4058-b8d3-72900b1f4fe0",
+        "rarity": "common"
+    },
+    {
+        "name": "Poison Dart Frog",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Frog"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Reach\n{T}: Add one mana of any color.\n{2}: This creature gains deathtouch until end of turn.",
+        "staticAbilities": [
+            "reach"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "poison-dart-frog-mana",
+                "oracleText": "{T}: Add one mana of any color.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            },
+            {
+                "id": "poison-dart-frog-ability-2",
+                "oracleText": "{2}: This creature gains deathtouch until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "ability": "deathtouch",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "62c1f09a-9d17-415c-8afa-cd0b62abe48d",
         "rarity": "common"
     },
     {
@@ -55379,6 +57006,54 @@
             "controller": "you"
         },
         "id": "642e1b90-c240-44fe-82b2-7522026224ae",
+        "rarity": "common"
+    },
+    {
+        "name": "Viridian Acolyte",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elf",
+            "Shaman"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{1}, {T}: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "viridian-acolyte-mana",
+                "oracleText": "{1}, {T}: Add one mana of any color.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "64448241-978c-43e0-b0ea-b4bb3e25b715",
         "rarity": "common"
     },
     {
@@ -56497,6 +58172,66 @@
         "rarity": "common"
     },
     {
+        "name": "Vivid Grove",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "This land enters tapped with two charge counters on it.\n{T}: Add {G}.\n{T}, Remove a charge counter from this land: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "vivid-grove-mana",
+                "oracleText": "{T}: Add {G}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "G": 1
+                }
+            },
+            {
+                "id": "vivid-grove-mana-2",
+                "oracleText": "{T}, Remove a charge counter from this land: Add one mana of any color.",
+                "cost": {
+                    "tap": true,
+                    "removeCounter": {
+                        "type": "charge",
+                        "count": 1
+                    }
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "entersTapped": true,
+        "entersWith": {
+            "counters": [
+                {
+                    "type": "charge",
+                    "count": 2
+                }
+            ]
+        },
+        "id": "6646babe-edd8-4367-ba8f-89af4f859dd8",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Saberclaw Golem",
         "types": [
             "Artifact",
@@ -56730,6 +58465,53 @@
         ],
         "id": "66864a4b-8924-40ef-a337-15b12413a158",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Vesper Ghoul",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Zombie",
+            "Druid"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{T}, Pay 1 life: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "vesper-ghoul-mana",
+                "oracleText": "{T}, Pay 1 life: Add one mana of any color.",
+                "cost": {
+                    "tap": true,
+                    "life": 1
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "669efa40-be9a-4475-9bcb-3325518403b5",
+        "rarity": "common"
     },
     {
         "name": "Blossom Dryad",
@@ -61674,6 +63456,55 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Seafloor Debris",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "This land enters tapped.\n{T}: Add {U}.\n{T}, Sacrifice this land: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "seafloor-debris-mana",
+                "oracleText": "{T}: Add {U}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "U": 1
+                }
+            },
+            {
+                "id": "seafloor-debris-mana-2",
+                "oracleText": "{T}, Sacrifice this land: Add one mana of any color.",
+                "cost": {
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "entersTapped": true,
+        "id": "6fb5977c-5009-4d97-82c8-c150a0d41bc3",
+        "rarity": "common"
+    },
+    {
         "name": "Whiptongue Frog",
         "types": [
             "Creature"
@@ -62818,6 +64649,65 @@
             }
         ],
         "id": "71f7f788-2795-46a7-82ae-270f1e9415ca",
+        "rarity": "common"
+    },
+    {
+        "name": "Nightshade Dryad",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dryad"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "Deathtouch\n{T}: Add {C}.\n{T}: Add one mana of any color.",
+        "staticAbilities": [
+            "deathtouch"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "nightshade-dryad-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "nightshade-dryad-mana-2",
+                "oracleText": "{T}: Add one mana of any color.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "71f9252d-241f-45ea-9d80-663150963b59",
         "rarity": "common"
     },
     {
@@ -71958,6 +73848,59 @@
         "rarity": "common"
     },
     {
+        "name": "Mana Prism",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 3
+        },
+        "oracleText": "{T}: Add {C}.\n{1}, {T}: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "mana-prism-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "mana-prism-mana-2",
+                "oracleText": "{1}, {T}: Add one mana of any color.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "81137c17-18b8-484e-8334-28f143c08177",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Pharika's Chosen",
         "types": [
             "Creature"
@@ -75300,6 +77243,52 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Great Forest Druid",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Treefolk",
+            "Druid"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "power": 0,
+        "toughness": 4,
+        "oracleText": "{T}: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "great-forest-druid-mana",
+                "oracleText": "{T}: Add one mana of any color.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "8793a19e-6743-4031-86d9-2ff55f384549",
+        "rarity": "common"
+    },
+    {
         "name": "Darkbore Pathway",
         "types": [
             "Land"
@@ -76335,6 +78324,55 @@
         ],
         "id": "88cc00e5-9683-4ccc-a914-c422b76f6014",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Deathbloom Gardener",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elf",
+            "Druid"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Deathtouch\n{T}: Add one mana of any color.",
+        "staticAbilities": [
+            "deathtouch"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "deathbloom-gardener-mana",
+                "oracleText": "{T}: Add one mana of any color.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "88dee3d1-0496-40ea-b208-7362a932f531",
+        "rarity": "common"
     },
     {
         "name": "Treetop Snarespinner",
@@ -77744,6 +79782,59 @@
         ],
         "id": "8b236bba-160a-4637-a83e-8456834ce59f",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Painted Bluffs",
+        "types": [
+            "Land"
+        ],
+        "subtypes": [
+            "Desert"
+        ],
+        "oracleText": "{T}: Add {C}.\n{1}, {T}: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "painted-bluffs-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "painted-bluffs-mana-2",
+                "oracleText": "{1}, {T}: Add one mana of any color.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "8b373131-2a1d-4710-8a11-c1b366a174d4",
+        "rarity": "common"
     },
     {
         "name": "Wall of Mulch",
@@ -90731,6 +92822,56 @@
         "rarity": "common"
     },
     {
+        "name": "Signpost Scarecrow",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Scarecrow"
+        ],
+        "manaCost": {
+            "X": 4
+        },
+        "power": 2,
+        "toughness": 4,
+        "oracleText": "Vigilance\n{2}: Add one mana of any color.",
+        "staticAbilities": [
+            "vigilance"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "signpost-scarecrow-mana",
+                "oracleText": "{2}: Add one mana of any color.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    }
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "a2c5f336-c100-4bec-89d5-548f60064d7f",
+        "rarity": "common"
+    },
+    {
         "name": "Storm Crow",
         "types": [
             "Creature"
@@ -91017,6 +93158,88 @@
         "rarity": "common"
     },
     {
+        "name": "Draconic Disciple",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Shaman"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{T}: Add one mana of any color.\n{7}, {T}, Sacrifice this creature: Create a 5/5 red Dragon creature token with flying.",
+        "activatedAbilities": [
+            {
+                "id": "draconic-disciple-mana",
+                "oracleText": "{T}: Add one mana of any color.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            },
+            {
+                "id": "draconic-disciple-ability-2",
+                "oracleText": "{7}, {T}, Sacrifice this creature: Create a 5/5 red Dragon creature token with flying.",
+                "cost": {
+                    "mana": {
+                        "X": 7
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Dragon",
+                            "types": [
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Dragon"
+                            ],
+                            "power": 5,
+                            "toughness": 5,
+                            "colors": [
+                                "R"
+                            ],
+                            "staticAbilities": [
+                                "flying"
+                            ]
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "id": "a353510a-30de-4891-97b9-d7d556531c41",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Ethersworn Adjudicator",
         "types": [
             "Artifact",
@@ -91110,6 +93333,52 @@
             "flying"
         ],
         "id": "a35d3113-6cb7-4b74-94a3-8160d9ac1b89",
+        "rarity": "common"
+    },
+    {
+        "name": "Lifespring Druid",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elf",
+            "Druid"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "{T}: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "lifespring-druid-mana",
+                "oracleText": "{T}: Add one mana of any color.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "a3657719-7d4d-46db-a5f4-699ee2032ebe",
         "rarity": "common"
     },
     {
@@ -92137,6 +94406,66 @@
         ],
         "id": "a52b2dc4-4fb3-4ddf-bdb6-c63e8c8efc09",
         "rarity": "common"
+    },
+    {
+        "name": "Vivid Meadow",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "This land enters tapped with two charge counters on it.\n{T}: Add {W}.\n{T}, Remove a charge counter from this land: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "vivid-meadow-mana",
+                "oracleText": "{T}: Add {W}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "W": 1
+                }
+            },
+            {
+                "id": "vivid-meadow-mana-2",
+                "oracleText": "{T}, Remove a charge counter from this land: Add one mana of any color.",
+                "cost": {
+                    "tap": true,
+                    "removeCounter": {
+                        "type": "charge",
+                        "count": 1
+                    }
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "entersTapped": true,
+        "entersWith": {
+            "counters": [
+                {
+                    "type": "charge",
+                    "count": 2
+                }
+            ]
+        },
+        "id": "a535790b-d416-4807-bca0-acf6b192101c",
+        "rarity": "uncommon"
     },
     {
         "name": "Spare Supplies",
@@ -96210,6 +98539,51 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Alloy Myr",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Myr"
+        ],
+        "manaCost": {
+            "X": 3
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{T}: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "alloy-myr-mana",
+                "oracleText": "{T}: Add one mana of any color.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "abd3350b-89fb-40b4-a942-28e0c8c274aa",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Show of Valor",
         "types": [
             "Instant"
@@ -98658,6 +101032,76 @@
         "rarity": "common"
     },
     {
+        "name": "Abundant Growth",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "oracleText": "Enchant land\nWhen this Aura enters, draw a card.\nEnchanted land has \"{T}: Add one mana of any color.\"",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "abundant-growth-trigger",
+                "oracleText": "When this Aura enters, draw a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "abundant-growth-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "abundant-growth-granted",
+                "oracleText": "{T}: Add one mana of any color.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Land",
+            "count": 1
+        },
+        "id": "afbc8fd0-dc15-4ac9-b97b-173f7fb66ed7",
+        "rarity": "common"
+    },
+    {
         "name": "Canopy Spider",
         "types": [
             "Creature"
@@ -99305,6 +101749,82 @@
             }
         ],
         "id": "b1b959af-bb23-42e7-8848-7405ed597c8d",
+        "rarity": "common"
+    },
+    {
+        "name": "Ceta Disciple",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Merfolk",
+            "Wizard"
+        ],
+        "manaCost": {
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{R}, {T}: Target creature gets +2/+0 until end of turn.\n{G}, {T}: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "ceta-disciple-ability",
+                "oracleText": "{R}, {T}: Target creature gets +2/+0 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "R": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "target": 0
+                        },
+                        "power": 2,
+                        "toughness": 0,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            },
+            {
+                "id": "ceta-disciple-mana-2",
+                "oracleText": "{G}, {T}: Add one mana of any color.",
+                "cost": {
+                    "mana": {
+                        "G": 1
+                    },
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "b1c40c26-3b82-4f72-acb5-85fbdd51665a",
         "rarity": "common"
     },
     {
@@ -101624,6 +104144,56 @@
             "vigilance"
         ],
         "id": "b5dbaec5-502d-48c2-9e71-c12cd0bccc6a",
+        "rarity": "common"
+    },
+    {
+        "name": "Shimmering Grotto",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {C}.\n{1}, {T}: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "shimmering-grotto-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "shimmering-grotto-mana-2",
+                "oracleText": "{1}, {T}: Add one mana of any color.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "b5e85acc-ed12-4036-8193-739721c3e178",
         "rarity": "common"
     },
     {
@@ -104052,6 +106622,107 @@
         "rarity": "common"
     },
     {
+        "name": "Utopia Mycon",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Fungus"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "power": 0,
+        "toughness": 2,
+        "oracleText": "At the beginning of your upkeep, put a spore counter on this creature.\nRemove three spore counters from this creature: Create a 1/1 green Saproling creature token.\nSacrifice a Saproling: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "utopia-mycon-ability",
+                "oracleText": "Remove three spore counters from this creature: Create a 1/1 green Saproling creature token.",
+                "cost": {
+                    "removeCounter": {
+                        "type": "spore",
+                        "count": 3
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Saproling",
+                            "types": [
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Saproling"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": [
+                                "G"
+                            ]
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            },
+            {
+                "id": "utopia-mycon-mana-2",
+                "oracleText": "Sacrifice a Saproling: Add one mana of any color.",
+                "cost": {
+                    "sacrificeFilter": {
+                        "subtypes": [
+                            "Saproling"
+                        ]
+                    }
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "utopia-mycon-trigger",
+                "oracleText": "At the beginning of your upkeep, put a spore counter on this creature.",
+                "head": {
+                    "kind": "phase",
+                    "phase": "UPKEEP",
+                    "scope": "your"
+                },
+                "effects": [
+                    {
+                        "op": "counters",
+                        "action": "add",
+                        "counter": "spore",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "b9d3d285-8327-4dba-911b-ff03b186f6b8",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Frostbridge Guard",
         "types": [
             "Creature"
@@ -105086,6 +107757,55 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Ravaged Highlands",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "This land enters tapped.\n{T}: Add {R}.\n{T}, Sacrifice this land: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "ravaged-highlands-mana",
+                "oracleText": "{T}: Add {R}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "R": 1
+                }
+            },
+            {
+                "id": "ravaged-highlands-mana-2",
+                "oracleText": "{T}, Sacrifice this land: Add one mana of any color.",
+                "cost": {
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "entersTapped": true,
+        "id": "bb60ffc9-4919-40f2-bdd6-07eee6abf37c",
+        "rarity": "common"
+    },
+    {
         "name": "Symbiotic Beast",
         "types": [
             "Creature"
@@ -105409,6 +108129,77 @@
         ],
         "id": "bbeaca72-aadd-4ef8-939a-36f320100e6e",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Karametra's Favor",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "oracleText": "Enchant creature\nWhen this Aura enters, draw a card.\nEnchanted creature has \"{T}: Add one mana of any color.\"",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "karametra-s-favor-trigger",
+                "oracleText": "When this Aura enters, draw a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "karametra-s-favor-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "karametra-s-favor-granted",
+                "oracleText": "{T}: Add one mana of any color.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "bc036932-38c2-42df-9922-2d901028f2b8",
+        "rarity": "common"
     },
     {
         "name": "Alley Evasion",
@@ -107178,6 +109969,145 @@
         "rarity": "common"
     },
     {
+        "name": "Channeler Initiate",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Druid"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "power": 3,
+        "toughness": 4,
+        "oracleText": "When this creature enters, put three -1/-1 counters on target creature you control.\n{T}, Remove a -1/-1 counter from this creature: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "channeler-initiate-mana",
+                "oracleText": "{T}, Remove a -1/-1 counter from this creature: Add one mana of any color.",
+                "cost": {
+                    "tap": true,
+                    "removeCounter": {
+                        "type": "-1/-1",
+                        "count": 1
+                    }
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "channeler-initiate-trigger",
+                "oracleText": "When this creature enters, put three -1/-1 counters on target creature you control.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "counters",
+                        "action": "add",
+                        "counter": "-1/-1",
+                        "target": {
+                            "target": 0
+                        },
+                        "count": 3
+                    }
+                ]
+            }
+        ],
+        "id": "bef38c5a-07fc-477f-a1c0-70cc3ad64f96",
+        "rarity": "rare"
+    },
+    {
+        "name": "Centaur Nurturer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Centaur",
+            "Druid"
+        ],
+        "manaCost": {
+            "X": 3,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 4,
+        "oracleText": "When this creature enters, you gain 3 life.\n{T}: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "centaur-nurturer-mana",
+                "oracleText": "{T}: Add one mana of any color.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "centaur-nurturer-trigger",
+                "oracleText": "When this creature enters, you gain 3 life.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 3
+                    }
+                ]
+            }
+        ],
+        "id": "bf020acb-e0c6-43b4-8324-0f2ec68b73d6",
+        "rarity": "common"
+    },
+    {
         "name": "Boros Swiftblade",
         "types": [
             "Creature"
@@ -107669,6 +110599,57 @@
             "count": 1
         },
         "id": "c04e6915-39b0-4fbc-9114-2ecf371b6f72",
+        "rarity": "common"
+    },
+    {
+        "name": "Goldhound",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Treasure",
+            "Dog"
+        ],
+        "manaCost": {
+            "R": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "First strike\nMenace (This creature can't be blocked except by two or more creatures.)\n{T}, Sacrifice this creature: Add one mana of any color.",
+        "staticAbilities": [
+            "first strike",
+            "menace"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "goldhound-mana",
+                "oracleText": "{T}, Sacrifice this creature: Add one mana of any color.",
+                "cost": {
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "c059e4b4-1542-4b5c-810a-9f0abac5792b",
         "rarity": "common"
     },
     {
@@ -109060,6 +112041,98 @@
         "rarity": "rare"
     },
     {
+        "name": "Artifact Unknown Shores",
+        "types": [
+            "Artifact",
+            "Land"
+        ],
+        "oracleText": "{T}: Add {C}.\n{1}, {T}: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "artifact-unknown-shores-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "artifact-unknown-shores-mana-2",
+                "oracleText": "{1}, {T}: Add one mana of any color.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "c2d79e5d-f5f4-49ec-8d34-ddb71026156b",
+        "rarity": "common"
+    },
+    {
+        "name": "Grand Coliseum",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "This land enters tapped.\n{T}: Add {C}.\n{T}: Add one mana of any color. This land deals 1 damage to you.",
+        "activatedAbilities": [
+            {
+                "id": "grand-coliseum-mana",
+                "oracleText": "{T}: Add {C}.\n{T}: Add one mana of any color. This land deals 1 damage to you.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "C": 1
+                    },
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ],
+                "dealsDamageToControllerOnColoredTap": 1
+            }
+        ],
+        "entersTapped": true,
+        "id": "c2dc8061-a855-4a81-9eb7-350b355a9b3f",
+        "rarity": "rare"
+    },
+    {
         "name": "Braidwood Cup",
         "types": [
             "Artifact"
@@ -110191,6 +113264,57 @@
             }
         ],
         "id": "c5685cff-b607-4a81-aa47-6676ab1a5782",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Leyline Prowler",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Nightmare",
+            "Beast"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 3,
+        "oracleText": "Deathtouch, lifelink\n{T}: Add one mana of any color.",
+        "staticAbilities": [
+            "deathtouch",
+            "lifelink"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "leyline-prowler-mana",
+                "oracleText": "{T}: Add one mana of any color.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "c56b4e8f-d48e-4bb0-883d-29f978033f65",
         "rarity": "uncommon"
     },
     {
@@ -113287,6 +116411,64 @@
         "rarity": "common"
     },
     {
+        "name": "Energy Refractor",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 2
+        },
+        "oracleText": "When this artifact enters, draw a card.\n{2}: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "energy-refractor-mana",
+                "oracleText": "{2}: Add one mana of any color.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    }
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "energy-refractor-trigger",
+                "oracleText": "When this artifact enters, draw a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "cc2a81fb-5045-4b7b-8cfb-b90c4f4a1f51",
+        "rarity": "common"
+    },
+    {
         "name": "Tireless Missionaries",
         "types": [
             "Creature"
@@ -114893,6 +118075,76 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Mirrodin's Core",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {C}.\n{T}: Put a charge counter on this land.\n{T}, Remove a charge counter from this land: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "mirrodin-s-core-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "mirrodin-s-core-ability-2",
+                "oracleText": "{T}: Put a charge counter on this land.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "counters",
+                        "action": "add",
+                        "counter": "charge",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "count": 1
+                    }
+                ]
+            },
+            {
+                "id": "mirrodin-s-core-mana-3",
+                "oracleText": "{T}, Remove a charge counter from this land: Add one mana of any color.",
+                "cost": {
+                    "tap": true,
+                    "removeCounter": {
+                        "type": "charge",
+                        "count": 1
+                    }
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "cf0e60c9-1548-4981-ada1-6656804a772e",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Fungal Bloom",
         "types": [
             "Enchantment"
@@ -115033,6 +118285,69 @@
         "rarity": "common"
     },
     {
+        "name": "Dawnhart Rejuvenator",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Warlock"
+        ],
+        "manaCost": {
+            "X": 3,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 4,
+        "oracleText": "When this creature enters, you gain 3 life.\n{T}: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "dawnhart-rejuvenator-mana",
+                "oracleText": "{T}: Add one mana of any color.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "dawnhart-rejuvenator-trigger",
+                "oracleText": "When this creature enters, you gain 3 life.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 3
+                    }
+                ]
+            }
+        ],
+        "id": "cf4b5ad9-3de6-4d53-93a0-3b8d2e484687",
+        "rarity": "common"
+    },
+    {
         "name": "Mesa Unicorn",
         "types": [
             "Creature"
@@ -115124,6 +118439,110 @@
             }
         ],
         "id": "cf9b3335-565c-406d-bd94-f36974602552",
+        "rarity": "common"
+    },
+    {
+        "name": "Prophetic Prism",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 2
+        },
+        "oracleText": "When this artifact enters, draw a card.\n{1}, {T}: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "prophetic-prism-mana",
+                "oracleText": "{1}, {T}: Add one mana of any color.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "prophetic-prism-trigger",
+                "oracleText": "When this artifact enters, draw a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "cfb90d44-8cb1-4b83-b2f2-92c19d6304fb",
+        "rarity": "common"
+    },
+    {
+        "name": "Opaline Unicorn",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Unicorn"
+        ],
+        "manaCost": {
+            "X": 3
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "{T}: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "opaline-unicorn-mana",
+                "oracleText": "{T}: Add one mana of any color.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "cfba304c-9cb8-4d5c-b70d-b7f61a365977",
         "rarity": "common"
     },
     {
@@ -116295,6 +119714,123 @@
             }
         ],
         "id": "d1995ab8-7382-4c2a-b8c7-8b9272cab4fb",
+        "rarity": "common"
+    },
+    {
+        "name": "Frog Butler",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Frog",
+            "Spirit"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Deathtouch\n{T}: Add one mana of any color.\n{2}: This creature gains reach until end of turn.",
+        "staticAbilities": [
+            "deathtouch"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "frog-butler-mana",
+                "oracleText": "{T}: Add one mana of any color.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            },
+            {
+                "id": "frog-butler-ability-2",
+                "oracleText": "{2}: This creature gains reach until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "ability": "reach",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "d1a72d09-9cfc-463a-a9ec-3359003d54da",
+        "rarity": "common"
+    },
+    {
+        "name": "Three Tree Rootweaver",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Mole",
+            "Druid"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 3,
+        "oracleText": "{T}: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "three-tree-rootweaver-mana",
+                "oracleText": "{T}: Add one mana of any color.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "d1ab6e14-26e0-4174-b5c6-bc0f5c26b177",
         "rarity": "common"
     },
     {
@@ -118935,6 +122471,68 @@
         "rarity": "common"
     },
     {
+        "name": "Meteorite",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 5
+        },
+        "oracleText": "When this artifact enters, it deals 2 damage to any target.\n{T}: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "meteorite-mana",
+                "oracleText": "{T}: Add one mana of any color.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "meteorite-trigger",
+                "oracleText": "When this artifact enters, it deals 2 damage to any target.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 2,
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "d7a39c1a-7615-4ac8-8984-b8459d201cb2",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Goblin Wizardry",
         "types": [
             "Instant"
@@ -119416,6 +123014,84 @@
         ],
         "id": "d868d3b8-997c-4984-a2b3-72de90e280f7",
         "rarity": "rare"
+    },
+    {
+        "name": "Cave of Temptation",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {C}.\n{1}, {T}: Add one mana of any color.\n{4}, {T}, Sacrifice this land: Put two +1/+1 counters on target creature. Activate only as a sorcery.",
+        "activatedAbilities": [
+            {
+                "id": "cave-of-temptation-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "cave-of-temptation-mana-2",
+                "oracleText": "{1}, {T}: Add one mana of any color.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            },
+            {
+                "id": "cave-of-temptation-ability-3",
+                "oracleText": "{4}, {T}, Sacrifice this land: Put two +1/+1 counters on target creature. Activate only as a sorcery.",
+                "cost": {
+                    "mana": {
+                        "X": 4
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "counters",
+                        "action": "add",
+                        "counter": "+1/+1",
+                        "target": {
+                            "target": 0
+                        },
+                        "count": 2
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                },
+                "sorcerySpeedOnly": true
+            }
+        ],
+        "id": "d86e9149-6fd9-44fc-b765-3e646c7d83d6",
+        "rarity": "common"
     },
     {
         "name": "Spirit Away",
@@ -120019,6 +123695,70 @@
             "count": 1
         },
         "id": "d97b1080-9001-4751-b2f5-7f56d9f58dff",
+        "rarity": "common"
+    },
+    {
+        "name": "Utopia Vow",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "oracleText": "Enchant creature\nEnchanted creature can't attack or block.\nEnchanted creature has \"{T}: Add one mana of any color.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "attack-restriction",
+                "id": "utopia-vow-cant-attack",
+                "oracleText": "Enchanted creature can't attack or block."
+            },
+            {
+                "kind": "block-restriction",
+                "id": "utopia-vow-cant-block",
+                "oracleText": "Enchanted creature can't attack or block."
+            },
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "utopia-vow-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "utopia-vow-granted",
+                "oracleText": "{T}: Add one mana of any color.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "d97f2ddb-3111-45a2-8334-a526bc885415",
         "rarity": "common"
     },
     {
@@ -121368,6 +125108,55 @@
         "entersTapped": true,
         "id": "dd222c07-0b28-41cb-9237-ad7991ab078f",
         "rarity": "rare"
+    },
+    {
+        "name": "Timberland Ruins",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "This land enters tapped.\n{T}: Add {G}.\n{T}, Sacrifice this land: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "timberland-ruins-mana",
+                "oracleText": "{T}: Add {G}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "G": 1
+                }
+            },
+            {
+                "id": "timberland-ruins-mana-2",
+                "oracleText": "{T}, Sacrifice this land: Add one mana of any color.",
+                "cost": {
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "entersTapped": true,
+        "id": "dd2e8770-c72b-439c-8f79-3aa24646cdd5",
+        "rarity": "common"
     },
     {
         "name": "Epiphany Storm",
@@ -130277,6 +134066,68 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Oasis Gardener",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Scarecrow"
+        ],
+        "manaCost": {
+            "X": 3
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "When this creature enters, you gain 2 life.\n{T}: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "oasis-gardener-mana",
+                "oracleText": "{T}: Add one mana of any color.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "oasis-gardener-trigger",
+                "oracleText": "When this creature enters, you gain 2 life.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 2
+                    }
+                ]
+            }
+        ],
+        "id": "ee0dc663-4bfb-46d4-af79-d0143c799487",
+        "rarity": "common"
+    },
+    {
         "name": "Wicked Reward",
         "types": [
             "Instant"
@@ -132642,6 +136493,88 @@
         "rarity": "common"
     },
     {
+        "name": "Omni-Cheese Pizza",
+        "types": [
+            "Artifact"
+        ],
+        "subtypes": [
+            "Food"
+        ],
+        "manaCost": {
+            "X": 2
+        },
+        "oracleText": "When this artifact enters, draw a card.\n{1}, {T}, Sacrifice this artifact: Add one mana of any color.\n{2}, {T}, Sacrifice this artifact: You gain 3 life.",
+        "activatedAbilities": [
+            {
+                "id": "omni-cheese-pizza-mana",
+                "oracleText": "{1}, {T}, Sacrifice this artifact: Add one mana of any color.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            },
+            {
+                "id": "omni-cheese-pizza-ability-2",
+                "oracleText": "{2}, {T}, Sacrifice this artifact: You gain 3 life.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 3
+                    }
+                ]
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "omni-cheese-pizza-trigger",
+                "oracleText": "When this artifact enters, draw a card.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "id": "f2c8397c-2014-4a43-9ed7-41795880011f",
+        "rarity": "common"
+    },
+    {
         "name": "Sea Spirit",
         "types": [
             "Creature"
@@ -134549,6 +138482,53 @@
             }
         ],
         "id": "f6b80a10-a9a9-445e-8040-6cc0155271d8",
+        "rarity": "common"
+    },
+    {
+        "name": "Orochi Leafcaller",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Snake",
+            "Shaman"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{G}: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "orochi-leafcaller-mana",
+                "oracleText": "{G}: Add one mana of any color.",
+                "cost": {
+                    "mana": {
+                        "G": 1
+                    }
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "f6c39031-1c49-4c1e-83df-66c3795ddc72",
         "rarity": "common"
     },
     {
@@ -138526,6 +142506,79 @@
         "rarity": "common"
     },
     {
+        "name": "Atzocan Seer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Druid"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 3,
+        "oracleText": "{T}: Add one mana of any color.\nSacrifice this creature: Return target Dinosaur card from your graveyard to your hand.",
+        "activatedAbilities": [
+            {
+                "id": "atzocan-seer-mana",
+                "oracleText": "{T}: Add one mana of any color.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            },
+            {
+                "id": "atzocan-seer-ability-2",
+                "oracleText": "Sacrifice this creature: Return target Dinosaur card from your graveyard to your hand.",
+                "cost": {
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "card",
+                    "count": 1,
+                    "subtypeFilter": [
+                        "Dinosaur"
+                    ],
+                    "zone": "graveyard",
+                    "controller": "you"
+                }
+            }
+        ],
+        "id": "fe84b3c0-bca2-42d3-a82c-540644e59625",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Smokespew Invoker",
         "types": [
             "Creature"
@@ -138899,6 +142952,74 @@
             }
         ],
         "id": "ff5ed574-4ff2-4f67-8989-d3e47ba1d750",
+        "rarity": "common"
+    },
+    {
+        "name": "Urn of Godfire",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 1
+        },
+        "oracleText": "{2}: Add one mana of any color.\n{6}, {T}, Sacrifice this artifact: Destroy target creature or enchantment.",
+        "activatedAbilities": [
+            {
+                "id": "urn-of-godfire-mana",
+                "oracleText": "{2}: Add one mana of any color.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    }
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            },
+            {
+                "id": "urn-of-godfire-ability-2",
+                "oracleText": "{6}, {T}, Sacrifice this artifact: Destroy target creature or enchantment.",
+                "cost": {
+                    "mana": {
+                        "X": 6
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": [
+                        "Creature",
+                        "Enchantment"
+                    ],
+                    "count": 1
+                }
+            }
+        ],
+        "id": "ff5f302e-d884-4995-ba3c-8c22f9045318",
         "rarity": "common"
     },
     {
@@ -139457,6 +143578,56 @@
             }
         ],
         "id": "ffe1a49a-5c1c-4274-a2ed-9a8a44abfaa6",
+        "rarity": "common"
+    },
+    {
+        "name": "Unknown Shores",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {C}.\n{1}, {T}: Add one mana of any color.",
+        "activatedAbilities": [
+            {
+                "id": "unknown-shores-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "unknown-shores-mana-2",
+                "oracleText": "{1}, {T}: Add one mana of any color.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            }
+        ],
+        "id": "fff118a5-765b-4ba1-8f12-ce6f24b2459b",
         "rarity": "common"
     },
     {

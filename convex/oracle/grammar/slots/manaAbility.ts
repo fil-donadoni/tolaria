@@ -8,6 +8,7 @@
  *     {T}: Add {C}{C}.
  *     {2}, {T}: Add {B} or {R}.
  *     {T}: Add {W}, {U}, or {B}.
+ *     {T}: Add one mana of any color.
  *
  * ── Why the CR 605.1a criteria hold by construction ────────────────────────
  *
@@ -29,13 +30,23 @@
  *
  * ── What v0 deliberately refuses ───────────────────────────────────────────
  *
- * "Add one mana of any color", "Add three mana of any one color" and
- * "Add {G} for each Forest you control" all need a mana DESCRIPTOR the engine
- * models with `manaColorSource` / `getManaChoices` rather than with a fixed
- * `ManaCost`, so the shared quantity sub-grammar landing in #2697 is necessary
- * but not sufficient for them. They stay `unparsed`, not approximated: a
- * quantity read as a constant is the competitor's documented "for each
- * collapsed to a constant" misparse.
+ * "Add three mana of any one color" and "Add {G} for each Forest you control"
+ * need a mana DESCRIPTOR the engine models with `manaColorSource` /
+ * `getManaChoices` rather than with a fixed `ManaCost`, so the shared quantity
+ * sub-grammar landing in #2697 is necessary but not sufficient for them. They
+ * stay `unparsed`, not approximated: a quantity read as a constant is the
+ * competitor's documented "for each collapsed to a constant" misparse.
+ *
+ * "Add one mana of any color" is the ONE member of that family the engine
+ * needs no descriptor for (issue #4134): the offered set is the five colours
+ * of mana, constant and board-independent (CR 106.1a), which is exactly the
+ * `manaChoices` list the hand-written catalogue already ships for it (Birds of
+ * Paradise, Phyrexian Altar, Celestial Prism). `anyColorProduction` below
+ * reads it; every NEIGHBOUR that restricts or counts the set —
+ * "…of any color that a land you control could produce" (board-derived,
+ * `manaColorSource`), "…in your commander's color identity", "two mana of any
+ * one color" — stays refused, because each needs a descriptor this rule does
+ * not emit.
  *
  * The painland rider (`PAINLAND_RIDER` below, issue #3828) is scoped to the
  * literal "This land …" — the Talisman cycle prints the byte-identical shape
@@ -113,9 +124,51 @@ const choiceProduction: Rule<ManaProductionIR> = rule(
 /** The sub-grammar the attribution diagnostic names for this slot. */
 export const MANA_PRODUCTION = "mana production";
 
+/**
+ * CR 106.1a — "one mana of any color": the five COLOURS of mana (not the six
+ * types — colorless is not a colour), one of which the activating player picks
+ * at activation. `ManaCost` objects are minted fresh per parse because the
+ * lowering hands the array straight to `ActivatedAbility.manaChoices` and the
+ * painland merge spreads it into a longer list; a module-level literal would
+ * be one object shared by every compiled card.
+ */
+function anyColorOptions(): ManaCost[] {
+    return [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }];
+}
+
+/**
+ * CR 605.1a / 106.1a — "Add one mana of any color."
+ *
+ * Lowered as a CHOICE production, i.e. the same IR "Add {B} or {R}" produces,
+ * because to the engine the two ARE the same thing: a list of `ManaCost`
+ * options the activator picks from (`manaChoices`), which is how every
+ * hand-written twin of this line already ships it. Sharing the IR node also
+ * means the painland rider composes for free — "Add one mana of any color.
+ * This land deals N damage to you." (Grand Coliseum, Tarnished Citadel) is
+ * read by `addEffect`'s existing rider branch, which fires only on a choice.
+ *
+ * Fail-closed on the exact span: anything AFTER "color" restricts the offered
+ * set (a board-derived filter, a commander's colour identity) or counts it,
+ * and would need a descriptor this rule does not emit — refused, with the
+ * neighbours pinned by `manaAnyColor.test.ts`.
+ */
+const ANY_COLOR_SPAN = "one mana of any color";
+
+const anyColorProduction: Rule<ManaProductionIR> = rule(
+    "mana any color",
+    (span) =>
+        span === ANY_COLOR_SPAN
+            ? ok({ kind: "choice" as const, options: anyColorOptions() })
+            : fail(`production is not "${ANY_COLOR_SPAN}"`, span)
+);
+
 const production: Rule<ManaProductionIR> = subGrammar(
     MANA_PRODUCTION,
-    oneOf(MANA_PRODUCTION, [fixedProduction, choiceProduction])
+    oneOf(MANA_PRODUCTION, [
+        fixedProduction,
+        choiceProduction,
+        anyColorProduction,
+    ])
 );
 
 /**

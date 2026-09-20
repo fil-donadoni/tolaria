@@ -116,7 +116,14 @@ describe("gold round-trip — precision", () => {
         // explained. So does emptiness: the `toContain` below is the vacuity
         // guard, and if Onulet is ever retired too it must be replaced by the
         // next survivor, not deleted.
-        expect(REPORT.incomparable.length).toBeLessThan(15);
+        //
+        // 15 -> 16 by issue #4134 ("Add one mana of any color"): Multani's
+        // Harmony's granted ability ('Enchanted land has "{T}: Add one mana of
+        // any color."') is now compiled, and its hand-written side is a
+        // closure — so the card moves from "the compiler refuses it" into this
+        // bucket rather than into `equal`. That is the bucket's stated
+        // meaning, and `bun run oracle:behavioural` is what drains it.
+        expect(REPORT.incomparable.length).toBeLessThan(16);
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");

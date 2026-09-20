@@ -161,8 +161,11 @@ describe("mana ability slot (CR 605.1a)", () => {
     });
 
     it("refuses a quantity expression rather than approximating it (#2697)", () => {
+        // "{T}: Add one mana of any color." left this list at issue #4134: its
+        // offered set is the five colours, a constant, so it needs no
+        // descriptor and is now read (`manaAnyColor.test.ts`). What stays is
+        // what a constant list cannot express — a COUNT and a "for each".
         for (const line of [
-            "{T}: Add one mana of any color.",
             "{T}: Add three mana of any one color.",
             "{T}: Add {G} for each Forest you control.",
         ]) {

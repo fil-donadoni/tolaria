@@ -321,6 +321,12 @@
             "name": "Boar"
         }
     ],
+    "2f375674-7ae2-4430-b1f3-c26fa5b201d1": [
+        {
+            "scryfallId": "3f03e9fe-cb71-498e-bf16-5af6af37a192",
+            "name": "Citizen"
+        }
+    ],
     "2fc20157-edd3-484d-8864-925c071c0551": [
         {
             "scryfallId": "81de52ef-7515-4958-abea-fb8ebdcef93c",
@@ -1133,6 +1139,12 @@
             "name": "Pegasus"
         }
     ],
+    "a353510a-30de-4891-97b9-d7d556531c41": [
+        {
+            "scryfallId": "2ec9eae0-2c0b-4225-8fa5-96f04a239d47",
+            "name": "Dragon"
+        }
+    ],
     "a36e682d-b43d-4e08-bf5b-70d7e924dbe5": [
         {
             "scryfallId": "e6b2c465-c446-4dee-9101-763105dcf813",
@@ -1345,6 +1357,12 @@
         {
             "scryfallId": "dfb61889-9bc6-426d-8ce5-7b1c0e6e959b",
             "name": "Demon"
+        }
+    ],
+    "b9d3d285-8327-4dba-911b-ff03b186f6b8": [
+        {
+            "scryfallId": "248ade83-ac57-42d6-985c-1e4cc3639f36",
+            "name": "Saproling"
         }
     ],
     "bb61443d-e47a-4fe1-b777-67a3670a5a56": [
