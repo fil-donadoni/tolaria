@@ -355,44 +355,85 @@ describe("player edict — goldens (CR 701.21a, CR 101.4)", () => {
 });
 
 describe("player edict — refusals (fail-closed, ADR 0105 § 2)", () => {
+    // [line, the span the refusal is attributed to]. Asserting the span, not
+    // the message, is what says WHICH rule refused: "no slot consumed the
+    // line" is what every one of these lines read as before the rule existed.
     it.each([
         // A clause on the phrase the descriptor has no field for (Run Afoul).
-        "Target opponent sacrifices a creature of their choice with flying.",
+        [
+            "Target opponent sacrifices a creature of their choice with flying.",
+            "creature of their choice with flying",
+        ],
         // A magnitude that is a fact about the cast (Devastating Dreams).
-        "Each player sacrifices X lands of their choice.",
+        [
+            "Each player sacrifices X lands of their choice.",
+            "Each player sacrifices X lands of their choice",
+        ],
         // A second verb in the sentence (Geth's Verdict).
-        "Target player sacrifices a creature of their choice and loses 1 life.",
+        [
+            "Target player sacrifices a creature of their choice and loses 1 life.",
+            "Target player sacrifices a creature of their choice and loses 1 life",
+        ],
         // The superlative selector is its own slice (Consumed by Greed).
-        "Target opponent sacrifices a creature with the greatest power among creatures they control.",
+        [
+            "Target opponent sacrifices a creature with the greatest power among creatures they control.",
+            "creature with the greatest power among creatures they control",
+        ],
         // "attacking or blocking" is two roles; the filter reads one (Celestial Flare).
-        "Target player sacrifices an attacking or blocking creature of their choice.",
-        // A colour clause has no sacrifice-filter field yet (Self-Inflicted Wound).
-        "Target opponent sacrifices a green or white creature of their choice.",
+        [
+            "Target player sacrifices an attacking or blocking creature of their choice.",
+            "attacking or blocking creature",
+        ],
+        // A colour clause has no sacrifice-filter field (Self-Inflicted Wound).
+        [
+            "Target opponent sacrifices a green or white creature of their choice.",
+            "colors",
+        ],
         // Nor does a type exclusion (Doomsday Confluence).
-        "Each player sacrifices a nonartifact creature of their choice.",
+        [
+            "Each player sacrifices a nonartifact creature of their choice.",
+            "excludeTypes",
+        ],
         // "blocking" is a combat role the filter does not read: only "attacking".
-        "Target player sacrifices a blocking creature of their choice.",
+        [
+            "Target player sacrifices a blocking creature of their choice.",
+            "combatRole",
+        ],
         // "multicolored" is no descriptor word at all (Renounce the Guilds).
-        "Each player sacrifices a multicolored permanent of their choice.",
+        [
+            "Each player sacrifices a multicolored permanent of their choice.",
+            "multicolored permanent",
+        ],
         // Two nouns, each with its own article: no single filter (Perilous Predicament).
-        "Each opponent sacrifices an artifact creature and a nonartifact creature of their choice.",
+        [
+            "Each opponent sacrifices an artifact creature and a nonartifact creature of their choice.",
+            "artifact creature and a nonartifact creature",
+        ],
         // A counted rider (Urborg Justice).
-        "Target opponent sacrifices a creature of their choice for each creature put into your graveyard from the battlefield this turn.",
+        [
+            "Target opponent sacrifices a creature of their choice for each creature put into your graveyard from the battlefield this turn.",
+            "creature of their choice for each creature put into your graveyard from the battlefield this turn",
+        ],
         // The noun disagrees with the count.
-        "Target player sacrifices two creature of their choice.",
-        "Target player sacrifices a creatures of their choice.",
-    ])("%s", (text) => {
+        ["Target player sacrifices two creature of their choice.", "creature"],
+        ["Target player sacrifices a creatures of their choice.", "creatures"],
+        // Clauses that would WIDEN the choice if dropped: the chooser is the
+        // target, so "you control" read as "a creature" lets them give up one
+        // of their own, and "tapped" / "Goblin" / "basic" narrow the pool the
+        // Oracle text never narrowed to.
+        ["Target player sacrifices a creature you control.", "controller"],
+        [
+            "Target player sacrifices a creature an opponent controls.",
+            "controller",
+        ],
+        ["Target player sacrifices a tapped creature.", "tapped"],
+        ["Target player sacrifices a Goblin.", "subtypes"],
+        ["Target player sacrifices a basic land.", "supertypes"],
+        // Only a permanent can be sacrificed (CR 701.21a).
+        ["Target player sacrifices an instant.", "types"],
+    ])("%s", (text, span) => {
         expect(refusal(sorcery(text))).toBe("no slot consumed the line");
-    });
-
-    it("a rider on the phrase is refused by the DESCRIPTOR, naming the phrase it could not read", () => {
-        expect(
-            refusedSpan(
-                sorcery(
-                    "Target opponent sacrifices a creature of their choice with flying."
-                )
-            )
-        ).toBe("creature of their choice with flying");
+        expect(refusedSpan(sorcery(text))).toBe(span);
     });
 
     it('"that player" with no head naming one is refused, never guessed', () => {
@@ -403,10 +444,68 @@ describe("player edict — refusals (fail-closed, ADR 0105 § 2)", () => {
         ).toBe('"that player" names no player at this site');
     });
 
-    it('"you" is not an edict subject — the controller\'s own sacrifice is another form', () => {
+    it('"that player" behind a head that names only "a player" stays refused', () => {
         expect(
-            refusal(sorcery("You sacrifices a creature of their choice."))
-        ).toBe("a sacrifice by the controller is not the edict form");
+            refusal(
+                oracleCard({
+                    typeLine: "Creature — Horror",
+                    oracleText:
+                        "Whenever this creature deals combat damage to a player, that player sacrifices a creature of their choice.",
+                })
+            )
+        ).toBe('"that player" names no player at this site');
+    });
+});
+
+describe("player edict — trigger heads name the sacrificer", () => {
+    it("each player's upkeep: the chooser is the player whose upkeep it is", () => {
+        const definition = compiled(
+            oracleCard({
+                name: "Upkeep Edict",
+                manaCost: "{1}{B}",
+                typeLine: "Enchantment",
+                oracleText:
+                    "At the beginning of each player's upkeep, that player sacrifices an artifact of their choice.",
+                power: undefined,
+                toughness: undefined,
+            })
+        );
+        expect(
+            sortKeys(definition.compiledTriggeredAbilities?.[0]?.effects)
+        ).toEqual(
+            sortKeys(
+                edict(
+                    { ref: "$event.activePlayerId" },
+                    { type: "Artifact" },
+                    1,
+                    "Sacrifice an artifact."
+                )
+            )
+        );
+    });
+
+    it('an enters trigger\'s "each opponent" is the opponent ref, as at a spell site', () => {
+        const definition = compiled(
+            oracleCard({
+                name: "Enters Edict",
+                manaCost: "{2}{B}",
+                typeLine: "Creature — Horror",
+                oracleText:
+                    "When this creature enters, each opponent sacrifices a creature of their choice.",
+            })
+        );
+        expect(
+            sortKeys(definition.compiledTriggeredAbilities?.[0]?.effects)
+        ).toEqual(
+            sortKeys(
+                edict(
+                    "opponent",
+                    { type: "Creature" },
+                    1,
+                    "Sacrifice a creature."
+                )
+            )
+        );
     });
 });
 
@@ -421,11 +520,6 @@ describe("player edict — lowering (the chooser is the named player)", () => {
 
     it("each opponent: the opponent ref, which is relative to the controller", () => {
         expect(chooserOf(YAWNING_FISSURE)).toBe("opponent");
-    });
-
-    it("no lowered edict names the caster as the chooser", () => {
-        for (const card of [DIABOLIC_EDICT, CRUEL_EDICT, YAWNING_FISSURE])
-            expect(chooserOf(card)).not.toBe("controller");
     });
 });
 

@@ -449,10 +449,10 @@ export type EffectSentenceIR =
     | {
           /**
            * CR 701.21a — "<player> sacrifices a <permanent filter> [of their
-           * choice]": an EDICT. The sacrificing player CHOOSES which of their
-           * own permanents go (CR 701.21a names the controller as the one who
-           * moves it), so "of their choice" is the default reading spelled out,
-           * and a sentence without it means the same thing.
+           * choice]": an EDICT. "Of their choice" names the chooser — the
+           * sacrificing player — and the pool is their own permanents (CR
+           * 701.21a: a player can't sacrifice a permanent they don't control),
+           * so a sentence without the phrase means the same thing.
            *
            * `phrase` is the printed "a creature" / "two creatures", kept for
            * the prompt the chooser reads. `count` is the printed number; the

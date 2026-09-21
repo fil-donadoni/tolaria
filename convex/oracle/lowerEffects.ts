@@ -1576,13 +1576,6 @@ function lowerSentenceBody(
             // never the caster. A player with no matching permanent gets no
             // candidates, so neither the prompt nor the sacrifice happens
             // (CR 101.3 — an impossible instruction is ignored).
-            //
-            // "you" is refused: Oracle never prints "you sacrifices", and the
-            // controller's own sacrifice is a different sentence form.
-            if (sentence.player.kind === "you")
-                return unlowerable(
-                    "a sacrifice by the controller is not the edict form"
-                );
             const bind = walk.nextBind("sacrifice");
             const edict = (player: EffectPlayerRef): EffectOp[] => [
                 {
@@ -1608,9 +1601,8 @@ function lowerSentenceBody(
                         effects: edict({ ref: "$each" }),
                     },
                 ]);
-            // CR 102.2 — this engine is two-player (ADR 0010), so "each
-            // opponent" is the one other player, and the edict is one-sided
-            // exactly as printed.
+            // CR 102.2 — in a two-player game "each opponent" is the one
+            // other player, and the edict is one-sided exactly as printed.
             if (sentence.player.kind === "each-opponent")
                 return lowered(edict("opponent"));
             const player = playerRef(sentence.player, slots, site);

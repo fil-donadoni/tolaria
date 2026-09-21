@@ -973,6 +973,10 @@ export function sacrificeFilterFromDescriptor(
     const types = descriptor.types;
     if (types === undefined)
         return fail("a sacrifice filter names a card type", "types");
+    // CR 701.21a — only a permanent can be sacrificed; "an instant" would
+    // lower to a filter that can never match anything.
+    if (!types.every((type) => PERMANENT_TYPES.includes(type)))
+        return fail("only a permanent can be sacrificed (CR 701.21a)", "types");
     const filter: EffectCardFilter = {
         type: types.length === 1 ? types[0]! : [...types],
     };
