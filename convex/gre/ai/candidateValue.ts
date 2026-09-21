@@ -529,6 +529,15 @@ function resolveCountSpecAgainstBoard(
     spec: EffectCountSpec
 ): number {
     const times = spec.times ?? 1;
+    // CR 608.2h (issue #3807) — a `picks`-narrowed count reads a binding that
+    // only exists mid-resolution ("each land card discarded this way"). Before
+    // the card is cast there is no picked set, and the live graveyard answers
+    // a DIFFERENT question: every matching card ALREADY there, none of which
+    // was discarded this way. Falls back to the representative magnitude the
+    // context-free path uses, like the `bound`/`targets` selectors below — a
+    // context-aware zero would price the clause BELOW the floor it exists to
+    // refine (issue #1520). `times` is a printed literal and stays honest.
+    if (spec.picks !== undefined) return times * CF_ASSUMED_COUNT_FALLBACK;
     // CR 122 — "in all graveyards" (Accumulated Knowledge, issue #985): SUM
     // every player's count. The graveyard+countTypes shape unions the TYPES
     // across players instead (four types split over two graveyards is four,

@@ -1454,6 +1454,37 @@ function countZoneForPlayer(
     // Subtype-scoped graveyard counts are legitimate ("for each Zombie in your
     // graveyard").
     const cards = ctx.getGraveyardCards(playerId);
+    // CR 608.2h (issue #3807) — "each land card discarded this way" counts the
+    // cards a preceding Op bound, not every matching card in the zone: the
+    // batch is the narrowing, and `filter` then applies WITHIN it. An
+    // uncaptured binding counts 0, the way `sum` sums 0 over the empty set.
+    //
+    // CR 701.9c draws the lookup's boundary, and it is not "the graveyard".
+    // A discard whose destination a replacement effect redirected (Dauthi
+    // Voidwalker, `mh2/black.ts`) was STILL a discard, and the rule withholds
+    // the card's characteristics only when the redirect puts it in a HIDDEN
+    // zone without revealing it — in which case "all values of that card's
+    // characteristics are considered to be undefined", so it matches no
+    // filter and counts 0 on its own. Exile is face up by default (CR 406.3),
+    // so a card exiled instead of binned is a land card discarded this way
+    // and is counted. Reading exactly the two PUBLIC destinations is therefore the
+    // CR-faithful lookup, not a widening: a redirect into a library is the
+    // case the rule says reads as nothing, and this finds nothing there.
+    if (spec.picks !== undefined) {
+        const picks = resolvePicks(ctx, spec.picks);
+        if (picks === undefined) return 0;
+        const ids = new Set(picks);
+        const batch = [
+            ...cards.filter((c) => ids.has(c.id)),
+            ...ctx.getExileCards(playerId).filter((c) => ids.has(c.id)),
+        ];
+        // `countTypes` never reaches here — the validator refuses it with
+        // `picks` — so the cardinality is the whole answer.
+        return spec.filter
+            ? batch.filter((c) => matchesCardFilter(ctx, c, spec.filter!))
+                  .length
+            : batch.length;
+    }
     const filtered = spec.filter
         ? cards.filter((c) => matchesCardFilter(ctx, c, spec.filter!))
         : cards;

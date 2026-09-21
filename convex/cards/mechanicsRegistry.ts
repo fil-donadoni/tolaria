@@ -3706,6 +3706,17 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  a hidden zone (CR 402.2) whose SIZE is public information, therefore a pure
  *  CARDINALITY read with `filter`/`countTypes` rejected by the validator. It
  *  earns no EFFECT_OP_REGISTRY row.
+ *  `EffectCountSpec.picks` (issue #3807) is the same class again: a REFINEMENT
+ *  of the existing `count` value, not an Op and not a new grammar member. It
+ *  narrows the counted set to a picks-family binding an earlier Op captured —
+ *  "3 life for each land card discarded this way" (Gerrard's Verdict) — and
+ *  reuses this spec's own `filter` and `times` rather than carrying its own,
+ *  which is why "count of a bound batch matching a filter" needed no
+ *  `setSize` widening and no fifteenth value member: `setSize` carries no
+ *  multiplier, so that route would also have had to widen
+ *  `EffectScaledOperand` to wrap it in a `scaled`. Validator-restricted to
+ *  `zone: "graveyard"` with a `controller`, and `countTypes` refused. It earns
+ *  no EFFECT_OP_REGISTRY row.
  *  `difference` (issue #2006, `{ difference: { from, minus } }`) IS a new
  *  value-grammar member — the THIRTEENTH — and the only one that performs
  *  arithmetic between two operands. It earns no EFFECT_OP_REGISTRY row (not an

@@ -34602,3 +34602,148 @@ describe("grantCastFromExile window: until-end-of-your-next-turn (CR 514.2 / 608
         expect(card.castableFromExileBy).toBe("p1");
     });
 });
+
+// issue #3807 — `picks` on `EffectCountSpec`: a graveyard count narrowed to
+// the cards a PRECEDING Op bound. The permanent test for the new field
+// (gre-development.md § Per-Op test regime), and the one thing no other count
+// test can show — CR 608.2h's "the answer is determined only once, when the
+// effect is applied" is about WHICH cards the effect means: "3 life for each
+// land card DISCARDED THIS WAY" is not "each land card in that graveyard",
+// and a graveyard that already held lands would silently pay for them.
+describe("Effect Script value: count narrowed by picks (CR 608.2h / 701.9a, issue #3807)", () => {
+    const VERDICT_EFFECTS: EffectOp[] = [
+        {
+            op: "choice",
+            kind: "discard-hand",
+            player: { target: 0 },
+            zone: "hand",
+            count: 2,
+            prompt: "Discard two cards.",
+            bind: "$discarded",
+        },
+        { op: "discard", player: { target: 0 }, cards: { ref: "$discarded" } },
+        {
+            op: "gainLife",
+            player: "controller",
+            amount: {
+                count: {
+                    zone: "graveyard",
+                    controller: { target: 0 },
+                    filter: { type: "Land" },
+                    picks: { ref: "$discarded" },
+                    times: 3,
+                },
+            },
+        },
+    ];
+
+    const handCard = (id: string, defId: string) =>
+        makeInstance(defId, {
+            id,
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+
+    const graveyardCard = (id: string, defId: string) =>
+        makeInstance(defId, {
+            id,
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "graveyard",
+        });
+
+    /** Casts the script at p2 and answers the discard choice with `ids`. */
+    function castAndDiscard(state: GameState, id: string, ids: string[]): void {
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("discard-hand");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p2",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ids,
+        });
+    }
+
+    it("counts only the lands discarded this way, not the lands already in that graveyard", () => {
+        const id = registerScript(
+            "test-count-picks-discarded-lands",
+            VERDICT_EFFECTS,
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20 }),
+                makePlayer("p2", {
+                    hand: [
+                        handCard("h-land", LAND_ID),
+                        handCard("h-bear", BEAR_ID),
+                    ],
+                    // Two lands ALREADY there. An unnarrowed count reads three
+                    // lands and pays 9 life.
+                    graveyard: [
+                        graveyardCard("gy-land-1", LAND_ID),
+                        graveyardCard("gy-land-2", LAND_ID),
+                    ],
+                }),
+            ],
+        });
+        castAndDiscard(state, id, ["h-land", "h-bear"]);
+        expect(state.players[1].hand).toHaveLength(0);
+        expect(state.players[1].graveyard.map((c) => c.id).sort()).toEqual([
+            "gy-land-1",
+            "gy-land-2",
+            "h-bear",
+            "h-land",
+        ]);
+        // ONE land discarded this way → 3 life, never 9.
+        expect(state.players[0].life).toBe(23);
+    });
+
+    it("applies the filter inside the narrowed set: two nonland discards pay nothing", () => {
+        const id = registerScript(
+            "test-count-picks-discarded-nonlands",
+            VERDICT_EFFECTS,
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20 }),
+                makePlayer("p2", {
+                    hand: [
+                        handCard("h-bear-1", BEAR_ID),
+                        handCard("h-bear-2", BEAR_ID),
+                    ],
+                    graveyard: [graveyardCard("gy-land-1", LAND_ID)],
+                }),
+            ],
+        });
+        castAndDiscard(state, id, ["h-bear-1", "h-bear-2"]);
+        expect(state.players[0].life).toBe(20);
+    });
+
+    it("counts 0 for an uncaptured binding: an empty hand discards nothing and pays nothing", () => {
+        const id = registerScript(
+            "test-count-picks-discarded-empty-hand",
+            VERDICT_EFFECTS,
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20 }),
+                makePlayer("p2", {
+                    hand: [],
+                    graveyard: [graveyardCard("gy-land-1", LAND_ID)],
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        // No candidates: no choice was raised, so the binding never captured.
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.players[0].life).toBe(20);
+    });
+});

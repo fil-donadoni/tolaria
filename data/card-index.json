@@ -19440,6 +19440,14 @@
         "source": "compiled"
     },
     {
+        "name": "Gerrard's Verdict",
+        "scryfallId": "583740c0-68cf-4205-b682-2f97c0880d42",
+        "oracleId": "670b5dfb-ffdf-43ed-acc3-855006e352fc",
+        "firstSet": "apc",
+        "firstPrintId": "583740c0-68cf-4205-b682-2f97c0880d42",
+        "firstPrintSet": "apc"
+    },
+    {
         "name": "Gerrard's Wisdom",
         "scryfallId": "f81defa5-edb4-4f1f-b13c-7cfb34511138",
         "oracleId": "3e30e8f2-f437-4620-a3bc-dd9c29ae6570",
@@ -56288,6 +56296,14 @@
         "firstPrintSet": "apc",
         "rarity": "common",
         "source": "compiled"
+    },
+    {
+        "name": "Whirlpool Warrior",
+        "scryfallId": "01f891ca-4e6a-4710-b1cf-5dabb5e1ad93",
+        "oracleId": "b7a1c54b-bb2f-4423-865a-ad114cd18c76",
+        "firstSet": "apc",
+        "firstPrintId": "01f891ca-4e6a-4710-b1cf-5dabb5e1ad93",
+        "firstPrintSet": "apc"
     },
     {
         "name": "Whirlwind Adept",

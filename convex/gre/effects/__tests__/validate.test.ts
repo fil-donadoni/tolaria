@@ -7136,3 +7136,156 @@ describe("validateEffectScript — graveyard-card $event family (CR 400.7e, issu
         expect(errors.some((e) => /graveyard-card field/.test(e))).toBe(true);
     });
 });
+
+// --- count narrowed by a picks binding (issue #3807) -----------------------
+//
+// `picks` is the one count field that reads ANOTHER Op's output, so its whole
+// contract is what the validator refuses: a zone where the picked cards never
+// land, an all-players scope with no single graveyard to look ids up in, a
+// `countTypes` composition no card asks for, and a binding no earlier Op
+// declares. Untested, each of those is a claim rather than a guarantee.
+describe("count narrowed by a picks binding (CR 608.2h / 701.9a, issue #3807)", () => {
+    const verdict = (countSpec: Record<string, unknown>): EffectOp[] => [
+        {
+            op: "choice",
+            kind: "discard-hand",
+            player: { target: 0 },
+            zone: "hand",
+            count: 2,
+            prompt: "Discard two cards.",
+            bind: "$discarded",
+        },
+        { op: "discard", player: { target: 0 }, cards: { ref: "$discarded" } },
+        {
+            op: "gainLife",
+            player: "controller",
+            amount: { count: countSpec },
+        } as unknown as EffectOp,
+    ];
+
+    const PICKS_GRAVEYARD_COUNT = {
+        zone: "graveyard",
+        controller: { target: 0 },
+        filter: { type: "Land" },
+        picks: { ref: "$discarded" },
+        times: 3,
+    };
+
+    it("accepts a graveyard count narrowed to an earlier choice's picks", () => {
+        expect(
+            validateEffectScript(
+                host({ effects: verdict(PICKS_GRAVEYARD_COUNT) })
+            )
+        ).toEqual([]);
+    });
+
+    // Each case is paired with the SAME spec minus `picks`, which must
+    // validate clean: without the control the rejection could come from any
+    // other schema rule (a `filter` on a hidden zone, an `undefined`-valued
+    // key) and the test would pass with the new rule deleted.
+    it("rejects a picks narrowing on any zone but the graveyard", () => {
+        const cases: Record<string, unknown>[] = [
+            // A filter is legal on the battlefield, so only `picks` can red it.
+            {
+                zone: "battlefield",
+                controller: { target: 0 },
+                filter: { type: "Land" },
+            },
+            // Hidden zones take no filter at all, so the control omits it too.
+            { zone: "library", controller: { target: 0 } },
+            { zone: "hand", controller: { target: 0 } },
+        ];
+        for (const base of cases) {
+            expect(
+                validateEffectScript(host({ effects: verdict(base) }))
+            ).toEqual([]);
+            expect(
+                validateEffectScript(
+                    host({
+                        effects: verdict({
+                            ...base,
+                            picks: { ref: "$discarded" },
+                        }),
+                    })
+                ).length
+            ).toBeGreaterThan(0);
+        }
+    });
+
+    it("rejects a picks narrowing under an all-players scope or with countTypes", () => {
+        // The all-players scopes exclude `controller`, so drop it.
+        const scoped = {
+            zone: PICKS_GRAVEYARD_COUNT.zone,
+            filter: PICKS_GRAVEYARD_COUNT.filter,
+            picks: PICKS_GRAVEYARD_COUNT.picks,
+            times: PICKS_GRAVEYARD_COUNT.times,
+        };
+        expect(
+            validateEffectScript(
+                host({
+                    effects: verdict({ ...scoped, acrossAllPlayers: true }),
+                })
+            ).length
+        ).toBeGreaterThan(0);
+        expect(
+            validateEffectScript(
+                host({
+                    effects: verdict({
+                        ...scoped,
+                        smallestAcrossPlayers: true,
+                    }),
+                })
+            ).length
+        ).toBeGreaterThan(0);
+        expect(
+            validateEffectScript(
+                host({
+                    effects: verdict({
+                        ...PICKS_GRAVEYARD_COUNT,
+                        countTypes: true,
+                    }),
+                })
+            ).length
+        ).toBeGreaterThan(0);
+    });
+
+    it("rejects a picks ref naming no earlier binding, and one of the wrong family", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: verdict({
+                        ...PICKS_GRAVEYARD_COUNT,
+                        picks: { ref: "$never" },
+                    }),
+                })
+            ).length
+        ).toBeGreaterThan(0);
+        // `bindCount` declares a NUMBER, not a picks set (issue #4302).
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            op: "moveZone",
+                            player: "controller",
+                            from: "hand",
+                            to: "library",
+                            bindCount: "$handSize",
+                        },
+                        {
+                            op: "gainLife",
+                            player: "controller",
+                            amount: {
+                                count: {
+                                    ...PICKS_GRAVEYARD_COUNT,
+                                    controller: "controller",
+                                    picks: { ref: "$handSize" },
+                                },
+                            },
+                        },
+                    ] as unknown as EffectOp[],
+                })
+            ).length
+        ).toBeGreaterThan(0);
+    });
+});
