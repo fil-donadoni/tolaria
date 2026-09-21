@@ -429,7 +429,9 @@ describe("divided damage — golden fixtures (CR 601.2d)", () => {
 describe("divided damage — reaches ready", () => {
     // The smoke planner cannot scenario-ize an announced division, so a
     // divided card is `ready` only because the `divided damage` golden fixture
-    // (`grammar/fixtures.ts`) exhibits the form — at every site that prints it.
+    // (`grammar/fixtures.ts`) exhibits the form. The gate keys a smoke skip on the
+    // Op's skeleton, not on the site, so a spell's fixture also clears the
+    // activated and triggered sites that print the same Op.
     it.each([
         [
             "spell",
@@ -496,126 +498,138 @@ describe("divided damage — refused neighbours (fail-closed)", () => {
     const line = (name: string, cost: string, text: string) =>
         spell(name, cost, "Instant", text);
 
+    /** The card is refused, and the refusal blames a span containing `span` —
+     *  so a neighbour that fails for an UNRELATED reason cannot keep it green. */
+    function refusedAt(card: ReturnType<typeof oracleCard>, span: string) {
+        const outcome = compileCard(card);
+        expect(outcome.state).toBe("unparsed");
+        if (outcome.state !== "unparsed") return;
+        expect(outcome.gaps.map((g) => g.attribution?.span ?? "")).toEqual([
+            expect.stringContaining(span),
+        ]);
+    }
+
     it("refuses 'attacking or blocking' — the descriptor cannot read the disjunction (Deft Dismissal)", () => {
-        expect(
-            refused(
-                line(
-                    "Deft Dismissal",
-                    "{3}{W}",
-                    "Deft Dismissal deals 3 damage divided as you choose among one, two, or three target attacking or blocking creatures."
-                )
-            )
-        ).toBe(true);
+        refusedAt(
+            line(
+                "Deft Dismissal",
+                "{3}{W}",
+                "Deft Dismissal deals 3 damage divided as you choose among one, two, or three target attacking or blocking creatures."
+            ),
+            "attacking or blocking creatures"
+        );
     });
 
     it("refuses 'and/or' — the descriptor cannot read the conjunction (Ignite Disorder)", () => {
-        expect(
-            refused(
-                line(
-                    "Ignite Disorder",
-                    "{1}{R}",
-                    "Ignite Disorder deals 3 damage divided as you choose among one, two, or three target white and/or blue creatures."
-                )
-            )
-        ).toBe(true);
+        refusedAt(
+            line(
+                "Ignite Disorder",
+                "{1}{R}",
+                "Ignite Disorder deals 3 damage divided as you choose among one, two, or three target white and/or blue creatures."
+            ),
+            "white and/or blue creatures"
+        );
     });
 
-    it("refuses an 'X target …' count — its width is a fact about the cast (Meteor Swarm)", () => {
-        expect(
-            refused(
-                line(
-                    "Meteor Swarm",
-                    "{X}{R}{R}{R}",
-                    "Meteor Swarm deals 8 damage divided as you choose among X target creatures and/or planeswalkers."
-                )
-            )
-        ).toBe(true);
+    it("refuses an 'X target …' count — its width is a fact about the cast", () => {
+        // No "and/or" here: the ONLY reason left is the X count.
+        refusedAt(
+            line(
+                "X Count Probe",
+                "{X}{R}{R}",
+                "X Count Probe deals 8 damage divided as you choose among X target creatures."
+            ),
+            "X target creatures"
+        );
     });
 
     it("refuses a magnitude that is not a number or X (Meteor Shower: 'X plus 1')", () => {
-        expect(
-            refused(
-                line(
-                    "Meteor Shower",
-                    "{X}{R}",
-                    "Meteor Shower deals X plus 1 damage divided as you choose among any number of targets."
-                )
-            )
-        ).toBe(true);
+        refusedAt(
+            line(
+                "Meteor Shower",
+                "{X}{R}",
+                "Meteor Shower deals X plus 1 damage divided as you choose among any number of targets."
+            ),
+            "X plus 1 damage divided"
+        );
     });
 
     it("refuses an even split — CR 601.2d is the caster's division (Fireball)", () => {
-        expect(
-            refused(
-                line(
-                    "Fireball",
-                    "{X}{R}",
-                    "Fireball deals X damage divided evenly, rounded down, among any number of targets."
-                )
-            )
-        ).toBe(true);
+        refusedAt(
+            line(
+                "Fireball",
+                "{X}{R}",
+                "Fireball deals X damage divided evenly, rounded down, among any number of targets."
+            ),
+            "divided evenly"
+        );
     });
 
     it("refuses damage 'equal to its power' — a separate magnitude reference (Living Inferno)", () => {
-        expect(
-            refused(
-                creature(
-                    "Living Inferno",
-                    "{2}{R}{R}",
-                    "Creature — Elemental",
-                    "{T}: This creature deals damage equal to its power divided as you choose among any number of target creatures.",
-                    "3"
-                )
-            )
-        ).toBe(true);
+        refusedAt(
+            creature(
+                "Living Inferno",
+                "{2}{R}{R}",
+                "Creature — Elemental",
+                "{T}: This creature deals damage equal to its power divided as you choose among any number of target creatures.",
+                "3"
+            ),
+            "equal to its power divided"
+        );
     });
 
     it("refuses a second target group beside the division — the budget would swallow it (Fiery Justice)", () => {
-        expect(
-            refused(
-                line(
-                    "Fiery Justice",
-                    "{R}{G}{W}",
-                    "Fiery Justice deals 5 damage divided as you choose among any number of targets. Target opponent gains 5 life."
-                )
+        const outcome = compileCard(
+            line(
+                "Fiery Justice",
+                "{R}{G}{W}",
+                "Fiery Justice deals 5 damage divided as you choose among any number of targets. Target opponent gains 5 life."
             )
-        ).toBe(true);
+        );
+        expect(outcome.state).toBe("unparsed");
+        expect(
+            outcome.state === "unparsed" &&
+                outcome.gaps.map((g) => g.reason).join(" | ")
+        ).toContain("no fixed positional slot");
     });
 
     it("refuses an X magnitude on a source that announces no {X}", () => {
-        expect(
-            refused(
-                line(
-                    "No X Probe",
-                    "{2}{R}",
-                    "No X Probe deals X damage divided as you choose among any number of targets."
-                )
+        const outcome = compileCard(
+            line(
+                "No X Probe",
+                "{2}{R}",
+                "No X Probe deals X damage divided as you choose among any number of targets."
             )
-        ).toBe(true);
+        );
+        expect(outcome.state).toBe("unparsed");
+        expect(
+            outcome.state === "unparsed" &&
+                outcome.gaps.map((g) => g.reason).join(" | ")
+        ).toContain("announces no {X}");
     });
 
     it("refuses a bare plural count with no phrase ('two targets') — a form nobody prints", () => {
-        expect(
-            refused(
-                line(
-                    "Two Probe",
-                    "{2}{R}",
-                    "Two Probe deals 2 damage divided as you choose among two targets."
-                )
-            )
-        ).toBe(true);
+        refusedAt(
+            line(
+                "Two Probe",
+                "{2}{R}",
+                "Two Probe deals 2 damage divided as you choose among two targets."
+            ),
+            "two targets"
+        );
     });
 
     it("refuses a divided 'instead' upgrade — it replaces a base the divide cannot restate (Fight with Fire)", () => {
-        expect(
-            refused(
-                line(
-                    "Fight with Fire",
-                    "{2}{R}",
-                    "Fight with Fire deals 5 damage to target creature. If this spell was kicked, it deals 10 damage divided as you choose among any number of targets instead."
-                )
-            )
-        ).toBe(true);
+        // WITH the Kicker line, so the ONLY reason left is the trailing
+        // "instead" on the divided clause.
+        refusedAt(
+            line(
+                "Fight with Fire",
+                "{2}{R}",
+                "Kicker {5}{R} (You may pay an additional {5}{R} as you cast this spell.)\nFight with Fire deals 5 damage to target creature. If this spell was kicked, it deals 10 damage divided as you choose among any number of targets instead."
+            ),
+            "any number of targets instead"
+        );
     });
 });
 

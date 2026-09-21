@@ -1108,13 +1108,16 @@ export const targetFilterRule: Rule<TargetRequirement> = subGrammar(
  * CR 601.2d — the count phrase of a "divided as you choose among …"
  * group, phrase → announced count.
  *
- * Every phrase opens at ONE target: CR 601.2d gives each chosen target at
- * least 1 of what is divided, so a division among zero targets has nothing to
- * divide, and the engine's own announcement (`announcedTargetCount`) drives a
- * divide group from `min: 1`. "Any number of" is therefore `{ min: 1 }` with
- * no `max` — the divide budget caps it — where CR 601.2c alone would allow
- * zero (the nine shipped divide cards all print `{ min: 1 }` for the same
- * reason). "X target …" is not read: its width is a fact about the cast.
+ * Every phrase opens at ONE target: CR 601.2d speaks of dividing an effect
+ * "among one or more targets", each receiving at least 1, so a division among
+ * zero targets has nothing to divide, and the engine's own announcements
+ * drive a divide group from `min: 1`. "Any number of" is therefore
+ * `{ min: 1 }` with no `max` — the divide budget caps it — where the variable
+ * count of CR 601.2c alone would allow zero (the nine shipped divide cards all
+ * print `{ min: 1 }` for the same reason). Known narrowing: a spell that
+ * ALSO has a value-bearing second sentence could be cast with zero targets as
+ * printed and cannot here; the catalogue makes the same choice.
+ * "X target …" is not read: its width is a fact about the cast.
  */
 const DIVIDED_COUNT_PHRASES: ReadonlyMap<string, TargetRequirement["count"]> =
     new Map<string, TargetRequirement["count"]>([
