@@ -318,11 +318,6 @@
             "issue": 3954
         },
         {
-            "key": "(op) › sacrifice",
-            "op": "sacrifice",
-            "issue": 3955
-        },
-        {
             "key": "(op) › setBasePT",
             "op": "setBasePT",
             "issue": 3957

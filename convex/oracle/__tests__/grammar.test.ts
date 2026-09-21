@@ -294,7 +294,10 @@ describe("slot router — unique dispatch (CR 113.3a-d)", () => {
             false
         );
         expect(
-            routeLine("Each player sacrifices a creature.", sorcery).ok
+            routeLine(
+                "Each player shuffles their graveyard into their library.",
+                sorcery
+            ).ok
         ).toBe(false);
     });
 });

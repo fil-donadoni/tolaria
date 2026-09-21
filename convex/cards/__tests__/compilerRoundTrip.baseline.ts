@@ -752,7 +752,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Infinite Hourglass",
     "Infuse",
     "Initiates of the Ebon Hand",
-    "Innocent Blood",
     "Inquisition",
     "Inquisition of Kozilek",
     "Insolence",

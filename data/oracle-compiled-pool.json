@@ -961,6 +961,49 @@
         "rarity": "common"
     },
     {
+        "name": "Chainer's Edict",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Target player sacrifices a creature of their choice.\nFlashback {5}{B}{B} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+        "effects": [
+            {
+                "op": "choice",
+                "kind": "sacrifice-permanents",
+                "player": {
+                    "target": 0
+                },
+                "zone": "battlefield",
+                "filter": {
+                    "type": "Creature"
+                },
+                "count": 1,
+                "prompt": "Sacrifice a creature.",
+                "bind": "$sacrifice1"
+            },
+            {
+                "op": "sacrifice",
+                "permanents": {
+                    "ref": "$sacrifice1"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "player",
+            "count": 1
+        },
+        "flashback": {
+            "X": 5,
+            "B": 2
+        },
+        "id": "014af391-3b4a-4aab-a3e9-f60e61016985",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Prized Elephant",
         "types": [
             "Creature"
@@ -2020,6 +2063,85 @@
             }
         ],
         "id": "02eedf9d-e26c-405c-aee5-1b3493dc5e9b",
+        "rarity": "common"
+    },
+    {
+        "name": "Pharika's Libation",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "oracleText": "Choose one —\n• Target opponent sacrifices a creature of their choice.\n• Target opponent sacrifices an enchantment of their choice.",
+        "modes": [
+            {
+                "id": "pharika-s-libation-mode-1",
+                "label": "Target opponent sacrifices a creature of their choice",
+                "oracleText": "Target opponent sacrifices a creature of their choice.",
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "sacrifice-permanents",
+                        "player": {
+                            "target": 0
+                        },
+                        "zone": "battlefield",
+                        "filter": {
+                            "type": "Creature"
+                        },
+                        "count": 1,
+                        "prompt": "Sacrifice a creature.",
+                        "bind": "$sacrifice1"
+                    },
+                    {
+                        "op": "sacrifice",
+                        "permanents": {
+                            "ref": "$sacrifice1"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1,
+                    "controller": "opponent"
+                }
+            },
+            {
+                "id": "pharika-s-libation-mode-2",
+                "label": "Target opponent sacrifices an enchantment of their choice",
+                "oracleText": "Target opponent sacrifices an enchantment of their choice.",
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "sacrifice-permanents",
+                        "player": {
+                            "target": 0
+                        },
+                        "zone": "battlefield",
+                        "filter": {
+                            "type": "Enchantment"
+                        },
+                        "count": 1,
+                        "prompt": "Sacrifice an enchantment.",
+                        "bind": "$sacrifice1"
+                    },
+                    {
+                        "op": "sacrifice",
+                        "permanents": {
+                            "ref": "$sacrifice1"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1,
+                    "controller": "opponent"
+                }
+            }
+        ],
+        "id": "0307bb5c-0a46-4f6b-b6d5-58cf31987bb5",
         "rarity": "common"
     },
     {
@@ -13325,6 +13447,60 @@
         "rarity": "common"
     },
     {
+        "name": "Grave Exchange",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 4,
+            "B": 2
+        },
+        "oracleText": "Return target creature card from your graveyard to your hand. Target player sacrifices a creature of their choice.",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "hand"
+            },
+            {
+                "op": "choice",
+                "kind": "sacrifice-permanents",
+                "player": {
+                    "target": 1
+                },
+                "zone": "battlefield",
+                "filter": {
+                    "type": "Creature"
+                },
+                "count": 1,
+                "prompt": "Sacrifice a creature.",
+                "bind": "$sacrifice1"
+            },
+            {
+                "op": "sacrifice",
+                "permanents": {
+                    "ref": "$sacrifice1"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "additionalTargetRequirements": [
+            {
+                "type": "player",
+                "count": 1
+            }
+        ],
+        "id": "14f420c4-801b-48e7-a10b-de44a2417265",
+        "rarity": "common"
+    },
+    {
         "name": "Heartless Summoning",
         "types": [
             "Enchantment"
@@ -15270,6 +15446,65 @@
         ],
         "id": "17320043-f81c-4e14-b9ba-c1309972c22b",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Abyssal Gatekeeper",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Horror"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "When this creature dies, each player sacrifices a creature of their choice.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "abyssal-gatekeeper-trigger",
+                "oracleText": "When this creature dies, each player sacrifices a creature of their choice.",
+                "head": {
+                    "kind": "died",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "players"
+                        },
+                        "simultaneous": true,
+                        "effects": [
+                            {
+                                "op": "choice",
+                                "kind": "sacrifice-permanents",
+                                "player": {
+                                    "ref": "$each"
+                                },
+                                "zone": "battlefield",
+                                "filter": {
+                                    "type": "Creature"
+                                },
+                                "count": 1,
+                                "prompt": "Sacrifice a creature.",
+                                "bind": "$sacrifice1"
+                            },
+                            {
+                                "op": "sacrifice",
+                                "permanents": {
+                                    "ref": "$sacrifice1"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "1734df5a-7d3a-46c7-a0ad-adbbd1be958f",
+        "rarity": "common"
     },
     {
         "name": "Nephalia Seakite",
@@ -26965,6 +27200,68 @@
         "rarity": "common"
     },
     {
+        "name": "Blighted Fen",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {C}.\n{4}{B}, {T}, Sacrifice this land: Target opponent sacrifices a creature of their choice.",
+        "activatedAbilities": [
+            {
+                "id": "blighted-fen-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "blighted-fen-ability-2",
+                "oracleText": "{4}{B}, {T}, Sacrifice this land: Target opponent sacrifices a creature of their choice.",
+                "cost": {
+                    "mana": {
+                        "X": 4,
+                        "B": 1
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "sacrifice-permanents",
+                        "player": {
+                            "target": 0
+                        },
+                        "zone": "battlefield",
+                        "filter": {
+                            "type": "Creature"
+                        },
+                        "count": 1,
+                        "prompt": "Sacrifice a creature.",
+                        "bind": "$sacrifice1"
+                    },
+                    {
+                        "op": "sacrifice",
+                        "permanents": {
+                            "ref": "$sacrifice1"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1,
+                    "controller": "opponent"
+                }
+            }
+        ],
+        "id": "29d02950-cd50-4662-97af-3106598dc3c4",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Charging Paladin",
         "types": [
             "Creature"
@@ -35589,6 +35886,42 @@
         "rarity": "common"
     },
     {
+        "name": "Mire in Misery",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Each opponent sacrifices a creature or enchantment of their choice.",
+        "effects": [
+            {
+                "op": "choice",
+                "kind": "sacrifice-permanents",
+                "player": "opponent",
+                "zone": "battlefield",
+                "filter": {
+                    "type": [
+                        "Creature",
+                        "Enchantment"
+                    ]
+                },
+                "count": 1,
+                "prompt": "Sacrifice a creature or enchantment.",
+                "bind": "$sacrifice1"
+            },
+            {
+                "op": "sacrifice",
+                "permanents": {
+                    "ref": "$sacrifice1"
+                }
+            }
+        ],
+        "id": "37b2cc43-307c-429f-a4f7-ac339a97e0bb",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Stone Golem",
         "types": [
             "Artifact",
@@ -40174,6 +40507,84 @@
         ],
         "id": "3f9ebf02-56b3-492e-88fb-2e95f13f5764",
         "rarity": "common"
+    },
+    {
+        "name": "Umbral Juke",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "oracleText": "Choose one —\n• Target player sacrifices a creature or planeswalker of their choice.\n• Create a 2/1 white and black Inkling creature token with flying.",
+        "modes": [
+            {
+                "id": "umbral-juke-mode-1",
+                "label": "Target player sacrifices a creature or planeswalker of their choice",
+                "oracleText": "Target player sacrifices a creature or planeswalker of their choice.",
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "sacrifice-permanents",
+                        "player": {
+                            "target": 0
+                        },
+                        "zone": "battlefield",
+                        "filter": {
+                            "type": [
+                                "Creature",
+                                "Planeswalker"
+                            ]
+                        },
+                        "count": 1,
+                        "prompt": "Sacrifice a creature or planeswalker.",
+                        "bind": "$sacrifice1"
+                    },
+                    {
+                        "op": "sacrifice",
+                        "permanents": {
+                            "ref": "$sacrifice1"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                }
+            },
+            {
+                "id": "umbral-juke-mode-2",
+                "label": "Create a 2/1 white and black Inkling creature token with flying",
+                "oracleText": "Create a 2/1 white and black Inkling creature token with flying.",
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Inkling",
+                            "types": [
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Inkling"
+                            ],
+                            "power": 2,
+                            "toughness": 1,
+                            "colors": [
+                                "W",
+                                "B"
+                            ],
+                            "staticAbilities": [
+                                "flying"
+                            ]
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "id": "3fbd0921-e953-492b-ad73-c8a8bfaa750b",
+        "rarity": "uncommon"
     },
     {
         "name": "Iridescent Blademaster",
@@ -62167,6 +62578,49 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Wing Shards",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 2
+        },
+        "oracleText": "Target player sacrifices an attacking creature of their choice.\nStorm (When you cast this spell, copy it for each spell cast before it this turn. You may choose new targets for the copies.)",
+        "staticAbilities": [
+            "storm"
+        ],
+        "effects": [
+            {
+                "op": "choice",
+                "kind": "sacrifice-permanents",
+                "player": {
+                    "target": 0
+                },
+                "zone": "battlefield",
+                "filter": {
+                    "type": "Creature",
+                    "isAttacking": true
+                },
+                "count": 1,
+                "prompt": "Sacrifice an attacking creature.",
+                "bind": "$sacrifice1"
+            },
+            {
+                "op": "sacrifice",
+                "permanents": {
+                    "ref": "$sacrifice1"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "player",
+            "count": 1
+        },
+        "id": "65efa443-666a-45c1-8784-e98c510854b5",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Noble Elephant",
         "types": [
             "Creature"
@@ -67721,6 +68175,65 @@
         "rarity": "common"
     },
     {
+        "name": "Slum Reaper",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Horror"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "power": 4,
+        "toughness": 2,
+        "oracleText": "When this creature enters, each player sacrifices a creature of their choice.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "slum-reaper-trigger",
+                "oracleText": "When this creature enters, each player sacrifices a creature of their choice.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "players"
+                        },
+                        "simultaneous": true,
+                        "effects": [
+                            {
+                                "op": "choice",
+                                "kind": "sacrifice-permanents",
+                                "player": {
+                                    "ref": "$each"
+                                },
+                                "zone": "battlefield",
+                                "filter": {
+                                    "type": "Creature"
+                                },
+                                "count": 1,
+                                "prompt": "Sacrifice a creature.",
+                                "bind": "$sacrifice1"
+                            },
+                            {
+                                "op": "sacrifice",
+                                "permanents": {
+                                    "ref": "$sacrifice1"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "6f0fea13-63cf-4574-8752-3c357eee4524",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Flowstone Shambler",
         "types": [
             "Creature"
@@ -68499,6 +69012,66 @@
         },
         "id": "708e7438-b449-490e-820f-9ecd3199541b",
         "rarity": "common"
+    },
+    {
+        "name": "Hurloon Shaman",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Minotaur",
+            "Shaman"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 2
+        },
+        "power": 2,
+        "toughness": 3,
+        "oracleText": "When this creature dies, each player sacrifices a land of their choice.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "hurloon-shaman-trigger",
+                "oracleText": "When this creature dies, each player sacrifices a land of their choice.",
+                "head": {
+                    "kind": "died",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "players"
+                        },
+                        "simultaneous": true,
+                        "effects": [
+                            {
+                                "op": "choice",
+                                "kind": "sacrifice-permanents",
+                                "player": {
+                                    "ref": "$each"
+                                },
+                                "zone": "battlefield",
+                                "filter": {
+                                    "type": "Land"
+                                },
+                                "count": 1,
+                                "prompt": "Sacrifice a land.",
+                                "bind": "$sacrifice1"
+                            },
+                            {
+                                "op": "sacrifice",
+                                "permanents": {
+                                    "ref": "$sacrifice1"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "70a359c9-1889-426d-acaf-074cfd9f274d",
+        "rarity": "uncommon"
     },
     {
         "name": "Two-Headed Hunter",
@@ -71091,6 +71664,52 @@
         ],
         "id": "74b2e63d-61c6-46e4-9a6f-56653c49b2ea",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Misguided Rage",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "oracleText": "Target player sacrifices a permanent of their choice.",
+        "effects": [
+            {
+                "op": "choice",
+                "kind": "sacrifice-permanents",
+                "player": {
+                    "target": 0
+                },
+                "zone": "battlefield",
+                "filter": {
+                    "type": [
+                        "Artifact",
+                        "Battle",
+                        "Creature",
+                        "Enchantment",
+                        "Land",
+                        "Planeswalker"
+                    ]
+                },
+                "count": 1,
+                "prompt": "Sacrifice a permanent.",
+                "bind": "$sacrifice1"
+            },
+            {
+                "op": "sacrifice",
+                "permanents": {
+                    "ref": "$sacrifice1"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "player",
+            "count": 1
+        },
+        "id": "74b5e00a-fef0-4711-9112-2fd067321890",
+        "rarity": "common"
     },
     {
         "name": "Amateur Auteur",
@@ -74810,6 +75429,49 @@
         "rarity": "rare"
     },
     {
+        "name": "Simplify",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "oracleText": "Each player sacrifices an enchantment of their choice.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "players"
+                },
+                "simultaneous": true,
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "sacrifice-permanents",
+                        "player": {
+                            "ref": "$each"
+                        },
+                        "zone": "battlefield",
+                        "filter": {
+                            "type": "Enchantment"
+                        },
+                        "count": 1,
+                        "prompt": "Sacrifice an enchantment.",
+                        "bind": "$sacrifice1"
+                    },
+                    {
+                        "op": "sacrifice",
+                        "permanents": {
+                            "ref": "$sacrifice1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "7a43fd3e-1e08-400c-b22b-e22da82bcdee",
+        "rarity": "common"
+    },
+    {
         "name": "Aven Fateshaper",
         "types": [
             "Creature"
@@ -75938,6 +76600,66 @@
         "rarity": "common"
     },
     {
+        "name": "Merciless Executioner",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Orc",
+            "Warrior"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "power": 3,
+        "toughness": 1,
+        "oracleText": "When this creature enters, each player sacrifices a creature of their choice.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "merciless-executioner-trigger",
+                "oracleText": "When this creature enters, each player sacrifices a creature of their choice.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "players"
+                        },
+                        "simultaneous": true,
+                        "effects": [
+                            {
+                                "op": "choice",
+                                "kind": "sacrifice-permanents",
+                                "player": {
+                                    "ref": "$each"
+                                },
+                                "zone": "battlefield",
+                                "filter": {
+                                    "type": "Creature"
+                                },
+                                "count": 1,
+                                "prompt": "Sacrifice a creature.",
+                                "bind": "$sacrifice1"
+                            },
+                            {
+                                "op": "sacrifice",
+                                "permanents": {
+                                    "ref": "$sacrifice1"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "7c588d7a-e352-40a0-9fc7-55c7b4bfd013",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Foul Presence",
         "types": [
             "Enchantment"
@@ -76196,6 +76918,66 @@
         ],
         "entersTapped": true,
         "id": "7cc29ddb-8f44-4493-985d-2fac35f9f34d",
+        "rarity": "common"
+    },
+    {
+        "name": "Akki Blizzard-Herder",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Goblin",
+            "Shaman"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "When this creature dies, each player sacrifices a land of their choice.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "akki-blizzard-herder-trigger",
+                "oracleText": "When this creature dies, each player sacrifices a land of their choice.",
+                "head": {
+                    "kind": "died",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "players"
+                        },
+                        "simultaneous": true,
+                        "effects": [
+                            {
+                                "op": "choice",
+                                "kind": "sacrifice-permanents",
+                                "player": {
+                                    "ref": "$each"
+                                },
+                                "zone": "battlefield",
+                                "filter": {
+                                    "type": "Land"
+                                },
+                                "count": 1,
+                                "prompt": "Sacrifice a land.",
+                                "bind": "$sacrifice1"
+                            },
+                            {
+                                "op": "sacrifice",
+                                "permanents": {
+                                    "ref": "$sacrifice1"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "7ce1ee90-67d1-4e83-ae1e-3bd71069aae4",
         "rarity": "common"
     },
     {
@@ -76799,6 +77581,50 @@
         ],
         "id": "7e129be5-e2c5-4f69-b8e8-539ac2085c7a",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Tremble",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "oracleText": "Each player sacrifices a land of their choice.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "players"
+                },
+                "simultaneous": true,
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "sacrifice-permanents",
+                        "player": {
+                            "ref": "$each"
+                        },
+                        "zone": "battlefield",
+                        "filter": {
+                            "type": "Land"
+                        },
+                        "count": 1,
+                        "prompt": "Sacrifice a land.",
+                        "bind": "$sacrifice1"
+                    },
+                    {
+                        "op": "sacrifice",
+                        "permanents": {
+                            "ref": "$sacrifice1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "7e1dc36f-3fdd-42cf-9d3a-695f4bf60c68",
+        "rarity": "common"
     },
     {
         "name": "Dwarven Priest",
@@ -80656,6 +81482,69 @@
             "reach"
         ],
         "id": "836d5ce6-d5c9-4fb5-8302-53d25b5531b5",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Demon's Disciple",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Cleric"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "power": 3,
+        "toughness": 1,
+        "oracleText": "When this creature enters, each player sacrifices a creature or planeswalker of their choice.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "demon-s-disciple-trigger",
+                "oracleText": "When this creature enters, each player sacrifices a creature or planeswalker of their choice.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "players"
+                        },
+                        "simultaneous": true,
+                        "effects": [
+                            {
+                                "op": "choice",
+                                "kind": "sacrifice-permanents",
+                                "player": {
+                                    "ref": "$each"
+                                },
+                                "zone": "battlefield",
+                                "filter": {
+                                    "type": [
+                                        "Creature",
+                                        "Planeswalker"
+                                    ]
+                                },
+                                "count": 1,
+                                "prompt": "Sacrifice a creature or planeswalker.",
+                                "bind": "$sacrifice1"
+                            },
+                            {
+                                "op": "sacrifice",
+                                "permanents": {
+                                    "ref": "$sacrifice1"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "836f5197-e42b-45e0-8170-1b0a8a5beebd",
         "rarity": "uncommon"
     },
     {
@@ -85431,6 +86320,59 @@
             }
         ],
         "id": "8aaf1b2f-933f-4ad3-a816-2797d96ff37f",
+        "rarity": "common"
+    },
+    {
+        "name": "Crack the Earth",
+        "types": [
+            "Sorcery"
+        ],
+        "subtypes": [
+            "Arcane"
+        ],
+        "manaCost": {
+            "R": 1
+        },
+        "oracleText": "Each player sacrifices a permanent of their choice.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "players"
+                },
+                "simultaneous": true,
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "sacrifice-permanents",
+                        "player": {
+                            "ref": "$each"
+                        },
+                        "zone": "battlefield",
+                        "filter": {
+                            "type": [
+                                "Artifact",
+                                "Battle",
+                                "Creature",
+                                "Enchantment",
+                                "Land",
+                                "Planeswalker"
+                            ]
+                        },
+                        "count": 1,
+                        "prompt": "Sacrifice a permanent.",
+                        "bind": "$sacrifice1"
+                    },
+                    {
+                        "op": "sacrifice",
+                        "permanents": {
+                            "ref": "$sacrifice1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "8ab16152-4617-4deb-b995-195e21f8f485",
         "rarity": "common"
     },
     {
@@ -90793,6 +91735,49 @@
         ],
         "id": "9404c7d5-3450-4425-94e5-aa7d4e571d4e",
         "rarity": "common"
+    },
+    {
+        "name": "Grave Pact",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 3
+        },
+        "oracleText": "Whenever a creature you control dies, each other player sacrifices a creature of their choice.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "grave-pact-trigger",
+                "oracleText": "Whenever a creature you control dies, each other player sacrifices a creature of their choice.",
+                "head": {
+                    "kind": "died",
+                    "scope": "yours"
+                },
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "sacrifice-permanents",
+                        "player": "opponent",
+                        "zone": "battlefield",
+                        "filter": {
+                            "type": "Creature"
+                        },
+                        "count": 1,
+                        "prompt": "Sacrifice a creature.",
+                        "bind": "$sacrifice1"
+                    },
+                    {
+                        "op": "sacrifice",
+                        "permanents": {
+                            "ref": "$sacrifice1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "940536be-fce1-4a90-9126-195815a43e0f",
+        "rarity": "rare"
     },
     {
         "name": "Soul Feast",
@@ -97674,6 +98659,52 @@
         "rarity": "common"
     },
     {
+        "name": "Dictate of Erebos",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 2
+        },
+        "oracleText": "Flash\nWhenever a creature you control dies, each opponent sacrifices a creature of their choice.",
+        "staticAbilities": [
+            "flash"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "dictate-of-erebos-trigger",
+                "oracleText": "Whenever a creature you control dies, each opponent sacrifices a creature of their choice.",
+                "head": {
+                    "kind": "died",
+                    "scope": "yours"
+                },
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "sacrifice-permanents",
+                        "player": "opponent",
+                        "zone": "battlefield",
+                        "filter": {
+                            "type": "Creature"
+                        },
+                        "count": 1,
+                        "prompt": "Sacrifice a creature.",
+                        "bind": "$sacrifice1"
+                    },
+                    {
+                        "op": "sacrifice",
+                        "permanents": {
+                            "ref": "$sacrifice1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "9f06db70-95f9-41eb-8e5f-8bc56fd34c09",
+        "rarity": "rare"
+    },
+    {
         "name": "Deathgaze Cockatrice",
         "types": [
             "Creature"
@@ -98920,6 +99951,140 @@
         "rarity": "common"
     },
     {
+        "name": "Shattergang Brothers",
+        "types": [
+            "Creature"
+        ],
+        "supertypes": [
+            "Legendary"
+        ],
+        "subtypes": [
+            "Goblin",
+            "Artificer"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1,
+            "R": 1,
+            "G": 1
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "{2}{B}, Sacrifice a creature: Each other player sacrifices a creature.\n{2}{R}, Sacrifice an artifact: Each other player sacrifices an artifact.\n{2}{G}, Sacrifice an enchantment: Each other player sacrifices an enchantment.",
+        "activatedAbilities": [
+            {
+                "id": "shattergang-brothers-ability",
+                "oracleText": "{2}{B}, Sacrifice a creature: Each other player sacrifices a creature.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "B": 1
+                    },
+                    "sacrificeFilter": {
+                        "types": [
+                            "Creature"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "sacrifice-permanents",
+                        "player": "opponent",
+                        "zone": "battlefield",
+                        "filter": {
+                            "type": "Creature"
+                        },
+                        "count": 1,
+                        "prompt": "Sacrifice a creature.",
+                        "bind": "$sacrifice1"
+                    },
+                    {
+                        "op": "sacrifice",
+                        "permanents": {
+                            "ref": "$sacrifice1"
+                        }
+                    }
+                ]
+            },
+            {
+                "id": "shattergang-brothers-ability-2",
+                "oracleText": "{2}{R}, Sacrifice an artifact: Each other player sacrifices an artifact.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "R": 1
+                    },
+                    "sacrificeFilter": {
+                        "types": [
+                            "Artifact"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "sacrifice-permanents",
+                        "player": "opponent",
+                        "zone": "battlefield",
+                        "filter": {
+                            "type": "Artifact"
+                        },
+                        "count": 1,
+                        "prompt": "Sacrifice an artifact.",
+                        "bind": "$sacrifice1"
+                    },
+                    {
+                        "op": "sacrifice",
+                        "permanents": {
+                            "ref": "$sacrifice1"
+                        }
+                    }
+                ]
+            },
+            {
+                "id": "shattergang-brothers-ability-3",
+                "oracleText": "{2}{G}, Sacrifice an enchantment: Each other player sacrifices an enchantment.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "G": 1
+                    },
+                    "sacrificeFilter": {
+                        "types": [
+                            "Enchantment"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "sacrifice-permanents",
+                        "player": "opponent",
+                        "zone": "battlefield",
+                        "filter": {
+                            "type": "Enchantment"
+                        },
+                        "count": 1,
+                        "prompt": "Sacrifice an enchantment.",
+                        "bind": "$sacrifice1"
+                    },
+                    {
+                        "op": "sacrifice",
+                        "permanents": {
+                            "ref": "$sacrifice1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "a1b922ce-c398-43d4-9f79-2d15f28eae2f",
+        "rarity": "mythic"
+    },
+    {
         "name": "Doomed Dissenter",
         "types": [
             "Creature"
@@ -99795,6 +100960,45 @@
             }
         ],
         "id": "a2e37de8-66a1-4afa-aa6f-1151f849dfa8",
+        "rarity": "common"
+    },
+    {
+        "name": "Diabolic Edict",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Target player sacrifices a creature of their choice.",
+        "effects": [
+            {
+                "op": "choice",
+                "kind": "sacrifice-permanents",
+                "player": {
+                    "target": 0
+                },
+                "zone": "battlefield",
+                "filter": {
+                    "type": "Creature"
+                },
+                "count": 1,
+                "prompt": "Sacrifice a creature.",
+                "bind": "$sacrifice1"
+            },
+            {
+                "op": "sacrifice",
+                "permanents": {
+                    "ref": "$sacrifice1"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "player",
+            "count": 1
+        },
+        "id": "a2ecf2ee-1e2d-4ab2-8b2c-717c794b09b2",
         "rarity": "common"
     },
     {
@@ -101689,6 +102893,65 @@
             }
         ],
         "id": "a5587089-b17e-4187-97aa-1c3eec070a0b",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Abyssal Gorestalker",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Horror"
+        ],
+        "manaCost": {
+            "X": 4,
+            "B": 2
+        },
+        "power": 6,
+        "toughness": 6,
+        "oracleText": "When this creature enters, each player sacrifices two creatures of their choice.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "abyssal-gorestalker-trigger",
+                "oracleText": "When this creature enters, each player sacrifices two creatures of their choice.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "players"
+                        },
+                        "simultaneous": true,
+                        "effects": [
+                            {
+                                "op": "choice",
+                                "kind": "sacrifice-permanents",
+                                "player": {
+                                    "ref": "$each"
+                                },
+                                "zone": "battlefield",
+                                "filter": {
+                                    "type": "Creature"
+                                },
+                                "count": 2,
+                                "prompt": "Sacrifice two creatures.",
+                                "bind": "$sacrifice1"
+                            },
+                            {
+                                "op": "sacrifice",
+                                "permanents": {
+                                    "ref": "$sacrifice1"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "a559f77f-1f10-475b-9361-7f297d50f254",
         "rarity": "uncommon"
     },
     {
@@ -118185,6 +119448,50 @@
         ],
         "id": "be9299cc-6f21-4185-ac63-2fd92e843faa",
         "rarity": "common"
+    },
+    {
+        "name": "Barter in Blood",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 2
+        },
+        "oracleText": "Each player sacrifices two creatures of their choice.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "players"
+                },
+                "simultaneous": true,
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "sacrifice-permanents",
+                        "player": {
+                            "ref": "$each"
+                        },
+                        "zone": "battlefield",
+                        "filter": {
+                            "type": "Creature"
+                        },
+                        "count": 2,
+                        "prompt": "Sacrifice two creatures.",
+                        "bind": "$sacrifice1"
+                    },
+                    {
+                        "op": "sacrifice",
+                        "permanents": {
+                            "ref": "$sacrifice1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "beccbb2c-ca1d-4b72-9eca-a64a313fd830",
+        "rarity": "uncommon"
     },
     {
         "name": "Channeler Initiate",
@@ -143839,6 +145146,42 @@
         "rarity": "common"
     },
     {
+        "name": "Tribute to the Wild",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "oracleText": "Each opponent sacrifices an artifact or enchantment of their choice.",
+        "effects": [
+            {
+                "op": "choice",
+                "kind": "sacrifice-permanents",
+                "player": "opponent",
+                "zone": "battlefield",
+                "filter": {
+                    "type": [
+                        "Artifact",
+                        "Enchantment"
+                    ]
+                },
+                "count": 1,
+                "prompt": "Sacrifice an artifact or enchantment.",
+                "bind": "$sacrifice1"
+            },
+            {
+                "op": "sacrifice",
+                "permanents": {
+                    "ref": "$sacrifice1"
+                }
+            }
+        ],
+        "id": "eca64cae-3aab-48bf-9d92-e42f05cf9017",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Quiet Purity",
         "types": [
             "Instant"
@@ -148302,6 +149645,114 @@
         "rarity": "common"
     },
     {
+        "name": "Angrath's Rampage",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "B": 1,
+            "R": 1
+        },
+        "oracleText": "Choose one —\n• Target player sacrifices an artifact of their choice.\n• Target player sacrifices a creature of their choice.\n• Target player sacrifices a planeswalker of their choice.",
+        "modes": [
+            {
+                "id": "angrath-s-rampage-mode-1",
+                "label": "Target player sacrifices an artifact of their choice",
+                "oracleText": "Target player sacrifices an artifact of their choice.",
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "sacrifice-permanents",
+                        "player": {
+                            "target": 0
+                        },
+                        "zone": "battlefield",
+                        "filter": {
+                            "type": "Artifact"
+                        },
+                        "count": 1,
+                        "prompt": "Sacrifice an artifact.",
+                        "bind": "$sacrifice1"
+                    },
+                    {
+                        "op": "sacrifice",
+                        "permanents": {
+                            "ref": "$sacrifice1"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                }
+            },
+            {
+                "id": "angrath-s-rampage-mode-2",
+                "label": "Target player sacrifices a creature of their choice",
+                "oracleText": "Target player sacrifices a creature of their choice.",
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "sacrifice-permanents",
+                        "player": {
+                            "target": 0
+                        },
+                        "zone": "battlefield",
+                        "filter": {
+                            "type": "Creature"
+                        },
+                        "count": 1,
+                        "prompt": "Sacrifice a creature.",
+                        "bind": "$sacrifice1"
+                    },
+                    {
+                        "op": "sacrifice",
+                        "permanents": {
+                            "ref": "$sacrifice1"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                }
+            },
+            {
+                "id": "angrath-s-rampage-mode-3",
+                "label": "Target player sacrifices a planeswalker of their choice",
+                "oracleText": "Target player sacrifices a planeswalker of their choice.",
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "sacrifice-permanents",
+                        "player": {
+                            "target": 0
+                        },
+                        "zone": "battlefield",
+                        "filter": {
+                            "type": "Planeswalker"
+                        },
+                        "count": 1,
+                        "prompt": "Sacrifice a planeswalker.",
+                        "bind": "$sacrifice1"
+                    },
+                    {
+                        "op": "sacrifice",
+                        "permanents": {
+                            "ref": "$sacrifice1"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "f5a39379-7313-463a-9a02-e5157b9557f4",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Springmane Cervin",
         "types": [
             "Creature"
@@ -148425,6 +149876,46 @@
         ],
         "id": "f5e6dc5f-fd83-4166-a5da-cd953722642a",
         "rarity": "mythic"
+    },
+    {
+        "name": "Cruel Edict",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Target opponent sacrifices a creature of their choice.",
+        "effects": [
+            {
+                "op": "choice",
+                "kind": "sacrifice-permanents",
+                "player": {
+                    "target": 0
+                },
+                "zone": "battlefield",
+                "filter": {
+                    "type": "Creature"
+                },
+                "count": 1,
+                "prompt": "Sacrifice a creature.",
+                "bind": "$sacrifice1"
+            },
+            {
+                "op": "sacrifice",
+                "permanents": {
+                    "ref": "$sacrifice1"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "player",
+            "count": 1,
+            "controller": "opponent"
+        },
+        "id": "f6018d90-cfcc-4fb1-8ecd-4e0f1c71550d",
+        "rarity": "common"
     },
     {
         "name": "Undertaker",
@@ -149563,6 +151054,66 @@
         ],
         "id": "f71da8cc-8773-4dcb-aca8-50a000142218",
         "rarity": "common"
+    },
+    {
+        "name": "Fleshbag Marauder",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Zombie",
+            "Warrior"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "power": 3,
+        "toughness": 1,
+        "oracleText": "When this creature enters, each player sacrifices a creature of their choice.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "fleshbag-marauder-trigger",
+                "oracleText": "When this creature enters, each player sacrifices a creature of their choice.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "players"
+                        },
+                        "simultaneous": true,
+                        "effects": [
+                            {
+                                "op": "choice",
+                                "kind": "sacrifice-permanents",
+                                "player": {
+                                    "ref": "$each"
+                                },
+                                "zone": "battlefield",
+                                "filter": {
+                                    "type": "Creature"
+                                },
+                                "count": 1,
+                                "prompt": "Sacrifice a creature.",
+                                "bind": "$sacrifice1"
+                            },
+                            {
+                                "op": "sacrifice",
+                                "permanents": {
+                                    "ref": "$sacrifice1"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "f71e4391-04a8-4df8-9d52-3a3480bcd5b6",
+        "rarity": "uncommon"
     },
     {
         "name": "Call to the Feast",
@@ -151481,6 +153032,39 @@
             }
         ],
         "id": "fa1f4b84-dd5d-4f5f-808e-26ef9414b38a",
+        "rarity": "common"
+    },
+    {
+        "name": "Yawning Fissure",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 4,
+            "R": 1
+        },
+        "oracleText": "Each opponent sacrifices a land of their choice.",
+        "effects": [
+            {
+                "op": "choice",
+                "kind": "sacrifice-permanents",
+                "player": "opponent",
+                "zone": "battlefield",
+                "filter": {
+                    "type": "Land"
+                },
+                "count": 1,
+                "prompt": "Sacrifice a land.",
+                "bind": "$sacrifice1"
+            },
+            {
+                "op": "sacrifice",
+                "permanents": {
+                    "ref": "$sacrifice1"
+                }
+            }
+        ],
+        "id": "fa364a1c-14e4-4dda-aa1f-edb879a64a2d",
         "rarity": "common"
     },
     {
@@ -154060,6 +155644,48 @@
             "count": 1
         },
         "id": "ff252e80-c155-467b-8df3-9bddc5cc45c3",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Dead Drop",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 9,
+            "B": 1
+        },
+        "oracleText": "Delve (Each card you exile from your graveyard while casting this spell pays for {1}.)\nTarget player sacrifices two creatures of their choice.",
+        "staticAbilities": [
+            "delve"
+        ],
+        "effects": [
+            {
+                "op": "choice",
+                "kind": "sacrifice-permanents",
+                "player": {
+                    "target": 0
+                },
+                "zone": "battlefield",
+                "filter": {
+                    "type": "Creature"
+                },
+                "count": 2,
+                "prompt": "Sacrifice two creatures.",
+                "bind": "$sacrifice1"
+            },
+            {
+                "op": "sacrifice",
+                "permanents": {
+                    "ref": "$sacrifice1"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "player",
+            "count": 1
+        },
+        "id": "ff25a19a-8f98-47ef-847c-ba526c82b290",
         "rarity": "uncommon"
     },
     {

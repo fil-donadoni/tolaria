@@ -52,6 +52,7 @@ import type {
     CardSupertype,
     CardType,
     Color,
+    EffectCardFilter,
     PermanentFilter,
     TargetRequirement,
 } from "../../../cards/types";
@@ -945,6 +946,52 @@ export function permanentFilterFromDescriptor(
     if (Object.keys(filter).length === 0)
         return fail("cost filter matches everything", "filter");
     return ok(filter as PermanentFilter);
+}
+
+const SACRIFICABLE_TYPES: ReadonlySet<CardType> = new Set(PERMANENT_TYPES);
+
+/**
+ * Descriptor → the `choice` Op's battlefield filter for "<player> sacrifices a
+ * <descriptor>" (CR 701.21a), the chooser being the sacrificing player.
+ *
+ * Accepts exactly the clauses the edict corpus prints — a card type, or an
+ * or-list of them ("creature or planeswalker"), and "attacking" — and refuses
+ * every other clause rather than dropping it: a dropped clause widens the set
+ * of permanents the player may give up. The descriptor reader already refuses
+ * stacked types ("artifact creature"), so a multi-type list here is always a
+ * union, which is what `EffectCardFilter.type` reads it as.
+ */
+export function sacrificeFilterFromDescriptor(
+    descriptor: DescriptorIR
+): RuleResult<EffectCardFilter> {
+    for (const [field, value] of Object.entries(descriptor)) {
+        if (value === undefined) continue;
+        if (!["types", "combatRole", "plural"].includes(field))
+            return fail(
+                `"${field}" is not expressible as a sacrifice filter`,
+                field
+            );
+    }
+    const types = descriptor.types;
+    if (types === undefined)
+        return fail("a sacrifice filter names a card type", "types");
+    // CR 701.21a — only a permanent can be sacrificed; "an instant" would
+    // lower to a filter that can never match anything.
+    if (!types.every((type) => SACRIFICABLE_TYPES.has(type)))
+        return fail("only a permanent can be sacrificed (CR 701.21a)", "types");
+    const filter: EffectCardFilter = {
+        type: types.length === 1 ? types[0]! : [...types],
+    };
+    const role = descriptor.combatRole;
+    if (role !== undefined) {
+        if (role.length !== 1 || role[0] !== "attacking")
+            return fail(
+                'only "attacking" is expressible as a sacrifice filter',
+                "combatRole"
+            );
+        filter.isAttacking = true;
+    }
+    return ok(filter);
 }
 
 /**

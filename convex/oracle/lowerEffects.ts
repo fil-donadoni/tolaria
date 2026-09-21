@@ -1568,6 +1568,47 @@ function lowerSentenceBody(
                 { op: "discard", player: player.value, cards: { ref: bind } },
             ]);
         }
+        case "sacrifice": {
+            // CR 701.21a — an edict: the sacrificing player CHOOSES among their
+            // own permanents, then those permanents are sacrificed. The pair is
+            // the one every hand-written edict writes (Innocent Blood, Liliana
+            // of the Veil), the choice raised for the player who sacrifices —
+            // never the caster. A player with no matching permanent gets no
+            // candidates, so neither the prompt nor the sacrifice happens
+            // (CR 101.3 — an impossible instruction is ignored).
+            const bind = walk.nextBind("sacrifice");
+            const edict = (player: EffectPlayerRef): EffectOp[] => [
+                {
+                    op: "choice",
+                    kind: "sacrifice-permanents",
+                    player,
+                    zone: "battlefield",
+                    filter: sentence.filter,
+                    count: sentence.count,
+                    prompt: `Sacrifice ${sentence.phrase}.`,
+                    bind,
+                },
+                { op: "sacrifice", permanents: { ref: bind } },
+            ];
+            // CR 101.4 — "each player": every player chooses in APNAP order,
+            // then all the picks are sacrificed together.
+            if (sentence.player.kind === "each-player")
+                return lowered([
+                    {
+                        op: "forEach",
+                        select: { set: "players" },
+                        simultaneous: true,
+                        effects: edict({ ref: "$each" }),
+                    },
+                ]);
+            // CR 102.2 — in a two-player game "each opponent" is the one
+            // other player, and the edict is one-sided exactly as printed.
+            if (sentence.player.kind === "each-opponent")
+                return lowered(edict("opponent"));
+            const player = playerRef(sentence.player, slots, site);
+            if (!player.ok) return player;
+            return lowered(edict(player.value));
+        }
         case "conjunction": {
             // CR 608.2c — the halves in the order printed, each through the
             // shared walk so a target announced in one is allocated once.
