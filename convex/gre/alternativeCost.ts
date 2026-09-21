@@ -40,6 +40,7 @@ import type {
     AlternativeCost,
     AlternativeCostCondition,
     CardDefinition,
+    Color,
     CostLegs,
     EffectCardFilter,
 } from "../cards/types";
@@ -178,7 +179,24 @@ export function handCardMatchesFilter(
         !(def.supertypes ?? []).includes(filter.supertype)
     )
         return false;
-    const colors = asArray(filter.color);
+    // CR 105.2 / 608.2h (issue #3806) — `color`'s DYNAMIC shape
+    // (`{ sacrificed: { read: "colors" } }`) names the cost-sacrificed
+    // permanent's last-known colours, and this matcher has no resolving stack
+    // item to read them off: it takes a registry `CardDefinition`, not a
+    // `SpellContext`. Refuse the card rather than skip the field — skipping is
+    // this function's documented fail-OPEN shape (every unread field falls
+    // through to the final `return true`), and here that would match the whole
+    // hand. No shipped card reaches this matcher with the dynamic form; the
+    // branch is the guard that keeps it that way.
+    if (
+        filter.color !== undefined &&
+        !Array.isArray(filter.color) &&
+        typeof filter.color !== "string"
+    ) {
+        return false;
+    }
+    const literalColors: Color | Color[] | undefined = filter.color;
+    const colors = asArray(literalColors);
     if (colors !== undefined) {
         // CR 105.2 / 202.2 — match the card's COLOUR (colours of its mana cost),
         // not its deck-builder colour identity: Force of Will's "exile a blue

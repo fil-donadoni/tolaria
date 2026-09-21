@@ -2541,6 +2541,15 @@ export type StackItem = Omit<CardInstanceState, "chosenModeId"> & {
          *  equal to the sacrificed creature's toughness" (Diamond Valley).
          *  Omitted for sacrificed permanents without a toughness. */
         toughness?: number;
+        /** Effective COLORS at the moment of sacrifice (CR 105.2 / 613.1e
+         *  layer 5, last-known information CR 608.2h, issue #3806). Read at
+         *  resolve via `SpellContext.getAdditionalSacrificeColors` for
+         *  "discards all cards of each of the sacrificed creature's colors"
+         *  (Mind Extraction). Present for every victim — colour is not a
+         *  creature-only characteristic — and an EMPTY array is the real
+         *  answer for a colourless one (CR 105.2c), distinct from the field
+         *  being absent on a snapshot written before this field existed. */
+        colors?: Color[];
     };
     /** Type and amount of mana spent to pay THIS activation's cost (CR 106.10).
      *  Captured at activation commit (the manaPool delta) when the ability sets
@@ -19117,6 +19126,14 @@ export function buildSpellContext(
         },
         getAdditionalSacrificeToughness(): number | undefined {
             return item.additionalSacrificeSnapshot?.toughness;
+        },
+        // CR 105.2 / 608.2h (issue #3806) — the cost-sacrificed permanent's
+        // last-known colours. `undefined` when nothing was snapshotted; an
+        // empty array when the victim was colourless (CR 105.2c). The one
+        // consumer (`EffectCardFilter.color`'s `{ sacrificed: { read:
+        // "colors" } }` form) collapses both to "matches nothing".
+        getAdditionalSacrificeColors(): Color[] | undefined {
+            return item.additionalSacrificeSnapshot?.colors;
         },
         getManaValue(target: TargetSelection): number {
             if (target.type === "permanent") {

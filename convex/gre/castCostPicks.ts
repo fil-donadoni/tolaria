@@ -230,6 +230,12 @@ export function applyCastSacrificeVictims(
         ...(snap.subtypes ? { subtypes: snap.subtypes } : {}),
         ...(snap.power !== undefined ? { power: snap.power } : {}),
         ...(snap.toughness !== undefined ? { toughness: snap.toughness } : {}),
+        // CR 105.2 / 608.2h (issue #3806) — the SANDBOX copy of the mutation
+        // path's stamp. Dropping it here is the bug class this function's own
+        // doc comment records for `mv`/`subtypes`: the search would pay a
+        // creature for a Mind Extraction that discards nothing inside the
+        // tree, and never find the line.
+        ...(snap.colors !== undefined ? { colors: snap.colors } : {}),
     };
 }
 

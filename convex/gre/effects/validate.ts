@@ -228,6 +228,23 @@ function isRefValue(value: unknown): boolean {
     );
 }
 
+/** CR 105.2 / 608.2h (issue #3806) — `EffectCardFilter.color`'s dynamic shape,
+ *  `{ sacrificed: { read: "colors" } }`. Shape-only: there is no binding to
+ *  resolve and no `plus`, so an extra key is a typo, never a widening. */
+function isSacrificedColorsRef(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    if (keys.length !== 1 || keys[0] !== "sacrificed") return false;
+    const inner = (value as { sacrificed: unknown }).sacrificed;
+    if (typeof inner !== "object" || inner === null) return false;
+    const innerKeys = Object.keys(inner);
+    return (
+        innerKeys.length === 1 &&
+        innerKeys[0] === "read" &&
+        (inner as { read: unknown }).read === "colors"
+    );
+}
+
 /** A value or a non-empty array of values, each satisfying `check` — the
  *  shared OR-within-a-field shape `EffectCardFilter.type` / `.subtype` /
  *  `.color` use (issue #677, mirrors `PermanentFilter`'s own array fields). */
@@ -304,6 +321,16 @@ function isCardFilter(
             );
         }
         if (k === "color") {
+            // CR 105.2 / 608.2h (issue #3806) — the DYNAMIC shape beside the
+            // literal one: `{ sacrificed: { read: "colors" } }`, the colours
+            // of the permanent sacrificed to pay this spell's additional cost
+            // (Mind Extraction). Exactly those two keys and exactly that
+            // `read` literal — "colors" is DISJOINT from the numeric
+            // `EffectSacrificedValue` reads ("manaValue"/"power"/"toughness"),
+            // so neither spelling validates in the other's position and
+            // `resolveValue`'s `sacrificed` branch can never be handed a
+            // colour read.
+            if (isSacrificedColorsRef(v)) return true;
             return isValueOrArray(
                 v,
                 (m) => typeof m === "string" && TOKEN_COLORS.has(m)
@@ -2883,6 +2910,18 @@ function isPredicate(value: unknown): boolean {
         keys.includes("with")
     ) {
         return isObjectSelector(obj.sharesColor) && isObjectSelector(obj.with);
+    }
+    // sameColors form (issue #3806, CR 105.2) — the SET-EQUALITY sibling of
+    // `sharesColor` right above, sharing its `with` field and its two
+    // object-selector positions (Dead Ringers). Binding existence/family is
+    // checked by the ordered ref pass below, like every other
+    // selector-carrying predicate form.
+    if (
+        keys.length === 2 &&
+        keys.includes("sameColors") &&
+        keys.includes("with")
+    ) {
+        return isObjectSelector(obj.sameColors) && isObjectSelector(obj.with);
     }
     // picksMatchFilter form (issue #1343) — a `choice` Op's picks binding
     // (bare picks ref, same shape as `picksNonEmpty`), plus `player` (whose
@@ -5852,6 +5891,10 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                               // like `target`. No other field in the vocabulary is
                               // named `with`.
                               keyHint === "sharesColor" ||
+                              // `sameColors` (issue #3806) — `sharesColor`'s
+                              // set-equality twin, same two object-selector
+                              // positions, sharing the `with` row below.
+                              keyHint === "sameColors" ||
                               keyHint === "with" ||
                               // `targetMatchesGraveyardFilter` (issue #2385) — the
                               // announced graveyard-zone target under test, an
@@ -6153,6 +6196,13 @@ function collectPredicateRefUses(predicate: unknown, out: RefUse[]): void {
     // ref; route both through the shared object-position collector.
     if ("sharesColor" in p) {
         collectRefUses(p.sharesColor, "sharesColor", out);
+        collectRefUses(p.with, "with", out);
+        return;
+    }
+    // sameColors (issue #3806) — `sharesColor`'s twin: TWO object selectors,
+    // routed through the same shared object-position collector.
+    if ("sameColors" in p) {
+        collectRefUses(p.sameColors, "sameColors", out);
         collectRefUses(p.with, "with", out);
         return;
     }

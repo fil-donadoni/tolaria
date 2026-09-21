@@ -2136,6 +2136,10 @@ export function sacrificeSnapshotFromSelection(
         ...(snap.subtypes ? { subtypes: snap.subtypes } : {}),
         ...(snap.power !== undefined ? { power: snap.power } : {}),
         ...(snap.toughness !== undefined ? { toughness: snap.toughness } : {}),
+        // CR 105.2 / 608.2h (issue #3806) — forwarded 1:1, empty array
+        // included: a colourless victim's empty set is a real answer, so it is
+        // NOT collapsed into "omitted" the way `subtypes` is.
+        ...(snap.colors !== undefined ? { colors: snap.colors } : {}),
     };
 }
 

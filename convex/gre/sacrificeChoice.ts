@@ -9,6 +9,7 @@
 // carried on the selection (`action`, default "sacrifice").
 import type { GameState, CardInstanceState, PlayerState } from "./state";
 import { getPlayer, removePermanentTo } from "./state";
+import type { Color } from "../cards/types";
 import type { PermanentFilter } from "../cards/filters";
 import { matchesPermanentFilter } from "../cards/filters";
 import {
@@ -93,6 +94,17 @@ export type SacrificeResult = {
     /** CR 613 layer 7c / 608.2h — effective toughness captured before the
      *  creature left play (Diamond Valley reads it at resolve). Creatures only. */
     toughness?: number;
+    /** CR 105.2 / 613.1e layer 5 / 608.2h (issue #3806) — effective COLORS
+     *  captured before the permanent left play, through the SAME
+     *  `STATIC_EFFECT_CTX.getColors` authority `sacrificeCandidates` above
+     *  filters with, so a laced or granted colour counts exactly as a printed
+     *  one. Read at resolve via `SpellContext.getAdditionalSacrificeColors`
+     *  (Mind Extraction — "discards all cards of each of the sacrificed
+     *  creature's colors"). Unlike `power`/`toughness` this is captured for
+     *  EVERY permanent, not creatures only — colour is not a creature-only
+     *  characteristic — and an EMPTY array is a real answer (CR 105.2c
+     *  colourless), kept distinct from an absent field. */
+    colors?: Color[];
     snapshot: boolean;
 };
 
@@ -360,12 +372,20 @@ export function applySacrificeSelection(
         const toughness = isCreature
             ? getEffectiveToughness(state, victim)
             : undefined;
+        // CR 105.2 / 613.1e (issue #3806) — the victim's LIVE colours, taken
+        // before `removePermanentTo` below puts it in the graveyard, where
+        // layer 5 no longer applies (CR 608.2h last known information). Always
+        // an array, never omitted: a colourless victim's empty set is the
+        // answer Mind Extraction needs ("no cards are of those colours"), and
+        // omitting it would be indistinguishable from "no snapshot".
+        const colors = STATIC_EFFECT_CTX.getColors(victim);
         results.push({
             id,
             mv: manaValueOf(victim),
             ...(subtypes ? { subtypes } : {}),
             ...(power !== undefined ? { power } : {}),
             ...(toughness !== undefined ? { toughness } : {}),
+            colors,
             snapshot,
         });
         if (isReturn) {
