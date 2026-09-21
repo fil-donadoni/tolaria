@@ -22,7 +22,6 @@ import type {
     BotReachCause,
     BotReachOutcome,
 } from "../../convex/gre/ai/botReach";
-import { botGapCause } from "./oracle-bot-reach";
 import { coverageReds, type TargetCoverage } from "./targets";
 
 export const COMPLETION_CLAUSES = [
@@ -37,6 +36,29 @@ export type CompletionClause = (typeof COMPLETION_CLAUSES)[number];
  * never a claim about the Bot, the engine or the compiler — ADR 0143 names
  * exactly these two. They are listed, and never block the clause.
  */
+/**
+ * Every cause `botGapKey` (`scripts/lib/oracle-bot-reach.ts`) can lead a key
+ * with. That file is a hashed input of the Oracle lockfile (`check:oracle`),
+ * so this reader parses the key's first field itself rather than adding an
+ * export there and regenerating the lockfile for it.
+ */
+const BOT_REACH_CAUSES: ReadonlySet<string> = new Set([
+    "no-legal-move",
+    "position-unmodelled",
+    "unanswerable-input",
+    "no-progress",
+    "harness-error",
+    "never-chosen",
+] satisfies BotReachCause[]);
+
+const GAP_KEY_SEPARATOR = " › ";
+
+/** The cause a Bot Gap key leads with, or `null` for a key this tree does not produce. */
+function botGapCause(key: string): BotReachCause | null {
+    const cause = key.split(GAP_KEY_SEPARATOR)[0]!;
+    return BOT_REACH_CAUSES.has(cause) ? (cause as BotReachCause) : null;
+}
+
 export const HARNESS_BOUND_CAUSES: ReadonlySet<BotReachCause> = new Set([
     "position-unmodelled",
     "no-progress",

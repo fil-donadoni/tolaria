@@ -268,12 +268,6 @@ function splitGapKey(
     return { cause: cause as BotReachCause, form: form ?? "" };
 }
 
-/** The cause a Bot Gap key leads with, or `null` for a key this tree does not
- *  produce (the same vocabulary check a cached row goes through). */
-export function botGapCause(key: string): BotReachCause | null {
-    return splitGapKey(key)?.cause ?? null;
-}
-
 /**
  * The Bot Gap table: one row per key, counting the cards that carry it,
  * ranked like the Grammar Gap fragment table — blast radius first, then the
