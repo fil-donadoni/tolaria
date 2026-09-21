@@ -338,42 +338,46 @@ describe("acted-on characteristic — behaviour (CR 608.2h)", () => {
 
     it("reads the snapshot taken when destroy ran: an anthem's bonus is in it", () => {
         withCompiled(DESTROY_GAIN_POWER, (id) => {
-            // Crusade gives white creatures +1/+1, so Serra Angel is a 5/5
-            // when destroyed. By the time the life is gained it is in a
-            // graveyard and the anthem no longer reaches it: a live read
-            // would be 0, a printed-value read 4, and only the snapshot 5.
-            const angel = theirs("Serra Angel", "p2-angel");
+            // Crusade gives white creatures +1/+1, so Savannah Lions (2/1,
+            // mana value 1) is a 3/2 when destroyed. By the time the life is
+            // gained it is in a graveyard and the anthem no longer reaches
+            // it: a live read would be 0, a printed-value read 2, a
+            // mana-value read 1, and only the snapshot 3 — every wrong
+            // answer is distinct from the right one.
+            const lions = theirs("Savannah Lions", "p2-lions");
             const crusade = theirs("Crusade", "p2-crusade");
             const state = makeState({
                 players: [
                     makePlayer("p1", {}),
-                    makePlayer("p2", { battlefield: [angel, crusade] }),
+                    makePlayer("p2", { battlefield: [lions, crusade] }),
                 ],
             });
             const before = getPlayer(state, "p1").life;
-            pushSpell(state, id, "p1", [{ type: "permanent", id: "p2-angel" }]);
+            pushSpell(state, id, "p1", [{ type: "permanent", id: "p2-lions" }]);
             resolveTopOfStack(state);
             expect(getPlayer(state, "p2").battlefield.map((c) => c.id)).toEqual(
                 ["p2-crusade"]
             );
-            expect(getPlayer(state, "p1").life).toBe(before + 5);
+            expect(getPlayer(state, "p1").life).toBe(before + 3);
         });
     });
 
     it("reads the pumped TOUGHNESS the same way", () => {
         withCompiled(DESTROY_GAIN_TOUGHNESS, (id) => {
-            const angel = theirs("Serra Angel", "p2-angel");
+            // Printed toughness 1, pumped 2, mana value 1: only the snapshot
+            // is 2.
+            const lions = theirs("Savannah Lions", "p2-lions");
             const crusade = theirs("Crusade", "p2-crusade");
             const state = makeState({
                 players: [
                     makePlayer("p1", {}),
-                    makePlayer("p2", { battlefield: [angel, crusade] }),
+                    makePlayer("p2", { battlefield: [lions, crusade] }),
                 ],
             });
             const before = getPlayer(state, "p1").life;
-            pushSpell(state, id, "p1", [{ type: "permanent", id: "p2-angel" }]);
+            pushSpell(state, id, "p1", [{ type: "permanent", id: "p2-lions" }]);
             resolveTopOfStack(state);
-            expect(getPlayer(state, "p1").life).toBe(before + 5);
+            expect(getPlayer(state, "p1").life).toBe(before + 2);
         });
     });
 
