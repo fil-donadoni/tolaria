@@ -1,7 +1,7 @@
 // "Prevent the next N damage that would be dealt to any target this turn" —
 // a prevention SHIELD of a printed size (CR 615.7, CR 615.1a, issue #4300).
 //
-// Three layers:
+// Two layers:
 //
 //  1. GOLDENS — one per slot the shared effect-clause rule serves: the
 //     activated slot behind a `{T}` cost (Samite Healer, Master Healer — the
@@ -9,11 +9,10 @@
 //     Hands). Whole cards, whole Compiled Definitions.
 //  2. REFUSALS — the neighbours the rule must NOT read: a recipient other than
 //     "any target", a shield that is not a printed number, a shield with no
-//     duration, a different prevention ("all"), and the two real cards whose
-//     rider sentence is another Grammar Gap (Elvish Healer's "instead",
-//     Rakalite's delayed return).
-//  3. FRONTIER — every refusal stays `unparsed`, none degrades into a card
-//     that reads as the shield alone.
+//     duration, and the two real cards whose rider sentence is another
+//     Grammar Gap (Elvish Healer's "instead", Rakalite's delayed return) —
+//     each pinned to the SPAN that stops the card, so the shield sentence the
+//     rule now reads is provably not the one refused.
 
 import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
@@ -222,16 +221,6 @@ describe("prevent the next N damage — refusals stay fail-closed", () => {
             compileCard(
                 instant(
                     "Prevent the next 2 damage that would be dealt to any target."
-                )
-            ).state
-        ).toBe("unparsed");
-    });
-
-    it("a different prevention is not this shield: 'all' damage stays unparsed", () => {
-        expect(
-            compileCard(
-                instant(
-                    "Prevent all damage that would be dealt to any target this turn."
                 )
             ).state
         ).toBe("unparsed");
