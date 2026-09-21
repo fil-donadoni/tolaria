@@ -51,6 +51,7 @@ import type {
     StaticEffectContext,
     StaticEffectStateView,
     StaticKeywordGrant,
+    StaticTargetChoiceRequirement,
 } from "./types";
 import type { CompiledControlsCondition } from "./compiledTriggers";
 
@@ -273,7 +274,17 @@ export type CompiledStaticEffect =
      * behind. Re-declaring the same six fields here would only create a shape
      * that could drift from the one the engine reads.
      */
-    | StaticCastPermission;
+    | StaticCastPermission
+    /**
+     * CR 601.2c — "While an opponent is choosing targets …, that player must
+     * choose at least one <type> on the battlefield if able". The second
+     * member that is the engine's own effect verbatim, for the same reason as
+     * `StaticCastPermission` above: `StaticTargetChoiceRequirement` is
+     * declarative (a `PermanentFilter` matched by `matchesPermanentFilter`,
+     * read live by `gre/targetChoiceRequirements.ts`), so it carries no
+     * predicate a JSON emitter would have to leave behind.
+     */
+    | StaticTargetChoiceRequirement;
 
 /**
  * One descriptor's filter as a live predicate.
@@ -474,6 +485,9 @@ export function resolveCompiledStatic(
         // field added to `StaticCastPermission` reaches the engine without an
         // edit here that could be forgotten.
         case "cast-permission":
+            return descriptor;
+        // CR 601.2c — verbatim, by the same argument.
+        case "target-choice-requirement":
             return descriptor;
         default: {
             const never: never = descriptor;

@@ -18,6 +18,10 @@
  *   "<self> doesn't untap during your untap step"   → the `does-not-untap` marker
  *   "<grantee> may cast <class> spells [without paying
  *    their mana costs] [as though they had flash]"  → CR 601.3 `cast-permission`
+ *   "While an opponent is choosing targets as part of casting a spell they
+ *    control or activating an ability they control, that player must choose
+ *    at least one Flagbearer on the battlefield if able"
+ *                                                   → CR 601.2c `target-choice-requirement`
  *
  * The frames are combined with `oneOf`, never a cascade: they are told apart by
  * a verb in the middle of the line rather than by a first word, so "first rule
@@ -156,6 +160,19 @@ export type StaticClauseIR =
       }
     /** CR 502.3 — "doesn't untap during your untap step". */
     | { readonly kind: "does-not-untap" }
+    /**
+     * CR 601.2c — "While an opponent is choosing targets as part of casting a
+     * spell they control or activating an ability they control, that player
+     * must choose at least one <subtype> on the battlefield if able". The
+     * objects that SATISFY the requirement are named by a creature type, not
+     * by the source: the clause says "at least one Flagbearer", not "at least
+     * one of me".
+     */
+    | {
+          readonly kind: "target-choice-requirement";
+          readonly binds: "opponents";
+          readonly subtype: string;
+      }
     /**
      * CR 611.3a / 613.4c — "This creature gets +N/+N as long as you control a
      * <descriptor>": the permanent's own layer-7c buff, present only while
@@ -953,6 +970,39 @@ const doesNotUntapRule: Rule<StaticClauseIR> = pattern(
             : fail(`"${match[1]}" is not this permanent (CR 109.2)`, match[1]!)
 );
 
+// ── Frame: a forced target choice (CR 601.2c) ──────────────────────────────
+
+/**
+ * The Flagbearer cycle's one printed sentence (Standard Bearer, Coalition
+ * Honor Guard, Coalition Flag). Read WHOLE, with the creature type spelled as
+ * the cards spell it, and nothing else: no card prints the clause about any
+ * other type, so a wildcard here would accept a shape nobody has printed
+ * (the axis of variation shows up with card #2 — ADR 0137). Its neighbours
+ * stay refused under their own gap keys — "While choosing targets as part of
+ * casting a spell or activating an ability, your opponents must choose at
+ * least one Flagbearer if able" (Enroll in the Coalition) is a different
+ * sentence, and a rule that read both would be a rule that read a line it had
+ * no fixture for.
+ *
+ * The sentence itself scopes the clause to a CAST or an ABILITY ACTIVATION
+ * (CR 601.2c for a spell; CR 602.2b applies the same rules to an activated
+ * ability), which is what the engine's `target-choice-requirement` static
+ * reads (`gre/targetChoiceRequirements.ts`); nothing here restates that scope.
+ */
+const OPPONENT_TARGET_CHOICE =
+    /^While an opponent is choosing targets as part of casting a spell they control or activating an ability they control, that player must choose at least one (Flagbearer) on the battlefield if able$/;
+
+const targetChoiceRequirementRule: Rule<StaticClauseIR> = pattern(
+    "target choice requirement",
+    OPPONENT_TARGET_CHOICE,
+    (match): RuleResult<StaticClauseIR> =>
+        ok({
+            kind: "target-choice-requirement" as const,
+            binds: "opponents" as const,
+            subtype: match[1]!,
+        })
+);
+
 // ── Frames: the enchanted host (CR 303.4b) ────────────────────────────────
 
 /** The nouns "enchanted" is printed with, and the card type each names. */
@@ -1269,6 +1319,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         kickedEntersWithRule,
         entersWithEachKickRule,
         doesNotUntapRule,
+        targetChoiceRequirementRule,
         selfConditionalPumpRule,
         enchantedHostRule,
         youControlHostRule,
