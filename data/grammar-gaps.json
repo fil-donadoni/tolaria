@@ -416,6 +416,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Sorcery › choice+forEach+sacrifice",
+            "issue": 4255
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Sorcery › destroy+forEach",
             "issue": 4157
         },
