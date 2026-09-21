@@ -11,9 +11,9 @@
 //  2. REFUSALS — the neighbours the rule must NOT read: another extreme, an
 //     unknown stat, a set the engine does not rank, a set that is not the
 //     candidates' own pool, a counted pick, a filter clause on the pool.
-//  3. THE FRONTIER — Consecrate // Consume's first sentence compiles and the
-//     gap moves on to the acted-on-power clause (issue #4248), which is what
-//     keeps the card out of `ready` here.
+//  3. THE FRONTIER — Consecrate // Consume's first sentence compiles; the card
+//     stays unparsed on "its power", which names an object the edict picks at
+//     resolution and never announced (a separate slice from this one).
 //  4. BEHAVIOUR — the compiled script through the real interpreter, with the
 //     narrowed candidate list reaching the client through `projectPublicState`.
 
@@ -193,14 +193,26 @@ describe("superlative edict — goldens (CR 701.21a, CR 608.2h)", () => {
     });
 });
 
-describe("superlative edict — the frontier (issue #4248)", () => {
-    it("Consecrate // Consume: the first sentence compiles and the gap moves to the acted-on-power clause", () => {
+describe("superlative edict — the frontier", () => {
+    // The first sentence is read (goldens above); "its power" then asks the
+    // acted-on rule for an object the edict never announced — the sacrificed
+    // permanent is picked at resolution, so nothing is there to snapshot. The
+    // card therefore stays unparsed, and says WHY, rather than reading "its
+    // power" as some other object.
+    it("Consecrate // Consume: the edict sentence compiles, the acted-on clause is refused by name", () => {
         const card = sorcery(
             `${CONSUME_SENTENCE} You gain life equal to its power.`,
             "Consume"
         );
-        expect(compileCard(card).state).toBe("unparsed");
-        expect(refusedSpan(card)).toBe("You gain life equal to its power");
+        const outcome = compileCard(card);
+        expect(outcome.state).toBe("unparsed");
+        expect(
+            outcome.state === "unparsed" ? outcome.gaps[0]?.reason : ""
+        ).toMatch(/"its power" names no object acted on/);
+        // …and the same card without its second sentence is the whole edict.
+        expect(compileCard(sorcery(CONSUME_SENTENCE, "Consume")).state).toBe(
+            "ready"
+        );
     });
 });
 
