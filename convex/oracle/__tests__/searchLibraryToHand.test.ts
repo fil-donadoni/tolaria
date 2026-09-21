@@ -206,15 +206,15 @@ describe("Search library, reveal, to hand — refusals (fail-closed)", () => {
         ).toBe("unparsed");
     });
 
-    // The trigger slot DOES read "you may <clause>" (Borderland Ranger above)
-    // — its may-gate is a rule of its own that routes the inner clause here.
-    // What this pins is that the clause rule consumes its sentence WHOLE: it
-    // never swallows a leading "You may" on the spell slot, where no such
-    // gate stands.
-    it("a leading 'You may' is not swallowed", () => {
+    // A leniency pin, not a wording pin: the sentence is consumed WHOLE, so a
+    // clause glued after "then shuffle" fails the line instead of being
+    // silently dropped. Drop the regex's `$` anchor and this is the test that
+    // goes red — the trigger slot's own may-gate, by contrast, is a rule of
+    // its own (Borderland Ranger above), not something this rule reads.
+    it("a clause glued after the shuffle is not dropped", () => {
         expect(
             refused(
-                "You may search your library for a basic land card, reveal it, put it into your hand, then shuffle."
+                "Search your library for a basic land card, reveal it, put it into your hand, then shuffle and draw a card."
             )
         ).toBe("unparsed");
     });
