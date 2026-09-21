@@ -12,6 +12,7 @@ import type {
     CardDefinition,
     EffectCardFilter,
     EffectOp,
+    EffectPlayerRef,
 } from "../../../cards/types";
 import {
     FACE_DOWN_CARD_ID,
@@ -6666,6 +6667,202 @@ describe("Effect Script Op: moveZone — whole-zone bulk shape (CR 400.7, issue 
             "w1",
             "w2",
         ]);
+    });
+});
+
+// issue #4302 — `bindCount` on the whole-zone `moveZone` shape: a NUMBER
+// binding holding how many cards the move took out of `from`, read BEFORE the
+// move. The permanent test for the new field (gre-development.md § Per-Op test
+// regime): the draw that follows reads "that many" — a recount after the move
+// would read the emptied zone and draw nothing.
+describe("Effect Script Op: moveZone — whole-zone bindCount (CR 701.24a / 121.1, issue #4302)", () => {
+    const cardsOf = (
+        owner: "p1" | "p2",
+        ids: string[],
+        zone: "hand" | "library" | "graveyard"
+    ) =>
+        ids.map((cid) =>
+            makeInstance(BEAR_ID, {
+                id: cid,
+                controllerId: owner,
+                ownerId: owner,
+                zone,
+            })
+        );
+
+    const redrawEffects = (
+        player: EffectPlayerRef,
+        from: "hand" | "graveyard" = "hand"
+    ): EffectOp[] => [
+        {
+            op: "moveZone",
+            player,
+            from,
+            to: "library",
+            bindCount: "$n",
+        },
+        { op: "libraryLook", action: "shuffle", player },
+        { op: "draw", player, count: { ref: "$n" } },
+    ];
+
+    it("draws as many cards as the hand held: a hand of 2 over a library of 6 redraws 2", () => {
+        const id = registerScript(
+            "test-op-movezone-bindcount-redraw",
+            redrawEffects("controller")
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: cardsOf("p1", ["h1", "h2"], "hand"),
+                    library: cardsOf(
+                        "p1",
+                        ["l1", "l2", "l3", "l4", "l5", "l6"],
+                        "library"
+                    ),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        // A recount after the move would read 0 and leave the hand empty.
+        expect(state.players[0].hand).toHaveLength(2);
+        expect(state.players[0].library).toHaveLength(6);
+        expect(
+            [...state.players[0].hand, ...state.players[0].library]
+                .map((c) => c.id)
+                .sort()
+        ).toEqual(["h1", "h2", "l1", "l2", "l3", "l4", "l5", "l6"]);
+    });
+
+    it("binds 0 for an empty hand: the draw is a legal zero, the library is untouched", () => {
+        const id = registerScript(
+            "test-op-movezone-bindcount-empty",
+            redrawEffects("controller")
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: cardsOf("p1", ["l1", "l2"], "library"),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.players[0].library.map((c) => c.id).sort()).toEqual([
+            "l1",
+            "l2",
+        ]);
+    });
+
+    it("counts the `from` zone it names, not the hand: a graveyard of 3 redraws 3", () => {
+        const id = registerScript(
+            "test-op-movezone-bindcount-graveyard",
+            redrawEffects("controller", "graveyard")
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: cardsOf("p1", ["h1"], "hand"),
+                    graveyard: cardsOf("p1", ["g1", "g2", "g3"], "graveyard"),
+                    library: cardsOf("p1", ["l1", "l2", "l3", "l4"], "library"),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand).toHaveLength(1 + 3);
+    });
+
+    it("binds 0 when `from === to`: the primitive moves nothing, so nothing is 'that many'", () => {
+        const id = registerScript("test-op-movezone-bindcount-samezone", [
+            {
+                op: "moveZone",
+                player: "controller",
+                from: "hand",
+                to: "hand",
+                bindCount: "$n",
+            },
+            { op: "draw", player: "controller", count: { ref: "$n" } },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: cardsOf("p1", ["h1", "h2"], "hand"),
+                    library: cardsOf("p1", ["l1", "l2"], "library"),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand.map((c) => c.id).sort()).toEqual([
+            "h1",
+            "h2",
+        ]);
+        expect(state.players[0].library).toHaveLength(2);
+    });
+
+    it("scopes the binding per forEach iteration: each player redraws their OWN hand size", () => {
+        const id = registerScript("test-op-movezone-bindcount-foreach", [
+            {
+                op: "forEach",
+                select: { set: "players" },
+                effects: redrawEffects({ ref: "$each" }),
+            },
+        ]);
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: cardsOf("p1", ["a1", "a2"], "hand"),
+                    library: cardsOf(
+                        "p1",
+                        ["al1", "al2", "al3", "al4", "al5"],
+                        "library"
+                    ),
+                }),
+                makePlayer("p2", {
+                    hand: cardsOf("p2", ["b1", "b2", "b3", "b4"], "hand"),
+                    library: cardsOf(
+                        "p2",
+                        ["bl1", "bl2", "bl3", "bl4", "bl5"],
+                        "library"
+                    ),
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].hand).toHaveLength(2);
+        expect(state.players[1].hand).toHaveLength(4);
+    });
+
+    it("the redrawn hand survives projection (wire format)", () => {
+        const id = registerScript(
+            "test-op-movezone-bindcount-wire",
+            redrawEffects("controller")
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: cardsOf("p1", ["w1", "w2", "w3"], "hand"),
+                    library: cardsOf(
+                        "p1",
+                        ["wl1", "wl2", "wl3", "wl4"],
+                        "library"
+                    ),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[0].hand).toHaveLength(3);
+        expect(projected.players[0].library.count).toBe(4);
     });
 });
 

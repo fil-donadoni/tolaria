@@ -2762,4 +2762,64 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             targetRequirement: { type: "Creature", count: 1 },
         },
     },
+    // CR 701.24a + CR 121.1 — "Shuffle the cards from your hand into your
+    // library, then draw that many cards": the whole hand moves into the
+    // library, the library is shuffled, and as many cards are drawn as the
+    // hand held. Exhibits the "whole-zone move binds its count" form and the
+    // "draw reads a numeric binding" form: the canned smoke scenario seeds
+    // neither the hand nor the count, so this fixture is the evidence that
+    // the `bindCount` / `{ ref }` pair the grammar emits reads the hand's
+    // size BEFORE the move (Winds of Change's hand-written `getHandSize`
+    // capture, in the Effect Script's own vocabulary).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "13a3f2c1-0454-4661-a462-542254f8360d",
+            name: "Whirlpool Rider",
+            manaCost: "{1}{U}",
+            typeLine: "Creature — Merfolk",
+            oracleText:
+                "When this creature enters, shuffle the cards from your hand into your library, then draw that many cards.",
+            power: "1",
+            toughness: "1",
+            layout: "normal",
+        },
+        expected: {
+            name: "Whirlpool Rider",
+            types: ["Creature"],
+            subtypes: ["Merfolk"],
+            manaCost: { X: 1, U: 1 },
+            power: 1,
+            toughness: 1,
+            oracleText:
+                "When this creature enters, shuffle the cards from your hand into your library, then draw that many cards.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "whirlpool-rider-trigger",
+                    oracleText:
+                        "When this creature enters, shuffle the cards from your hand into your library, then draw that many cards.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            player: "controller",
+                            from: "hand",
+                            to: "library",
+                            bindCount: "$handSize1",
+                        },
+                        {
+                            op: "libraryLook",
+                            action: "shuffle",
+                            player: "controller",
+                        },
+                        {
+                            op: "draw",
+                            player: "controller",
+                            count: { ref: "$handSize1" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);

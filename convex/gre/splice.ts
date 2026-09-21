@@ -258,6 +258,7 @@ const BINDING_DECLARATION_FIELDS = [
     "bindOther",
     "bindSource",
     "bindAll",
+    "bindCount",
     "resultBind",
     "chosenBind",
     "otherBind",

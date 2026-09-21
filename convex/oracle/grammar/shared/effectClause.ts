@@ -692,6 +692,19 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 701.24a + CR 121.1 — "Shuffle the cards from your hand into your
+           * library, then draw that many cards.": the controller puts their
+           * whole hand into their library, shuffles it, and draws as many cards
+           * as the hand held. One sentence, two actions in printed order; "that
+           * many" is the size of the hand BEFORE it moved, so lowering binds
+           * that count when the hand moves rather than recounting afterwards.
+           * Only the controller's own hand: the "each player" reading is a
+           * different sentence with a different subject.
+           */
+          readonly kind: "shuffle-hand-redraw";
+      }
+    | {
+          /**
            * CR 608.2c — "<base>. If you control a <A> and a <B>, <upgraded>
            * instead." Two printed sentences, one effect: the second REPLACES
            * the first when every condition holds as the ability resolves, and
@@ -1487,6 +1500,8 @@ const YOU_DRAW_AND_THAT_OPPONENT_DISCARDS =
     /^You (draw \S+ cards?) and (that opponent discards \S+ cards?)$/;
 /** CR 121.1 + CR 701.9a — "Draw a card, then discard a card". */
 const LOOT = /^Draw (\S+) cards?, then discard (\S+) cards?$/;
+const SHUFFLE_HAND_REDRAW =
+    /^Shuffle the cards from your hand into your library, then draw that many cards$/;
 /** CR 608.2c — "If you control <A> and <B>, <body> instead" (either order). */
 const INSTEAD = /^If (you control .+?), (?:instead (.+)|(.+) instead)$/;
 
@@ -2206,6 +2221,14 @@ function effectSentence(
             kind: "loot" as const,
             draw,
             discard,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── shuffle the hand into the library, then draw that many ──────────────
+    // CR 701.24a + CR 121.1
+    if (SHUFFLE_HAND_REDRAW.test(span)) {
+        return ok({
+            kind: "shuffle-hand-redraw" as const,
         } satisfies EffectSentenceIR);
     }
 

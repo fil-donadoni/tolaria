@@ -3847,6 +3847,10 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             // ("return it to the battlefield. It's an enchantment."), valid
             // only on the `target` shape with `to: "battlefield"`.
             entersAs: isEntryTypeLine,
+            // issue #4302 — the whole-zone shape's NUMBER binding: how many
+            // cards the move took out of `from` ("shuffle the cards from your
+            // hand into your library, then draw that many cards").
+            bindCount: isBindingName,
         },
         check: (entry) => {
             const hasTarget = "target" in entry;
@@ -4052,6 +4056,11 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             // existing `forEach { set: "graveyard" }` + `simultaneous`
             // idiom) and no `to: "library-top"` (meaningless with no pick
             // list to order).
+            if ("bindCount" in entry && !hasBulk) {
+                errors.push(
+                    'field "bindCount" is only valid for the whole-zone bulk mode (no "target"/"cards"/"fromZones") — the other shapes move a chosen or filtered subset and bind the cards themselves (issue #4302)'
+                );
+            }
             if (hasBulk) {
                 if (!("player" in entry)) {
                     errors.push(
@@ -5994,7 +6003,8 @@ function parseRef(ref: string): { binding: string; property: string } | null {
 // (below, in `checkOpListRefs`) accepts either.
 // A NUMBER binding (CR 107.1c / 107.3f, issues #1701 / #1421) stores the
 // amount a numeric nomination settled on — paid (`payVariableMana`) or merely
-// chosen (`chooseNumber`) — as a TAGGED single value. It is read ONLY
+// chosen (`chooseNumber`) — or (issue #4302) the count a whole-zone `moveZone`
+// moved (`bindCount`), as a TAGGED single value. It is read ONLY
 // by a bare ref in a NUMERIC value position (`count: { ref: "$paid" }`) — a
 // position that had no bare-ref reader at all before this family existed, so
 // nothing else can claim it and nothing it displaces.
@@ -6421,13 +6431,13 @@ function checkRefUse(
         const family = declared.get(use.ref);
         if (family === undefined) {
             errors.push(
-                `${at}: ref "${use.ref}" references undefined binding "${use.ref}" — no earlier Op binds it (a bare numeric ref reads a chooseNumber / payVariableMana Op's bind)`
+                `${at}: ref "${use.ref}" references undefined binding "${use.ref}" — no earlier Op binds it (a bare numeric ref reads a chooseNumber / payVariableMana Op's bind or a whole-zone moveZone's bindCount)`
             );
             return;
         }
         if (family !== "number") {
             errors.push(
-                `${at}: ref "${use.ref}" names a ${family} binding in a bare numeric position — only a chooseNumber / payVariableMana Op's bind is a number binding; power/toughness/manaValue refs read a snapshot with a property path`
+                `${at}: ref "${use.ref}" names a ${family} binding in a bare numeric position — only a chooseNumber / payVariableMana Op's bind or a whole-zone moveZone's bindCount is a number binding; power/toughness/manaValue refs read a snapshot with a property path`
             );
         }
         return;
@@ -7262,6 +7272,25 @@ function checkOpListRefs(
                 );
             } else {
                 declared.set(entry.bindSource, "snapshot");
+            }
+        }
+
+        // `moveZone.bindCount` (issue #4302) declares a NUMBER binding — the
+        // count of cards a whole-zone move took out of `from`, read back by a
+        // bare ref in a numeric value position (`draw`'s `count`). Its own
+        // field for the reason `mill.bindAll` is one: `bind` on the same Op is
+        // a snapshot, and `bindingKindOf` answers per Op rather than per field.
+        if (entry.op === "moveZone" && typeof entry.bindCount === "string") {
+            if (entry.bindCount === "$each") {
+                errors.push(
+                    `${at}: bindCount "$each" is reserved — only the forEach construct binds it (issue #807)`
+                );
+            } else if (declared.has(entry.bindCount)) {
+                errors.push(
+                    `${at}: bindCount "${entry.bindCount}" re-declares an existing binding — binding names must be unique within a script`
+                );
+            } else {
+                declared.set(entry.bindCount, "number");
             }
         }
 
