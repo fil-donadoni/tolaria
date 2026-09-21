@@ -366,7 +366,13 @@ describe("player edict — refusals (fail-closed, ADR 0105 § 2)", () => {
         "Target opponent sacrifices a creature with the greatest power among creatures they control.",
         // "attacking or blocking" is two roles; the filter reads one (Celestial Flare).
         "Target player sacrifices an attacking or blocking creature of their choice.",
-        // A colour clause has no sacrifice-filter field yet (Renounce the Guilds).
+        // A colour clause has no sacrifice-filter field yet (Self-Inflicted Wound).
+        "Target opponent sacrifices a green or white creature of their choice.",
+        // Nor does a type exclusion (Doomsday Confluence).
+        "Each player sacrifices a nonartifact creature of their choice.",
+        // "blocking" is a combat role the filter does not read: only "attacking".
+        "Target player sacrifices a blocking creature of their choice.",
+        // "multicolored" is no descriptor word at all (Renounce the Guilds).
         "Each player sacrifices a multicolored permanent of their choice.",
         // Two nouns, each with its own article: no single filter (Perilous Predicament).
         "Each opponent sacrifices an artifact creature and a nonartifact creature of their choice.",
