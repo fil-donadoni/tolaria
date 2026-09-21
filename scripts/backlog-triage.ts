@@ -30,6 +30,12 @@
  * no source bands takes the coarse label default (`labels`, issue #4231 — the
  * weakest source; `prd` and unlabelled rows stay residue). The
  * board field stays the OUTPUT of this script, never hand-written.
+ * `--clear-residue` (ADR 0143, issue #4232) is the ONE-SHOT blank of the
+ * stale board values on rows no source bands — residue AFTER `labels`, the
+ * `planClear` in the lib; alone it previews, with `--write` it applies (one
+ * `addProjectV2ItemById` + one `clearProjectV2ItemFieldValue` batch per
+ * `WRITE_BATCH`). It replaces the normal pass for that run and is announced,
+ * not routine: an owner runs it once, before the next batch.
  * `--suggest-cards` appends the `## Cards` backfill (issue #4086) — a
  * proposal per residue issue, printed, never written, with or without
  * `--write`.
@@ -59,10 +65,12 @@ import {
     cardBandIndex,
     claimedCards,
     issueCards,
+    planClear,
     planUmbrellas,
     planWrites,
     parseBand,
     parseCards,
+    renderClearReport,
     renderReport,
     renderSuggestions,
     resolveDeclaredCards,
@@ -71,6 +79,7 @@ import {
     triage,
     umbrellaSlots,
     type Band,
+    type BandClear,
     type BandWrite,
     type BandResidue,
     type CardsResidue,
@@ -320,6 +329,29 @@ function fetchPriorityField(
     };
 }
 
+/** The board item of each issue in `batch` — one aliased `addProjectV2ItemById`
+ *  request, idempotent (it returns the existing item for an issue already on
+ *  the board), so the write and the clear side share it. */
+function boardItemIds(
+    run: (args: string[]) => string,
+    projectId: string,
+    batch: readonly { readonly number: number }[],
+    nodeIds: ReadonlyMap<number, string>
+): string[] {
+    const added = graphql(
+        run,
+        `mutation {\n${batch
+            .map(
+                (w, i) =>
+                    `    a${i}: addProjectV2ItemById(input: { projectId: "${projectId}", contentId: "${nodeId(nodeIds.get(w.number), `issue #${w.number}`)}" }) { item { id } }`
+            )
+            .join("\n")}\n}`
+    ) as Record<string, { item?: { id?: string } } | null>;
+    return batch.map((w, i) =>
+        nodeId(added[`a${i}`]?.item?.id, `board item of issue #${w.number}`)
+    );
+}
+
 /**
  * Applies `writes` to the board. Makes NO call for an empty list — the
  * second run on unchanged inputs costs nothing. Returns the writes applied;
@@ -336,24 +368,44 @@ export function applyWrites(
     const applied: BandWrite[] = [];
     for (let at = 0; at < writes.length; at += WRITE_BATCH) {
         const batch = writes.slice(at, at + WRITE_BATCH);
-        const added = graphql(
-            run,
-            `mutation {\n${batch
-                .map(
-                    (w, i) =>
-                        `    a${i}: addProjectV2ItemById(input: { projectId: "${field.projectId}", contentId: "${nodeId(nodeIds.get(w.number), `issue #${w.number}`)}" }) { item { id } }`
-                )
-                .join("\n")}\n}`
-        ) as Record<string, { item?: { id?: string } } | null>;
-        const itemIds = batch.map((w, i) =>
-            nodeId(added[`a${i}`]?.item?.id, `board item of issue #${w.number}`)
-        );
+        const itemIds = boardItemIds(run, field.projectId, batch, nodeIds);
         graphql(
             run,
             `mutation {\n${batch
                 .map(
                     (w, i) =>
                         `    u${i}: updateProjectV2ItemFieldValue(input: { projectId: "${field.projectId}", itemId: "${itemIds[i]}", fieldId: "${field.fieldId}", value: { singleSelectOptionId: "${field.optionId[w.band]}" } }) { projectV2Item { id } }`
+                )
+                .join("\n")}\n}`
+        );
+        applied.push(...batch);
+    }
+    return applied;
+}
+
+/**
+ * Blanks the board `Priority` of `clears` (`--clear-residue --write`): the
+ * same batching as {@link applyWrites}, `clearProjectV2ItemFieldValue` in place
+ * of the option update. Makes NO call for an empty list; a failure throws after
+ * the batches already sent, which the next run's `planClear` no longer owes.
+ */
+export function applyClears(
+    run: (args: string[]) => string,
+    clears: readonly BandClear[],
+    nodeIds: ReadonlyMap<number, string>
+): BandClear[] {
+    if (clears.length === 0) return [];
+    const field = fetchPriorityField(run, new Set());
+    const applied: BandClear[] = [];
+    for (let at = 0; at < clears.length; at += WRITE_BATCH) {
+        const batch = clears.slice(at, at + WRITE_BATCH);
+        const itemIds = boardItemIds(run, field.projectId, batch, nodeIds);
+        graphql(
+            run,
+            `mutation {\n${batch
+                .map(
+                    (_, i) =>
+                        `    c${i}: clearProjectV2ItemFieldValue(input: { projectId: "${field.projectId}", itemId: "${itemIds[i]}", fieldId: "${field.fieldId}" }) { projectV2Item { id } }`
                 )
                 .join("\n")}\n}`
         );
@@ -373,6 +425,11 @@ export function runTriage(opts: {
     if (write && opts.argv.includes("--dry-run"))
         throw new Error(
             "backlog:triage: `--write` and `--dry-run` together — pick one"
+        );
+    const clearResidue = opts.argv.includes("--clear-residue");
+    if (clearResidue && opts.argv.includes("--suggest-cards"))
+        throw new Error(
+            "backlog:triage: `--clear-residue` and `--suggest-cards` together — pick one"
         );
     const lock = parseLockfile(
         readFileSync(join(opts.root, LOCKFILE_PATH), "utf8")
@@ -437,6 +494,14 @@ export function runTriage(opts: {
         umbrellaSlots(BAND_UMBRELLAS, new Set(open.map((i) => i.number))),
         board
     );
+    const nodeIds = new Map(open.map((i) => [i.number, i.nodeId]));
+    if (clearResidue) {
+        const clears = planClear(issues, index, board, umbrellas);
+        return renderClearReport(
+            clears,
+            write ? applyClears(opts.ghClient, clears, nodeIds) : null
+        );
+    }
     // Children inherit the umbrella's board value (`parent` source): triage
     // reads it as this run will leave it, so one run converges the children
     // too. `planWrites` and `summarize` compare against the board AS IT IS.
@@ -448,7 +513,7 @@ export function runTriage(opts: {
         ? applyWrites(
               opts.ghClient,
               planWrites(verdicts, board, umbrellas),
-              new Map(open.map((i) => [i.number, i.nodeId]))
+              nodeIds
           )
         : null;
     const report = renderReport(

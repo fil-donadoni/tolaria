@@ -866,7 +866,8 @@ export function planUmbrellas(
  *     and an issue the board holds at `P0` is skipped even if a verdict says
  *     otherwise (belt and braces — `triage` already maps it to `p0`);
  *   - residue owes nothing — not `P3`, not a clear: the rule abstained, and
- *     whatever the owner set stays;
+ *     whatever the owner set stays (the one-shot blank of a stale value is
+ *     its own mode, {@link planClear}, `--clear-residue`, never this pass);
  *   - a band the board already holds owes nothing;
  *   - a Target-keyed umbrella (issue #4212) is written from its Target's band
  *     through `umbrellas`, in the same list — and never from its own verdict.
@@ -884,6 +885,66 @@ export function planWrites(
         out.push({ number, band: v.band, from });
     }
     return out.sort((a, b) => a.number - b.number);
+}
+
+/** One board value the clear side blanks: `from` is what the board holds. */
+export interface BandClear {
+    readonly number: number;
+    readonly title: string;
+    readonly from: Exclude<BoardPriority, "P0">;
+}
+
+/**
+ * The rows `--clear-residue` blanks (ADR 0143): every open issue that NO
+ * source bands — residue AFTER `labels`, so a row the default bands is never
+ * here (the normal pass overwrites a stale value on it) — and that holds a
+ * board value today. Never a `P0`, never a row with no value, never a
+ * Target-keyed umbrella (`owned`: its own value follows its Target).
+ *
+ * The residue is a FIXED POINT, not one reading of the board. A `parent`-source
+ * band is lent by the parent's board value, so a residue parent that is blanked
+ * stops lending: its child, banded by that stale value a moment ago, is residue
+ * on the board this clear leaves behind — and one that holds a value is blanked
+ * by a second run. So the rule re-reads the board as the clear would leave it
+ * until no new row falls out; what it returns is then the same set a second run
+ * would compute on the result (owes nothing), which is what makes the mode safe
+ * to run twice. Blanking only ever removes values, so the loop terminates.
+ */
+export function planClear(
+    issues: readonly TriageIssue[],
+    index: ReadonlyMap<string, CardBand>,
+    board: Readonly<Record<number, BoardPriority>>,
+    umbrellas: UmbrellaPlan = NO_UMBRELLAS
+): BandClear[] {
+    const titles = new Map(issues.map((i) => [i.number, i.title] as const));
+    const working: Record<number, BoardPriority> = { ...board };
+    const cleared = new Map<number, BandClear>();
+    for (;;) {
+        // The umbrella pass is read as `runTriage` reads it: the value an owned
+        // umbrella is about to hold is what its children inherit.
+        const settled: Record<number, BoardPriority> = { ...working };
+        for (const w of umbrellas.writes) settled[w.number] = w.band;
+        let grew = false;
+        for (const [number, v] of triage(issues, index, settled)) {
+            const from = working[number];
+            if (
+                v.kind !== "residue" ||
+                umbrellas.owned.has(number) ||
+                from === undefined ||
+                from === "P0"
+            )
+                continue;
+            cleared.set(number, {
+                number,
+                title: titles.get(number) ?? "",
+                from,
+            });
+            delete working[number];
+            grew = true;
+        }
+        if (!grew) break;
+    }
+    return [...cleared.values()].sort((a, b) => a.number - b.number);
 }
 
 const RESIDUE_CAUSE_LABEL: Readonly<Record<ResidueCause, string>> = {
@@ -962,5 +1023,28 @@ export function renderReport(
         lines.push(
             `  #${w.number}  ${w.family} / ${w.targetId}  ${w.from ?? "unprioritized"} → ${w.band}`
         );
+    return lines.join("\n");
+}
+
+/** `null` = dry run; otherwise the clears the run applied. */
+export function renderClearReport(
+    clears: readonly BandClear[],
+    written: readonly BandClear[] | null = null
+): string {
+    const lines = [
+        "backlog:triage --clear-residue — ONE-SHOT, not routine (ADR 0143): blank the board `Priority` of every residue row.",
+        "A value on a row no source bands was written under an older regime, when `P1` meant something else; the board keeps the value, not its date.",
+        "Residue is read AFTER the `labels` default (a row it bands is never blanked); a `P0`, a row with no value and a Target-keyed umbrella owe nothing.",
+        "",
+        written === null
+            ? `DRY RUN, nothing written — would blank ${clears.length} board value(s):`
+            : `WRITE — ${written.length} board value(s) blanked:`,
+    ];
+    for (const band of BANDS)
+        lines.push(
+            `  ${band}: ${clears.filter((c) => c.from === band).length}`
+        );
+    for (const c of clears)
+        lines.push(`  #${c.number} [board ${c.from}] ${c.title}`);
     return lines.join("\n");
 }
