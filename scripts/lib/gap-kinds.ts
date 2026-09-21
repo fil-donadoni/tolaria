@@ -30,6 +30,7 @@ import {
     KIND_FALLBACK,
     type GapFiling,
 } from "./gap-issues";
+import { gapOf } from "./grammar-gaps";
 import type { CardRow, Lockfile } from "./oracle-lockfile";
 import {
     claimId,
@@ -111,6 +112,24 @@ export function rankedCardIds(
     return ranked;
 }
 
+/**
+ * The cards of every ENFORCED Target — the ones `check:targets` reds when
+ * unclaimed, so the ones a hand-tail issue is owed for
+ * ({@link KindInputs.enforced}).
+ */
+export function enforcedCardIds(
+    registry: TargetRegistry,
+    ctx: ResolveContext
+): Set<string> {
+    const ids = new Set<string>();
+    for (const row of registry.targets) {
+        if (row.enforced !== true) continue;
+        for (const card of resolveTarget(row, ctx).cards)
+            ids.add(card.oracleId);
+    }
+    return ids;
+}
+
 /** Everything the five builders read, built once per run. */
 export interface KindInputs {
     readonly lock: Pick<Lockfile, "cards" | "fragments">;
@@ -136,9 +155,17 @@ export interface KindInputs {
     /** `claimId(kind, key)` → the issue already filed for it. */
     readonly filed: ReadonlyMap<string, number>;
     readonly floor: number;
-    /** `data/targets.json`'s flag: whether hand-tail issues are FILED yet
-     *  (false until the APC pilot is accepted, issue #3837). */
+    /** `data/targets.json`'s flag: whether hand-tail issues are FILED at all. */
     readonly handTailFiling: boolean;
+    /**
+     * The cards of ENFORCED Targets — the ones a claim is OWED for.
+     * `check:targets` reds only an enforced Target's unclaimed card, and
+     * `format-premodern` alone ranks ~1,850 below-floor cards nobody owes a
+     * claim, so a ranked card outside this set is computed and reported as
+     * held, never filed (issue #4219). Read by the `hand-tail` filer (behind
+     * `handTailFiling`) and by {@link buildFragmentGapFilings}.
+     */
+    readonly enforced: ReadonlySet<string>;
     readonly gapKeys: (row: CardRow) => readonly string[];
     readonly leverage: ReadonlyMap<string, number>;
     /** Oracle ids already carrying a well-formed `hand-tail:` marker. */
@@ -314,6 +341,86 @@ export function buildQuarantineFilings(
     return rank(drafts, inputs, kind);
 }
 
+// ── grammar — one issue per FRAGMENT gap of an enforced Target ─────────
+
+/**
+ * The Grammar Gaps an ENFORCED Target's cards are held by: one issue per gap
+ * key at or above `handTailFloor`, the `grammar` claim `coverageVerdict` looks
+ * for before it lets such a card leave `unclaimed` (issue #4219). The `ops`
+ * rows of the allowlist are the other half of the kind
+ * (`buildGrammarGapFilings`), keyed `(op) › <Op>`; this half is keyed by
+ * `gapOf(fragment).key` and its claim lives in `claims`, not `ops`.
+ *
+ * Scoped to enforced Targets, like hand-tail: a ranked-only Target owes no
+ * claim, and its own gaps enter the day it is enforced.
+ */
+export function buildFragmentGapFilings(inputs: KindInputs): GapFiling[] {
+    const held = new Map<string, Set<string>>();
+    for (const row of inputs.lock.cards) {
+        if (row.state !== "unparsed") continue;
+        if (!inputs.enforced.has(row.oracleId)) continue;
+        for (const key of inputs.gapKeys(row)) {
+            if ((inputs.leverage.get(key) ?? 0) < inputs.floor) continue;
+            let ids = held.get(key);
+            if (ids === undefined) held.set(key, (ids = new Set()));
+            ids.add(row.oracleId);
+        }
+    }
+    if (held.size === 0) return [];
+
+    const samples = new Map<string, string[]>();
+    for (const fragment of inputs.lock.fragments) {
+        const key = gapOf(fragment).key;
+        if (!held.has(key)) continue;
+        const seen = samples.get(key) ?? [];
+        if (seen.length < 3 && !seen.includes(fragment.text))
+            seen.push(fragment.text);
+        samples.set(key, seen);
+    }
+    const nameOf = new Map(
+        inputs.lock.cards.map((c) => [c.oracleId, c.name] as const)
+    );
+    const drafts: Draft[] = [...held].map(([key, ids]) => {
+        const corpus = inputs.leverage.get(key) ?? 0;
+        const counts = inputs.slices.map(
+            (slice) => [...ids].filter((id) => slice.ids.has(id)).length
+        );
+        const names = [...ids]
+            .map((id) => nameOf.get(id))
+            .filter((name): name is string => name !== undefined)
+            .sort();
+        return {
+            kind: "grammar" as const,
+            key,
+            title: title(GAP_TITLE_PREFIX.grammar, key),
+            parentSetCode: topSetCode(inputs.slices, ids),
+            counts,
+            corpus,
+            render: () =>
+                [
+                    `A **Grammar Gap** the compiler cannot consume: \`${key}\` — ${corpus} corpus cards carry it (floor ${inputs.floor}), and it holds cards of an \`enforced\` Target, which \`check:targets\` reds until this gap has an issue.`,
+                    "",
+                    ...(samples.get(key) ?? []).map(
+                        (text) =>
+                            `Fragment refused: \`${text.replace(/\s+/g, " ").trim()}\``
+                    ),
+                    "",
+                    perTargetBlock(
+                        inputs.slices,
+                        counts,
+                        corpus,
+                        "cards of a priority Target held by this gap"
+                    ),
+                    "",
+                    `Enforced-Target cards held (${names.length}): ${names.join(", ")}`,
+                    "",
+                    "The work is `/grammar-rule` on this key. The gap disappears when the rule lands and no card carries it — this issue closes through that PR, never by `gaps:sync`.",
+                ].join("\n"),
+        };
+    });
+    return rank(drafts, inputs, "grammar");
+}
+
 // ── hand-tail — one issue per CARD ──────────────────────────────────────
 
 /**
@@ -331,7 +438,8 @@ export function buildQuarantineFilings(
 export function buildHandTailFilings(inputs: KindInputs): {
     /** Filed this run — empty while `handTailFiling` is false. */
     readonly filings: readonly GapFiling[];
-    /** Computed and REPORTED but not filed — the same list, flag off. */
+    /** Computed and REPORTED but not filed — flag off, or the card is
+     *  outside every enforced Target. */
     readonly held: readonly GapFiling[];
 } {
     const fragmentText = (row: CardRow): string | undefined => {
@@ -341,6 +449,7 @@ export function buildHandTailFilings(inputs: KindInputs): {
     };
 
     const drafts: Draft[] = [];
+    const outOfScope: Draft[] = [];
     for (const row of inputs.lock.cards) {
         if (row.state !== "unparsed") continue;
         if (!inputs.ranked.has(row.oracleId)) continue;
@@ -365,7 +474,7 @@ export function buildHandTailFilings(inputs: KindInputs): {
         const oneLine = (fragmentText(row) ?? leading)
             .replace(/\s+/g, " ")
             .trim();
-        drafts.push({
+        (inputs.enforced.has(row.oracleId) ? drafts : outOfScope).push({
             kind: "hand-tail",
             key: row.name,
             title: `${GAP_TITLE_PREFIX["hand-tail"]} ${row.name}`,
@@ -402,10 +511,15 @@ export function buildHandTailFilings(inputs: KindInputs): {
                 ].join("\n"),
         });
     }
-    const ranked = rank(drafts, inputs, "hand-tail");
-    return inputs.handTailFiling
-        ? { filings: ranked, held: [] }
-        : { filings: [], held: ranked };
+    if (!inputs.handTailFiling)
+        return {
+            filings: [],
+            held: rank([...drafts, ...outOfScope], inputs, "hand-tail"),
+        };
+    return {
+        filings: rank(drafts, inputs, "hand-tail"),
+        held: rank(outOfScope, inputs, "hand-tail"),
+    };
 }
 
 // ── migration — the graduates, clustered by the rule that unlocked them ──

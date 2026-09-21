@@ -48,7 +48,7 @@ describe("data/targets.json — the registered Target Lists", () => {
 
     it("carries the seed rows and the registry-level fields", () => {
         expect(registry.handTailFloor).toBe(3);
-        expect(registry.handTailFiling).toBe(false);
+        expect(registry.handTailFiling).toBe(true);
         const ids = registry.targets.map((t) => t.id);
         for (const id of [
             "premodern-metagame",
