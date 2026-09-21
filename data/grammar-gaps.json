@@ -836,6 +836,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Whirlpool Warrior",
+            "issue": 4358
+        },
+        {
+            "kind": "hand-tail",
             "key": "Wild Research",
             "issue": 4343
         },
