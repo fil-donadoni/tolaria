@@ -1398,8 +1398,8 @@ function countSet(ctx: SpellContext, spec: EffectCountSpec): number {
     return times * countZoneForPlayer(ctx, playerId, spec);
 }
 
-/** How many cards sit in one of a player's four plain zones (CR 400.1), the
- *  count a whole-zone `moveZone`'s `bindCount` records (issue #4302). Hand and
+/** How many cards sit in one of the four plain zones a whole-zone `moveZone`
+ *  names, the count its `bindCount` records (issue #4302). Hand and
  *  library are hidden zones whose SIZE is public (CR 402.3 / CR 401.3), so this
  *  reads a cardinality and grants no knowledge. */
 function movableZoneSize(
@@ -1407,10 +1407,16 @@ function movableZoneSize(
     playerId: string,
     zone: MovableZone
 ): number {
-    if (zone === "hand") return ctx.getHandSize(playerId);
-    if (zone === "library") return ctx.getLibraryCards(playerId).length;
-    if (zone === "graveyard") return ctx.getGraveyardCards(playerId).length;
-    return ctx.getExileCards(playerId).length;
+    switch (zone) {
+        case "hand":
+            return ctx.getHandSize(playerId);
+        case "library":
+            return ctx.getLibraryCards(playerId).length;
+        case "graveyard":
+            return ctx.getGraveyardCards(playerId).length;
+        case "exile":
+            return ctx.getExileCards(playerId).length;
+    }
 }
 
 /** Counts one player's matching cards in the spec's zone (CR 122). Shared by

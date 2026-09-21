@@ -11502,7 +11502,6 @@
         {"id":"400.1","line":"/** CR 400.1 — the zone the described objects live in. Absent = battlefield. */","sites":1,"status":"baseline"},
         {"id":"400.1","line":"/** CR 400.1 — the zones grammar v0 can name. */","sites":1,"status":"baseline"},
         {"id":"400.1","line":"/** Exile-to-zone meta-trigger event (issue #1558, CR 400.1 / 603.3b / 608.2i)","sites":1,"status":"baseline"},
-        {"id":"400.1","line":"/** How many cards sit in one of a player's four plain zones (CR 400.1), the","sites":1,"status":"confirmed","ruleHash":"58cea42b5d3605c2"},
         {"id":"400.1","line":"/** Zone the card came FROM (CR 400.1). Never `\"library\"`. */","sites":1,"status":"baseline"},
         {"id":"400.1","line":"/** Zone the card was exiled FROM (CR 400.1 zone taxonomy). */","sites":1,"status":"baseline"},
         {"id":"400.1","line":"// (issue #1558, CR 400.1 / 603.3b / 608.2i — \"whenever one or more cards are","sites":1,"status":"baseline"},
