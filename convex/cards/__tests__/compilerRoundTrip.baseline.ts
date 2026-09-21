@@ -425,7 +425,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Disrupt",
     "Distorting Wake",
     "Divine Intervention",
-    "Divine Offering",
     "Divine Presence",
     "Do or Die",
     "Dominaria's Judgment",

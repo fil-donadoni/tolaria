@@ -8080,6 +8080,16 @@
         "source": "compiled"
     },
     {
+        "name": "Chastise",
+        "scryfallId": "1169dab7-8f4c-474d-9289-42765a275376",
+        "oracleId": "b7553f3f-5de1-409c-a184-e12e40f017ab",
+        "firstSet": "jud",
+        "firstPrintId": "1169dab7-8f4c-474d-9289-42765a275376",
+        "firstPrintSet": "jud",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Chatter of the Squirrel",
         "scryfallId": "84273844-7fab-4ff7-afb3-c82153132daf",
         "oracleId": "b0aaa4b1-5188-43a6-997d-7a9b2ad452bc",
@@ -38306,6 +38316,16 @@
         "firstPrintSet": "pls"
     },
     {
+        "name": "Razor Hippogriff",
+        "scryfallId": "fc7ac3bf-eed2-417d-8b60-e8c84bfb98ab",
+        "oracleId": "d121108e-f0bc-469b-bf94-e5e5308014a2",
+        "firstSet": "som",
+        "firstPrintId": "fc7ac3bf-eed2-417d-8b60-e8c84bfb98ab",
+        "firstPrintSet": "som",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Razor Swine",
         "scryfallId": "2fb022a3-5f9e-491e-8340-087e33f927d6",
         "oracleId": "4d5649a1-5716-4560-a956-84300bf6a2f4",
@@ -42330,6 +42350,16 @@
         "firstPrintSet": "arn"
     },
     {
+        "name": "Serene Offering",
+        "scryfallId": "6c0b3795-7f30-4c61-b5d8-f238055d6be1",
+        "oracleId": "6cef0548-6010-4781-8e83-431d014dd1da",
+        "firstSet": "tmp",
+        "firstPrintId": "6c0b3795-7f30-4c61-b5d8-f238055d6be1",
+        "firstPrintSet": "tmp",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Serpent Assassin",
         "scryfallId": "1018f6ff-5eaa-4fe1-ba20-544df799f5b2",
         "oracleId": "3bc7d3a7-ddb4-4eaa-882e-404d8f2926fb",
@@ -42462,6 +42492,16 @@
         "firstSet": "thb",
         "firstPrintId": "b8322d31-6194-4fda-99a3-b6426c57488a",
         "firstPrintSet": "thb",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Sever Soul",
+        "scryfallId": "c2d84fec-18f1-4231-a293-0dc1ff868a40",
+        "oracleId": "577d027a-96c3-46fe-880b-f8b5dd3f3a3d",
+        "firstSet": "mmq",
+        "firstPrintId": "c2d84fec-18f1-4231-a293-0dc1ff868a40",
+        "firstPrintSet": "mmq",
         "rarity": "common",
         "source": "compiled"
     },
@@ -48850,6 +48890,16 @@
         "firstSet": "grn",
         "firstPrintId": "829f959e-91cd-42ea-8644-ce828a304d01",
         "firstPrintSet": "grn",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Terashi's Grasp",
+        "scryfallId": "a63cfebd-8cab-48b4-814a-4d8751dd1b57",
+        "oracleId": "d4738552-3a5e-43c5-a975-8b77618bacaf",
+        "firstSet": "bok",
+        "firstPrintId": "a63cfebd-8cab-48b4-814a-4d8751dd1b57",
+        "firstPrintSet": "bok",
         "rarity": "common",
         "source": "compiled"
     },

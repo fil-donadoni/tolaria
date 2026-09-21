@@ -11515,6 +11515,42 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Chastise",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "oracleText": "Destroy target attacking creature. You gain life equal to its power.",
+        "effects": [
+            {
+                "op": "destroy",
+                "target": {
+                    "target": 0
+                },
+                "bind": "$that1"
+            },
+            {
+                "op": "gainLife",
+                "player": "controller",
+                "amount": {
+                    "ref": "$that1.power"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "combatRoleFilter": [
+                "attacking"
+            ]
+        },
+        "id": "1169dab7-8f4c-474d-9289-42765a275376",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Wrecking Ball",
         "types": [
             "Instant"
@@ -67024,6 +67060,39 @@
         "rarity": "common"
     },
     {
+        "name": "Serene Offering",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "Destroy target enchantment. You gain life equal to its mana value.",
+        "effects": [
+            {
+                "op": "destroy",
+                "target": {
+                    "target": 0
+                },
+                "bind": "$that1"
+            },
+            {
+                "op": "gainLife",
+                "player": "controller",
+                "amount": {
+                    "ref": "$that1.manaValue"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Enchantment",
+            "count": 1
+        },
+        "id": "6c0b3795-7f30-4c61-b5d8-f238055d6be1",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Screeching Drake",
         "types": [
             "Creature"
@@ -103708,6 +103777,45 @@
         "rarity": "common"
     },
     {
+        "name": "Terashi's Grasp",
+        "types": [
+            "Sorcery"
+        ],
+        "subtypes": [
+            "Arcane"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "Destroy target artifact or enchantment. You gain life equal to its mana value.",
+        "effects": [
+            {
+                "op": "destroy",
+                "target": {
+                    "target": 0
+                },
+                "bind": "$that1"
+            },
+            {
+                "op": "gainLife",
+                "player": "controller",
+                "amount": {
+                    "ref": "$that1.manaValue"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Artifact",
+                "Enchantment"
+            ],
+            "count": 1
+        },
+        "id": "a63cfebd-8cab-48b4-814a-4d8751dd1b57",
+        "rarity": "common"
+    },
+    {
         "name": "Zebra Unicorn",
         "types": [
             "Creature"
@@ -122073,6 +122181,43 @@
             }
         ],
         "id": "c2d79e5d-f5f4-49ec-8d34-ddb71026156b",
+        "rarity": "common"
+    },
+    {
+        "name": "Sever Soul",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 2
+        },
+        "oracleText": "Destroy target nonblack creature. It can't be regenerated. You gain life equal to its toughness.",
+        "effects": [
+            {
+                "op": "destroy",
+                "target": {
+                    "target": 0
+                },
+                "cantBeRegenerated": true,
+                "bind": "$that1"
+            },
+            {
+                "op": "gainLife",
+                "player": "controller",
+                "amount": {
+                    "ref": "$that1.toughness"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "excludeColors": [
+                "B"
+            ]
+        },
+        "id": "c2d84fec-18f1-4231-a293-0dc1ff868a40",
         "rarity": "common"
     },
     {
@@ -154876,6 +155021,60 @@
             }
         ],
         "id": "fc783f49-f58a-4783-87b4-4dbc7e896f2e",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Razor Hippogriff",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Hippogriff"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 2
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "Flying\nWhen this creature enters, return target artifact card from your graveyard to your hand. You gain life equal to that card's mana value.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "razor-hippogriff-trigger",
+                "oracleText": "When this creature enters, return target artifact card from your graveyard to your hand. You gain life equal to that card's mana value.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Artifact",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand",
+                        "bind": "$that1"
+                    },
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": {
+                            "ref": "$that1.manaValue"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "fc7ac3bf-eed2-417d-8b60-e8c84bfb98ab",
         "rarity": "uncommon"
     },
     {
