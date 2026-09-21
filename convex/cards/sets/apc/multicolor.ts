@@ -64,13 +64,6 @@ export const vindicate: CardDefinition = {
 // mana value BEFORE the zone change (CR 608.2h last-known information), since
 // "its mana value" is the card's, read off the object that just left the
 // graveyard.
-//
-// Guard C — the reanimation line has no compiler slot yet: "battlefield" is
-// not a zone destination in grammar v0, and its "You lose life equal to its
-// mana value." rider is the bound-snapshot shape the grammar cannot yet
-// express. The mass-animation template ("All lands you control become …") has
-// no lowering either, but the compiler stops at the first refused line.
-// compiler-gap: "Return target creature card from your graveyard to the battlefield. You lose life equal to its mana value." (#4299)
 export const lifeDeath: CardDefinition = defineSplitCard({
     id: "7ab75cdb-93a1-4f78-b404-37566295c321",
     rarity: "uncommon",

@@ -2170,7 +2170,7 @@ function lowerMoveZone(
     // controller the engine gives a reanimated card coincide. Any other source
     // (a graveyard that is not yours, a library, a hand, exile) names a
     // different owner/controller question this rule does not answer. Exactly
-    // ONE target: N cards returned by one instruction enter together (CR 400.7),
+    // ONE target: N cards returned by one instruction enter together,
     // which a sequence of single `moveZone` Ops does not say, and no corpus
     // card prints it.
     const reanimated =
