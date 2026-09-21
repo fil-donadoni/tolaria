@@ -5990,6 +5990,16 @@
         "source": "compiled"
     },
     {
+        "name": "Borderland Ranger",
+        "scryfallId": "bdd0f8c8-1a1f-4d9b-a6e1-3654f3995012",
+        "oracleId": "ffe25048-0bd4-49b5-aecb-2b1b57fb8d8b",
+        "firstSet": "m10",
+        "firstPrintId": "bdd0f8c8-1a1f-4d9b-a6e1-3654f3995012",
+        "firstPrintSet": "m10",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Boreal Druid",
         "scryfallId": "473d3633-6dc7-4026-a50e-3ea76b9e8c20",
         "oracleId": "2fcc69ff-8ab5-4e14-afe3-db892049a872",
@@ -8522,6 +8532,16 @@
         "firstSet": "rna",
         "firstPrintId": "aa981489-4301-43f6-b1d7-2aa42e00cf75",
         "firstPrintSet": "rna",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Civic Wayfinder",
+        "scryfallId": "654eacc9-5f80-44ea-8d7b-71cd8227fa38",
+        "oracleId": "b9e53414-c21f-4479-b8c1-8b36c3e6e006",
+        "firstSet": "rav",
+        "firstPrintId": "654eacc9-5f80-44ea-8d7b-71cd8227fa38",
+        "firstPrintSet": "rav",
         "rarity": "common",
         "source": "compiled"
     },
@@ -14312,6 +14332,16 @@
         "firstPrintSet": "mh1"
     },
     {
+        "name": "Ecologist's Terrarium",
+        "scryfallId": "1d981026-b2df-4d8d-a9b4-296b011d9925",
+        "oracleId": "04b33a43-57f1-46e9-b2c2-1dd3f8a4935c",
+        "firstSet": "neo",
+        "firstPrintId": "1d981026-b2df-4d8d-a9b4-296b011d9925",
+        "firstPrintSet": "neo",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Eidolon of Inspiration",
         "scryfallId": "53343a0c-d97c-4d6f-b696-5343a962e3dd",
         "oracleId": "ad70144e-16e4-4604-9e6d-cb287f67ddb5",
@@ -15298,6 +15328,26 @@
         "firstPrintSet": "ody"
     },
     {
+        "name": "Environmental Sciences",
+        "scryfallId": "46b394fc-a99c-44e7-9226-da0699167541",
+        "oracleId": "2f889671-a1d6-4034-881b-58c93897d707",
+        "firstSet": "stx",
+        "firstPrintId": "46b394fc-a99c-44e7-9226-da0699167541",
+        "firstPrintSet": "stx",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Environmental Scientist",
+        "scryfallId": "f2bf6b36-43e4-49d9-98b2-cbb4304c248b",
+        "oracleId": "f30aa897-7027-47e7-ae58-73cbc448c1f0",
+        "firstSet": "sos",
+        "firstPrintId": "f2bf6b36-43e4-49d9-98b2-cbb4304c248b",
+        "firstPrintSet": "sos",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Envoy of Okinec Ahau",
         "scryfallId": "96de0741-9270-4118-bb8e-f3480c75a582",
         "oracleId": "ebc70734-bf1a-4754-8094-bcbb4db91f30",
@@ -15706,6 +15756,16 @@
         "firstSet": "mh3",
         "firstPrintId": "b00573bd-5bbb-4531-a0bb-a40f62b92b88",
         "firstPrintSet": "mh3",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Evolution Charm",
+        "scryfallId": "e4546059-71fe-43c1-9272-3b054e668e3c",
+        "oracleId": "5f73fd4e-0d24-4daa-8d82-73c0cf7f801d",
+        "firstSet": "plc",
+        "firstPrintId": "e4546059-71fe-43c1-9272-3b054e668e3c",
+        "firstPrintSet": "plc",
         "rarity": "common",
         "source": "compiled"
     },
@@ -16311,6 +16371,16 @@
         "firstPrintId": "98d45316-b44a-4cf6-8cbe-b02fe6545141",
         "firstPrintSet": "dka",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Farfinder",
+        "scryfallId": "53f63f40-46f1-4b9e-b447-ff9274f2b926",
+        "oracleId": "7d306de8-a93b-429b-9436-0501be97dc8d",
+        "firstSet": "iko",
+        "firstPrintId": "53f63f40-46f1-4b9e-b447-ff9274f2b926",
+        "firstPrintSet": "iko",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -20234,6 +20304,16 @@
         "source": "compiled"
     },
     {
+        "name": "Go Forth",
+        "scryfallId": "e4ed67f0-85cc-4b1d-b745-e13e5bea3397",
+        "oracleId": "a4f3df30-383b-47ad-8576-0ee69349faf5",
+        "firstSet": "j25",
+        "firstPrintId": "e4ed67f0-85cc-4b1d-b745-e13e5bea3397",
+        "firstPrintSet": "j25",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Goblin Artisans",
         "scryfallId": "6669d96e-9a7b-4427-a477-f4e76831f593",
         "oracleId": "ec85a375-fe38-4b11-af0e-f2b466181dd7",
@@ -21572,6 +21652,16 @@
         "firstSet": "lea",
         "firstPrintId": "1f6118b2-fe01-425a-a2ed-6d7c42286c8e",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Greenseeker",
+        "scryfallId": "f2dfa231-349a-4dce-bed6-c82a136fe0a1",
+        "oracleId": "693d8203-4405-4488-9067-cc1cd8041cb4",
+        "firstSet": "tsp",
+        "firstPrintId": "f2dfa231-349a-4dce-bed6-c82a136fe0a1",
+        "firstPrintSet": "tsp",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Greenside Watcher",
@@ -25986,6 +26076,16 @@
         "source": "compiled"
     },
     {
+        "name": "Journeyer's Kite",
+        "scryfallId": "3aa17062-4355-468f-b8ba-352b7511b847",
+        "oracleId": "10aab5bc-5758-443b-ba4c-49f6c6d91262",
+        "firstSet": "chk",
+        "firstPrintId": "3aa17062-4355-468f-b8ba-352b7511b847",
+        "firstPrintSet": "chk",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Jousting Dummy",
         "scryfallId": "f6601056-af08-4239-97d5-5e11597fce18",
         "oracleId": "96eea161-8af0-452f-b992-576efdf58d88",
@@ -27878,6 +27978,16 @@
         "firstSet": "kld",
         "firstPrintId": "1b5bfff7-aa23-42ef-af1b-bc3304bd3a17",
         "firstPrintSet": "kld",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Lay of the Land",
+        "scryfallId": "90b10608-8917-4337-ad60-ab31ab8c0fc4",
+        "oracleId": "cedc52eb-66a6-4b43-87f1-9bb9f4d4871e",
+        "firstSet": "apc",
+        "firstPrintId": "90b10608-8917-4337-ad60-ab31ab8c0fc4",
+        "firstPrintSet": "apc",
         "rarity": "common",
         "source": "compiled"
     },
@@ -34448,6 +34558,16 @@
         "source": "compiled"
     },
     {
+        "name": "Ominous Parcel",
+        "scryfallId": "e1691374-e9f2-4a8b-abdb-0bb1dbc96715",
+        "oracleId": "be3c138b-045b-4b08-a12f-a5679d972051",
+        "firstSet": "snc",
+        "firstPrintId": "e1691374-e9f2-4a8b-abdb-0bb1dbc96715",
+        "firstPrintSet": "snc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Omnath, Locus of Creation",
         "scryfallId": "4e4fb50c-a81f-44d3-93c5-fa9a0b37f617",
         "oracleId": "cd133d30-51ff-4114-a7d7-029345f0f0d7",
@@ -36363,6 +36483,16 @@
         "firstPrintId": "45a60623-d523-4b43-89b0-8e89568546c7",
         "firstPrintSet": "frf",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Pilgrim's Eye",
+        "scryfallId": "cd2a474b-5eac-4e0d-b65c-5610385f2011",
+        "oracleId": "66155010-cc2c-449a-85d5-92c95aade514",
+        "firstSet": "wwk",
+        "firstPrintId": "cd2a474b-5eac-4e0d-b65c-5610385f2011",
+        "firstPrintSet": "wwk",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -39630,6 +39760,16 @@
         "source": "compiled"
     },
     {
+        "name": "Renegade Map",
+        "scryfallId": "ac063445-d0e2-4015-96dc-97098433f30a",
+        "oracleId": "f8506acb-3fc5-4fdf-8304-586843db6cfd",
+        "firstSet": "aer",
+        "firstPrintId": "ac063445-d0e2-4015-96dc-97098433f30a",
+        "firstPrintSet": "aer",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Renegade Troops",
         "scryfallId": "a75095f4-a77f-4237-ae25-2e6f2f8788c1",
         "oracleId": "83a81308-4a15-49cd-b2f6-51431cca79e9",
@@ -41372,6 +41512,16 @@
         "firstSet": "ptk",
         "firstPrintId": "156d7c70-6c6d-4052-9d44-029ba1bb66e4",
         "firstPrintSet": "ptk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Sagu Wildling // Roost Seek",
+        "scryfallId": "d8b43b00-f4d1-436c-bf3f-6d414cd4ce38",
+        "oracleId": "7cee6d43-5dec-4989-85ec-c635ec783ec7",
+        "firstSet": "tdm",
+        "firstPrintId": "d8b43b00-f4d1-436c-bf3f-6d414cd4ce38",
+        "firstPrintSet": "tdm",
         "rarity": "common",
         "source": "compiled"
     },
@@ -44876,6 +45026,16 @@
         "firstSet": "xln",
         "firstPrintId": "0722fbdf-c092-4e80-913f-29390177cdcb",
         "firstPrintSet": "xln",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Skittering Surveyor",
+        "scryfallId": "90c7bea0-79c9-4856-8279-cef7cee82fc1",
+        "oracleId": "85364398-923c-4ee9-8519-576fce1c26f7",
+        "firstSet": "dom",
+        "firstPrintId": "90c7bea0-79c9-4856-8279-cef7cee82fc1",
+        "firstPrintSet": "dom",
         "rarity": "common",
         "source": "compiled"
     },
@@ -48986,6 +49146,16 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Sylvan Ranger",
+        "scryfallId": "5f73ea30-c6d2-4224-ae54-f6b89e006cf4",
+        "oracleId": "29a90fda-541e-4923-b3ed-e2b35d02c74b",
+        "firstSet": "m11",
+        "firstPrintId": "5f73ea30-c6d2-4224-ae54-f6b89e006cf4",
+        "firstPrintSet": "m11",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Sylvan Safekeeper",
         "scryfallId": "f1b8413f-c9fc-4cea-b416-a1fcf651b009",
         "oracleId": "bddf8f4a-3149-4dd6-a9e5-7747e7e45a1c",
@@ -50688,6 +50858,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Thrór's Map",
+        "scryfallId": "ad0dba36-d056-4bc1-987a-391da26ad267",
+        "oracleId": "925cacdc-6d09-4fbd-9258-9f0539da180c",
+        "firstSet": "hob",
+        "firstPrintId": "ad0dba36-d056-4bc1-987a-391da26ad267",
+        "firstPrintSet": "hob",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Throttle",
         "scryfallId": "b6b71c00-3f38-47dc-90bc-6464d346c098",
         "oracleId": "01823ab7-b9f6-48bc-b45c-9b0fabc6f657",
@@ -51864,6 +52044,16 @@
         "firstSet": "sos",
         "firstPrintId": "2a812fa7-4599-4e25-97db-20ffc6bc0b26",
         "firstPrintSet": "sos"
+    },
+    {
+        "name": "Traveler's Amulet",
+        "scryfallId": "a5b0afa7-e9f9-4751-af36-d85343fabc26",
+        "oracleId": "48b561dd-f23d-409a-87c8-e49902b2477b",
+        "firstSet": "isd",
+        "firstPrintId": "a5b0afa7-e9f9-4751-af36-d85343fabc26",
+        "firstPrintSet": "isd",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Traveler's Cloak",
@@ -55569,6 +55759,16 @@
         "firstPrintId": "1131c187-8fc3-4cee-9422-355ef6622de7",
         "firstPrintSet": "dst",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Wanderer's Twig",
+        "scryfallId": "8ea7b2c0-c641-478f-b8d9-17aa17fa1cbe",
+        "oracleId": "fd15a4b0-abd7-4bae-8331-81b85c94fce8",
+        "firstSet": "lrw",
+        "firstPrintId": "8ea7b2c0-c641-478f-b8d9-17aa17fa1cbe",
+        "firstPrintSet": "lrw",
+        "rarity": "common",
         "source": "compiled"
     },
     {

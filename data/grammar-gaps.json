@@ -283,11 +283,6 @@
             "issue": 3950
         },
         {
-            "key": "(op) › reveal",
-            "op": "reveal",
-            "issue": 3951
-        },
-        {
             "key": "(op) › revealAndCategorize",
             "op": "revealAndCategorize",
             "issue": 3952
