@@ -615,6 +615,231 @@
             "issue": 4265
         },
         {
+            "kind": "grammar",
+            "key": "(card) › \"battlefield\" is not a zone destination in grammar v0",
+            "issue": 4299
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › Choose a color",
+            "issue": 4307
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › Choose a creature type other than Wall",
+            "issue": 4316
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › Enchanted creature",
+            "issue": 4303
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › Prevent the next N damage that would be dealt to any target this turn",
+            "issue": 4300
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › Prevent the next N damage that would be dealt to target creature this turn",
+            "issue": 4309
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › each creature and each player",
+            "issue": 4306
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › each creature without flying",
+            "issue": 4310
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › {self} deals damage equal to its power to target creature",
+            "issue": 4317
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Kicker {…}",
+            "issue": 4318
+        },
+        {
+            "kind": "grammar",
+            "key": "keyword-line › keyword ability › Protection from green",
+            "issue": 4312
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Exile target attacking creature",
+            "issue": 4311
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Search your library for a basic land card, reveal it, put it into your hand, then shuffle",
+            "issue": 4305
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › that creature's controller",
+            "issue": 4313
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › {self} deals damage to target creature equal to the number of Mountains you control",
+            "issue": 4314
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › As this creature enters, choose a creature type",
+            "issue": 4308
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › If {self} would be put into a graveyard from anywhere, reveal {self} and shuffle it into its owner's library instead",
+            "issue": 4315
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Skip your draw step",
+            "issue": 4304
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › While an opponent is choosing targets as part of casting a spell they control or activating an ability they control, that player must choose at least one Flagbearer on the battlefield if able",
+            "issue": 4301
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Shuffle the cards from your hand into your library, then draw that many cards",
+            "issue": 4302
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Bloodfire Infusion",
+            "issue": 4319
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Bloodfire Kavu",
+            "issue": 4324
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Captain's Maneuver",
+            "issue": 4325
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Cromat",
+            "issue": 4320
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Dead Ringers",
+            "issue": 4326
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Divine Light",
+            "issue": 4321
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Dodecapod",
+            "issue": 4327
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Dragon Arch",
+            "issue": 4328
+        },
+        {
+            "kind": "hand-tail",
+            "key": "False Dawn",
+            "issue": 4329
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Gaea's Balance",
+            "issue": 4330
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Gerrard Capashen",
+            "issue": 4331
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Gerrard's Verdict",
+            "issue": 4332
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Guided Passage",
+            "issue": 4333
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Haunted Angel",
+            "issue": 4334
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Ice Cave",
+            "issue": 4335
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Jaded Response",
+            "issue": 4336
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Kavu Mauler",
+            "issue": 4337
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Mind Extraction",
+            "issue": 4338
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Putrid Warrior",
+            "issue": 4339
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Quicksilver Dagger",
+            "issue": 4340
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Squee's Revenge",
+            "issue": 4322
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Suffocating Blast",
+            "issue": 4341
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Suppress",
+            "issue": 4342
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Temporal Spring",
+            "issue": 4323
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Wild Research",
+            "issue": 4343
+        },
+        {
             "kind": "mechanic",
             "key": "planned-mechanic › keyword \"assist\" is not implemented in the Mechanics Registry",
             "issue": 4005
