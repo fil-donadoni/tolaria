@@ -9764,6 +9764,55 @@
         "rarity": "common"
     },
     {
+        "name": "Whirlpool Rider",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Merfolk"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "When this creature enters, shuffle the cards from your hand into your library, then draw that many cards.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "whirlpool-rider-trigger",
+                "oracleText": "When this creature enters, shuffle the cards from your hand into your library, then draw that many cards.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "player": "controller",
+                        "from": "hand",
+                        "to": "library",
+                        "bindCount": "$handSize1"
+                    },
+                    {
+                        "op": "libraryLook",
+                        "action": "shuffle",
+                        "player": "controller"
+                    },
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": {
+                            "ref": "$handSize1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "0de47f44-8c5e-4114-9064-145d2d8813c6",
+        "rarity": "common"
+    },
+    {
         "name": "Drag Under",
         "types": [
             "Sorcery"
@@ -70356,6 +70405,87 @@
         ],
         "id": "6e84fa4f-617d-4449-8141-783a9ce017c1",
         "rarity": "common"
+    },
+    {
+        "name": "Whirlpool Drake",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Drake"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Flying\nWhen this creature enters, shuffle the cards from your hand into your library, then draw that many cards.\nWhen this creature dies, shuffle the cards from your hand into your library, then draw that many cards.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "whirlpool-drake-trigger",
+                "oracleText": "When this creature enters, shuffle the cards from your hand into your library, then draw that many cards.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "player": "controller",
+                        "from": "hand",
+                        "to": "library",
+                        "bindCount": "$handSize1"
+                    },
+                    {
+                        "op": "libraryLook",
+                        "action": "shuffle",
+                        "player": "controller"
+                    },
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": {
+                            "ref": "$handSize1"
+                        }
+                    }
+                ]
+            },
+            {
+                "id": "whirlpool-drake-trigger-2",
+                "oracleText": "When this creature dies, shuffle the cards from your hand into your library, then draw that many cards.",
+                "head": {
+                    "kind": "died",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "player": "controller",
+                        "from": "hand",
+                        "to": "library",
+                        "bindCount": "$handSize1"
+                    },
+                    {
+                        "op": "libraryLook",
+                        "action": "shuffle",
+                        "player": "controller"
+                    },
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": {
+                            "ref": "$handSize1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "6e866093-89a3-458d-8ebc-de805ef7885e",
+        "rarity": "uncommon"
     },
     {
         "name": "Bound in Silence",

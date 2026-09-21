@@ -98,6 +98,7 @@ import type {
     GainControlDuration,
     ManaCost,
     MayPayCost,
+    MovableZone,
     PermanentFilter,
     SpellContext,
     TargetSelection,
@@ -117,7 +118,7 @@ import {
     forcedCategorizedCover,
 } from "../categorizedPick";
 import { manaCostsEqual } from "../constants";
-import { readTaggedNumber } from "../numberBinding";
+import { readTaggedNumber, writeTaggedNumber } from "../numberBinding";
 
 type OpOf<K extends EffectOp["op"]> = Extract<EffectOp, { op: K }>;
 
@@ -1395,6 +1396,27 @@ function countSet(ctx: SpellContext, spec: EffectCountSpec): number {
     const playerId = resolvePlayerRef(ctx, spec.controller!);
     if (playerId === undefined) return 0;
     return times * countZoneForPlayer(ctx, playerId, spec);
+}
+
+/** How many cards sit in one of the four plain zones a whole-zone `moveZone`
+ *  names, the count its `bindCount` records (issue #4302). Hand and
+ *  library are hidden zones whose SIZE is public (CR 402.3 / CR 401.3), so this
+ *  reads a cardinality and grants no knowledge. */
+function movableZoneSize(
+    ctx: SpellContext,
+    playerId: string,
+    zone: MovableZone
+): number {
+    switch (zone) {
+        case "hand":
+            return ctx.getHandSize(playerId);
+        case "library":
+            return ctx.getLibraryCards(playerId).length;
+        case "graveyard":
+            return ctx.getGraveyardCards(playerId).length;
+        case "exile":
+            return ctx.getExileCards(playerId).length;
+    }
 }
 
 /** Counts one player's matching cards in the spec's zone (CR 122). Shared by
@@ -3275,6 +3297,21 @@ export const OP_EXECUTORS: {
         if (!("target" in op)) {
             const playerId = resolvePlayerRef(ctx, op.player);
             if (playerId === undefined) return;
+            // issue #4302 — `bindCount` records how many cards this move takes
+            // out of `from`, read BEFORE the move (afterwards the zone is
+            // empty). A `from === to` move is a no-op in the primitive, so it
+            // moves nothing and binds 0. An empty zone binds 0 as well: "that
+            // many" is then a legal zero, not a skipped Op.
+            if (op.bindCount !== undefined) {
+                ctx.noteChoice(
+                    op.bindCount,
+                    writeTaggedNumber(
+                        op.from === op.to
+                            ? 0
+                            : movableZoneSize(ctx, playerId, op.from)
+                    )
+                );
+            }
             ctx.moveZone(playerId, op.from, op.to);
             return;
         }

@@ -1635,6 +1635,24 @@ function lowerSentenceBody(
                 { op: "discard", player: "controller", cards: { ref: bind } },
             ]);
         }
+        case "shuffle-hand-redraw": {
+            // CR 701.24a + CR 121.1 — the whole hand goes into the library,
+            // the library is shuffled, and as many cards are drawn as the hand
+            // held. `bindCount` captures that size as the hand moves: the
+            // `draw` after it cannot recount a hand the move has emptied.
+            const bind = walk.nextBind("handSize");
+            return lowered([
+                {
+                    op: "moveZone",
+                    player: "controller",
+                    from: "hand",
+                    to: "library",
+                    bindCount: bind,
+                },
+                { op: "libraryLook", action: "shuffle", player: "controller" },
+                { op: "draw", player: "controller", count: { ref: bind } },
+            ]);
+        }
         case "upgrade-if-controls":
             return lowerUpgrade(sentence, walk, site);
         case "discard-at-random": {

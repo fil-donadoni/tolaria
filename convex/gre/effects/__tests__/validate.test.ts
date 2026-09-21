@@ -6969,7 +6969,7 @@ describe("validateEffectScript — chooseNumber bounds (CR 107.1c, issue #1421)"
         );
         expect(errors).toHaveLength(1);
         expect(errors[0]).toMatch(
-            /only a chooseNumber \/ payVariableMana Op's bind is a number binding/
+            /only a chooseNumber \/ payVariableMana Op's bind or a whole-zone moveZone's bindCount is a number binding/
         );
     });
 });
@@ -6980,6 +6980,120 @@ describe("validateEffectScript — chooseNumber bounds (CR 107.1c, issue #1421)"
 // graveyard. Only `moveZone` can act on a card there, so the family is legal in
 // `moveZone.target` and NOWHERE else: in any other object position the
 // interpreter resolves it to nothing and the Op silently skips.
+describe("validateEffectScript — moveZone bindCount (whole-zone number binding, issue #4302)", () => {
+    const redraw: EffectOp[] = [
+        {
+            op: "moveZone",
+            player: "controller",
+            from: "hand",
+            to: "library",
+            bindCount: "$n",
+        },
+        { op: "libraryLook", action: "shuffle", player: "controller" },
+        { op: "draw", player: "controller", count: { ref: "$n" } },
+    ];
+
+    it("accepts the whole-zone move that binds its count and a draw that reads it", () => {
+        expect(validateEffectScript(host({ effects: redraw }))).toEqual([]);
+    });
+
+    it("rejects a draw that reads the count BEFORE the move that binds it", () => {
+        const errors = validateEffectScript(
+            host({ effects: [redraw[2]!, redraw[0]!] })
+        );
+        expect(errors.join("\n")).toMatch(/references undefined binding "\$n"/);
+    });
+
+    it("rejects `bindCount` on the shapes that move a chosen or filtered subset", () => {
+        const filtered = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "moveZone",
+                        player: "controller",
+                        fromZones: ["hand"],
+                        filter: { type: "Creature" },
+                        to: "exile",
+                        bindCount: "$n",
+                    },
+                ],
+            })
+        );
+        expect(filtered.join("\n")).toMatch(
+            /"bindCount" is only valid for the whole-zone bulk mode/
+        );
+        const targeted = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "moveZone",
+                        target: { target: 0 },
+                        to: "hand",
+                        bindCount: "$n",
+                    },
+                ],
+            })
+        );
+        expect(targeted.join("\n")).toMatch(
+            /"bindCount" is only valid for the whole-zone bulk mode/
+        );
+    });
+
+    it("declares a NUMBER binding: an object position that names it is rejected", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [redraw[0]!, { op: "destroy", target: { ref: "$n" } }],
+            })
+        );
+        expect(errors.join("\n")).toMatch(
+            /ref "\$n" names a number binding in an object position/
+        );
+    });
+
+    it("rejects a `bindCount` that re-declares an existing binding", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "moveZone",
+                        player: "controller",
+                        from: "hand",
+                        to: "library",
+                        bindCount: "$n",
+                    },
+                    {
+                        op: "moveZone",
+                        player: "controller",
+                        from: "graveyard",
+                        to: "library",
+                        bindCount: "$n",
+                    },
+                ],
+            })
+        );
+        expect(errors.join("\n")).toMatch(/re-declares an existing binding/);
+    });
+
+    it("still rejects `bind` on the whole-zone shape — one snapshot family, one number family", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "moveZone",
+                        player: "controller",
+                        from: "hand",
+                        to: "library",
+                        bind: "$x",
+                    },
+                ],
+            })
+        );
+        expect(errors.join("\n")).toMatch(
+            /"bind" is not valid for the whole-zone bulk mode/
+        );
+    });
+});
+
 describe("validateEffectScript — graveyard-card $event family (CR 400.7e, issue #4127)", () => {
     const abilityHost = (effects: EffectOp[]) => ({ id: "trig", effects });
 

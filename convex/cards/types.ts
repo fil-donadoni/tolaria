@@ -15178,12 +15178,24 @@ export type EffectOp =
      *  `controller` for the same reason (both are meaningful only for a
      *  card entering the battlefield, which this shape never does). Skipped
      *  when `player` cannot be resolved (CR 608.2b); a `from === to` no-op is
-     *  handled by the underlying primitive itself. */
+     *  handled by the underlying primitive itself.
+     *
+     *  `bindCount` (issue #4302) names a NUMBER binding holding how many cards
+     *  the move took out of `from` — the size of the zone read immediately
+     *  before the move, so an empty zone binds 0 (a legal count, not a skip).
+     *  It is what "shuffle the cards from your hand into your library, then
+     *  draw that many cards" reads back: the later `draw`'s `count: { ref }`
+     *  cannot recount the hand, which the move has just emptied. Its own field
+     *  rather than `bind` for the reason `mill.bindAll` is one — two binding
+     *  families on one Op, and `bindingKindOf` answers per Op (this one is a
+     *  number, `bind` is a snapshot). Whole-zone shape ONLY: the other shapes
+     *  move a chosen or filtered subset and bind the cards themselves. */
     | {
           op: "moveZone";
           player: EffectPlayerRef;
           from: MovableZone;
           to: MovableZone;
+          bindCount?: string;
       }
     /** CR 400.7 (issue #1104) — the FOURTH `moveZone` shape: a FILTER-DRIVEN
      *  bulk sweep across one or more zones, no player choice at all. Every

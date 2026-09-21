@@ -178,11 +178,6 @@
             "issue": 3925
         },
         {
-            "key": "(op) › libraryLook",
-            "op": "libraryLook",
-            "issue": 3926
-        },
-        {
             "key": "(op) › lockDamage",
             "op": "lockDamage",
             "issue": 3927
