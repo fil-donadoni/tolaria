@@ -12971,7 +12971,8 @@ export interface EffectCountSpec {
      *
      *  An UNCAPTURED binding counts **0**, as `sum`'s does: a choice that
      *  found no candidates picked nothing, and a count over the empty set is
-     *  0 — the clause still happened (CR 608.2). A picked id no longer in that
+     *  0 — the clause still happened (CR 101.3: the impossible part of an
+     *  instruction is ignored, the rest still happens). A picked id no longer in that
      *  graveyard contributes nothing, the same live read `sum` documents. */
     picks?: EffectRef;
 }

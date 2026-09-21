@@ -8,9 +8,9 @@
 //   * CR 121.1 — "draws that many" is the hand size read BEFORE the cards
 //     move. A recount after the move reads an emptied hand and draws nothing,
 //     which looks exactly like a card that simply shuffles the hand away.
-//   * CR 101.4 — "EACH player … draws that many": the count is PER PLAYER.
-//     One shared count would still empty and refill both hands, and only a
-//     board where the two hands differ in size can tell the two apart.
+//   * "EACH player … draws that many": the count is PER PLAYER, so a single
+//     shared count would still empty and refill both hands — only a board
+//     where the two hands differ in size can tell the two readings apart.
 //
 // The activated half's outcome is visible on the board, so the wire-format
 // assertion through `projectPublicState` is mandatory (convex/CLAUDE.md
