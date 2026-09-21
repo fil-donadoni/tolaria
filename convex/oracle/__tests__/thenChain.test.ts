@@ -167,7 +167,23 @@ describe("then-chain — refusals (fail-closed)", () => {
         expect(comma.attribution?.span).toBe(stop.attribution?.span);
     });
 
-    it("a tail that names the token ('it', 'that token') stays refused: the site binds those to another object", () => {
+    it("a tail that names the token is refused at parse: a pronoun's referent is the site's object, not the token", () => {
+        for (const tail of [
+            "put a +1/+1 counter on it",
+            "put a +1/+1 counter on that token",
+            "attach this Equipment to it",
+        ]) {
+            const result = sentenceRule.run(
+                `Create a 2/2 green Wolf creature token, then ${tail}`,
+                parseContext()
+            );
+            expect(result.ok).toBe(false);
+            if (!result.ok)
+                expect(result.reason).toMatch(/points back at the token/);
+        }
+    });
+
+    it("the same tails are refused end to end", () => {
         for (const tail of [
             "put a +1/+1 counter on it",
             "put a +1/+1 counter on that token",
