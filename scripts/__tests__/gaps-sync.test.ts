@@ -1097,6 +1097,7 @@ describe("the grammar kind files fragment gaps of enforced Targets, and the clai
                     opsUsed: [],
                 },
                 unparsed("w-3", "Wide Three", [0], ["vintage"]),
+                unparsed("w-4", "Wide Four", [0], ["vintage"]),
                 ...FILLER,
             ],
         };
