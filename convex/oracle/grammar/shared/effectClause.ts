@@ -705,7 +705,7 @@ export type EffectSentenceIR =
       }
     | {
           /**
-           * CR 701.23a + CR 701.20a + CR 701.24a — "Search your library for a
+           * CR 701.23a (search) + CR 701.20a (reveal) + CR 701.24a (shuffle) — "Search your library for a
            * basic land card, reveal it, put it into your hand, then shuffle.":
            * the controller looks through their OWN library, may find one card
            * the description matches, shows it to every player, takes it, and
@@ -1526,7 +1526,7 @@ const YOU_DRAW_AND_THAT_OPPONENT_DISCARDS =
 const LOOT = /^Draw (\S+) cards?, then discard (\S+) cards?$/;
 const SHUFFLE_HAND_REDRAW =
     /^Shuffle the cards from your hand into your library, then draw that many cards$/;
-/** CR 701.23a + CR 701.20a + CR 701.24a — "Search your library for <what>,
+/** CR 701.23a (search) + CR 701.20a (reveal) + CR 701.24a (shuffle) — "Search your library for <what>,
  *  reveal it, put it into your hand, then shuffle". */
 const SEARCH_LIBRARY_TO_HAND =
     /^Search your library for (.+?), reveal it, put it into your hand, then shuffle$/;
@@ -2271,7 +2271,7 @@ function effectSentence(
     }
 
     // ── search the library, reveal the find, take it, shuffle ──────────────
-    // CR 701.23a + CR 701.20a + CR 701.24a
+    // CR 701.23a (search) + CR 701.20a (reveal) + CR 701.24a (shuffle)
     const searchToHand = span.match(SEARCH_LIBRARY_TO_HAND);
     if (searchToHand !== null) {
         const phrase = searchToHand[1]!;

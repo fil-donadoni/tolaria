@@ -2822,7 +2822,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
-    // CR 701.23a + CR 701.20a + CR 701.24a — "Search your library for a basic
+    // CR 701.23a (search) + CR 701.20a (reveal) + CR 701.24a (shuffle) — "Search your library for a basic
     // land card, reveal it, put it into your hand, then shuffle": the
     // controller may find one basic land, shows it to every player, takes it,
     // and shuffles. Exhibits three card-dependent forms at once, which is why
