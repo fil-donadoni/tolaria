@@ -211,6 +211,58 @@ describe("acted-on characteristic — goldens (CR 208.1 / 202.3, issue #4248)", 
     });
 });
 
+describe("acted-on characteristic — accepted neighbours (issue #4248)", () => {
+    // No corpus card prints these two, so neither owes a golden fixture; they
+    // are the same bind + bound-stat read with another action or another
+    // acting Op, and are pinned here so their behaviour is a decision rather
+    // than an accident.
+    it("a LOSS reads the same snapshot slot, and quarantines until a card earns its form a fixture", () => {
+        const outcome = compileCard(
+            sorcery(
+                "Destroy target creature. You lose life equal to its power."
+            )
+        );
+        if (outcome.state === "unparsed") throw new Error("unparsed");
+        expect(sortKeys(outcome.definition.effects)).toEqual(
+            sortKeys([
+                { op: "destroy", target: { target: 0 }, bind: "$that1" },
+                {
+                    op: "loseLife",
+                    player: "controller",
+                    amount: { ref: "$that1.power" },
+                },
+            ])
+        );
+        expect(outcome.state).toBe("quarantine");
+    });
+
+    it("a bounce from the battlefield binds the creature before it moves", () => {
+        expect(
+            sortKeys(
+                compiled(
+                    sorcery(
+                        "Return target creature to its owner's hand. You gain life equal to its power."
+                    )
+                ).effects
+            )
+        ).toEqual(
+            sortKeys([
+                {
+                    op: "moveZone",
+                    target: { target: 0 },
+                    to: "hand",
+                    bind: "$that1",
+                },
+                {
+                    op: "gainLife",
+                    player: "controller",
+                    amount: { ref: "$that1.power" },
+                },
+            ])
+        );
+    });
+});
+
 describe("acted-on characteristic — refusals stay fail-closed (issue #4248)", () => {
     /** [what it is, the line, the refusal's reason — so a refusal for the
      *  WRONG reason (an unrelated gap, a typo) cannot pass]. */
@@ -231,19 +283,24 @@ describe("acted-on characteristic — refusals stay fail-closed (issue #4248)", 
             '"its power" names no object acted on before it (CR 608.2h)',
         ],
         [
-            "the acted-on object was a card in a graveyard, which has no snapshot power (CR 208.3)",
+            "the acted-on object was a card in a graveyard, whose snapshot records no power (bindSnapshot)",
             "Return target creature card from your graveyard to your hand. You gain life equal to its power.",
-            '"its power" is not read off the "Creature" in graveyard acted on before it — only a creature on the battlefield has one (CR 208.3)',
+            '"its power" is not read off the "Creature" in graveyard acted on before it — the snapshot records power and toughness only for a creature on the battlefield',
         ],
         [
             "the acted-on object was a noncreature permanent, which has no power (CR 208.3)",
             "Destroy target artifact. You gain life equal to its power.",
-            '"its power" is not read off the "Artifact" in battlefield acted on before it — only a creature on the battlefield has one (CR 208.3)',
+            '"its power" is not read off the "Artifact" in battlefield acted on before it — the snapshot records power and toughness only for a creature on the battlefield',
         ],
         [
             "the announcement admits a permanent with no toughness (CR 208.3)",
             "Destroy target creature or planeswalker. You gain life equal to its toughness.",
-            '"its toughness" is not read off the ["Creature","Planeswalker"] in battlefield acted on before it — only a creature on the battlefield has one (CR 208.3)',
+            '"its toughness" is not read off the ["Creature","Planeswalker"] in battlefield acted on before it — the snapshot records power and toughness only for a creature on the battlefield',
+        ],
+        [
+            "the announcement is optional (`up to one`), so the object may not exist",
+            "Destroy up to one target creature. You gain life equal to its power.",
+            '"its power" is not read off the "Creature" in battlefield acted on before it — the snapshot records power and toughness only for a creature on the battlefield',
         ],
         [
             "a card noun cannot take power — its antecedent is not a permanent",

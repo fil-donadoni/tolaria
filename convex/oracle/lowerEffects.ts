@@ -276,13 +276,11 @@ const ACTED_ON_PHRASE: Readonly<Record<ActedOnNounIR, string>> = {
     permanent: "that permanent's",
 };
 
-/** The word a characteristic was printed as, and the snapshot slot it reads. */
-const ACTED_ON_CHARACTERISTIC: Readonly<
-    Record<ActedOnCharacteristicIR, { word: string; slot: string }>
-> = {
-    manaValue: { word: "mana value", slot: "manaValue" },
-    power: { word: "power", slot: "power" },
-    toughness: { word: "toughness", slot: "toughness" },
+/** The word a characteristic was printed as; the key is its snapshot slot. */
+const ACTED_ON_WORD: Readonly<Record<ActedOnCharacteristicIR, string>> = {
+    manaValue: "mana value",
+    power: "power",
+    toughness: "toughness",
 };
 
 /**
@@ -309,10 +307,11 @@ const ACTED_ON_CHARACTERISTIC: Readonly<
  * whatever the sentence before acted on, which is what makes the umbrella
  * noun worth reading separately.
  *
- * Power and toughness constrain it further, to a CREATURE on the battlefield
- * (CR 208.3): the snapshot of a card that was never a permanent carries 0/0
- * in those slots, so reading them off a graveyard card would be worth 0
- * without saying so, and a noncreature permanent has no power to read.
+ * Power and toughness constrain it further, to a CREATURE on the battlefield.
+ * A noncreature permanent has neither (CR 208.3), and `bindSnapshot` records
+ * 0/0 for a card off the battlefield — which does have printed values
+ * (CR 208.1), so this is an engine limit, not a rule — so either read would
+ * be worth 0 without saying so.
  */
 function lowerActedOnCharacteristic(
     noun: ActedOnNounIR,
@@ -320,7 +319,7 @@ function lowerActedOnCharacteristic(
     walk: SentenceWalk
 ): Lowered<EffectValue> {
     const phrase = ACTED_ON_PHRASE[noun];
-    const { word, slot } = ACTED_ON_CHARACTERISTIC[characteristic];
+    const word = ACTED_ON_WORD[characteristic];
     const actedOn = walk.actedOn;
     if (actedOn === null)
         return unlowerable(
@@ -346,13 +345,13 @@ function lowerActedOnCharacteristic(
         )
             return unlowerable(
                 readsPermanentStat
-                    ? `"${phrase} ${word}" is not read off the ${JSON.stringify(type)} in ${zone ?? "battlefield"} acted on before it — only a creature on the battlefield has one (CR 208.3)`
+                    ? `"${phrase} ${word}" is not read off the ${JSON.stringify(type)} in ${zone ?? "battlefield"} acted on before it — the snapshot records power and toughness only for a creature on the battlefield`
                     : `"that permanent" is not the ${JSON.stringify(type)} in ${zone ?? "battlefield"} acted on before it (CR 110.1)`
             );
     }
     const bind = actedOn.op.bind ?? walk.nextBind("that");
     actedOn.op.bind = bind;
-    return lowered({ ref: `${bind}.${slot}` });
+    return lowered({ ref: `${bind}.${characteristic}` });
 }
 
 /**

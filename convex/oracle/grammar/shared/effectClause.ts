@@ -116,9 +116,10 @@ export type AmountIR =
      * where the earlier sentence acted on a permanent (CR 110.4a), and reading
      * it off a card in a graveyard or a hand would be an object the sentence
      * never pointed at. The CHARACTERISTIC is kept because the lowering reads
-     * a different snapshot slot for each, and because power and toughness
-     * exist only on a creature on the battlefield (CR 208.3) — a check only
-     * the lowering can make, since only it sees the recorded requirement.
+     * a different snapshot slot for each, and because the snapshot records
+     * power and toughness only for a creature on the battlefield — a check
+     * only the lowering can make, since only it sees the recorded
+     * requirement.
      */
     | {
           readonly kind: "acted-on-characteristic";
@@ -193,8 +194,8 @@ function actedOnCharacteristicGroup(
  * Power and toughness are read through the pronoun ONLY. The corpus prints
  * "that creature's toughness" as well (Vendetta, Devour in Shadow), but that
  * noun is a fourth antecedent with its own check and no fixture here, and
- * "that card's power" names a card in a graveyard, which has no snapshot
- * power to read (CR 208.3) — both stay refused rather than read by accident.
+ * "that card's power" names a card off the battlefield, whose snapshot
+ * records no power — both stay refused rather than read by accident.
  */
 function readActedOnCharacteristic(
     possessive: string,
