@@ -511,7 +511,7 @@ export function buildAllFilings(
             strongestCardBand(
                 reached.get(claimId(filing.kind, filing.key)) ?? [],
                 index
-            )?.band ?? null
+            )?.target ?? null
     );
     return { filings, handTailHeld: handTail.held, filed };
 }
@@ -626,8 +626,8 @@ function main(): void {
         );
     }
 
-    // Residue of the band partition: no ranked Target among the cards it
-    // reaches. Listed, never swept into a band — it keeps its parent.
+    // Residue of the Target partition: no ranked Target among the cards it
+    // reaches. Listed, never swept into an umbrella — it keeps its parent.
     const bandResidue = filings.filter(
         (f) =>
             PARTITIONED_KINDS[f.kind] !== undefined &&
@@ -636,8 +636,12 @@ function main(): void {
     for (const f of bandResidue) {
         const at =
             f.currentIssue === null ? "unfiled" : `issue #${f.currentIssue}`;
+        const why =
+            f.target === undefined || f.target === null
+                ? "no ranked Target among the cards it reaches"
+                : `its Target \`${f.target}\` has no umbrella in BAND_UMBRELLAS — add the family's row (docs/agents/issue-tracker.md)`;
         console.log(
-            `residue    ${f.kind} \`${f.key}\` (${at}) — no ranked Target among the cards it reaches; no band umbrella: it keeps its parent (none, or a retired one: it moves to its family's P3 umbrella — or its P0 umbrella when this run has --band P0)`
+            `residue    ${f.kind} \`${f.key}\` (${at}) — ${why}; no Target umbrella: it keeps its parent (none, or a retired one: it moves to its family's lowest-ranked Target umbrella — or its P0 umbrella when this run has --band P0)`
         );
     }
 
@@ -654,7 +658,7 @@ function main(): void {
                     ? ` [origin P0 -> #${origin}]`
                     : umbrella === null
                       ? ""
-                      : ` [${filing.band} -> #${umbrella}]`;
+                      : ` [${filing.target} -> #${umbrella}]`;
             console.log(
                 `${filing.kind.padEnd(10)} ${at}${band}: ${filing.title}`
             );

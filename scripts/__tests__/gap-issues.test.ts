@@ -5,16 +5,27 @@
  */
 
 import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import type { Allowlist } from "../check-gaps";
+import { rankTargetBands } from "../lib/backlog-triage";
+import { readTargetRegistry } from "../lib/targets";
 import {
     applyUpdatedIssues,
+    bandUmbrellaOf,
+    BAND_UMBRELLAS,
     buildGrammarGapFilings,
     grammarGapTitle,
+    LOWEST_RANKED_TARGET,
     parseUnlocks,
+    PARTITIONED_KINDS,
+    planMove,
     planUnlockEdges,
     renderUnlockBlockedBy,
+    RETIRED_UMBRELLAS,
     syncUnlockEdges,
+    umbrellaKey,
     withUnlockBlockers,
     KIND_FALLBACK,
     PRD_ISSUE,
@@ -702,5 +713,181 @@ describe("the unlocked body is idempotent under syncGaps", () => {
             tracker
         );
         expect(tracker.updateCalls).toBe(0);
+    });
+});
+
+// ── Target-keyed umbrellas (issue #4211, ADR 0143) ───────────────────────
+
+describe("BAND_UMBRELLAS is keyed by Target, not by band letter (issue #4211)", () => {
+    const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+    /** The Targets that lend a band today, in rank order. */
+    const RANKED = [
+        ...rankTargetBands(
+            readTargetRegistry(REPO_ROOT).targets,
+            new Set()
+        ).keys(),
+    ];
+    const PARTITIONED = ["grammar", "mechanic", "bot", "hand-tail"] as const;
+    const FAMILIES = Object.keys(BAND_UMBRELLAS) as Array<
+        keyof typeof BAND_UMBRELLAS
+    >;
+
+    /** A partitioned filing whose band is lent by `target` (null = residue). */
+    function partitioned(
+        kind: (typeof PARTITIONED)[number],
+        target: string | null,
+        over: Partial<GapFiling> = {}
+    ): GapFiling {
+        return filing({
+            kind,
+            key: `${kind}-key`,
+            title: `${kind} gap`,
+            fallbackParent: KIND_FALLBACK[kind],
+            target,
+            ...over,
+        });
+    }
+
+    it("every family holds one umbrella per Target that lends a band today, plus P0 — and nothing else", () => {
+        expect(RANKED.length).toBeGreaterThan(0);
+        for (const family of FAMILIES)
+            expect(Object.keys(BAND_UMBRELLAS[family]).sort()).toEqual(
+                ["P0", ...RANKED].sort()
+            );
+    });
+
+    it("the fallback Target is the LOWEST-ranked one — the roster shifting reds here, not in the tracker", () => {
+        expect(LOWEST_RANKED_TARGET).toBe(RANKED[RANKED.length - 1]);
+    });
+
+    it("no umbrella number appears twice, and the Hand Tail family is the four issues #4209 created", () => {
+        const all = FAMILIES.flatMap((family) =>
+            Object.values(BAND_UMBRELLAS[family])
+        );
+        expect(new Set(all).size).toBe(all.length);
+        expect(BAND_UMBRELLAS["hand-tail"]).toEqual({
+            P0: 4241,
+            "premodern-metagame": 4242,
+            "vintage-cube": 4243,
+            "format-premodern": 4244,
+        });
+    });
+
+    it("hand-tail is partitioned exactly like grammar, mechanic and bot", () => {
+        expect(PARTITIONED_KINDS).toEqual({
+            grammar: "grammar-rules",
+            mechanic: "ops",
+            bot: "bot-gaps",
+            "hand-tail": "hand-tail",
+        });
+    });
+
+    it("a hand-tail gap resolves to the umbrella of the Target lending its band", () => {
+        for (const target of RANKED) {
+            const gap = partitioned("hand-tail", target);
+            expect(bandUmbrellaOf(gap)).toBe(
+                BAND_UMBRELLAS["hand-tail"][target]
+            );
+            const tracker = new StubTracker();
+            syncGaps([gap], tracker);
+            expect(tracker.parents.get(5000)).toBe(
+                BAND_UMBRELLAS["hand-tail"][target]
+            );
+        }
+    });
+
+    it("residue of every partitioned kind files under the lowest-ranked Target's umbrella — never a computed one", () => {
+        for (const kind of PARTITIONED) {
+            const family = PARTITIONED_KINDS[kind]!;
+            const fallback = BAND_UMBRELLAS[family][LOWEST_RANKED_TARGET];
+            expect(KIND_FALLBACK[kind]).toBe(fallback);
+            const tracker = new StubTracker();
+            syncGaps([partitioned(kind, null)], tracker);
+            expect(tracker.parents.get(5000)).toBe(fallback);
+            // A gap the rule DID band to the strongest Target files elsewhere:
+            // the fallback is not just "the umbrella every gap ends up in".
+            expect(BAND_UMBRELLAS[family][RANKED[0]!]).not.toBe(fallback);
+        }
+    });
+
+    it("a Target with no umbrella yet is residue, not a crash and not someone else's umbrella", () => {
+        for (const kind of PARTITIONED) {
+            const gap = partitioned(kind, "set-not-in-the-table");
+            expect(bandUmbrellaOf(gap)).toBeNull();
+            const tracker = new StubTracker();
+            syncGaps([gap], tracker);
+            expect(tracker.parents.get(5000)).toBe(KIND_FALLBACK[kind]);
+        }
+    });
+
+    it("an umbrella number reads back as its key — P0 or a Target id — and anything else as null", () => {
+        expect(umbrellaKey("ops", BAND_UMBRELLAS.ops["vintage-cube"]!)).toBe(
+            "vintage-cube"
+        );
+        expect(umbrellaKey("hand-tail", BAND_UMBRELLAS["hand-tail"].P0)).toBe(
+            "P0"
+        );
+        expect(umbrellaKey("ops", BAND_UMBRELLAS["bot-gaps"].P0)).toBeNull();
+        expect(umbrellaKey("ops", null)).toBeNull();
+    });
+
+    it("nothing moves out of a hand-set P0 umbrella, Hand Tail's included", () => {
+        const gap = partitioned("hand-tail", "vintage-cube");
+        expect(planMove(gap, BAND_UMBRELLAS["hand-tail"].P0)).toBeNull();
+    });
+
+    it("a gap under a retired umbrella (#4113, #3972, PRD #3820) moves to its Target's umbrella, residue to its fallback", () => {
+        expect([...RETIRED_UMBRELLAS].sort((a, b) => a - b)).toEqual([
+            PRD_ISSUE,
+            3972,
+            4113,
+        ]);
+        for (const kind of PARTITIONED) {
+            const family = PARTITIONED_KINDS[kind]!;
+            for (const retired of RETIRED_UMBRELLAS) {
+                expect(
+                    planMove(partitioned(kind, "vintage-cube"), retired)
+                ).toBe(BAND_UMBRELLAS[family]["vintage-cube"]);
+                expect(planMove(partitioned(kind, null), retired)).toBe(
+                    KIND_FALLBACK[kind]
+                );
+            }
+        }
+        for (const parent of Object.values(KIND_FALLBACK))
+            expect(RETIRED_UMBRELLAS.has(parent)).toBe(false);
+    });
+
+    it("an open Hand Tail gap still filed under #4113 is emptied out of it once, then stays put", () => {
+        const tracker = new StubTracker();
+        tracker.issues.set(4900, { state: "OPEN", body: "body v1" });
+        tracker.parents.set(4900, 4113);
+        const gap = partitioned("hand-tail", "premodern-metagame", {
+            currentIssue: 4900,
+        });
+        const first = syncGaps([gap], tracker);
+        expect(first.moves).toEqual([
+            {
+                kind: "hand-tail",
+                key: "hand-tail-key",
+                issue: 4900,
+                from: 4113,
+                to: BAND_UMBRELLAS["hand-tail"]["premodern-metagame"],
+            },
+        ]);
+        expect(syncGaps([gap], tracker).moves).toEqual([]);
+    });
+
+    it("a residue gap hand-placed under any other parent keeps it — Target keying changes nothing there (issue #4110)", () => {
+        for (const kind of PARTITIONED) {
+            const tracker = new StubTracker();
+            tracker.issues.set(4901, { state: "OPEN", body: "body v1" });
+            tracker.parents.set(4901, 3838);
+            const result = syncGaps(
+                [partitioned(kind, null, { currentIssue: 4901 })],
+                tracker
+            );
+            expect(result.moves).toEqual([]);
+            expect(tracker.parents.get(4901)).toBe(3838);
+        }
     });
 });

@@ -30,12 +30,18 @@ function tracker(initial: IssueEdge, opts: { removeIsNoop?: boolean } = {}) {
 describe("censusedUmbrellas — the live partition", () => {
     it("holds every band umbrella and every kind fallback, nothing else", () => {
         const census = censusedUmbrellas();
-        for (const n of [4091, 4094, 4095, 4098, 4099, 4102, 4111, 4112, 4113])
+        for (const n of [
+            4091, 4094, 4095, 4098, 4099, 4102, 4241, 4242, 4243, 4244, 4111,
+            4112,
+        ])
             expect(census.has(n)).toBe(true);
         // Retired umbrellas are being emptied by `gaps:sync`, not by this step.
         expect(census.has(3972)).toBe(false);
         expect(census.has(3820)).toBe(false);
-        expect(census.size).toBe(12 + 3);
+        expect(census.has(4113)).toBe(false);
+        // Four families of four umbrellas (P0 + three Targets), plus the two
+        // kinds with no family.
+        expect(census.size).toBe(16 + 2);
     });
 });
 
