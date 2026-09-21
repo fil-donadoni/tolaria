@@ -28,6 +28,7 @@ import {
     makeState,
     pushSpell,
 } from "../../cards/__tests__/setup";
+import { raiseTriggerTargetSelection } from "../../gre/rules";
 import { getPlayer, resolveTopOfStack } from "../../gre/state";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
@@ -761,5 +762,63 @@ describe("divided damage — resolution through the interpreter (CR 601.2d)", ()
                 expect(damageOn(state, "bearB")).toBe(1);
             }
         );
+    });
+});
+
+describe("divided damage — a compiled TRIGGER announces a capped count (CR 601.2d)", () => {
+    // The trigger announcement (`raiseTriggerTargetSelection`) is a third path
+    // beside the spell and activated ones, and the only one that reads the
+    // requirement's `count` without `announcedTargetCount`: an open `{ min: 1 }`
+    // would let the controller name more targets than there are points to
+    // assign, and `finalizeDivideAmounts` would then hand some of them 0.
+    function announced(oracleText: string, name: string) {
+        const definition = {
+            ...compiled(
+                creature(name, "{3}{R}{R}", "Creature — Devil", oracleText, "3")
+            ),
+            id: `test-4245-${name.toLowerCase().replace(/\W+/g, "-")}`,
+            rarity: "common",
+        } as unknown as CardDefinition;
+        return withTemporaryDefinition(definition, () => {
+            const state = makeState({
+                players: [
+                    makePlayer("p1"),
+                    makePlayer("p2", {
+                        battlefield: [1, 2, 3, 4, 5].map((n) =>
+                            makeInstance(getCardByName("Serra Angel").id, {
+                                controllerId: "p2",
+                                ownerId: "p2",
+                                id: `angel${n}`,
+                            })
+                        ),
+                    }),
+                ],
+            });
+            const source = makeInstance(definition.id, {
+                id: "source",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            state.stack.push({
+                ...source,
+                zone: "stack",
+                castById: "p1",
+                triggeredAbilityId:
+                    definition.compiledTriggeredAbilities?.[0]?.id,
+                triggerSourceId: source.id,
+                targets: undefined,
+            } as never);
+            raiseTriggerTargetSelection(state);
+            return state.pendingTarget;
+        });
+    }
+
+    it("3 damage: the announced count is {min 1, max 3}, never open-ended", () => {
+        const pending = announced(
+            "When this creature enters, it deals 3 damage divided as you choose among any number of targets.",
+            "Divided Trigger Probe"
+        );
+        expect(pending?.count).toEqual({ min: 1, max: 3 });
+        expect(pending?.divideTotal).toBe(3);
     });
 });
