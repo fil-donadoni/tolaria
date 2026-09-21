@@ -56246,6 +56246,26 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Whirlpool Drake",
+        "scryfallId": "6e866093-89a3-458d-8ebc-de805ef7885e",
+        "oracleId": "aef9fcf0-b755-40f6-821d-836ae1b5497a",
+        "firstSet": "apc",
+        "firstPrintId": "6e866093-89a3-458d-8ebc-de805ef7885e",
+        "firstPrintSet": "apc",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Whirlpool Rider",
+        "scryfallId": "0de47f44-8c5e-4114-9064-145d2d8813c6",
+        "oracleId": "13a3f2c1-0454-4661-a462-542254f8360d",
+        "firstSet": "apc",
+        "firstPrintId": "0de47f44-8c5e-4114-9064-145d2d8813c6",
+        "firstPrintSet": "apc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Whirlwind Adept",
         "scryfallId": "51c9bd9c-900a-48a1-9cfe-2f8d031af6b8",
         "oracleId": "0c7e261f-45d5-4c86-8cba-9b6edce8ef49",
