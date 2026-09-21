@@ -144,7 +144,10 @@ describe("then-chain — equal to the full-stop form (CR 608.2c)", () => {
         const effects = effectsOf(
             "Create two 1/1 white Soldier creature tokens with flying, then you gain 1 life for each creature you control."
         );
-        expect(effects.map((e) => e.op)).toEqual(["createToken", "gainLife"]);
+        expect((effects as { op: string }[]).map((e) => e.op)).toEqual([
+            "createToken",
+            "gainLife",
+        ]);
     });
 });
 
