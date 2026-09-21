@@ -20,7 +20,9 @@
  * batch. A run cut short leaves a board the next run simply finishes.
  * An issue whose body carries a `## Band` line (`P2 — <reason>`, issue #4230)
  * is banded by it — the `user-decision` source, the truth over every other
- * one; a line that bands nothing is reported under `## Band residue`. The
+ * one; a line that bands nothing is reported under `## Band residue`. An issue
+ * no source bands takes the coarse label default (`labels`, issue #4231 — the
+ * weakest source; `prd` and unlabelled rows stay residue). The
  * board field stays the OUTPUT of this script, never hand-written.
  * `--suggest-cards` appends the `## Cards` backfill (issue #4086) — a
  * proposal per residue issue, printed, never written, with or without
@@ -32,8 +34,11 @@
  *   - the board's `Priority` field through `fetchBoardPriority` — the shared
  *     single-field query (8 points against `gh project item-list`'s 766,
  *     `docs/agents/issue-tracker.md`), never a whole-board item list;
- *   - the open issues with their body, their parent and the issues they
- *     block, one paginated GraphQL query at 1 point a page;
+ *   - the open issues with their body, their parent, the issues they block
+ *     and their label names (the `labels` source, issue #4231), one paginated
+ *     GraphQL query at 2 points a page — the `blocking` and `labels`
+ *     connections each cost a request per issue, 1 + 100 + 100 = 201 against
+ *     GitHub's per-100 rounding (it was 1 point before `labels`, ~10 a run);
  *   - the lockfile, the Target registry and `data/grammar-gaps.json`'s claims,
  *     all local.
  *
@@ -82,6 +87,10 @@ const PROJECT_REPO = process.env.TOLARIA_PROJECT_REPO ?? "fil-donadoni/tolaria";
  *  fails closed rather than dropping an edge. */
 const BLOCKING_PAGE = 50;
 
+/** Per issue, how many labels one page reads; more fails closed — a dropped
+ *  `user-report` would be a wrong default band. */
+const LABELS_PAGE = 30;
+
 /**
  * `$endCursor` is named exactly that because `gh api graphql --paginate` keys
  * its walk to it — renamed, the read silently returns page one only.
@@ -101,6 +110,10 @@ query($owner: String!, $name: String!, $endCursor: String) {
                 blocking(first: ${BLOCKING_PAGE}) {
                     totalCount
                     nodes { number }
+                }
+                labels(first: ${LABELS_PAGE}) {
+                    totalCount
+                    nodes { name }
                 }
             }
         }
@@ -123,6 +136,10 @@ interface IssuePage {
                         totalCount: number;
                         nodes: { number: number }[];
                     };
+                    labels: {
+                        totalCount: number;
+                        nodes: { name: string }[];
+                    };
                 }[];
             };
         };
@@ -139,6 +156,8 @@ export interface OpenIssue {
     readonly body: string;
     readonly parent: number | null;
     readonly blocks: readonly number[];
+    /** Its label names — the `labels` source. */
+    readonly labels: readonly string[];
 }
 
 /** Every open issue with its parent and the issues it blocks. Fails closed on
@@ -178,6 +197,10 @@ export function fetchOpenIssues(
             throw new Error(
                 `backlog:triage: issue #${node.number} blocks ${node.blocking.totalCount} issues, more than one page (${BLOCKING_PAGE}) — paginate before trusting its band`
             );
+        if (node.labels.totalCount > node.labels.nodes.length)
+            throw new Error(
+                `backlog:triage: issue #${node.number} carries ${node.labels.totalCount} labels, more than one page (${LABELS_PAGE}) — paginate before trusting its default band`
+            );
         out.push({
             nodeId: node.id,
             number: node.number,
@@ -185,6 +208,7 @@ export function fetchOpenIssues(
             body: node.body ?? "",
             parent: node.parent?.number ?? null,
             blocks: node.blocking.nodes.map((n) => n.number),
+            labels: node.labels.nodes.map((l) => l.name),
         });
     }
     return out;
@@ -395,6 +419,7 @@ export function runTriage(opts: {
             blocks: i.blocks,
             cards: issueCards(i, claimed, byName, declared.ids),
             ruling: band.ruling,
+            labels: i.labels,
         };
     });
     const verdicts = triage(issues, index, board);
