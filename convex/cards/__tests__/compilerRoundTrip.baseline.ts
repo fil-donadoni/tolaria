@@ -151,8 +151,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Annul",
     "Anti-Magic Aura",
     "Arboria",
-    "Arc Lightning",
-    "Arc Mage",
     "Arcades Sabboth",
     "Archon of Cruelty",
     "Arctic Foxes",

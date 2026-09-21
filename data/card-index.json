@@ -510,6 +510,16 @@
         "source": "compiled"
     },
     {
+        "name": "Aerial Volley",
+        "scryfallId": "c5178301-f766-48d3-af07-6bd6f822c725",
+        "oracleId": "ab855992-34da-42a2-b7c7-dec4db849159",
+        "firstSet": "ori",
+        "firstPrintId": "c5178301-f766-48d3-af07-6bd6f822c725",
+        "firstPrintSet": "ori",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Aether Adept",
         "scryfallId": "0b551dab-1a81-406d-b708-b3b7300eb02e",
         "oracleId": "e076067c-77b7-4a37-a62d-51434392dd53",
@@ -1261,6 +1271,16 @@
         "firstPrintId": "0c082aa8-bf7f-47f2-baf8-43ad253fd7d7",
         "firstPrintSet": "isd",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Amethyst Dragon // Explosive Crystal",
+        "scryfallId": "57adbd6e-88ec-4472-a9c9-90b679fa881f",
+        "oracleId": "0961b68d-bb0c-4bfb-ad78-01f90b3b97c8",
+        "firstSet": "clb",
+        "firstPrintId": "57adbd6e-88ec-4472-a9c9-90b679fa881f",
+        "firstPrintSet": "clb",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -5592,6 +5612,16 @@
         "source": "compiled"
     },
     {
+        "name": "Bogardan Hellkite",
+        "scryfallId": "5852f528-92aa-45cf-8436-5774691676d3",
+        "oracleId": "699bc130-2f1f-4bc8-a25f-9329e40efbb1",
+        "firstSet": "tsp",
+        "firstPrintId": "5852f528-92aa-45cf-8436-5774691676d3",
+        "firstPrintSet": "tsp",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Bogardan Rager",
         "scryfallId": "ec53d26b-ad3e-474f-a374-05fcdc00e49c",
         "oracleId": "abbbfc22-18cc-4799-b02c-190173936872",
@@ -6018,6 +6048,16 @@
         "firstSet": "fem",
         "firstPrintId": "639ae988-d1d1-4ead-b0f8-47fc39eb64a0",
         "firstPrintSet": "fem"
+    },
+    {
+        "name": "Boulderfall",
+        "scryfallId": "66470bac-cce0-4e79-82f9-9fb77aa950eb",
+        "oracleId": "2160aed4-5a7a-4eca-96b5-707204fa73bb",
+        "firstSet": "ths",
+        "firstPrintId": "66470bac-cce0-4e79-82f9-9fb77aa950eb",
+        "firstPrintSet": "ths",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Bound in Silence",
@@ -7780,6 +7820,16 @@
         "firstSet": "kld",
         "firstPrintId": "ff8086cd-b868-4f4e-823e-2635ad7ebc07",
         "firstPrintSet": "kld"
+    },
+    {
+        "name": "Chandra's Pyrohelix",
+        "scryfallId": "05659715-3002-4bd0-919e-664814c1ca57",
+        "oracleId": "69a37af8-6bcd-42b3-b788-0a357e742cc0",
+        "firstSet": "kld",
+        "firstPrintId": "05659715-3002-4bd0-919e-664814c1ca57",
+        "firstPrintSet": "kld",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Channel",
@@ -14162,6 +14212,16 @@
         "source": "compiled"
     },
     {
+        "name": "Electrolyze",
+        "scryfallId": "ef42b5b2-6504-486c-aaa0-9d5e4769ba1d",
+        "oracleId": "07b222d7-24f2-4994-9004-ff6672ebe161",
+        "firstSet": "gpt",
+        "firstPrintId": "ef42b5b2-6504-486c-aaa0-9d5e4769ba1d",
+        "firstPrintSet": "gpt",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Elegant Parlor",
         "scryfallId": "72c6d541-e2cb-4d6e-acac-90a8f53b7006",
         "oracleId": "9ea747cf-5d04-4aa7-bdc3-8145860cd1ba",
@@ -16676,6 +16736,16 @@
         "source": "compiled"
     },
     {
+        "name": "Fire // Ice",
+        "scryfallId": "f98f4538-5b5b-475d-b98f-49d01dae6f04",
+        "oracleId": "ae92942b-919c-4ea9-b693-85fcef765d5a",
+        "firstSet": "apc",
+        "firstPrintId": "f98f4538-5b5b-475d-b98f-49d01dae6f04",
+        "firstPrintSet": "apc",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Fire Ambush",
         "scryfallId": "4dd8bdbd-99c9-4fa7-936a-acc7f4238507",
         "oracleId": "50463946-1ce3-4ff0-ad68-2fb87adbe2fd",
@@ -17064,6 +17134,16 @@
         "firstSet": "lrw",
         "firstPrintId": "9a7878e5-fcb0-4de5-8dda-fcdb4b138ec1",
         "firstPrintSet": "lrw",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Flames of the Firebrand",
+        "scryfallId": "aca215b1-7b98-49ce-afae-eeb61058125a",
+        "oracleId": "bc32c24f-2f2a-4125-917c-60d425166640",
+        "firstSet": "m13",
+        "firstPrintId": "aca215b1-7b98-49ce-afae-eeb61058125a",
+        "firstPrintSet": "m13",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -17820,6 +17900,26 @@
         "firstSet": "lea",
         "firstPrintId": "e6b43916-fe2d-417a-a550-d7c795023297",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Forked Bolt",
+        "scryfallId": "06127297-fdaa-45bf-a82e-4fc61315e0e2",
+        "oracleId": "e0548f0d-4aec-4c39-8c34-52bfa2bf7c60",
+        "firstSet": "roe",
+        "firstPrintId": "06127297-fdaa-45bf-a82e-4fc61315e0e2",
+        "firstPrintSet": "roe",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Forked Lightning",
+        "scryfallId": "85883197-fd55-4e82-862f-87be4f789493",
+        "oracleId": "66107cfd-4bdb-4266-a650-940743555ea4",
+        "firstSet": "por",
+        "firstPrintId": "85883197-fd55-4e82-862f-87be4f789493",
+        "firstPrintSet": "por",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Formation",
@@ -18746,6 +18846,16 @@
         "firstSet": "ice",
         "firstPrintId": "08265332-2c0e-4c42-8c51-83ac20462eed",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Gang of Devils",
+        "scryfallId": "0430b9fa-3bc6-4183-ad5b-d70ad401fa97",
+        "oracleId": "62110234-690b-4498-8076-26ba910f9f92",
+        "firstSet": "avr",
+        "firstPrintId": "0430b9fa-3bc6-4183-ad5b-d70ad401fa97",
+        "firstPrintSet": "avr",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Gangrenous Zombies",
@@ -21734,6 +21844,16 @@
         "firstSet": "bfz",
         "firstPrintId": "a706b2e3-bd0e-4111-8b68-976869c7d707",
         "firstPrintSet": "bfz",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Hail of Arrows",
+        "scryfallId": "c4a57083-e82c-41aa-94b9-2e6db97f7159",
+        "oracleId": "37429f88-e29b-4b1b-90fd-23a04d703c0a",
+        "firstSet": "sok",
+        "firstPrintId": "c4a57083-e82c-41aa-94b9-2e6db97f7159",
+        "firstPrintSet": "sok",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -31084,6 +31204,16 @@
         "firstPrintSet": "pls"
     },
     {
+        "name": "Mogg Mob",
+        "scryfallId": "f1457aa8-9f70-4586-b595-6a722879f6ae",
+        "oracleId": "fb7171f8-60a0-4309-93ff-113e1f62113c",
+        "firstSet": "mh3",
+        "firstPrintId": "f1457aa8-9f70-4586-b595-6a722879f6ae",
+        "firstPrintSet": "mh3",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Mogg Raider",
         "scryfallId": "94e9cc0a-c210-4525-8c7f-9c6306cc21b0",
         "oracleId": "240746f5-caab-46b9-914f-c2c7ecce6ca9",
@@ -37108,6 +37238,16 @@
         "source": "compiled"
     },
     {
+        "name": "Pyrotechnics",
+        "scryfallId": "2646284b-a94d-4c99-98d4-7becbb473e2b",
+        "oracleId": "794b9ddf-1660-441f-9cc2-a0f5d4d0cf22",
+        "firstSet": "leg",
+        "firstPrintId": "2646284b-a94d-4c99-98d4-7becbb473e2b",
+        "firstPrintSet": "leg",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Python",
         "scryfallId": "e7e99969-6c21-4de6-ba57-44ef7f9c8c47",
         "oracleId": "d8a0c3ff-7042-4b52-a216-15e170c8094f",
@@ -39727,6 +39867,16 @@
         "firstPrintId": "3f1a80c4-8119-437d-bf5b-549c5679c90a",
         "firstPrintSet": "jou",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Rolling Thunder",
+        "scryfallId": "0bb07402-d526-4938-89a3-9174d5b5a4de",
+        "oracleId": "9c47888b-28a5-4c43-9ee4-a9059e3c367d",
+        "firstSet": "tmp",
+        "firstPrintId": "0bb07402-d526-4938-89a3-9174d5b5a4de",
+        "firstPrintSet": "tmp",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -45794,6 +45944,16 @@
         "source": "compiled"
     },
     {
+        "name": "Spreading Flames",
+        "scryfallId": "c655b1dc-8df1-44c8-a963-bd0a671ec7e5",
+        "oracleId": "95bedd11-ed01-4cb1-bcdb-c5f9fdba8c79",
+        "firstSet": "emn",
+        "firstPrintId": "c655b1dc-8df1-44c8-a963-bd0a671ec7e5",
+        "firstPrintSet": "emn",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Spreading Plague",
         "scryfallId": "ac86055d-ce08-4b05-a92c-45e007ca0ba4",
         "oracleId": "6c134ef7-5c2f-4e4c-ae40-ef338fbf41e6",
@@ -46185,6 +46345,16 @@
         "firstPrintId": "ea007a18-b31a-4881-92c4-86120dc5729b",
         "firstPrintSet": "khm",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Start // Fire",
+        "scryfallId": "e899b761-2f23-466c-87c5-d98421138ca6",
+        "oracleId": "48ba332b-36ce-4f1d-893c-a9ef77ffd482",
+        "firstSet": "cmb1",
+        "firstPrintId": "e899b761-2f23-466c-87c5-d98421138ca6",
+        "firstPrintSet": "cmb1",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -51362,6 +51532,16 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Twin Bolt",
+        "scryfallId": "5bd58ec4-34a9-4fc2-b057-438492e2e06e",
+        "oracleId": "970dc070-3668-4584-9904-2897b27bb806",
+        "firstSet": "dtk",
+        "firstPrintId": "5bd58ec4-34a9-4fc2-b057-438492e2e06e",
+        "firstPrintSet": "dtk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Twin-Silk Spider",
         "scryfallId": "7cf3188c-879b-4b18-88b4-6237d7162271",
         "oracleId": "a2193302-402a-4cf0-8014-5facecad647b",
@@ -53788,6 +53968,16 @@
         "firstSet": "vow",
         "firstPrintId": "ae154e64-f626-45fb-bd52-840c1c27b2d3",
         "firstPrintSet": "vow"
+    },
+    {
+        "name": "Volley of Boulders",
+        "scryfallId": "4f663979-a778-4fb2-97c4-67ab82926f13",
+        "oracleId": "47860e92-e86a-49f2-80e3-fd144de08b4d",
+        "firstSet": "ody",
+        "firstPrintId": "4f663979-a778-4fb2-97c4-67ab82926f13",
+        "firstPrintSet": "ody",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Volrath's Gardens",

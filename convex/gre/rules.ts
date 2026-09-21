@@ -3572,14 +3572,25 @@ export function pendingTargetFiltersFromRequirement(
  *  tsc-check with this shape; the catalogue-wide guard in
  *  `cards/__tests__/triggerVariableTargetCount.test.ts` covers that surface
  *  instead, so the shape can't ship silently inert either way (#957/#958). */
-function triggerTargetMinMax(count: TargetRequirement["count"]): {
+function triggerTargetMinMax(
+    count: TargetRequirement["count"],
+    divideTotal?: number
+): {
     min: number;
     max: number;
 } {
     if (typeof count === "number") return { min: count, max: count };
     if (count === "X") return { min: 0, max: 0 };
-    const max =
-        count.max === "X" ? count.min : (count.max ?? Number.MAX_SAFE_INTEGER);
+    // CR 601.2d — every target of a divided effect receives at least 1, so an
+    // open-ended count ("any number of") is capped at the budget, exactly as
+    // the spell (`announcedTargetCount`) and activated (`activation.ts`)
+    // announcements cap it. Without the cap a trigger could name more targets
+    // than there are points to assign.
+    const openCap =
+        count.max === undefined && divideTotal !== undefined
+            ? divideTotal
+            : Number.MAX_SAFE_INTEGER;
+    const max = count.max === "X" ? count.min : (count.max ?? openCap);
     return { min: count.min, max };
 }
 
@@ -3917,7 +3928,12 @@ export function raiseTriggerTargetSelection(state: GameState): boolean {
         const { effectiveReq, effectiveLegal, sourcePower } =
             triggerTargetLegality(state, item, req);
 
-        const { min, max } = triggerTargetMinMax(req.count);
+        const { min, max } = triggerTargetMinMax(
+            req.count,
+            req.divideAsChosen && typeof req.divideAsChosen.total === "number"
+                ? req.divideAsChosen.total
+                : undefined
+        );
 
         if (effectiveLegal.length < min) {
             // CR 603.3c — required target(s), none legal: remove from the stack.

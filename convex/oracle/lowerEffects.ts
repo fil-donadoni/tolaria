@@ -152,6 +152,32 @@ function pronounIsSource(site: SiteOptions): boolean {
     );
 }
 
+/**
+ * CR 601.2d — a divided group's count, without the bound the budget already
+ * imposes.
+ *
+ * Each target must receive at least 1 of the budget, so a fixed total of N
+ * cannot be split among more than N targets, and the announcement caps an
+ * open count at the total (`announcedTargetCount`). A printed "one, two, or
+ * three" over 3 damage is therefore the same announcement as no `max` at all,
+ * and is written the way the catalogue writes it (`{ min: 1 }`). A `max`
+ * BELOW the budget ("one, two, or three" over 4 damage — Forked Lightning) is
+ * a real limit the budget does not impose, and stays.
+ */
+function dividedCount(
+    count: TargetRequirement["count"],
+    total: number | "X"
+): TargetRequirement["count"] {
+    if (typeof count !== "object" || count.max === undefined) return count;
+    if (
+        typeof count.max === "number" &&
+        typeof total === "number" &&
+        count.max >= total
+    )
+        return { min: count.min };
+    return count;
+}
+
 /** CR 107.3 — an effect magnitude to an `EffectValue`, X gated by the site. */
 function lowerAmount(
     amount: AmountIR,
@@ -492,7 +518,18 @@ export class TargetSlots {
         another: boolean = false
     ): Lowered<number> {
         const slots = announcedSlots(requirement.count);
-        if (slots === null)
+        // CR 601.2d — a divide group's op reads the announced split, not a
+        // positional slot, so its open-ended count needs none. It does need
+        // to be the ONLY group: the divide budget is scoped to the whole flat
+        // target list (`finalizeDivideAmounts`, `dealDamageDividedAsChosen`),
+        // so a second group would be folded into the split and take damage the
+        // card never gave it (Fiery Justice's DIVERGENCE, tracked-by #2910).
+        const divided = requirement.divideAsChosen !== undefined;
+        if (divided && this.groups.length > 0)
+            return unlowerable(
+                "a divided group after another target group would share its budget (CR 601.2d)"
+            );
+        if (slots === null && !divided)
             return unlowerable(
                 "a variable target count has no positional slot (CR 601.2c)"
             );
@@ -534,7 +571,7 @@ export class TargetSlots {
             );
         }
         this.firsts.push(this.width);
-        this.width += slots;
+        this.width += slots ?? 0;
         if (!fixedWidth(requirement.count)) this.openEnded = true;
         return lowered(this.firsts[this.firsts.length - 1]!);
     }
@@ -1298,6 +1335,33 @@ function lowerSentenceBody(
             return lowered([
                 { op: "dealDamage", amount: amount.value, to: to.value },
             ]);
+        }
+        case "deal-damage-divided": {
+            // CR 120.1 / 608.2h — the same dealer rule as `deal-damage`.
+            if (sentence.sourceIsPronoun === true && !pronounIsSource(site))
+                return unlowerable(
+                    '"it deals damage" names a dealer that is not this ability\'s source (CR 120.1)'
+                );
+            // `dealDamageDividedAsChosen.total` is a number or "X" and nothing
+            // else; `lowerAmount` gates X on the site announcing one.
+            if (
+                sentence.amount.kind !== "fixed" &&
+                sentence.amount.kind !== "x"
+            )
+                return unlowerable(
+                    "a divided budget is a printed number or X (CR 601.2d)"
+                );
+            const budget = lowerAmount(sentence.amount, site);
+            if (!budget.ok) return budget;
+            const total: number | "X" =
+                sentence.amount.kind === "fixed" ? sentence.amount.value : "X";
+            const index = slots.allocate({
+                ...sentence.among,
+                count: dividedCount(sentence.among.count, total),
+                divideAsChosen: { total },
+            });
+            if (!index.ok) return index;
+            return lowered([{ op: "dealDamageDividedAsChosen", total }]);
         }
         // CR 615.12 — the game-scoped anti-prevention lock. No fields, no
         // target, no duration argument: the Op is turn-scoped by construction

@@ -2454,4 +2454,66 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             },
         },
     },
+    // CR 601.2d — "deals N damage divided as you choose among <count
+    // phrase> <targets>": the split is chosen at ANNOUNCEMENT and snapshotted
+    // onto the stack item's `targetAmounts`, which the canned smoke scenario
+    // cannot populate. Exhibits the "announced multi-target division" form, so
+    // this fixture is the evidence that the group + Op the grammar emits are
+    // the ones the hand-written catalogue writes (Arc Lightning also
+    // round-trips, Guard C; its resolution has its own test in
+    // `__tests__/dividedDamage.test.ts`).
+    {
+        rule: "divided damage",
+        card: {
+            oracleId: "0c81ade7-0074-4447-ba2c-b16fa0f09ccb",
+            name: "Arc Lightning",
+            manaCost: "{2}{R}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Arc Lightning deals 3 damage divided as you choose among one, two, or three targets.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Arc Lightning",
+            types: ["Sorcery"],
+            manaCost: { X: 2, R: 1 },
+            oracleText:
+                "Arc Lightning deals 3 damage divided as you choose among one, two, or three targets.",
+            effects: [{ op: "dealDamageDividedAsChosen", total: 3 }],
+            targetRequirement: {
+                type: "any",
+                count: { min: 1 },
+                divideAsChosen: { total: 3 },
+            },
+        },
+    },
+    // CR 601.2d — the same division with an {X} budget. A distinct
+    // FORM from the fixed one above: the gate keys a smoke skip on the Op's
+    // skeleton (`opSkeleton`), and `total: "X"` is not `total: 3` — Arc
+    // Lightning's row clears the fixed budget only.
+    {
+        rule: "divided damage",
+        card: {
+            oracleId: "9c47888b-28a5-4c43-9ee4-a9059e3c367d",
+            name: "Rolling Thunder",
+            manaCost: "{X}{R}{R}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Rolling Thunder deals X damage divided as you choose among any number of targets.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Rolling Thunder",
+            types: ["Sorcery"],
+            manaCost: { X: "X", R: 2 },
+            oracleText:
+                "Rolling Thunder deals X damage divided as you choose among any number of targets.",
+            effects: [{ op: "dealDamageDividedAsChosen", total: "X" }],
+            targetRequirement: {
+                type: "any",
+                count: { min: 1 },
+                divideAsChosen: { total: "X" },
+            },
+        },
+    },
 ]);

@@ -58,6 +58,7 @@ import {
 } from "./massSubject";
 import {
     descriptorRule,
+    dividedTargetsRule,
     opensTargetPhrase,
     sacrificeFilterFromDescriptor,
     targetFilterRule,
@@ -351,6 +352,27 @@ export type EffectSentenceIR =
            * ability's own source, so the LOWERING refuses the sentence when
            * "it" names anyone else (see `lowerSentenceBody`).
            */
+          readonly sourceIsPronoun?: true;
+      }
+    | {
+          /**
+           * CR 601.2d — "{self} deals N damage divided as you choose
+           * among <count phrase> <targets>".
+           *
+           * ONE announced group whose count is a RANGE (`among`), and a
+           * magnitude the caster splits across whoever they chose. The
+           * budget is a printed number or the announced {X}: any other
+           * magnitude ("equal to its power", "X plus 1") is a separate
+           * reference and is not read here. `among` carries no
+           * `divideAsChosen` — the budget is `amount`, which only the
+           * lowering can resolve against the site (`allowX`).
+           *
+           * `sourceIsPronoun` is the same CR 608.2h marker `deal-damage`
+           * carries, refused by the lowering on the same condition.
+           */
+          readonly kind: "deal-damage-divided";
+          readonly amount: AmountIR;
+          readonly among: TargetRequirement;
           readonly sourceIsPronoun?: true;
       }
     | {
@@ -1243,6 +1265,9 @@ const ANIMATE = /^(.+) become (\d+)\/(\d+) creatures (.+)$/;
 /** CR 205.1b — the rider that keeps the animated set's types. */
 const STILL_TYPES = /^They(?:'|’)re still (.+)$/;
 const DAMAGE = /^(.+) deals (\S+) damage to (.+)$/;
+/** CR 601.2d — "deals N damage divided as you choose among <targets>". */
+const DAMAGE_DIVIDED =
+    /^(.+) deals (\S+) damage divided as you choose among (.+)$/;
 /**
  * CR 613.1e — "<subject> becomes the color of your choice[ <duration>]".
  *
@@ -1956,6 +1981,29 @@ function effectSentence(
             kind: "deal-damage" as const,
             amount,
             to: to.value,
+            ...(dealerIsPronoun ? { sourceIsPronoun: true as const } : {}),
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── damage divided as you choose (CR 601.2d) ────────────────
+    const divided = span.match(DAMAGE_DIVIDED);
+    if (divided !== null) {
+        const dealer = uncapitalise(divided[1]!);
+        const dealerIsPronoun = dealer === PRONOUN_MARKER;
+        if (!dealerIsPronoun && !isSelfPhrase(dealer))
+            return fail(
+                `"${divided[1]}" is not a damage source this grammar knows`,
+                span
+            );
+        const amount = readAmount(divided[2]!);
+        if (amount === null)
+            return fail(`"${divided[2]}" is not a damage amount`, span);
+        const among = dividedTargetsRule.run(divided[3]!, ctx);
+        if (!among.ok) return among;
+        return ok({
+            kind: "deal-damage-divided" as const,
+            amount,
+            among: among.value,
             ...(dealerIsPronoun ? { sourceIsPronoun: true as const } : {}),
         } satisfies EffectSentenceIR);
     }

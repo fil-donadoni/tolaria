@@ -3166,6 +3166,49 @@
         "rarity": "common"
     },
     {
+        "name": "Gang of Devils",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Devil"
+        ],
+        "manaCost": {
+            "X": 5,
+            "R": 1
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "When this creature dies, it deals 3 damage divided as you choose among one, two, or three targets.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "gang-of-devils-trigger",
+                "oracleText": "When this creature dies, it deals 3 damage divided as you choose among one, two, or three targets.",
+                "head": {
+                    "kind": "died",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "any",
+                    "count": {
+                        "min": 1
+                    },
+                    "divideAsChosen": {
+                        "total": 3
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "dealDamageDividedAsChosen",
+                        "total": 3
+                    }
+                ]
+            }
+        ],
+        "id": "0430b9fa-3bc6-4183-ad5b-d70ad401fa97",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Grim Backwoods",
         "types": [
             "Land"
@@ -3885,6 +3928,34 @@
         "rarity": "common"
     },
     {
+        "name": "Chandra's Pyrohelix",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "oracleText": "Chandra's Pyrohelix deals 2 damage divided as you choose among one or two targets.",
+        "effects": [
+            {
+                "op": "dealDamageDividedAsChosen",
+                "total": 2
+            }
+        ],
+        "targetRequirement": {
+            "type": "any",
+            "count": {
+                "min": 1
+            },
+            "divideAsChosen": {
+                "total": 2
+            }
+        },
+        "id": "05659715-3002-4bd0-919e-664814c1ca57",
+        "rarity": "common"
+    },
+    {
         "name": "Elephant-Rat",
         "types": [
             "Creature"
@@ -4311,6 +4382,33 @@
         ],
         "id": "060966f9-5e56-4512-9ef3-2b216daf093c",
         "rarity": "common"
+    },
+    {
+        "name": "Forked Bolt",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "R": 1
+        },
+        "oracleText": "Forked Bolt deals 2 damage divided as you choose among one or two targets.",
+        "effects": [
+            {
+                "op": "dealDamageDividedAsChosen",
+                "total": 2
+            }
+        ],
+        "targetRequirement": {
+            "type": "any",
+            "count": {
+                "min": 1
+            },
+            "divideAsChosen": {
+                "total": 2
+            }
+        },
+        "id": "06127297-fdaa-45bf-a82e-4fc61315e0e2",
+        "rarity": "uncommon"
     },
     {
         "name": "Gorn Captain",
@@ -7766,6 +7864,34 @@
             }
         ],
         "id": "0ba00d0f-0ea5-417c-a792-06b3b9d1c8f1",
+        "rarity": "common"
+    },
+    {
+        "name": "Rolling Thunder",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": "X",
+            "R": 2
+        },
+        "oracleText": "Rolling Thunder deals X damage divided as you choose among any number of targets.",
+        "effects": [
+            {
+                "op": "dealDamageDividedAsChosen",
+                "total": "X"
+            }
+        ],
+        "targetRequirement": {
+            "type": "any",
+            "count": {
+                "min": 1
+            },
+            "divideAsChosen": {
+                "total": "X"
+            }
+        },
+        "id": "0bb07402-d526-4938-89a3-9174d5b5a4de",
         "rarity": "common"
     },
     {
@@ -25286,6 +25412,34 @@
             }
         ],
         "id": "26407330-d7a1-4915-b7c6-e08e166cf638",
+        "rarity": "common"
+    },
+    {
+        "name": "Pyrotechnics",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 4,
+            "R": 1
+        },
+        "oracleText": "Pyrotechnics deals 4 damage divided as you choose among any number of targets.",
+        "effects": [
+            {
+                "op": "dealDamageDividedAsChosen",
+                "total": 4
+            }
+        ],
+        "targetRequirement": {
+            "type": "any",
+            "count": {
+                "min": 1
+            },
+            "divideAsChosen": {
+                "total": 4
+            }
+        },
+        "id": "2646284b-a94d-4c99-98d4-7becbb473e2b",
         "rarity": "common"
     },
     {
@@ -49042,6 +49196,37 @@
         "rarity": "common"
     },
     {
+        "name": "Volley of Boulders",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 8,
+            "R": 1
+        },
+        "oracleText": "Volley of Boulders deals 6 damage divided as you choose among any number of targets.\nFlashback {R}{R}{R}{R}{R}{R} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+        "effects": [
+            {
+                "op": "dealDamageDividedAsChosen",
+                "total": 6
+            }
+        ],
+        "targetRequirement": {
+            "type": "any",
+            "count": {
+                "min": 1
+            },
+            "divideAsChosen": {
+                "total": 6
+            }
+        },
+        "flashback": {
+            "R": 6
+        },
+        "id": "4f663979-a778-4fb2-97c4-67ab82926f13",
+        "rarity": "rare"
+    },
+    {
         "name": "Destroy Evil",
         "types": [
             "Instant"
@@ -54155,6 +54340,58 @@
         "rarity": "common"
     },
     {
+        "name": "Amethyst Dragon",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dragon"
+        ],
+        "manaCost": {
+            "X": 4,
+            "R": 2
+        },
+        "power": 4,
+        "toughness": 4,
+        "oracleText": "Flying, haste",
+        "staticAbilities": [
+            "flying",
+            "haste"
+        ],
+        "insetSpell": {
+            "kind": "adventure",
+            "name": "Explosive Crystal",
+            "manaCost": {
+                "X": 4,
+                "R": 1
+            },
+            "types": [
+                "Sorcery"
+            ],
+            "subtypes": [
+                "Adventure"
+            ],
+            "oracleText": "Explosive Crystal deals 4 damage divided as you choose among any number of targets. (Then exile this card. You may cast the creature later from exile.)",
+            "effects": [
+                {
+                    "op": "dealDamageDividedAsChosen",
+                    "total": 4
+                }
+            ],
+            "targetRequirement": {
+                "type": "any",
+                "count": {
+                    "min": 1
+                },
+                "divideAsChosen": {
+                    "total": 4
+                }
+            }
+        },
+        "id": "57adbd6e-88ec-4472-a9c9-90b679fa881f",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Carrion Screecher",
         "types": [
             "Creature"
@@ -54415,6 +54652,53 @@
         ],
         "id": "5839556c-6635-44c4-96ed-666e4466b929",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Bogardan Hellkite",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dragon"
+        ],
+        "manaCost": {
+            "X": 6,
+            "R": 2
+        },
+        "power": 5,
+        "toughness": 5,
+        "oracleText": "Flash\nFlying\nWhen this creature enters, it deals 5 damage divided as you choose among any number of targets.",
+        "staticAbilities": [
+            "flash",
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "bogardan-hellkite-trigger",
+                "oracleText": "When this creature enters, it deals 5 damage divided as you choose among any number of targets.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "any",
+                    "count": {
+                        "min": 1
+                    },
+                    "divideAsChosen": {
+                        "total": 5
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "dealDamageDividedAsChosen",
+                        "total": 5
+                    }
+                ]
+            }
+        ],
+        "id": "5852f528-92aa-45cf-8436-5774691676d3",
+        "rarity": "rare"
     },
     {
         "name": "Monstrify",
@@ -56214,6 +56498,34 @@
         "power": 4,
         "toughness": 3,
         "id": "5bc9093a-4397-432f-b9e3-3693efcaec20",
+        "rarity": "common"
+    },
+    {
+        "name": "Twin Bolt",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "oracleText": "Twin Bolt deals 2 damage divided as you choose among one or two targets.",
+        "effects": [
+            {
+                "op": "dealDamageDividedAsChosen",
+                "total": 2
+            }
+        ],
+        "targetRequirement": {
+            "type": "any",
+            "count": {
+                "min": 1
+            },
+            "divideAsChosen": {
+                "total": 2
+            }
+        },
+        "id": "5bd58ec4-34a9-4fc2-b057-438492e2e06e",
         "rarity": "common"
     },
     {
@@ -62926,6 +63238,34 @@
         },
         "id": "6646babe-edd8-4367-ba8f-89af4f859dd8",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Boulderfall",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 6,
+            "R": 2
+        },
+        "oracleText": "Boulderfall deals 5 damage divided as you choose among any number of targets.",
+        "effects": [
+            {
+                "op": "dealDamageDividedAsChosen",
+                "total": 5
+            }
+        ],
+        "targetRequirement": {
+            "type": "any",
+            "count": {
+                "min": 1
+            },
+            "divideAsChosen": {
+                "total": 5
+            }
+        },
+        "id": "66470bac-cce0-4e79-82f9-9fb77aa950eb",
+        "rarity": "common"
     },
     {
         "name": "Saberclaw Golem",
@@ -82560,6 +82900,35 @@
         ],
         "id": "857fef2e-df1f-4ec6-a262-f6fa52389cf9",
         "rarity": "common"
+    },
+    {
+        "name": "Forked Lightning",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "R": 1
+        },
+        "oracleText": "Forked Lightning deals 4 damage divided as you choose among one, two, or three target creatures.",
+        "effects": [
+            {
+                "op": "dealDamageDividedAsChosen",
+                "total": 4
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": {
+                "min": 1,
+                "max": 3
+            },
+            "divideAsChosen": {
+                "total": 4
+            }
+        },
+        "id": "85883197-fd55-4e82-862f-87be4f789493",
+        "rarity": "rare"
     },
     {
         "name": "Axegrinder Giant",
@@ -107745,6 +108114,34 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Flames of the Firebrand",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "oracleText": "Flames of the Firebrand deals 3 damage divided as you choose among one, two, or three targets.",
+        "effects": [
+            {
+                "op": "dealDamageDividedAsChosen",
+                "total": 3
+            }
+        ],
+        "targetRequirement": {
+            "type": "any",
+            "count": {
+                "min": 1
+            },
+            "divideAsChosen": {
+                "total": 3
+            }
+        },
+        "id": "aca215b1-7b98-49ce-afae-eeb61058125a",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Jade Guardian",
         "types": [
             "Creature"
@@ -122488,6 +122885,37 @@
         "rarity": "common"
     },
     {
+        "name": "Hail of Arrows",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": "X",
+            "W": 1
+        },
+        "oracleText": "Hail of Arrows deals X damage divided as you choose among any number of target attacking creatures.",
+        "effects": [
+            {
+                "op": "dealDamageDividedAsChosen",
+                "total": "X"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": {
+                "min": 1
+            },
+            "combatRoleFilter": [
+                "attacking"
+            ],
+            "divideAsChosen": {
+                "total": "X"
+            }
+        },
+        "id": "c4a57083-e82c-41aa-94b9-2e6db97f7159",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Western Paladin",
         "types": [
             "Creature"
@@ -122627,6 +123055,34 @@
             }
         ],
         "id": "c50fb007-d1fd-4b61-91c3-4863e40472ed",
+        "rarity": "common"
+    },
+    {
+        "name": "Aerial Volley",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "oracleText": "Aerial Volley deals 3 damage divided as you choose among one, two, or three target creatures with flying.",
+        "effects": [
+            {
+                "op": "dealDamageDividedAsChosen",
+                "total": 3
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": {
+                "min": 1
+            },
+            "requireAbility": "flying",
+            "divideAsChosen": {
+                "total": 3
+            }
+        },
+        "id": "c5178301-f766-48d3-af07-6bd6f822c725",
         "rarity": "common"
     },
     {
@@ -123574,6 +124030,34 @@
             }
         ],
         "id": "c64fe85b-e471-489a-8c38-2357da1c7969",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Spreading Flames",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 6,
+            "R": 1
+        },
+        "oracleText": "Spreading Flames deals 6 damage divided as you choose among any number of target creatures.",
+        "effects": [
+            {
+                "op": "dealDamageDividedAsChosen",
+                "total": 6
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": {
+                "min": 1
+            },
+            "divideAsChosen": {
+                "total": 6
+            }
+        },
+        "id": "c655b1dc-8df1-44c8-a963-bd0a671ec7e5",
         "rarity": "uncommon"
     },
     {
@@ -142797,6 +143281,83 @@
         "rarity": "common"
     },
     {
+        "name": "Start // Fire",
+        "manaCost": {
+            "W": 1,
+            "R": 1,
+            "X": 3
+        },
+        "types": [
+            "Instant"
+        ],
+        "splitHalves": [
+            {
+                "name": "Start",
+                "manaCost": {
+                    "X": 2,
+                    "W": 1
+                },
+                "types": [
+                    "Instant"
+                ],
+                "oracleText": "Create two 1/1 white Warrior creature tokens with vigilance.",
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Warrior",
+                            "types": [
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Warrior"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": [
+                                "W"
+                            ],
+                            "staticAbilities": [
+                                "vigilance"
+                            ]
+                        },
+                        "controller": "controller",
+                        "count": 2
+                    }
+                ]
+            },
+            {
+                "name": "Fire",
+                "manaCost": {
+                    "X": 1,
+                    "R": 1
+                },
+                "types": [
+                    "Instant"
+                ],
+                "oracleText": "Fire deals 2 damage divided as you choose among one or two targets.",
+                "effects": [
+                    {
+                        "op": "dealDamageDividedAsChosen",
+                        "total": 2
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": {
+                        "min": 1
+                    },
+                    "divideAsChosen": {
+                        "total": 2
+                    }
+                }
+            }
+        ],
+        "oracleText": "Create two 1/1 white Warrior creature tokens with vigilance.\nFire deals 2 damage divided as you choose among one or two targets.",
+        "id": "e899b761-2f23-466c-87c5-d98421138ca6",
+        "rarity": "rare"
+    },
+    {
         "name": "Lotus-Eye Mystics",
         "types": [
             "Creature"
@@ -146677,6 +147238,40 @@
         "rarity": "common"
     },
     {
+        "name": "Electrolyze",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1,
+            "R": 1
+        },
+        "oracleText": "Electrolyze deals 2 damage divided as you choose among one or two targets.\nDraw a card.",
+        "effects": [
+            {
+                "op": "dealDamageDividedAsChosen",
+                "total": 2
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "any",
+            "count": {
+                "min": 1
+            },
+            "divideAsChosen": {
+                "total": 2
+            }
+        },
+        "id": "ef42b5b2-6504-486c-aaa0-9d5e4769ba1d",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Instant Ramen",
         "types": [
             "Artifact"
@@ -147733,6 +148328,48 @@
         },
         "id": "f138fe9f-3cb9-4f16-adc4-76fcb0c7e064",
         "rarity": "common"
+    },
+    {
+        "name": "Mogg Mob",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Goblin"
+        ],
+        "manaCost": {
+            "R": 3
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "Sacrifice this creature: It deals 3 damage divided as you choose among one, two, or three targets.",
+        "activatedAbilities": [
+            {
+                "id": "mogg-mob-ability",
+                "oracleText": "Sacrifice this creature: It deals 3 damage divided as you choose among one, two, or three targets.",
+                "cost": {
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamageDividedAsChosen",
+                        "total": 3
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": {
+                        "min": 1
+                    },
+                    "divideAsChosen": {
+                        "total": 3
+                    }
+                }
+            }
+        ],
+        "id": "f1457aa8-9f70-4586-b595-6a722879f6ae",
+        "rarity": "uncommon"
     },
     {
         "name": "Skysnare Spider",
@@ -152687,6 +153324,84 @@
         ],
         "id": "f95d42d8-ba75-43bf-81b8-b02374f03e83",
         "rarity": "common"
+    },
+    {
+        "name": "Fire // Ice",
+        "manaCost": {
+            "U": 1,
+            "R": 1,
+            "X": 2
+        },
+        "types": [
+            "Instant"
+        ],
+        "splitHalves": [
+            {
+                "name": "Fire",
+                "manaCost": {
+                    "X": 1,
+                    "R": 1
+                },
+                "types": [
+                    "Instant"
+                ],
+                "oracleText": "Fire deals 2 damage divided as you choose among one or two targets.",
+                "effects": [
+                    {
+                        "op": "dealDamageDividedAsChosen",
+                        "total": 2
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": {
+                        "min": 1
+                    },
+                    "divideAsChosen": {
+                        "total": 2
+                    }
+                }
+            },
+            {
+                "name": "Ice",
+                "manaCost": {
+                    "X": 1,
+                    "U": 1
+                },
+                "types": [
+                    "Instant"
+                ],
+                "oracleText": "Tap target permanent.\nDraw a card.",
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "tap",
+                        "target": {
+                            "target": 0
+                        }
+                    },
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ],
+                "targetRequirement": {
+                    "type": [
+                        "Artifact",
+                        "Battle",
+                        "Creature",
+                        "Enchantment",
+                        "Land",
+                        "Planeswalker"
+                    ],
+                    "count": 1
+                }
+            }
+        ],
+        "oracleText": "Fire deals 2 damage divided as you choose among one or two targets.\nTap target permanent.\nDraw a card.",
+        "id": "f98f4538-5b5b-475d-b98f-49d01dae6f04",
+        "rarity": "uncommon"
     },
     {
         "name": "Archweaver",
