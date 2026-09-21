@@ -984,10 +984,10 @@ const doesNotUntapRule: Rule<StaticClauseIR> = pattern(
  * sentence, and a rule that read both would be a rule that read a line it had
  * no fixture for.
  *
- * CR 601.2c scopes the clause to a CAST or an ABILITY ACTIVATION — the
- * sentence says so itself — which is what the engine's
- * `target-choice-requirement` static reads (`gre/targetChoiceRequirements.ts`);
- * nothing here restates that scope.
+ * The sentence itself scopes the clause to a CAST or an ABILITY ACTIVATION
+ * (CR 601.2c for a spell; CR 602.2b applies the same rules to an activated
+ * ability), which is what the engine's `target-choice-requirement` static
+ * reads (`gre/targetChoiceRequirements.ts`); nothing here restates that scope.
  */
 const OPPONENT_TARGET_CHOICE =
     /^While an opponent is choosing targets as part of casting a spell they control or activating an ability they control, that player must choose at least one (Flagbearer) on the battlefield if able$/;

@@ -18,6 +18,7 @@
 
 import { describe, expect, it } from "vitest";
 import { expandCompiledStatics } from "../../cards/compiledStatics";
+import { standardBearer } from "../../cards/sets/apc/white";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import { oracleCard } from "./fixtures";
@@ -56,7 +57,7 @@ function requirement(id: string) {
         id,
         oracleText: CLAUSE,
         binds: "opponents",
-        filter: { subtypes: ["Flagbearer"] },
+        filter: { subtypes: "Flagbearer" },
     };
 }
 
@@ -179,10 +180,30 @@ describe("Forced target choice — lowering invariants (CR 601.2c)", () => {
                 id: "standard-bearer-flagbearer-requirement",
                 oracleText: CLAUSE,
                 binds: "opponents",
-                filter: { subtypes: ["Flagbearer"] },
+                filter: { subtypes: "Flagbearer" },
             },
         ]);
         expect(expanded.compiledStaticEffects).toBeUndefined();
+    });
+
+    it("the dedup identity is the hand-written card's: a compiled and a hand-written Flagbearer are ONE requirement", () => {
+        // `activeTargetChoiceRequirements` keys on JSON.stringify({ binds,
+        // filter }), so a spelling difference (a string vs a one-element
+        // array) would count two Flagbearers as two requirements.
+        const identity = (effects: readonly unknown[] | undefined) => {
+            const found = (effects ?? []).find(
+                (e) =>
+                    (e as { kind?: string }).kind ===
+                    "target-choice-requirement"
+            ) as { binds: string; filter: unknown };
+            return JSON.stringify({ binds: found.binds, filter: found.filter });
+        };
+        const compiled = expandCompiledStatics(
+            compiledDefinition(STANDARD_BEARER) as never
+        );
+        expect(identity(compiled.staticEffects)).toBe(
+            identity(standardBearer.staticEffects)
+        );
     });
 
     it("the id is card-scoped, so two Flagbearers on one board never share a handle", () => {

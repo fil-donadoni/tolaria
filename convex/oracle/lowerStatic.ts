@@ -299,8 +299,12 @@ export function lowerStaticClause(
             };
         // CR 601.2c — the engine's own `StaticTargetChoiceRequirement`, whole
         // (see `CompiledStaticEffect`). The id is a private handle, so it is
-        // card-scoped like a combat restriction's; the engine dedups by clause
-        // (`binds` + `filter`), never by id.
+        // card-scoped like a combat restriction's. The engine dedups by
+        // CLAUSE — `JSON.stringify({ binds, filter })`
+        // (`activeTargetChoiceRequirements`) — so the filter is spelled
+        // exactly as the catalogue spells it (`subtypes: "<Type>"`, not a
+        // one-element array): a compiled Flagbearer beside a hand-written one
+        // must be ONE requirement, not two.
         case "target-choice-requirement":
             return {
                 ok: true,
@@ -313,7 +317,7 @@ export function lowerStaticClause(
                             ),
                             oracleText,
                             binds: clause.binds,
-                            filter: { subtypes: [clause.subtype] },
+                            filter: { subtypes: clause.subtype },
                         },
                     ],
                 },
