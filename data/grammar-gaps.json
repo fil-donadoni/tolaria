@@ -726,6 +726,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Coalition Flag",
+            "issue": 4365
+        },
+        {
+            "kind": "hand-tail",
             "key": "Cromat",
             "issue": 4320
         },
