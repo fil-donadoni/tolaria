@@ -14,9 +14,10 @@
  *    the permanent enters, before the first layer read, and the catalogue-wide
  *    guard `cards/__tests__/entersWithCounters.test.ts` reds on the trigger-
  *    shaped alternative;
- *  - `drawStepReplacement` — CR 614.10, an unconditional skip of the draw
- *    step: a per-card flag `gre/phases.ts` reads live, exactly as the
- *    hand-written Necropotence / Solitary Confinement declare it;
+ *  - `drawStepReplacement` — CR 614.10, an unconditional skip of the
+ *    turn-based draw: a per-card flag `gre/phases.ts` reads live, exactly as
+ *    the hand-written Necropotence / Solitary Confinement declare it (it
+ *    suppresses the draw, not the step — see the frame in `staticClause.ts`);
  *  - `staticAbilities[]` — the `does-not-untap` marker, which the untap step
  *    reads directly (`gre/phases.ts`). A filtered `untap-restriction` static
  *    would be the wrong encoding for a permanent talking about itself; the

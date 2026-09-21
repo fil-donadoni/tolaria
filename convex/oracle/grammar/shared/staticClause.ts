@@ -161,8 +161,9 @@ export type StaticClauseIR =
       }
     /** CR 502.3 — "doesn't untap during your untap step". */
     | { readonly kind: "does-not-untap" }
-    /** CR 614.10 / 500.11 — "Skip your draw step": an unconditional
-     *  replacement of the controller's own draw step. */
+    /** CR 614.10 / 504.1 — "Skip your draw step": an unconditional
+     *  replacement of the controller's own turn-based draw. Lowered to
+     *  `drawStepReplacement`, which suppresses the draw but not the step. */
     | { readonly kind: "skip-draw-step" }
     /**
      * CR 601.2c — "While an opponent is choosing targets as part of casting a
@@ -1012,7 +1013,15 @@ const targetChoiceRequirementRule: Rule<StaticClauseIR> = pattern(
 /**
  * "Skip your draw step" (Necropotence, Yawgmoth's Bargain). CR 614.10: an
  * effect that causes a player to skip a step is a replacement effect, and this
- * one is unconditional — no "may", no "next", no other step. Every neighbour
+ * one is unconditional — no "may", no "next", no other step.
+ *
+ * The engine's encoding (`drawStepReplacement`) suppresses the turn-based draw
+ * (CR 504.1) and still runs the step, so a beginning-of-draw-step trigger
+ * fires as it does for the hand-written Necropotence. That is the engine's
+ * pre-existing reading of the flag, not this rule's: the flag is shared with
+ * Fasting and Island Sanctuary, whose own DRAW trigger must run. The
+ * whole-step skip is `docs/findings/4304-draw-step-flag-skips-draw-not-step.md`.
+ * Every neighbour
  * ("Skip your untap step", "Skip your next draw step", "You may skip your draw
  * step", "Each player skips their draw step") differs from this sentence and
  * stays refused: the anchored regex reads exactly the printed one.
