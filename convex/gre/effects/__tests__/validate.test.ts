@@ -7213,7 +7213,13 @@ describe("count narrowed by a picks binding (CR 608.2h / 701.9a, issue #3807)", 
     });
 
     it("rejects a picks narrowing under an all-players scope or with countTypes", () => {
-        const { controller: _controller, ...scoped } = PICKS_GRAVEYARD_COUNT;
+        // The all-players scopes exclude `controller`, so drop it.
+        const scoped = {
+            zone: PICKS_GRAVEYARD_COUNT.zone,
+            filter: PICKS_GRAVEYARD_COUNT.filter,
+            picks: PICKS_GRAVEYARD_COUNT.picks,
+            times: PICKS_GRAVEYARD_COUNT.times,
+        };
         expect(
             validateEffectScript(
                 host({
