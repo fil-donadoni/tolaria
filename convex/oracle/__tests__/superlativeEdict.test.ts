@@ -238,6 +238,12 @@ describe("superlative edict — refusals (fail-closed, ADR 0105 § 2)", () => {
             "Target opponent sacrifices an attacking creature with the greatest power among attacking creatures they control.",
             "attacking creatures",
         ],
+        // …and the converse: the candidates are narrowed to attackers but the
+        // printed pool is every creature, which the engine would not rank.
+        [
+            "Target opponent sacrifices an attacking creature with the greatest power among creatures they control.",
+            "creatures they control",
+        ],
         // Power is a creature's characteristic; a pool that holds a planeswalker
         // has permanents with no power to rank (CR 208.1).
         [
