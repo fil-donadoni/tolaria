@@ -440,6 +440,15 @@ describe("divided damage — reaches ready", () => {
             ),
         ],
         [
+            "spell, X budget",
+            spell(
+                "Rolling Thunder",
+                "{X}{R}{R}",
+                "Sorcery",
+                "Rolling Thunder deals X damage divided as you choose among any number of targets."
+            ),
+        ],
+        [
             "activated ability",
             creature(
                 "Mogg Mob",

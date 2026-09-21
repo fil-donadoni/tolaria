@@ -2487,4 +2487,33 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             },
         },
     },
+    // CR 601.2d / 120.4 — the same division with an {X} budget. A distinct
+    // FORM from the fixed one above: the gate keys a smoke skip on the Op's
+    // skeleton (`opSkeleton`), and `total: "X"` is not `total: 3` — Arc
+    // Lightning's row clears the fixed budget only.
+    {
+        rule: "divided damage",
+        card: {
+            oracleId: "9c47888b-28a5-4c43-9ee4-a9059e3c367d",
+            name: "Rolling Thunder",
+            manaCost: "{X}{R}{R}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Rolling Thunder deals X damage divided as you choose among any number of targets.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Rolling Thunder",
+            types: ["Sorcery"],
+            manaCost: { X: "X", R: 2 },
+            oracleText:
+                "Rolling Thunder deals X damage divided as you choose among any number of targets.",
+            effects: [{ op: "dealDamageDividedAsChosen", total: "X" }],
+            targetRequirement: {
+                type: "any",
+                count: { min: 1 },
+                divideAsChosen: { total: "X" },
+            },
+        },
+    },
 ]);
