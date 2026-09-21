@@ -49016,6 +49016,16 @@
         "source": "compiled"
     },
     {
+        "name": "Symbiotic Deployment",
+        "scryfallId": "a6e2b7e9-d52b-478e-b118-e890a81fd471",
+        "oracleId": "a6872d7a-b647-4baf-bd1e-06707ccbb71a",
+        "firstSet": "apc",
+        "firstPrintId": "a6e2b7e9-d52b-478e-b118-e890a81fd471",
+        "firstPrintSet": "apc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Symbiotic Elf",
         "scryfallId": "33af35c6-7802-4366-ad20-1e330b4957ef",
         "oracleId": "cfaa0d5d-d9f1-4586-a7b1-6576a58c0f1e",
@@ -57540,6 +57550,16 @@
         "firstSet": "atq",
         "firstPrintId": "04bbd231-0d5f-4cbf-92a7-10d2c5c4b82c",
         "firstPrintSet": "atq"
+    },
+    {
+        "name": "Yawgmoth's Bargain",
+        "scryfallId": "86901bf2-7722-43f8-b879-7a30630371fa",
+        "oracleId": "f7f76f39-a0de-4bda-86b6-0f291892fcec",
+        "firstSet": "uds",
+        "firstPrintId": "86901bf2-7722-43f8-b879-7a30630371fa",
+        "firstPrintSet": "uds",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Yawgmoth's Will",
