@@ -801,6 +801,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Manacles of Decay",
+            "issue": 4356
+        },
+        {
+            "kind": "hand-tail",
             "key": "Mind Extraction",
             "issue": 4338
         },
