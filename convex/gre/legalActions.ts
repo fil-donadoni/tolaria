@@ -46,6 +46,9 @@ import {
     isSacrificeCandidateLegal,
 } from "./sacrificeChoice";
 import { getLegalTargets, pendingTargetingSource } from "./rules";
+// CR 601.2c — the single authority on "an effect says an object must be chosen
+// as a target" (Flagbearer), shared with the accepting mutation.
+import { computeRequiredTargetChoiceIds } from "./targetChoiceRequirements";
 import {
     combinations,
     enumerateMoves,
@@ -471,7 +474,16 @@ function targetActions(
             // authority the human path (`selectTarget`, `game.ts`) also calls.
             pt.selected
         );
-        for (const target of legal) {
+        // CR 601.2c — an effect saying an object MUST be chosen as a target
+        // (Flagbearer) narrows this pick. Derived live from the SAME function
+        // `applyOneTargetSelection` (`game.ts`) re-runs at acceptance, never
+        // read off `pt.requiredTargetChoiceIds`: the action space must offer
+        // exactly what the mutation accepts, and the carried field is the view.
+        const required = computeRequiredTargetChoiceIds(state, pt);
+        const offered = required
+            ? legal.filter((t) => required.includes(t.id))
+            : legal;
+        for (const target of offered) {
             actions.push(
                 wrap({
                     kind: "select-target",

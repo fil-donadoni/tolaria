@@ -147,6 +147,7 @@ export const STATIC_EFFECT_READS: Record<
     "cast-restriction": [],
     "cast-timing-lock": [],
     "cast-permission": [],
+    "target-choice-requirement": [],
 };
 
 /** CR 604.3 — the `StaticEffect` kinds that generate a CHARACTERISTIC-DEFINING

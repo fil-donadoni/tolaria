@@ -215,6 +215,42 @@ export function isUntargetableByPending(
     );
 }
 
+/** True if `candidateId` is barred from the pick being made right now by a
+ *  CR 601.2c target-choice requirement — "while an opponent is choosing targets
+ *  as part of casting a spell they control or activating an ability they
+ *  control, that player must choose at least one Flagbearer if able".
+ *
+ *  Reads the narrowed set the ENGINE published on the pending selection
+ *  (`PendingTarget.requiredTargetChoiceIds`, written by
+ *  `refreshRequiredTargetChoiceIds`, `convex/gre/targetChoiceRequirements.ts`)
+ *  rather than re-deriving the rule client-side: the narrowing depends on the
+ *  whole announcement — which slots are still to come, what earlier groups
+ *  already chose — so a second derivation here is a second implementation that
+ *  can disagree with the server's (ADR 0074 — the client is a view). Absent
+ *  field, the ordinary case, bars nothing.
+ *
+ *  Applies to EVERY surface the pick can land on: the list names permanents, so
+ *  while it is present a player nameplate and a stack item are barred too — a
+ *  Flagbearer must be chosen, and neither of those is one. */
+export function isBarredByRequiredTargetChoice(
+    pendingTarget: { requiredTargetChoiceIds?: string[] } | null | undefined,
+    candidateId: string,
+    /** Picks the chooser has already made that the server has NOT seen yet —
+     *  the client-buffered distribution of a divide-as-you-choose spell
+     *  (CR 601.2d), which submits as one batch on "Done". The published list
+     *  is recomputed only when a pick reaches the server, so without this the
+     *  narrowing would stand for the whole dialog and a Flagbearer on the
+     *  board would turn every divide spell into a single-target one. A buffered
+     *  pick that OBEYS the requirement satisfies it, exactly as a submitted one
+     *  would. */
+    obeyedIds?: readonly string[]
+): boolean {
+    const required = pendingTarget?.requiredTargetChoiceIds;
+    if (!required) return false;
+    if (obeyedIds?.some((id) => required.includes(id))) return false;
+    return !required.includes(candidateId);
+}
+
 /** True if `candidatePlayerId` is barred from being targeted by ANY
  *  spell/ability under an active player-scoped shroud guard (CR 702.18
  *  applied to a player via CR 115.4, CR 611). Used by the player-nameplate

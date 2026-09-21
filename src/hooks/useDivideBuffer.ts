@@ -24,6 +24,23 @@ import { extractMutationError, type MutationError } from "~/lib/mutation-error";
  *  validation instead of duplicating it. */
 type DivideEntry = { type: "permanent" | "player"; n: number };
 
+/** CR 601.2c — puts the picks a target-choice requirement demands at the head
+ *  of a batched submission. The server narrows only the pick it is currently
+ *  applying, so a batch that opens with an unrequired target is rejected on
+ *  its first entry even though the distribution as a whole obeys the rule. */
+function requiredFirst<T extends { targetId: string }>(
+    targets: T[],
+    requiredIds: string[] | undefined
+): T[] {
+    if (!requiredIds || requiredIds.length === 0) return targets;
+    const required = targets.filter((t) => requiredIds.includes(t.targetId));
+    if (required.length === 0) return targets;
+    return [
+        ...required,
+        ...targets.filter((t) => !requiredIds.includes(t.targetId)),
+    ];
+}
+
 export type DivideBuffer = {
     /** True while THIS viewer is assigning a divide split (set by the board,
      *  which knows the viewer; the raw state hook reports the spell-level
@@ -42,6 +59,12 @@ export type DivideBuffer = {
     remaining: number;
     /** Points currently assigned to `id` (0 if none). */
     get: (id: string) => number;
+    /** Every target the buffer currently assigns points to. CR 601.2c reads
+     *  these as picks ALREADY made: nothing is submitted until "Done", so a
+     *  target-choice requirement obeyed inside the buffer must open the rest
+     *  of the distribution up, or a Flagbearer on the board would make every
+     *  divide spell a single-target one. */
+    assignedIds: string[];
     /** Add one point to `id` (no-op when the budget is spent). `type`
      *  distinguishes a battlefield permanent from a player target so the
      *  finalizing `selectTarget` uses the right `targetType`. */
@@ -86,6 +109,7 @@ const INERT_DIVIDE: DivideBuffer = {
     sum: 0,
     remaining: 0,
     get: () => 0,
+    assignedIds: [],
     inc: () => {},
     dec: () => {},
     canSubmit: false,
@@ -178,11 +202,23 @@ export function useDivideBufferState(args: {
             await selectTargets({
                 gameId,
                 playerId: pendingTarget.playerId,
-                targets: Object.entries(buffer).map(([id, entry]) => ({
-                    targetType: entry.type,
-                    targetId: id,
-                    amount: entry.n,
-                })),
+                // CR 601.2c (issue #3805) — the server applies the batch IN
+                // ORDER and narrows the first pick to the objects a
+                // target-choice requirement demands (Flagbearer), so a
+                // required target must lead. Order carries no meaning for a
+                // divided effect — CR 601.2d has the player announce the
+                // division and each target receive at least one of whatever is
+                // divided, so every entry names its own share — which is why
+                // this reordering is free here and would not be on a
+                // positional announcement.
+                targets: requiredFirst(
+                    Object.entries(buffer).map(([id, entry]) => ({
+                        targetType: entry.type,
+                        targetId: id,
+                        amount: entry.n,
+                    })),
+                    pendingTarget.requiredTargetChoiceIds
+                ),
             });
         } catch (e) {
             setLastError(extractMutationError(e));
@@ -200,6 +236,7 @@ export function useDivideBufferState(args: {
         sum,
         remaining,
         get,
+        assignedIds: Object.keys(buffer),
         inc,
         dec,
         canSubmit,

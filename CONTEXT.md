@@ -487,6 +487,10 @@ _Avoid_: Snapshot (that is the storage mechanism, not the rule), stale state, ca
 **Target**:
 A specific **Permanent**, **Player**, or **Spell** chosen during **Casting** that the effect will apply to.
 
+**Target Choice Requirement**:
+A **Continuous** effect that says an object MUST be chosen as a **Target** — "while an opponent is choosing targets as part of casting a spell they control or activating an ability they control, that player must choose at least one Flagbearer on the battlefield if able" (CR 601.2c, the Flagbearer cycle). It never makes a **Target** illegal; it narrows which of the legal ones may be chosen, and only once the choice can no longer be deferred to a later slot or a later **Target** group — so it is the exact mirror of a "can't be the target of" guard, which subtracts candidates outright. Obeyed "if able": a requirement no legal candidate answers narrows nothing. Binds a **Cast** and an **Activated Ability** announcement only, never a **Triggered Ability** choosing its targets nor a retarget of something already on the **Stack**.
+_Avoid_: Forced target (names the outcome, not the rule), lure (that is a block requirement), taunt
+
 **Spell Copy**:
 A **Stack Item** created by copying another spell on the **Stack** (CR 707.10, e.g. Fork). It is not a real card: it carries `isCopy`, inherits the original's resolve/targets/X, may be given a different color via `colorOverride`, and ceases to exist after resolving instead of going to a **Graveyard**. The copy's controller _may_ choose new targets for it (a **Copy-Retarget** target selection).
 _Avoid_: Token spell, duplicate

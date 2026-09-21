@@ -3,7 +3,10 @@ import {
     matchesPlayerTargetFilters,
     wantsPlayerTarget,
 } from "~/lib/card-utils";
-import { isPlayerUntargetableByPending } from "~/lib/targeting";
+import {
+    isBarredByRequiredTargetChoice,
+    isPlayerUntargetableByPending,
+} from "~/lib/targeting";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import { useDivideBuffer } from "~/hooks/useDivideBuffer";
@@ -144,7 +147,11 @@ export function usePlayerInteraction(player: Player): PlayerInteraction {
             allPlayers,
             player.id,
             playerProtectionFromEverything
-        );
+        ) &&
+        // CR 601.2c — while a target-choice requirement binds this pick
+        // (Flagbearer), the chooser must choose one of the permanents the
+        // engine narrowed to, so no nameplate is a legal click.
+        !isBarredByRequiredTargetChoice(pendingTarget, player.id);
 
     // Mid-resolution "any target of an opponent's choice" (CR 115.4 / 608.2,
     // Cuombajj Witches). The chooser (viewer == choice.playerId) may pick a

@@ -8856,6 +8856,22 @@
         "firstPrintSet": "drk"
     },
     {
+        "name": "Coalition Flag",
+        "scryfallId": "0e417461-a230-4548-bcc1-71377487f21b",
+        "oracleId": "b45a0a2f-39fd-47b9-bc9d-3d4321b377d3",
+        "firstSet": "apc",
+        "firstPrintId": "0e417461-a230-4548-bcc1-71377487f21b",
+        "firstPrintSet": "apc"
+    },
+    {
+        "name": "Coalition Honor Guard",
+        "scryfallId": "c5b7be3e-b4af-46d4-bcc6-b44c651f2012",
+        "oracleId": "c95cebf7-c28c-4453-b5e4-e895d621f290",
+        "firstSet": "apc",
+        "firstPrintId": "c5b7be3e-b4af-46d4-bcc6-b44c651f2012",
+        "firstPrintSet": "apc"
+    },
+    {
         "name": "Coalition Victory",
         "scryfallId": "dd8ad3aa-3225-45ae-8343-5991f5b52269",
         "oracleId": "e9e25800-9ee7-40c9-b22d-611c7281c125",
@@ -47112,6 +47128,14 @@
         "firstPrintSet": "sos",
         "rarity": "uncommon",
         "source": "compiled"
+    },
+    {
+        "name": "Standard Bearer",
+        "scryfallId": "e0f8e16a-55f0-4147-a01a-dba7938f31c4",
+        "oracleId": "1d6e9716-8c3c-443d-afd8-68d0d6c469a5",
+        "firstSet": "apc",
+        "firstPrintId": "e0f8e16a-55f0-4147-a01a-dba7938f31c4",
+        "firstPrintSet": "apc"
     },
     {
         "name": "Standing Stones",

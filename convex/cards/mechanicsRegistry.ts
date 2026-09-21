@@ -70,6 +70,15 @@ export type MechanicKind =
      *  word it carries real rules meaning of its own (a CR 601 clause). See
      *  `CAST_RIDERS`. */
     | "cast-rider"
+    /** A named RULES-MODIFYING continuous effect (CR 611.3) that is neither a
+     *  CR 701 keyword action nor a CR 702 keyword ability: printed text that
+     *  changes how the RULES of the game work for a class of actions, modelled
+     *  as a `StaticEffect` kind the engine branches on. Censused for the same
+     *  reason `cast-rider` is — the registry is the single NAME authority for
+     *  the `StaticEffect` kinds — and, like an ability word, it never appears
+     *  in `staticAbilities[]`, so the name-authority guard never checks a card
+     *  against one. See `RULES_MODIFIERS`. */
+    | "rules-modifier"
     /** CR 207.2c — an ITALIC ability word: purely organizational text with NO
      *  independent rules meaning of its own (unlike a CR 702 keyword ability,
      *  an ability word never appears in a card's `staticAbilities[]` and the
@@ -2701,12 +2710,31 @@ const CAST_RIDERS: MechanicRow[] = [
     },
 ];
 
+/** CR 611.3 rules-modifying continuous effects the engine branches on through
+ *  a dedicated `StaticEffect` kind, with no CR 701/702 keyword name of their
+ *  own. Same bar as `CAST_RIDERS`: a row exists so the registry can be the
+ *  NAME authority for the kind — a card-specific one-off modelled as a
+ *  `staticAbilities` string belongs in `ENGINE_INTERNAL_MARKERS` instead. */
+const RULES_MODIFIERS: MechanicRow[] = [
+    {
+        id: "target-choice-requirement",
+        name: "Target Choice Requirement",
+        kind: "rules-modifier",
+        cr: "601.2c",
+        status: "implemented",
+        binding:
+            'StaticEffect kind "target-choice-requirement" (cards/types.ts) + gre/targetChoiceRequirements.ts (activeTargetChoiceRequirements / computeRequiredTargetChoiceIds / groupPicksObeyTargetChoice / requirementGroupCanSatisfy / refreshRequiredTargetChoiceIds) + convex/game.ts (applyOneTargetSelection, announceCast) + gre/activation.ts + gre/moves.ts + gre/legalActions.ts + src/lib/targeting.ts (isBarredByRequiredTargetChoice)',
+        note: 'CR 601.2c: "If any effects say that an object or player must be chosen as a target, the player chooses targets so that they obey the maximum possible number of such effects without violating any rules or effects that say that an object or player can\'t be chosen as a target." The POSITIVE twin of the `permanent-guard` static\'s `cantBeTargeted` clause, and read on the same live-query model (CR 611). Shipped by the Flagbearer cycle (APC, issue #3805) — Standard Bearer, Coalition Honor Guard and Coalition Flag: "While an opponent is choosing targets as part of casting a spell they control or activating an ability they control, that player must choose at least one Flagbearer on the battlefield if able." Declarative, never card-shaped: the clause names the satisfying objects with a `PermanentFilter` matched by the engine\'s single `matchesPermanentFilter` authority, so a creature that is a Flagbearer only because of an Aura (Coalition Flag\'s layer-4 `subtype-add`) answers it exactly like a printed one, and the `binds` scope is a field rather than a second kind. Scope is CR 601.2c\'s own wording — a CAST or an ABILITY activation; a trigger choosing its targets (CR 603.3d) and a retarget of a spell already on the stack (CR 115.7 / 707.10c) are not casting or activating and stay free. The narrowing is DEFERRED while the announcement still owes slots that could take a satisfying object (picking a non-satisfier never removes a satisfier from a later slot), so it bites on the last slot that can obey — and "if able" falls out of the same arithmetic: a requirement no legal candidate satisfies narrows nothing. Server-authoritative: `applyOneTargetSelection` re-derives it per pick, while `PendingTarget.requiredTargetChoiceIds` carries the same derivation to the client and the Bot as a VIEW (ADR 0074).',
+    },
+];
+
 export const MECHANICS_REGISTRY: MechanicRow[] = [
     ...KEYWORD_ACTIONS,
     ...KEYWORD_ABILITIES,
     ...ABILITY_WORDS,
     ...SET_KEYWORDS,
     ...CAST_RIDERS,
+    ...RULES_MODIFIERS,
 ];
 
 /** Engine-internal `staticAbilities` markers that are NOT CR 701/702

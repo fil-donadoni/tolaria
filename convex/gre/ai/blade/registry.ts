@@ -7895,6 +7895,58 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "CR 702.47 splice reachability, and the end-to-end cover for the splice seam in `enumerateCastMoves` plus the `splicedCardIds` stamp in BOTH search sandboxes (`applyMove.ts`, `search.ts`) — the deterministic halves are in `spliceBot.bot.test.ts`. Proof-of-failure: dropping the `spliceAugmentedDefinition` call in `moves.ts` (back to the printed definition) reds this at every seed — the bot hard-casts Through the Breach.",
     },
+    {
+        // FORCED TARGET CHOICE (CR 601.2c, issue #3805). The opponent controls
+        // Standard Bearer, a 1/1 Flagbearer: "while an opponent is choosing
+        // targets as part of casting a spell they control …, that player must
+        // choose at least one Flagbearer on the battlefield if able".
+        //
+        // The position is chosen so that the requirement COSTS the bot the
+        // game it would otherwise win: the opponent is at 3, Lightning Bolt is
+        // in hand, one Mountain is untapped — bolting the face is lethal and
+        // the search's terminal band dominates everything else, so an
+        // enumerator that still offers that target picks it at every seed and
+        // every budget. It is not a preference the evaluator could be taught
+        // out of; the only thing that removes the move is the LEGALITY
+        // narrowing in `enumerateTargetGroupTuples` (`gre/moves.ts`), which
+        // reads the same `targetChoiceRequirements.ts` authority the mutation
+        // re-derives per pick.
+        //
+        // That makes it a Bot-REACHABILITY entry in the strict sense: without
+        // it the bot enumerates a move `selectTargets` throws on half-way
+        // through, and a rejected submission freezes the bot exactly as hard
+        // as no submission at all.
+        label: "flagbearer: cannot bolt the face for lethal past a Standard Bearer",
+        spec: {
+            cards: [
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                {
+                    name: "Standard Bearer",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+            ],
+            life: { opp: 3 },
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        // `forbidden`, not `moves`: the claim is a LEGALITY one — whatever the
+        // bot does, it may not be that — and the alternative it is left with
+        // (bolt the Flagbearer, or hold the card) carries no preference this
+        // entry wants to feed the weight fit.
+        expect: {
+            forbidden: [
+                { kind: "cast-spell", card: "Lightning Bolt", target: "opp" },
+            ],
+        },
+        note: "CR 601.2c forced target choice. Proof-of-failure: dropping the `groupPicksObeyTargetChoice` gate in `enumerateTargetGroupTuples` (`gre/moves.ts`) reds this at every seed — the bot bolts the opponent's face for the win, a move `applyOneTargetSelection` rejects. Issue #3805.",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the

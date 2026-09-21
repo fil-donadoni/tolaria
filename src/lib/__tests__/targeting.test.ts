@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import {
+    isBarredByRequiredTargetChoice,
     isUntargetableByPending,
     isPlayerUntargetableByPending,
 } from "../targeting";
+import { refreshRequiredTargetChoiceIds } from "@convex/gre/targetChoiceRequirements";
 import type { CardInstance, Player, StackItem } from "~/types/game";
 import { registerTokenDefinition } from "@convex/cards";
 import type { CardDefinition } from "@convex/cards/types";
@@ -711,5 +713,129 @@ describe("CR 702.16a — client parity for protection from coloured spells (#229
         const v = verdicts(castPendingTarget("bolt"), "bystander");
         expect(v.serverBars).toBe(false);
         expect(v.clientBars).toBe(v.serverBars);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// CR 601.2c — "must choose at least one Flagbearer if able" (issue #3805):
+// client parity for a FORCED target choice
+// ─────────────────────────────────────────────────────────────────────────
+//
+// The mirror image of every block above: those bar a target, this one bars
+// everything EXCEPT a target. Same Phelia risk (ADR 0068) and the same shape
+// of answer — both verdicts asserted against ONE board, the client's from the
+// real helper fed off the REAL wire projection, the server's from the real
+// accepted-set function `selectTarget` calls.
+//
+// The narrowed id list is never hand-written here: `refreshRequiredTargetChoiceIds`
+// (the engine function the cast mutation calls) computes it, so a test that
+// passed with the derivation broken would have to break the engine too.
+
+describe("CR 601.2c — client parity for a forced target choice (#3805)", () => {
+    const BOLT_ID = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a"; // red Instant
+    const STANDARD_BEARER_ID = "e0f8e16a-55f0-4147-a01a-dba7938f31c4";
+
+    /** p1 controls the Flagbearer plus a juicier 2/2; p2 (the chooser) holds
+     *  the Bolt. Returns the FAT state and its WIRE projection. */
+    function board() {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(STANDARD_BEARER_ID, {
+                            id: "bearer",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                        makeInstance(GRIZZLY_BEARS_ID, {
+                            id: "bears",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    hand: [
+                        makeInstance(BOLT_ID, {
+                            id: "bolt",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+            ],
+            pendingTarget: {
+                playerId: "p2",
+                cardInstanceId: "bolt",
+                targetType: "Creature",
+                count: { min: 1, max: 3 },
+                selected: [],
+            },
+        });
+        // The ENGINE's own derivation, not a literal: this is the call
+        // `announceCast` makes the moment the selection opens.
+        refreshRequiredTargetChoiceIds(state, state.pendingTarget!);
+        return { state, projected: projectPublicState(state, 1, "p2") };
+    }
+
+    function verdicts(targetId: string) {
+        const { state, projected } = board();
+        const clientBars = isBarredByRequiredTargetChoice(
+            projected.pendingTarget,
+            targetId
+        );
+        let serverBars = false;
+        try {
+            applyOneTargetSelection(state, "p2", {
+                targetType: "permanent",
+                targetId,
+            });
+        } catch (e) {
+            serverBars = /must choose a permanent an effect requires/.test(
+                (e as Error).message
+            );
+        }
+        return { clientBars, serverBars };
+    }
+
+    it("MUST — bars the 2/2 on both sides while a Flagbearer is targetable", () => {
+        const v = verdicts("bears");
+        expect(v.serverBars).toBe(true);
+        expect(v.clientBars).toBe(v.serverBars);
+    });
+
+    it("must-NOT — leaves the Flagbearer itself clickable", () => {
+        const v = verdicts("bearer");
+        expect(v.serverBars).toBe(false);
+        expect(v.clientBars).toBe(v.serverBars);
+    });
+
+    it("stops barring once a BUFFERED pick already obeys it (divide, CR 601.2d)", () => {
+        const { projected } = board();
+        // A divide-as-you-choose distribution is buffered client-side until
+        // "Done", so the server's published narrowing still reads [bearer]
+        // while the chooser dials the rest of the damage. Once the Flagbearer
+        // is among the buffered picks the requirement is obeyed and the other
+        // targets have to open up — otherwise a Flagbearer on the board turns
+        // every divide spell into a single-target one.
+        expect(
+            isBarredByRequiredTargetChoice(projected.pendingTarget, "bears", [
+                "bearer",
+            ])
+        ).toBe(false);
+        // …and a buffer that does NOT obey it changes nothing.
+        expect(
+            isBarredByRequiredTargetChoice(projected.pendingTarget, "bears", [
+                "bears",
+            ])
+        ).toBe(true);
+    });
+
+    it("bars the opposing PLAYER's nameplate too (the list names permanents)", () => {
+        const { projected } = board();
+        expect(
+            isBarredByRequiredTargetChoice(projected.pendingTarget, "p1")
+        ).toBe(true);
     });
 });
