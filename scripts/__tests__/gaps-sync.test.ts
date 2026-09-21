@@ -1086,6 +1086,26 @@ describe("the grammar kind files fragment gaps of enforced Targets, and the clai
         ).toEqual([]);
     });
 
+    it("skips a card that is not `unparsed` — a ready or quarantined card owes no grammar claim", () => {
+        const mixed = {
+            fragments: lock.fragments,
+            cards: [
+                unparsed("w-1", "Wide One", [0], ["premodern"]),
+                {
+                    ...unparsed("w-2", "Wide Ready", [0], ["premodern"]),
+                    state: "ready" as const,
+                    opsUsed: [],
+                },
+                unparsed("w-3", "Wide Three", [0], ["vintage"]),
+                ...FILLER,
+            ],
+        };
+        const filings = buildFragmentGapFilings(
+            inputs(mixed, { enforced: new Set(["w-2"]) })
+        );
+        expect(filings).toEqual([]);
+    });
+
     it("the claim is a `claims` row of kind `grammar` — and it moves the card out of `unclaimed`", () => {
         const tracker = new StubTracker();
         const result = syncGaps(

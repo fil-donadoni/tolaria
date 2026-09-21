@@ -608,12 +608,17 @@ function main(): void {
                     ? "(outside every `enforced` Target, issue #4219)"
                     : "(data/targets.json `handTailFiling`: false)")
         );
-        const marked = compilerGapCards(root);
-        for (const held of handTailHeld.filter((f) => marked.has(f.key))) {
-            console.log(
-                `hand-tail  ${held.key} — its \`compiler-gap:\` marker names a gap now below the floor; flip it to \`hand-tail:\``
-            );
-        }
+    }
+    // Held AND filed cards alike: an enforced card with a stale marker is in
+    // `filings`, and the nudge is exactly what its closing PR needs.
+    const marked = compilerGapCards(root);
+    for (const f of [
+        ...handTailHeld,
+        ...filings.filter((f) => f.kind === "hand-tail"),
+    ].filter((f) => marked.has(f.key))) {
+        console.log(
+            `hand-tail  ${f.key} — its \`compiler-gap:\` marker names a gap now below the floor; flip it to \`hand-tail:\``
+        );
     }
     for (const stale of staleClaims(filed, filings)) {
         console.log(
