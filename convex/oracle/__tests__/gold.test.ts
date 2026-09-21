@@ -147,7 +147,17 @@ describe("gold round-trip — precision", () => {
         // The two encodings of "you may" differ on purpose (an up-to-one target
         // there, a `mayPay` gate here), which is why a structural comparison
         // cannot call them equal either way.
-        expect(REPORT.incomparable.length).toBeLessThan(19);
+        //
+        // 18 -> 24 by issue #4303 ("Enchanted creature" on an Aura's own
+        // activated ability): six hand-written Aura pumps (Armor of Faith,
+        // Blessing, Crown of Flames, Firebreathing, Holy Armor, Stonehands)
+        // now compile to a `$host` pump while their hand-written side is a
+        // `resolve()` closure reading `getAttachedTo` — the same move the
+        // entries above made, out of "the compiler refuses it" and into this
+        // bucket. Their closures are the migration `docs/findings/1701-*`
+        // describes (`{ ref: "$host" }` is already a legal selector), and
+        // `bun run oracle:behavioural` is what retires them.
+        expect(REPORT.incomparable.length).toBeLessThan(25);
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");
