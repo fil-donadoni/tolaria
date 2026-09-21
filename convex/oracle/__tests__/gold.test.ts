@@ -138,7 +138,16 @@ describe("gold round-trip — precision", () => {
         // compiler now reads whole while the hand-written side's body is a
         // closure — the same move Multani's Harmony and Sisay's Ingenuity made
         // above, out of "the compiler refuses it" and into this bucket.
-        expect(REPORT.incomparable.length).toBeLessThan(18);
+        //
+        // 18 -> 19 by issue #4299 (reanimation): Reya Dawnbringer's upkeep
+        // trigger ("you may return target creature card from your graveyard to
+        // the battlefield") is now compiled, and its hand-written side is a
+        // `phaseTrigger` whose `matches` is a closure — the same move as the
+        // two above, out of "the compiler refuses it" and into this bucket.
+        // The two encodings of "you may" differ on purpose (an up-to-one target
+        // there, a `mayPay` gate here), which is why a structural comparison
+        // cannot call them equal either way.
+        expect(REPORT.incomparable.length).toBeLessThan(19);
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");

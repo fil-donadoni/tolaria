@@ -4742,6 +4742,59 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Whisper, Blood Liturgist",
+        "types": [
+            "Creature"
+        ],
+        "supertypes": [
+            "Legendary"
+        ],
+        "subtypes": [
+            "Human",
+            "Cleric"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{T}, Sacrifice two creatures: Return target creature card from your graveyard to the battlefield.",
+        "activatedAbilities": [
+            {
+                "id": "whisper-blood-liturgist-ability",
+                "oracleText": "{T}, Sacrifice two creatures: Return target creature card from your graveyard to the battlefield.",
+                "cost": {
+                    "tap": true,
+                    "sacrificeFilter": {
+                        "types": [
+                            "Creature"
+                        ]
+                    },
+                    "sacrificeFilterCount": 2
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "battlefield"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                }
+            }
+        ],
+        "id": "0647feeb-ad7a-40c7-830f-f307ba8339ad",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Crystalline Sliver",
         "types": [
             "Creature"
@@ -17452,6 +17505,77 @@
         "rarity": "common"
     },
     {
+        "name": "Scarecrone",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Scarecrow"
+        ],
+        "manaCost": {
+            "X": 3
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "{1}, Sacrifice a Scarecrow: Draw a card.\n{4}, {T}: Return target artifact creature card from your graveyard to the battlefield.",
+        "activatedAbilities": [
+            {
+                "id": "scarecrone-ability",
+                "oracleText": "{1}, Sacrifice a Scarecrow: Draw a card.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "sacrificeFilter": {
+                        "subtypes": [
+                            "Scarecrow"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            },
+            {
+                "id": "scarecrone-ability-2",
+                "oracleText": "{4}, {T}: Return target artifact creature card from your graveyard to the battlefield.",
+                "cost": {
+                    "mana": {
+                        "X": 4
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "battlefield"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": [
+                        "Artifact",
+                        "Creature"
+                    ],
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                }
+            }
+        ],
+        "id": "1978400d-a8f1-4df7-8caf-b9ca81334bce",
+        "rarity": "rare"
+    },
+    {
         "name": "Lotus Path Djinn",
         "types": [
             "Creature"
@@ -26432,6 +26556,49 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Protomatter Powder",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1
+        },
+        "oracleText": "{4}{W}, {T}, Sacrifice this artifact: Return target artifact card from your graveyard to the battlefield.",
+        "activatedAbilities": [
+            {
+                "id": "protomatter-powder-ability",
+                "oracleText": "{4}{W}, {T}, Sacrifice this artifact: Return target artifact card from your graveyard to the battlefield.",
+                "cost": {
+                    "mana": {
+                        "X": 4,
+                        "W": 1
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "battlefield"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Artifact",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                }
+            }
+        ],
+        "id": "273e2198-5549-4e82-8580-8769284d729d",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Nurturing Peatland",
         "types": [
             "Land"
@@ -26636,6 +26803,38 @@
         "toughness": 1,
         "id": "2786834d-dbda-40ce-82a4-e518cd554312",
         "rarity": "common"
+    },
+    {
+        "name": "Unburial Rites",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 4,
+            "B": 1
+        },
+        "oracleText": "Return target creature card from your graveyard to the battlefield.\nFlashback {3}{W} (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "battlefield"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "flashback": {
+            "X": 3,
+            "W": 1
+        },
+        "id": "2794c82b-e5ce-4369-894e-bf56c6402ae1",
+        "rarity": "uncommon"
     },
     {
         "name": "Serra's Blessing",
@@ -39262,6 +39461,39 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Emerge from the Cocoon",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 4,
+            "W": 1
+        },
+        "oracleText": "Return target creature card from your graveyard to the battlefield. You gain 3 life.",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "battlefield"
+            },
+            {
+                "op": "gainLife",
+                "player": "controller",
+                "amount": 3
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "id": "3ba16fbf-2d44-4337-87cb-6ff6b84a258a",
+        "rarity": "common"
+    },
+    {
         "name": "Hashep Oasis",
         "types": [
             "Land"
@@ -39879,6 +40111,55 @@
         "rarity": "common"
     },
     {
+        "name": "Doomed Necromancer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Cleric",
+            "Mercenary"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{B}, {T}, Sacrifice this creature: Return target creature card from your graveyard to the battlefield.",
+        "activatedAbilities": [
+            {
+                "id": "doomed-necromancer-ability",
+                "oracleText": "{B}, {T}, Sacrifice this creature: Return target creature card from your graveyard to the battlefield.",
+                "cost": {
+                    "mana": {
+                        "B": 1
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "battlefield"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                }
+            }
+        ],
+        "id": "3ca3e348-47cc-41d6-999a-60d1206aaf06",
+        "rarity": "rare"
+    },
+    {
         "name": "Tangle Spider",
         "types": [
             "Creature"
@@ -40291,6 +40572,69 @@
         ],
         "id": "3d6498d3-bf1f-4bf1-a602-7c21fb44c106",
         "rarity": "common"
+    },
+    {
+        "name": "Bishop of Rebirth",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Vampire",
+            "Cleric"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 2
+        },
+        "power": 3,
+        "toughness": 4,
+        "oracleText": "Vigilance\nWhenever this creature attacks, you may return target creature card with mana value 3 or less from your graveyard to the battlefield.",
+        "staticAbilities": [
+            "vigilance"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "bishop-of-rebirth-trigger",
+                "oracleText": "Whenever this creature attacks, you may return target creature card with mana value 3 or less from your graveyard to the battlefield.",
+                "head": {
+                    "kind": "attacks"
+                },
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "mvFilter": {
+                        "max": 3
+                    },
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Return target creature card with mana value 3 or less from your graveyard to the battlefield?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "moveZone",
+                                "target": {
+                                    "target": 0
+                                },
+                                "to": "battlefield"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "3d654bec-4eb2-4df6-b71e-ce59a718f903",
+        "rarity": "rare"
     },
     {
         "name": "Scrounger of Souls",
@@ -48555,6 +48899,123 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Ghen, Arcanum Weaver",
+        "types": [
+            "Creature"
+        ],
+        "supertypes": [
+            "Legendary"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "W": 1,
+            "B": 1,
+            "R": 1
+        },
+        "power": 2,
+        "toughness": 3,
+        "oracleText": "{R}{W}{B}, {T}, Sacrifice an enchantment: Return target enchantment card from your graveyard to the battlefield.",
+        "activatedAbilities": [
+            {
+                "id": "ghen-arcanum-weaver-ability",
+                "oracleText": "{R}{W}{B}, {T}, Sacrifice an enchantment: Return target enchantment card from your graveyard to the battlefield.",
+                "cost": {
+                    "mana": {
+                        "W": 1,
+                        "B": 1,
+                        "R": 1
+                    },
+                    "tap": true,
+                    "sacrificeFilter": {
+                        "types": [
+                            "Enchantment"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "battlefield"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Enchantment",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                }
+            }
+        ],
+        "id": "4b335496-05d2-40f5-a52c-10029f7fa008",
+        "rarity": "rare"
+    },
+    {
+        "name": "Silent Sentinel",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Archon"
+        ],
+        "manaCost": {
+            "X": 5,
+            "W": 2
+        },
+        "power": 4,
+        "toughness": 6,
+        "oracleText": "Flying\nWhenever this creature attacks, you may return target enchantment card from your graveyard to the battlefield.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "silent-sentinel-trigger",
+                "oracleText": "Whenever this creature attacks, you may return target enchantment card from your graveyard to the battlefield.",
+                "head": {
+                    "kind": "attacks"
+                },
+                "targetRequirement": {
+                    "type": "Enchantment",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Return target enchantment card from your graveyard to the battlefield?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "moveZone",
+                                "target": {
+                                    "target": 0
+                                },
+                                "to": "battlefield"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "4b3d1c04-4094-4d9f-af4d-b5593b7b58d2",
+        "rarity": "rare"
+    },
+    {
         "name": "Shadowcloak Vampire",
         "types": [
             "Creature"
@@ -51640,6 +52101,34 @@
             }
         ],
         "id": "5129b422-7a35-4bc5-b14b-c814012a0d8f",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Zombify",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "oracleText": "Return target creature card from your graveyard to the battlefield.",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "battlefield"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "id": "513a2a6f-9ae6-42cb-b75f-6b45fc35f36e",
         "rarity": "uncommon"
     },
     {
@@ -58463,6 +58952,34 @@
         "rarity": "common"
     },
     {
+        "name": "False Defeat",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "oracleText": "Return target creature card from your graveyard to the battlefield.",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "battlefield"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "id": "5ca71ce3-8633-428a-8d9e-9b807b77a8e2",
+        "rarity": "common"
+    },
+    {
         "name": "Dakmor Ghoul",
         "types": [
             "Creature"
@@ -64499,6 +65016,34 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Rise Again",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 4,
+            "B": 1
+        },
+        "oracleText": "Return target creature card from your graveyard to the battlefield.",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "battlefield"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "id": "660ec88f-2063-404a-853e-c985e21d17b0",
+        "rarity": "common"
+    },
+    {
         "name": "Wurmweaver Coil",
         "types": [
             "Enchantment"
@@ -67226,6 +67771,63 @@
             }
         ],
         "id": "69db0298-f6d5-450f-add3-a28c0a43f33f",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Quarry Beetle",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Insect"
+        ],
+        "manaCost": {
+            "X": 4,
+            "G": 1
+        },
+        "power": 4,
+        "toughness": 5,
+        "oracleText": "When this creature enters, you may return target land card from your graveyard to the battlefield.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "quarry-beetle-trigger",
+                "oracleText": "When this creature enters, you may return target land card from your graveyard to the battlefield.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": "Land",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Return target land card from your graveyard to the battlefield?",
+                        "bind": "$may1"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may1"
+                        },
+                        "then": [
+                            {
+                                "op": "moveZone",
+                                "target": {
+                                    "target": 0
+                                },
+                                "to": "battlefield"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "69e11478-bfc7-4bcc-b65c-dc2d4449e99f",
         "rarity": "uncommon"
     },
     {
@@ -82677,6 +83279,67 @@
         "rarity": "rare"
     },
     {
+        "name": "Resistance Is Futile",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Choose one —\n• Destroy target nonartifact creature.\n• Return target artifact creature card with mana value 3 or less from your graveyard to the battlefield.",
+        "modes": [
+            {
+                "id": "resistance-is-futile-mode-1",
+                "label": "Destroy target nonartifact creature",
+                "oracleText": "Destroy target nonartifact creature.",
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "excludeTypes": [
+                        "Artifact"
+                    ]
+                }
+            },
+            {
+                "id": "resistance-is-futile-mode-2",
+                "label": "Return target artifact creature card with mana value 3 or less from your graveyard to the battlefield",
+                "oracleText": "Return target artifact creature card with mana value 3 or less from your graveyard to the battlefield.",
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "battlefield"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": [
+                        "Artifact",
+                        "Creature"
+                    ],
+                    "count": 1,
+                    "mvFilter": {
+                        "max": 3
+                    },
+                    "zone": "graveyard",
+                    "controller": "you"
+                }
+            }
+        ],
+        "id": "81d88257-466d-4729-862f-591885b3d875",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Ebony Rhino",
         "types": [
             "Artifact",
@@ -85866,6 +86529,52 @@
         "rarity": "common"
     },
     {
+        "name": "Strands of Night",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 2
+        },
+        "oracleText": "{B}{B}, Pay 2 life, Sacrifice a Swamp: Return target creature card from your graveyard to the battlefield.",
+        "activatedAbilities": [
+            {
+                "id": "strands-of-night-ability",
+                "oracleText": "{B}{B}, Pay 2 life, Sacrifice a Swamp: Return target creature card from your graveyard to the battlefield.",
+                "cost": {
+                    "mana": {
+                        "B": 2
+                    },
+                    "life": 2,
+                    "sacrificeFilter": {
+                        "subtypes": [
+                            "Swamp"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "battlefield"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                }
+            }
+        ],
+        "id": "872ef62f-e119-470b-b212-9beb48469095",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Ravine Raider",
         "types": [
             "Creature"
@@ -86362,6 +87071,55 @@
         ],
         "id": "87e24788-cc7c-4f5d-84d8-dcb35e10626f",
         "rarity": "common"
+    },
+    {
+        "name": "Bonecaller Cleric",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Cleric"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "{3}{B}, Sacrifice this creature: Return target creature card from your graveyard to the battlefield. Activate only as a sorcery.",
+        "activatedAbilities": [
+            {
+                "id": "bonecaller-cleric-ability",
+                "oracleText": "{3}{B}, Sacrifice this creature: Return target creature card from your graveyard to the battlefield. Activate only as a sorcery.",
+                "cost": {
+                    "mana": {
+                        "X": 3,
+                        "B": 1
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "battlefield"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "sorcerySpeedOnly": true
+            }
+        ],
+        "id": "87f411d0-c796-443f-b957-c632aa23deb0",
+        "rarity": "uncommon"
     },
     {
         "name": "Anticipate",
@@ -97863,6 +98621,54 @@
         "rarity": "common"
     },
     {
+        "name": "Valgavoth's Faithful",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Cleric"
+        ],
+        "manaCost": {
+            "B": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{3}{B}, Sacrifice this creature: Return target creature card from your graveyard to the battlefield. Activate only as a sorcery.",
+        "activatedAbilities": [
+            {
+                "id": "valgavoth-s-faithful-ability",
+                "oracleText": "{3}{B}, Sacrifice this creature: Return target creature card from your graveyard to the battlefield. Activate only as a sorcery.",
+                "cost": {
+                    "mana": {
+                        "X": 3,
+                        "B": 1
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "battlefield"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "sorcerySpeedOnly": true
+            }
+        ],
+        "id": "995194a0-ceb7-48c2-be5d-a208b3971e77",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Gohn, Town of Ruin",
         "types": [
             "Land"
@@ -101481,6 +102287,34 @@
         ],
         "id": "9f17b58c-9738-4cdb-a408-e1595c384b92",
         "rarity": "common"
+    },
+    {
+        "name": "Argivian Restoration",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 2
+        },
+        "oracleText": "Return target artifact card from your graveyard to the battlefield.",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "battlefield"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Artifact",
+            "count": 1,
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "id": "9f1a9d35-1b2a-44a2-9bbc-8529a7487905",
+        "rarity": "uncommon"
     },
     {
         "name": "Command Decision",
@@ -121211,6 +122045,34 @@
         "rarity": "common"
     },
     {
+        "name": "Breath of Life",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "oracleText": "Return target creature card from your graveyard to the battlefield.",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "battlefield"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "id": "bcea5e09-6385-41df-970b-ac26c9b46127",
+        "rarity": "common"
+    },
+    {
         "name": "North Pole Gates",
         "types": [
             "Land"
@@ -127744,6 +128606,50 @@
         "rarity": "common"
     },
     {
+        "name": "Recurring Nightmare",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "oracleText": "Sacrifice a creature, Return this enchantment to its owner's hand: Return target creature card from your graveyard to the battlefield. Activate only as a sorcery.",
+        "activatedAbilities": [
+            {
+                "id": "recurring-nightmare-ability",
+                "oracleText": "Sacrifice a creature, Return this enchantment to its owner's hand: Return target creature card from your graveyard to the battlefield. Activate only as a sorcery.",
+                "cost": {
+                    "sacrificeFilter": {
+                        "types": [
+                            "Creature"
+                        ]
+                    },
+                    "returnThisToHand": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "battlefield"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                },
+                "sorcerySpeedOnly": true
+            }
+        ],
+        "id": "c8173030-1c33-417c-b8e9-79231b6a85a7",
+        "rarity": "rare"
+    },
+    {
         "name": "Rousing Read",
         "types": [
             "Enchantment"
@@ -131183,6 +132089,58 @@
             }
         ],
         "id": "cd793778-f099-4b8e-af19-fc0ec4292824",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Live or Die",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 2
+        },
+        "oracleText": "Choose one —\n• Return target creature card from your graveyard to the battlefield.\n• Destroy target creature.",
+        "modes": [
+            {
+                "id": "live-or-die-mode-1",
+                "label": "Return target creature card from your graveyard to the battlefield",
+                "oracleText": "Return target creature card from your graveyard to the battlefield.",
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "battlefield"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                }
+            },
+            {
+                "id": "live-or-die-mode-2",
+                "label": "Destroy target creature",
+                "oracleText": "Destroy target creature.",
+                "effects": [
+                    {
+                        "op": "destroy",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "cd81e438-e38f-42a1-b677-202dbcb3837c",
         "rarity": "uncommon"
     },
     {
@@ -144506,6 +145464,88 @@
         "rarity": "common"
     },
     {
+        "name": "Obsessive Stitcher",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1,
+            "B": 1
+        },
+        "power": 0,
+        "toughness": 3,
+        "oracleText": "{T}: Draw a card, then discard a card.\n{2}{U}{B}, {T}, Sacrifice this creature: Return target creature card from your graveyard to the battlefield.",
+        "activatedAbilities": [
+            {
+                "id": "obsessive-stitcher-ability",
+                "oracleText": "{T}: Draw a card, then discard a card.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            },
+            {
+                "id": "obsessive-stitcher-ability-2",
+                "oracleText": "{2}{U}{B}, {T}, Sacrifice this creature: Return target creature card from your graveyard to the battlefield.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "U": 1,
+                        "B": 1
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "battlefield"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                }
+            }
+        ],
+        "id": "e449f985-d149-49eb-87d9-7a325215f82d",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Squirming Mass",
         "types": [
             "Creature"
@@ -149095,6 +150135,41 @@
         ],
         "id": "ec53d26b-ad3e-474f-a374-05fcdc00e49c",
         "rarity": "common"
+    },
+    {
+        "name": "Trash for Treasure",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "oracleText": "As an additional cost to cast this spell, sacrifice an artifact.\nReturn target artifact card from your graveyard to the battlefield.",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "battlefield"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Artifact",
+            "count": 1,
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "additionalCosts": {
+            "sacrificeFilter": {
+                "types": [
+                    "Artifact"
+                ]
+            }
+        },
+        "id": "ec59ed99-ce40-489a-b776-8874bec60393",
+        "rarity": "rare"
     },
     {
         "name": "Cobalt Golem",
@@ -154312,6 +155387,34 @@
         },
         "id": "f6018d90-cfcc-4fb1-8ecd-4e0f1c71550d",
         "rarity": "common"
+    },
+    {
+        "name": "Refurbish",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "oracleText": "Return target artifact card from your graveyard to the battlefield.",
+        "effects": [
+            {
+                "op": "moveZone",
+                "target": {
+                    "target": 0
+                },
+                "to": "battlefield"
+            }
+        ],
+        "targetRequirement": {
+            "type": "Artifact",
+            "count": 1,
+            "zone": "graveyard",
+            "controller": "you"
+        },
+        "id": "f60e2ac4-f21f-4232-abc8-db078472408b",
+        "rarity": "uncommon"
     },
     {
         "name": "Undertaker",
