@@ -2122,9 +2122,11 @@ function lowerLookDistribute(
  * CR 400.6 — a zone change of an object already in play.
  *
  * Only the destinations whose `moveZone` shape is unambiguous are lowered.
- * "to the top of your library" and "to the battlefield" both exist in the
- * engine but read a DIFFERENT source zone than the one this sentence implies,
- * and guessing the source is how a recursion effect becomes a reanimation one.
+ * "to the top of your library" exists in the engine but reads a DIFFERENT
+ * source zone than the one this sentence implies, and guessing the source is
+ * how a recursion effect becomes a reanimation one. "To the battlefield" is
+ * lowered for exactly ONE source: a target in YOUR graveyard, where the sentence
+ * itself names the zone it leaves.
  */
 function lowerMoveZone(
     subject: SubjectIR,
@@ -2161,7 +2163,30 @@ function lowerMoveZone(
         subject.requirement.controller === "you";
     const targets = objectSelectors(subject, slots, site);
     if (!targets.ok) return targets;
-    const each = (to: "hand" | "graveyard" | "exile"): Lowered<EffectOp[]> =>
+    // CR 400.7 / CR 110.2a — "return target creature card from your graveyard
+    // to the battlefield": the card becomes a NEW object and enters under the
+    // control of the player the effect tells to put it there. The graveyard is
+    // YOURS (CR 404.1 files a card in its OWNER's graveyard), so owner and the
+    // controller the engine gives a reanimated card coincide. Any other source
+    // (a graveyard that is not yours, a library, a hand, exile) names a
+    // different owner/controller question this rule does not answer. Exactly
+    // ONE target: N cards returned by one instruction enter together, which a
+    // sequence of single `moveZone` Ops does not say, and no corpus card prints
+    // it. ONE permanent type: a list in `requirement.type` is an OR to the
+    // engine ("artifact creature card" would admit any artifact card or any
+    // creature card), and a non-permanent type ("card", instant, sorcery) names
+    // an object that cannot enter the battlefield.
+    const reanimated =
+        zone.zone === "battlefield" &&
+        subject.kind === "target" &&
+        subject.requirement.zone === "graveyard" &&
+        subject.requirement.controller === "you" &&
+        subject.requirement.count === 1 &&
+        typeof subject.requirement.type === "string" &&
+        ACTED_ON_PERMANENT_TYPES.has(subject.requirement.type);
+    const each = (
+        to: "hand" | "graveyard" | "exile" | "battlefield"
+    ): Lowered<EffectOp[]> =>
         lowered(
             targets.value.map((target) => ({ op: "moveZone", target, to }))
         );
@@ -2170,6 +2195,7 @@ function lowerMoveZone(
     if (zone.zone === "graveyard" && zone.owner === "its-owner")
         return each("graveyard");
     if (zone.zone === "exile") return each("exile");
+    if (reanimated) return each("battlefield");
     return unlowerable(
         `"${zone.zone}" is not a zone destination in grammar v0`
     );
