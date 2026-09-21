@@ -14034,6 +14034,21 @@ export type EffectPileObjectSelector =
           filter?: EffectCardFilter;
       };
 
+/** The stat a `choice` superlative ranks candidates by. `power` reads the
+ *  layer-computed power (CR 613.4, `SpellContext.getPower`), `mana-value` the
+ *  mana value (CR 202.3, `SpellContext.getManaValue`). A closed union: an
+ *  unknown stat is a validation error, never "no restriction". */
+export type EffectChoiceSuperlativeStat = "power" | "mana-value";
+
+/** A selection restriction on a `choice`'s candidate list — "a creature with
+ *  the greatest power among creatures they control". Not a per-candidate
+ *  predicate: a candidate's eligibility depends on the OTHER permanents of the
+ *  set, so it cannot live on `EffectCardFilter`. */
+export interface EffectChoiceSuperlative {
+    stat: EffectChoiceSuperlativeStat;
+    extreme: "greatest" | "least";
+}
+
 /** The Pending Choice kinds a `choice` Op may request (issue #805). A strict
  *  subset of the existing `ZonePickKind` taxonomy — the Op maps 1:1 onto
  *  `SpellContext.requestChoice`, reusing the whole Pending Choice pipeline
@@ -17176,6 +17191,19 @@ export type EffectOp =
            *  candidates and one pick that is always the case, and any other
            *  arrangement has no single "other" to name. */
           bindOther?: string;
+          /** CR 608.2h — narrows the candidates to those with the greatest
+           *  (or least) `stat` among the permanents `filter` matches on the
+           *  zone owner's battlefield ("sacrifices a creature with the
+           *  greatest power among creatures they control"). Every permanent
+           *  tied for the extreme stays a candidate and the chooser picks
+           *  among them; an empty pool leaves none. Computed ONCE, when the
+           *  choice is raised, over the layer-computed stat — never again
+           *  after the pick. `zone: "battlefield"` only, over the owner's own
+           *  battlefield: it does not compose with `candidates` or
+           *  `allControllers` (validator-enforced), and `power` requires a
+           *  `filter.type` of Creature so a permanent with no power can never
+           *  be ranked. */
+          superlative?: EffectChoiceSuperlative;
           /** Pick count, clamped to availability (CR 608.2b). A plain number
            *  is an EXACT count (the chooser must pick that many, down to
            *  however many exist). `{ min, max }` (issue #677) is an OPTIONAL

@@ -2011,6 +2011,30 @@ function boundSetCandidates(
     return { available: ids.length, candidateIds: ids };
 }
 
+/** CR 608.2h — the ids among `ids` tied for the greatest (or least) `stat`.
+ *  The stat is read live, layer-computed (`getPower` is the effective power,
+ *  so an anthem changes who is greatest); an empty pool has no extreme and
+ *  leaves no candidates. */
+function extremeByStat(
+    ctx: SpellContext,
+    ids: readonly string[],
+    superlative: NonNullable<OpOf<"choice">["superlative"]>
+): string[] {
+    const read = (id: string): number => {
+        const target = { type: "permanent" as const, id };
+        return superlative.stat === "power"
+            ? ctx.getPower(target)
+            : ctx.getManaValue(target);
+    };
+    const scored = ids.map((id) => ({ id, value: read(id) }));
+    if (scored.length === 0) return [];
+    const pick = superlative.extreme === "greatest" ? Math.max : Math.min;
+    const extreme = pick(...scored.map((entry) => entry.value));
+    return scored
+        .filter((entry) => entry.value === extreme)
+        .map((entry) => entry.id);
+}
+
 /** Computes how many candidates a `choice` Op actually has, plus the
  *  graveyard allow-list when applicable. The pick count is clamped to this
  *  (CR 608.2b — the chooser cannot be asked for more than exists; "discard
@@ -2055,6 +2079,19 @@ function choiceCandidates(
         const filter = toPermanentFilter(ctx, op.filter);
         if (filter === UNMATCHABLE_FILTER) {
             return { available: 0, candidateIds: [] };
+        }
+        // CR 608.2h — a superlative narrows the pool to the permanents tied
+        // for the extreme stat, decided ONCE here as the choice is raised and
+        // carried as an explicit allow-list (the submit validator, the client
+        // and the Bot all read `candidateIds`). The validator pins this to the
+        // zone owner's own battlefield, so the set ranked is the set filtered.
+        if (op.superlative) {
+            const ids = extremeByStat(
+                ctx,
+                ctx.getBattlefieldIds(zoneOwnerId, filter),
+                op.superlative
+            );
+            return { available: ids.length, candidateIds: ids };
         }
         // `allControllers` — every battlefield counts toward the clamp, so
         // "untap up to two lands" with one land of each player's still asks

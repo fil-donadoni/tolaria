@@ -1680,6 +1680,9 @@ function lowerSentenceBody(
                     player,
                     zone: "battlefield",
                     filter: sentence.filter,
+                    ...(sentence.superlative === undefined
+                        ? {}
+                        : { superlative: sentence.superlative }),
                     count: sentence.count,
                     prompt: `Sacrifice ${sentence.phrase}.`,
                     bind,
