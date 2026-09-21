@@ -18,6 +18,10 @@
  * `addProjectV2ItemById` batch (idempotent — it returns the existing item for
  * an issue already on the board) then one `updateProjectV2ItemFieldValue`
  * batch. A run cut short leaves a board the next run simply finishes.
+ * An issue whose body carries a `## Band` line (`P2 — <reason>`, issue #4230)
+ * is banded by it — the `user-decision` source, the truth over every other
+ * one; a line that bands nothing is reported under `## Band residue`. The
+ * board field stays the OUTPUT of this script, never hand-written.
  * `--suggest-cards` appends the `## Cards` backfill (issue #4086) — a
  * proposal per residue issue, printed, never written, with or without
  * `--write`.
@@ -45,6 +49,7 @@ import {
     claimedCards,
     issueCards,
     planWrites,
+    parseBand,
     parseCards,
     renderReport,
     renderSuggestions,
@@ -54,6 +59,7 @@ import {
     triage,
     type Band,
     type BandWrite,
+    type BandResidue,
     type CardsResidue,
     type TriageIssue,
 } from "./lib/backlog-triage";
@@ -376,15 +382,19 @@ export function runTriage(opts: {
 
     const open = fetchOpenIssues(opts.ghClient);
     const cardsResidue: CardsResidue[] = [];
+    const bandResidue: BandResidue[] = [];
     const issues: TriageIssue[] = open.map((i) => {
         const declared = resolveDeclaredCards(i.number, i.body, byName);
         cardsResidue.push(...declared.residue);
+        const band = parseBand(i.number, i.body);
+        bandResidue.push(...band.residue);
         return {
             number: i.number,
             title: i.title,
             parent: i.parent,
             blocks: i.blocks,
             cards: issueCards(i, claimed, byName, declared.ids),
+            ruling: band.ruling,
         };
     });
     const verdicts = triage(issues, index, board);
@@ -396,7 +406,7 @@ export function runTriage(opts: {
               new Map(open.map((i) => [i.number, i.nodeId]))
           )
         : null;
-    const report = renderReport(summary, written, cardsResidue);
+    const report = renderReport(summary, written, cardsResidue, bandResidue);
     if (!opts.argv.includes("--suggest-cards")) return report;
     // The backfill is a PROPOSAL: printed, never written. An issue that
     // already declares its cards has been ruled on — its bad lines are in

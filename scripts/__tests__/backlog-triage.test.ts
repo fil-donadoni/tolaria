@@ -26,6 +26,7 @@ import {
     claimedCards,
     issueCards,
     planWrites,
+    parseBand,
     parseCards,
     renderReport,
     residueCause,
@@ -306,11 +307,157 @@ describe("backlog-triage — the rule (issue #3851 decision 3)", () => {
         });
     });
 
-    it("the fiat root and its direct children are P1 by fiat", () => {
+    it("the user-decision root and its direct children are P1", () => {
         const issues = [issue(9999), issue(1, { parent: 9999 })];
         const v = triage(issues, index, {}, 9999);
-        expect(v.get(9999)).toMatchObject({ band: "P1", source: "fiat" });
-        expect(v.get(1)).toMatchObject({ band: "P1", source: "fiat" });
+        expect(v.get(9999)).toMatchObject({
+            band: "P1",
+            source: "user-decision",
+        });
+        expect(v.get(1)).toMatchObject({ band: "P1", source: "user-decision" });
+    });
+});
+
+describe("backlog-triage — `## Band`, the user-decision source (issue #4230)", () => {
+    const ruled = (band: "P1" | "P2" | "P3", reason = "because") =>
+        ({ band, reason }) as const;
+
+    it("a ruling is the band, via the issue itself", () => {
+        expect(verdictOf([issue(1, { ruling: ruled("P2") })])).toEqual({
+            kind: "band",
+            band: "P2",
+            source: "user-decision",
+            via: "#1",
+        });
+    });
+
+    it("beats a STRONGER band from cards, an edge and the parent — the truth, not a candidate", () => {
+        // cards → P1, blocks a P1 issue, parent P1 — and the ruling says P3.
+        const issues = [
+            issue(1, {
+                cards: [CARDS.Meta],
+                blocks: [2],
+                parent: 50,
+                ruling: ruled("P3"),
+            }),
+            issue(2, { cards: [CARDS.Meta] }),
+            issue(50, { cards: [CARDS.Meta] }),
+        ];
+        expect(verdictOf(issues, {}, 1)).toEqual({
+            kind: "band",
+            band: "P3",
+            source: "user-decision",
+            via: "#1",
+        });
+    });
+
+    it("`## Band: P3` under a P1 parent → P3", () => {
+        const issues = [
+            issue(1, { parent: 50, ruling: ruled("P3") }),
+            issue(2, { parent: 50 }),
+        ];
+        const v = triage(issues, index, { 50: "P1" }, 9999);
+        expect(v.get(1)).toMatchObject({ band: "P3", source: "user-decision" });
+        // The sibling with no line still inherits.
+        expect(v.get(2)).toMatchObject({ band: "P1", source: "parent" });
+    });
+
+    it("beats the hard-wired root too", () => {
+        const issues = [issue(1, { parent: 9999, ruling: ruled("P3") })];
+        expect(triage(issues, index, {}, 9999).get(1)).toMatchObject({
+            band: "P3",
+            source: "user-decision",
+            via: "#1",
+        });
+    });
+
+    it("a hand-set P0 on the board still wins — the ruling never clears it", () => {
+        expect(
+            verdictOf([issue(1, { ruling: ruled("P3") })], { 1: "P0" })
+        ).toEqual({ kind: "p0" });
+    });
+
+    it("a ruled issue lends ITS ruling to a neighbour, never a stale board value", () => {
+        // #50 was written P1 on an earlier run, and is now ruled P3: its child
+        // inherits P3. The child's neighbour read of #1 (an edge) reads the
+        // ruling as well, not the cards that would have banded #1 P1.
+        const issues = [
+            issue(50, { ruling: ruled("P3") }),
+            issue(1, { parent: 50 }),
+            issue(2, { blocks: [3] }),
+            issue(3, { cards: [CARDS.Meta], ruling: ruled("P3") }),
+        ];
+        const v = triage(issues, index, { 50: "P1" }, 9999);
+        expect(v.get(1)).toMatchObject({ band: "P3", source: "parent" });
+        expect(v.get(2)).toMatchObject({ band: "P3", source: "edge" });
+    });
+
+    it("a hand-set P0 on a ruled parent still lends P1", () => {
+        const issues = [
+            issue(50, { ruling: ruled("P3") }),
+            issue(1, { parent: 50 }),
+        ];
+        expect(triage(issues, index, { 50: "P0" }, 9999).get(1)).toMatchObject({
+            band: "P1",
+            source: "parent",
+        });
+    });
+});
+
+describe("backlog-triage — parseBand (issue #4230)", () => {
+    const body = (line: string) => `intro\n\n## Band\n\n${line}\n\n## Other\n`;
+
+    it("reads `P2 — <reason>`, bare or as a list item, with the reason", () => {
+        for (const line of [
+            "P2 — a ruling",
+            "- P2 — a ruling",
+            "P2 – a ruling",
+            "P2 - a ruling",
+        ])
+            expect(parseBand(5, body(line))).toEqual({
+                ruling: { band: "P2", reason: "a ruling" },
+                residue: [],
+            });
+    });
+
+    it("no section, `None.` and an empty section declare nothing", () => {
+        for (const b of ["no section", body("None."), "## Band\n"])
+            expect(parseBand(5, b)).toEqual({ ruling: null, residue: [] });
+    });
+
+    it("a P0 line is reported and yields no band", () => {
+        expect(parseBand(5, body("P0 — now"))).toEqual({
+            ruling: null,
+            residue: [
+                { issue: 5, line: "P0 — now", reason: "P0 is never written" },
+            ],
+        });
+    });
+
+    it("an unreadable line — no reason, no band, prose — is reported, never guessed", () => {
+        for (const line of ["P2", "P2 —", "P4 — nope", "soon", "P2 — "]) {
+            const r = parseBand(5, body(line));
+            expect(r.ruling).toBeNull();
+            expect(r.residue).toEqual([
+                { issue: 5, line: line.trim(), reason: "unreadable" },
+            ]);
+        }
+    });
+
+    it("two lines are reported whole — two rulings have no tiebreak", () => {
+        const r = parseBand(5, body("P1 — a\nP3 — b"));
+        expect(r.ruling).toBeNull();
+        expect(r.residue.map((x) => x.reason)).toEqual([
+            "extra line",
+            "extra line",
+        ]);
+    });
+
+    it("a fenced example is not a ruling", () => {
+        expect(parseBand(5, "```\n## Band\n\nP1 — example\n```\n")).toEqual({
+            ruling: null,
+            residue: [],
+        });
     });
 });
 
@@ -626,7 +773,7 @@ function recordingGh(calls: string[][]) {
                     data: {
                         repository: {
                             issues: {
-                                totalCount: 3,
+                                totalCount: 4,
                                 pageInfo: { hasNextPage: false },
                                 nodes: [
                                     {
@@ -646,7 +793,14 @@ function recordingGh(calls: string[][]) {
                                     {
                                         number: 9,
                                         title: "declares its cards",
-                                        body: "## Cards\n\n- Psychatog\n- Not A Real Card Name\n",
+                                        body: "## Cards\n\n- Psychatog\n- Not A Real Card Name\n\n## Band\n\nP0 — now\n",
+                                        parent: null,
+                                        blocking: { totalCount: 0, nodes: [] },
+                                    },
+                                    {
+                                        number: 10,
+                                        title: "ruled by hand",
+                                        body: "## Band\n\nP3 — the owner says so\n",
                                         parent: null,
                                         blocking: { totalCount: 0, nodes: [] },
                                     },
@@ -680,7 +834,13 @@ describe("backlog-triage — runTriage", () => {
         );
         // #9 is banded by its declared card; its typo is reported, not dropped.
         expect(report).not.toContain("#9 declares its cards");
-        expect(report).toContain("by source: fiat 0, cards 1");
+        expect(report).toContain("by source: user-decision 1, cards 1");
+        // #10's `## Band` line is the band, read through the driver.
+        expect(report).toMatch(/^P3 +1 +1 +/m);
+        // #9's P0 line bands nothing (its cards still do) and is reported in its own section.
+        expect(report).toMatch(
+            /## Band residue[^\n]*: 1\n {2}#9 {2}P0 — now {2}— P0 is never written/
+        );
         expect(report).toContain("#9  Not A Real Card Name  — no such card");
         // No flag, no backfill.
         expect(report).not.toContain("Cards suggestions");
@@ -739,7 +899,12 @@ describe("backlog-triage — runTriage", () => {
 
 describe("backlog-triage — planWrites", () => {
     const band = (b: "P1" | "P2" | "P3") =>
-        ({ kind: "band", band: b, source: "fiat", via: "#1" }) as const;
+        ({
+            kind: "band",
+            band: b,
+            source: "user-decision",
+            via: "#1",
+        }) as const;
 
     it("owes only CHANGED values — a band the board holds owes nothing", () => {
         const verdicts = new Map([
@@ -886,7 +1051,7 @@ function stubTracker(
 }
 
 describe("backlog-triage — runTriage --write", () => {
-    // #3820 is the fiat root (PRD_ISSUE): its children are P1 by fiat. #50 is
+    // #3820 is the user-decision root (PRD_ISSUE): its children are P1. #50 is
     // an umbrella the board holds at P2, so its child inherits P2.
     const OPEN = [
         { number: 7, parent: 3820 }, // P0 on the board — the rule says P1

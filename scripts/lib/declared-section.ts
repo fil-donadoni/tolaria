@@ -1,6 +1,6 @@
 /**
  * A DECLARED section of an issue body — `## Unlocks` (issue #4052), `## Cards`
- * (issue #4086): a heading, then one list item per declaration, `None.` for
+ * (issue #4086), `## Band` (issue #4230): a heading, then one list item per declaration, `None.` for
  * "nothing declared". Structured, no prose: every non-item line comes back as
  * prose for the caller to report, never to read.
  *
@@ -20,6 +20,9 @@ const ANY_HEADING = /^#{1,6}\s+/;
  *  section, and the queue lint's `unlinked-card-name` exempts it — its items
  *  are bare lockfile names BY CONTRACT (issue #3666). */
 export const CARDS_HEADING = /^#{1,6}\s+cards\s*$/i;
+/** The `## Band` heading (ADR 0143, issue #4230): a hand ruling on an issue,
+ *  one line, `P2 — <reason>`. `backlog:triage` reads it as `user-decision`. */
+export const BAND_HEADING = /^#{1,6}\s+band\s*$/i;
 const LIST_ITEM = /^[-*]\s+(.*)$/;
 /** "nothing declared", the shape `## Blocked by` already uses. */
 const DECLARES_NOTHING = /^none\.?$/i;
