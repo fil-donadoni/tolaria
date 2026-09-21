@@ -1342,13 +1342,19 @@ function lowerSentenceBody(
                 return unlowerable(
                     '"it deals damage" names a dealer that is not this ability\'s source (CR 120.1)'
                 );
+            // `dealDamageDividedAsChosen.total` is a number or "X" and nothing
+            // else; `lowerAmount` gates X on the site announcing one.
+            if (
+                sentence.amount.kind !== "fixed" &&
+                sentence.amount.kind !== "x"
+            )
+                return unlowerable(
+                    "a divided budget is a printed number or X (CR 601.2d)"
+                );
             const budget = lowerAmount(sentence.amount, site);
             if (!budget.ok) return budget;
-            // `dealDamageDividedAsChosen.total` is a number or "X"; the
-            // grammar admits nothing else, and `lowerAmount` gates X on the
-            // site announcing one.
             const total: number | "X" =
-                typeof budget.value === "number" ? budget.value : "X";
+                sentence.amount.kind === "fixed" ? sentence.amount.value : "X";
             const index = slots.allocate({
                 ...sentence.among,
                 count: dividedCount(sentence.among.count, total),

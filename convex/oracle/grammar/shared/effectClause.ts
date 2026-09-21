@@ -1995,11 +1995,9 @@ function effectSentence(
                 `"${divided[1]}" is not a damage source this grammar knows`,
                 span
             );
-        // The Op's budget is a printed number or the announced X; "that much"
-        // is an amount at other sites and never a divided one.
         const amount = readAmount(divided[2]!);
-        if (amount === null || amount.kind === "event-amount")
-            return fail(`"${divided[2]}" is not a divided damage amount`, span);
+        if (amount === null)
+            return fail(`"${divided[2]}" is not a damage amount`, span);
         const among = dividedTargetsRule.run(divided[3]!, ctx);
         if (!among.ok) return among;
         return ok({
