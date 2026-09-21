@@ -732,14 +732,21 @@ describe('bare "Sacrifice a creature" keeps the source a legal victim (CR 109.2 
 // of a snapshot-flagged result must survive.
 describe("sacrificeSnapshotFromResults — every result field survives the projection (issue #3806)", () => {
     /** Every optional characteristic a snapshot-flagged victim can carry, with
-     *  a structurally valid value. A new `SacrificeResult` field added without
-     *  a row here fails the completeness assertion below. */
-    const OPTIONAL_FIELDS = {
+     *  a structurally valid value. The `Omit<Required<SacrificeResult>, …>`
+     *  annotation is the completeness half of this guard and is load-bearing:
+     *  a new `SacrificeResult` field reds `check:ts` HERE until it gets a row,
+     *  and the assertion below then reds until the projection forwards it. A
+     *  runtime key comparison could not do that job — it would only ever
+     *  compare this object with itself. */
+    const OPTIONAL_FIELDS: Omit<
+        Required<SacrificeResult>,
+        "id" | "mv" | "snapshot"
+    > = {
         subtypes: ["Bear"],
         power: 2,
         toughness: 5,
         colors: ["G"],
-    } as const;
+    };
 
     it("forwards the id, the mana value and EVERY optional field", () => {
         const snapshot = sacrificeSnapshotFromResults([
@@ -750,19 +757,6 @@ describe("sacrificeSnapshotFromResults — every result field survives the proje
             mv: 2,
             ...OPTIONAL_FIELDS,
         });
-    });
-
-    it("covers every optional field of SacrificeResult — a new one cannot ship unprojected", () => {
-        // The type's own key set, minus the two required fields and the flag.
-        const declared = Object.keys({
-            id: "",
-            mv: 0,
-            snapshot: false,
-            ...OPTIONAL_FIELDS,
-        } satisfies Required<SacrificeResult>).filter(
-            (k) => k !== "id" && k !== "mv" && k !== "snapshot"
-        );
-        expect(declared.sort()).toEqual(Object.keys(OPTIONAL_FIELDS).sort());
     });
 
     it("keeps an EMPTY colour list — a colourless victim is a real answer (CR 105.2c)", () => {
