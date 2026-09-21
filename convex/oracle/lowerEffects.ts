@@ -1948,8 +1948,9 @@ function recordActedOn(
 }
 
 /**
- * CR 111.1 — create creature tokens, lowered to `createToken` in the shape
- * every hand-written producer writes: the controller creates them (CR 111.2),
+ * CR 111.1 — create creature tokens (CR 205.2a: also artifacts when printed
+ * so, and then colorless — CR 105.2c, `colors: []`), lowered to `createToken`
+ * in the shape every hand-written producer writes: the controller creates them (CR 111.2),
  * the name is the subtypes — a DEVIATION from CR 111.4, which appends the
  * word "Token", kept because it is the catalogue's convention for every
  * unnamed token and the key `token-prints.json` art is looked up by (a name
@@ -1977,7 +1978,9 @@ function lowerCreateToken(
         );
     const spec: EffectTokenSpec = {
         name: token.subtypes.join(" "),
-        types: ["Creature"],
+        // CR 205.2a — "artifact creature token": both card types, in the
+        // order `GOLEM_TOKEN` writes them.
+        types: token.artifact ? ["Artifact", "Creature"] : ["Creature"],
         subtypes: [...token.subtypes],
         power: token.power,
         toughness: token.toughness,

@@ -118,6 +118,11 @@ const NO_PRINTED_TOKEN_ALLOWLIST: Record<string, string> = {
         "Wand of the Elements (compiled) — first printing's all_parts links no Elemental token.",
     "940180bb-8781-425f-9eeb-7eb0fad7a188:Saproling":
         "Selesnya Evangel (compiled) — first printing's all_parts links no Saproling token.",
+    // Colorless artifact creature producers (issue #4249) — the same gap.
+    "266df8c3-5872-4d83-90bc-8f6f854ac838:Pest":
+        "Nuisance Engine (compiled) — first printing's all_parts links no Pest token.",
+    "36a3345d-1190-45f4-8191-897b4dcec376:Spawn":
+        "Spawning Pit (compiled) — first printing's all_parts links no Spawn token.",
 };
 
 /** Recursively collects every `createToken` Op's token spec out of an Op

@@ -1,4 +1,16 @@
 {
+    "00d594df-c51b-4936-9af1-536dab1792ae": [
+        {
+            "scryfallId": "e1980809-4c81-4080-92cd-31776962a4e1",
+            "name": "Servo"
+        }
+    ],
+    "02d68a38-2e0b-401b-b67d-a55e2af5b18d": [
+        {
+            "scryfallId": "6def709a-53b3-4520-9544-74ab6472d256",
+            "name": "Gnome"
+        }
+    ],
     "04134be2-5e40-4732-832c-f616009eceff": [
         {
             "scryfallId": "09293ae7-0629-417b-9eda-9bd3f6d8e118",
@@ -15,6 +27,12 @@
         {
             "scryfallId": "000d9280-a79a-4f9f-822c-7aaecbff3337",
             "name": "Bird"
+        }
+    ],
+    "04f54188-2cfc-4964-add7-b452f32d57ef": [
+        {
+            "scryfallId": "5c087beb-99c0-403e-bb44-33cfc549a831",
+            "name": "Myr"
         }
     ],
     "06c053d3-028e-4961-93a5-5b7bb5a8601c": [
@@ -61,6 +79,12 @@
         {
             "scryfallId": "39b36f22-21f9-44fe-8a49-bdc859503342",
             "name": "Elf"
+        }
+    ],
+    "0dcafa9e-3637-42ca-bdb2-45a2b5da7294": [
+        {
+            "scryfallId": "bfa49655-6ce7-404b-ad12-33ec1cd7c0d3",
+            "name": "Thopter"
         }
     ],
     "0ec6a889-c941-4898-a2f6-4d3863faf535": [
@@ -149,6 +173,12 @@
         {
             "scryfallId": "b8710a30-8314-49ef-b995-bd05454095be",
             "name": "Zombie"
+        }
+    ],
+    "1ae6c87f-003b-44b7-96fd-ab8fca9af6f1": [
+        {
+            "scryfallId": "bfa49655-6ce7-404b-ad12-33ec1cd7c0d3",
+            "name": "Thopter"
         }
     ],
     "1b12e978-4deb-4ccc-8ae6-462bc4598c90": [
@@ -267,6 +297,12 @@
             "name": "Bat"
         }
     ],
+    "273b982d-bca2-4418-8618-c711d28fc901": [
+        {
+            "scryfallId": "46161339-7173-4265-9691-106be5536b2d",
+            "name": "Phyrexian Golem"
+        }
+    ],
     "27bb371f-d49f-41bd-bbe0-d5e1e2067e36": [
         {
             "scryfallId": "0d6abdaa-7be5-48a1-acc9-b3cba4c10619",
@@ -309,10 +345,22 @@
             "name": "Spirit"
         }
     ],
+    "2cb65388-dc6c-4e2a-93ac-49ea484849e9": [
+        {
+            "scryfallId": "08497fc5-1c0e-4c3c-a356-bf4b34bd4c45",
+            "name": "Robot"
+        }
+    ],
     "2ccfa5c1-69f9-4351-aba3-883fe92c9b98": [
         {
             "scryfallId": "45907b16-af17-4237-ab38-9d7537fd30e8",
             "name": "Soldier"
+        }
+    ],
+    "2d2c6a6d-5b59-47d7-b290-df3640d9555f": [
+        {
+            "scryfallId": "46161339-7173-4265-9691-106be5536b2d",
+            "name": "Phyrexian Golem"
         }
     ],
     "2e139ad1-1079-49e9-babd-6399c44ad333": [
@@ -471,6 +519,12 @@
             "name": "Vampire Knight"
         }
     ],
+    "3fbd0921-e953-492b-ad73-c8a8bfaa750b": [
+        {
+            "scryfallId": "c9deae5c-80d4-4701-b425-91853b7ee03b",
+            "name": "Inkling"
+        }
+    ],
     "40a9710e-b2f8-4746-8640-d450f58a6e49": [
         {
             "scryfallId": "248ade83-ac57-42d6-985c-1e4cc3639f36",
@@ -519,6 +573,12 @@
             "name": "Pest"
         }
     ],
+    "47717312-f6c6-4e86-ba6a-a30698962430": [
+        {
+            "scryfallId": "78e52380-13a1-44fe-b762-e71261cac3d0",
+            "name": "Thopter"
+        }
+    ],
     "47eba4f9-8276-4367-8ff5-53a066e8c729": [
         {
             "scryfallId": "70205fb6-7722-4974-a8c6-8909dbb1c96d",
@@ -531,10 +591,22 @@
             "name": "Monk"
         }
     ],
+    "49b0a5d5-99d7-492b-bd85-77c3cee12c8d": [
+        {
+            "scryfallId": "e1980809-4c81-4080-92cd-31776962a4e1",
+            "name": "Servo"
+        }
+    ],
     "4a0bb5dc-75a6-4bd6-81f8-611197fb0fba": [
         {
             "scryfallId": "b53e0681-603e-4180-bc86-3dadf214e61a",
             "name": "Phyrexian Germ"
+        }
+    ],
+    "4a1af62e-d566-4f39-a467-244602c9240b": [
+        {
+            "scryfallId": "e41f83c6-c20f-455a-b630-5fad99fa54ad",
+            "name": "Myr"
         }
     ],
     "4be510c8-fc01-4374-ac04-7968d24480fe": [
@@ -577,6 +649,12 @@
         {
             "scryfallId": "284ec798-2725-4741-8748-578c259d0623",
             "name": "Treasure"
+        }
+    ],
+    "507979fd-5459-4933-8707-adc303750ce9": [
+        {
+            "scryfallId": "f4ef9889-e61d-4733-b27c-9e78aea8e84b",
+            "name": "Phyrexian Myr"
         }
     ],
     "50cb4bf3-70d1-4acc-a1fb-49f4ea74ca16": [
@@ -763,6 +841,12 @@
             "name": "Copy"
         }
     ],
+    "640a08b7-dd30-446e-a8a7-2e084bbb9586": [
+        {
+            "scryfallId": "83981313-ff55-4030-ac82-d6a3087cf675",
+            "name": "Soldier"
+        }
+    ],
     "652c3bbb-cac8-47ad-81de-41e954e17a29": [
         {
             "scryfallId": "59e79ba0-33c8-46c8-8694-8bf854345fe7",
@@ -871,6 +955,12 @@
             "name": "Soldier"
         }
     ],
+    "73f29e03-0a71-46cd-992e-7baa61f16ac5": [
+        {
+            "scryfallId": "bfa49655-6ce7-404b-ad12-33ec1cd7c0d3",
+            "name": "Thopter"
+        }
+    ],
     "748f263e-efef-4033-8950-c58fd024a87f": [
         {
             "scryfallId": "0a5ac360-dc47-4bc5-a4cc-ff223abc3ffc",
@@ -907,6 +997,12 @@
             "name": "The Monarch"
         }
     ],
+    "79076264-d71c-4b30-aac9-702a4d229933": [
+        {
+            "scryfallId": "46161339-7173-4265-9691-106be5536b2d",
+            "name": "Phyrexian Golem"
+        }
+    ],
     "79258432-ea35-4f2a-9e4a-4abb53f335c6": [
         {
             "scryfallId": "86272c08-c5f2-413f-87ea-b135aca2d9c5",
@@ -917,6 +1013,12 @@
         {
             "scryfallId": "cc7d137c-f6c0-44e5-af9f-a8bbd52d3b2a",
             "name": "Knight"
+        }
+    ],
+    "7a3bb4ab-6fe7-4926-a929-3e37691f287a": [
+        {
+            "scryfallId": "2d84926d-5892-4c62-a943-fac9f0ddc569",
+            "name": "Golem"
         }
     ],
     "7c024bae-5631-4e20-ac69-df392ac9e109": [
@@ -961,6 +1063,12 @@
             "name": "Rebel"
         }
     ],
+    "8321857e-7977-46dd-8357-d732312e5261": [
+        {
+            "scryfallId": "6def709a-53b3-4520-9544-74ab6472d256",
+            "name": "Gnome"
+        }
+    ],
     "84273844-7fab-4ff7-afb3-c82153132daf": [
         {
             "scryfallId": "fd0474f3-682d-4c6d-b902-84f3250aa269",
@@ -989,6 +1097,12 @@
         {
             "scryfallId": "cd76092f-0f5e-4890-996c-33f4f47c659c",
             "name": "Villain"
+        }
+    ],
+    "859d2b91-63af-4700-8ca5-b1756aa6639b": [
+        {
+            "scryfallId": "46161339-7173-4265-9691-106be5536b2d",
+            "name": "Phyrexian Golem"
         }
     ],
     "85d22d5d-3875-42ff-b51e-c6e21db201f5": [
@@ -1067,6 +1181,12 @@
             "name": "Spirit"
         }
     ],
+    "8d8e817c-079e-4e7c-a8ca-54634f30bf36": [
+        {
+            "scryfallId": "9c9a3d08-040a-4fec-b86d-c41a074f925c",
+            "name": "Thopter"
+        }
+    ],
     "904d3416-70bf-4043-8078-f5f033ecfb31": [
         {
             "scryfallId": "27b171ac-b2ef-4a80-92d1-6d9e71f3e3ca",
@@ -1127,6 +1247,18 @@
             "name": "Dragon"
         }
     ],
+    "962dc573-612d-434b-82fb-af9c3e3c9aca": [
+        {
+            "scryfallId": "9c9a3d08-040a-4fec-b86d-c41a074f925c",
+            "name": "Thopter"
+        }
+    ],
+    "96de0741-9270-4118-bb8e-f3480c75a582": [
+        {
+            "scryfallId": "6def709a-53b3-4520-9544-74ab6472d256",
+            "name": "Gnome"
+        }
+    ],
     "97d08a15-e61c-4421-a541-c68a4f87cb74": [
         {
             "scryfallId": "ef607895-d6d2-44ab-a6b4-84af55fce593",
@@ -1143,6 +1275,12 @@
         {
             "scryfallId": "703e7ecf-3d73-40c1-8cfe-0758778817cf",
             "name": "Knight"
+        }
+    ],
+    "9aba0c60-78e2-4e1c-a6ad-6f1c001ad7ee": [
+        {
+            "scryfallId": "e1980809-4c81-4080-92cd-31776962a4e1",
+            "name": "Servo"
         }
     ],
     "9b4f880d-6262-429f-91b7-def417aa13bd": [
@@ -1293,6 +1431,12 @@
             "name": "Spirit"
         }
     ],
+    "ab512e43-894e-40af-ab8a-f33f258dd885": [
+        {
+            "scryfallId": "af3aa149-00fa-4932-b004-f64c8b5d3ca7",
+            "name": "Gargoyle"
+        }
+    ],
     "acf932ac-5ea5-491b-b555-5e9ea971d93d": [
         {
             "scryfallId": "71766a5a-ce00-4e48-b4f6-0d1a7f5b2691",
@@ -1333,6 +1477,12 @@
         {
             "scryfallId": "1ae11d5f-f29d-44f4-8d90-cdada1040435",
             "name": "Elephant"
+        }
+    ],
+    "b22d97f3-08cf-4c19-bbe2-5a36096187cd": [
+        {
+            "scryfallId": "e72daa68-0680-431c-a616-b3693fd58813",
+            "name": "Assembly-Worker"
         }
     ],
     "b2314215-23af-4c8e-860f-b029e151af36": [
@@ -1399,6 +1549,12 @@
         {
             "scryfallId": "3fc3a29a-280d-4f2c-9a01-8cfead75f583",
             "name": "Beast"
+        }
+    ],
+    "b8e56a28-713b-4a13-a601-1128cf117539": [
+        {
+            "scryfallId": "46161339-7173-4265-9691-106be5536b2d",
+            "name": "Phyrexian Golem"
         }
     ],
     "b9169431-a5b1-42ea-bcf4-6c750d2a2dbb": [
@@ -1507,6 +1663,12 @@
             "name": "Rebel"
         }
     ],
+    "ca28d210-a35d-491e-beda-76b95d09dc2d": [
+        {
+            "scryfallId": "fef47d03-9050-48ed-994f-f72582967dbd",
+            "name": "Zombie"
+        }
+    ],
     "ca6f13a2-9243-4ce9-9f71-bed74355b781": [
         {
             "scryfallId": "c3cbd01b-dbf5-424a-855d-f9a9d7e7e414",
@@ -1517,6 +1679,12 @@
         {
             "scryfallId": "248ade83-ac57-42d6-985c-1e4cc3639f36",
             "name": "Saproling"
+        }
+    ],
+    "cad17d67-538e-4c60-a582-a394032a5112": [
+        {
+            "scryfallId": "9c9a3d08-040a-4fec-b86d-c41a074f925c",
+            "name": "Thopter"
         }
     ],
     "cbb7c28d-0366-4d01-84a2-f1bc9f38aa4a": [
@@ -1541,6 +1709,12 @@
         {
             "scryfallId": "67d3d039-248a-4eb8-be5c-12959b458fea",
             "name": "Knight"
+        }
+    ],
+    "d0e92939-6d86-44b4-8a43-1963e97a2bb3": [
+        {
+            "scryfallId": "15796c4b-6041-4e0a-bc4f-0518d165549e",
+            "name": "Robot"
         }
     ],
     "d134385d-b01c-41c7-bb2d-30722b44dc5a": [
@@ -1651,6 +1825,12 @@
             "name": "Saproling"
         }
     ],
+    "e2dbfb1b-092c-44a3-932d-a8b27be0a72b": [
+        {
+            "scryfallId": "46161339-7173-4265-9691-106be5536b2d",
+            "name": "Phyrexian Golem"
+        }
+    ],
     "e388c433-3a37-45f6-825a-d13d2223b6f7": [
         {
             "scryfallId": "fd8ca5ee-7b93-4248-8f4a-b88261ee1eed",
@@ -1661,6 +1841,12 @@
         {
             "scryfallId": "577c2e32-deb6-40d9-a050-c2acb5bfc05f",
             "name": "Goblin"
+        }
+    ],
+    "e6966738-b4fc-4854-81b0-09de305854f2": [
+        {
+            "scryfallId": "d0044cd9-2136-423e-aa2a-829e8f007535",
+            "name": "Thopter"
         }
     ],
     "e7ff8345-227c-43b4-bed5-af3a34c0a990": [
@@ -1687,6 +1873,18 @@
             "name": "Wolf"
         }
     ],
+    "ec18d8cd-67ed-4338-8ae7-69628469cd43": [
+        {
+            "scryfallId": "952d0fa0-86fe-4ddc-84e8-48dc96f9dcda",
+            "name": "Robot Hero"
+        }
+    ],
+    "eda82e38-c1d4-4019-8f79-f91602d941b0": [
+        {
+            "scryfallId": "83981313-ff55-4030-ac82-d6a3087cf675",
+            "name": "Soldier"
+        }
+    ],
     "ee7207f8-5daa-42af-aeea-7a489047110b": [
         {
             "scryfallId": "81de52ef-7515-4958-abea-fb8ebdcef93c",
@@ -1711,6 +1909,12 @@
             "name": "Blood"
         }
     ],
+    "f05cafb6-8812-42bb-ad14-3dde4bcb7034": [
+        {
+            "scryfallId": "bfa49655-6ce7-404b-ad12-33ec1cd7c0d3",
+            "name": "Thopter"
+        }
+    ],
     "f06c0007-299e-4d71-99c3-f905d942759d": [
         {
             "scryfallId": "09293ae7-0629-417b-9eda-9bd3f6d8e118",
@@ -1733,6 +1937,12 @@
         {
             "scryfallId": "3a53a7c6-6b32-4491-8c96-e564abea8880",
             "name": "Spirit"
+        }
+    ],
+    "f50b0449-8ff7-4549-893b-aeca93720c64": [
+        {
+            "scryfallId": "83981313-ff55-4030-ac82-d6a3087cf675",
+            "name": "Soldier"
         }
     ],
     "f6898737-957f-44a6-bef7-fb196658176f": [
@@ -1793,6 +2003,12 @@
         {
             "scryfallId": "59e79ba0-33c8-46c8-8694-8bf854345fe7",
             "name": "Spirit"
+        }
+    ],
+    "ff1a1246-d5a0-43dc-825a-062a3bb4def9": [
+        {
+            "scryfallId": "9c9a3d08-040a-4fec-b86d-c41a074f925c",
+            "name": "Thopter"
         }
     ]
 }

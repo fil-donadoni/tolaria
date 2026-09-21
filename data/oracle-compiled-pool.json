@@ -692,6 +692,80 @@
         "rarity": "common"
     },
     {
+        "name": "Cogworker's Puzzleknot",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 2
+        },
+        "oracleText": "When this artifact enters, create a 1/1 colorless Servo artifact creature token.\n{1}{W}, Sacrifice this artifact: Create a 1/1 colorless Servo artifact creature token.",
+        "activatedAbilities": [
+            {
+                "id": "cogworker-s-puzzleknot-ability",
+                "oracleText": "{1}{W}, Sacrifice this artifact: Create a 1/1 colorless Servo artifact creature token.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "W": 1
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Servo",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Servo"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": []
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "cogworker-s-puzzleknot-trigger",
+                "oracleText": "When this artifact enters, create a 1/1 colorless Servo artifact creature token.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Servo",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Servo"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": []
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "id": "00d594df-c51b-4936-9af1-536dab1792ae",
+        "rarity": "common"
+    },
+    {
         "name": "Tolarian Scholar",
         "types": [
             "Creature"
@@ -2029,6 +2103,57 @@
             "count": 1
         },
         "id": "02c56677-c8e2-4500-9ee0-0b102496f454",
+        "rarity": "common"
+    },
+    {
+        "name": "Oltec Cloud Guard",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "power": 3,
+        "toughness": 2,
+        "oracleText": "Flying\nWhen this creature enters, create a 1/1 colorless Gnome artifact creature token.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "oltec-cloud-guard-trigger",
+                "oracleText": "When this creature enters, create a 1/1 colorless Gnome artifact creature token.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Gnome",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Gnome"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": []
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "id": "02d68a38-2e0b-401b-b67d-a55e2af5b18d",
         "rarity": "common"
     },
     {
@@ -3641,6 +3766,39 @@
             }
         ],
         "id": "04e3e38b-2191-4b92-ae5d-bb9397d24a27",
+        "rarity": "common"
+    },
+    {
+        "name": "Master's Call",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "Create two 1/1 colorless Myr artifact creature tokens.",
+        "effects": [
+            {
+                "op": "createToken",
+                "token": {
+                    "name": "Myr",
+                    "types": [
+                        "Artifact",
+                        "Creature"
+                    ],
+                    "subtypes": [
+                        "Myr"
+                    ],
+                    "power": 1,
+                    "toughness": 1,
+                    "colors": []
+                },
+                "controller": "controller",
+                "count": 2
+            }
+        ],
+        "id": "04f54188-2cfc-4964-add7-b452f32d57ef",
         "rarity": "common"
     },
     {
@@ -9262,6 +9420,92 @@
         ],
         "id": "0dc939cc-826a-4208-ba5b-a11e1cd47aa2",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Pia and Kiran Nalaar",
+        "types": [
+            "Creature"
+        ],
+        "supertypes": [
+            "Legendary"
+        ],
+        "subtypes": [
+            "Human",
+            "Artificer"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 2
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "When Pia and Kiran Nalaar enters, create two 1/1 colorless Thopter artifact creature tokens with flying.\n{2}{R}, Sacrifice an artifact: Pia and Kiran Nalaar deals 2 damage to any target.",
+        "activatedAbilities": [
+            {
+                "id": "pia-and-kiran-nalaar-ability",
+                "oracleText": "{2}{R}, Sacrifice an artifact: {self} deals 2 damage to any target.",
+                "cost": {
+                    "mana": {
+                        "X": 2,
+                        "R": 1
+                    },
+                    "sacrificeFilter": {
+                        "types": [
+                            "Artifact"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 2,
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "pia-and-kiran-nalaar-trigger",
+                "oracleText": "When {self} enters, create two 1/1 colorless Thopter artifact creature tokens with flying.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Thopter",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Thopter"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": [],
+                            "staticAbilities": [
+                                "flying"
+                            ]
+                        },
+                        "controller": "controller",
+                        "count": 2
+                    }
+                ]
+            }
+        ],
+        "id": "0dcafa9e-3637-42ca-bdb2-45a2b5da7294",
+        "rarity": "rare"
     },
     {
         "name": "Imperial Outrider",
@@ -17970,6 +18214,60 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Aspiring Aeronaut",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Artificer"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "Flying (This creature can't be blocked except by creatures with flying or reach.)\nWhen this creature enters, create a 1/1 colorless Thopter artifact creature token with flying.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "aspiring-aeronaut-trigger",
+                "oracleText": "When this creature enters, create a 1/1 colorless Thopter artifact creature token with flying.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Thopter",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Thopter"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": [],
+                            "staticAbilities": [
+                                "flying"
+                            ]
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "id": "1ae6c87f-003b-44b7-96fd-ab8fca9af6f1",
+        "rarity": "common"
+    },
+    {
         "name": "Golden Hind",
         "types": [
             "Creature"
@@ -25567,6 +25865,50 @@
         "rarity": "common"
     },
     {
+        "name": "Nuisance Engine",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 3
+        },
+        "oracleText": "{2}, {T}: Create a 0/1 colorless Pest artifact creature token.",
+        "activatedAbilities": [
+            {
+                "id": "nuisance-engine-ability",
+                "oracleText": "{2}, {T}: Create a 0/1 colorless Pest artifact creature token.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Pest",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Pest"
+                            ],
+                            "power": 0,
+                            "toughness": 1,
+                            "colors": []
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "id": "266df8c3-5872-4d83-90bc-8f6f854ac838",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Gladecover Scout",
         "types": [
             "Creature"
@@ -25825,6 +26167,84 @@
         },
         "id": "27157f01-8aed-4485-9f0f-9e7486492e6e",
         "rarity": "common"
+    },
+    {
+        "name": "Vital Splicer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Phyrexian",
+            "Human",
+            "Artificer"
+        ],
+        "manaCost": {
+            "X": 3,
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "When this creature enters, create a 3/3 colorless Phyrexian Golem artifact creature token.\n{1}: Regenerate target Golem you control.",
+        "activatedAbilities": [
+            {
+                "id": "vital-splicer-ability",
+                "oracleText": "{1}: Regenerate target Golem you control.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "subtypeFilter": [
+                        "Golem"
+                    ],
+                    "controller": "you"
+                }
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "vital-splicer-trigger",
+                "oracleText": "When this creature enters, create a 3/3 colorless Phyrexian Golem artifact creature token.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Phyrexian Golem",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Phyrexian",
+                                "Golem"
+                            ],
+                            "power": 3,
+                            "toughness": 3,
+                            "colors": []
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "id": "273b982d-bca2-4418-8618-c711d28fc901",
+        "rarity": "uncommon"
     },
     {
         "name": "Nurturing Peatland",
@@ -29191,6 +29611,60 @@
         "rarity": "common"
     },
     {
+        "name": "Mechanized Ninja Cavalry",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Robot",
+            "Ninja"
+        ],
+        "manaCost": {
+            "X": 1,
+            "hybrid": [
+                [
+                    "R",
+                    "W"
+                ]
+            ]
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "When this creature enters, create a 1/1 colorless Robot artifact creature token.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "mechanized-ninja-cavalry-trigger",
+                "oracleText": "When this creature enters, create a 1/1 colorless Robot artifact creature token.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Robot",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Robot"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": []
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "id": "2cb65388-dc6c-4e2a-93ac-49ea484849e9",
+        "rarity": "common"
+    },
+    {
         "name": "Sultai Scavenger",
         "types": [
             "Creature"
@@ -29464,6 +29938,72 @@
         ],
         "id": "2d1f56e8-55cb-4b81-9946-9f0f813e3d4a",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Maul Splicer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Phyrexian",
+            "Human",
+            "Artificer"
+        ],
+        "manaCost": {
+            "X": 6,
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "When this creature enters, create two 3/3 colorless Phyrexian Golem artifact creature tokens.\nGolem creatures you control have trample.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "maul-splicer-trigger",
+                "oracleText": "When this creature enters, create two 3/3 colorless Phyrexian Golem artifact creature tokens.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Phyrexian Golem",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Phyrexian",
+                                "Golem"
+                            ],
+                            "power": 3,
+                            "toughness": 3,
+                            "colors": []
+                        },
+                        "controller": "controller",
+                        "count": 2
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "filter": {
+                    "types": [
+                        "Creature"
+                    ],
+                    "subtypes": [
+                        "Golem"
+                    ],
+                    "controllerRelation": "you"
+                },
+                "keyword": "trample"
+            }
+        ],
+        "id": "2d2c6a6d-5b59-47d7-b290-df3640d9555f",
+        "rarity": "common"
     },
     {
         "name": "Raptor Companion",
@@ -35328,6 +35868,76 @@
         ],
         "id": "36a1cdca-d48c-4936-ad6a-4610aeb991ce",
         "rarity": "common"
+    },
+    {
+        "name": "Spawning Pit",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 2
+        },
+        "oracleText": "Sacrifice a creature: Put a charge counter on this artifact.\n{1}, Remove two charge counters from this artifact: Create a 2/2 colorless Spawn artifact creature token.",
+        "activatedAbilities": [
+            {
+                "id": "spawning-pit-ability",
+                "oracleText": "Sacrifice a creature: Put a charge counter on this artifact.",
+                "cost": {
+                    "sacrificeFilter": {
+                        "types": [
+                            "Creature"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "counters",
+                        "action": "add",
+                        "counter": "charge",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "count": 1
+                    }
+                ]
+            },
+            {
+                "id": "spawning-pit-ability-2",
+                "oracleText": "{1}, Remove two charge counters from this artifact: Create a 2/2 colorless Spawn artifact creature token.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "removeCounter": {
+                        "type": "charge",
+                        "count": 2
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Spawn",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Spawn"
+                            ],
+                            "power": 2,
+                            "toughness": 2,
+                            "colors": []
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "id": "36a3345d-1190-45f4-8191-897b4dcec376",
+        "rarity": "uncommon"
     },
     {
         "name": "Degavolver",
@@ -44743,6 +45353,57 @@
         "rarity": "rare"
     },
     {
+        "name": "Nimble Thopterist",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Vedalken",
+            "Artificer"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 1
+        },
+        "power": 3,
+        "toughness": 2,
+        "oracleText": "When this creature enters, create a 1/1 colorless Thopter artifact creature token with flying.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "nimble-thopterist-trigger",
+                "oracleText": "When this creature enters, create a 1/1 colorless Thopter artifact creature token with flying.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Thopter",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Thopter"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": [],
+                            "staticAbilities": [
+                                "flying"
+                            ]
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "id": "47717312-f6c6-4e86-ba6a-a30698962430",
+        "rarity": "common"
+    },
+    {
         "name": "Alaborn Musketeer",
         "types": [
             "Creature"
@@ -46460,6 +47121,59 @@
         "rarity": "common"
     },
     {
+        "name": "Renegade's Getaway",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "oracleText": "Target permanent gains indestructible until end of turn. Create a 1/1 colorless Servo artifact creature token. (Effects that say \"destroy\" don't destroy a permanent with indestructible, and if it's a creature, it can't be destroyed by damage.)",
+        "effects": [
+            {
+                "op": "grantAbility",
+                "target": {
+                    "target": 0
+                },
+                "ability": "indestructible",
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "createToken",
+                "token": {
+                    "name": "Servo",
+                    "types": [
+                        "Artifact",
+                        "Creature"
+                    ],
+                    "subtypes": [
+                        "Servo"
+                    ],
+                    "power": 1,
+                    "toughness": 1,
+                    "colors": []
+                },
+                "controller": "controller"
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Artifact",
+                "Battle",
+                "Creature",
+                "Enchantment",
+                "Land",
+                "Planeswalker"
+            ],
+            "count": 1
+        },
+        "id": "49b0a5d5-99d7-492b-bd85-77c3cee12c8d",
+        "rarity": "common"
+    },
+    {
         "name": "Hexplate Golem",
         "types": [
             "Artifact",
@@ -46583,6 +47297,67 @@
         ],
         "id": "4a0e12f5-7b15-4a8c-b045-35bcbf1fbb90",
         "rarity": "common"
+    },
+    {
+        "name": "Myr Matrix",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 5
+        },
+        "oracleText": "Indestructible (Effects that say \"destroy\" don't destroy this artifact.)\nMyr creatures get +1/+1.\n{5}: Create a 1/1 colorless Myr artifact creature token.",
+        "staticAbilities": [
+            "indestructible"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "myr-matrix-ability",
+                "oracleText": "{5}: Create a 1/1 colorless Myr artifact creature token.",
+                "cost": {
+                    "mana": {
+                        "X": 5
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Myr",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Myr"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": []
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "filter": {
+                    "types": [
+                        "Creature"
+                    ],
+                    "subtypes": [
+                        "Myr"
+                    ]
+                },
+                "power": 1,
+                "toughness": 1
+            }
+        ],
+        "id": "4a1af62e-d566-4f39-a467-244602c9240b",
+        "rarity": "rare"
     },
     {
         "name": "Grizzled Outrider",
@@ -49941,6 +50716,55 @@
             }
         ],
         "id": "505da522-73a8-4232-ae1a-d3365f3e598f",
+        "rarity": "common"
+    },
+    {
+        "name": "Myr Sire",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Phyrexian",
+            "Myr"
+        ],
+        "manaCost": {
+            "X": 2
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "When this creature dies, create a 1/1 colorless Phyrexian Myr artifact creature token.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "myr-sire-trigger",
+                "oracleText": "When this creature dies, create a 1/1 colorless Phyrexian Myr artifact creature token.",
+                "head": {
+                    "kind": "died",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Phyrexian Myr",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Phyrexian",
+                                "Myr"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": []
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "id": "507979fd-5459-4933-8707-adc303750ce9",
         "rarity": "common"
     },
     {
@@ -61797,6 +62621,39 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Mass Production",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 5,
+            "W": 1
+        },
+        "oracleText": "Create four 1/1 colorless Soldier artifact creature tokens.",
+        "effects": [
+            {
+                "op": "createToken",
+                "token": {
+                    "name": "Soldier",
+                    "types": [
+                        "Artifact",
+                        "Creature"
+                    ],
+                    "subtypes": [
+                        "Soldier"
+                    ],
+                    "power": 1,
+                    "toughness": 1,
+                    "colors": []
+                },
+                "controller": "controller",
+                "count": 4
+            }
+        ],
+        "id": "640a08b7-dd30-446e-a8a7-2e084bbb9586",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Cackling Imp",
         "types": [
             "Creature"
@@ -71649,6 +72506,63 @@
         "rarity": "common"
     },
     {
+        "name": "Foundry of the Consuls",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {C}.\n{5}, {T}, Sacrifice this land: Create two 1/1 colorless Thopter artifact creature tokens with flying.",
+        "activatedAbilities": [
+            {
+                "id": "foundry-of-the-consuls-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "foundry-of-the-consuls-ability-2",
+                "oracleText": "{5}, {T}, Sacrifice this land: Create two 1/1 colorless Thopter artifact creature tokens with flying.",
+                "cost": {
+                    "mana": {
+                        "X": 5
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Thopter",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Thopter"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": [],
+                            "staticAbilities": [
+                                "flying"
+                            ]
+                        },
+                        "controller": "controller",
+                        "count": 2
+                    }
+                ]
+            }
+        ],
+        "id": "73f29e03-0a71-46cd-992e-7baa61f16ac5",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Frog-Squirrels",
         "types": [
             "Creature"
@@ -74963,6 +75877,70 @@
         "rarity": "common"
     },
     {
+        "name": "Sensor Splicer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Phyrexian",
+            "Artificer"
+        ],
+        "manaCost": {
+            "X": 4,
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "When this creature enters, create a 3/3 colorless Phyrexian Golem artifact creature token.\nGolem creatures you control have vigilance.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "sensor-splicer-trigger",
+                "oracleText": "When this creature enters, create a 3/3 colorless Phyrexian Golem artifact creature token.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Phyrexian Golem",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Phyrexian",
+                                "Golem"
+                            ],
+                            "power": 3,
+                            "toughness": 3,
+                            "colors": []
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "filter": {
+                    "types": [
+                        "Creature"
+                    ],
+                    "subtypes": [
+                        "Golem"
+                    ],
+                    "controllerRelation": "you"
+                },
+                "keyword": "vigilance"
+            }
+        ],
+        "id": "79076264-d71c-4b30-aac9-702a4d229933",
+        "rarity": "common"
+    },
+    {
         "name": "Dreamstone Hedron",
         "types": [
             "Artifact"
@@ -75835,6 +76813,73 @@
             }
         ],
         "id": "7a35be7b-d693-4433-9b13-8e019adc594e",
+        "rarity": "rare"
+    },
+    {
+        "name": "Titan Forge",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 3
+        },
+        "oracleText": "{3}, {T}: Put a charge counter on this artifact.\n{T}, Remove three charge counters from this artifact: Create a 9/9 colorless Golem artifact creature token.",
+        "activatedAbilities": [
+            {
+                "id": "titan-forge-ability",
+                "oracleText": "{3}, {T}: Put a charge counter on this artifact.",
+                "cost": {
+                    "mana": {
+                        "X": 3
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "counters",
+                        "action": "add",
+                        "counter": "charge",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "count": 1
+                    }
+                ]
+            },
+            {
+                "id": "titan-forge-ability-2",
+                "oracleText": "{T}, Remove three charge counters from this artifact: Create a 9/9 colorless Golem artifact creature token.",
+                "cost": {
+                    "tap": true,
+                    "removeCounter": {
+                        "type": "charge",
+                        "count": 3
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Golem",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Golem"
+                            ],
+                            "power": 9,
+                            "toughness": 9,
+                            "colors": []
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "id": "7a3bb4ab-6fe7-4926-a929-3e37691f287a",
         "rarity": "rare"
     },
     {
@@ -81753,6 +82798,69 @@
         "rarity": "common"
     },
     {
+        "name": "Tinker's Tote",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "When this artifact enters, create two 1/1 colorless Gnome artifact creature tokens.\n{W}, Sacrifice this artifact: You gain 3 life.",
+        "activatedAbilities": [
+            {
+                "id": "tinker-s-tote-ability",
+                "oracleText": "{W}, Sacrifice this artifact: You gain 3 life.",
+                "cost": {
+                    "mana": {
+                        "W": 1
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 3
+                    }
+                ]
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "tinker-s-tote-trigger",
+                "oracleText": "When this artifact enters, create two 1/1 colorless Gnome artifact creature tokens.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Gnome",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Gnome"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": []
+                        },
+                        "controller": "controller",
+                        "count": 2
+                    }
+                ]
+            }
+        ],
+        "id": "8321857e-7977-46dd-8357-d732312e5261",
+        "rarity": "common"
+    },
+    {
         "name": "Hermetic Study",
         "types": [
             "Enchantment"
@@ -83016,6 +84124,72 @@
         "toughness": 4,
         "id": "8595e9a1-010e-48a7-91e4-3d2722c8dbc0",
         "rarity": "common"
+    },
+    {
+        "name": "Master Splicer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Phyrexian",
+            "Human",
+            "Artificer"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "When this creature enters, create a 3/3 colorless Phyrexian Golem artifact creature token.\nGolems you control get +1/+1.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "master-splicer-trigger",
+                "oracleText": "When this creature enters, create a 3/3 colorless Phyrexian Golem artifact creature token.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Phyrexian Golem",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Phyrexian",
+                                "Golem"
+                            ],
+                            "power": 3,
+                            "toughness": 3,
+                            "colors": []
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "filter": {
+                    "types": [
+                        "Creature"
+                    ],
+                    "subtypes": [
+                        "Golem"
+                    ],
+                    "controllerRelation": "you"
+                },
+                "power": 1,
+                "toughness": 1
+            }
+        ],
+        "id": "859d2b91-63af-4700-8ca5-b1756aa6639b",
+        "rarity": "uncommon"
     },
     {
         "name": "Syphon Sliver",
@@ -88480,6 +89654,56 @@
         "rarity": "rare"
     },
     {
+        "name": "Filigree Crawler",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Insect"
+        ],
+        "manaCost": {
+            "X": 4
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "When this creature dies, create a 1/1 colorless Thopter artifact creature token with flying.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "filigree-crawler-trigger",
+                "oracleText": "When this creature dies, create a 1/1 colorless Thopter artifact creature token with flying.",
+                "head": {
+                    "kind": "died",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Thopter",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Thopter"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": [],
+                            "staticAbilities": [
+                                "flying"
+                            ]
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "id": "8d8e817c-079e-4e7c-a8ca-54634f30bf36",
+        "rarity": "common"
+    },
+    {
         "name": "Volcanic Upheaval",
         "types": [
             "Instant"
@@ -93693,6 +94917,61 @@
         "rarity": "common"
     },
     {
+        "name": "Experimental Aviator",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Artificer"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 2
+        },
+        "power": 0,
+        "toughness": 3,
+        "oracleText": "Flying\nWhen this creature enters, create two 1/1 colorless Thopter artifact creature tokens with flying.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "experimental-aviator-trigger",
+                "oracleText": "When this creature enters, create two 1/1 colorless Thopter artifact creature tokens with flying.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Thopter",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Thopter"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": [],
+                            "staticAbilities": [
+                                "flying"
+                            ]
+                        },
+                        "controller": "controller",
+                        "count": 2
+                    }
+                ]
+            }
+        ],
+        "id": "962dc573-612d-434b-82fb-af9c3e3c9aca",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Rebuke",
         "types": [
             "Instant"
@@ -93942,6 +95221,57 @@
             "count": 1
         },
         "id": "96b8f4be-9f4d-4373-8141-a03518ecd38a",
+        "rarity": "common"
+    },
+    {
+        "name": "Envoy of Okinec Ahau",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Cat",
+            "Advisor"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "{4}{W}: Create a 1/1 colorless Gnome artifact creature token.",
+        "activatedAbilities": [
+            {
+                "id": "envoy-of-okinec-ahau-ability",
+                "oracleText": "{4}{W}: Create a 1/1 colorless Gnome artifact creature token.",
+                "cost": {
+                    "mana": {
+                        "X": 4,
+                        "W": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Gnome",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Gnome"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": []
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "id": "96de0741-9270-4118-bb8e-f3480c75a582",
         "rarity": "common"
     },
     {
@@ -96494,6 +97824,39 @@
             }
         ],
         "id": "9ab94ebe-b51b-4c6f-af43-0ed80e2808a3",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Servo Exhibition",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "Create two 1/1 colorless Servo artifact creature tokens.",
+        "effects": [
+            {
+                "op": "createToken",
+                "token": {
+                    "name": "Servo",
+                    "types": [
+                        "Artifact",
+                        "Creature"
+                    ],
+                    "subtypes": [
+                        "Servo"
+                    ],
+                    "power": 1,
+                    "toughness": 1,
+                    "colors": []
+                },
+                "controller": "controller",
+                "count": 2
+            }
+        ],
+        "id": "9aba0c60-78e2-4e1c-a6ad-6f1c001ad7ee",
         "rarity": "uncommon"
     },
     {
@@ -107373,6 +108736,62 @@
         "rarity": "rare"
     },
     {
+        "name": "Gargoyle Castle",
+        "types": [
+            "Land"
+        ],
+        "oracleText": "{T}: Add {C}.\n{5}, {T}, Sacrifice this land: Create a 3/4 colorless Gargoyle artifact creature token with flying.",
+        "activatedAbilities": [
+            {
+                "id": "gargoyle-castle-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "gargoyle-castle-ability-2",
+                "oracleText": "{5}, {T}, Sacrifice this land: Create a 3/4 colorless Gargoyle artifact creature token with flying.",
+                "cost": {
+                    "mana": {
+                        "X": 5
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Gargoyle",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Gargoyle"
+                            ],
+                            "power": 3,
+                            "toughness": 4,
+                            "colors": [],
+                            "staticAbilities": [
+                                "flying"
+                            ]
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "id": "ab512e43-894e-40af-ab8a-f33f258dd885",
+        "rarity": "rare"
+    },
+    {
         "name": "Iroas's Blessing",
         "types": [
             "Enchantment"
@@ -111428,6 +112847,61 @@
             "count": 1
         },
         "id": "b2215de4-da49-4270-aec7-5e16a938bae4",
+        "rarity": "uncommon"
+    },
+    {
+        "name": "Urza's Factory",
+        "types": [
+            "Land"
+        ],
+        "subtypes": [
+            "Urza's"
+        ],
+        "oracleText": "{T}: Add {C}.\n{7}, {T}: Create a 2/2 colorless Assembly-Worker artifact creature token.",
+        "activatedAbilities": [
+            {
+                "id": "urza-s-factory-mana",
+                "oracleText": "{T}: Add {C}.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 1
+                }
+            },
+            {
+                "id": "urza-s-factory-ability-2",
+                "oracleText": "{7}, {T}: Create a 2/2 colorless Assembly-Worker artifact creature token.",
+                "cost": {
+                    "mana": {
+                        "X": 7
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Assembly-Worker",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Assembly-Worker"
+                            ],
+                            "power": 2,
+                            "toughness": 2,
+                            "colors": []
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "id": "b22d97f3-08cf-4c19-bbe2-5a36096187cd",
         "rarity": "uncommon"
     },
     {
@@ -115549,6 +117023,71 @@
         ],
         "id": "b8dd4693-424d-4d6e-86cf-24401a23d6b1",
         "rarity": "common"
+    },
+    {
+        "name": "Blade Splicer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Phyrexian",
+            "Human",
+            "Artificer"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "When this creature enters, create a 3/3 colorless Phyrexian Golem artifact creature token.\nGolems you control have first strike.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "blade-splicer-trigger",
+                "oracleText": "When this creature enters, create a 3/3 colorless Phyrexian Golem artifact creature token.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Phyrexian Golem",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Phyrexian",
+                                "Golem"
+                            ],
+                            "power": 3,
+                            "toughness": 3,
+                            "colors": []
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "filter": {
+                    "types": [
+                        "Creature"
+                    ],
+                    "subtypes": [
+                        "Golem"
+                    ],
+                    "controllerRelation": "you"
+                },
+                "keyword": "first strike"
+            }
+        ],
+        "id": "b8e56a28-713b-4a13-a601-1128cf117539",
+        "rarity": "rare"
     },
     {
         "name": "Jhovall Queen",
@@ -125753,6 +127292,75 @@
         "rarity": "common"
     },
     {
+        "name": "Transmogrant Altar",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 3
+        },
+        "oracleText": "{B}, {T}, Sacrifice a creature: Add {C}{C}{C}.\n{2}, {T}, Sacrifice a creature: Create a 3/3 colorless Zombie artifact creature token. Activate only as a sorcery.",
+        "activatedAbilities": [
+            {
+                "id": "transmogrant-altar-mana",
+                "oracleText": "{B}, {T}, Sacrifice a creature: Add {C}{C}{C}.",
+                "cost": {
+                    "mana": {
+                        "B": 1
+                    },
+                    "tap": true,
+                    "sacrificeFilter": {
+                        "types": [
+                            "Creature"
+                        ]
+                    }
+                },
+                "useStack": false,
+                "manaProduced": {
+                    "C": 3
+                }
+            },
+            {
+                "id": "transmogrant-altar-ability-2",
+                "oracleText": "{2}, {T}, Sacrifice a creature: Create a 3/3 colorless Zombie artifact creature token. Activate only as a sorcery.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    },
+                    "tap": true,
+                    "sacrificeFilter": {
+                        "types": [
+                            "Creature"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Zombie",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Zombie"
+                            ],
+                            "power": 3,
+                            "toughness": 3,
+                            "colors": []
+                        },
+                        "controller": "controller"
+                    }
+                ],
+                "sorcerySpeedOnly": true
+            }
+        ],
+        "id": "ca28d210-a35d-491e-beda-76b95d09dc2d",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Plague Witch",
         "types": [
             "Creature"
@@ -126347,6 +127955,62 @@
         ],
         "id": "cad14bc9-b90e-48e0-9e72-173874dab6bc",
         "rarity": "common"
+    },
+    {
+        "name": "Maverick Thopterist",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Artificer"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 1,
+            "R": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Improvise (Your artifacts can help cast this spell. Each artifact you tap after you're done activating mana abilities pays for {1}.)\nWhen this creature enters, create two 1/1 colorless Thopter artifact creature tokens with flying.",
+        "staticAbilities": [
+            "improvise"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "maverick-thopterist-trigger",
+                "oracleText": "When this creature enters, create two 1/1 colorless Thopter artifact creature tokens with flying.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Thopter",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Thopter"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": [],
+                            "staticAbilities": [
+                                "flying"
+                            ]
+                        },
+                        "controller": "controller",
+                        "count": 2
+                    }
+                ]
+            }
+        ],
+        "id": "cad17d67-538e-4c60-a582-a394032a5112",
+        "rarity": "uncommon"
     },
     {
         "name": "Marisi's Twinclaws",
@@ -129979,6 +131643,70 @@
         },
         "id": "d0df839f-dc4c-44b0-82c7-cb2037172ac5",
         "rarity": "common"
+    },
+    {
+        "name": "Robotics Mastery",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 4,
+            "U": 1
+        },
+        "oracleText": "Flash\nEnchant creature\nWhen this Aura enters, create two 1/1 colorless Robot artifact creature tokens with flying.\nEnchanted creature gets +2/+2.",
+        "staticAbilities": [
+            "flash"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "robotics-mastery-trigger",
+                "oracleText": "When this Aura enters, create two 1/1 colorless Robot artifact creature tokens with flying.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Robot",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Robot"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": [],
+                            "staticAbilities": [
+                                "flying"
+                            ]
+                        },
+                        "controller": "controller",
+                        "count": 2
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "appliesTo": "host",
+                "power": 2,
+                "toughness": 2
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "d0e92939-6d86-44b4-8a43-1963e97a2bb3",
+        "rarity": "uncommon"
     },
     {
         "name": "War Chariot",
@@ -140532,6 +142260,71 @@
         "rarity": "common"
     },
     {
+        "name": "Wing Splicer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Phyrexian",
+            "Human",
+            "Artificer"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "When this creature enters, create a 3/3 colorless Phyrexian Golem artifact creature token.\nGolem creatures you control have flying.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "wing-splicer-trigger",
+                "oracleText": "When this creature enters, create a 3/3 colorless Phyrexian Golem artifact creature token.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Phyrexian Golem",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Phyrexian",
+                                "Golem"
+                            ],
+                            "power": 3,
+                            "toughness": 3,
+                            "colors": []
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "keyword-grant",
+                "filter": {
+                    "types": [
+                        "Creature"
+                    ],
+                    "subtypes": [
+                        "Golem"
+                    ],
+                    "controllerRelation": "you"
+                },
+                "keyword": "flying"
+            }
+        ],
+        "id": "e2dbfb1b-092c-44a3-932d-a8b27be0a72b",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Earth Rift",
         "types": [
             "Sorcery"
@@ -142418,6 +144211,57 @@
             "controller": "you"
         },
         "id": "e68b96b1-b75e-4ee1-a6d7-6545a34fef9b",
+        "rarity": "common"
+    },
+    {
+        "name": "Aviation Pioneer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Artificer"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "When this creature enters, create a 1/1 colorless Thopter artifact creature token with flying.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "aviation-pioneer-trigger",
+                "oracleText": "When this creature enters, create a 1/1 colorless Thopter artifact creature token with flying.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Thopter",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Thopter"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": [],
+                            "staticAbilities": [
+                                "flying"
+                            ]
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "id": "e6966738-b4fc-4854-81b0-09de305854f2",
         "rarity": "common"
     },
     {
@@ -145553,6 +147397,84 @@
         "rarity": "common"
     },
     {
+        "name": "Iron Man, Tony Stark",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "supertypes": [
+            "Legendary"
+        ],
+        "subtypes": [
+            "Human",
+            "Hero"
+        ],
+        "manaCost": {
+            "X": 3,
+            "R": 2
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "Flying (This creature can't be blocked except by creatures with flying or reach.)\nAttacking creatures you control get +1/+0.\nWhenever you cast a red spell, create a 2/1 colorless Robot Hero artifact creature token with flying.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "iron-man-tony-stark-trigger",
+                "oracleText": "Whenever you cast a red spell, create a 2/1 colorless Robot Hero artifact creature token with flying.",
+                "head": {
+                    "kind": "spell-cast",
+                    "scope": "you",
+                    "filter": {
+                        "colors": [
+                            "R"
+                        ]
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Robot Hero",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Robot",
+                                "Hero"
+                            ],
+                            "power": 2,
+                            "toughness": 1,
+                            "colors": [],
+                            "staticAbilities": [
+                                "flying"
+                            ]
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "compiledStaticEffects": [
+            {
+                "kind": "pt-buff",
+                "filter": {
+                    "types": [
+                        "Creature"
+                    ],
+                    "controllerRelation": "you",
+                    "isAttacking": true
+                },
+                "power": 1,
+                "toughness": 0
+            }
+        ],
+        "id": "ec18d8cd-67ed-4338-8ae7-69628469cd43",
+        "rarity": "rare"
+    },
+    {
         "name": "Asceticism",
         "types": [
             "Enchantment"
@@ -146422,6 +148344,77 @@
             }
         ],
         "id": "ed8c028e-6656-47ef-97fb-de99f8833d5f",
+        "rarity": "common"
+    },
+    {
+        "name": "Mishra's Onslaught",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 3,
+            "R": 1
+        },
+        "oracleText": "Choose one —\n• Create two 1/1 colorless Soldier artifact creature tokens.\n• Creatures you control get +2/+0 until end of turn.",
+        "modes": [
+            {
+                "id": "mishra-s-onslaught-mode-1",
+                "label": "Create two 1/1 colorless Soldier artifact creature tokens",
+                "oracleText": "Create two 1/1 colorless Soldier artifact creature tokens.",
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Soldier",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Soldier"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": []
+                        },
+                        "controller": "controller",
+                        "count": 2
+                    }
+                ]
+            },
+            {
+                "id": "mishra-s-onslaught-mode-2",
+                "label": "Creatures you control get +2/+0 until end of turn",
+                "oracleText": "Creatures you control get +2/+0 until end of turn.",
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "controller": "controller",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": 2,
+                                "toughness": 0,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "eda82e38-c1d4-4019-8f79-f91602d941b0",
         "rarity": "common"
     },
     {
@@ -148015,6 +150008,57 @@
         ],
         "id": "f042a8c7-f07b-42bd-8251-c588d890683c",
         "rarity": "rare"
+    },
+    {
+        "name": "Ghirapur Gearcrafter",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Artificer"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "When this creature enters, create a 1/1 colorless Thopter artifact creature token with flying. (A creature with flying can't be blocked except by creatures with flying or reach.)",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "ghirapur-gearcrafter-trigger",
+                "oracleText": "When this creature enters, create a 1/1 colorless Thopter artifact creature token with flying.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Thopter",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Thopter"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": [],
+                            "staticAbilities": [
+                                "flying"
+                            ]
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "id": "f05cafb6-8812-42bb-ad14-3dde4bcb7034",
+        "rarity": "common"
     },
     {
         "name": "Queen's Commission",
@@ -150203,6 +152247,54 @@
         ],
         "id": "f4d875e9-713d-4ddb-ae0a-db8483366319",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Conscripted Infantry",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "power": 3,
+        "toughness": 1,
+        "oracleText": "When this creature dies, create a 1/1 colorless Soldier artifact creature token.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "conscripted-infantry-trigger",
+                "oracleText": "When this creature dies, create a 1/1 colorless Soldier artifact creature token.",
+                "head": {
+                    "kind": "died",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Soldier",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Soldier"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": []
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "id": "f50b0449-8ff7-4549-893b-aeca93720c64",
+        "rarity": "common"
     },
     {
         "name": "Shuttle Crew",
@@ -156481,6 +158573,53 @@
         ],
         "id": "ff0f568e-4d3a-40a5-b72a-63040ec5402d",
         "rarity": "rare"
+    },
+    {
+        "name": "Whirlermaker",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 3
+        },
+        "oracleText": "{4}, {T}: Create a 1/1 colorless Thopter artifact creature token with flying.",
+        "activatedAbilities": [
+            {
+                "id": "whirlermaker-ability",
+                "oracleText": "{4}, {T}: Create a 1/1 colorless Thopter artifact creature token with flying.",
+                "cost": {
+                    "mana": {
+                        "X": 4
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Thopter",
+                            "types": [
+                                "Artifact",
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Thopter"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": [],
+                            "staticAbilities": [
+                                "flying"
+                            ]
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "id": "ff1a1246-d5a0-43dc-825a-062a3bb4def9",
+        "rarity": "uncommon"
     },
     {
         "name": "Shepherd of the Lost",

@@ -47,6 +47,7 @@ export const retrofitterFoundry: CardDefinition = {
                         subtypes: ["Servo"],
                         power: 1,
                         toughness: 1,
+                        colors: [],
                         imagePrintId: tokenPrintIdFor(
                             RETROFITTER_FOUNDRY_ID,
                             "Servo"
@@ -76,6 +77,7 @@ export const retrofitterFoundry: CardDefinition = {
                         power: 1,
                         toughness: 1,
                         staticAbilities: ["flying"],
+                        colors: [],
                         imagePrintId: tokenPrintIdFor(
                             RETROFITTER_FOUNDRY_ID,
                             "Thopter"
@@ -100,6 +102,7 @@ export const retrofitterFoundry: CardDefinition = {
                         subtypes: ["Construct"],
                         power: 4,
                         toughness: 4,
+                        colors: [],
                         imagePrintId: tokenPrintIdFor(
                             RETROFITTER_FOUNDRY_ID,
                             "Construct"
