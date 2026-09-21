@@ -63,23 +63,13 @@ export interface SearchIndexRow {
      *  the set filter and the per-card edition picker.
      *
      *  A COMPILED card has no `CardPrint` in the module graph, so it carries
-     *  exactly one printing with an EMPTY `setCode` — the set a compiled row
-     *  was printed in lives on `data/card-index.json`, which is a server-side
-     *  input and reaches no client. Two consequences, stated rather than
-     *  hidden, and neither a regression:
-     *
-     *   - a compiled card is not reachable through the Set filter, but
-     *     `set-filter.tsx` builds its options from `getAllSetCodes()` — the
-     *     hand-written population — so no selectable set ever named one
-     *     either;
-     *   - `matchesFormatSets` excludes compiled cards from the two Formats
-     *     with a non-null `allowedSets`, `alpha-40` and `old-school`
-     *     (`convex/formats.ts`). Search and validation still AGREE, which is
-     *     the property that matters: `checkSets` rejects exactly the same
-     *     cards, so nothing offers a card the validator would refuse.
-     *     Premodern is unaffected — it overrides the set gate with
-     *     `PREMODERN_LEGAL_NAMES` on both sides. Carrying the set code into
-     *     the artifact is its own ticket. */
+     *  exactly one printing: its first-printing Set, which the catalogue
+     *  artifact's generator joins in from `data/card-index.json`
+     *  (`CardDefinition.setCode`, issue #4363). Its reprints arrive with the
+     *  Card Prints table (issue #4116). The Set filter, `matchesSets` and
+     *  `matchesFormatSets` all read this list, and `checkSets` reads the same
+     *  Set through `resolveDeckCardMeta`, so search offers a card iff the
+     *  Format validator accepts it. */
     prints: CardPrinting[];
 }
 

@@ -18494,6 +18494,15 @@ export interface CardDefinition {
      *  `CardPrint`. Required: a new card must declare its rarity (CR 206) —
      *  the registry self-check and the generator both enforce presence. */
     rarity: Rarity;
+    /** The Set a COMPILED row was first printed in — the card-index's
+     *  `firstPrintSet`, joined in by `scripts/catalogue-artifact.ts` the way
+     *  `id` and `rarity` are (issue #4363). A hand-written definition never
+     *  declares it: its home set is the module it is declared in
+     *  (`catalogue.ts`'s `definitionSetCode`), and a compiled row's value
+     *  feeds that same map on registration, so every reader of the home set
+     *  (search, Format validation, `isPrintedInSet`) sees one answer for both
+     *  populations. Reprints are `CardPrint`s, not this field. */
+    setCode?: string;
     manaCost?: ManaCost;
     types: CardType[];
     subtypes?: string[];

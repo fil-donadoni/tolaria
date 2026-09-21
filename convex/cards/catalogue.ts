@@ -504,6 +504,13 @@ export function registerCompiledDefinitions(
     const fresh = excludeHandWritten(rows, handWrittenIds);
     preloadDefinitions(fresh);
     for (const card of fresh) {
+        // A compiled row's home Set joins the hand-written modules' map, so
+        // `getPrintingsForCard`, `getAllSetCodes`, `isPrintedInSet` and
+        // `resolveDeckCardMeta` answer for both populations from one source
+        // (issue #4363). Never overwrites: a module-declared card wins.
+        if (card.setCode !== undefined && !definitionSetCode.has(card.id)) {
+            definitionSetCode.set(card.id, card.setCode);
+        }
         const key = card.name.toLowerCase();
         if (!nameRegistry.has(key)) nameRegistry.set(key, card);
         // CR 715.5 / 709.4a — the same half-name keys the hand-written loop
