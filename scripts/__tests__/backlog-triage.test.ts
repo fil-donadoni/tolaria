@@ -1718,6 +1718,35 @@ describe("backlog-triage — runTriage --write", () => {
             expect(second.mutations).toEqual([]);
         }, 60_000);
 
+        it("a child of a stale umbrella is banded from the value the umbrella is about to hold — one run converges, the second writes nothing", () => {
+            const kids = [
+                { number: 4097, parent: null, labels: ["prd"] },
+                ...open.slice(1),
+                { number: 5000, parent: 4097 },
+                { number: 5001, parent: 4097 },
+            ];
+            const b = board();
+            b[5000] = wrong(cube);
+            const first = stubTracker(b, kids);
+            runTriage({
+                root: ROOT,
+                argv: ["--write"],
+                ghClient: first.client,
+            });
+            expect(first.written).toEqual([
+                { number: 4097, value: cube },
+                { number: 5000, value: cube },
+                { number: 5001, value: cube },
+            ]);
+            const second = stubTracker(b, kids);
+            runTriage({
+                root: ROOT,
+                argv: ["--write"],
+                ghClient: second.client,
+            });
+            expect(second.mutations).toEqual([]);
+        }, 60_000);
+
         it("a dry run reports the same umbrella change and writes nothing", () => {
             const b = board();
             const t = stubTracker(b, open);
