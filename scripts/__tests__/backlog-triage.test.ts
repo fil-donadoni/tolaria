@@ -15,6 +15,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
     applyWrites,
+    fetchOpenIssues,
     OPEN_ISSUES_QUERY,
     PRIORITY_FIELD_QUERY,
     runTriage,
@@ -25,6 +26,7 @@ import {
     cardsNamedByEngineTitle,
     claimedCards,
     issueCards,
+    labelBand,
     planWrites,
     parseBand,
     parseCards,
@@ -464,6 +466,211 @@ describe("backlog-triage — `## Band`, the user-decision source (issue #4230)",
     });
 });
 
+describe("backlog-triage — labelBand, the residue default table (issue #4231)", () => {
+    // One case per row of the ADR 0143 table, then the stacking rules.
+    const cases: [string, string[], "P1" | "P2" | "P3" | null, string?][] = [
+        ["user-report", ["user-report"], "P1", "user-report"],
+        ["bug + area:mechanics", ["bug", "area:mechanics"], "P2"],
+        ["bug + area:game-bot", ["bug", "area:game-bot"], "P2"],
+        ["bug + area:ui-ux", ["bug", "area:ui-ux"], "P2"],
+        ["bug + area:cards", ["bug", "area:cards"], "P2"],
+        ["bug + area:workflow", ["bug", "area:workflow"], "P3"],
+        ["bug + area:monitoring", ["bug", "area:monitoring"], "P3"],
+        ["bug + area:admin", ["bug", "area:admin"], "P3"],
+        ["bug + area:docs", ["bug", "area:docs"], "P3"],
+        [
+            "bug + an unnamed area → P3",
+            ["bug", "area:limited-bot"],
+            "P3",
+            "bug",
+        ],
+        ["bug + no area → P3", ["bug"], "P3", "bug"],
+        ["bug + a label that is no area → P3", ["bug", "constructor"], "P3"],
+        [
+            "enhancement + area:mechanics (any area) → P3",
+            ["enhancement", "area:mechanics"],
+            "P3",
+            "enhancement",
+        ],
+        ["enhancement + no area", ["enhancement"], "P3", "enhancement"],
+        ["prd → no default", ["prd"], null],
+        ["prd + area:mechanics → no default", ["prd", "area:mechanics"], null],
+        [
+            "wayfinder task (none of the four) → no default",
+            ["ready-for-agent", "area:workflow"],
+            null,
+        ],
+        ["no labels → no default", [], null],
+        // Stacking: user-report first; several areas take the stronger band.
+        [
+            "user-report beats a bug's weaker area",
+            ["bug", "area:docs", "user-report"],
+            "P1",
+            "user-report",
+        ],
+        [
+            "several areas on a bug take the stronger",
+            ["bug", "area:docs", "area:mechanics"],
+            "P2",
+            "bug + area:mechanics",
+        ],
+        [
+            "bug is read before enhancement",
+            ["enhancement", "bug", "area:ui-ux"],
+            "P2",
+        ],
+    ];
+    it.each(cases)("%s", (_name, labels, band, via) => {
+        const got = labelBand(labels);
+        expect(got?.band ?? null).toBe(band);
+        if (via !== undefined) expect(got?.via).toBe(via);
+    });
+});
+
+describe("backlog-triage — the `labels` source, the weakest (issue #4231)", () => {
+    const bugMech = ["bug", "area:mechanics"];
+
+    it("a residue issue with a default gets verdict `band`, source `labels`, via the label", () => {
+        expect(verdictOf([issue(1, { labels: bugMech })])).toEqual({
+            kind: "band",
+            band: "P2",
+            source: "labels",
+            via: "bug + area:mechanics",
+        });
+    });
+
+    it("a stronger source keeps the row — bug + area:mechanics under a P1 parent → parent/P1, not labels/P2", () => {
+        const issues = [issue(1, { parent: 50, labels: bugMech })];
+        expect(triage(issues, index, { 50: "P1" }, 9999).get(1)).toEqual({
+            kind: "band",
+            band: "P1",
+            source: "parent",
+            via: "#50",
+        });
+    });
+
+    it("never LIFTS a row a stronger source bands — user-report (P1) under a P3 parent stays parent/P3", () => {
+        const issues = [issue(1, { parent: 50, labels: ["user-report"] })];
+        expect(triage(issues, index, { 50: "P3" }, 9999).get(1)).toMatchObject({
+            band: "P3",
+            source: "parent",
+        });
+    });
+
+    it("never LIFTS a row an edge bands — user-report blocking a P3 issue stays edge/P3", () => {
+        const issues = [
+            issue(1, { blocks: [2], labels: ["user-report"] }),
+            issue(2, { cards: [CARDS.SetOnly] }),
+        ];
+        expect(verdictOf(issues, {}, 1)).toMatchObject({
+            band: "P3",
+            source: "edge",
+        });
+    });
+
+    it("never LOWERS a row cards band — an enhancement (P3) with a P1 card stays cards/P1", () => {
+        expect(
+            verdictOf([
+                issue(1, { cards: [CARDS.Meta], labels: ["enhancement"] }),
+            ])
+        ).toMatchObject({ band: "P1", source: "cards" });
+    });
+
+    it("never touches the hard-wired root's children — user-decision/P1 beats an enhancement", () => {
+        const issues = [issue(1, { parent: 9999, labels: ["enhancement"] })];
+        expect(triage(issues, index, {}, 9999).get(1)).toMatchObject({
+            band: "P1",
+            source: "user-decision",
+        });
+    });
+
+    it("a `## Band` line beats the label default", () => {
+        const issues = [
+            issue(1, {
+                labels: ["user-report"],
+                ruling: { band: "P3", reason: "the owner says so" },
+            }),
+        ];
+        expect(verdictOf(issues)).toEqual({
+            kind: "band",
+            band: "P3",
+            source: "user-decision",
+            via: "#1",
+        });
+    });
+
+    it("`prd` and an unlabelled-other row stay residue — even with a stale board value", () => {
+        const issues = [
+            issue(1, { labels: ["prd"] }),
+            issue(2, { labels: ["ready-for-agent", "area:workflow"] }),
+            issue(3),
+        ];
+        const board: Record<number, BoardPriority> = { 1: "P2", 2: "P3" };
+        const v = triage(issues, index, board, 9999);
+        for (const n of [1, 2, 3])
+            expect(v.get(n)).toMatchObject({ kind: "residue" });
+        // Neither written nor cleared here — the one-shot clear's job.
+        expect(planWrites(v, board)).toEqual([]);
+    });
+
+    it("a hand-set P0 on the board is untouched — a label never writes over it", () => {
+        expect(
+            verdictOf([issue(1, { labels: ["user-report"] })], { 1: "P0" })
+        ).toEqual({ kind: "p0" });
+    });
+
+    it("a label default lends NOTHING to a neighbour — the seed a neighbour reads stays cards / ruling", () => {
+        // #2 blocks #1 and #3 is #1's child; #1 defaults to P1 by label, and
+        // neither neighbour inherits it (no board value has been written yet).
+        const issues = [
+            issue(1, { labels: ["user-report"] }),
+            issue(2, { blocks: [1] }),
+            issue(3, { parent: 1 }),
+        ];
+        const v = triage(issues, index, {}, 9999);
+        expect(v.get(1)).toMatchObject({ band: "P1", source: "labels" });
+        expect(v.get(2)).toMatchObject({ kind: "residue" });
+        expect(v.get(3)).toMatchObject({ kind: "residue" });
+    });
+
+    it("planWrites overwrites a stale board value on a labelled row, and writes nothing once it agrees", () => {
+        const issues = [issue(1, { labels: ["user-report"] })];
+        const stale = triage(issues, index, { 1: "P3" }, 9999);
+        expect(planWrites(stale, { 1: "P3" })).toEqual([
+            { number: 1, band: "P1", from: "P3" },
+        ]);
+        expect(planWrites(stale, { 1: "P1" })).toEqual([]);
+    });
+
+    it("the summary counts `labels` like any source, and the report lists only what REMAINS residue", () => {
+        const issues = [
+            issue(1, { labels: ["user-report"] }), // gain P1
+            issue(2, { labels: ["bug", "area:ui-ux"] }), // change P3 → P2
+            issue(3, { labels: ["enhancement"] }), // unchanged P3
+            issue(4, { title: "an umbrella", labels: ["prd"] }), // residue
+        ];
+        const board: Record<number, BoardPriority> = { 2: "P3", 3: "P3" };
+        const s = summarize(issues, triage(issues, index, board, 9999), board);
+        expect(s.perSource).toEqual({
+            "user-decision": 0,
+            cards: 0,
+            edge: 0,
+            parent: 0,
+            labels: 3,
+        });
+        expect(s.perBand.P1).toMatchObject({ hold: 1, gain: 1 });
+        expect(s.perBand.P2).toMatchObject({ hold: 1, change: 1 });
+        expect(s.perBand.P3).toMatchObject({ hold: 1, unchanged: 1 });
+        expect(s.residue.map((r) => r.number)).toEqual([4]);
+        const report = renderReport(s);
+        expect(report).toContain(
+            "by source: user-decision 0, cards 0, edge 0, parent 0, labels 3"
+        );
+        expect(report).toContain("#4 an umbrella");
+        expect(report).not.toContain("issue 1");
+    });
+});
+
 describe("backlog-triage — parseBand (issue #4230)", () => {
     const body = (line: string) => `intro\n\n## Band\n\n${line}\n\n## Other\n`;
 
@@ -833,7 +1040,7 @@ function recordingGh(calls: string[][]) {
                     data: {
                         repository: {
                             issues: {
-                                totalCount: 4,
+                                totalCount: 5,
                                 pageInfo: { hasNextPage: false },
                                 nodes: [
                                     {
@@ -842,6 +1049,7 @@ function recordingGh(calls: string[][]) {
                                         body: "",
                                         parent: null,
                                         blocking: { totalCount: 0, nodes: [] },
+                                        labels: { totalCount: 0, nodes: [] },
                                     },
                                     {
                                         number: 8,
@@ -849,6 +1057,7 @@ function recordingGh(calls: string[][]) {
                                         body: "An example: `Psychatog`, and `Not A Real Card Name`.",
                                         parent: null,
                                         blocking: { totalCount: 0, nodes: [] },
+                                        labels: { totalCount: 0, nodes: [] },
                                     },
                                     {
                                         number: 9,
@@ -856,6 +1065,7 @@ function recordingGh(calls: string[][]) {
                                         body: "## Cards\n\n- Psychatog\n- Not A Real Card Name\n\n## Band\n\nP0 — now\n",
                                         parent: null,
                                         blocking: { totalCount: 0, nodes: [] },
+                                        labels: { totalCount: 0, nodes: [] },
                                     },
                                     {
                                         number: 10,
@@ -863,6 +1073,21 @@ function recordingGh(calls: string[][]) {
                                         body: "## Band\n\nP3 — the owner says so\n",
                                         parent: null,
                                         blocking: { totalCount: 0, nodes: [] },
+                                        labels: { totalCount: 0, nodes: [] },
+                                    },
+                                    {
+                                        number: 11,
+                                        title: "labelled only",
+                                        body: "",
+                                        parent: null,
+                                        blocking: { totalCount: 0, nodes: [] },
+                                        labels: {
+                                            totalCount: 2,
+                                            nodes: [
+                                                { name: "bug" },
+                                                { name: "area:mechanics" },
+                                            ],
+                                        },
                                     },
                                 ],
                             },
@@ -894,7 +1119,13 @@ describe("backlog-triage — runTriage", () => {
         );
         // #9 is banded by its declared card; its typo is reported, not dropped.
         expect(report).not.toContain("#9 declares its cards");
-        expect(report).toContain("by source: user-decision 1, cards 1");
+        expect(report).toContain(
+            "by source: user-decision 1, cards 1, edge 0, parent 0, labels 1"
+        );
+        // #11 carries only labels: `bug` + `area:mechanics` → P2, and it is
+        // NOT residue (#8 is the one residue row).
+        expect(report).toMatch(/^P2 +1 +1 +/m);
+        expect(report).not.toContain("#11 labelled only");
         // #10's `## Band` line is the band, read through the driver.
         expect(report).toMatch(/^P3 +1 +1 +/m);
         // #9's P0 line bands nothing (its cards still do) and is reported in its own section.
@@ -955,6 +1186,52 @@ describe("backlog-triage — runTriage", () => {
     });
 });
 
+describe("backlog-triage — fetchOpenIssues reads the label names (issue #4231)", () => {
+    const page = (labels: { totalCount: number; nodes: { name: string }[] }) =>
+        JSON.stringify([
+            {
+                data: {
+                    repository: {
+                        issues: {
+                            totalCount: 1,
+                            pageInfo: { hasNextPage: false },
+                            nodes: [
+                                {
+                                    id: "I_1",
+                                    number: 1,
+                                    title: "t",
+                                    body: "",
+                                    parent: null,
+                                    blocking: { totalCount: 0, nodes: [] },
+                                    labels,
+                                },
+                            ],
+                        },
+                    },
+                },
+            },
+        ]);
+
+    it("asks for the names in the same query as the bodies, and carries them", () => {
+        expect(OPEN_ISSUES_QUERY).toMatch(/labels\(first: \d+\)/);
+        const got = fetchOpenIssues(() =>
+            page({
+                totalCount: 2,
+                nodes: [{ name: "bug" }, { name: "area:ui-ux" }],
+            })
+        );
+        expect(got[0]!.labels).toEqual(["bug", "area:ui-ux"]);
+    });
+
+    it("fails closed on a truncated label list — a dropped user-report is a wrong default", () => {
+        expect(() =>
+            fetchOpenIssues(() =>
+                page({ totalCount: 31, nodes: [{ name: "bug" }] })
+            )
+        ).toThrow(/carries 31 labels, more than one page/);
+    });
+});
+
 // ── The write side (issue #4055) ─────────────────────────────────────────
 
 describe("backlog-triage — planWrites", () => {
@@ -999,7 +1276,11 @@ describe("backlog-triage — planWrites", () => {
  */
 function stubTracker(
     board: Record<number, BoardPriority>,
-    open: { number: number; parent: number | null }[]
+    open: {
+        number: number;
+        parent: number | null;
+        labels?: readonly string[];
+    }[]
 ) {
     const calls: string[][] = [];
     const mutations: string[] = [];
@@ -1066,6 +1347,12 @@ function stubTracker(
                                             ? null
                                             : { number: i.parent },
                                     blocking: { totalCount: 0, nodes: [] },
+                                    labels: {
+                                        totalCount: (i.labels ?? []).length,
+                                        nodes: (i.labels ?? []).map((name) => ({
+                                            name,
+                                        })),
+                                    },
                                 })),
                             },
                         },
@@ -1168,6 +1455,30 @@ describe("backlog-triage — runTriage --write", () => {
         // The two reads only — not even the project-metadata read.
         expect(second.calls).toHaveLength(2);
         expect(again).toContain("WRITE: 0 board value(s) written");
+    }, 60_000);
+
+    it("a labels-only row is written its default (overwriting a stale value); a prd and a P0 row are not; a second run writes nothing (issue #4231)", () => {
+        const open = [
+            { number: 20, parent: null, labels: ["user-report"] }, // gain P1
+            { number: 21, parent: null, labels: ["bug", "area:cards"] }, // P3 → P2
+            { number: 22, parent: null, labels: ["prd"] }, // residue, board P2 stays
+            { number: 23, parent: null, labels: ["enhancement"] }, // P0 stays
+        ];
+        const board: Record<number, BoardPriority> = {
+            21: "P3",
+            22: "P2",
+            23: "P0",
+        };
+        const first = stubTracker(board, open);
+        runTriage({ root: ROOT, argv: ["--write"], ghClient: first.client });
+        expect(first.written).toEqual([
+            { number: 20, value: "P1" },
+            { number: 21, value: "P2" },
+        ]);
+        expect(board).toEqual({ 20: "P1", 21: "P2", 22: "P2", 23: "P0" });
+        const second = stubTracker(board, open);
+        runTriage({ root: ROOT, argv: ["--write"], ghClient: second.client });
+        expect(second.mutations).toEqual([]);
     }, 60_000);
 
     it("a dry run writes nothing, even with the write path built", () => {

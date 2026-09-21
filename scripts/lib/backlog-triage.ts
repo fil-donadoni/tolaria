@@ -22,10 +22,16 @@
  * | Parent (band inheritance, issue #3212)  | parent P1                | parent P2     | parent P3           |
  *
  * PRD #3820 and its direct children are `P1` through the same `user-decision`
- * source (it was `fiat` before issue #4230). No source
- * yields a band → **residue**: it stays unprioritized and the report lists it
- * for the owner. Residue never falls into `P3` — "the rule abstained" and "the
- * owner ruled later" must not read the same.
+ * source (it was `fiat` before issue #4230). No source above yields a band →
+ * the WEAKEST source, `labels` (ADR 0143 § The write rule and the default,
+ * issue #4231): a coarse default read off the issue's own labels
+ * ({@link LABEL_BAND_TABLE}). It fires ONLY on a row nothing else bands — never
+ * lifts or lowers one a stronger source bands, lends nothing to a neighbour
+ * (the seed a neighbour reads stays cards / ruling), and a `## Band` line beats
+ * it. Still nothing → **residue** (`prd`, and a row with none of
+ * `user-report`/`bug`/`enhancement`): it stays unprioritized and the report
+ * lists it for the owner. Residue never falls into `P3` — "the rule abstained"
+ * and "the owner ruled later" must not read the same.
  *
  * Residue has a CAUSE (ADR 0143, issue #4229), read from the issue's own cards
  * and nothing else — so it survives whichever later source bands the row:
@@ -73,12 +79,18 @@ export type Band = "P1" | "P2" | "P3";
 export const BANDS: readonly Band[] = ["P1", "P2", "P3"];
 
 /** Which source produced a band, in tie-break order. */
-export type BandSource = "user-decision" | "cards" | "edge" | "parent";
+export type BandSource =
+    | "user-decision"
+    | "cards"
+    | "edge"
+    | "parent"
+    | "labels";
 const SOURCE_ORDER: readonly BandSource[] = [
     "user-decision",
     "cards",
     "edge",
     "parent",
+    "labels",
 ];
 
 /** A registry row as the ranking reads it. */
@@ -139,6 +151,62 @@ function stronger(a: Band | null, b: Band | null): Band | null {
 function lent(value: BoardPriority | undefined): Band | null {
     if (value === undefined) return null;
     return value === "P0" ? "P1" : value;
+}
+
+/**
+ * THE residue default (ADR 0143, issue #4231) — the one place the label →
+ * band table lives; {@link labelBand} is its only reader. Deliberately coarse:
+ * the hand (`## Band`) corrects it. `prd` has no row on purpose (it is listed,
+ * never defaulted — which also keeps the band umbrellas, all `prd`, out of it),
+ * and `P0` has none because the machine never writes it.
+ */
+export const LABEL_BAND_TABLE: {
+    readonly userReport: Band;
+    /** A `bug`: the strongest band of the `area:*` labels it carries. */
+    readonly bugAreas: ReadonlyMap<string, Band>;
+    /** A `bug` whose areas are all unnamed here, or that has none. */
+    readonly bugElse: Band;
+    readonly enhancement: Band;
+} = {
+    userReport: "P1",
+    bugAreas: new Map<string, Band>([
+        ["area:mechanics", "P2"],
+        ["area:game-bot", "P2"],
+        ["area:ui-ux", "P2"],
+        ["area:cards", "P2"],
+        ["area:workflow", "P3"],
+        ["area:monitoring", "P3"],
+        ["area:admin", "P3"],
+        ["area:docs", "P3"],
+    ]),
+    bugElse: "P3",
+    enhancement: "P3",
+};
+
+/**
+ * The band an issue's labels default to, and the label that lent it — or
+ * `null` (residue). Precedence when labels stack, top-down: `user-report`,
+ * then `bug` (the strongest of its areas), then `enhancement`; a row with none
+ * of those — `prd`, a wayfinder task — has no default.
+ */
+export function labelBand(
+    labels: readonly string[]
+): { readonly band: Band; readonly via: string } | null {
+    const t = LABEL_BAND_TABLE;
+    if (labels.includes("user-report"))
+        return { band: t.userReport, via: "user-report" };
+    if (labels.includes("bug")) {
+        let best = { band: t.bugElse, via: "bug" };
+        for (const label of labels) {
+            const band = t.bugAreas.get(label);
+            if (band !== undefined && rank(band) < rank(best.band))
+                best = { band, via: `bug + ${label}` };
+        }
+        return best;
+    }
+    if (labels.includes("enhancement"))
+        return { band: t.enhancement, via: "enhancement" };
+    return null;
 }
 
 /** The inverse Target index: oracle id → the strongest band (and the Target
@@ -477,6 +545,8 @@ export interface TriageIssue {
     /** Its `## Band` ruling, when the body carries a readable one
      *  ({@link parseBand}) — the truth, not a candidate. */
     readonly ruling?: BandRuling | null;
+    /** Its label names — the `labels` source ({@link labelBand}). */
+    readonly labels?: readonly string[];
 }
 
 export type TriageVerdict =
@@ -486,7 +556,7 @@ export type TriageVerdict =
           readonly band: Band;
           readonly source: BandSource;
           /** What lent it: a Target id (`cards`), an issue number (`edge`,
-           *  `parent`, `user-decision`). */
+           *  `parent`, `user-decision`), the label that lent it (`labels`). */
           readonly via: string;
       }
     | { readonly kind: "residue"; readonly cause: ResidueCause };
@@ -590,12 +660,18 @@ export function triage(
                     via: `#${issue.parent}`,
                 });
         }
+        // The weakest source: it fires only where no other yields a band, so
+        // it can never lift or lower a row a stronger source bands.
         if (candidates.length === 0) {
-            verdicts.set(issue.number, {
-                kind: "residue",
-                cause: residueCause(issue),
-            });
-            continue;
+            const label = labelBand(issue.labels ?? []);
+            if (label === null) {
+                verdicts.set(issue.number, {
+                    kind: "residue",
+                    cause: residueCause(issue),
+                });
+                continue;
+            }
+            candidates.push({ ...label, source: "labels" });
         }
         const best = candidates.reduce((a, b) =>
             rank(b.band) < rank(a.band) ||
@@ -647,7 +723,13 @@ export function summarize(
         Band,
         { hold: number; gain: number; change: number; unchanged: number }
     >;
-    const perSource = { "user-decision": 0, cards: 0, edge: 0, parent: 0 };
+    const perSource: Record<BandSource, number> = {
+        "user-decision": 0,
+        cards: 0,
+        edge: 0,
+        parent: 0,
+        labels: 0,
+    };
     const p0: number[] = [];
     const residue: {
         number: number;
@@ -761,7 +843,7 @@ export function renderReport(
     const s = summary.perSource;
     lines.push(
         "",
-        `by source: user-decision ${s["user-decision"]}, cards ${s.cards}, edge ${s.edge}, parent ${s.parent}`,
+        `by source: user-decision ${s["user-decision"]}, cards ${s.cards}, edge ${s.edge}, parent ${s.parent}, labels ${s.labels}`,
         "",
         `residue (no source yields a band — stays unprioritized, the owner rules): ${summary.residue.length}`
     );
