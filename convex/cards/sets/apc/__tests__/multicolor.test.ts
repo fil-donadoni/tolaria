@@ -22,7 +22,21 @@ import { getDefinition } from "../../../index";
 import { splitHalfDefinitionId } from "../../../splitCard";
 import { getCardColors } from "../../../colors";
 import { manaValue } from "../../../../gre/constants";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    pushSpell,
+} from "../../../__tests__/setup";
+import { submitResolutionChoice } from "../../../../game";
+import {
+    makeMutationCtx,
+    runMutation,
+    gameStateSeed,
+    type Handler,
+} from "../../../../__tests__/gameMutationHarness";
+import type { Id } from "../../../../_generated/dataModel";
+import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import {
     resolveTopOfStack,
     type CardInstanceState,
@@ -319,5 +333,137 @@ describe("Death — reanimation out of YOUR graveyard, CR 400.7 / 119.3", () => 
         expect(ids).toContain("mine");
         expect(ids).not.toContain("theirs");
         expect(ids).not.toContain("myLand");
+    });
+});
+
+// Gerrard's Verdict is the other HAND-TAIL card in this set (issue #4332), and
+// the first consumer of `EffectCountSpec.picks` (issue #3807). Two claims the
+// per-Op regime cannot make for it:
+//
+//   * CR 608.2h — "3 life for each land card DISCARDED THIS WAY" counts the
+//     two cards this spell put in the graveyard, never the lands that were
+//     already sitting in it. Both readings gain life, and only a graveyard
+//     seeded before the cast tells them apart.
+//   * CR 701.9b / CR 109.5 — the TARGET chooses what to discard and the
+//     CASTER gains the life. A script that paid the discarding player would
+//     look identical on a mirror board.
+//
+// The second test runs the choice through the REAL `submitResolutionChoice`
+// mutation: the full path GRE → game.ts → wire the rule demands for a feature
+// whose only client-visible result is a life total.
+describe("Gerrard's Verdict — 3 life per land discarded this way (CR 608.2h, issue #3807)", () => {
+    const VERDICT = getDefinition("583740c0-68cf-4205-b682-2f97c0880d42");
+    const VERDICT_GAME_ID = "game-1" as Id<"games">;
+
+    const inZone = (
+        owner: string,
+        defId: string,
+        id: string,
+        zone: CardInstanceState["zone"]
+    ) => makeInstance(defId, { id, controllerId: owner, ownerId: owner, zone });
+
+    /** p1 casts the Verdict at p2, whose hand and graveyard are seeded. */
+    function castVerdict(hand: string[], graveyardLands: string[]): GameState {
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20 }),
+                makePlayer("p2", {
+                    hand: hand.map((id) =>
+                        inZone(
+                            "p2",
+                            id.startsWith("land") ? FOREST : HILL_GIANT.id,
+                            id,
+                            "hand"
+                        )
+                    ),
+                    graveyard: graveyardLands.map((id) =>
+                        inZone("p2", FOREST, id, "graveyard")
+                    ),
+                }),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+        pushSpell(state, VERDICT.id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    /** The reducer-level answer, for the arithmetic cases the full-path test
+     *  above already proved reaches `game.ts`. */
+    function submitVerdictChoice(state: GameState, ids: string[]): void {
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ids,
+        });
+    }
+
+    type SubmitArgs = {
+        gameId: Id<"games">;
+        playerId: string;
+        stackItemId: string;
+        step: number;
+        choiceId: string;
+        cardInstanceIds: string[];
+    };
+
+    it("raises the discard choice for the TARGET, not the caster", () => {
+        const state = castVerdict(["land-a", "guy-b"], []);
+        const head = state.pendingChoices![0];
+        expect(head.playerId).toBe("p2");
+        expect(head.kind).toBe("discard-hand");
+    });
+
+    it("counts only the lands discarded this way — full path through submitResolutionChoice", async () => {
+        // Two lands ALREADY in p2's graveyard: an unnarrowed count reads three
+        // and pays 9 life.
+        const state = castVerdict(
+            ["land-a", "guy-b"],
+            ["gy-land-1", "gy-land-2"]
+        );
+        const head = state.pendingChoices![0];
+
+        const stub = makeMutationCtx("p2", [gameStateSeed(state)]);
+        await runMutation<SubmitArgs, void>(
+            submitResolutionChoice as unknown as Handler<SubmitArgs, void>,
+            stub.ctx,
+            {
+                gameId: VERDICT_GAME_ID,
+                playerId: "p2",
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: ["land-a", "guy-b"],
+            }
+        );
+
+        const after = stub.state();
+        expect(after.players[1].hand).toHaveLength(0);
+        expect(after.players[1].graveyard.map((c) => c.id).sort()).toEqual([
+            "guy-b",
+            "gy-land-1",
+            "gy-land-2",
+            "land-a",
+        ]);
+        // ONE land discarded this way → 3 life for the CASTER, never 9.
+        expect(after.players[0].life).toBe(23);
+        expect(after.players[1].life).toBe(20);
+        // The life total the client renders comes off the projection.
+        const projected = projectPublicState(after, 1, "p1");
+        expect(projected.players[0].life).toBe(23);
+    });
+
+    it("two lands discarded pay 6, two nonlands pay nothing", () => {
+        const both = castVerdict(["land-a", "land-b"], []);
+        submitVerdictChoice(both, ["land-a", "land-b"]);
+        expect(both.players[0].life).toBe(26);
+
+        const neither = castVerdict(["guy-a", "guy-b"], ["gy-land-1"]);
+        submitVerdictChoice(neither, ["guy-a", "guy-b"]);
+        expect(neither.players[0].life).toBe(20);
     });
 });
