@@ -12,6 +12,12 @@ measurement (issue #4149). **Amends the band rule of issue #3851**: a band is
 no longer an id hard-coded in `targetBand()`, it is derived from the Target
 registry (§ Bands follow the Targets).
 
+**Amended 2026-09-21** (issue #4228, the ruling of issue #4222): the v1 gate
+gains a fourth clause (§ The v1 gate); an issue that touches no card reaches
+`P1` through three doors, and `Priority` is a hand priority on such a row
+(§ Bands follow the Targets). "A band means a milestone, and nothing else" is
+retired, and the hand source is now `user-decision`.
+
 ## Context
 
 Tolaria is deployed and played by a few friends. The owner asked for the road
@@ -98,8 +104,24 @@ board.
       ticket is to diagnose it on one simple card, not to raise the bound — and
       if the loop exists in the live driver too, those cards are `frozen` and
       fall under the first clause.
-4. **Every deck of the Target seeded as a preset.**
-5. The Diffusion readiness PRD (issue #4063) done, its children promoted when
+4. **No open defect that falsifies or blocks a game, that breaks the
+   first-session path, or that stops the pipeline.** Three doors, defined in
+   § Bands follow the Targets; each is a defect that keeps the announcement
+   from being made:
+    - **Falsifies or blocks a game** — a loss or a stall, corrupted state, no
+      workaround. _This prevents the announce to strangers._
+    - **Breaks the first-session path** — a defect on one of the five surfaces
+      a stranger meets first. _This prevents the announce to strangers._
+    - **Stops the pipeline** — the gate, `land`, the worktree, the queue: it
+      blocks v1 by blocking everyone building v1. _This prevents the announce
+      to strangers._
+
+    The clause counts defects, not cards, so it is not a condition of a Target
+    List's `completed`. A `P1` the owner sets by the override (§ Bands follow
+    the Targets) is a priority, not a door, and does not gate v1 by itself.
+
+5. **Every deck of the Target seeded as a preset.**
+6. The Diffusion readiness PRD (issue #4063) done, its children promoted when
    the pessimistic forecast is three weeks away or less.
 
 Then one fixed week for the owner's checklist and a friends' dry run, and the
@@ -136,7 +158,8 @@ tracks (issue #4085).
     3. `never-chosen` fixes **batched after playability**, because every newly
        playable card brings its own verdict; exception: a class of three or more
        cards is taken at once (today only the mass-destroy sorceries);
-    4. engine defects by severity (§ Bands follow the Targets).
+    4. defects through the three doors of the v1 gate's fourth clause
+       (§ Bands follow the Targets).
 3. **The exit threshold** — below.
 4. **The cube compositional wave** (planeswalker, saga, class, leveler,
    adventure, MDFC frames), then the premodern pool.
@@ -162,22 +185,76 @@ metagame needed, the corpus breaking ties.
 
 ### Bands follow the Targets
 
-A band means a milestone, and nothing else:
+A band means a milestone for every issue a card can band. An issue that
+touches no card — the **residue** — is banded by three doors and a default
+(below), and `Priority` is no longer milestone-only on it.
 
-| Band   | Means                                                                        |
-| ------ | ---------------------------------------------------------------------------- |
-| `P0`   | in flight, hand-set — never written or cleared by a script                   |
-| `P1`   | the critical track of the first Target not yet completed                     |
-| `P2`   | the second                                                                   |
-| `P3`   | the third                                                                    |
-| (none) | not on the road: everything past the premodern pool, and the unruled residue |
+| Band   | Means                                                                                     |
+| ------ | ----------------------------------------------------------------------------------------- |
+| `P0`   | in flight, hand-set — never written or cleared by a script                                |
+| `P1`   | the critical track of the first Target not yet completed                                  |
+| `P2`   | the second                                                                                |
+| `P3`   | the third                                                                                 |
+| (none) | not on the road: everything past the premodern pool, and a residue row that nothing bands |
 
-- **`P1` holds only what the v1 gate counts**: the metagame's Grammar Rules,
-  Ops, Hand Tail and Bot Gaps, each under its umbrella, plus an engine issue
-  that blocks a metagame card through a native `## Unlocks` edge.
-- **Engine defects are banded by severity and today's effect on a player**,
-  by hand (the `fiat` source): one that blocks a game or plainly falsifies its
-  outcome is `P1`; the others take the band of the cards they touch.
+- **`P1` holds what the v1 gate counts**: the metagame's Grammar Rules, Ops,
+  Hand Tail and Bot Gaps, each under its umbrella, an engine issue that blocks
+  a metagame card through a native `## Unlocks` edge, and a defect through one
+  of the three doors. On a residue row it also holds what the owner says is
+  now (§ `Priority` is no longer milestone-only, below).
+- **Three doors to `P1`, for an issue that touches no card.** The card sources
+  give such an issue no band, and this section's previous clause for it —
+  engine defects "banded by severity", the rest by the cards they touch —
+  could not fire for a UI bug, which touches no card. An issue that passes one
+  door is `P1`, because it is a v1 blocker in its own right (§ The v1 gate,
+  fourth clause):
+    1. **Falsifies or blocks a game** — loss or stall, corrupted state, no
+       workaround.
+    2. **Breaks the first-session path** — a defect on one of the surfaces
+       enumerated by the Diffusion checklist (issue #3853, PRD #4063): the
+       lobby **welcome panel**, the **first game against the Bot** ("Play your
+       first game"), the **controls sheet**, the **report tool**, and
+       **sign-in / registration**. Never "the UI that matters": the boundary is
+       fixed by this list, and a sixth surface is an amendment of it — otherwise
+       the door grows to cover all of `src/`.
+    3. **Stops the pipeline** — the gate, `land`, the worktree, the queue. The
+       other two doors measure an effect on a player and a loop defect has
+       none, so without this door `area:workflow` falls to `P3` while "`land`
+       is wedged" outranks nearly everything in `P1`. It enters through the
+       gate like the others.
+- **The rungs below `P1`.** `P2` — reachable in normal play, with a
+  workaround (the game stands). `P3` — a corner case, cosmetic, or an
+  owner-only surface: admin, monitoring, limited-bot, docs, tooling. `P0` is
+  unchanged: hand-set only, never written or cleared by a script.
+- **`Priority` is no longer milestone-only.** "A band means a milestone, and
+  nothing else" is **amended, not extended**. On a residue row `Priority` is a
+  classic hand priority with all four values, none capped, and board-wide
+  `P1` reads _critical track **or** the owner says now_. This is a partial
+  return to the field's original rationale in `docs/agents/issue-tracker.md`
+  ("the maintainer flags the few that matter now"), which this ADR had
+  narrowed to milestone. The alternative — a `P2` cap on the residue, keeping
+  `P1` single-meaning — was put and declined: the owner wants the override.
+- **The write rule and the default.** No `## Band` line → the band is the
+  default computed from the labels; a `## Band` line present → it is the
+  truth, always. A hand ruling travels as a `## Band` section in the issue
+  body (`P1 — <reason>`), never as a hand-typed board value: the board field
+  is the OUTPUT of `backlog:triage --write`, and the board stores a value, not
+  its author, so a script could not tell its own default from a ruling. The
+  source that reads the line is `user-decision`. The default is deliberately
+  coarse — the hand corrects it:
+    - `user-report` → `P1`
+    - `bug` + `area:mechanics`, `area:game-bot`, `area:ui-ux` or `area:cards`
+      → `P2`
+    - `bug` + any other area → `P3`
+    - `enhancement` → `P3`
+    - `prd` → no default, listed only
+    - `P0` → never written by the machine
+
+    The machine cannot tell "`land` is broken" from "a scorecard column is
+    crooked": both are `bug` + `area:workflow`, both default to `P3`, and the
+    first is exactly the row a `## Band` line promotes through door three. The
+    sibling slices of PRD #4207 build the rule; this ADR states it.
+
 - **The band is derived, not written in code.** `targetBand()` becomes: the
   position of the Target among the NOT completed Targets that carry a
   `priority`, in `priority` order. Today: metagame → `P1`, cube → `P2`,
@@ -198,8 +275,8 @@ This is a small build (registry-derived band, the status command, the umbrella
 rename) and it goes BEFORE the re-banding of the stale roots, so the roots are
 not banded twice. The re-banding itself is one owner session over the ~20 root
 issues that lend a band by inheritance, then `backlog:triage --write`; the
-unruled residue (~195 issues) is ruled by hand in batches, in parallel, and
-blocks nothing.
+residue (240 issues on 2026-09-20) is ruled by `## Band` lines in batches
+(issue #4202), in parallel, and blocks nothing — the default fills the rest.
 
 ### Format Tiers
 
@@ -231,7 +308,7 @@ owner slips the forecast by as much, declared at the next re-measure.
 - The board says what the roadmap says: reading `P1` is reading the short
   term. The price is that a PRD the owner cares about but that is not on the
   road (Shortcut, replacement ordering, Preparation) loses its band and must be
-  argued back in by `fiat`.
+  argued back in by a `## Band` line (the `user-decision` source).
 - Completing a Target is an operation (`backlog:triage --write`), not a
   re-planning session.
 - The v1 promise is narrow by construction — Premodern, a Bot that plays every
@@ -255,3 +332,9 @@ owner slips the forecast by as much, declared at the next re-measure.
   edits per shift for no information the Target name does not already carry.
 - **A `Wave` or milestone field on the board.** Rejected by issue #3851 and
   again here: the band already is the milestone.
+- **A parallel urgency axis for bugs (a second board field).** Rejected for
+  `Wave`'s reason: `Priority` is the zeroth key of `queue:plan`, and two
+  meanings on one key make the planner arbitrate a comparison nobody defined.
+  A bug earns its band through the v1 gate instead.
+- **A `P2` cap on the residue**, keeping `P1` single-meaning. Put and
+  declined (§ Bands follow the Targets): the owner wants the override.

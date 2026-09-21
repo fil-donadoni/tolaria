@@ -947,7 +947,7 @@ The cards of a **Target List** whose residual **Grammar Gaps** all sit below the
 _Avoid_: Exception, unsupported, manual card, legacy card, residue (that is the queue before the floor is applied)
 
 **Diffusion**:
-The moment Tolaria is announced to strangers — the first milestone, reached when the first **Target List** (the premodern metagame) is completed, the Bot plays every card of it, and the readiness work for unknown players is done. Before it the players are friends who forgive; after it a frozen game or an unplayable deck is the product's first impression. A one-way event, not a release: the code is deployed continuously on both sides of it.
+The moment Tolaria is announced to strangers — the first milestone, reached when the first **Target List** (the premodern metagame) is completed, the Bot plays every card of it, the readiness work for unknown players is done, and no open defect falsifies or blocks a game, breaks a stranger's first session, or stops the pipeline. Before it the players are friends who forgive; after it a frozen game or an unplayable deck is the product's first impression. A one-way event, not a release: the code is deployed continuously on both sides of it.
 _Avoid_: Launch, release (that is the branch operation), go-live, v1 alone (the milestone's label, not its meaning)
 
 **Gap**:
