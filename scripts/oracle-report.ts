@@ -17,9 +17,13 @@
  *                                  # a deck list or a name list, not just a set
  *   bun scripts/oracle-report.ts --decks       # per-deck, per-card state (M1),
  *                                  # Tier 1 lists + the pinned metagame import
- *   bun scripts/oracle-report.ts --targets [<id>]
+ *   bun scripts/oracle-report.ts --targets [<id>] [--bot-reach <path>]
  *                                  # every registered Target List (data/targets.json),
- *                                  # card by card in its coverage state, + playable
+ *                                  # card by card in its coverage state, + playable,
+ *                                  # + `completed: yes/no` — the v1 gate's three
+ *                                  # clauses (ADR 0143), the third read from the
+ *                                  # `bun scripts/target-bot-reach.ts --json <path>`
+ *                                  # report (absent: bot-play is red, unproved)
  *   bun scripts/oracle-report.ts --gap "<key or substring>" [--set apc | --pool premodern]
  *                                  # ONE Grammar Gap, card by card: every refused
  *                                  # line, sole-gap cards (the ones the rule
@@ -75,6 +79,14 @@ import {
     type TargetCoverage,
 } from "./lib/targets";
 import { buildCoverageContext, closureOracleIds } from "./lib/coverage-context";
+import {
+    formatCompletion,
+    mustCoveredCards,
+    targetCompleted,
+    type BotPlayCard,
+    type BotPlayUnavailable,
+    type BotPlayVerdicts,
+} from "./lib/target-completed";
 import { corpusNameIndex } from "./lib/card-names";
 
 const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
@@ -267,12 +279,64 @@ function coverageLines(coverage: TargetCoverage): string {
     );
 }
 
+/** `target-bot-reach.ts --json`'s `perCard`, keyed by Target id. */
+function readBotReachReport(path: string): Record<string, BotPlayCard[]> {
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(readFileSync(path, "utf8"));
+    } catch (err) {
+        process.stderr.write(
+            `oracle:report --bot-reach — cannot read ${path}: ${(err as Error).message}\n`
+        );
+        process.exit(1);
+    }
+    const perCard = (parsed as { perCard?: unknown } | null)?.perCard;
+    if (typeof perCard !== "object" || perCard === null) {
+        process.stderr.write(
+            `oracle:report --bot-reach — ${path} has no \`perCard\`; it is the output of ` +
+                `bun scripts/target-bot-reach.ts --target <id> --json <path>\n`
+        );
+        process.exit(1);
+    }
+    return perCard as Record<string, BotPlayCard[]>;
+}
+
+/**
+ * The Bot-play verdicts of one Target for the v1 gate's third clause: the
+ * report's cards plus the names a `must` Test Position covers. The blade
+ * registry loads only when a report was supplied — a report with no registry
+ * would read every `never-chosen` card as uncovered.
+ */
+async function botPlayVerdicts(
+    report: Record<string, BotPlayCard[]> | undefined,
+    reportPath: string | undefined,
+    id: string
+): Promise<BotPlayVerdicts | BotPlayUnavailable> {
+    if (report === undefined)
+        return {
+            missing:
+                "no Bot-play report supplied — run `bun scripts/target-bot-reach.ts " +
+                `--target ${id} --json <path>\`, then pass \`--bot-reach <path>\``,
+        };
+    const cards = report[id];
+    if (!Array.isArray(cards))
+        return {
+            missing: `${reportPath} carries no verdicts for Target \`${id}\` (pass --target ${id} to target-bot-reach)`,
+        };
+    const { BLADE_SCENARIOS } = await import("../convex/gre/ai/blade/registry");
+    return { cards, mustCovered: mustCoveredCards(BLADE_SCENARIOS) };
+}
+
 /**
  * The Target List section (issue #3867): every registered Target, every card
  * in exactly one coverage state, by name — reporting only; `check:targets`
- * turns `unclaimed` red.
+ * turns `unclaimed` red. Each Target ends with its `completed:` verdict
+ * (issue #4208, ADR 0143 § The v1 gate).
  */
-function reportTargets(lock: Lockfile, only: string | undefined): void {
+async function reportTargets(
+    lock: Lockfile,
+    only: string | undefined
+): Promise<void> {
     const registry = readTargetRegistry(ROOT);
     const rows =
         only === undefined
@@ -295,14 +359,24 @@ function reportTargets(lock: Lockfile, only: string | undefined): void {
         );
         process.exit(1);
     }
+    const botReachPath = flag("--bot-reach");
+    const botReport =
+        botReachPath === undefined
+            ? undefined
+            : readBotReachReport(botReachPath);
     process.stdout.write(
         `\nTarget Lists — ${TARGETS_PATH}, hand-tail floor ${registry.handTailFloor} corpus cards\n` +
             `states: ${COVERAGE_STATES.join(", ")}; playable is a separate figure; ` +
             `check:targets reds only the enforced Targets\n\n`
     );
     for (const row of rows) {
+        const coverage = targetCoverage(resolveTarget(row, resolve), ctx);
+        const completion = targetCompleted(
+            coverage,
+            await botPlayVerdicts(botReport, botReachPath, row.id)
+        );
         process.stdout.write(
-            `${coverageLines(targetCoverage(resolveTarget(row, resolve), ctx))}\n`
+            `${coverageLines(coverage)}${formatCompletion(completion)}\n`
         );
     }
 }
@@ -513,7 +587,7 @@ function reportGapCards(
     if (target !== null) process.stdout.write(`\n* = in the ${target.label}\n`);
 }
 
-function main(): void {
+async function main(): Promise<void> {
     if (!existsSync(LOCKFILE_PATH)) {
         process.stderr.write(
             "data/oracle-compiled.json missing — run: bun run oracle:compile\n"
@@ -529,7 +603,7 @@ function main(): void {
     const targetsAt = process.argv.indexOf("--targets");
     if (targetsAt !== -1) {
         const only = process.argv[targetsAt + 1];
-        reportTargets(
+        await reportTargets(
             lock,
             only === undefined || only.startsWith("--") ? undefined : only
         );
@@ -607,5 +681,5 @@ function main(): void {
 }
 
 if (import.meta.main) {
-    main();
+    await main();
 }
