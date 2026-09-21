@@ -202,6 +202,43 @@ describe("context-aware count grounding threads every EffectCountSpec zone/scope
             }).amount
         ).toBe(3);
     });
+
+    // issue #3807 — `picks` narrows a graveyard count to a binding that only
+    // exists MID-RESOLUTION. Before the card is cast there is no picked set,
+    // and the live graveyard answers a different question: every matching card
+    // ALREADY there, none of which was discarded this way. Reading it anyway is
+    // the same fail-open the zone/scope members above shipped with — Gerrard's
+    // Verdict against a graveyard full of lands would price as a huge life
+    // swing that the spell cannot actually produce.
+    it("CR 608.2h — a `picks`-narrowed count does NOT read the live graveyard", () => {
+        const state = stateWith(40, 12, 3);
+        const grounding = contextAwareGroundingForChoice(state, "p1");
+        const bare = grounding.value({
+            count: { zone: "graveyard", controller: "opponent" },
+        }).amount;
+        expect(bare).toBe(3);
+        const narrowed = grounding.value({
+            count: {
+                zone: "graveyard",
+                controller: "opponent",
+                picks: { ref: "$discarded" },
+            },
+        }).amount;
+        expect(narrowed).not.toBe(bare);
+        // The representative floor, scaled by the printed literal — never 0,
+        // which would price the clause below the context-free floor (#1520).
+        expect(narrowed).toBe(1);
+        expect(
+            grounding.value({
+                count: {
+                    zone: "graveyard",
+                    controller: "opponent",
+                    picks: { ref: "$discarded" },
+                    times: 3,
+                },
+            }).amount
+        ).toBe(3);
+    });
 });
 
 // `scaled` (issue #2366) — a fixed multiplier times a terminal (literal,
