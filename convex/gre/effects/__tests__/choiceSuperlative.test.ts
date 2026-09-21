@@ -237,7 +237,7 @@ describe("choice.superlative — resolution (CR 608.2h)", () => {
         );
     });
 
-    it("mana value is the INSTANCE's: a token copy with no mana cost ranks 0, not its printed cost (CR 202.3, CR 707.2)", () => {
+    it("mana value is the INSTANCE's: a token copy with no mana cost ranks 0, not its printed cost (CR 202.3a)", () => {
         withScript(
             edictScript(CREATURE, { stat: "mana-value", extreme: "greatest" }),
             (id) => {

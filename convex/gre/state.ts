@@ -19106,8 +19106,9 @@ export function buildSpellContext(
             if (target.type === "permanent") {
                 const found = findOnBattlefield(state, target.id);
                 if (!found) return 0;
-                // CR 202.3 / 707.2 — the instance's own cost, so a token or copy
-                // "with no mana cost" (`manaCostOverride`) has mana value 0.
+                // CR 202.3a — an object with no mana cost has mana value 0; the
+                // instance's own cost, so a token or copy "except it has no mana
+                // cost" (`manaCostOverride`) reads 0, not the printed cost.
                 return manaValue(getInstanceManaCost(found.card));
             }
             if (target.type === "spell") {
