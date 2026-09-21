@@ -69,7 +69,7 @@ describe("data/targets.json — the registered Target Lists", () => {
                 .filter((t) => t.priority !== undefined)
                 .sort((a, b) => a.priority! - b.priority!)
                 .map((t) => t.id)
-        ).toEqual(["premodern-metagame", "vintage-cube"]);
+        ).toEqual(["premodern-metagame", "vintage-cube", "format-premodern"]);
     });
 
     it("resolves every registered Target to 100% oracle ids of the pinned corpus", () => {
