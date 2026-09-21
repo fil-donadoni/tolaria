@@ -376,8 +376,43 @@
     "claims": [
         {
             "kind": "bot",
+            "key": "never-chosen › Artifact › draw",
+            "issue": 4279
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Creature [first strike,flash] › (no Ops)",
+            "issue": 4280
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Creature [flash,haste] › (no Ops)",
+            "issue": 4281
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Creature [flash] › (no Ops)",
+            "issue": 4263
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Creature [flash] › counter",
+            "issue": 4282
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Creature [flash] › destroy",
             "issue": 4073
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Creature [flying] › draw",
+            "issue": 4283
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Creature [flying] › pump",
+            "issue": 4275
         },
         {
             "kind": "bot",
@@ -391,6 +426,56 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Creature › choice+discard",
+            "issue": 4276
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Creature › counters",
+            "issue": 4271
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Creature › dealDamage",
+            "issue": 4272
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Creature › destroy+forEach+if",
+            "issue": 4284
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Creature › discardAtRandom",
+            "issue": 4285
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Creature › draw+forEach+pump",
+            "issue": 4286
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Creature › draw+pump",
+            "issue": 4287
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Creature › gainLife+loseLife",
+            "issue": 4277
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Creature › pump",
+            "issue": 4261
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Enchantment target:Creature [flash] › (no Ops)",
+            "issue": 4260
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Enchantment › dealDamage",
             "issue": 4071
         },
@@ -401,8 +486,83 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Instant target:Artifact|Battle|Creature|Enchantment|Land|Planeswalker › tapUntap",
+            "issue": 4288
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Instant target:Creature [storm] › pump",
+            "issue": 4289
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Instant target:Creature › dealDamage+grantAbility+pump",
+            "issue": 4290
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Instant target:Creature › draw+grantAbility",
+            "issue": 4269
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Instant target:Creature › draw+pump",
+            "issue": 4267
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Instant target:Creature › grantAbility",
+            "issue": 4273
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Instant target:Creature › pump",
+            "issue": 4264
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Instant target:Land › draw+optionChoice+setSubtype",
+            "issue": 4291
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Instant target:player [storm] › choice+sacrifice",
+            "issue": 4292
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Instant › forEach+tapUntap",
+            "issue": 4293
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Sorcery [delve] › draw",
             "issue": 4074
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Sorcery target:Creature › pump",
+            "issue": 4270
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Sorcery target:Land › destroy",
+            "issue": 4262
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Sorcery target:Land › destroy+draw",
+            "issue": 4294
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Sorcery target:Land › destroy+if",
+            "issue": 4295
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Sorcery target:player › choice+discard",
+            "issue": 4278
         },
         {
             "kind": "bot",
@@ -421,13 +581,38 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Sorcery › draw",
+            "issue": 4266
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Sorcery › forEach+pump",
             "issue": 4191
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Sorcery › gainLife",
+            "issue": 4274
+        },
+        {
+            "kind": "bot",
+            "key": "no-legal-move › Instant target:Artifact|Battle|Creature|Enchantment|Land|Planeswalker",
+            "issue": 4268
+        },
+        {
+            "kind": "bot",
             "key": "no-progress › follow-through",
             "issue": 4189
+        },
+        {
+            "kind": "bot",
+            "key": "position-unmodelled › Instant target:Creature",
+            "issue": 4259
+        },
+        {
+            "kind": "bot",
+            "key": "position-unmodelled › Sorcery target:Creature",
+            "issue": 4265
         },
         {
             "kind": "mechanic",
