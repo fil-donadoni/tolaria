@@ -948,6 +948,8 @@ export function permanentFilterFromDescriptor(
     return ok(filter as PermanentFilter);
 }
 
+const SACRIFICABLE_TYPES: ReadonlySet<CardType> = new Set(PERMANENT_TYPES);
+
 /**
  * Descriptor → the `choice` Op's battlefield filter for "<player> sacrifices a
  * <descriptor>" (CR 701.21a), the chooser being the sacrificing player.
@@ -975,7 +977,7 @@ export function sacrificeFilterFromDescriptor(
         return fail("a sacrifice filter names a card type", "types");
     // CR 701.21a — only a permanent can be sacrificed; "an instant" would
     // lower to a filter that can never match anything.
-    if (!types.every((type) => PERMANENT_TYPES.includes(type)))
+    if (!types.every((type) => SACRIFICABLE_TYPES.has(type)))
         return fail("only a permanent can be sacrificed (CR 701.21a)", "types");
     const filter: EffectCardFilter = {
         type: types.length === 1 ? types[0]! : [...types],
