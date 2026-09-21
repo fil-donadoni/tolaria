@@ -11071,6 +11071,223 @@ describe("Effect Script predicate: sharesColor (CR 202.2, issue #1955)", () => {
     });
 });
 
+// ─────────────────────────────────────────────────────────────────────────
+// `sameColors` predicate (CR 105.2, issue #3806) — Dead Ringers
+// ─────────────────────────────────────────────────────────────────────────
+describe("Effect Script predicate: sameColors (CR 105.2, issue #3806)", () => {
+    /** Two permanents whose colour SETS the predicate compares. */
+    function pair(aColors?: Color[], bColors?: Color[]): GameState {
+        const a = makeInstance(BEAR_ID, { controllerId: "p1", id: "objA" });
+        const b = makeInstance(BEAR_ID, { controllerId: "p1", id: "objB" });
+        if (aColors) a.colorOverride = aColors;
+        if (bColors) b.colorOverride = bColors;
+        return makeState({
+            players: [
+                makePlayer("p1", { battlefield: [a, b] }),
+                makePlayer("p2"),
+            ],
+        });
+    }
+
+    const SCRIPT_ID = registerScript("test-pred-same-colors", [
+        {
+            op: "if",
+            predicate: { sameColors: { target: 0 }, with: { target: 1 } },
+            then: [{ op: "gainLife", player: "controller", amount: 1 }],
+        },
+    ]);
+
+    function same(state: GameState, bId = "objB"): boolean {
+        const before = state.players[0].life;
+        pushSpell(state, SCRIPT_ID, "p1", [
+            { type: "permanent", id: "objA" },
+            { type: "permanent", id: bId },
+        ]);
+        resolveTopOfStack(state);
+        return state.players[0].life > before;
+    }
+
+    it("is true when the two colour SETS are equal", () => {
+        expect(same(pair(["W", "U"], ["U", "W"]))).toBe(true);
+    });
+
+    // The discriminator against `sharesColor`, which is TRUE for this pair:
+    // a gold creature shares a colour with a mono-coloured one and is not the
+    // same colours as it. Dead Ringers destroys neither.
+    it("is false when one side is a colour the other isn't (the sharesColor misparse)", () => {
+        expect(same(pair(["W", "U"], ["U"]))).toBe(false);
+        expect(same(pair(["U"], ["W", "U"]))).toBe(false);
+    });
+
+    it("is false when the sets are disjoint", () => {
+        expect(same(pair(["W"], ["B"]))).toBe(false);
+    });
+
+    // The other divergence from `sharesColor`, which reads FALSE here: neither
+    // colourless object is a colour the other isn't (CR 105.2c), so Dead
+    // Ringers really can destroy two colourless creatures.
+    it("is TRUE for two colourless objects (CR 105.2c)", () => {
+        expect(same(pair([], []))).toBe(true);
+    });
+
+    it("is false when only one side is colourless", () => {
+        expect(same(pair([], ["G"]))).toBe(false);
+        expect(same(pair(["G"], []))).toBe(false);
+    });
+
+    it("reads colour through layer 5, not the printed mana cost (CR 613.1e)", () => {
+        // Both bears are printed mono-green: identical printed costs, and
+        // painting one blue makes the sets differ.
+        expect(same(pair())).toBe(true);
+        expect(same(pair(["U"]))).toBe(false);
+    });
+
+    // CR 608.2b — "if part of the effect requires information about an illegal
+    // target, it fails to determine any such information". With one Dead
+    // Ringers target gone, neither creature is destroyed.
+    it("is false when either side is gone (CR 608.2b)", () => {
+        const state = pair(["G"], ["G"]);
+        expect(() => same(state, "ghost")).not.toThrow();
+        expect(state.players[0].life).toBe(20);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// `EffectCardFilter.color`'s dynamic cost-sacrificed read
+// (CR 105.2 / 608.2h, issue #3806) — Mind Extraction
+// ─────────────────────────────────────────────────────────────────────────
+describe("EffectCardFilter.color — { sacrificed: { read: 'colors' } } (CR 105.2 / 608.2h, issue #3806)", () => {
+    /** Mind Extraction's whole script: reveal, then the bulk filtered discard
+     *  whose colours come off the cost-sacrifice snapshot. */
+    const SCRIPT_ID = registerScript(
+        "test-filter-sacrificed-colors",
+        [
+            { op: "reveal", player: { target: 0 }, zone: "hand" },
+            {
+                op: "discard",
+                player: { target: 0 },
+                filter: { color: { sacrificed: { read: "colors" } } },
+            },
+        ],
+        { targetRequirement: { type: "player", count: 1 } }
+    );
+
+    /** p2 holds one green creature, one black instant and one colourless
+     *  artifact creature; `colors` is the snapshot stamped on the stack item
+     *  (undefined = no snapshot field at all). */
+    function run(colors: Color[] | undefined, withSnapshot = true): string[] {
+        const green = makeInstance(BEAR_ID, {
+            id: "green1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const black = makeInstance(BLACK_CARD_ID, {
+            id: "black1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const grey = makeInstance(COLORLESS_CREATURE_ID, {
+            id: "grey1",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: [green, black, grey] }),
+            ],
+        });
+        const item = pushSpell(state, SCRIPT_ID, "p1", [
+            { type: "player", id: "p2" },
+        ]);
+        if (withSnapshot) {
+            item.additionalSacrificeSnapshot = {
+                cardInstanceId: "victim",
+                mv: 2,
+                ...(colors !== undefined ? { colors } : {}),
+            };
+        }
+        resolveTopOfStack(state);
+        return state.players[1].graveyard.map((c) => c.id).sort();
+    }
+
+    it("discards exactly the cards of the sacrificed creature's colour", () => {
+        expect(run(["G"])).toEqual(["green1"]);
+    });
+
+    // "all cards of EACH of the ... colors" — a gold victim is the UNION of
+    // its colours, not the intersection.
+    it("discards the UNION for a multicoloured victim", () => {
+        expect(run(["G", "B"])).toEqual(["black1", "green1"]);
+    });
+
+    // CR 105.2c — a colourless victim has no colours, so no card is "of" them.
+    // A dropped field here would be fail-OPEN and empty the whole hand.
+    it("discards NOTHING for a colourless victim (CR 105.2c)", () => {
+        expect(run([])).toEqual([]);
+    });
+
+    it("discards nothing when the snapshot carries no colours at all", () => {
+        expect(run(undefined)).toEqual([]);
+    });
+
+    it("discards nothing when there is no cost-sacrifice snapshot (CR 608.2b)", () => {
+        expect(run(undefined, false)).toEqual([]);
+    });
+
+    // The BATTLEFIELD boundary: `PermanentFilter.colors` carries literals
+    // only, so `toPermanentFilter` has to resolve the dynamic form there or
+    // silently drop it — which is fail-OPEN, matching every permanent.
+    it("resolves the dynamic colour at the battlefield boundary, and an empty set matches nothing", () => {
+        const id = registerScript("test-filter-sacrificed-colors-bf", [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    controller: "controller",
+                    filter: { color: { sacrificed: { read: "colors" } } },
+                },
+                effects: [{ op: "gainLife", player: "controller", amount: 1 }],
+            },
+        ]);
+        function lifeGain(colors: Color[]): number {
+            const green = makeInstance(BEAR_ID, {
+                id: "bfGreen",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const grey = makeInstance(COLORLESS_CREATURE_ID, {
+                id: "bfGrey",
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { battlefield: [green, grey] }),
+                    makePlayer("p2"),
+                ],
+            });
+            const before = state.players[0].life;
+            const item = pushSpell(state, id, "p1");
+            item.additionalSacrificeSnapshot = {
+                cardInstanceId: "victim",
+                mv: 2,
+                colors,
+            };
+            resolveTopOfStack(state);
+            return state.players[0].life - before;
+        }
+        // One green permanent of two: a dropped bound would gain 2.
+        expect(lifeGain(["G"])).toBe(1);
+        // An empty colour set is UNMATCHABLE, not "no constraint".
+        expect(lifeGain([])).toBe(0);
+    });
+});
+
 describe("Effect Script Op: regenerate (CR 701.19, issue #846)", () => {
     // Announced-target regenerate (Death Ward / Niall Silvain): the Op stacks a
     // single regeneration shield on the announced creature (CR 701.19a).

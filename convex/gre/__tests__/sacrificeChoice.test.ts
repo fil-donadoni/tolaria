@@ -123,8 +123,22 @@ describe("sacrificeChoice (CR 701.21a)", () => {
             player.battlefield.find((c) => c.id === island.id)
         ).toBeUndefined();
         expect(player.graveyard.some((c) => c.id === island.id)).toBe(true);
+        // CR 105.2c (issue #3806) — `colors` is captured for EVERY victim,
+        // not creatures only, and an EMPTY array is the real answer for a
+        // colourless one: Mind Extraction's "all cards of each of the
+        // sacrificed creature's colors" must discard NOTHING for it, which a
+        // consumer can only tell apart from "no snapshot" if the field is
+        // present. An exact-shape assertion, so a field added to
+        // `SacrificeResult` and forgotten by
+        // `sacrificeSnapshotFromResults` is caught here too.
         expect(results).toEqual([
-            { id: island.id, mv: 0, subtypes: ["Island"], snapshot: true },
+            {
+                id: island.id,
+                mv: 0,
+                subtypes: ["Island"],
+                colors: [],
+                snapshot: true,
+            },
         ]);
     });
 

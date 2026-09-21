@@ -96,6 +96,7 @@ import {
 import { announcementModeFacts, modeHasLegalTargets } from "./modeAnnouncement";
 import {
     applySacrificeSelection,
+    sacrificeSnapshotFromResults,
     canAffordSacrifice,
     isSacrificeSelectionComplete,
     type SacrificeSelection,
@@ -2127,16 +2128,9 @@ export function sacrificeSnapshotFromSelection(
     state: GameState
 ): StackItem["additionalSacrificeSnapshot"] | undefined {
     if (!selection) return undefined;
-    const results = applySacrificeSelection(state, selection);
-    const snap = results.find((r) => r.snapshot);
-    if (!snap) return undefined;
-    return {
-        cardInstanceId: snap.id,
-        mv: snap.mv,
-        ...(snap.subtypes ? { subtypes: snap.subtypes } : {}),
-        ...(snap.power !== undefined ? { power: snap.power } : {}),
-        ...(snap.toughness !== undefined ? { toughness: snap.toughness } : {}),
-    };
+    return sacrificeSnapshotFromResults(
+        applySacrificeSelection(state, selection)
+    );
 }
 
 /** Snapshot the card a `cost.exileFromGraveyard` activation cost is about to

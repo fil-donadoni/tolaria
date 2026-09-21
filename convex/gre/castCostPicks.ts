@@ -35,6 +35,7 @@ import { getStaticAdditionalSacrifices } from "./state";
 import { getInstanceManaCost } from "../cards";
 import {
     applySacrificeSelection,
+    sacrificeSnapshotFromResults,
     autoResolveFungible,
     buildSacrificeRequirements,
     type SacrificeRequirement,
@@ -221,16 +222,9 @@ export function applyCastSacrificeVictims(
     for (const id of submitted) {
         if (!picked.includes(id)) picked.push(id);
     }
-    const results = applySacrificeSelection(state, { ...selection, picked });
-    const snap = results.find((r) => r.snapshot);
-    if (!snap) return undefined;
-    return {
-        cardInstanceId: snap.id,
-        mv: snap.mv,
-        ...(snap.subtypes ? { subtypes: snap.subtypes } : {}),
-        ...(snap.power !== undefined ? { power: snap.power } : {}),
-        ...(snap.toughness !== undefined ? { toughness: snap.toughness } : {}),
-    };
+    return sacrificeSnapshotFromResults(
+        applySacrificeSelection(state, { ...selection, picked })
+    );
 }
 
 /** The deterministic (K=1) picks for every mandatory additional-cost park a

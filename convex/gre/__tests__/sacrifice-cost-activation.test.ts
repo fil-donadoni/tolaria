@@ -26,6 +26,10 @@ import {
 import { getDefinition, tryGetDefinition } from "../../cards";
 import { buildActivationSacrificeSelection } from "../activationCostPicks";
 import {
+    sacrificeSnapshotFromResults,
+    type SacrificeResult,
+} from "../sacrificeChoice";
+import {
     matchesPermanentFilter,
     resolveExcludeSource,
 } from "../../cards/filters";
@@ -705,5 +709,70 @@ describe('bare "Sacrifice a creature" keeps the source a legal victim (CR 109.2 
         expect(
             state.players[0].battlefield.some((c) => c.id === "bears-1")
         ).toBe(true);
+    });
+});
+
+// --- the cost-victim snapshot PROJECTION (CR 118.8 / 608.2h, issue #3806) ---
+//
+// THREE sites stamp `StackItem.additionalSacrificeSnapshot` from a completed
+// `applySacrificeSelection` run — the mutation path
+// (`sacrificeSnapshotFromSelection`, `gre/activation.ts`), the cast-side search
+// sandboxes (`applyCastSacrificeVictims`, `gre/castCostPicks.ts`) and the
+// activation-side one (`applyActivationCostsForSearch`, `gre/applyMove.ts`).
+// They now share ONE projection, `sacrificeSnapshotFromResults`, precisely
+// because three hand-written copies were three chances to forget a field, and
+// the third copy had already forgotten one: issue #3806's `colors` never
+// reached the activation-cost tree, so an ability reading the victim's colours
+// back discarded NOTHING inside it, priced as pure loss, and the bot could
+// never find the line — the same shape issue #2375 shipped for `mv`.
+//
+// A field the `SacrificeResult` type grows and the projection forgets is a
+// silent blank at resolve with every other test still green, so this guards
+// the projection by ENUMERATION rather than by example: every optional field
+// of a snapshot-flagged result must survive.
+describe("sacrificeSnapshotFromResults — every result field survives the projection (issue #3806)", () => {
+    /** Every optional characteristic a snapshot-flagged victim can carry, with
+     *  a structurally valid value. The `Omit<Required<SacrificeResult>, …>`
+     *  annotation is the completeness half of this guard and is load-bearing:
+     *  a new `SacrificeResult` field reds `check:ts` HERE until it gets a row,
+     *  and the assertion below then reds until the projection forwards it. A
+     *  runtime key comparison could not do that job — it would only ever
+     *  compare this object with itself. */
+    const OPTIONAL_FIELDS: Omit<
+        Required<SacrificeResult>,
+        "id" | "mv" | "snapshot"
+    > = {
+        subtypes: ["Bear"],
+        power: 2,
+        toughness: 5,
+        colors: ["G"],
+    };
+
+    it("forwards the id, the mana value and EVERY optional field", () => {
+        const snapshot = sacrificeSnapshotFromResults([
+            { id: "victim", mv: 2, snapshot: true, ...OPTIONAL_FIELDS },
+        ]);
+        expect(snapshot).toEqual({
+            cardInstanceId: "victim",
+            mv: 2,
+            ...OPTIONAL_FIELDS,
+        });
+    });
+
+    it("keeps an EMPTY colour list — a colourless victim is a real answer (CR 105.2c)", () => {
+        expect(
+            sacrificeSnapshotFromResults([
+                { id: "v", mv: 0, colors: [], snapshot: true },
+            ])
+        ).toEqual({ cardInstanceId: "v", mv: 0, colors: [] });
+    });
+
+    it("returns undefined when no result is snapshot-flagged", () => {
+        expect(
+            sacrificeSnapshotFromResults([
+                { id: "v", mv: 1, colors: ["B"], snapshot: false },
+            ])
+        ).toBeUndefined();
+        expect(sacrificeSnapshotFromResults([])).toBeUndefined();
     });
 });

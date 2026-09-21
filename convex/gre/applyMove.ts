@@ -119,6 +119,7 @@ import {
 // returns the snapshot-flagged one's characteristics (issue #2375).
 import {
     applySacrificeSelection,
+    sacrificeSnapshotFromResults,
     isSacrificeSelectionComplete,
 } from "./sacrificeChoice";
 import { captureNinjutsuAttackTarget } from "./ninjutsu";
@@ -922,19 +923,16 @@ export function applyActivationCostsForSearch(
         picks
     );
     if (sacPayment) {
-        const results = applySacrificeSelection(state, sacPayment);
-        const snap = results.find((r) => r.snapshot);
-        if (out && snap) {
-            out.additionalSacrificeSnapshot = {
-                cardInstanceId: snap.id,
-                mv: snap.mv,
-                ...(snap.subtypes ? { subtypes: snap.subtypes } : {}),
-                ...(snap.power !== undefined ? { power: snap.power } : {}),
-                ...(snap.toughness !== undefined
-                    ? { toughness: snap.toughness }
-                    : {}),
-            };
-        }
+        // ONE projection, shared with the cast-side sandbox and the mutation
+        // path (`sacrificeSnapshotFromResults`, `gre/sacrificeChoice.ts`).
+        // This site used to hand-write its own and had already fallen a field
+        // behind — issue #3806's `colors` never reached the ACTIVATION-cost
+        // tree, so an ability reading the victim's colours back would have
+        // discarded nothing inside it.
+        const snapshot = sacrificeSnapshotFromResults(
+            applySacrificeSelection(state, sacPayment)
+        );
+        if (out && snapshot) out.additionalSacrificeSnapshot = snapshot;
     }
     if (!picks) return true;
     for (const id of picks.tapOtherIds ?? []) {

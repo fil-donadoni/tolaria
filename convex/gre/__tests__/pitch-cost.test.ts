@@ -312,6 +312,35 @@ describe("canPayAlternativeCost — life & hand legs (CR 119.4 / 118.9)", () => 
         );
         expect(matches.map((c) => c.id)).toEqual(["vin"]);
     });
+
+    // `EffectCardFilter.color`'s DYNAMIC shape (CR 105.2 / 608.2h, issue
+    // #3806) — the FOURTH card in this gallery, and the one where fail-open
+    // costs the most. This matcher takes a registry `CardDefinition`, never a
+    // `SpellContext`, so it has no stack item to read the cost-sacrifice
+    // snapshot off; skipping the field would fall through to `return true`
+    // and match the ENTIRE hand. It refuses the card instead.
+    it("matchingHandCardsForAltCost REFUSES color's dynamic sacrificed-colours shape (CR 105.2, issue #3806)", () => {
+        const player = makePlayer("p1", {
+            hand: [
+                handCard(lightningBolt.id, "bolt"),
+                handCard(counterspell.id, "ctr"),
+                handCard(island.id, "isl"),
+            ],
+        });
+        const matches = matchingHandCardsForAltCost(
+            player,
+            { color: { sacrificed: { read: "colors" } } },
+            "foil"
+        );
+        expect(matches.map((c) => c.id)).toEqual([]);
+        // The literal shape beside it still matches, so the refusal above is
+        // the DYNAMIC branch and not a dead `color` field.
+        expect(
+            matchingHandCardsForAltCost(player, { color: "R" }, "foil").map(
+                (c) => c.id
+            )
+        ).toEqual(["bolt"]);
+    });
 });
 
 describe("buildAlternativeCostHandChoice — auto-resolve vs park (CR 118.9 / 601.2h)", () => {

@@ -5063,6 +5063,16 @@ export interface SpellContext {
      *  `sacrificed` value's `read: "toughness"` (Diamond Valley — "gain life
      *  equal to the sacrificed creature's toughness"). */
     getAdditionalSacrificeToughness: () => number | undefined;
+    /** Effective COLORS snapshotted alongside `getAdditionalSacrificePower`
+     *  (CR 105.2, CR 608.2h last-known information, CR 613.1e layer 5 — a
+     *  laced or granted colour counts exactly as a printed one does). Returns
+     *  `undefined` when nothing was sacrificed for the cost or the snapshot
+     *  predates the field; an EMPTY array when the victim was colourless
+     *  (CR 105.2c). The two are distinguished here and collapse to "matches
+     *  nothing" at the one read site, `EffectCardFilter.color`'s
+     *  `{ sacrificed: { read: "colors" } }` form (Mind Extraction — "discards
+     *  all cards of each of the sacrificed creature's colors"). */
+    getAdditionalSacrificeColors: () => Color[] | undefined;
     /** Domain (CR 702 preamble — an italic ability word, no independent rules
      *  meaning of its own): the number of basic land types among lands
      *  `playerId` controls (0–5, CR 305.6 — a dual land with two basic
@@ -13041,7 +13051,30 @@ export interface EffectCardFilter {
      *  is shorthand for one supertype; AND with every other field. Read against
      *  the LIVE supertype set (snow-aware) for battlefield counts. */
     excludeSupertype?: CardSupertype | CardSupertype[];
-    color?: Color | Color[];
+    /** CR 105.2 — the card is (any) one of these colors. A FIXED literal
+     *  colour or array of them, OR (issue #3806) the DYNAMIC
+     *  {@link EffectSacrificedColorsRef}, `{ sacrificed: { read: "colors" } }`
+     *  — the colours of the permanent sacrificed to pay THIS spell's
+     *  additional cost, read as last known information (CR 608.2h). The two
+     *  shapes mirror `name`'s own literal-or-`{ ref }` pair (issue #1085/#1104)
+     *  exactly: one field, one meaning ("which colours"), a static and a
+     *  dynamic source. The dynamic form resolves to a colour LIST and is then
+     *  ORed exactly as an array literal is, so Mind Extraction's "all cards of
+     *  EACH of the sacrificed creature's colors" is the plain array semantics
+     *  this field already has.
+     *
+     *  An unresolvable dynamic read (no cost-sacrifice snapshot) and a
+     *  COLOURLESS victim both yield the EMPTY set, which matches nothing —
+     *  fail-closed, the convention `manaValueAtMost`'s unresolvable dynamic
+     *  ceiling uses, never "no constraint". `toPermanentFilter` resolves the
+     *  dynamic form at the BATTLEFIELD boundary exactly as it resolves a
+     *  `name` ref — `PermanentFilter.colors` carries literals only, and
+     *  dropping the field there would be fail-OPEN — and yields the
+     *  UNMATCHABLE_FILTER sentinel for an empty set. The third matcher,
+     *  `handCardMatchesFilter` (which returns `true` for every field it does
+     *  NOT read, issue #3837), has no resolving context at all and therefore
+     *  refuses the dynamic form outright rather than matching every card. */
+    color?: Color | Color[] | EffectSacrificedColorsRef;
     /** Negative of `color` (CR 105.2, issue #1287) — a card matches only if
      *  it has NONE of the listed colors. Mirrors `excludeType`/
      *  `excludeSupertype`'s negation shape exactly (ADR 0045 "generalize,
@@ -13413,6 +13446,41 @@ export type EffectSacrificedValue = {
          *  (defaults to 0). A literal only — see the type's doc comment. */
         plus?: number;
     };
+};
+
+/** The COLOURS of the permanent sacrificed to pay the resolving spell's
+ *  additional cost (issue #3806, CR 105.2 / 608.2h), spelled in the SAME
+ *  `{ sacrificed: { read } }` vocabulary {@link EffectSacrificedValue} uses
+ *  and read off the same `StackItem.additionalSacrificeSnapshot`. Mind
+ *  Extraction's "discards all cards of each of the sacrificed creature's
+ *  colors" is `{ op: "discard", player: { target: 0 }, filter: { color: {
+ *  sacrificed: { read: "colors" } } } }`.
+ *
+ *  It is NOT an `EffectValue` and deliberately NOT a member of the numeric
+ *  `read` union above: a colour LIST is not a number, and widening that union
+ *  would make `resolveValue`'s `sacrificed` branch fall through to the mana
+ *  value for a `read: "colors"` written in a numeric position. The two `read`
+ *  literals are disjoint, so `tsc` rejects each spelling in the other's slot
+ *  and `validateEffectScript` rejects it at the second gate.
+ *
+ *  Why a snapshot read rather than an object selector: the cost-sacrificed
+ *  permanent hit the graveyard while the cost was paid, BEFORE the spell was
+ *  ever on the stack, so `sharesColor`/`sameColors`' live `resolveObjectRef`
+ *  cannot reach it — CR 608.2h requires last known information, which the
+ *  engine already snapshots at payment time through the layer pipeline
+ *  (CR 613.1e layer 5, so a laced or granted colour counts).
+ *
+ *  No `of` selector, for the same reason the numeric member has none: there is
+ *  exactly one cost-sacrifice snapshot per stack item.
+ *
+ *  Fails CLOSED at every unresolvable edge — no snapshot on the stack item
+ *  (nothing was sacrificed as a cost), a snapshot predating this field, or a
+ *  COLOURLESS victim (CR 105.2c — no colours, so no card is "of" them) all
+ *  read as the empty colour set and match nothing, never as "no constraint".
+ *  A dropped-field fail-OPEN here would discard the target player's whole
+ *  hand. */
+export type EffectSacrificedColorsRef = {
+    sacrificed: { read: "colors" };
 };
 
 /** domain — the Domain ability word (CR 702 preamble, italic, no independent
@@ -18030,6 +18098,7 @@ export type EffectPredicate =
     | EffectBoundMatchesFilterPredicate
     | EffectObjectMatchesFilterPredicate
     | EffectSharesColorPredicate
+    | EffectSameColorsPredicate
     | EffectHasCityBlessingPredicate
     | EffectTargetMatchesGraveyardFilterPredicate;
 
@@ -18049,6 +18118,43 @@ export type EffectPredicate =
  *  absence of colour, not a sixth colour). */
 export interface EffectSharesColorPredicate {
     sharesColor: EffectObjectSelector;
+    with: EffectObjectSelector;
+}
+
+/** Colour-IDENTITY predicate (issue #3806, CR 105.2): true iff the two
+ *  referenced objects are exactly the same colors — neither is a color the
+ *  other isn't. Dead Ringers' "Destroy two target nonblack creatures UNLESS
+ *  either one is a color the other isn't" is the whole clause inverted:
+ *  `{ if: { sameColors: { target: 0 }, with: { target: 1 } }, then: [destroy,
+ *  destroy] }`.
+ *
+ *  The SET-EQUALITY sibling of {@link EffectSharesColorPredicate}, sharing its
+ *  field vocabulary (`with`) and its object-selector routing rather than
+ *  adding a second one: same axis (CR 105.2 colour), different relation.
+ *  It is emphatically NOT expressible as `sharesColor` — a green-white
+ *  creature SHARES a colour with a mono-green one and is not the same colours
+ *  as it — nor as a `colorCountAtLeast` pair, which counts colours without
+ *  asking WHICH.
+ *
+ *  Both sides are object selectors (an announced target slot, `$source`, a
+ *  binding, a `forEach` `$each`) and both colour sets are read LIVE through
+ *  the layer pipeline (`SpellContext.getColors`, CR 613.1e layer 5 — a
+ *  `colorOverride` from Painter's Servant or a colour GRANT counts exactly as
+ *  a printed colour does).
+ *
+ *  Two COLOURLESS objects read TRUE — colourless is the absence of colour
+ *  (CR 105.2c), and neither is a colour the other isn't, which is precisely
+ *  why this cannot be spelled with `sharesColor` (where colourless shares
+ *  nothing, not even with another colourless object). Dead Ringers really can
+ *  destroy two colourless creatures.
+ *
+ *  Reads `false` when EITHER side is missing, has left the battlefield, or is
+ *  not a permanent: CR 608.2b — "if part of the effect requires information
+ *  about an illegal target, it fails to determine any such information; any
+ *  part of the effect that requires that information won't happen". With one
+ *  Dead Ringers target gone, neither creature is destroyed. */
+export interface EffectSameColorsPredicate {
+    sameColors: EffectObjectSelector;
     with: EffectObjectSelector;
 }
 

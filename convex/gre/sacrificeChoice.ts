@@ -7,8 +7,14 @@
 // (`autoResolveFungible` still collapses the choice inline when it isn't a real
 // one — a forced count or indistinguishable candidates). The terminal action is
 // carried on the selection (`action`, default "sacrifice").
-import type { GameState, CardInstanceState, PlayerState } from "./state";
+import type {
+    GameState,
+    CardInstanceState,
+    PlayerState,
+    StackItem,
+} from "./state";
 import { getPlayer, removePermanentTo } from "./state";
+import type { Color } from "../cards/types";
 import type { PermanentFilter } from "../cards/filters";
 import { matchesPermanentFilter } from "../cards/filters";
 import {
@@ -93,8 +99,50 @@ export type SacrificeResult = {
     /** CR 613 layer 7c / 608.2h — effective toughness captured before the
      *  creature left play (Diamond Valley reads it at resolve). Creatures only. */
     toughness?: number;
+    /** CR 105.2 / 613.1e layer 5 / 608.2h (issue #3806) — effective COLORS
+     *  captured before the permanent left play, through the SAME
+     *  `STATIC_EFFECT_CTX.getColors` authority `sacrificeCandidates` above
+     *  filters with, so a laced or granted colour counts exactly as a printed
+     *  one. Read at resolve via `SpellContext.getAdditionalSacrificeColors`
+     *  (Mind Extraction — "discards all cards of each of the sacrificed
+     *  creature's colors"). Unlike `power`/`toughness` this is captured for
+     *  EVERY permanent, not creatures only — colour is not a creature-only
+     *  characteristic — and an EMPTY array is a real answer (CR 105.2c
+     *  colourless), kept distinct from an absent field. */
+    colors?: Color[];
     snapshot: boolean;
 };
+
+/** CR 118.8 / 608.2h — the stack item's cost-victim snapshot, built from a
+ *  completed `applySacrificeSelection` run. The ONE place the projection is
+ *  written, because there are THREE sites that stamp it — the mutation path
+ *  (`sacrificeSnapshotFromSelection`, `gre/activation.ts`), the cast-side
+ *  search sandboxes (`applyCastSacrificeVictims`, `gre/castCostPicks.ts`) and
+ *  the ACTIVATION-side one (`applyActivationCostsForSearch`,
+ *  `gre/applyMove.ts`) — and three hand-written copies of a field-by-field
+ *  projection is three chances to forget a field.
+ *
+ *  Forgetting one is not cosmetic: it is the "the tree models a different game
+ *  than the server plays" bug. Issue #2375 shipped after the sandboxes paid a
+ *  creature for an ability that then read the victim back and got `undefined`,
+ *  so the line priced as pure loss and the bot could never find it; issue
+ *  #3806 review found `colors` about to repeat it at the third site alone.
+ *  Every field is forwarded 1:1, empty arrays included — a colourless victim's
+ *  empty colour set is a real answer (CR 105.2c), not an absent one. */
+export function sacrificeSnapshotFromResults(
+    results: SacrificeResult[]
+): StackItem["additionalSacrificeSnapshot"] | undefined {
+    const snap = results.find((r) => r.snapshot);
+    if (!snap) return undefined;
+    return {
+        cardInstanceId: snap.id,
+        mv: snap.mv,
+        ...(snap.subtypes ? { subtypes: snap.subtypes } : {}),
+        ...(snap.power !== undefined ? { power: snap.power } : {}),
+        ...(snap.toughness !== undefined ? { toughness: snap.toughness } : {}),
+        ...(snap.colors !== undefined ? { colors: snap.colors } : {}),
+    };
+}
 
 /** Normalize a set of specs into requirements, dropping count-0 entries. The one
  *  place counts/filters are assembled for a producer. */
@@ -360,12 +408,20 @@ export function applySacrificeSelection(
         const toughness = isCreature
             ? getEffectiveToughness(state, victim)
             : undefined;
+        // CR 105.2 / 613.1e (issue #3806) — the victim's LIVE colours, taken
+        // before `removePermanentTo` below puts it in the graveyard, where
+        // layer 5 no longer applies (CR 608.2h last known information). Always
+        // an array, never omitted: a colourless victim's empty set is the
+        // answer Mind Extraction needs ("no cards are of those colours"), and
+        // omitting it would be indistinguishable from "no snapshot".
+        const colors = STATIC_EFFECT_CTX.getColors(victim);
         results.push({
             id,
             mv: manaValueOf(victim),
             ...(subtypes ? { subtypes } : {}),
             ...(power !== undefined ? { power } : {}),
             ...(toughness !== undefined ? { toughness } : {}),
+            colors,
             snapshot,
         });
         if (isReturn) {

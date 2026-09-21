@@ -150,7 +150,16 @@ function describeRequirement(req: {
             /^[AEIOU]/.test(s) ? "an " : "a "
         );
     }
-    if (f.color !== undefined) {
+    // CR 105.2 (issue #3806) — `color` also has a DYNAMIC shape
+    // (`{ sacrificed: { read: "colors" } }`), whose colours only exist on a
+    // resolving stack item. This dialog describes a COST leg, where no such
+    // item exists, so the dynamic form falls through to the generic label
+    // rather than rendering "a coloured card" off an object index.
+    const literalColor =
+        typeof f.color === "string" || Array.isArray(f.color)
+            ? f.color
+            : undefined;
+    if (literalColor !== undefined) {
         const colorName: Record<string, string> = {
             W: "white",
             U: "blue",
@@ -158,7 +167,7 @@ function describeRequirement(req: {
             R: "red",
             G: "green",
         };
-        const c = Array.isArray(f.color) ? f.color[0] : f.color;
+        const c = Array.isArray(literalColor) ? literalColor[0] : literalColor;
         const label = colorName[c] ?? "coloured";
         return `${req.count > 1 ? `${req.count} ` : "a "}${label} card${req.count > 1 ? "s" : ""}`;
     }

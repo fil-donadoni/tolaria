@@ -611,6 +611,31 @@ function evalPredicate(ctx: SpellContext, pred: EffectPredicate): boolean {
         const colorsB = ctx.getColors(b);
         return colorsA.some((c) => colorsB.includes(c));
     }
+    // sameColors (issue #3806, CR 105.2) — true iff the two referenced objects
+    // are EXACTLY the same colours: neither is a colour the other isn't. The
+    // set-equality sibling of `sharesColor` right above, reading the same
+    // layer-5 materialised colours (CR 613.1e) through the same `ctx.getColors`
+    // — Dead Ringers' "unless either one is a color the other isn't", inverted
+    // into the gate that lets the destruction happen.
+    //
+    // Two COLOURLESS objects read TRUE here and FALSE above, and that
+    // divergence is the rule, not an inconsistency: colourless shares no
+    // colour with anything (CR 105.2c), yet neither colourless object is a
+    // colour the other isn't. Dead Ringers destroys two colourless creatures.
+    //
+    // A missing / gone / non-permanent side reads false — CR 608.2b's "if part
+    // of the effect requires information about an illegal target, it fails to
+    // determine any such information", so with one Dead Ringers target gone
+    // neither creature is destroyed.
+    if ("sameColors" in pred) {
+        const a = resolveObjectRef(ctx, pred.sameColors);
+        const b = resolveObjectRef(ctx, pred.with);
+        if (!a || !b) return false;
+        const colorsA = ctx.getColors(a);
+        const colorsB = ctx.getColors(b);
+        if (colorsA.length !== colorsB.length) return false;
+        return colorsA.every((c) => colorsB.includes(c));
+    }
     // hasCityBlessing (Ascend, CR 702.131b — issue #1460) — true iff the
     // resolved player holds the city's blessing designation. A pure
     // player-state read via the `hasCityBlessing` primitive (the monotonic
@@ -1019,6 +1044,17 @@ function toPermanentFilter(
     // ref (the naming Op was skipped, the target slot is gone — CR 608.2b)
     // now yields the explicit UNMATCHABLE_FILTER sentinel instead, which
     // every caller must handle as "nothing matches".
+    // CR 105.2 (issue #3806) — the same boundary treatment `name` gets right
+    // below, for the same reason: `color`'s dynamic
+    // `{ sacrificed: { read: "colors" } }` form has to be resolved HERE, since
+    // `PermanentFilter.colors` carries literal colours only. Dropping it would
+    // be fail-OPEN (a `PermanentFilter` with no `colors` imposes no colour
+    // constraint); an empty resolved set is the explicit UNMATCHABLE_FILTER
+    // sentinel every caller already handles as "nothing matches".
+    const colors = resolveFilterColors(ctx, filter.color);
+    if (colors !== undefined && colors.length === 0) {
+        return UNMATCHABLE_FILTER;
+    }
     let name: string | undefined;
     if (filter.name !== undefined) {
         name =
@@ -1048,7 +1084,7 @@ function toPermanentFilter(
         subtypes: filter.subtype,
         supertypes: filter.supertype,
         excludeSupertypes: filter.excludeSupertype,
-        colors: filter.color,
+        colors,
         // CR 105.2b (issue #3837) — propagated so a `zone: "battlefield"`
         // selector reads the same bound the hidden-zone matcher does. Dropping
         // it here would be fail-OPEN, the bug class `name`'s note above
@@ -1136,6 +1172,30 @@ function asFilterArray<T>(value: T | T[] | undefined): T[] | undefined {
     return Array.isArray(value) ? value : [value];
 }
 
+/** CR 105.2 (issue #3806) — the colour set an `EffectCardFilter.color` names,
+ *  for the literal AND the dynamic shape alike. `undefined` means the field
+ *  was absent (NO constraint); an array — possibly EMPTY — means the field was
+ *  present and these are its colours.
+ *
+ *  The dynamic `{ sacrificed: { read: "colors" } }` form reads the cost-
+ *  sacrificed permanent's last-known colours off the stack item (CR 608.2h),
+ *  the same snapshot `resolveValue`'s numeric `sacrificed` member reads. It
+ *  collapses BOTH unresolvable edges — no snapshot at all, and a COLOURLESS
+ *  victim (CR 105.2c) — to the EMPTY set, which every consumer treats as
+ *  "matches nothing". That is the fail-CLOSED convention `manaValueAtMost`'s
+ *  unresolvable dynamic ceiling uses; the fail-OPEN alternative (returning
+ *  `undefined`, i.e. no constraint) would make Mind Extraction discard the
+ *  target player's ENTIRE hand when it should discard nothing. */
+function resolveFilterColors(
+    ctx: SpellContext,
+    value: EffectCardFilter["color"]
+): Color[] | undefined {
+    if (value === undefined) return undefined;
+    if (typeof value === "string") return [value];
+    if (Array.isArray(value)) return value;
+    return ctx.getAdditionalSacrificeColors() ?? [];
+}
+
 /** Matches a hidden-zone card's registry-read characteristics (library /
  *  graveyard, via `getLibraryCards` / `getGraveyardCards`) against an
  *  `EffectCardFilter` (issue #677). Every present field is ANDed; an
@@ -1196,7 +1256,10 @@ function matchesCardFilter(
     const types = asFilterArray(filter.type);
     const excludeTypes = asFilterArray(filter.excludeType);
     const subtypes = asFilterArray(filter.subtype);
-    const colors = asFilterArray(filter.color);
+    // CR 105.2 (issue #3806) — literal colours, or the cost-sacrificed
+    // permanent's last-known ones (Mind Extraction). An empty set from the
+    // dynamic form matches nothing, which is the fail-closed reading.
+    const colors = resolveFilterColors(ctx, filter.color);
     if (types !== undefined && !types.some((t) => card.types.includes(t))) {
         return false;
     }
