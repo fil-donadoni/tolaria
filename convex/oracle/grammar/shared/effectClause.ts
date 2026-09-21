@@ -705,6 +705,30 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 701.23a + CR 701.20a + CR 701.24a — "Search your library for a
+           * basic land card, reveal it, put it into your hand, then shuffle.":
+           * the controller looks through their OWN library, may find one card
+           * the description matches, shows it to every player, takes it, and
+           * shuffles. One sentence, four actions in printed order.
+           *
+           * The find is optional (CR 701.23b — a search of a hidden zone for
+           * cards with a stated quality never compels it), which is what makes
+           * the reveal worth printing: it is how the other players learn what
+           * was taken, and lowering keeps it in front of the move for the
+           * reason `EffectOp`'s own `reveal` doc gives.
+           *
+           * `filter` is what the search may find, `phrase` the noun phrase
+           * that named it, kept for the prompt. The accepted descriptions are
+           * a closed vocabulary (`LIBRARY_SEARCH_FILTERS`): one this grammar
+           * cannot turn into an `EffectCardFilter` fails the line rather than
+           * searching wider than the card said.
+           */
+          readonly kind: "search-library-to-hand";
+          readonly filter: EffectCardFilter;
+          readonly phrase: string;
+      }
+    | {
+          /**
            * CR 608.2c — "<base>. If you control a <A> and a <B>, <upgraded>
            * instead." Two printed sentences, one effect: the second REPLACES
            * the first when every condition holds as the ability resolves, and
@@ -1502,6 +1526,20 @@ const YOU_DRAW_AND_THAT_OPPONENT_DISCARDS =
 const LOOT = /^Draw (\S+) cards?, then discard (\S+) cards?$/;
 const SHUFFLE_HAND_REDRAW =
     /^Shuffle the cards from your hand into your library, then draw that many cards$/;
+/** CR 701.23a + CR 701.20a + CR 701.24a — "Search your library for <what>,
+ *  reveal it, put it into your hand, then shuffle". */
+const SEARCH_LIBRARY_TO_HAND =
+    /^Search your library for (.+?), reveal it, put it into your hand, then shuffle$/;
+/**
+ * What a library search may be told to find (CR 701.23a — "a card that matches
+ * the given description"), as an `EffectCardFilter`. Fail-closed by
+ * construction: a description with no row here is one this grammar has no
+ * fixture for, and the sentence fails rather than searching wider than the
+ * card said. A row is earned by a printed form, never by symmetry.
+ */
+const LIBRARY_SEARCH_FILTERS = new Map<string, EffectCardFilter>([
+    ["a basic land card", { type: "Land", supertype: "Basic" }],
+]);
 /** CR 608.2c — "If you control <A> and <B>, <body> instead" (either order). */
 const INSTEAD = /^If (you control .+?), (?:instead (.+)|(.+) instead)$/;
 
@@ -2229,6 +2267,24 @@ function effectSentence(
     if (SHUFFLE_HAND_REDRAW.test(span)) {
         return ok({
             kind: "shuffle-hand-redraw" as const,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── search the library, reveal the find, take it, shuffle ──────────────
+    // CR 701.23a + CR 701.20a + CR 701.24a
+    const searchToHand = span.match(SEARCH_LIBRARY_TO_HAND);
+    if (searchToHand !== null) {
+        const phrase = searchToHand[1]!;
+        const filter = LIBRARY_SEARCH_FILTERS.get(phrase);
+        if (filter === undefined)
+            return fail(
+                `"${phrase}" is not a library search description`,
+                span
+            );
+        return ok({
+            kind: "search-library-to-hand" as const,
+            filter,
+            phrase,
         } satisfies EffectSentenceIR);
     }
 

@@ -1653,6 +1653,42 @@ function lowerSentenceBody(
                 { op: "draw", player: "controller", count: { ref: bind } },
             ]);
         }
+        case "search-library-to-hand": {
+            // CR 701.23a + CR 701.20a + CR 701.24a — look through the library
+            // for a card the description matches, show it to every player,
+            // take it, shuffle. The find is OPTIONAL (CR 701.23b — a search of
+            // a hidden zone for cards with a stated quality never compels it),
+            // which `count: { min: 0, max: 1 }` says; a search that finds
+            // nothing binds nothing, so the reveal and the move are no-ops
+            // (CR 608.2b) and only the shuffle happens — as printed.
+            //
+            // The reveal precedes the move, while the card is still in the
+            // library: it keeps its all-players knowledge through the move to
+            // hand, and the trailing shuffle clears knowledge only of the
+            // cards still in the library (CR 701.20a, `EffectOp.reveal`).
+            const bind = walk.nextBind("found");
+            return lowered([
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: sentence.filter,
+                    count: { min: 0, max: 1 },
+                    prompt: `Search your library for ${sentence.phrase}.`,
+                    bind,
+                },
+                { op: "reveal", player: "controller", cards: { ref: bind } },
+                {
+                    op: "moveZone",
+                    cards: { ref: bind },
+                    player: "controller",
+                    from: "library",
+                    to: "hand",
+                },
+                { op: "libraryLook", action: "shuffle", player: "controller" },
+            ]);
+        }
         case "upgrade-if-controls":
             return lowerUpgrade(sentence, walk, site);
         case "discard-at-random": {

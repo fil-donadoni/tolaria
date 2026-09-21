@@ -2822,4 +2822,62 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 701.23a + CR 701.20a + CR 701.24a — "Search your library for a basic
+    // land card, reveal it, put it into your hand, then shuffle": the
+    // controller may find one basic land, shows it to every player, takes it,
+    // and shuffles. Exhibits three card-dependent forms at once, which is why
+    // the clause reaches no card without this row: the `choice` is sized at
+    // RUNTIME (the canned generator cannot say how many basics the library
+    // holds), the `reveal` reads a binding only that choice writes, and the
+    // `moveZone` changes zones on an object the generator does not model.
+    // Lay of the Land is the plainest printing of the form and the
+    // enforced-Target card the gap held (issue #4305).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "cedc52eb-66a6-4b43-87f1-9bb9f4d4871e",
+            name: "Lay of the Land",
+            manaCost: "{G}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Lay of the Land",
+            types: ["Sorcery"],
+            manaCost: { G: 1 },
+            oracleText:
+                "Search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: { type: "Land", supertype: "Basic" },
+                    count: { min: 0, max: 1 },
+                    prompt: "Search your library for a basic land card.",
+                    bind: "$found1",
+                },
+                {
+                    op: "reveal",
+                    player: "controller",
+                    cards: { ref: "$found1" },
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$found1" },
+                    player: "controller",
+                    from: "library",
+                    to: "hand",
+                },
+                {
+                    op: "libraryLook",
+                    action: "shuffle",
+                    player: "controller",
+                },
+            ],
+        },
+    },
 ]);
