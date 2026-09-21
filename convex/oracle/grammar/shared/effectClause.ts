@@ -356,7 +356,7 @@ export type EffectSentenceIR =
       }
     | {
           /**
-           * CR 601.2d / 120.4 — "{self} deals N damage divided as you choose
+           * CR 601.2d — "{self} deals N damage divided as you choose
            * among <count phrase> <targets>".
            *
            * ONE announced group whose count is a RANGE (`among`), and a
@@ -1985,7 +1985,7 @@ function effectSentence(
         } satisfies EffectSentenceIR);
     }
 
-    // ── damage divided as you choose (CR 601.2d + CR 120.4) ────────────────
+    // ── damage divided as you choose (CR 601.2d) ────────────────
     const divided = span.match(DAMAGE_DIVIDED);
     if (divided !== null) {
         const dealer = uncapitalise(divided[1]!);

@@ -1105,7 +1105,7 @@ export const targetFilterRule: Rule<TargetRequirement> = subGrammar(
 );
 
 /**
- * CR 601.2d / 120.4 — the count phrase of a "divided as you choose among …"
+ * CR 601.2d — the count phrase of a "divided as you choose among …"
  * group, phrase → announced count.
  *
  * Every phrase opens at ONE target: CR 601.2d gives each chosen target at

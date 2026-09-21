@@ -78,11 +78,6 @@
             "issue": 3901
         },
         {
-            "key": "(op) › dealDamageDividedAsChosen",
-            "op": "dealDamageDividedAsChosen",
-            "issue": 3902
-        },
-        {
             "key": "(op) › delayedTrigger",
             "op": "delayedTrigger",
             "issue": 3903

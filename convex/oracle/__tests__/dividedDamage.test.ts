@@ -1,5 +1,5 @@
 // Divided damage: "deals N damage divided as you choose among <count phrase>
-// <targets>" (CR 601.2d / 120.4, issue #4245).
+// <targets>" (CR 601.2d, issue #4245).
 //
 // Five layers, each watching a different way the rule can go wrong:
 //
@@ -83,7 +83,7 @@ const refused = (card: ReturnType<typeof oracleCard>) =>
 /** The divide budget the rule attaches to a group. */
 const divided = (total: number | "X") => ({ total });
 
-describe("divided damage — golden fixtures (CR 601.2d / 120.4)", () => {
+describe("divided damage — golden fixtures (CR 601.2d)", () => {
     it("spell · one, two, or three targets (Arc Lightning)", () => {
         const text =
             "Arc Lightning deals 3 damage divided as you choose among one, two, or three targets.";
@@ -652,7 +652,7 @@ describe("divided damage — lowering invariants", () => {
     });
 });
 
-describe("divided damage — resolution through the interpreter (CR 601.2d / 120.4)", () => {
+describe("divided damage — resolution through the interpreter (CR 601.2d)", () => {
     // A 4/4, so the split (at most 3 on one creature) never kills it and the
     // marked damage stays observable.
     const BEAR = getCardByName("Serra Angel").id;

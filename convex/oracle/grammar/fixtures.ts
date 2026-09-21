@@ -2454,7 +2454,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             },
         },
     },
-    // CR 601.2d / 120.4 — "deals N damage divided as you choose among <count
+    // CR 601.2d — "deals N damage divided as you choose among <count
     // phrase> <targets>": the split is chosen at ANNOUNCEMENT and snapshotted
     // onto the stack item's `targetAmounts`, which the canned smoke scenario
     // cannot populate. Exhibits the "announced multi-target division" form, so
@@ -2487,7 +2487,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             },
         },
     },
-    // CR 601.2d / 120.4 — the same division with an {X} budget. A distinct
+    // CR 601.2d — the same division with an {X} budget. A distinct
     // FORM from the fixed one above: the gate keys a smoke skip on the Op's
     // skeleton (`opSkeleton`), and `total: "X"` is not `total: 3` — Arc
     // Lightning's row clears the fixed budget only.
