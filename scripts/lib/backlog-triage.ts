@@ -13,7 +13,8 @@
  * line (`P2 — <reason>`, ADR 0143 / issue #4230) takes THAT band, always —
  * `user-decision`, a hand ruling, the truth and not one more candidate; a
  * `## Band: P3` under a `P1` parent is `P3`. Every other open issue takes the
- * STRONGEST band of three sources:
+ * STRONGEST band of three sources (a fourth, `labels`, fires only when these
+ * three yield nothing — see below):
  *
  * | Source                                  | P1                       | P2            | P3                  |
  * | --------------------------------------- | ------------------------ | ------------- | ------------------- |
@@ -58,6 +59,13 @@
  *     travel one more hop on the next one — a fixpoint spread over runs.
  *
  * A neighbour at `P0` yields `P1`: the script never writes `P0`.
+ *
+ * A `labels` default is not a seed, so it lends nothing IN a run. It does reach
+ * a parent's children across runs the same way a `cards` band does: `--write`
+ * puts it on the board, and the next run reads the parent's board value
+ * (`parent` source, which outranks `labels`) — accepted, issue #4231: the
+ * parent's own default is then the child's, one hop, and the child's own
+ * `## Band` line or cards still win over it.
  */
 
 import { dirname, join } from "node:path";

@@ -633,6 +633,23 @@ describe("backlog-triage — the `labels` source, the weakest (issue #4231)", ()
         expect(v.get(3)).toMatchObject({ kind: "residue" });
     });
 
+    it("once a parent's label default is WRITTEN, its child inherits it as `parent` — the accepted one-hop spread across runs", () => {
+        const issues = [
+            issue(1, { labels: ["bug", "area:cards"] }),
+            issue(2, { parent: 1 }),
+        ];
+        // Run 1: empty board — the child is residue, the parent defaults P2.
+        const first = triage(issues, index, {}, 9999);
+        expect(first.get(1)).toMatchObject({ band: "P2", source: "labels" });
+        expect(first.get(2)).toMatchObject({ kind: "residue" });
+        // Run 2: the board holds what run 1 wrote for the parent.
+        expect(triage(issues, index, { 1: "P2" }, 9999).get(2)).toMatchObject({
+            band: "P2",
+            source: "parent",
+            via: "#1",
+        });
+    });
+
     it("planWrites overwrites a stale board value on a labelled row, and writes nothing once it agrees", () => {
         const issues = [issue(1, { labels: ["user-report"] })];
         const stale = triage(issues, index, { 1: "P3" }, 9999);
@@ -667,7 +684,7 @@ describe("backlog-triage — the `labels` source, the weakest (issue #4231)", ()
             "by source: user-decision 0, cards 0, edge 0, parent 0, labels 3"
         );
         expect(report).toContain("#4 an umbrella");
-        expect(report).not.toContain("issue 1");
+        expect(report).not.toMatch(/#1 /);
     });
 });
 
