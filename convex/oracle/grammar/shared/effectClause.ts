@@ -25,7 +25,11 @@
  * the line rather than being dropped.
  */
 
-import type { EffectCardFilter, TargetRequirement } from "../../../cards/types";
+import type {
+    EffectCardFilter,
+    EffectChoiceSuperlative,
+    TargetRequirement,
+} from "../../../cards/types";
 import type { KeywordIR } from "../ir";
 import type { CardType } from "../../../cards/types";
 import type { Phase } from "../../../gre/types";
@@ -61,6 +65,7 @@ import {
     dividedTargetsRule,
     opensTargetPhrase,
     sacrificeFilterFromDescriptor,
+    superlativeFromClause,
     targetFilterRule,
 } from "./targetFilter";
 import { zoneRefRule, type ZoneRefIR } from "./zoneRef";
@@ -529,6 +534,10 @@ export type EffectSentenceIR =
           readonly player: PlayerRefIR;
           readonly count: number;
           readonly filter: EffectCardFilter;
+          /** CR 608.2h — "with the greatest power among creatures they
+           *  control": the pick narrows to the permanents tied for the extreme
+           *  stat. Absent for the plain edict. */
+          readonly superlative?: EffectChoiceSuperlative;
           readonly phrase: string;
       }
     | {
@@ -1409,6 +1418,12 @@ const DISCARD_CHOICE = /^(.+) discards (\S+) cards?$/;
  * the phrase, where the descriptor reader refuses it.
  */
 const SACRIFICE_EDICT = /^(.+?) sacrifices (\S+) (.+?)(?: of their choice)?$/;
+/**
+ * CR 608.2h — the superlative tail of an edict's permanent phrase: "creature
+ * with the greatest power among creatures they control". Head, extreme, stat
+ * and set; each is validated by `superlativeFromClause`.
+ */
+const SUPERLATIVE_TAIL = /^(.+?) with the (\S+) (.+?) among (.+)$/;
 /**
  * CR 608.2c — "You draw a card and you lose 1 life": a draw, then a life
  * loss, each with the explicit "you" the Oracle text prints. Anchored at both
@@ -2450,7 +2465,11 @@ function effectSentence(
         if (player === null) return fail(`"${edict[1]}" is not a player`, span);
         const count = readNumberWord(edict[2]!);
         if (count === null) return fail(`"${edict[2]}" is not a count`, span);
-        const descriptor = descriptorRule.run(edict[3]!, ctx);
+        const tail = SUPERLATIVE_TAIL.exec(edict[3]!);
+        const descriptor = descriptorRule.run(
+            tail === null ? edict[3]! : tail[1]!,
+            ctx
+        );
         if (!descriptor.ok) return descriptor;
         // The noun's number is the count's: "a creature", "two creatures".
         if ((descriptor.value.plural === true) !== (count !== 1))
@@ -2460,11 +2479,28 @@ function effectSentence(
             );
         const filter = sacrificeFilterFromDescriptor(descriptor.value);
         if (!filter.ok) return filter;
+        let superlative: EffectChoiceSuperlative | undefined;
+        if (tail !== null) {
+            // "two creatures with the greatest power" ranks each pick, not the
+            // pool once — no encoding, so refused rather than read as one.
+            if (count !== 1)
+                return fail("a superlative selects ONE permanent", edict[2]!);
+            const read = superlativeFromClause(
+                tail[2]!,
+                tail[3]!,
+                tail[4]!,
+                filter.value,
+                ctx
+            );
+            if (!read.ok) return read;
+            superlative = read.value;
+        }
         return ok({
             kind: "sacrifice" as const,
             player,
             count,
             filter: filter.value,
+            ...(superlative === undefined ? {} : { superlative }),
             phrase: `${edict[2]} ${edict[3]}`,
         } satisfies EffectSentenceIR);
     }

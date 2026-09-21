@@ -45580,6 +45580,16 @@
         "source": "compiled"
     },
     {
+        "name": "Soul Shatter",
+        "scryfallId": "2c2fb07b-0f70-403b-be8b-b5217f12e671",
+        "oracleId": "615927c2-3fb0-4e64-a1a7-55fb56de1423",
+        "firstSet": "znr",
+        "firstPrintId": "2c2fb07b-0f70-403b-be8b-b5217f12e671",
+        "firstPrintSet": "znr",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Soul Shepherd",
         "scryfallId": "f45a39ba-5fbf-46c3-8dc7-3058ac6d24e8",
         "oracleId": "78dbcc18-291c-4b2c-9576-f8dc93914936",

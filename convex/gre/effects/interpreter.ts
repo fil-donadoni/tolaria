@@ -2011,6 +2011,36 @@ function boundSetCandidates(
     return { available: ids.length, candidateIds: ids };
 }
 
+/** CR 608.2h — the ids among `ids` tied for the greatest (or least) `stat`.
+ *  Power is the layer-computed effective power (an anthem changes who is
+ *  greatest); mana value is the instance's own cost (CR 202.3), so a token or
+ *  copy with no mana cost ranks as 0. An empty pool has no extreme and leaves
+ *  no candidates. */
+function extremeByStat(
+    ctx: SpellContext,
+    ids: readonly string[],
+    superlative: NonNullable<OpOf<"choice">["superlative"]>
+): string[] {
+    const read = (id: string): number => {
+        const target = { type: "permanent" as const, id };
+        switch (superlative.stat) {
+            case "power":
+                return ctx.getPower(target);
+            case "mana-value":
+                return ctx.getManaValue(target);
+            default:
+                return superlative.stat satisfies never;
+        }
+    };
+    const scored = ids.map((id) => ({ id, value: read(id) }));
+    if (scored.length === 0) return [];
+    const pick = superlative.extreme === "greatest" ? Math.max : Math.min;
+    const extreme = pick(...scored.map((entry) => entry.value));
+    return scored
+        .filter((entry) => entry.value === extreme)
+        .map((entry) => entry.id);
+}
+
 /** Computes how many candidates a `choice` Op actually has, plus the
  *  graveyard allow-list when applicable. The pick count is clamped to this
  *  (CR 608.2b — the chooser cannot be asked for more than exists; "discard
@@ -2023,6 +2053,14 @@ function choiceCandidates(
     op: OpOf<"choice">,
     zoneOwnerId: string
 ): { available: number; candidateIds?: string[] } {
+    // Fail closed if a script bypassed the validator: a restriction that
+    // cannot be applied here must leave NO candidate, never the whole zone.
+    if (
+        op.superlative &&
+        (op.zone !== "battlefield" || op.candidates || op.allControllers)
+    ) {
+        return { available: 0, candidateIds: [] };
+    }
     if (op.zone === "battlefield") {
         // CR 601.2c / 608.2 — `candidates` narrows the pick to specific
         // ALREADY-KNOWN objects (the announced targets) instead of the whole
@@ -2055,6 +2093,19 @@ function choiceCandidates(
         const filter = toPermanentFilter(ctx, op.filter);
         if (filter === UNMATCHABLE_FILTER) {
             return { available: 0, candidateIds: [] };
+        }
+        // CR 608.2h — a superlative narrows the pool to the permanents tied
+        // for the extreme stat, decided ONCE here as the choice is raised and
+        // carried as an explicit allow-list (the submit validator, the client
+        // and the Bot all read `candidateIds`). The validator pins this to the
+        // zone owner's own battlefield, so the set ranked is the set filtered.
+        if (op.superlative) {
+            const ids = extremeByStat(
+                ctx,
+                ctx.getBattlefieldIds(zoneOwnerId, filter),
+                op.superlative
+            );
+            return { available: ids.length, candidateIds: ids };
         }
         // `allControllers` — every battlefield counts toward the clamp, so
         // "untap up to two lands" with one land of each player's still asks

@@ -374,10 +374,10 @@ describe("player edict — refusals (fail-closed, ADR 0105 § 2)", () => {
             "Target player sacrifices a creature of their choice and loses 1 life.",
             "Target player sacrifices a creature of their choice and loses 1 life",
         ],
-        // The superlative selector is its own slice (Consumed by Greed).
+        // A per-candidate stat bound is a filter field the edict has no slot for.
         [
-            "Target opponent sacrifices a creature with the greatest power among creatures they control.",
-            "creature with the greatest power among creatures they control",
+            "Target opponent sacrifices a creature with power 3 or greater.",
+            "powerFilter",
         ],
         // "attacking or blocking" is two roles; the filter reads one (Celestial Flare).
         [

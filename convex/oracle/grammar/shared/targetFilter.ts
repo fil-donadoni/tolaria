@@ -53,6 +53,7 @@ import type {
     CardType,
     Color,
     EffectCardFilter,
+    EffectChoiceSuperlative,
     PermanentFilter,
     TargetRequirement,
 } from "../../../cards/types";
@@ -1000,6 +1001,82 @@ export function sacrificeFilterFromDescriptor(
         filter.isAttacking = true;
     }
     return ok(filter);
+}
+
+/** "creatures they control", "creatures and planeswalkers that player controls". */
+const SUPERLATIVE_SET = /^(.+) (?:they control|that player controls)$/;
+
+/**
+ * "with the greatest <stat> among <set>" (CR 608.2h) → the `choice` Op's
+ * superlative, for the sacrifice filter it follows.
+ *
+ * The stat is a parameter (`power`, `mana value`); the SET is not: the engine
+ * ranks the sacrificing player's own permanents that the filter matches, so the
+ * printed set is accepted only when it IS that pool — the filter's own type
+ * list, controlled by the sacrificing player ("they control", "that player
+ * controls"). Any other set ("creatures you control", "creatures on the
+ * battlefield", "attacking creatures") would rank a different pool than the
+ * engine does and is refused, as is every extreme but "greatest".
+ */
+export function superlativeFromClause(
+    extreme: string,
+    stat: string,
+    set: string,
+    filter: EffectCardFilter,
+    ctx: unknown
+): RuleResult<EffectChoiceSuperlative> {
+    if (extreme !== "greatest")
+        return fail(
+            `"${extreme}" is not a superlative this grammar reads`,
+            extreme
+        );
+    const statKey =
+        stat === "power"
+            ? "power"
+            : stat === "mana value"
+              ? "mana-value"
+              : null;
+    if (statKey === null)
+        return fail(`"${stat}" is not a stat a superlative ranks by`, stat);
+    const printed = SUPERLATIVE_SET.exec(set);
+    if (printed === null)
+        return fail(
+            `"${set}" is not a set a superlative ranks over — only the sacrificing player's own permanents`,
+            set
+        );
+    const setTypes = new Set<CardType>();
+    for (const part of printed[1]!.split(" and ")) {
+        const noun = descriptorRule.run(part, ctx);
+        if (!noun.ok) return noun;
+        const fields = Object.entries(noun.value).filter(
+            ([, value]) => value !== undefined
+        );
+        if (
+            noun.value.types === undefined ||
+            noun.value.types.length !== 1 ||
+            noun.value.plural !== true ||
+            fields.length !== 2
+        )
+            return fail(`"${part}" is not a plural permanent type`, part);
+        setTypes.add(noun.value.types[0]!);
+    }
+    const candidateTypes = new Set(
+        Array.isArray(filter.type) ? filter.type : [filter.type]
+    );
+    if (
+        Object.keys(filter).length !== 1 ||
+        candidateTypes.size !== setTypes.size ||
+        ![...candidateTypes].every((type) => setTypes.has(type as CardType))
+    )
+        return fail(
+            `the set "${set}" is not the candidates' own permanent types`,
+            set
+        );
+    // CR 208.3 — only a creature has power, so a power ranking over any other
+    // pool would rank permanents with no value.
+    if (statKey === "power" && filter.type !== "Creature")
+        return fail("only creatures can be ranked by power", "power");
+    return ok({ stat: statKey, extreme: "greatest" });
 }
 
 /**

@@ -1737,6 +1737,38 @@ function isChoiceZone(value: unknown): boolean {
     );
 }
 
+/** `choice.superlative` — exactly `{ stat, extreme }`, both from their closed
+ *  unions. An extra or unknown key is a rejection, never an ignored field: a
+ *  restriction that silently drops would widen the candidate list. */
+function isChoiceSuperlative(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const keys = Object.keys(value);
+    if (
+        keys.length !== 2 ||
+        !keys.includes("stat") ||
+        !keys.includes("extreme")
+    ) {
+        return false;
+    }
+    const { stat, extreme } = value as { stat: unknown; extreme: unknown };
+    return (
+        (stat === "power" || stat === "mana-value") &&
+        (extreme === "greatest" || extreme === "least")
+    );
+}
+
+/** True when a `choice` filter pins the pool to creatures and nothing else in
+ *  its `type` — the precondition for ranking by power (CR 208.3: only a
+ *  creature has power). */
+function filterIsCreatureOnly(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    return (value as Record<string, unknown>).type === "Creature";
+}
+
 function isNonEmptyString(value: unknown): boolean {
     return typeof value === "string" && value.length > 0;
 }
@@ -5036,9 +5068,43 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             candidates: (v) =>
                 Array.isArray(v) && v.length > 0 && v.every(isObjectSelector),
             bindOther: isBindingName,
+            superlative: isChoiceSuperlative,
         },
         check: (entry) => {
             const errors: string[] = [];
+            // CR 608.2h — the superlative ranks the zone owner's OWN
+            // battlefield pool. `candidates` names its set some other way and
+            // `allControllers` widens it past the owner, so either pairing is
+            // two answers to "the greatest among WHAT" — refused, never
+            // resolved by picking one. A hidden-zone card has no layer-computed
+            // stat to rank.
+            // A malformed value already failed its field check, but `check` still
+            // runs after it — read nothing off it until the shape is proven.
+            if (isChoiceSuperlative(entry.superlative)) {
+                if (
+                    entry.zone !== "battlefield" ||
+                    entry.candidates !== undefined ||
+                    entry.allControllers !== undefined
+                ) {
+                    errors.push(
+                        '"superlative" is valid only with zone: "battlefield", and never together with "candidates" or "allControllers"'
+                    );
+                }
+                // "a creature with the greatest power" names ONE permanent; a
+                // count of two would mean "two of the tied set", an encoding
+                // nobody defined (the grammar refuses the counted form too).
+                if (entry.count !== 1) {
+                    errors.push(
+                        '"superlative" selects ONE permanent — its "count" must be exactly 1'
+                    );
+                }
+                const stat = (entry.superlative as { stat?: unknown }).stat;
+                if (stat === "power" && !filterIsCreatureOnly(entry.filter)) {
+                    errors.push(
+                        '"superlative" by power requires filter: { type: "Creature" } — a permanent with no power cannot be ranked (CR 208.3)'
+                    );
+                }
+            }
             // `allControllers` widens a BATTLEFIELD pick to every player's
             // permanents. `zoneOwnerId` and `candidates` each already say whose
             // objects are in play, so pairing either with it is two answers to
