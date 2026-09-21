@@ -155,12 +155,10 @@ export const activatedSlot: Rule<SlotIR> = rule(ACTIVATED_SLOT, (span, ctx) => {
         );
     }
     // CR 303.4b — on an Aura, "enchanted creature" in the effect names the
-    // permanent the Aura is attached to. A granted ability's context carries
-    // the HOST's type line (`hostTypeOnly`), whose "Aura" is never the
-    // source's, so it never raises the flag.
-    const auraHost =
-        context.typeLine.hostTypeOnly !== true &&
-        context.typeLine.subtypes.includes("Aura");
+    // permanent the Aura is attached to. A granted ability is read under the
+    // HOST's type line (`hostTypeOnly`, no subtypes), so it never names an
+    // Aura and never raises the flag.
+    const auraHost = context.typeLine.subtypes.includes("Aura");
     return terminated(".", activatedBody).run(
         span,
         auraHost ? { ...context, auraHost: true as const } : ctx

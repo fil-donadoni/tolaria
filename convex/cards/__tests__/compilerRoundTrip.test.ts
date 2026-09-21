@@ -178,6 +178,11 @@ import {
 // is in the list because the same change retired its `resolve()` closure to
 // the `setSubtype` Op its sibling Kavu Recluse had been using since issue
 // #1083.
+//
+// Lowered 1534 -> 1528 by issue #4303 ("Enchanted creature" on an Aura's own
+// activated ability): Armor of Faith, Blessing, Crown of Flames, Firebreathing,
+// Holy Armor and Stonehands round-trip once the pump on the host reads as a
+// `$host` script.
 const BASELINE_CEILING = 1528;
 
 /**

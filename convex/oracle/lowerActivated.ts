@@ -66,13 +66,30 @@ function applyRestrictions(
     return null;
 }
 
-/** A cost leg that takes the SOURCE off the battlefield. */
-function removesSource(atom: CostAtomIR): boolean {
-    return (
-        atom.kind === "sacrifice-self" ||
-        atom.kind === "exile-self" ||
-        atom.kind === "return-self"
-    );
+/**
+ * A cost leg that may take the SOURCE off the battlefield: the three that name
+ * it, and a sacrifice of "an <X>" whose filter could pick an Aura (an Aura is
+ * an Enchantment, CR 303.4). A filter naming no card type, or one that lists
+ * Enchantment, is read as "could" — fail-closed, because a cost that let the
+ * player sacrifice the Aura itself would compile to an inert ability.
+ */
+function mayRemoveSource(atom: CostAtomIR): boolean {
+    switch (atom.kind) {
+        case "sacrifice-self":
+        case "exile-self":
+        case "return-self":
+            return true;
+        case "sacrifice-other": {
+            const { types, subtypes } = atom.filter;
+            if (types === undefined)
+                return (
+                    subtypes === undefined || [subtypes].flat().includes("Aura")
+                );
+            return [types].flat().includes("Enchantment");
+        }
+        default:
+            return false;
+    }
 }
 
 /** CR 303.4b — the sentence acts on the Aura's host ("enchanted creature"). */
@@ -92,16 +109,21 @@ export function lowerActivatedAbility(input: {
     const cost = lowerActivationCost(input.cost);
     if (!cost.ok) return { ok: false, reason: cost.reason };
 
-    // CR 608.2h — `$host` is read off the LIVE attachment link when the
-    // ability resolves (`seedSourceBindings`), and a cost that sacrifices,
-    // exiles or returns the Aura has already ended that link: the pump would
-    // resolve against no host and do nothing. Refused rather than compiled into
-    // a card that is activated, paid for, and inert; the form stays a gap of
-    // its own until the host is captured as last-known information.
-    if (input.cost.atoms.some(removesSource) && input.effects.some(actsOnHost))
+    // CR 608.2h — the printed card still pumps its host after the Aura is
+    // sacrificed, because the effect uses the Aura's last known information.
+    // `$host` does not carry that: it is seeded from the LIVE attachment link
+    // when the ability resolves (`seedSourceBindings`), which a cost that
+    // removes the Aura has already ended, so the ability would be paid for and
+    // do nothing. An engine limit, not a rules one — refused rather than
+    // compiled into an inert card, and the form stays a gap of its own until
+    // the host is captured as last-known information.
+    if (
+        input.cost.atoms.some(mayRemoveSource) &&
+        input.effects.some(actsOnHost)
+    )
         return {
             ok: false,
-            reason: "an Aura removed by its own cost has no attached host left to act on (CR 608.2h)",
+            reason: "an Aura removed by its own cost needs its host as last-known information, which $host (seeded from the live attachment) does not carry (CR 608.2h)",
         };
 
     const walk = new SentenceWalk();

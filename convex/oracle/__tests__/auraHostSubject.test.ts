@@ -193,7 +193,31 @@ describe("enchanted creature — refused neighbours (fail-closed)", () => {
         ).toContain("Enchanted creature");
     });
 
-    it("a verb the rule was never shown at this site: 'can't block this turn' (Manacles of Decay)", () => {
+    // A verb the grammar DOES read with "target" must not start reading
+    // "enchanted creature" just because the site is an Aura's: the rule is
+    // scoped to the pump and the keyword grant.
+    it("a verb the rule was never shown with a host: 'Destroy enchanted creature'", () => {
+        expect(
+            compileCard(
+                aura(
+                    "Test Aura",
+                    "{1}{R}",
+                    "Enchant creature\n{R}: Destroy target creature."
+                )
+            ).state
+        ).not.toBe("unparsed");
+        expect(
+            refusal(
+                aura(
+                    "Test Aura",
+                    "{1}{R}",
+                    "Enchant creature\n{R}: Destroy enchanted creature."
+                )
+            )
+        ).toContain("Destroy enchanted creature");
+    });
+
+    it("a verb the grammar has no rule for at all stays a gap: Manacles of Decay's 'can't block this turn'", () => {
         expect(
             refusal(
                 aura(
@@ -203,6 +227,37 @@ describe("enchanted creature — refused neighbours (fail-closed)", () => {
                 )
             )
         ).toContain("Enchanted creature can't block this turn");
+    });
+
+    // The cost may take the Aura off the battlefield when its filter admits an
+    // Enchantment; one that cannot (a creature) leaves `$host` seeded.
+    it("a sacrifice cost whose filter admits the Aura is refused; one that cannot is read", () => {
+        expect(
+            refusal(
+                aura(
+                    "Test Aura",
+                    "{1}{R}",
+                    "Enchant creature\nSacrifice an enchantment: Enchanted creature gets +3/+3 until end of turn."
+                )
+            )
+        ).toContain("removed by its own cost");
+        expect(
+            compiled(
+                aura(
+                    "Test Aura",
+                    "{1}{R}",
+                    "Enchant creature\nSacrifice a creature: Enchanted creature gets +3/+3 until end of turn."
+                )
+            ).definition.activatedAbilities![0]!.effects
+        ).toEqual([
+            {
+                op: "pump",
+                target: { ref: "$host" },
+                power: 3,
+                toughness: 3,
+                duration: { phase: "end-of-turn" },
+            },
+        ]);
     });
 
     it("a triggered site keeps its own gap: Mantle of Leadership", () => {

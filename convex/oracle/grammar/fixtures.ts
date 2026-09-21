@@ -2660,8 +2660,9 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
     // subject it does not seed (`$host` is neither a target slot nor the
     // seeded `$source`) — so this fixture is the evidence the grammar emits
     // the host pump the hand-written `$host` cards write (Umezawa's Jitte's
-    // "+2/+2", sets/bok/colorless.ts), for every Aura printing the same
-    // "Enchanted creature gets +N/+M" form (issue #4303).
+    // "+2/+2", sets/bok/colorless.ts), for every Aura whose pump is a fixed
+    // "+N/+M until end of turn" (issue #4303). A pump with another duration
+    // is a different form and quarantines until it has a fixture of its own.
     {
         rule: "effect clause",
         card: {
@@ -2704,8 +2705,9 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
     // CR 303.4b / CR 613.1f — the keyword-grant twin: "Enchanted creature
     // gains vigilance until end of turn" is a `grantAbility` on `$host`.
     // Exhibits its own smoke skip (a different reason string than the pump's,
-    // so a different form) — the evidence for every Aura printing the grant
-    // form (issue #4303).
+    // so a different form). The form hashes the granted keyword and the
+    // duration, so this clears "gains vigilance until end of turn" only — every
+    // other keyword quarantines until it has a fixture of its own (issue #4303).
     {
         rule: "effect clause",
         card: {
