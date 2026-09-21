@@ -750,6 +750,7 @@
         {"id":"105.2c","line":"// (CR 105.2c, CR 205.2a, issue #4249) with and without a keyword and for","sites":1,"status":"confirmed","ruleHash":"a0edfafd2d30c774"},
         {"id":"105.2c","line":"// (CR 105.2c: no colour to count).","sites":1,"status":"confirmed","ruleHash":"a0edfafd2d30c774"},
         {"id":"105.2c","line":"// A card shape with no `colors` slot counts as colourless (CR 105.2c) and","sites":1,"status":"confirmed","ruleHash":"a0edfafd2d30c774"},
+        {"id":"105.2c","line":"// CR 105.2c (issue #3806) — `colors` is captured for EVERY victim,","sites":1,"status":"confirmed","ruleHash":"a0edfafd2d30c774"},
         {"id":"105.2c","line":"// CR 105.2c + CR 305.1 — colourless AND nonland.","sites":1,"status":"baseline"},
         {"id":"105.2c","line":"// CR 105.2c / 305.1 — only the two colorless nonland cards are offered.","sites":1,"status":"baseline"},
         {"id":"105.2c","line":"// CR 105.2c — a colourless victim has no colours, so no card is \"of\" them.","sites":1,"status":"confirmed","ruleHash":"a0edfafd2d30c774"},
