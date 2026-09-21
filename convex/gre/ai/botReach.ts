@@ -41,9 +41,10 @@
  */
 
 import { applyMoveForSearch } from "../applyMove";
+import { cloneGameState } from "../clone";
 import { buildBladeBaseState } from "./blade/baseState";
 import { buildStateFromScenario } from "../scenarioBuilder";
-import { decidingPlayer, searchWithTrace } from "../search";
+import { applyMoveInSearch, decidingPlayer, searchWithTrace } from "../search";
 import { enumerateMoves, type Move } from "../moves";
 import { getLegalActions } from "../rules";
 import { allocInstanceId, type GameState } from "../state";
@@ -543,6 +544,10 @@ export type SeatVerdict =
  * — a target, a choice mid-resolution, the opponent's priority — is answered
  * by the search for whoever owes it, until the card is off the stack with no
  * choice pending. `null` means it settled; otherwise the frozen verdict.
+ *
+ * The OPENING move goes through the greedy 1-ply `applyMoveForSearch` on
+ * purpose (it poses the same world the verdicts were measured in); every
+ * answer after it goes through the ISMCTS applier `applyMoveInSearch`.
  */
 function followThrough(
     start: GameState,
@@ -558,17 +563,16 @@ function followThrough(
         const decider = decidingPlayer(state);
         if (decider === null) {
             // No decider, and the card is still in flight. Two worlds, and
-            // only one of them is a freeze.
-            //
-            // Two worlds, and NEITHER is provably a freeze from here.
+            // NEITHER is provably a freeze from here.
             //
             // An ANNOUNCEMENT window the executor drives atomically
             // (`pendingCast` / `pendingActivation` / an announced
             // `pendingTarget`, ADR 0047) has no decider BY DESIGN, and the
-            // search-side state `applyMoveForSearch` leaves behind is such a
-            // window for every "you may …" enters-the-battlefield trigger
-            // (13 cards on the first pass, each with two live `may-pay`
-            // candidates). A choice with no CANDIDATE generator is not one
+            // state the opening `applyMoveForSearch` leaves behind can be such
+            // a window for a "you may …" enters-the-battlefield trigger (13
+            // cards on the first pass, each with two live `may-pay`
+            // candidates; later states come from `applyMoveInSearch`, where
+            // that `may-pay` is a live decision node). A choice with no CANDIDATE generator is not one
             // either: the live driver answers it from the minimal-legal
             // fallback (ADR 0016, `src/lib/ai/brain.ts` — 14 of the 29 choice
             // kinds have no generator and are played every day). Deciding
@@ -597,7 +601,15 @@ function followThrough(
                 { iterations: budget.iterations },
                 seed
             ).move ?? moves[0]!;
-        state = applyMoveForSearch(state, decider, next);
+        // The ISMCTS applier, never the greedy 1-ply sandbox: that one leaves a
+        // `resolution-choice` / `pass` answer as a no-op ("no board change
+        // worth modelling"), so the choice this loop just answered stayed
+        // pending and every step re-answered it until the budget ran out — a
+        // verdict about THIS harness read as a Bot Gap (issue #4189). Every
+        // answer the search itself makes in-tree goes through this applier.
+        const applied = cloneGameState(state);
+        applyMoveInSearch(applied, decider, next);
+        state = applied;
     }
     return unsettled(state, instanceId)
         ? { outcome: "ignored", cause: "no-progress", form: "follow-through" }
