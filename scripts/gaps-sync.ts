@@ -89,6 +89,7 @@ import {
     bandUmbrellaOf,
     buildGrammarGapFilings,
     GAP_TITLE_PREFIX,
+    OP_KEY_PREFIX,
     originUmbrellaOf,
     PARTITIONED_KINDS,
     partitionCardIndex,
@@ -113,11 +114,13 @@ import {
 } from "./lib/coverage-context";
 import {
     buildBotGapFilings,
+    buildFragmentGapFilings,
     buildHandTailFilings,
     buildMigrationFilings,
     buildQuarantineFilings,
     orphanCardActions,
     prioritySlices,
+    enforcedCardIds,
     rankedCardIds,
     registeredCardIds,
     type KindInputs,
@@ -446,8 +449,8 @@ export function commitAndPushAllowlist(root: string): void {
 /**
  * Every filing of every kind, in the order they are reported — the ONE place
  * the six kinds of issue #3869 are assembled. `hand-tail` is gated by the
- * registry's `handTailFiling` flag (false until the APC pilot is accepted,
- * issue #3837); the other kinds file from day one.
+ * registry's `handTailFiling` flag and files only for `enforced` Targets'
+ * cards (issue #4219); the other kinds file from day one.
  */
 export function buildAllFilings(
     root: string,
@@ -476,6 +479,7 @@ export function buildAllFilings(
         filed,
         floor: registry.handTailFloor,
         handTailFiling: registry.handTailFiling,
+        enforced: enforcedCardIds(registry, ctx),
         handTail: handTailOracleIds(root, ctx.byName),
         ...gapIndex(lock),
     };
@@ -488,10 +492,15 @@ export function buildAllFilings(
             ids: resolveTarget(row, ctx).cards.map((c) => c.oracleId),
         }))
     );
-    const reached = partitionCardIndex(lock, opUserOracleIds(ctx.byName));
+    const reached = partitionCardIndex(
+        lock,
+        opUserOracleIds(ctx.byName),
+        inputs.gapKeys
+    );
     const filings = withPartitionBands(
         [
             ...buildGrammarGapFilings(allowlist),
+            ...buildFragmentGapFilings(inputs),
             ...buildQuarantineFilings(inputs, "mechanic"),
             ...buildQuarantineFilings(inputs, "scenario"),
             ...buildBotGapFilings(inputs),
@@ -522,7 +531,7 @@ export function staleClaims(
     for (const [id, issue] of filed) {
         if (live.has(id)) continue;
         const { kind, key } = splitClaimId(id);
-        if (kind === "grammar") continue; // `check:gaps` owns the ops rows.
+        if (kind === "grammar" && key.startsWith(OP_KEY_PREFIX)) continue; // `check:gaps` owns the ops rows.
         out.push({ kind, key, issue });
     }
     return out;
@@ -595,14 +604,21 @@ function main(): void {
     if (handTailHeld.length > 0) {
         console.log(
             `hand-tail  ${handTailHeld.length} ranked card(s) below the floor of ${registry.handTailFloor}; not filed ` +
-                "(data/targets.json `handTailFiling`: false, issue #3837)"
+                (registry.handTailFiling
+                    ? "(outside every `enforced` Target, issue #4219)"
+                    : "(data/targets.json `handTailFiling`: false)")
         );
-        const marked = compilerGapCards(root);
-        for (const held of handTailHeld.filter((f) => marked.has(f.key))) {
-            console.log(
-                `hand-tail  ${held.key} — its \`compiler-gap:\` marker names a gap now below the floor; flip it to \`hand-tail:\``
-            );
-        }
+    }
+    // Held AND filed cards alike: an enforced card with a stale marker is in
+    // `filings`, and the nudge is exactly what its closing PR needs.
+    const marked = compilerGapCards(root);
+    for (const f of [
+        ...handTailHeld,
+        ...filings.filter((f) => f.kind === "hand-tail"),
+    ].filter((f) => marked.has(f.key))) {
+        console.log(
+            `hand-tail  ${f.key} — its \`compiler-gap:\` marker names a gap now below the floor; flip it to \`hand-tail:\``
+        );
     }
     for (const stale of staleClaims(filed, filings)) {
         console.log(

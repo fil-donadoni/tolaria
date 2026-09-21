@@ -1,6 +1,6 @@
 {
     "handTailFloor": 3,
-    "handTailFiling": false,
+    "handTailFiling": true,
     "targets": [
         {
             "id": "premodern-metagame",
@@ -62,7 +62,8 @@
         {
             "id": "set-apc",
             "kind": "set",
-            "source": "data/json/APC.json"
+            "source": "data/json/APC.json",
+            "enforced": true
         },
         {
             "id": "set-arn",

@@ -40,7 +40,9 @@ import {
 import {
     botCauseOf,
     buildBotGapFilings,
+    buildFragmentGapFilings,
     buildHandTailFilings,
+    enforcedCardIds,
     buildMigrationFilings,
     buildQuarantineFilings,
     cardsNamedByTitle,
@@ -56,7 +58,9 @@ import { botGapKey } from "../lib/oracle-bot-reach";
 import type { CardRow, FragmentRow, Lockfile } from "../lib/oracle-lockfile";
 import {
     claimId,
+    coverageVerdict,
     gapIndex,
+    parseClaims,
     resolveContext,
     resolveTarget,
     type TargetRegistry,
@@ -165,6 +169,7 @@ function inputs(
         filed: new Map(),
         floor: registry.handTailFloor,
         handTailFiling: registry.handTailFiling,
+        enforced: new Set(slices.flatMap((slice) => [...slice.ids])),
         handTail: new Set(),
         ...gapIndex(lock),
         ...over,
@@ -701,6 +706,43 @@ describe("the hand-tail kind — one issue per CARD, gated by handTailFiling", (
         expect(filings.map((f) => f.key)).toEqual(["Tail Card"]);
     });
 
+    it("files only cards inside an enforced Target — a ranked card outside it is held, and the flag stays true (issue #4219)", () => {
+        const scoped = new Set(["t-1"]);
+        const both = {
+            fragments: [fragment("a one-off line")],
+            cards: [
+                unparsed("t-1", "Scoped Tail", [0], ["premodern"]),
+                unparsed("t-2", "Ranked Tail", [0], ["premodern"]),
+                ...FILLER,
+            ],
+        };
+        const { filings, held } = buildHandTailFilings(
+            inputs(both, { handTailFiling: true, enforced: scoped })
+        );
+        expect(filings.map((f) => f.key)).toEqual(["Scoped Tail"]);
+        expect(held.map((f) => f.key)).toEqual(["Ranked Tail"]);
+        expect(filings[0]!.body(1)).toContain("Rank 1 of 1 in kind");
+    });
+
+    it("with the flag false every ranked below-floor card is held, scope or not", () => {
+        const both = {
+            fragments: [fragment("a one-off line")],
+            cards: [
+                unparsed("t-1", "Scoped Tail", [0], ["premodern"]),
+                unparsed("t-2", "Ranked Tail", [0], ["premodern"]),
+                ...FILLER,
+            ],
+        };
+        const { filings, held } = buildHandTailFilings(
+            inputs(both, { enforced: new Set(["t-1"]) })
+        );
+        expect(filings).toEqual([]);
+        expect(held.map((f) => f.key).sort()).toEqual([
+            "Ranked Tail",
+            "Scoped Tail",
+        ]);
+    });
+
     it("a hand-written card whose compiler-gap names a gap that has fallen below the floor lands here", () => {
         // The widespread gap refuses only this card once its siblings compile:
         // leverage 1 < floor 3, and no `hand-tail:` marker vouches for it.
@@ -994,9 +1036,157 @@ describe("the ranked set is priority ∪ enforced", () => {
         }
         expect(ranked.has("v-1")).toBe(true);
         const { filings } = buildHandTailFilings(
-            inputs(lock, { handTailFiling: true, ranked }, registry)
+            inputs(
+                lock,
+                {
+                    handTailFiling: true,
+                    ranked,
+                    enforced: enforcedCardIds(registry, ctx),
+                },
+                registry
+            )
         );
         expect(filings.map((f) => f.key)).toContain("Enforced Only");
+    });
+});
+
+// ── grammar — fragment gaps of an enforced Target (issue #4219) ─────────
+
+describe("the grammar kind files fragment gaps of enforced Targets, and the claim settles the card", () => {
+    // The widespread gap refuses EXACTLY three cards — the floor itself — and
+    // NARROW_GAP two, below it. Only `w-1` and `t-1` are in an enforced Target.
+    const WIDE_GAP = "(no slot) › a widespread line";
+    const lock = {
+        fragments: [fragment("a widespread line"), fragment("a one-off line")],
+        cards: [
+            unparsed("w-1", "Wide One", [0], ["premodern"]),
+            unparsed("w-2", "Wide Two", [0], ["premodern"]),
+            unparsed("w-3", "Wide Three", [0], ["vintage"]),
+            unparsed("t-1", "Tail One", [1], ["premodern"]),
+            unparsed("t-2", "Tail Two", [1], ["vintage"]),
+            ...FILLER,
+        ],
+    };
+    const enforced = new Set(["w-1", "t-1"]);
+
+    it("files one issue per gap at or above the floor that an enforced card carries — and none for a below-floor gap or a card outside", () => {
+        const filings = buildFragmentGapFilings(inputs(lock, { enforced }));
+        expect(filings.map((f) => f.key)).toEqual([WIDE_GAP]);
+        expect(filings[0]!.title).toBe(`Grammar Gap: ${WIDE_GAP}`);
+        const body = filings[0]!.body(4321);
+        expect(body).toContain("3 corpus cards carry it (floor 3)");
+        expect(body).toContain("Fragment refused: `a widespread line`");
+        expect(body).toContain("Enforced-Target cards held (1): Wide One");
+        expect(body).not.toContain("Wide Two");
+    });
+
+    it("files nothing while no Target is enforced", () => {
+        expect(
+            buildFragmentGapFilings(inputs(lock, { enforced: new Set() }))
+        ).toEqual([]);
+    });
+
+    it("skips a card that is not `unparsed` — a ready or quarantined card owes no grammar claim", () => {
+        const mixed = {
+            fragments: lock.fragments,
+            cards: [
+                unparsed("w-1", "Wide One", [0], ["premodern"]),
+                {
+                    ...unparsed("w-2", "Wide Ready", [0], ["premodern"]),
+                    state: "ready" as const,
+                    opsUsed: [],
+                },
+                unparsed("w-3", "Wide Three", [0], ["vintage"]),
+                unparsed("w-4", "Wide Four", [0], ["vintage"]),
+                ...FILLER,
+            ],
+        };
+        const filings = buildFragmentGapFilings(
+            inputs(mixed, { enforced: new Set(["w-2"]) })
+        );
+        expect(filings).toEqual([]);
+    });
+
+    it("the claim is a `claims` row of kind `grammar` — and it moves the card out of `unclaimed`", () => {
+        const tracker = new StubTracker();
+        const result = syncGaps(
+            buildFragmentGapFilings(inputs(lock, { enforced })),
+            tracker
+        );
+        const doc = applyUpdatedIssues(
+            { ops: [{ key: "(op) › drain", op: "drain", issue: PRD_ISSUE }] },
+            result.updatedRows
+        );
+        expect(doc.claims).toEqual([
+            { kind: "grammar", key: WIDE_GAP, issue: 5000 },
+        ]);
+        expect(doc.ops).toEqual([
+            { key: "(op) › drain", op: "drain", issue: PRD_ISSUE },
+        ]);
+
+        const { gapKeys, leverage } = gapIndex(lock);
+        const wide = lock.cards[0]!;
+        const verdict = (claims: Set<string>) =>
+            coverageVerdict(wide, {
+                floor: 3,
+                handWritten: new Set(),
+                handTail: new Set(),
+                closure: new Set(),
+                claims,
+                byOracleId: new Map(),
+                gapKeys,
+                leverage,
+            }).state;
+        expect(verdict(new Set())).toBe("unclaimed");
+        expect(verdict(parseClaims(doc))).toBe("gap-pending");
+    });
+
+    it("an `ops` row still takes its number on `ops`, never `claims`", () => {
+        const doc = applyUpdatedIssues(
+            { ops: [{ key: "(op) › drain", op: "drain", issue: PRD_ISSUE }] },
+            new Map([[claimId("grammar", "(op) › drain"), 4000]])
+        );
+        expect(doc.ops[0]!.issue).toBe(4000);
+        expect(doc.claims).toBeUndefined();
+    });
+
+    it("files once — a second run creates and edits nothing", () => {
+        const first = new StubTracker();
+        const result = syncGaps(
+            buildFragmentGapFilings(inputs(lock, { enforced })),
+            first
+        );
+        const filed = new Map(result.updatedRows);
+        const again = buildFragmentGapFilings(
+            inputs(lock, { enforced, filed })
+        );
+        expect(again[0]!.currentIssue).toBe(5000);
+        expect(syncGaps(again, first).actions.map((a) => a.action)).toEqual([
+            "noop",
+        ]);
+    });
+
+    it("a fragment-gap claim goes stale like any other; an `(op) ›` one stays `check:gaps`'s", () => {
+        const filed = new Map([
+            [claimId("grammar", WIDE_GAP), 7001],
+            [claimId("grammar", "(op) › addMana"), 7002],
+        ]);
+        expect(staleClaims(filed, [])).toEqual([
+            { kind: "grammar", key: WIDE_GAP, issue: 7001 },
+        ]);
+    });
+
+    it("the gap reaches the unparsed cards that carry it, so the triage can band it", () => {
+        const { gapKeys } = gapIndex(lock);
+        const reached = partitionCardIndex(lock, new Map(), gapKeys);
+        expect(
+            [...(reached.get(claimId("grammar", WIDE_GAP)) ?? [])].sort()
+        ).toEqual(["w-1", "w-2", "w-3"]);
+        expect(
+            partitionCardIndex(lock, new Map()).has(
+                claimId("grammar", WIDE_GAP)
+            )
+        ).toBe(false);
     });
 });
 

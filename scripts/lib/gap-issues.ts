@@ -90,7 +90,7 @@
 import type { Allowlist } from "../check-gaps";
 import { declaredSection } from "./declared-section";
 import type { Band } from "./backlog-triage";
-import type { Lockfile } from "./oracle-lockfile";
+import type { CardRow, Lockfile } from "./oracle-lockfile";
 import {
     claimId,
     GAP_KINDS,
@@ -266,7 +266,7 @@ export function buildGrammarGapFilings(allowlist: Allowlist): GapFiling[] {
 // ── Band partition — the cards each partitioned gap reaches (issue #4056) ─
 
 /** The `grammar` key of an Op-census row names its Op after this prefix. */
-const OP_KEY_PREFIX = "(op) › ";
+export const OP_KEY_PREFIX = "(op) › ";
 
 /**
  * `claimId` → the oracle ids a partitioned gap REACHES — what its band is
@@ -279,7 +279,9 @@ const OP_KEY_PREFIX = "(op) › ";
  *   - `mechanic` — the cards whose quarantine reasons map to the class
  *     (`quarantineClass`, the key the filer used);
  *   - `bot` — the cards carrying the key as their `CardRow.botGap` (a
- *     `played` row's stale key excluded).
+ *     `played` row's stale key excluded);
+ *   - `grammar` — a fragment gap key (`gapKeys`): the unparsed cards that
+ *     carry it (issue #4219).
  *
  * Every lockfile card, not only the ranked ones: the band asks which Target
  * the gap reaches at all, and `cardBandIndex` already ignores a card no
@@ -287,7 +289,8 @@ const OP_KEY_PREFIX = "(op) › ";
  */
 export function partitionCardIndex(
     lock: Pick<Lockfile, "cards">,
-    opUsers: ReadonlyMap<string, ReadonlySet<string>>
+    opUsers: ReadonlyMap<string, ReadonlySet<string>>,
+    gapKeys: (row: CardRow) => readonly string[] = () => []
 ): Map<string, Set<string>> {
     const out = new Map<string, Set<string>>();
     const add = (id: string, oracleId: string): void => {
@@ -310,6 +313,9 @@ export function partitionCardIndex(
             row.botReach !== "played"
         )
             add(claimId("bot", row.botGap), row.oracleId);
+        if (row.state === "unparsed")
+            for (const key of gapKeys(row))
+                add(claimId("grammar", key), row.oracleId);
     }
     for (const [op, ids] of opUsers)
         for (const id of ids)
@@ -596,9 +602,10 @@ export function syncGaps(
 }
 
 /**
- * Apply a sync's `updatedRows` onto the allowlist document. A `grammar` row's
- * number goes on its `ops` row (the census's own shape, issue #3824); every
- * other kind takes a `claims` row. The shrink-only `ops` MEMBERSHIP
+ * Apply a sync's `updatedRows` onto the allowlist document. A `grammar` row
+ * that is an `ops` row takes its number there (the census's own shape, issue
+ * #3824); every other row — a fragment-gap `grammar` claim (issue #4219)
+ * included — takes a `claims` row. The shrink-only `ops` MEMBERSHIP
  * `check:gaps` guards is never touched — only an existing row's `issue`.
  *
  * Existing `claims` rows are KEPT, never pruned: a quarantine class that stops
@@ -615,6 +622,7 @@ export function applyUpdatedIssues(
     updatedRows: ReadonlyMap<string, number>
 ): Allowlist {
     if (updatedRows.size === 0) return allowlist;
+    const opKeys = new Set(allowlist.ops.map((row) => row.key));
     const ops = allowlist.ops.map((row) => {
         const next = updatedRows.get(claimId("grammar", row.key));
         return next === undefined || next === row.issue
@@ -628,7 +636,7 @@ export function applyUpdatedIssues(
     );
     for (const [id, issue] of updatedRows) {
         const { kind, key } = splitClaimId(id);
-        if (kind === "grammar") continue;
+        if (kind === "grammar" && opKeys.has(key)) continue;
         claims.set(id, { kind, key, issue });
     }
     const sorted = [...claims.values()].sort((a, b) =>

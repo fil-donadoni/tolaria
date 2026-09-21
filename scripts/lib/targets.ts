@@ -77,8 +77,8 @@ export interface TargetRegistry {
      * cards is a per-card script in grammar's clothing).
      */
     readonly handTailFloor: number;
-    /** Whether `gaps:sync` files hand-tail issues yet (false until the APC
-     *  pilot is accepted, issue #3837). Read by the filer, not here. */
+    /** Whether `gaps:sync` files hand-tail issues — for cards of `enforced`
+     *  Targets only (issue #4219). Read by the filer, not here. */
     readonly handTailFiling: boolean;
     readonly targets: readonly TargetRow[];
 }

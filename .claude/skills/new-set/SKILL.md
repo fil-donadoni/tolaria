@@ -409,10 +409,11 @@ Three layers, all computed; wire all three:
 set's umbrella once its title matches: `mechanic`, `scenario`, `migration` and
 the Op-census `grammar` rows today. **Two of the six file nothing yet, and the
 rollout must not plan around them**: `bot` has no sweep (issue #3830), and
-`hand-tail` is gated by `handTailFiling` in `data/targets.json`, `false` until
-the APC pilot is accepted (issue #3837) — a run prints the held count instead.
-That is exactly why Phase 3 cuts the **residue ticket by hand**: until #3837
-lands, nothing else claims the hand tail. **Never run it from a worktree** —
+`hand-tail` files only for cards of an `enforced` Target in
+`data/targets.json` (issue #4219; only `set-apc` today) — a run prints the held
+count for every other Target. That is exactly why Phase 3 cuts the **residue
+ticket by hand**: until the set's Target is enforced, nothing else claims the
+hand tail. **Never run it from a worktree** —
 it commits the allowlist and pushes `HEAD:<base>` from its cwd. `land` runs it
 post-merge from the primary checkout; `--dry-run` prints the plan and writes
 nothing.

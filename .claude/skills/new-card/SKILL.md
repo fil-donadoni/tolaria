@@ -257,9 +257,11 @@ protocol (`resolve()`) card is hand tail by construction.
 
 ### 6a. The marker and its issue
 
-`handTailFiling` in `data/targets.json` is `false` (issue #3837), so `gaps:sync`
-COMPUTES the hand-tail filings and reports them without filing. Read the plan
-from the primary checkout, then open the issue yourself with the same shape —
+`gaps:sync` files a hand-tail issue only for a card of an `enforced` Target
+(`data/targets.json`, issue #4219) — for an `enforced` Target's card the issue
+exists already, find it under `Hand Tail: <Card Name>`. Any other card's filing
+is COMPUTED and reported without filing: read the plan from the primary
+checkout, then open the issue yourself with the same shape —
 `Hand Tail: <Card Name>`, labels `ready-for-agent` + `area:cards` + `hand-tail`,
 body naming the fragment, each residual gap's leverage and the floor. The
 title keeps the bare name; in the body the card is the link
@@ -276,8 +278,8 @@ that issue, which the card's own PR closes:
 // hand-tail: <the exact Oracle fragment> (#<hand-tail issue>)
 ```
 
-A well-formed marker is also what keeps the filing idempotent the day
-`handTailFiling` flips on — a marked card is settled and is never filed again.
+A well-formed marker is also what keeps the filing idempotent the day its
+Target is enforced — a marked card is settled and is never filed again.
 **`compiler-gap:` here would claim a debt the grammar does not have**, which
 below the floor is false, and `check:targets` reds on it.
 
