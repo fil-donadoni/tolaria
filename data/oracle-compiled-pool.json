@@ -21685,7 +21685,8 @@
             }
         ],
         "id": "1d981026-b2df-4d8d-a9b4-296b011d9925",
-        "rarity": "common"
+        "rarity": "common",
+        "setCode": "neo"
     },
     {
         "name": "Sanctum Gargoyle",
@@ -40234,7 +40235,8 @@
             }
         ],
         "id": "3aa17062-4355-468f-b8ba-352b7511b847",
-        "rarity": "rare"
+        "rarity": "rare",
+        "setCode": "chk"
     },
     {
         "name": "Leaf Gilder",
@@ -47223,7 +47225,8 @@
             }
         ],
         "id": "46b394fc-a99c-44e7-9226-da0699167541",
-        "rarity": "common"
+        "rarity": "common",
+        "setCode": "stx"
     },
     {
         "name": "Kraul Stinger",
@@ -55445,7 +55448,8 @@
             }
         ],
         "id": "53f63f40-46f1-4b9e-b447-ff9274f2b926",
-        "rarity": "common"
+        "rarity": "common",
+        "setCode": "iko"
     },
     {
         "name": "Captive Flame",
@@ -63013,7 +63017,8 @@
             }
         ],
         "id": "5f73ea30-c6d2-4224-ae54-f6b89e006cf4",
-        "rarity": "common"
+        "rarity": "common",
+        "setCode": "m11"
     },
     {
         "name": "Bloodtallow Candle",
@@ -66730,7 +66735,8 @@
             }
         ],
         "id": "654eacc9-5f80-44ea-8d7b-71cd8227fa38",
-        "rarity": "common"
+        "rarity": "common",
+        "setCode": "rav"
     },
     {
         "name": "Needleverge Pathway",
@@ -95406,7 +95412,8 @@
             }
         ],
         "id": "8ea7b2c0-c641-478f-b8d9-17aa17fa1cbe",
-        "rarity": "common"
+        "rarity": "common",
+        "setCode": "lrw"
     },
     {
         "name": "Thunderhead Squadron",
@@ -96336,7 +96343,8 @@
             }
         ],
         "id": "90b10608-8917-4337-ad60-ab31ab8c0fc4",
-        "rarity": "common"
+        "rarity": "common",
+        "setCode": "apc"
     },
     {
         "name": "Maw of the Mire",
@@ -96554,7 +96562,8 @@
             }
         ],
         "id": "90c7bea0-79c9-4856-8279-cef7cee82fc1",
-        "rarity": "common"
+        "rarity": "common",
+        "setCode": "dom"
     },
     {
         "name": "Goblin Instigator",
@@ -110267,7 +110276,8 @@
             }
         ],
         "id": "a5b0afa7-e9f9-4751-af36-d85343fabc26",
-        "rarity": "common"
+        "rarity": "common",
+        "setCode": "isd"
     },
     {
         "name": "Coastal Hornclaw",
@@ -115259,7 +115269,8 @@
         ],
         "entersTapped": true,
         "id": "ac063445-d0e2-4015-96dc-97098433f30a",
-        "rarity": "common"
+        "rarity": "common",
+        "setCode": "aer"
     },
     {
         "name": "Silent Clearing",
@@ -115884,7 +115895,8 @@
             }
         ],
         "id": "ad0dba36-d056-4bc1-987a-391da26ad267",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "setCode": "hob"
     },
     {
         "name": "Heralds of Tzeentch",
@@ -127138,7 +127150,8 @@
             }
         ],
         "id": "bdd0f8c8-1a1f-4d9b-a6e1-3654f3995012",
-        "rarity": "common"
+        "rarity": "common",
+        "setCode": "m10"
     },
     {
         "name": "Merfolk of the Depths",
@@ -136421,7 +136434,8 @@
             }
         ],
         "id": "cd2a474b-5eac-4e0d-b65c-5610385f2011",
-        "rarity": "common"
+        "rarity": "common",
+        "setCode": "wwk"
     },
     {
         "name": "Riot Devils",
@@ -143571,7 +143585,8 @@
             ]
         },
         "id": "d8b43b00-f4d1-436c-bf3f-6d414cd4ce38",
-        "rarity": "common"
+        "rarity": "common",
+        "setCode": "tdm"
     },
     {
         "name": "Feral Incarnation",
@@ -148408,7 +148423,8 @@
             }
         ],
         "id": "e1691374-e9f2-4a8b-abdb-0bb1dbc96715",
-        "rarity": "common"
+        "rarity": "common",
+        "setCode": "snc"
     },
     {
         "name": "Hard Cover",
@@ -150892,7 +150908,8 @@
             }
         ],
         "id": "e4546059-71fe-43c1-9272-3b054e668e3c",
-        "rarity": "common"
+        "rarity": "common",
+        "setCode": "plc"
     },
     {
         "name": "Squirming Mass",
@@ -151211,7 +151228,8 @@
             }
         ],
         "id": "e4ed67f0-85cc-4b1d-b745-e13e5bea3397",
-        "rarity": "common"
+        "rarity": "common",
+        "setCode": "j25"
     },
     {
         "name": "Jungle Shrine",
@@ -159389,7 +159407,8 @@
             }
         ],
         "id": "f2bf6b36-43e4-49d9-98b2-cbb4304c248b",
-        "rarity": "uncommon"
+        "rarity": "uncommon",
+        "setCode": "sos"
     },
     {
         "name": "Colossodon Yearling",
@@ -159609,7 +159628,8 @@
             }
         ],
         "id": "f2dfa231-349a-4dce-bed6-c82a136fe0a1",
-        "rarity": "common"
+        "rarity": "common",
+        "setCode": "tsp"
     },
     {
         "name": "Gravelgill Duo",
