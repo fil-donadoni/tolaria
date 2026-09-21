@@ -15,7 +15,7 @@
 //     ability, a verb the rule was never shown, and a triggered site.
 //  3. BEHAVIOUR — the compiled ability resolved through the real interpreter
 //     on a real attachment: the host is pumped, the bystander is not, an
-//     unattached Aura does nothing (CR 608.2b), and the pump survives the wire
+//     unattached Aura does nothing (CR 101.3), and the pump survives the wire
 //     projection. Without it a golden only proves the definition was written.
 
 import { describe, expect, it } from "vitest";
@@ -270,7 +270,7 @@ function activate(state: GameState, abilityId: string): void {
 const permanent = (state: GameState, id: string) =>
     state.players[1].battlefield.find((c) => c.id === id)!;
 
-describe("enchanted creature — behaviour through the interpreter (CR 303.4b, CR 608.2b)", () => {
+describe("enchanted creature — behaviour through the interpreter (CR 303.4b, CR 101.3)", () => {
     it("pumps the ENCHANTED creature, not its controller's other creatures, and survives the projection", () => {
         const { state, abilityId } = hostBoard(
             compiled(FIREBREATHING).definition,
@@ -319,7 +319,7 @@ describe("enchanted creature — behaviour through the interpreter (CR 303.4b, C
         expect(slim.staticAbilities).toContain("vigilance");
     });
 
-    // CR 608.2b — the ability does as much as it can: an Aura with no host
+    // CR 101.3 — the ability does as much as it can: an Aura with no host
     // resolves and its host Op finds nothing.
     it("does nothing while the Aura is unattached", () => {
         const { state, abilityId } = hostBoard(

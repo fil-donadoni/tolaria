@@ -17702,6 +17702,16 @@
         "source": "compiled"
     },
     {
+        "name": "Flowstone Blade",
+        "scryfallId": "ab9781fd-10c9-4790-8279-51c3cc6653cf",
+        "oracleId": "77a77622-dc5b-4ff2-a98b-732d44c8856e",
+        "firstSet": "sth",
+        "firstPrintId": "ab9781fd-10c9-4790-8279-51c3cc6653cf",
+        "firstPrintSet": "sth",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Flowstone Charger",
         "scryfallId": "c57abdab-d99c-418c-818d-b06a8722d733",
         "oracleId": "a19e0a7f-d356-4d2c-8414-70a40ce18674",
@@ -17718,6 +17728,16 @@
         "firstSet": "nem",
         "firstPrintId": "c93f0066-1ff0-4e52-9959-9eb0def60957",
         "firstPrintSet": "nem",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Flowstone Embrace",
+        "scryfallId": "f3969cc7-92b9-45cd-9a4f-d94c2178a04d",
+        "oracleId": "18a45b81-1946-4be6-8f2c-8c21d11c86f8",
+        "firstSet": "fut",
+        "firstPrintId": "f3969cc7-92b9-45cd-9a4f-d94c2178a04d",
+        "firstPrintSet": "fut",
         "rarity": "common",
         "source": "compiled"
     },
@@ -34146,6 +34166,16 @@
         "firstPrintSet": "mh3"
     },
     {
+        "name": "Ocular Halo",
+        "scryfallId": "6c883e75-5c37-44bb-a6c8-f97aa704c739",
+        "oracleId": "e649614a-ff23-4234-92f4-6f564cbfe648",
+        "firstSet": "dis",
+        "firstPrintId": "6c883e75-5c37-44bb-a6c8-f97aa704c739",
+        "firstPrintSet": "dis",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Oculus",
         "scryfallId": "673bebb4-9c82-40ca-8552-b9030e961005",
         "oracleId": "e793ede9-044a-44e9-bc9c-99b0034503eb",
@@ -43262,6 +43292,16 @@
         "source": "compiled"
     },
     {
+        "name": "Shadow Lance",
+        "scryfallId": "924863b6-6d7b-441b-90cc-4e98e1c41aa9",
+        "oracleId": "f1a2a78c-2794-4bc9-9b06-49306378ef69",
+        "firstSet": "gpt",
+        "firstPrintId": "924863b6-6d7b-441b-90cc-4e98e1c41aa9",
+        "firstPrintSet": "gpt",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Shadow Rift",
         "scryfallId": "57c11175-9feb-4801-9b46-d577d5ecef40",
         "oracleId": "66810ef7-ea3a-4afa-92f0-b21ec52cc8d0",
@@ -43739,6 +43779,16 @@
         "firstPrintId": "d2d5f30e-cc3a-46c1-82a9-2cd73705b2f5",
         "firstPrintSet": "chk",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Shiv's Embrace",
+        "scryfallId": "7c9ba1a3-1de4-4771-b76a-89354bc799d3",
+        "oracleId": "e41162bf-1a4f-4e69-870a-faf9836c56d5",
+        "firstSet": "usg",
+        "firstPrintId": "7c9ba1a3-1de4-4771-b76a-89354bc799d3",
+        "firstPrintSet": "usg",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
