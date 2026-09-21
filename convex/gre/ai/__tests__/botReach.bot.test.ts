@@ -100,7 +100,7 @@ const SELF_GRANTED_HASTE_CREATURE: CardDefinition = {
     ],
 };
 
-/** CR 701.21a / 608.2b — an edict: the TARGET player owes a mandatory
+/** CR 701.21a — an edict: the TARGET player owes a mandatory
  *  `sacrifice-permanents` choice mid-resolution, so the follow-through must
  *  answer it and see the spell leave the stack (issue #4189). */
 const EDICT_INSTANT: CardDefinition = {
@@ -125,7 +125,7 @@ const EDICT_INSTANT: CardDefinition = {
     ],
 };
 
-/** CR 603.3 / 701.21a — a creature whose enters-the-battlefield trigger asks
+/** CR 603.5 — a creature whose enters-the-battlefield trigger asks
  *  "you may return target creature card from your graveyard to your hand".
  *  Every step of its follow-through is a choice answer (issue #4189). */
 const RAISE_DEAD_CREATURE: CardDefinition = {
