@@ -214,6 +214,91 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         ],
     });
 
+    const forEachPump = (
+        id: string,
+        select: Record<string, unknown>,
+        power: unknown,
+        toughness: unknown
+    ): CardDefinition => ({
+        id: `bot-reach-test:${id}`,
+        name: `Bot Reach ${id}`,
+        rarity: "common",
+        manaCost: { B: 1, generic: 3 },
+        types: ["Sorcery"],
+        effects: [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { type: "Creature" },
+                    ...select,
+                },
+                effects: [
+                    {
+                        op: "pump",
+                        target: { ref: "$each" },
+                        power,
+                        toughness,
+                        duration: { phase: "end-of-turn" },
+                    },
+                ],
+            },
+        ],
+    });
+    const castleCount = (def: CardDefinition, seat: 0 | 1): number =>
+        buildBotReachState(def, seat).state.players.reduce(
+            (n, p) =>
+                n +
+                p.battlefield.filter(
+                    (c) => c.card.id === getCardByName("Castle").id
+                ).length,
+            0
+        );
+
+    it("a toughness shrink's position puts the opponent ahead in bodies that die to it, with no Castle to prop them up", () => {
+        for (const def of [
+            getCardByName("Infest"),
+            getCardByName("Languish"),
+            forEachPump("shrink-neg", {}, 0, {
+                negate: { domain: { of: "controller" } },
+            }),
+        ])
+            withTemporaryDefinition(def, () => {
+                for (const seat of [0, 1] as const) {
+                    expect(
+                        ahead(def, seat, "Creature"),
+                        def.name
+                    ).toBeGreaterThan(0);
+                    expect(castleCount(def, seat), def.name).toBe(0);
+                }
+            });
+    });
+
+    it("a pump of the holder's own creatures puts the holder ahead in bodies", () => {
+        const charge = getCardByName("Desperate Charge");
+        for (const seat of [0, 1] as const) {
+            expect(ahead(charge, seat, "Creature")).toBeLessThan(0);
+            // Not a shrink: the Castle stays where it was.
+            expect(castleCount(charge, seat)).toBe(2);
+        }
+    });
+
+    it("played — a mass shrink and a mass pump are cast where they win", () => {
+        for (const name of [
+            "Infest",
+            "Nausea",
+            "Shrivel",
+            "Planar Despair",
+            "Rollick of Abandon",
+            "Final Revels",
+            "Desperate Charge",
+        ] as const)
+            expect(playBotReach(getCardByName(name)), name).toEqual({
+                outcome: "played",
+            });
+    }, 300_000);
+
     it("a destroying sweep's position puts the opponent ahead in the swept type, the holder ahead in bodies", () => {
         for (const seat of [0, 1] as const) {
             const wrath = getCardByName("Day of Judgment");
@@ -236,7 +321,15 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         // read, and `controller` scopes the sweep to one side.
         const symmetric: CardDefinition[] = [
             getCardByName("Grizzly Bears"),
-            getCardByName("Languish"), // -4/-4 to every creature: a pump body
+            forEachPump("buff-all", {}, 2, 0), // +2/+0 to every creature
+            forEachPump("shrink-power", {}, -2, 0), // -2/-0 kills nothing
+            forEachPump("shrink-own", { controller: "controller" }, 0, -2),
+            forEachPump(
+                "shrink-subtype",
+                { filter: { subtype: "Goblin" } },
+                0,
+                -2
+            ),
             forEachDestroy("subtype-only", {
                 filter: { subtype: "Goblin" },
             }),
