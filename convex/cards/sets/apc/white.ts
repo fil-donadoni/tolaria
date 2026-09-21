@@ -19,7 +19,6 @@ const FLAGBEARER_TARGET_REQUIREMENT_TEXT =
     "While an opponent is choosing targets as part of casting a spell they control or activating an ability they control, that player must choose at least one Flagbearer on the battlefield if able.";
 
 // Standard Bearer — {1}{W} 1/1 Human Flagbearer.
-// compiler-gap: "While an opponent is choosing targets as part of casting a spell they control or activating an ability they control, that player must choose at least one Flagbearer on the battlefield if able." (#4301)
 export const standardBearer: CardDefinition = {
     id: "e0f8e16a-55f0-4147-a01a-dba7938f31c4", // APC 18
     rarity: "common",
@@ -43,7 +42,6 @@ export const standardBearer: CardDefinition = {
 
 // Coalition Honor Guard — {3}{W} 2/4 Human Flagbearer, the same clause on a
 // tougher body.
-// compiler-gap: "While an opponent is choosing targets as part of casting a spell they control or activating an ability they control, that player must choose at least one Flagbearer on the battlefield if able." (#4301)
 export const coalitionHonorGuard: CardDefinition = {
     id: "c5b7be3e-b4af-46d4-bcc6-b44c651f2012", // APC 3
     rarity: "common",
@@ -74,7 +72,7 @@ export const coalitionHonorGuard: CardDefinition = {
 // makes the host answer the requirement: `satisfiesTargetChoiceRequirement`
 // matches the LIVE, layer-materialized subtypes, so an enchanted vanilla
 // creature is as good a Flagbearer as a printed one.
-// compiler-gap: "While an opponent is choosing targets as part of casting a spell they control or activating an ability they control, that player must choose at least one Flagbearer on the battlefield if able." (#4301)
+// compiler-gap: "Enchanted creature is a Flagbearer." (#3795)
 export const coalitionFlag: CardDefinition = {
     id: "0e417461-a230-4548-bcc1-71377487f21b", // APC 2
     rarity: "uncommon",
