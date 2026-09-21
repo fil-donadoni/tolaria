@@ -2169,12 +2169,16 @@ function lowerMoveZone(
     // YOURS (CR 404.1 files a card in its OWNER's graveyard), so owner and the
     // controller the engine gives a reanimated card coincide. Any other source
     // (a graveyard that is not yours, a library, a hand, exile) names a
-    // different owner/controller question this rule does not answer.
+    // different owner/controller question this rule does not answer. Exactly
+    // ONE target: N cards returned by one instruction enter together (CR 400.7),
+    // which a sequence of single `moveZone` Ops does not say, and no corpus
+    // card prints it.
     const reanimated =
         zone.zone === "battlefield" &&
         subject.kind === "target" &&
         subject.requirement.zone === "graveyard" &&
-        subject.requirement.controller === "you";
+        subject.requirement.controller === "you" &&
+        subject.requirement.count === 1;
     const each = (
         to: "hand" | "graveyard" | "exile" | "battlefield"
     ): Lowered<EffectOp[]> =>

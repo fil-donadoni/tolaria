@@ -1795,6 +1795,42 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             },
         },
     },
+    // CR 400.7 + CR 110.2a — "Return target creature card from your graveyard
+    // to the battlefield": a graveyard-slot `moveZone` whose destination is the
+    // battlefield, so the card returns as a NEW object under its owner's
+    // control (the hand-written Resurrection, sets/lea/white.ts, writes the same
+    // op). Exhibits the "moveZone changes zones on a zone the canned generator
+    // does not model" form whose op skeleton is `to: "battlefield"` and whose
+    // slot zone is the GRAVEYARD, a different skeleton from Urborg Uprising's
+    // `to: "hand"`, so it is its own evidence (issue #4299).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "bb95db4d-5017-4121-bf79-d68476602d8c",
+            name: "Zombify",
+            manaCost: "{3}{B}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Return target creature card from your graveyard to the battlefield.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Zombify",
+            types: ["Sorcery"],
+            manaCost: { X: 3, B: 1 },
+            oracleText:
+                "Return target creature card from your graveyard to the battlefield.",
+            effects: [
+                { op: "moveZone", target: { target: 0 }, to: "battlefield" },
+            ],
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                zone: "graveyard",
+                controller: "you",
+            },
+        },
+    },
     // CR 702.33g — "Destroy target land. If this spell was kicked, destroy
     // another target land": the gate's target is announced only on a kicked
     // cast, which the engine says with the swapped-in
