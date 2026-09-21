@@ -57,6 +57,22 @@ function tutorEffects(bind: string) {
     ];
 }
 
+const TRAVELERS_AMULET = oracleCard({
+    name: "Traveler's Amulet",
+    manaCost: "{1}",
+    typeLine: "Artifact",
+    oracleText: `{1}, Sacrifice this artifact: ${CLAUSE}`,
+});
+
+const BORDERLAND_RANGER = oracleCard({
+    name: "Borderland Ranger",
+    manaCost: "{2}{G}",
+    typeLine: "Creature — Human Scout Ranger",
+    oracleText: `When this creature enters, you may search your library for a basic land card, reveal it, put it into your hand, then shuffle.`,
+    power: "2",
+    toughness: "2",
+});
+
 function compiledDefinition(card: ReturnType<typeof oracleCard>) {
     const outcome = compileCard(card);
     if (outcome.state === "unparsed")
@@ -88,6 +104,65 @@ describe("Search library, reveal, to hand — golden fixture (CR 701.23a, CR 701
 
     it("reaches ready — the fixture clears every card-dependent skip", () => {
         expect(compileCard(LAY_OF_THE_LAND).state).toBe("ready");
+    });
+
+    // The rule lives in the SHARED effect clause, so every slot that routes
+    // there inherits it — the same gap key stood at `spell`, `activated` and
+    // `triggered`, and one rule closes all three.
+    it("activated slot: Traveler's Amulet", () => {
+        expect(sortKeys(compiledDefinition(TRAVELERS_AMULET))).toEqual(
+            sortKeys({
+                name: "Traveler's Amulet",
+                types: ["Artifact"],
+                manaCost: { X: 1 },
+                oracleText: `{1}, Sacrifice this artifact: ${CLAUSE}`,
+                activatedAbilities: [
+                    {
+                        id: "traveler-s-amulet-ability",
+                        oracleText: `{1}, Sacrifice this artifact: ${CLAUSE}`,
+                        cost: { mana: { X: 1 }, sacrifice: true },
+                        useStack: true,
+                        effects: tutorEffects("$found1"),
+                    },
+                ],
+            })
+        );
+    });
+
+    it("triggered slot, behind a may-gate: Borderland Ranger", () => {
+        const text =
+            "When this creature enters, you may search your library for a basic land card, reveal it, put it into your hand, then shuffle.";
+        expect(sortKeys(compiledDefinition(BORDERLAND_RANGER))).toEqual(
+            sortKeys({
+                name: "Borderland Ranger",
+                types: ["Creature"],
+                subtypes: ["Human", "Scout", "Ranger"],
+                manaCost: { X: 2, G: 1 },
+                power: 2,
+                toughness: 2,
+                oracleText: text,
+                compiledTriggeredAbilities: [
+                    {
+                        id: "borderland-ranger-trigger",
+                        oracleText: text,
+                        head: { kind: "entered", scope: "self" },
+                        effects: [
+                            {
+                                op: "mayPay",
+                                player: "controller",
+                                prompt: `${CLAUSE.replace(/\.$/, "")}?`,
+                                bind: "$may2",
+                            },
+                            {
+                                op: "if",
+                                predicate: { binding: "$may2" },
+                                then: tutorEffects("$found1"),
+                            },
+                        ],
+                    },
+                ],
+            })
+        );
     });
 });
 
@@ -131,7 +206,12 @@ describe("Search library, reveal, to hand — refusals (fail-closed)", () => {
         ).toBe("unparsed");
     });
 
-    it("a may-gated search is a different sentence", () => {
+    // The trigger slot DOES read "you may <clause>" (Borderland Ranger above)
+    // — its may-gate is a rule of its own that routes the inner clause here.
+    // What this pins is that the clause rule consumes its sentence WHOLE: it
+    // never swallows a leading "You may" on the spell slot, where no such
+    // gate stands.
+    it("a leading 'You may' is not swallowed", () => {
         expect(
             refused(
                 "You may search your library for a basic land card, reveal it, put it into your hand, then shuffle."
