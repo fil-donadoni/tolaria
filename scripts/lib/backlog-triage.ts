@@ -9,7 +9,10 @@
  *
  * `P0` is strict actuality, days, HAND-SET only: the rule never produces it
  * and never clears it — an issue the board holds at `P0` is reported as
- * untouched and computed no further. Every other open issue takes the
+ * untouched and computed no further. An issue whose body carries a `## Band`
+ * line (`P2 — <reason>`, ADR 0143 / issue #4230) takes THAT band, always —
+ * `user-decision`, a hand ruling, the truth and not one more candidate; a
+ * `## Band: P3` under a `P1` parent is `P3`. Every other open issue takes the
  * STRONGEST band of three sources:
  *
  * | Source                                  | P1                       | P2            | P3                  |
@@ -18,7 +21,8 @@
  * | Blocking edge                           | blocks a P1              | blocks a P2   | blocks a P3         |
  * | Parent (band inheritance, issue #3212)  | parent P1                | parent P2     | parent P3           |
  *
- * PRD #3820 and its direct children are `P1` by fiat (`fiat`). No source
+ * PRD #3820 and its direct children are `P1` through the same `user-decision`
+ * source (it was `fiat` before issue #4230). No source
  * yields a band → **residue**: it stays unprioritized and the report lists it
  * for the owner. Residue never falls into `P3` — "the rule abstained" and "the
  * owner ruled later" must not read the same.
@@ -32,7 +36,8 @@
  * ── One level, never a fixpoint ─────────────────────────────────────────
  *
  * A neighbour (the issue an edge blocks, or the parent) is read by its SEED
- * band — fiat or cards, the two sources that need no neighbour of their own —
+ * band — a `user-decision` ruling or cards, the two sources that need no
+ * neighbour of their own —
  * so a band travels exactly one hop, as #3212's inheritance does. No cycle can
  * loop by construction, and an edge pointing at residue contributes nothing.
  *
@@ -53,6 +58,7 @@ import { PRD_ISSUE } from "./gap-issues";
 import { cardsNamedByTitle } from "./gap-kinds";
 import type { BoardPriority } from "./board-priority";
 import {
+    BAND_HEADING,
     CARDS_HEADING,
     declaredSection,
     fencedLines,
@@ -65,8 +71,13 @@ export type Band = "P1" | "P2" | "P3";
 export const BANDS: readonly Band[] = ["P1", "P2", "P3"];
 
 /** Which source produced a band, in tie-break order. */
-export type BandSource = "fiat" | "cards" | "edge" | "parent";
-const SOURCE_ORDER: readonly BandSource[] = ["fiat", "cards", "edge", "parent"];
+export type BandSource = "user-decision" | "cards" | "edge" | "parent";
+const SOURCE_ORDER: readonly BandSource[] = [
+    "user-decision",
+    "cards",
+    "edge",
+    "parent",
+];
 
 /** The band a registered Target lends its cards, by id — `null` for a Target
  *  the rule does not rank (it lends nothing, it does not demote). */
@@ -363,6 +374,59 @@ export function issueCards(
     return [...ids].sort();
 }
 
+/** A hand ruling on one issue — its `## Band` line (issue #4230). */
+export interface BandRuling {
+    readonly band: Band;
+    /** What followed the dash — the reason travels with the ruling. */
+    readonly reason: string;
+}
+
+/** One `## Band` line that bands nothing — printed, never dropped. */
+export interface BandResidue {
+    readonly issue: number;
+    readonly line: string;
+    readonly reason: "unreadable" | "P0 is never written" | "extra line";
+}
+
+/** `P2 — <reason>`: a band, a dash (em, en or hyphen) and a non-empty reason. */
+const BAND_LINE = /^(P\d)\s+[—–-]\s+(\S.*)$/;
+
+/**
+ * Read one body's `## Band` section (issue #4230) — ONE line, `P2 — <reason>`,
+ * a bare line or a list item. Per the ADR's write rule a line present is the
+ * truth, so nothing is guessed: a line that is not `P1`–`P3` plus a reason, a
+ * `P0` (hand-set on the board, never a band the machine writes), or a second
+ * line (two rulings disagree with nobody to break the tie) yields NO ruling
+ * and comes back as residue for the owner to fix. `None.` and an empty section
+ * declare nothing. Fenced code is not markdown here — `declaredSection` owns
+ * that, and why.
+ */
+export function parseBand(
+    issue: number,
+    body: string
+): { ruling: BandRuling | null; residue: BandResidue[] } {
+    const section = declaredSection(body, BAND_HEADING) ?? [];
+    const lines = section.map((l) => l.item ?? l.raw);
+    const residue = (
+        reason: BandResidue["reason"],
+        which: readonly string[]
+    ): { ruling: null; residue: BandResidue[] } => ({
+        ruling: null,
+        residue: which.map((line) => ({ issue, line, reason })),
+    });
+    if (lines.length === 0) return { ruling: null, residue: [] };
+    if (lines.length > 1) return residue("extra line", lines);
+    const m = BAND_LINE.exec(lines[0]!.trim());
+    if (m === null) return residue("unreadable", lines);
+    if (m[1] === "P0") return residue("P0 is never written", lines);
+    if (!(BANDS as readonly string[]).includes(m[1]!))
+        return residue("unreadable", lines);
+    return {
+        ruling: { band: m[1] as Band, reason: m[2]!.trim() },
+        residue: [],
+    };
+}
+
 /** One open issue as the rule reads it. */
 export interface TriageIssue {
     readonly number: number;
@@ -372,6 +436,9 @@ export interface TriageIssue {
     readonly blocks: readonly number[];
     /** Oracle ids it unlocks or names — {@link issueCards}. */
     readonly cards: readonly string[];
+    /** Its `## Band` ruling, when the body carries a readable one
+     *  ({@link parseBand}) — the truth, not a candidate. */
+    readonly ruling?: BandRuling | null;
 }
 
 export type TriageVerdict =
@@ -381,7 +448,7 @@ export type TriageVerdict =
           readonly band: Band;
           readonly source: BandSource;
           /** What lent it: a Target id (`cards`), an issue number (`edge`,
-           *  `parent`, `fiat`). */
+           *  `parent`, `user-decision`). */
           readonly via: string;
       }
     | { readonly kind: "residue"; readonly cause: ResidueCause };
@@ -403,21 +470,31 @@ export function residueCause(issue: TriageIssue): ResidueCause {
  * card → strongest-Target index, the current board map in; per issue a band
  * with the source that produced it, `p0` (untouched), or `residue` out.
  *
- * `fiatRoot` is PRD #3820 — it and its direct children are `P1` by fiat.
+ * `userDecisionRoot` is PRD #3820 — it and its direct children are `P1`
+ * as a `user-decision` candidate, the smaller change than a `## Band` line on
+ * each of them (issue #4230). An issue's own `## Band` ruling is not a
+ * candidate at all: it is the band, whatever else would have banded it.
  */
 export function triage(
     issues: readonly TriageIssue[],
     index: ReadonlyMap<string, CardBand>,
     board: Readonly<Record<number, BoardPriority>>,
-    fiatRoot: number = PRD_ISSUE
+    userDecisionRoot: number = PRD_ISSUE
 ): Map<number, TriageVerdict> {
     const byNumber = new Map(issues.map((i) => [i.number, i] as const));
 
     type Candidate = { band: Band; source: BandSource; via: string };
     const seedCandidates = (issue: TriageIssue): Candidate[] => {
         const out: Candidate[] = [];
-        if (issue.number === fiatRoot || issue.parent === fiatRoot)
-            out.push({ band: "P1", source: "fiat", via: `#${fiatRoot}` });
+        if (
+            issue.number === userDecisionRoot ||
+            issue.parent === userDecisionRoot
+        )
+            out.push({
+                band: "P1",
+                source: "user-decision",
+                via: `#${userDecisionRoot}`,
+            });
         const best = strongestCardBand(issue.cards, index);
         if (best !== null)
             out.push({ band: best.band, source: "cards", via: best.target });
@@ -426,6 +503,7 @@ export function triage(
     const seedBand = (n: number): Band | null => {
         const issue = byNumber.get(n);
         if (issue === undefined) return null;
+        if (issue.ruling) return issue.ruling.band;
         return seedCandidates(issue).reduce<Band | null>(
             (acc, c) => stronger(acc, c.band),
             null
@@ -438,6 +516,15 @@ export function triage(
             verdicts.set(issue.number, { kind: "p0" });
             continue;
         }
+        if (issue.ruling) {
+            verdicts.set(issue.number, {
+                kind: "band",
+                band: issue.ruling.band,
+                source: "user-decision",
+                via: `#${issue.number}`,
+            });
+            continue;
+        }
         const candidates = seedCandidates(issue);
         for (const blocked of [...issue.blocks].sort((a, b) => a - b)) {
             const band = stronger(
@@ -448,9 +535,15 @@ export function triage(
                 candidates.push({ band, source: "edge", via: `#${blocked}` });
         }
         if (issue.parent !== null) {
+            // A ruled parent's ruling IS its band: the board value it holds
+            // is what an earlier run wrote (or the ruling replaces), so a
+            // stale one must not out-rank it. Only a hand-set P0 still lends.
+            const ruled = byNumber.get(issue.parent)?.ruling;
             const band = stronger(
                 seedBand(issue.parent),
-                lent(board[issue.parent])
+                ruled && board[issue.parent] !== "P0"
+                    ? null
+                    : lent(board[issue.parent])
             );
             if (band !== null)
                 candidates.push({
@@ -516,7 +609,7 @@ export function summarize(
         Band,
         { hold: number; gain: number; change: number; unchanged: number }
     >;
-    const perSource = { fiat: 0, cards: 0, edge: 0, parent: 0 };
+    const perSource = { "user-decision": 0, cards: 0, edge: 0, parent: 0 };
     const p0: number[] = [];
     const residue: {
         number: number;
@@ -600,7 +693,8 @@ const RESIDUE_CAUSE_LABEL: Readonly<Record<ResidueCause, string>> = {
 export function renderReport(
     summary: TriageSummary,
     written: readonly BandWrite[] | null = null,
-    cardsResidue: readonly CardsResidue[] = []
+    cardsResidue: readonly CardsResidue[] = [],
+    bandResidue: readonly BandResidue[] = []
 ): string {
     const header =
         written === null
@@ -629,7 +723,7 @@ export function renderReport(
     const s = summary.perSource;
     lines.push(
         "",
-        `by source: fiat ${s.fiat}, cards ${s.cards}, edge ${s.edge}, parent ${s.parent}`,
+        `by source: user-decision ${s["user-decision"]}, cards ${s.cards}, edge ${s.edge}, parent ${s.parent}`,
         "",
         `residue (no source yields a band — stays unprioritized, the owner rules): ${summary.residue.length}`
     );
@@ -649,6 +743,12 @@ export function renderReport(
         `## Cards residue (a declared line that bands nothing — fix the line): ${cardsResidue.length}`
     );
     for (const r of cardsResidue)
+        lines.push(`  #${r.issue}  ${r.line}  — ${r.reason}`);
+    lines.push(
+        "",
+        `## Band residue (a ruling that bands nothing — fix the line): ${bandResidue.length}`
+    );
+    for (const r of bandResidue)
         lines.push(`  #${r.issue}  ${r.line}  — ${r.reason}`);
     return lines.join("\n");
 }
