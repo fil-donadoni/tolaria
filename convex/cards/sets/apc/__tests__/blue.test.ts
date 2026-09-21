@@ -5,9 +5,10 @@
 // compiler's generated smoke scenario would otherwise have given it. Two
 // claims fail silently without one:
 //
-//   * CR 121.1 — "draws that many" is the hand size read BEFORE the cards
-//     move. A recount after the move reads an emptied hand and draws nothing,
-//     which looks exactly like a card that simply shuffles the hand away.
+//   * CR 608.2h — "draws that many" is read only once, as the effect is
+//     applied, so it is the hand size BEFORE the cards move. A recount after
+//     the move reads an emptied hand and draws nothing, which looks exactly
+//     like a card that simply shuffles the hand away.
 //   * "EACH player … draws that many": the count is PER PLAYER, so a single
 //     shared count would still empty and refill both hands — only a board
 //     where the two hands differ in size can tell the two readings apart.
@@ -68,7 +69,7 @@ function resolveAbility(
     resolveTopOfStack(state);
 }
 
-describe("Whirlpool Warrior — shuffle the hand back and redraw (CR 121.1, issue #3807)", () => {
+describe("Whirlpool Warrior — shuffle the hand back and redraw (CR 608.2h, issue #3807)", () => {
     it("the ETB trigger redraws exactly the hand it shuffled away", () => {
         const warrior = warriorOnBattlefield();
         const state = makeState({

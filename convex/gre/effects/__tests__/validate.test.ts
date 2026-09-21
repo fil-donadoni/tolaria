@@ -7179,15 +7179,32 @@ describe("count narrowed by a picks binding (CR 608.2h / 701.9a, issue #3807)", 
         ).toEqual([]);
     });
 
+    // Each case is paired with the SAME spec minus `picks`, which must
+    // validate clean: without the control the rejection could come from any
+    // other schema rule (a `filter` on a hidden zone, an `undefined`-valued
+    // key) and the test would pass with the new rule deleted.
     it("rejects a picks narrowing on any zone but the graveyard", () => {
-        for (const zone of ["battlefield", "library", "hand"]) {
+        const cases: Record<string, unknown>[] = [
+            // A filter is legal on the battlefield, so only `picks` can red it.
+            {
+                zone: "battlefield",
+                controller: { target: 0 },
+                filter: { type: "Land" },
+            },
+            // Hidden zones take no filter at all, so the control omits it too.
+            { zone: "library", controller: { target: 0 } },
+            { zone: "hand", controller: { target: 0 } },
+        ];
+        for (const base of cases) {
+            expect(
+                validateEffectScript(host({ effects: verdict(base) }))
+            ).toEqual([]);
             expect(
                 validateEffectScript(
                     host({
                         effects: verdict({
-                            ...PICKS_GRAVEYARD_COUNT,
-                            zone,
-                            filter: undefined,
+                            ...base,
+                            picks: { ref: "$discarded" },
                         }),
                     })
                 ).length

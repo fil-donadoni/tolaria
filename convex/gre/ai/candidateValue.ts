@@ -534,7 +534,7 @@ function resolveCountSpecAgainstBoard(
     // the card is cast there is no picked set, and the live graveyard answers
     // a DIFFERENT question: every matching card ALREADY there, none of which
     // was discarded this way. Falls back to the representative magnitude the
-    // context-free path uses, like the `bound`/`targets` selectors above — a
+    // context-free path uses, like the `bound`/`targets` selectors below — a
     // context-aware zero would price the clause BELOW the floor it exists to
     // refine (issue #1520). `times` is a printed literal and stays honest.
     if (spec.picks !== undefined) return times * CF_ASSUMED_COUNT_FALLBACK;

@@ -457,6 +457,41 @@ describe("Gerrard's Verdict — 3 life per land discarded this way (CR 608.2h, i
         expect(projected.players[0].life).toBe(23);
     });
 
+    it("a land discarded but redirected out of the graveyard still counts (CR 701.9c)", () => {
+        // Dauthi Voidwalker on the CASTER's side redirects every card bound
+        // for the opponent's graveyard into EXILE. Those cards were still
+        // discarded, and exile is face up by default (CR 406.3), so their characteristics
+        // are defined and "each land card discarded this way" counts them. A
+        // graveyard-only lookup finds nothing and pays 0.
+        const voidwalker = makeInstance(
+            getDefinition("dce5db87-4a78-4b8d-b5c2-918ccd1ba4e3").id,
+            { id: "voidwalker", controllerId: "p1", ownerId: "p1" }
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20, battlefield: [voidwalker] }),
+                makePlayer("p2", {
+                    hand: [
+                        inZone("p2", FOREST, "land-a", "hand"),
+                        inZone("p2", FOREST, "land-b", "hand"),
+                    ],
+                }),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+        pushSpell(state, VERDICT.id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        submitVerdictChoice(state, ["land-a", "land-b"]);
+
+        expect(state.players[1].graveyard).toHaveLength(0);
+        expect(state.players[1].exile.map((c) => c.id).sort()).toEqual([
+            "land-a",
+            "land-b",
+        ]);
+        expect(state.players[0].life).toBe(26);
+    });
+
     it("two lands discarded pay 6, two nonlands pay nothing", () => {
         const both = castVerdict(["land-a", "land-b"], []);
         submitVerdictChoice(both, ["land-a", "land-b"]);

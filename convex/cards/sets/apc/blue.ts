@@ -9,9 +9,10 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // ship COMPILED; only the activated half sits below the hand-tail floor, and a
 // card is not split across two authoring paths, so both halves are written
 // here.
-// CR 121.1 — "that many" is the hand size BEFORE the cards move, which
-// `bindCount` records as the hand empties: a `draw` placed after the move
-// could only recount a hand that is already gone.
+// CR 608.2h — the effect reads the hand size only once, as it is applied, so
+// "that many" is the size BEFORE the cards move; `bindCount` records it as
+// the hand empties, because a `draw` placed after the move could only recount
+// a hand that is already gone.
 // The activated half is the same three Ops under `forEach { set: "players" }`.
 // A body binding is scoped to its iteration, so each player gets their own
 // count and draws back their OWN hand size. The iterations run in sequence

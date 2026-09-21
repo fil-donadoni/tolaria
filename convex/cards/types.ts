@@ -12962,18 +12962,35 @@ export interface EffectCountSpec {
      *  reuse).
      *
      *  `zone: "graveyard"` with a `controller` only, validator-enforced: the
-     *  graveyard is the one zone a picks binding survives its own Op (a
-     *  discard, a mill, a graveyard choice all leave their cards there — the
+     *  graveyard is the DEFAULT destination of every picks-family batch (a
+     *  discard, a mill, a graveyard choice all send their cards there — the
      *  reason `sum`'s own `zone` is a single-member union), and "discarded
-     *  this way" names ONE player's graveyard, so the all-players scopes have
-     *  no meaning here. `countTypes` is rejected for want of a card that asks
-     *  for it, rather than shipping an untested composition.
+     *  this way" names ONE player's batch, so the all-players scopes have no
+     *  meaning here. `countTypes` is rejected for want of a card that asks for
+     *  it, rather than shipping an untested composition.
+     *
+     *  The LOOKUP is wider than that `zone` by rule, not by convenience.
+     *  CR 701.9c: a discard whose destination a replacement effect redirected
+     *  was still a discard, and the card's characteristics become undefined
+     *  ONLY when the redirect puts it in a hidden zone without revealing it.
+     *  So the batch is resolved against both PUBLIC destinations — the
+     *  graveyard and exile (face up by default, CR 406.3) — and a card redirected into a
+     *  library is found nowhere, which is exactly the "undefined
+     *  characteristics" reading: it matches no filter and counts 0 on its own.
+     *  Dauthi Voidwalker (`sets/mh2/black.ts`) is the shipped redirect; a
+     *  graveyard-only lookup paid 0 life for two exiled lands.
      *
      *  An UNCAPTURED binding counts **0**, as `sum`'s does: a choice that
      *  found no candidates picked nothing, and a count over the empty set is
      *  0 — the clause still happened (CR 101.3: the impossible part of an
-     *  instruction is ignored, the rest still happens). A picked id no longer in that
-     *  graveyard contributes nothing, the same live read `sum` documents. */
+     *  instruction is ignored, the rest still happens).
+     *
+     *  The ref names a picks-family binding, which is an id LIST — a `choice`
+     *  `bind` or `mill`'s `bindAll`. `nameCard`'s binding shares that family
+     *  tag while storing a card NAME, so pointing `picks` at one validates and
+     *  then counts 0 forever; that hole is the family's, shared with `sum` and
+     *  `setSize`, and closing it is a change to `bindingKindOf`, not to this
+     *  field. */
     picks?: EffectRef;
 }
 
