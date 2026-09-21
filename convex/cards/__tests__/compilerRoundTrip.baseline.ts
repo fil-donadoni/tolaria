@@ -1183,7 +1183,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Restock",
     "Restrain",
     "Resurrection",
-    "Retrofitter Foundry",
     "Reverse Damage",
     "Reverse Polarity",
     "Reviving Vapors",

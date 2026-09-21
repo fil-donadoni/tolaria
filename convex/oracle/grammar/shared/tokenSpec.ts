@@ -6,8 +6,8 @@
  * sentence defines (CR 111.3 — "A token doesn't have any characteristics not
  * defined by the spell or ability that created it"), so the rule reads each
  * one it will write and refuses every word it cannot place: a colour it does
- * not know, a subtype outside the creature-type list, a second keyword, a
- * token that is also an artifact. None of those is skipped — each is a
+ * not know, a subtype outside the creature-type list, a second keyword, an
+ * artifact token that is not colorless. None of those is skipped — each is a
  * characteristic the token would silently lack.
  *
  * ── Accepted forms ─────────────────────────────────────────────────────────
@@ -16,6 +16,13 @@
  *    — a printed cardinal ("a", "two"), one colour or two joined by "and"
  *    (CR 105.1), one or more creature subtypes (CR 205.3m), at most one
  *    keyword (CR 702.1).
+ *  - `Create <count> P/T colorless <Subtype…> artifact creature token[s][ with
+ *    <keyword>]` — CR 105.2c: "colorless" is the ABSENCE of colour, an empty
+ *    colour list (`colors: []`), not a missing one and not a sixth colour.
+ *    "artifact creature" is the token's type list (CR 205.2a, CR 111.3 — a
+ *    token has the card types its creator prints and no others): the rule
+ *    reads the two together, because a colorless non-artifact creature token
+ *    and a coloured artifact one are each a form no fixture pins yet.
  *  - `Create X P/T … creature tokens, where X is that <type>'s mana value`
  *    — X is CR 202.3's mana value of the object the sentence before it acted
  *    on. The referent lives in that sentence, so the rule records only the
@@ -38,8 +45,13 @@ import { COLOR_WORDS } from "./targetFilter";
 export interface TokenIR {
     readonly power: number;
     readonly toughness: number;
-    /** CR 105.1 — as printed, in printed order. Never empty. */
+    /**
+     * CR 105.1 — as printed, in printed order. Empty exactly when the token
+     * is printed "colorless" (CR 105.2c), and then `artifact` is true.
+     */
     readonly colors: readonly Color[];
+    /** CR 205.2a — "artifact creature token": the token is an Artifact too. */
+    readonly artifact: boolean;
     /** CR 205.3m — creature subtypes, in printed order. Never empty. */
     readonly subtypes: readonly string[];
     readonly keyword: KeywordIR | null;
@@ -60,6 +72,13 @@ export interface CreateTokenIR {
     readonly token: TokenIR;
 }
 
+/** What the descriptor words between P/T and "creature" define. */
+interface DescribedToken {
+    colors: Color[];
+    artifact: boolean;
+    subtypes: string[];
+}
+
 /** The fixed-count form. `with` is the optional keyword tail. */
 const CREATE_FIXED =
     /^Create (\S+) (\d+)\/(\d+) (.+) creature (tokens?)(?: with (.+))?$/;
@@ -70,13 +89,13 @@ const CREATE_X_THAT =
 const KEYWORDS = keywordVocabulary();
 
 /**
- * "<colour>[ and <colour>] <Subtype>…" — the words between P/T and
- * "creature". Returns the reason as a string when a word has no place.
+ * "<colour>[ and <colour>] <Subtype>…" or "colorless <Subtype>… artifact" —
+ * the words between P/T and "creature". Returns the reason as a string when a
+ * word has no place.
  */
-function readDescriptor(
-    words: string
-): { colors: Color[]; subtypes: string[] } | string {
+function readDescriptor(words: string): DescribedToken | string {
     const parts = words.split(" ");
+    if (parts[0] === "colorless") return readColorlessArtifact(parts);
     const first = COLOR_WORDS.get(parts[0]!);
     if (first === undefined) return `"${parts[0]}" is not a colour`;
     const colors: Color[] = [first];
@@ -87,12 +106,29 @@ function readDescriptor(
         colors.push(second);
         at = 3;
     }
-    const subtypes = parts.slice(at);
+    const subtypes = readSubtypes(parts.slice(at));
+    if (typeof subtypes === "string") return subtypes;
+    return { colors, artifact: false, subtypes };
+}
+
+/** CR 105.2c + CR 205.2a — "colorless <Subtype>… artifact". */
+function readColorlessArtifact(
+    parts: readonly string[]
+): DescribedToken | string {
+    if (parts[parts.length - 1] !== "artifact")
+        return '"colorless" is read only on an artifact creature token';
+    const subtypes = readSubtypes(parts.slice(1, -1));
+    if (typeof subtypes === "string") return subtypes;
+    return { colors: [], artifact: true, subtypes };
+}
+
+/** CR 205.3m — every word a creature type, and at least one. */
+function readSubtypes(subtypes: readonly string[]): string[] | string {
     if (subtypes.length === 0) return "a creature token needs a subtype";
     for (const subtype of subtypes)
         if (!CREATURE_SUBTYPES.has(subtype))
             return `"${subtype}" is not a creature type`;
-    return { colors, subtypes };
+    return [...subtypes];
 }
 
 function readToken(
@@ -114,12 +150,13 @@ function readToken(
         power: Number(power),
         toughness: Number(toughness),
         colors: described.colors,
+        artifact: described.artifact,
         subtypes: described.subtypes,
         keyword,
     };
 }
 
-/** CR 111.1 — "Create <count> P/T <colours> <Subtypes> creature token(s)…". */
+/** CR 111.1 — "Create <count> P/T <colours> <Subtypes> [artifact] creature token(s)…". */
 export const createTokenRule: Rule<CreateTokenIR> = rule<CreateTokenIR>(
     "create token",
     (span) => {
@@ -127,6 +164,10 @@ export const createTokenRule: Rule<CreateTokenIR> = rule<CreateTokenIR>(
         if (x !== null) {
             const token = readToken(x[1]!, x[2]!, x[3]!, undefined);
             if (typeof token === "string") return fail(token, span);
+            // No corpus card prints an X-count artifact token in this shape,
+            // so no fixture pins it: refused, not read by leakage.
+            if (token.artifact)
+                return fail('"artifact" is not read on an X-count token', span);
             return ok({
                 count: { kind: "mana-value-of-that" as const, noun: x[4]! },
                 token,
