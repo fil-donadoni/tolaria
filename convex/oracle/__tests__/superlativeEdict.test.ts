@@ -275,7 +275,7 @@ describe("superlative edict — refusals (fail-closed, ADR 0105 § 2)", () => {
 });
 
 describe("superlative edict — behaviour through the real interpreter", () => {
-    const id = (name: string) => `t4247-${name}`;
+    const id = (name: string) => `t4247g-${name}`;
     for (const [name, power, mv] of [
         ["small", 1, 1],
         ["big", 5, 1],
@@ -308,7 +308,7 @@ describe("superlative edict — behaviour through the real interpreter", () => {
         });
 
     function withCompiled<T>(card: OracleCard, fn: (defId: string) => T): T {
-        const defId = `t4247-${card.name.toLowerCase().replace(/\W+/g, "-")}`;
+        const defId = `t4247g-${card.name.toLowerCase().replace(/\W+/g, "-")}`;
         const definition = {
             ...compiled(card),
             id: defId,

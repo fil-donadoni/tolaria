@@ -29258,6 +29258,46 @@
         "rarity": "common"
     },
     {
+        "name": "Soul Shatter",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "oracleText": "Each opponent sacrifices a creature or planeswalker with the greatest mana value among creatures and planeswalkers they control.",
+        "effects": [
+            {
+                "op": "choice",
+                "kind": "sacrifice-permanents",
+                "player": "opponent",
+                "zone": "battlefield",
+                "filter": {
+                    "type": [
+                        "Creature",
+                        "Planeswalker"
+                    ]
+                },
+                "superlative": {
+                    "stat": "mana-value",
+                    "extreme": "greatest"
+                },
+                "count": 1,
+                "prompt": "Sacrifice a creature or planeswalker with the greatest mana value among creatures and planeswalkers they control.",
+                "bind": "$sacrifice1"
+            },
+            {
+                "op": "sacrifice",
+                "permanents": {
+                    "ref": "$sacrifice1"
+                }
+            }
+        ],
+        "id": "2c2fb07b-0f70-403b-be8b-b5217f12e671",
+        "rarity": "rare"
+    },
+    {
         "name": "Mindful Biomancer",
         "types": [
             "Creature"
