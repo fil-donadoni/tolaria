@@ -104,8 +104,9 @@ export type AmountIR =
           readonly set: CountedSetIR;
       }
     /**
-     * CR 202.3 + CR 608.2h — "its mana value" / "that card's mana value" /
-     * "that permanent's mana value": the object the sentence BEFORE acted on.
+     * CR 202.3 + CR 208.1 + CR 608.2h — "its mana value" / "its power" /
+     * "its toughness" / "that card's mana value" / "that permanent's mana
+     * value": one characteristic of the object the sentence BEFORE acted on.
      * Read here as words; bound by the lowering to the announced object that
      * sentence recorded, and refused by a site whose earlier sentences acted
      * on none.
@@ -114,12 +115,15 @@ export type AmountIR =
      * which antecedent the phrase may name: "that permanent" is printed only
      * where the earlier sentence acted on a permanent (CR 110.4a), and reading
      * it off a card in a graveyard or a hand would be an object the sentence
-     * never pointed at. The lowering does that check — only it can see the
-     * recorded requirement.
+     * never pointed at. The CHARACTERISTIC is kept because the lowering reads
+     * a different snapshot slot for each, and because power and toughness
+     * exist only on a creature on the battlefield (CR 208.3) — a check only
+     * the lowering can make, since only it sees the recorded requirement.
      */
     | {
-          readonly kind: "acted-on-mana-value";
+          readonly kind: "acted-on-characteristic";
           readonly noun: ActedOnNounIR;
+          readonly characteristic: ActedOnCharacteristicIR;
       };
 
 /**
@@ -129,12 +133,26 @@ export type AmountIR =
  */
 export type ActedOnNounIR = "it" | "card" | "permanent";
 
+/**
+ * CR 202.3 / CR 208.1 — the characteristic a phrase reads off the acted-on
+ * object. Each names a slot the acting Op's `bind` snapshot carries.
+ */
+export type ActedOnCharacteristicIR = "manaValue" | "power" | "toughness";
+
 /** The three possessive phrases, printed exactly (CR 202.3 + CR 608.2h). */
 const ACTED_ON_NOUNS: ReadonlyMap<string, ActedOnNounIR> = new Map([
     ["its", "it"],
     ["that card's", "card"],
     ["that permanent's", "permanent"],
 ]);
+
+/** The characteristic words, printed exactly (CR 202.3, CR 208.1). */
+const ACTED_ON_CHARACTERISTICS: ReadonlyMap<string, ActedOnCharacteristicIR> =
+    new Map([
+        ["mana value", "manaValue"],
+        ["power", "power"],
+        ["toughness", "toughness"],
+    ]);
 
 /**
  * A capture group over the phrases of `nouns`, DERIVED from the vocabulary so
@@ -158,10 +176,35 @@ function actedOnNounGroup(nouns: readonly ActedOnNounIR[]): string {
     return `(${phrases.join("|")})`;
 }
 
-/** `"its"` / `"that card's"` / `"that permanent's"` → the amount it names. */
-function readActedOnManaValue(possessive: string): AmountIR | null {
+/** A capture group over the characteristic words, derived like the nouns. */
+function actedOnCharacteristicGroup(
+    characteristics: readonly ActedOnCharacteristicIR[]
+): string {
+    const words = [...ACTED_ON_CHARACTERISTICS.entries()]
+        .filter(([, one]) => characteristics.includes(one))
+        .map(([word]) => word);
+    return `(${words.join("|")})`;
+}
+
+/**
+ * `"its"` / `"that card's"` / `"that permanent's"` + a characteristic word →
+ * the amount it names.
+ *
+ * Power and toughness are read through the pronoun ONLY. The corpus prints
+ * "that creature's toughness" as well (Vendetta, Devour in Shadow), but that
+ * noun is a fourth antecedent with its own check and no fixture here, and
+ * "that card's power" names a card in a graveyard, which has no snapshot
+ * power to read (CR 208.3) — both stay refused rather than read by accident.
+ */
+function readActedOnCharacteristic(
+    possessive: string,
+    word: string
+): AmountIR | null {
     const noun = ACTED_ON_NOUNS.get(possessive);
-    return noun === undefined ? null : { kind: "acted-on-mana-value", noun };
+    const characteristic = ACTED_ON_CHARACTERISTICS.get(word);
+    if (noun === undefined || characteristic === undefined) return null;
+    if (characteristic !== "manaValue" && noun !== "it") return null;
+    return { kind: "acted-on-characteristic", noun, characteristic };
 }
 
 /** A count word at an effect site: a cardinal, `X` (CR 107.3), or "that much". */
@@ -1312,10 +1355,13 @@ const LIFE = /^(.+) (gain|gains|lose|loses) (\S+|that much) life$/;
  * grammar does not read.
  */
 const LIFE_FOR_EACH = /^(.+) (gain|gains|lose|loses) (\S+) life (for each .+)$/;
-/** CR 202.3 — "You lose life equal to its mana value" (or "that card's", or
- *  "that permanent's" — Feed the Swarm). */
-const LIFE_EQUAL_MANA_VALUE = new RegExp(
-    `^(.+) (lose|loses) life equal to ${actedOnNounGroup(["it", "card", "permanent"])} mana value$`
+/** CR 119.3 + CR 202.3 + CR 208.1 — "You lose life equal to its mana value"
+ *  (or "that card's", or "that permanent's" — Feed the Swarm), and "You gain
+ *  life equal to its power" (Chastise). The characteristic is a capture group
+ *  because the same clause shape prints all three; which noun may take which
+ *  characteristic is `readActedOnCharacteristic`'s. */
+const LIFE_EQUAL_ACTED_ON = new RegExp(
+    `^(.+) (gain|gains|lose|loses) life equal to ${actedOnNounGroup(["it", "card", "permanent"])} ${actedOnCharacteristicGroup(["manaValue", "power", "toughness"])}$`
 );
 /**
  * CR 119.3 + CR 202.3 — "{self} deals damage equal to that permanent's mana
@@ -1972,7 +2018,7 @@ function effectSentence(
                 `"${damageMv[1]}" is not a damage source this grammar knows`,
                 span
             );
-        const amount = readActedOnManaValue(damageMv[2]!);
+        const amount = readActedOnCharacteristic(damageMv[2]!, "mana value");
         if (amount === null)
             return fail(`"${damageMv[2]}" names no acted-on object`, span);
         const to = subjectRule.run(damageMv[3]!, ctx);
@@ -2208,18 +2254,26 @@ function effectSentence(
         } satisfies EffectSentenceIR);
     }
 
-    // ── life equal to the acted-on object's mana value (CR 202.3) ──────────
-    const lifeMv = span.match(LIFE_EQUAL_MANA_VALUE);
-    if (lifeMv !== null) {
-        const player = playerSubject(lifeMv[1]!, ctx);
+    // ── life equal to a characteristic of the acted-on object ──────────────
+    // CR 119.3 + CR 202.3 + CR 208.1: the amount is read off the snapshot the
+    // acting Op took (CR 608.2h), for a gain as well as a loss.
+    const lifeActedOn = span.match(LIFE_EQUAL_ACTED_ON);
+    if (lifeActedOn !== null) {
+        const player = playerSubject(lifeActedOn[1]!, ctx);
         if (player === null)
-            return fail(`"${lifeMv[1]}" is not a player`, span);
-        const amount = readActedOnManaValue(lifeMv[3]!);
+            return fail(`"${lifeActedOn[1]}" is not a player`, span);
+        const amount = readActedOnCharacteristic(
+            lifeActedOn[3]!,
+            lifeActedOn[4]!
+        );
         if (amount === null)
-            return fail(`"${lifeMv[3]}" names no acted-on object`, span);
+            return fail(
+                `"${lifeActedOn[3]} ${lifeActedOn[4]}" names no acted-on object`,
+                span
+            );
         return ok({
             kind: "life" as const,
-            action: "lose" as const,
+            action: lifeActedOn[2]!.startsWith("gain") ? "gain" : "lose",
             player,
             amount,
         } satisfies EffectSentenceIR);

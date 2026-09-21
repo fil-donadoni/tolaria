@@ -2370,16 +2370,19 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
-    // CR 202.3 + CR 608.2h — "that permanent's mana value": the mana value of
-    // the permanent an earlier sentence destroyed, read off the snapshot that
-    // `destroy` took before the object left the battlefield. The canned smoke
-    // scenario cannot plan an amount that only a runtime binding knows, so the
-    // two sites the phrase reaches each need their own evidence: the DAMAGE
+    // CR 202.3 + CR 208.1 + CR 608.2h — a characteristic of the object an
+    // earlier sentence acted on ("that permanent's mana value", "its power",
+    // "its toughness"), read off the snapshot that `destroy` took before the
+    // object left the battlefield. The canned smoke scenario cannot plan an
+    // amount that only a runtime binding knows, so each site and each
+    // characteristic the phrase reaches needs its own evidence: the DAMAGE
     // amount (Orim's Thunder, below, whose reading is also gated on the kicker
-    // — CR 702.33d) and the life LOSS amount (Feed the Swarm) are different Op
-    // skeletons and therefore different forms (issue #4221).
+    // — CR 702.33d), the life LOSS amount (Feed the Swarm) and the life GAIN
+    // amount per characteristic (Chastise, Sever Soul, Terashi's Grasp) are
+    // different Op skeletons — the `ref` names the slot — and therefore
+    // different forms (issues #4221, #4248).
     {
-        rule: "acted-on mana value",
+        rule: "acted-on characteristic",
         card: {
             oracleId: "380429d5-82db-449c-b9b9-3e82ab987972",
             name: "Orim's Thunder",
@@ -2423,7 +2426,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
         },
     },
     {
-        rule: "acted-on mana value",
+        rule: "acted-on characteristic",
         card: {
             oracleId: "5825997b-10d7-4a36-972c-a80ddd90b8ed",
             name: "Feed the Swarm",
@@ -2452,6 +2455,104 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
                 count: 1,
                 controller: "opponent",
             },
+        },
+    },
+    {
+        rule: "acted-on characteristic",
+        card: {
+            oracleId: "b7553f3f-5de1-409c-a184-e12e40f017ab",
+            name: "Chastise",
+            manaCost: "{3}{W}",
+            typeLine: "Instant",
+            oracleText:
+                "Destroy target attacking creature. You gain life equal to its power.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Chastise",
+            types: ["Instant"],
+            manaCost: { X: 3, W: 1 },
+            oracleText:
+                "Destroy target attacking creature. You gain life equal to its power.",
+            effects: [
+                { op: "destroy", target: { target: 0 }, bind: "$that1" },
+                {
+                    op: "gainLife",
+                    player: "controller",
+                    amount: { ref: "$that1.power" },
+                },
+            ],
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                combatRoleFilter: ["attacking"],
+            },
+        },
+    },
+    {
+        rule: "acted-on characteristic",
+        card: {
+            oracleId: "577d027a-96c3-46fe-880b-f8b5dd3f3a3d",
+            name: "Sever Soul",
+            manaCost: "{3}{B}{B}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Destroy target nonblack creature. It can't be regenerated. You gain life equal to its toughness.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Sever Soul",
+            types: ["Sorcery"],
+            manaCost: { X: 3, B: 2 },
+            oracleText:
+                "Destroy target nonblack creature. It can't be regenerated. You gain life equal to its toughness.",
+            effects: [
+                {
+                    op: "destroy",
+                    target: { target: 0 },
+                    cantBeRegenerated: true,
+                    bind: "$that1",
+                },
+                {
+                    op: "gainLife",
+                    player: "controller",
+                    amount: { ref: "$that1.toughness" },
+                },
+            ],
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                excludeColors: ["B"],
+            },
+        },
+    },
+    {
+        rule: "acted-on characteristic",
+        card: {
+            oracleId: "d4738552-3a5e-43c5-a975-8b77618bacaf",
+            name: "Terashi's Grasp",
+            manaCost: "{2}{W}",
+            typeLine: "Sorcery — Arcane",
+            oracleText:
+                "Destroy target artifact or enchantment. You gain life equal to its mana value.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Terashi's Grasp",
+            types: ["Sorcery"],
+            subtypes: ["Arcane"],
+            manaCost: { X: 2, W: 1 },
+            oracleText:
+                "Destroy target artifact or enchantment. You gain life equal to its mana value.",
+            effects: [
+                { op: "destroy", target: { target: 0 }, bind: "$that1" },
+                {
+                    op: "gainLife",
+                    player: "controller",
+                    amount: { ref: "$that1.manaValue" },
+                },
+            ],
+            targetRequirement: { type: ["Artifact", "Enchantment"], count: 1 },
         },
     },
     // CR 601.2d — "deals N damage divided as you choose among <count

@@ -37,6 +37,7 @@ import type { KickedRefIR } from "./grammar/shared/condition";
 import { durationSpec } from "./grammar/shared/duration";
 import {
     capitalise,
+    type ActedOnCharacteristicIR,
     type ActedOnNounIR,
     type AmountIR,
     type EffectSentenceIR,
@@ -188,7 +189,7 @@ function lowerAmount(
         return site.antecedents?.amount !== undefined
             ? lowered(site.antecedents.amount)
             : unlowerable('"that much" names no amount at this site');
-    if (amount.kind === "counted" || amount.kind === "acted-on-mana-value")
+    if (amount.kind === "counted" || amount.kind === "acted-on-characteristic")
         return unlowerable(
             `a ${amount.kind} amount is read only at a life-change site`
         );
@@ -237,7 +238,7 @@ function lowerCountedSet(
 
 /**
  * The amount of a life change (CR 119.3): everything `lowerAmount` reads, plus
- * a counted set and the mana value of the object the sentence before acted on.
+ * a counted set and a characteristic of the object the sentence before acted on.
  * Only this site resolves them — the sets need the target slots and the
  * acted-on object lives on the walk.
  */
@@ -256,8 +257,12 @@ function lowerLifeAmount(
                     : { ...spec.value, times: amount.times },
         });
     }
-    if (amount.kind === "acted-on-mana-value")
-        return lowerActedOnManaValue(amount.noun, walk);
+    if (amount.kind === "acted-on-characteristic")
+        return lowerActedOnCharacteristic(
+            amount.noun,
+            amount.characteristic,
+            walk
+        );
     return lowerAmount(amount, site);
 }
 
@@ -271,17 +276,28 @@ const ACTED_ON_PHRASE: Readonly<Record<ActedOnNounIR, string>> = {
     permanent: "that permanent's",
 };
 
+/** The word a characteristic was printed as, and the snapshot slot it reads. */
+const ACTED_ON_CHARACTERISTIC: Readonly<
+    Record<ActedOnCharacteristicIR, { word: string; slot: string }>
+> = {
+    manaValue: { word: "mana value", slot: "manaValue" },
+    power: { word: "power", slot: "power" },
+    toughness: { word: "toughness", slot: "toughness" },
+};
+
 /**
- * CR 202.3 + CR 608.2h — "<phrase> mana value": the PRINTED mana value of the
- * object an earlier sentence acted on, read off the snapshot that sentence's
- * Op took.
+ * CR 202.3 / CR 208.1 + CR 608.2h — "<phrase> mana value" / "its power" /
+ * "its toughness": one characteristic of the object an earlier sentence acted
+ * on, read off the snapshot that sentence's Op took.
  *
  * The snapshot is the whole point. By the time this value is read the object
  * has left the battlefield — destroyed, or returned to a hand — so a live
  * read would find nothing and the effect would silently be worth 0. `bind` on
  * the acting Op captures the object as it last existed (CR 608.2h), and the
  * `ref` here reads that capture; the Op is given the binding here, on demand,
- * so a sentence that never asks for the value adds no binding.
+ * so a sentence that never asks for the value adds no binding. Power and
+ * toughness are the EFFECTIVE values at that moment, so an anthem's bonus is
+ * in the snapshot (CR 613.4c).
  *
  * "That permanent" additionally CONSTRAINS the antecedent: a permanent is a
  * card or token ON THE BATTLEFIELD (CR 110.1) of a permanent card type
@@ -292,18 +308,26 @@ const ACTED_ON_PHRASE: Readonly<Record<ActedOnNounIR, string>> = {
  * noun off a card that was never a permanent. "Its" and "that card's" name
  * whatever the sentence before acted on, which is what makes the umbrella
  * noun worth reading separately.
+ *
+ * Power and toughness constrain it further, to a CREATURE on the battlefield
+ * (CR 208.3): the snapshot of a card that was never a permanent carries 0/0
+ * in those slots, so reading them off a graveyard card would be worth 0
+ * without saying so, and a noncreature permanent has no power to read.
  */
-function lowerActedOnManaValue(
+function lowerActedOnCharacteristic(
     noun: ActedOnNounIR,
+    characteristic: ActedOnCharacteristicIR,
     walk: SentenceWalk
 ): Lowered<EffectValue> {
     const phrase = ACTED_ON_PHRASE[noun];
+    const { word, slot } = ACTED_ON_CHARACTERISTIC[characteristic];
     const actedOn = walk.actedOn;
     if (actedOn === null)
         return unlowerable(
-            `"${phrase} mana value" names no object acted on before it (CR 608.2h)`
+            `"${phrase} ${word}" names no object acted on before it (CR 608.2h)`
         );
-    if (noun === "permanent") {
+    const readsPermanentStat = characteristic !== "manaValue";
+    if (noun === "permanent" || readsPermanentStat) {
         const { type, zone, count } = actedOn.requirement;
         const types = announcedTypes(actedOn.requirement);
         // `bind` snapshots exactly ONE object, so a wider announcement leaves
@@ -311,19 +335,24 @@ function lowerActedOnManaValue(
         // is checked here rather than leaned on upstream: the sentence
         // grammar refuses a multi-object `destroy` today, and a check that is
         // fail-closed only because of that is fail-closed by accident.
+        const admitted = readsPermanentStat
+            ? types.every((one) => one === "Creature")
+            : types.every((one) => ACTED_ON_PERMANENT_TYPES.has(one));
         if (
             types.length === 0 ||
-            !types.every((one) => ACTED_ON_PERMANENT_TYPES.has(one)) ||
+            !admitted ||
             (zone !== undefined && zone !== "battlefield") ||
             count !== 1
         )
             return unlowerable(
-                `"that permanent" is not the ${JSON.stringify(type)} in ${zone ?? "battlefield"} acted on before it (CR 110.1)`
+                readsPermanentStat
+                    ? `"${phrase} ${word}" is not read off the ${JSON.stringify(type)} in ${zone ?? "battlefield"} acted on before it — only a creature on the battlefield has one (CR 208.3)`
+                    : `"that permanent" is not the ${JSON.stringify(type)} in ${zone ?? "battlefield"} acted on before it (CR 110.1)`
             );
     }
     const bind = actedOn.op.bind ?? walk.nextBind("that");
     actedOn.op.bind = bind;
-    return lowered({ ref: `${bind}.manaValue` });
+    return lowered({ ref: `${bind}.${slot}` });
 }
 
 /**
@@ -1328,8 +1357,12 @@ function lowerSentenceBody(
             // earlier sentence acted on, which only the walk can resolve
             // (Orim's Thunder, issue #4221).
             const amount =
-                sentence.amount.kind === "acted-on-mana-value"
-                    ? lowerActedOnManaValue(sentence.amount.noun, walk)
+                sentence.amount.kind === "acted-on-characteristic"
+                    ? lowerActedOnCharacteristic(
+                          sentence.amount.noun,
+                          sentence.amount.characteristic,
+                          walk
+                      )
                     : lowerAmount(sentence.amount, site);
             if (!amount.ok) return amount;
             return lowered([
