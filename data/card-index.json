@@ -11374,6 +11374,14 @@
         "source": "compiled"
     },
     {
+        "name": "Dead Ringers",
+        "scryfallId": "9b78028c-3ebd-432d-b628-e1fa284f08f3",
+        "oracleId": "fb34e487-f7a9-48ad-8f42-00295a80a160",
+        "firstSet": "apc",
+        "firstPrintId": "9b78028c-3ebd-432d-b628-e1fa284f08f3",
+        "firstPrintSet": "apc"
+    },
+    {
         "name": "Dead Weight",
         "scryfallId": "7933987e-7b8c-4d5a-804a-708d6bb6d231",
         "oracleId": "b1804304-fac1-4b19-a48d-6ade9407972a",
@@ -13098,6 +13106,14 @@
         "firstPrintSet": "emn",
         "rarity": "common",
         "source": "compiled"
+    },
+    {
+        "name": "Dragon Arch",
+        "scryfallId": "eec581b8-e509-420c-b142-afaa6dd06cc8",
+        "oracleId": "fdf21a39-7392-49b1-b9c4-ee8122631cab",
+        "firstSet": "apc",
+        "firstPrintId": "eec581b8-e509-420c-b142-afaa6dd06cc8",
+        "firstPrintSet": "apc"
     },
     {
         "name": "Dragon Bell Monk",
@@ -31188,6 +31204,14 @@
         "firstPrintSet": "m10",
         "rarity": "uncommon",
         "source": "compiled"
+    },
+    {
+        "name": "Mind Extraction",
+        "scryfallId": "7d77ddcc-e66b-4036-8a55-ec42953918d1",
+        "oracleId": "0077740a-528b-4ee3-b331-fac321b95302",
+        "firstSet": "apc",
+        "firstPrintId": "7d77ddcc-e66b-4036-8a55-ec42953918d1",
+        "firstPrintSet": "apc"
     },
     {
         "name": "Mind Knives",
