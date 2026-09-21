@@ -1,8 +1,8 @@
 /**
  * A DECLARED section of an issue body — `## Unlocks` (issue #4052), `## Cards`
  * (issue #4086), `## Band` (issue #4230): a heading, then one list item per
- * declaration, `None.` for "nothing declared". Structured, no prose: every non-item line comes back as
- * prose for the caller to report, never to read.
+ * declaration, `None.` for "nothing declared". Structured, no prose: every
+ * non-item line comes back as prose for the caller to report, never to read.
  *
  * FENCED CODE IS NOT MARKDOWN HERE. A body that SHOWS the section — the
  * example `docs/agents/issue-tracker.md` teaches, a skill's template, a review
