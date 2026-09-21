@@ -173,8 +173,14 @@ export function twinDivergence(
     compiled: CardDefinition,
     oracleId: string
 ): readonly Divergence[] {
+    // `setCode` is catalogue metadata joined in beside `id`/`rarity` (issue
+    // #4363), not something the grammar read — a hand-written definition
+    // declares its Set by the module it lives in. Stripped here rather than
+    // listed in `PASSTHROUGH_KEYS`, which sits under the compiler-source hash.
+    const compiledBehaviour: CardDefinition = { ...compiled };
+    delete compiledBehaviour.setCode;
     let expected = behaviouralProjection(expandDefinition(handWrittenRaw));
-    let actual = behaviouralProjection(expandDefinition(compiled));
+    let actual = behaviouralProjection(expandDefinition(compiledBehaviour));
     if (JSON.stringify(expected) === JSON.stringify(actual)) return [];
     if (JSON.stringify(expected).includes(CLOSURE_SENTINEL)) {
         const bodiless = withoutBodyProjection(expected);

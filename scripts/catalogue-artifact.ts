@@ -93,6 +93,9 @@ interface CardIndexEntry {
     name: string;
     oracleId: string;
     firstPrintId: string;
+    /** The Set of `firstPrintId` — what the client's Set filter and the
+     *  allowed-Set Formats read for a compiled card (issue #4363). */
+    firstPrintSet?: string;
     rarity?: Rarity;
     source?: "compiled";
 }
@@ -115,7 +118,7 @@ export interface CatalogueBuild {
     readonly sourceHashBytes: string;
     readonly hash: string;
     readonly fileName: string;
-    /** `ready` rows the join could not resolve an `id`/`rarity` for. */
+    /** `ready` rows the join could not resolve an `id`/`rarity`/`setCode` for. */
     readonly unjoinable: number;
 }
 
@@ -173,12 +176,19 @@ export function buildCatalogue(repoRoot: string): CatalogueBuild {
             unjoinable++;
             continue;
         }
+        // Same stop as a missing rarity: a compiled row shipped with no Set
+        // is the bug this field exists to close (issue #4363).
+        if (!entry.firstPrintSet) {
+            unjoinable++;
+            continue;
+        }
         compiled.push({
             oracleId: row.oracleId,
             definition: {
                 ...row.definition,
                 id: entry.firstPrintId,
                 rarity,
+                setCode: entry.firstPrintSet,
             } as CardDefinition,
         });
     }
@@ -287,7 +297,7 @@ function main() {
 
     if (build.unjoinable > 0) {
         console.error(
-            `${RED}✗ ${build.unjoinable} compiled \`ready\` row(s) have no card-index id/rarity${RESET}\n` +
+            `${RED}✗ ${build.unjoinable} compiled \`ready\` row(s) have no card-index id/rarity/set${RESET}\n` +
                 "  A row the join cannot complete is a card missing from the artifact AND a twin\n" +
                 "  nobody checked. Run: bun run oracle:index"
         );
