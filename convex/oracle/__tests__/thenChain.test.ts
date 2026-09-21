@@ -119,6 +119,71 @@ describe("then-chain — golden (CR 608.2c)", () => {
     });
 });
 
+describe("then-chain — golden: the split card that motivated it (CR 608.2c, CR 709.3)", () => {
+    it("Depose // Deploy: Deploy's second half is a token, then a life gain", () => {
+        const deploy =
+            "Create two 1/1 colorless Thopter artifact creature tokens with flying, then you gain 1 life for each creature you control.";
+        const depose = "Tap target creature.\nDraw a card.";
+        const definition = compiled({
+            oracleId: "c547c9ab-a303-48fb-9579-37f9de9a558b",
+            name: "Depose // Deploy",
+            manaCost: "{1}{W/U} // {2}{W}{U}",
+            typeLine: "Instant // Instant",
+            oracleText: "",
+            layout: "split",
+            faces: [
+                {
+                    name: "Depose",
+                    manaCost: "{1}{W/U}",
+                    typeLine: "Instant",
+                    oracleText: depose,
+                },
+                {
+                    name: "Deploy",
+                    manaCost: "{2}{W}{U}",
+                    typeLine: "Instant",
+                    oracleText: deploy,
+                },
+            ],
+        });
+        expect(sortKeys(definition.splitHalves?.[1])).toEqual(
+            sortKeys({
+                name: "Deploy",
+                manaCost: { X: 2, W: 1, U: 1 },
+                types: ["Instant"],
+                oracleText: deploy,
+                effects: [
+                    {
+                        op: "createToken",
+                        token: {
+                            name: "Thopter",
+                            types: ["Artifact", "Creature"],
+                            subtypes: ["Thopter"],
+                            power: 1,
+                            toughness: 1,
+                            colors: [],
+                            staticAbilities: ["flying"],
+                        },
+                        controller: "controller",
+                        count: 2,
+                    },
+                    {
+                        op: "gainLife",
+                        player: "controller",
+                        amount: {
+                            count: {
+                                zone: "battlefield",
+                                controller: "controller",
+                                filter: { type: ["Creature"] },
+                            },
+                        },
+                    },
+                ],
+            })
+        );
+    });
+});
+
 describe("then-chain — equal to the full-stop form (CR 608.2c)", () => {
     const HEADS = [
         "Create two 1/1 white Soldier creature tokens",
@@ -140,11 +205,15 @@ describe("then-chain — equal to the full-stop form (CR 608.2c)", () => {
                 );
             });
 
-    it("Depose // Deploy's second half reads: the count is the whole controlled set", () => {
-        const effects = effectsOf(
-            "Create two 1/1 white Soldier creature tokens with flying, then you gain 1 life for each creature you control."
+    it("Deploy's own line: the comma form equals the full-stop form and lowers to token then gain", () => {
+        const head =
+            "Create two 1/1 colorless Thopter artifact creature tokens with flying";
+        const tail = "you gain 1 life for each creature you control";
+        const comma = effectsOf(`${head}, then ${tail}.`);
+        expect(comma).toEqual(
+            effectsOf(`${head}. You gain 1 life for each creature you control.`)
         );
-        expect((effects as { op: string }[]).map((e) => e.op)).toEqual([
+        expect((comma as { op: string }[]).map((e) => e.op)).toEqual([
             "createToken",
             "gainLife",
         ]);
