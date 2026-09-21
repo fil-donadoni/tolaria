@@ -12948,6 +12948,32 @@ export interface EffectCountSpec {
      *  `zone: "graveyard"`; ignored for `zone: "battlefield"`. Used by
      *  Delirium: "four or more card types among cards in your graveyard". */
     countTypes?: boolean;
+    /** Narrow the counted set to the cards a preceding Op bound into a
+     *  picks-family binding — "each land card discarded this way" (issue
+     *  #3807). A bare picks ref (`{ ref: "$discarded" }`) naming a `choice`
+     *  Op's `bind` or `mill`'s `bindAll`, the same `string[]` of instance ids
+     *  `picksMatchFilter` and `sum` already read; nothing new is bound.
+     *
+     *  It is the CARDINALITY sibling of `picksMatchFilter`'s predicate
+     *  ("does at least one pick match?") and reuses this spec's own `filter`
+     *  for the card test rather than carrying a second one — "for each land
+     *  card discarded this way" is exactly this `count` with its set narrowed,
+     *  not a new value member (`.claude/rules/gre-development.md` § Primitive
+     *  reuse).
+     *
+     *  `zone: "graveyard"` with a `controller` only, validator-enforced: the
+     *  graveyard is the one zone a picks binding survives its own Op (a
+     *  discard, a mill, a graveyard choice all leave their cards there — the
+     *  reason `sum`'s own `zone` is a single-member union), and "discarded
+     *  this way" names ONE player's graveyard, so the all-players scopes have
+     *  no meaning here. `countTypes` is rejected for want of a card that asks
+     *  for it, rather than shipping an untested composition.
+     *
+     *  An UNCAPTURED binding counts **0**, as `sum`'s does: a choice that
+     *  found no candidates picked nothing, and a count over the empty set is
+     *  0 — the clause still happened (CR 608.2). A picked id no longer in that
+     *  graveyard contributes nothing, the same live read `sum` documents. */
+    picks?: EffectRef;
 }
 
 /** Minimal JSON-pure card filter for `count` sets and a `choice` Op's

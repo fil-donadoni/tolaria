@@ -918,6 +918,21 @@ function analyseValue(value: EffectValue, req: Requirements): void {
         );
         return;
     }
+    // picks (CR 608.2h, issue #3807): a count narrowed to the cards a
+    // PRECEDING Op bound — `sum`/`setSize`'s reason exactly, one step earlier.
+    // The generator seeds a bank of matching cards and predicts COUNT_SET_SIZE
+    // from it, but a picks-narrowed count never sees that bank: it counts only
+    // the bound ids, and the canned generator never runs the Op that binds
+    // them. Skip-with-reason; the field's own interpreter test is the
+    // behavioural guarantor (new-grammar-member regime).
+    if (value.count.picks !== undefined) {
+        skipBecause(
+            req,
+            "runtime-amount",
+            "count is narrowed to a bound card set — the canned generator never runs the Op that binds it"
+        );
+        return;
+    }
     req.countSets.push(value.count);
     // A count set's own controller may itself be a ref — unmodelable.
     const c = value.count.controller;

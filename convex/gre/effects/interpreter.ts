@@ -1454,9 +1454,23 @@ function countZoneForPlayer(
     // Subtype-scoped graveyard counts are legitimate ("for each Zombie in your
     // graveyard").
     const cards = ctx.getGraveyardCards(playerId);
+    // CR 608.2h (issue #3807) — "each land card discarded this way" counts the
+    // cards a preceding Op bound, not every matching card in the graveyard.
+    // The narrowing runs BEFORE `filter`, so an uncaptured binding counts 0
+    // the way `sum` sums 0, and a picked id that has since left the graveyard
+    // simply drops out.
+    const inPicks =
+        spec.picks === undefined
+            ? cards
+            : ((): typeof cards => {
+                  const picks = resolvePicks(ctx, spec.picks!);
+                  if (picks === undefined) return [];
+                  const ids = new Set(picks);
+                  return cards.filter((c) => ids.has(c.id));
+              })();
     const filtered = spec.filter
-        ? cards.filter((c) => matchesCardFilter(ctx, c, spec.filter!))
-        : cards;
+        ? inPicks.filter((c) => matchesCardFilter(ctx, c, spec.filter!))
+        : inPicks;
     // Delirium (CR 702.D): count distinct card types instead of total cards
     // ("there are four or more card types among cards in your graveyard").
     if (spec.countTypes) {

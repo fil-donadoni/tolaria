@@ -1111,6 +1111,7 @@ function isCountValue(value: unknown): boolean {
         "smallestAcrossPlayers",
         "times",
         "countTypes",
+        "picks",
     ]);
     if (!Object.keys(s).every((k) => allowed.has(k))) return false;
     if (
@@ -1130,6 +1131,19 @@ function isCountValue(value: unknown): boolean {
         ("filter" in s || "countTypes" in s)
     ) {
         return false;
+    }
+    // CR 608.2h (issue #3807) — `picks` narrows the counted set to a
+    // picks-family binding ("each land card discarded this way"). Graveyard
+    // only, and one named player's: that is the one zone a picks binding
+    // survives its own Op, and the all-players scopes name no single
+    // graveyard to look the ids up in. `countTypes` is refused rather than
+    // shipped untested — no card counts card types among a bound batch.
+    if ("picks" in s) {
+        if (!isBareRef(s.picks)) return false;
+        if (s.zone !== "graveyard") return false;
+        if ("countTypes" in s) return false;
+        if ("acrossAllPlayers" in s || "smallestAcrossPlayers" in s)
+            return false;
     }
     // issue #999 — an optional positive-integer multiplier ("twice the
     // number of …", Price of Progress). A literal only; no ref/X.
@@ -5786,7 +5800,12 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                         // `grantCastFromExile`'s `card` field (issue #1156)
                         // — a bare picks ref naming a `choice` Op's bind
                         // (singular: the choice's `count: 1` pick).
-                        keyHint === "card"
+                        keyHint === "card" ||
+                        // `EffectCountSpec.picks` (issue #3807) — the
+                        // picks-family binding a graveyard `count` narrows to
+                        // ("each land card discarded this way"). The only
+                        // field in the vocabulary named `picks`.
+                        keyHint === "picks"
                       ? "picks"
                       : // `EffectCardFilter.name` (issues #1085 / #2065) — its
                         // own kind, because it accepts BOTH a bare ref naming a
