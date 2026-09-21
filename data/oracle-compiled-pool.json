@@ -3941,6 +3941,55 @@
         "rarity": "common"
     },
     {
+        "name": "Split-Tail Miko",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Fox",
+            "Cleric"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{W}, {T}: Prevent the next 2 damage that would be dealt to any target this turn.",
+        "activatedAbilities": [
+            {
+                "id": "split-tail-miko-ability",
+                "oracleText": "{W}, {T}: Prevent the next 2 damage that would be dealt to any target this turn.",
+                "cost": {
+                    "mana": {
+                        "W": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "preventDamage",
+                        "mode": "next-n",
+                        "to": {
+                            "target": 0
+                        },
+                        "amount": 2,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "0528fe29-f3c1-4d10-9030-053c3de57b7b",
+        "rarity": "common"
+    },
+    {
         "name": "Hollowhenge Beast",
         "types": [
             "Creature"
@@ -5047,6 +5096,90 @@
         ],
         "id": "0702efed-915e-466a-96bb-ac09af06b21e",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Ivory Charm",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "oracleText": "Choose one —\n• All creatures get -2/-0 until end of turn.\n• Tap target creature.\n• Prevent the next 1 damage that would be dealt to any target this turn.",
+        "modes": [
+            {
+                "id": "ivory-charm-mode-1",
+                "label": "All creatures get -2/-0 until end of turn",
+                "oracleText": "All creatures get -2/-0 until end of turn.",
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "pump",
+                                "target": {
+                                    "ref": "$each"
+                                },
+                                "power": -2,
+                                "toughness": 0,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "id": "ivory-charm-mode-2",
+                "label": "Tap target creature",
+                "oracleText": "Tap target creature.",
+                "effects": [
+                    {
+                        "op": "tapUntap",
+                        "action": "tap",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            },
+            {
+                "id": "ivory-charm-mode-3",
+                "label": "Prevent the next 1 damage that would be dealt to any target this turn",
+                "oracleText": "Prevent the next 1 damage that would be dealt to any target this turn.",
+                "effects": [
+                    {
+                        "op": "preventDamage",
+                        "mode": "next-n",
+                        "to": {
+                            "target": 0
+                        },
+                        "amount": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "0706acf6-587e-4f29-944a-fdf25aeacb6d",
+        "rarity": "common"
     },
     {
         "name": "Elite Arrester",
@@ -8357,6 +8490,58 @@
             "count": 1
         },
         "id": "0c1880d4-90c7-46a2-bbc9-d2b52971d11c",
+        "rarity": "common"
+    },
+    {
+        "name": "Caregiver",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Cleric"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{W}, Sacrifice a creature: Prevent the next 1 damage that would be dealt to any target this turn.",
+        "activatedAbilities": [
+            {
+                "id": "caregiver-ability",
+                "oracleText": "{W}, Sacrifice a creature: Prevent the next 1 damage that would be dealt to any target this turn.",
+                "cost": {
+                    "mana": {
+                        "W": 1
+                    },
+                    "sacrificeFilter": {
+                        "types": [
+                            "Creature"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "preventDamage",
+                        "mode": "next-n",
+                        "to": {
+                            "target": 0
+                        },
+                        "amount": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "0c33d3fe-cdd3-4829-8f10-6611f063983b",
         "rarity": "common"
     },
     {
@@ -26478,6 +26663,52 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Sanctum Custodian",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Cleric"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "{T}: Prevent the next 2 damage that would be dealt to any target this turn.",
+        "activatedAbilities": [
+            {
+                "id": "sanctum-custodian-ability",
+                "oracleText": "{T}: Prevent the next 2 damage that would be dealt to any target this turn.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "preventDamage",
+                        "mode": "next-n",
+                        "to": {
+                            "target": 0
+                        },
+                        "amount": 2,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "27a64b98-9002-48fe-a3e5-4449050c87e1",
+        "rarity": "common"
+    },
+    {
         "name": "Heart Sliver",
         "types": [
             "Creature"
@@ -34426,6 +34657,80 @@
         "rarity": "common"
     },
     {
+        "name": "Hypochondria",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "{W}, Discard a card: Prevent the next 3 damage that would be dealt to any target this turn.\n{W}, Sacrifice this enchantment: Prevent the next 3 damage that would be dealt to any target this turn.",
+        "activatedAbilities": [
+            {
+                "id": "hypochondria-ability",
+                "oracleText": "{W}, Discard a card: Prevent the next 3 damage that would be dealt to any target this turn.",
+                "cost": {
+                    "mana": {
+                        "W": 1
+                    },
+                    "discardFilter": {
+                        "filter": {},
+                        "count": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "preventDamage",
+                        "mode": "next-n",
+                        "to": {
+                            "target": 0
+                        },
+                        "amount": 3,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            },
+            {
+                "id": "hypochondria-ability-2",
+                "oracleText": "{W}, Sacrifice this enchantment: Prevent the next 3 damage that would be dealt to any target this turn.",
+                "cost": {
+                    "mana": {
+                        "W": 1
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "preventDamage",
+                        "mode": "next-n",
+                        "to": {
+                            "target": 0
+                        },
+                        "amount": 3,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "3467c940-dae4-4667-bec8-524dbce13283",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Soul Salvage",
         "types": [
             "Sorcery"
@@ -41764,6 +42069,81 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Raka Disciple",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Minotaur",
+            "Wizard"
+        ],
+        "manaCost": {
+            "R": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{W}, {T}: Prevent the next 1 damage that would be dealt to any target this turn.\n{U}, {T}: Target creature gains flying until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "raka-disciple-ability",
+                "oracleText": "{W}, {T}: Prevent the next 1 damage that would be dealt to any target this turn.",
+                "cost": {
+                    "mana": {
+                        "W": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "preventDamage",
+                        "mode": "next-n",
+                        "to": {
+                            "target": 0
+                        },
+                        "amount": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            },
+            {
+                "id": "raka-disciple-ability-2",
+                "oracleText": "{U}, {T}: Target creature gains flying until end of turn.",
+                "cost": {
+                    "mana": {
+                        "U": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "target": 0
+                        },
+                        "ability": "flying",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "41462d43-4f9f-46ba-b79d-434597e74b6b",
+        "rarity": "common"
+    },
+    {
         "name": "Birnin Zana Plaza",
         "types": [
             "Land"
@@ -43462,6 +43842,52 @@
             }
         ],
         "id": "4401911c-bfb0-4c94-9fc1-49198ccecc94",
+        "rarity": "common"
+    },
+    {
+        "name": "Kithkin Healer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Kithkin",
+            "Cleric"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{T}: Prevent the next 1 damage that would be dealt to any target this turn.",
+        "activatedAbilities": [
+            {
+                "id": "kithkin-healer-ability",
+                "oracleText": "{T}: Prevent the next 1 damage that would be dealt to any target this turn.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "preventDamage",
+                        "mode": "next-n",
+                        "to": {
+                            "target": 0
+                        },
+                        "amount": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "44032574-a5bc-4366-af65-9824fd4302a2",
         "rarity": "common"
     },
     {
@@ -52981,6 +53407,56 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Troubled Healer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Cleric"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "Sacrifice a land: Prevent the next 2 damage that would be dealt to any target this turn.",
+        "activatedAbilities": [
+            {
+                "id": "troubled-healer-ability",
+                "oracleText": "Sacrifice a land: Prevent the next 2 damage that would be dealt to any target this turn.",
+                "cost": {
+                    "sacrificeFilter": {
+                        "types": [
+                            "Land"
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "preventDamage",
+                        "mode": "next-n",
+                        "to": {
+                            "target": 0
+                        },
+                        "amount": 2,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "54407ba7-6671-42a9-acbe-8a1104c7166c",
+        "rarity": "common"
+    },
+    {
         "name": "Teferi's Protege",
         "types": [
             "Creature"
@@ -57350,6 +57826,35 @@
             }
         ],
         "id": "5b5fa4bb-e061-456f-808e-8d98b2c8abf5",
+        "rarity": "common"
+    },
+    {
+        "name": "Mending Hands",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "oracleText": "Prevent the next 4 damage that would be dealt to any target this turn.",
+        "effects": [
+            {
+                "op": "preventDamage",
+                "mode": "next-n",
+                "to": {
+                    "target": 0
+                },
+                "amount": 4,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "any",
+            "count": 1
+        },
+        "id": "5b6ba253-fb50-4240-8129-6b86895d1ff9",
         "rarity": "common"
     },
     {
@@ -70352,6 +70857,55 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Orim, Samite Healer",
+        "types": [
+            "Creature"
+        ],
+        "supertypes": [
+            "Legendary"
+        ],
+        "subtypes": [
+            "Human",
+            "Cleric"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 2
+        },
+        "power": 1,
+        "toughness": 3,
+        "oracleText": "{T}: Prevent the next 3 damage that would be dealt to any target this turn.",
+        "activatedAbilities": [
+            {
+                "id": "orim-samite-healer-ability",
+                "oracleText": "{T}: Prevent the next 3 damage that would be dealt to any target this turn.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "preventDamage",
+                        "mode": "next-n",
+                        "to": {
+                            "target": 0
+                        },
+                        "amount": 3,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "7086d077-f083-4870-8b0b-2d34aca49df1",
+        "rarity": "rare"
+    },
+    {
         "name": "Hardened-Scale Armor",
         "types": [
             "Enchantment"
@@ -76634,6 +77188,40 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Bandage",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "oracleText": "Prevent the next 1 damage that would be dealt to any target this turn.\nDraw a card.",
+        "effects": [
+            {
+                "op": "preventDamage",
+                "mode": "next-n",
+                "to": {
+                    "target": 0
+                },
+                "amount": 1,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "any",
+            "count": 1
+        },
+        "id": "79ed559a-9a88-43d2-85d1-4bbec038f71e",
+        "rarity": "common"
+    },
+    {
         "name": "Prophetic Bolt",
         "types": [
             "Instant"
@@ -77748,6 +78336,80 @@
         "power": 3,
         "toughness": 6,
         "id": "7bcae97d-468a-4e16-bfed-d2946f64784c",
+        "rarity": "common"
+    },
+    {
+        "name": "Serra Paladin",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Knight"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 2
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{T}: Prevent the next 1 damage that would be dealt to any target this turn.\n{1}{W}{W}, {T}: Target creature gains vigilance until end of turn.",
+        "activatedAbilities": [
+            {
+                "id": "serra-paladin-ability",
+                "oracleText": "{T}: Prevent the next 1 damage that would be dealt to any target this turn.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "preventDamage",
+                        "mode": "next-n",
+                        "to": {
+                            "target": 0
+                        },
+                        "amount": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            },
+            {
+                "id": "serra-paladin-ability-2",
+                "oracleText": "{1}{W}{W}, {T}: Target creature gains vigilance until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "W": 2
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "target": 0
+                        },
+                        "ability": "vigilance",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "7bd25adf-4d97-4229-abdb-1c060036cfbd",
         "rarity": "common"
     },
     {
@@ -86110,6 +86772,56 @@
         "rarity": "common"
     },
     {
+        "name": "Militant Monk",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Monk",
+            "Cleric"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 2
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "Vigilance\n{T}: Prevent the next 1 damage that would be dealt to any target this turn.",
+        "staticAbilities": [
+            "vigilance"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "militant-monk-ability",
+                "oracleText": "{T}: Prevent the next 1 damage that would be dealt to any target this turn.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "preventDamage",
+                        "mode": "next-n",
+                        "to": {
+                            "target": 0
+                        },
+                        "amount": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "886a3cfd-7f83-480a-bb22-eec67ad35e4f",
+        "rarity": "common"
+    },
+    {
         "name": "Befuddle",
         "types": [
             "Instant"
@@ -87440,6 +88152,55 @@
         "power": 6,
         "toughness": 6,
         "id": "8a1b25f4-f50c-4210-a03f-080a5e4e5708",
+        "rarity": "common"
+    },
+    {
+        "name": "Aven Redeemer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Bird",
+            "Cleric"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Flying\n{T}: Prevent the next 2 damage that would be dealt to any target this turn.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "aven-redeemer-ability",
+                "oracleText": "{T}: Prevent the next 2 damage that would be dealt to any target this turn.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "preventDamage",
+                        "mode": "next-n",
+                        "to": {
+                            "target": 0
+                        },
+                        "amount": 2,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "8a2fa0a3-e40f-49e4-a4fd-427e7e808afd",
         "rarity": "common"
     },
     {
@@ -91940,6 +92701,52 @@
             }
         ],
         "id": "90d0d7fd-a580-41af-8e9d-fee74094ec47",
+        "rarity": "common"
+    },
+    {
+        "name": "Femeref Healer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Cleric"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{T}: Prevent the next 1 damage that would be dealt to any target this turn.",
+        "activatedAbilities": [
+            {
+                "id": "femeref-healer-ability",
+                "oracleText": "{T}: Prevent the next 1 damage that would be dealt to any target this turn.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "preventDamage",
+                        "mode": "next-n",
+                        "to": {
+                            "target": 0
+                        },
+                        "amount": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "90dedd5e-e2ee-46ec-8541-27f1548b2a2a",
         "rarity": "common"
     },
     {
@@ -99399,6 +100206,54 @@
         "rarity": "common"
     },
     {
+        "name": "Alabaster Wall",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Wall"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "power": 0,
+        "toughness": 4,
+        "oracleText": "Defender (This creature can't attack.)\n{T}: Prevent the next 1 damage that would be dealt to any target this turn.",
+        "staticAbilities": [
+            "defender"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "alabaster-wall-ability",
+                "oracleText": "{T}: Prevent the next 1 damage that would be dealt to any target this turn.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "preventDamage",
+                        "mode": "next-n",
+                        "to": {
+                            "target": 0
+                        },
+                        "amount": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "9cf393a3-831e-4d3a-8404-ee83f60970aa",
+        "rarity": "common"
+    },
+    {
         "name": "Herd Gnarr",
         "types": [
             "Creature"
@@ -104854,6 +105709,52 @@
         ],
         "id": "a559f77f-1f10-475b-9361-7f297d50f254",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Loxodon Anchorite",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elephant",
+            "Cleric"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 2
+        },
+        "power": 2,
+        "toughness": 3,
+        "oracleText": "{T}: Prevent the next 2 damage that would be dealt to any target this turn.",
+        "activatedAbilities": [
+            {
+                "id": "loxodon-anchorite-ability",
+                "oracleText": "{T}: Prevent the next 2 damage that would be dealt to any target this turn.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "preventDamage",
+                        "mode": "next-n",
+                        "to": {
+                            "target": 0
+                        },
+                        "amount": 2,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "a55f0113-3ced-49c7-9fa8-f1cc873bdc4c",
+        "rarity": "common"
     },
     {
         "name": "Precision Bolt",
@@ -111205,6 +112106,82 @@
         ],
         "id": "ae4cbb33-4947-49f0-b612-a92141fbfaa6",
         "rarity": "rare"
+    },
+    {
+        "name": "Necra Disciple",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Wizard"
+        ],
+        "manaCost": {
+            "B": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{G}, {T}: Add one mana of any color.\n{W}, {T}: Prevent the next 1 damage that would be dealt to any target this turn.",
+        "activatedAbilities": [
+            {
+                "id": "necra-disciple-mana",
+                "oracleText": "{G}, {T}: Add one mana of any color.",
+                "cost": {
+                    "mana": {
+                        "G": 1
+                    },
+                    "tap": true
+                },
+                "useStack": false,
+                "manaChoices": [
+                    {
+                        "W": 1
+                    },
+                    {
+                        "U": 1
+                    },
+                    {
+                        "B": 1
+                    },
+                    {
+                        "R": 1
+                    },
+                    {
+                        "G": 1
+                    }
+                ]
+            },
+            {
+                "id": "necra-disciple-ability-2",
+                "oracleText": "{W}, {T}: Prevent the next 1 damage that would be dealt to any target this turn.",
+                "cost": {
+                    "mana": {
+                        "W": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "preventDamage",
+                        "mode": "next-n",
+                        "to": {
+                            "target": 0
+                        },
+                        "amount": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "ae7a771f-bd21-4388-857f-08160b24e26e",
+        "rarity": "common"
     },
     {
         "name": "Elvish Scrapper",
@@ -119231,6 +120208,41 @@
         "rarity": "uncommon"
     },
     {
+        "name": "Withstand",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "Prevent the next 3 damage that would be dealt to any target this turn.\nDraw a card.",
+        "effects": [
+            {
+                "op": "preventDamage",
+                "mode": "next-n",
+                "to": {
+                    "target": 0
+                },
+                "amount": 3,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "any",
+            "count": 1
+        },
+        "id": "bb458f79-13dd-4446-be75-463f19548867",
+        "rarity": "common"
+    },
+    {
         "name": "Golgari Guildmage",
         "types": [
             "Creature"
@@ -123703,6 +124715,60 @@
         "rarity": "common"
     },
     {
+        "name": "Flowering Field",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "Enchant land\nEnchanted land has \"{T}: Prevent the next 1 damage that would be dealt to any target this turn.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "flowering-field-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "flowering-field-granted",
+                "oracleText": "{T}: Prevent the next 1 damage that would be dealt to any target this turn.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "preventDamage",
+                        "mode": "next-n",
+                        "to": {
+                            "target": 0
+                        },
+                        "amount": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Land",
+            "count": 1
+        },
+        "id": "c241fd76-f52d-48fc-864c-57caffa700f6",
+        "rarity": "uncommon"
+    },
+    {
         "name": "Giant Scorpion",
         "types": [
             "Creature"
@@ -126028,6 +127094,79 @@
         "toughness": 8,
         "id": "c6712dbd-ee54-4fb7-93ab-64f8f07350f1",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Goblin Legionnaire",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Goblin",
+            "Soldier"
+        ],
+        "manaCost": {
+            "W": 1,
+            "R": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{R}, Sacrifice this creature: It deals 2 damage to any target.\n{W}, Sacrifice this creature: Prevent the next 2 damage that would be dealt to any target this turn.",
+        "activatedAbilities": [
+            {
+                "id": "goblin-legionnaire-ability",
+                "oracleText": "{R}, Sacrifice this creature: It deals 2 damage to any target.",
+                "cost": {
+                    "mana": {
+                        "R": 1
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 2,
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            },
+            {
+                "id": "goblin-legionnaire-ability-2",
+                "oracleText": "{W}, Sacrifice this creature: Prevent the next 2 damage that would be dealt to any target this turn.",
+                "cost": {
+                    "mana": {
+                        "W": 1
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "preventDamage",
+                        "mode": "next-n",
+                        "to": {
+                            "target": 0
+                        },
+                        "amount": 2,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "c684407e-277a-4e32-a978-cdac9548acce",
+        "rarity": "common"
     },
     {
         "name": "Cathartic Reunion",
@@ -135324,6 +136463,60 @@
         "rarity": "common"
     },
     {
+        "name": "Healing Leaves",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "oracleText": "Choose one —\n• Target player gains 3 life.\n• Prevent the next 3 damage that would be dealt to any target this turn.",
+        "modes": [
+            {
+                "id": "healing-leaves-mode-1",
+                "label": "Target player gains 3 life",
+                "oracleText": "Target player gains 3 life.",
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": {
+                            "target": 0
+                        },
+                        "amount": 3
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "player",
+                    "count": 1
+                }
+            },
+            {
+                "id": "healing-leaves-mode-2",
+                "label": "Prevent the next 3 damage that would be dealt to any target this turn",
+                "oracleText": "Prevent the next 3 damage that would be dealt to any target this turn.",
+                "effects": [
+                    {
+                        "op": "preventDamage",
+                        "mode": "next-n",
+                        "to": {
+                            "target": 0
+                        },
+                        "amount": 3,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "d6f58258-a1bd-4364-954e-c39938f7dab2",
+        "rarity": "common"
+    },
+    {
         "name": "Unmake the Graves",
         "types": [
             "Instant"
@@ -141603,6 +142796,52 @@
         ],
         "id": "e216a539-152b-4a83-98ef-1996182a5714",
         "rarity": "common"
+    },
+    {
+        "name": "Master Healer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Cleric"
+        ],
+        "manaCost": {
+            "X": 4,
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 4,
+        "oracleText": "{T}: Prevent the next 4 damage that would be dealt to any target this turn.",
+        "activatedAbilities": [
+            {
+                "id": "master-healer-ability",
+                "oracleText": "{T}: Prevent the next 4 damage that would be dealt to any target this turn.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "preventDamage",
+                        "mode": "next-n",
+                        "to": {
+                            "target": 0
+                        },
+                        "amount": 4,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "e21a342c-ad80-43e4-8b2d-1c48241c52b1",
+        "rarity": "rare"
     },
     {
         "name": "Minotaur Aggressor",
@@ -151002,6 +152241,54 @@
         "rarity": "common"
     },
     {
+        "name": "Benevolent Ancestor",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Spirit"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "power": 0,
+        "toughness": 4,
+        "oracleText": "Defender (This creature can't attack.)\n{T}: Prevent the next 1 damage that would be dealt to any target this turn.",
+        "staticAbilities": [
+            "defender"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "benevolent-ancestor-ability",
+                "oracleText": "{T}: Prevent the next 1 damage that would be dealt to any target this turn.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "preventDamage",
+                        "mode": "next-n",
+                        "to": {
+                            "target": 0
+                        },
+                        "amount": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "f23110b5-0dd4-49a2-8991-bc673aed53c9",
+        "rarity": "common"
+    },
+    {
         "name": "Warded Battlements",
         "types": [
             "Creature"
@@ -152629,6 +153916,35 @@
         ],
         "id": "f55d43d4-5f63-45c3-b8f8-0aebd23750a5",
         "rarity": "uncommon"
+    },
+    {
+        "name": "Shieldmate's Blessing",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "oracleText": "Prevent the next 3 damage that would be dealt to any target this turn.",
+        "effects": [
+            {
+                "op": "preventDamage",
+                "mode": "next-n",
+                "to": {
+                    "target": 0
+                },
+                "amount": 3,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "any",
+            "count": 1
+        },
+        "id": "f58a26f8-a2c9-48e5-8662-7cbd43c00411",
+        "rarity": "common"
     },
     {
         "name": "Civic Gardener",
@@ -157565,6 +158881,52 @@
         "rarity": "common"
     },
     {
+        "name": "Clergy en-Vec",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Cleric"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{T}: Prevent the next 1 damage that would be dealt to any target this turn.",
+        "activatedAbilities": [
+            {
+                "id": "clergy-en-vec-ability",
+                "oracleText": "{T}: Prevent the next 1 damage that would be dealt to any target this turn.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "preventDamage",
+                        "mode": "next-n",
+                        "to": {
+                            "target": 0
+                        },
+                        "amount": 1,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "any",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "fcb0e068-16d0-4e1c-acad-0a6d34148c5a",
+        "rarity": "common"
+    },
+    {
         "name": "Faerie Invaders",
         "types": [
             "Creature"
@@ -159618,6 +160980,36 @@
             }
         ],
         "id": "ffe1a49a-5c1c-4274-a2ed-9a8a44abfaa6",
+        "rarity": "common"
+    },
+    {
+        "name": "Hold at Bay",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "Prevent the next 7 damage that would be dealt to any target this turn.",
+        "effects": [
+            {
+                "op": "preventDamage",
+                "mode": "next-n",
+                "to": {
+                    "target": 0
+                },
+                "amount": 7,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "any",
+            "count": 1
+        },
+        "id": "ffeb407d-6a42-488a-9869-83da3047e45d",
         "rarity": "common"
     },
     {

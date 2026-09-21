@@ -131,7 +131,14 @@ describe("gold round-trip — precision", () => {
         // closure — the same move Multani's Harmony made one line above, out
         // of "the compiler refuses it" and into this bucket rather than into
         // `equal`.
-        expect(REPORT.incomparable.length).toBeLessThan(17);
+        //
+        // 17 -> 18 by issue #4300 (prevention shield): Hot Springs grants a
+        // quoted activated ability ('Enchanted land has "{T}: Prevent the next
+        // 1 damage that would be dealt to any target this turn."') which the
+        // compiler now reads whole while the hand-written side's body is a
+        // closure — the same move Multani's Harmony and Sisay's Ingenuity made
+        // above, out of "the compiler refuses it" and into this bucket.
+        expect(REPORT.incomparable.length).toBeLessThan(18);
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");
