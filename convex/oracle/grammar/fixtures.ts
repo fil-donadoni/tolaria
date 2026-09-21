@@ -2454,4 +2454,37 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             },
         },
     },
+    // CR 601.2d / 120.4 — "deals N damage divided as you choose among <count
+    // phrase> <targets>": the split is chosen at ANNOUNCEMENT and snapshotted
+    // onto the stack item's `targetAmounts`, which the canned smoke scenario
+    // cannot populate. Exhibits the "announced multi-target division" form, so
+    // this fixture is the evidence that the group + Op the grammar emits are
+    // the ones the hand-written catalogue writes (Arc Lightning also
+    // round-trips, Guard C; its resolution has its own test in
+    // `__tests__/dividedDamage.test.ts`).
+    {
+        rule: "divided damage",
+        card: {
+            oracleId: "0c81ade7-0074-4447-ba2c-b16fa0f09ccb",
+            name: "Arc Lightning",
+            manaCost: "{2}{R}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Arc Lightning deals 3 damage divided as you choose among one, two, or three targets.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Arc Lightning",
+            types: ["Sorcery"],
+            manaCost: { X: 2, R: 1 },
+            oracleText:
+                "Arc Lightning deals 3 damage divided as you choose among one, two, or three targets.",
+            effects: [{ op: "dealDamageDividedAsChosen", total: 3 }],
+            targetRequirement: {
+                type: "any",
+                count: { min: 1 },
+                divideAsChosen: { total: 3 },
+            },
+        },
+    },
 ]);

@@ -808,7 +808,15 @@ export function targetRequirementFromDescriptor(
     // the reading is wrong, and a wrong count is a spell that announces the
     // wrong number of targets — never a narrower one.
     const slots = announcedSlots(count);
-    if (slots === null || (descriptor.plural === true) !== slots > 1)
+    // An open-ended range ("any number of", `{ min }` with no `max`) is the
+    // one variable count whose noun is still decidable: it can name more than
+    // one object, so the noun must be plural. `"X"` and `max: "X"` stay
+    // refused — those widths are facts about the cast.
+    const openEnded = typeof count === "object" && count.max === undefined;
+    if (
+        (slots === null && !openEnded) ||
+        (descriptor.plural === true) !== (openEnded || slots! > 1)
+    )
         return fail(
             "a target descriptor's number must match its count",
             "plural"
@@ -1093,6 +1101,56 @@ export const targetFilterRule: Rule<TargetRequirement> = subGrammar(
         );
         if (!descriptor.ok) return descriptor;
         return targetRequirementFromDescriptor(descriptor.value);
+    })
+);
+
+/**
+ * CR 601.2d / 120.4 — the count phrase of a "divided as you choose among …"
+ * group, phrase → announced count.
+ *
+ * Every phrase opens at ONE target: CR 601.2d gives each chosen target at
+ * least 1 of what is divided, so a division among zero targets has nothing to
+ * divide, and the engine's own announcement (`announcedTargetCount`) drives a
+ * divide group from `min: 1`. "Any number of" is therefore `{ min: 1 }` with
+ * no `max` — the divide budget caps it — where CR 601.2c alone would allow
+ * zero (the nine shipped divide cards all print `{ min: 1 }` for the same
+ * reason). "X target …" is not read: its width is a fact about the cast.
+ */
+const DIVIDED_COUNT_PHRASES: ReadonlyMap<string, TargetRequirement["count"]> =
+    new Map<string, TargetRequirement["count"]>([
+        ["one or two", { min: 1, max: 2 }],
+        ["one, two, or three", { min: 1, max: 3 }],
+        ["any number of", { min: 1 }],
+    ]);
+
+/**
+ * `"one or two targets"`, `"any number of target creatures"`, `"one, two, or
+ * three target creatures with flying"` — the recipient group of a divided
+ * effect (CR 601.2d), read as ONE `TargetRequirement` carrying the count
+ * range. The divide budget (`divideAsChosen`) is the LOWERING's to add: it is
+ * the effect's magnitude, which this phrase does not print.
+ *
+ * The count phrase is matched as a whole and the rest is the ordinary plural
+ * target descriptor, so an adjective or subtype the descriptor cannot read
+ * ("attacking or blocking", "and/or") refuses the group under the
+ * descriptor's own reason rather than being skipped.
+ */
+export const dividedTargetsRule: Rule<TargetRequirement> = subGrammar(
+    TARGET_FILTER,
+    rule(TARGET_FILTER, (span, ctx) => {
+        for (const [phrase, count] of DIVIDED_COUNT_PHRASES) {
+            if (span === `${phrase} targets`)
+                return ok({ type: "any", count } as TargetRequirement);
+            const head = `${phrase} target `;
+            if (!span.startsWith(head)) continue;
+            const descriptor = descriptorRule.run(span.slice(head.length), ctx);
+            if (!descriptor.ok) return descriptor;
+            return targetRequirementFromDescriptor(descriptor.value, count);
+        }
+        return fail(
+            'a divided group opens with "one or two", "one, two, or three" or "any number of"',
+            span
+        );
     })
 );
 
