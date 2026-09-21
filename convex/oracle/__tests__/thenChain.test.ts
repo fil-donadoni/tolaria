@@ -239,69 +239,73 @@ describe("then-chain — refusals (fail-closed)", () => {
         expect(comma.attribution?.span).toBe(stop.attribution?.span);
     });
 
-    it("a tail that names the token is refused at parse: a pronoun's referent is the site's object, not the token", () => {
-        for (const tail of [
-            "put a +1/+1 counter on it",
-            "put a +1/+1 counter on that token",
-            "attach this Equipment to it",
-        ]) {
-            const result = sentenceRule.run(
-                `Create a 2/2 green Wolf creature token, then ${tail}`,
-                parseContext()
-            );
+    /** The sentence grammar's own answer for `head, then <tail>`. */
+    const readChain = (head: string, tail: string) =>
+        sentenceRule.run(`${head}, then ${tail}`, parseContext());
+    const WOLF = "Create a 2/2 green Wolf creature token";
+
+    // One tail per alternative of the pronoun guard, so deleting any single
+    // word from it reds exactly that row. The reason is the guard's own: a
+    // tail the clause grammar reads or refuses for another reason would pass
+    // an `ok === false` check with the guard gone.
+    it.each([
+        ["it", "put a +1/+1 counter on it"],
+        ["its", "you gain life equal to its power"],
+        ["them", "put a +1/+1 counter on them"],
+        ["they", "they gain haste until end of turn"],
+        ["their", "their controller draws a card"],
+        ["that token", "put a +1/+1 counter on that token"],
+        ["those tokens", "tap those tokens"],
+        ["that creature", "tap that creature"],
+        ["those creatures", "tap those creatures"],
+    ])(
+        "a tail naming the token ('%s') is refused: its referent is the site's object, not the token",
+        (_word, tail) => {
+            const result = readChain(WOLF, tail);
             expect(result.ok).toBe(false);
             if (!result.ok)
                 expect(result.reason).toMatch(/points back at the token/);
         }
-    });
+    );
 
-    it("the same tails are refused end to end", () => {
-        for (const tail of [
-            "put a +1/+1 counter on it",
-            "put a +1/+1 counter on that token",
-            "attach this Equipment to it",
-        ])
-            expect(
-                compileCard(
-                    sorcery(
-                        "Then Probe",
-                        "{2}{W}",
-                        `Create a 2/2 green Wolf creature token, then ${tail}.`
-                    )
-                ).state
-            ).toBe("unparsed");
-    });
-
-    it("a second connector is refused: the corpus prints no chain of three", () => {
-        expect(
-            compileCard(
-                sorcery(
-                    "Then Probe",
-                    "{2}{W}",
-                    "Create a 1/1 white Soldier creature token, then create a 1/1 white Soldier creature token, then draw a card."
-                )
-            ).state
-        ).toBe("unparsed");
-    });
-
-    it("an unreadable head is refused under the token rule's own reason", () => {
-        const result = sentenceRule.run(
-            "Create a Food token, then draw a card",
-            parseContext()
+    it("a second connector is refused as a tail that is not one effect: the corpus prints no chain of three", () => {
+        const result = readChain(
+            "Create a 1/1 white Soldier creature token",
+            "create a 1/1 white Soldier creature token, then draw a card"
         );
         expect(result.ok).toBe(false);
-        if (!result.ok) expect(result.reason).toMatch(/token creation/);
+        if (!result.ok)
+            expect(result.reason).toMatch(
+                /continues with an effect, not a then-chain/
+            );
+    });
+
+    it("an unreadable head is refused on the HEAD span, under the token rule's own reason", () => {
+        const result = readChain("Create a Food token", "draw a card");
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+            expect(result.reason).toMatch(/token creation/);
+            expect(result.fragment).toBe("Create a Food token");
+        }
     });
 
     it("a tail that is not an effect is refused: an activation restriction", () => {
-        const result = sentenceRule.run(
-            "Create a 1/1 white Soldier creature token, then activate only as a sorcery",
-            parseContext()
+        const result = readChain(
+            "Create a 1/1 white Soldier creature token",
+            "activate only as a sorcery"
         );
         expect(result.ok).toBe(false);
+        if (!result.ok)
+            expect(result.reason).toMatch(
+                /continues with an effect, not a restriction/
+            );
     });
 
-    it("only a token-creation head opens the connector: a bare pair is not read", () => {
+    it("only a token-creation head opens the connector: the loot pattern is still read by its own rule", () => {
+        const loot = compiled(
+            sorcery("Then Probe", "{1}{U}", "Draw a card, then discard a card.")
+        ).effects as { op: string }[];
+        expect(loot.map((e) => e.op)).toEqual(["draw", "choice", "discard"]);
         expect(
             compileCard(
                 sorcery("Then Probe", "{2}{W}", "Scry 1, then draw a card.")
