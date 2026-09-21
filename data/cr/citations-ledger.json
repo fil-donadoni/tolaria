@@ -26846,7 +26846,6 @@
         {"id":"608.2h","line":"// per-iteration snapshot — LKI (CR 608.2h), so it still resolves after the","sites":1,"status":"baseline"},
         {"id":"608.2h","line":"// permanent (CR 601.2f / 608.2h). The READ itself is a dynamic","sites":1,"status":"baseline"},
         {"id":"608.2h","line":"// persists after the move, so the item keeps CR 608.2h last-known","sites":1,"status":"baseline"},
-        {"id":"608.2h","line":"// picks (CR 608.2h, issue #3807): a count narrowed to the cards a","sites":1,"status":"confirmed","ruleHash":"4020079ffa4c17c4"},
         {"id":"608.2h","line":"// power (CR 601.2f / 608.2h). No such permanent exists at a pre-cast","sites":1,"status":"baseline"},
         {"id":"608.2h","line":"// power/controller BEFORE it leaves the battlefield (CR 608.2h last-known","sites":1,"status":"baseline"},
         {"id":"608.2h","line":"// power/toughness/controller as last-known information (CR 608.2h)","sites":1,"status":"baseline"},
