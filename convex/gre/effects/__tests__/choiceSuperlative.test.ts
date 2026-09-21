@@ -410,6 +410,8 @@ describe("choice.superlative — validation (fail-closed)", () => {
 });
 
 describe("choice.superlative — defence in depth (a script that skipped the validator)", () => {
+    // Each case is built so the restriction-free reading WOULD raise a pick:
+    // p2 has a creature in hand, on the battlefield and as an announced target.
     it.each([
         ["a non-battlefield zone", { zone: "hand" }],
         ["`candidates`", { candidates: [{ target: 0 }] }],
@@ -425,11 +427,18 @@ describe("choice.superlative — defence in depth (a script that skipped the val
             },
         ] as unknown as readonly EffectOp[];
         withScript(script, (id) => {
-            const { head } = raise(id, [
-                held("p2", BEAR, "bear"),
-                held("p2", OGRE, "ogre"),
-            ]);
-            expect(head).toBeUndefined();
+            const state = makeState({
+                players: [
+                    makePlayer("p1"),
+                    makePlayer("p2", {
+                        battlefield: [held("p2", BEAR, "bear")],
+                        hand: [held("p2", OGRE, "in-hand")],
+                    }),
+                ],
+            });
+            pushSpell(state, id, "p1", [{ type: "permanent", id: "bear" }]);
+            resolveTopOfStack(state);
+            expect(state.pendingChoices).toBeUndefined();
         });
     });
 });
