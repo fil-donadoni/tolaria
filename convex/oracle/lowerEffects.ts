@@ -2170,15 +2170,20 @@ function lowerMoveZone(
     // controller the engine gives a reanimated card coincide. Any other source
     // (a graveyard that is not yours, a library, a hand, exile) names a
     // different owner/controller question this rule does not answer. Exactly
-    // ONE target: N cards returned by one instruction enter together,
-    // which a sequence of single `moveZone` Ops does not say, and no corpus
-    // card prints it.
+    // ONE target: N cards returned by one instruction enter together, which a
+    // sequence of single `moveZone` Ops does not say, and no corpus card prints
+    // it. ONE permanent type: a list in `requirement.type` is an OR to the
+    // engine ("artifact creature card" would admit any artifact card or any
+    // creature card), and a non-permanent type ("card", instant, sorcery) names
+    // an object that cannot enter the battlefield.
     const reanimated =
         zone.zone === "battlefield" &&
         subject.kind === "target" &&
         subject.requirement.zone === "graveyard" &&
         subject.requirement.controller === "you" &&
-        subject.requirement.count === 1;
+        subject.requirement.count === 1 &&
+        typeof subject.requirement.type === "string" &&
+        ACTED_ON_PERMANENT_TYPES.has(subject.requirement.type);
     const each = (
         to: "hand" | "graveyard" | "exile" | "battlefield"
     ): Lowered<EffectOp[]> =>

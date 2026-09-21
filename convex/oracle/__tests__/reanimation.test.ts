@@ -190,22 +190,20 @@ describe("reanimation — goldens (CR 400.7, CR 110.2a)", () => {
 });
 
 describe("reanimation — refusals (fail-closed neighbours)", () => {
-    const REFUSED: [string, string][] = [
+    const BATTLEFIELD_REFUSAL =
+        '"battlefield" is not a zone destination in grammar v0';
+
+    // Each of these reaches `lowerMoveZone` and is refused THERE, by one guard
+    // of the `reanimated` predicate — the reason is asserted, not just the state,
+    // so a refusal that passes for an unrelated reason cannot pass here.
+    const REFUSED_BY_PREDICATE: [string, string][] = [
         [
             "a graveyard that is not yours",
             "Return target creature card from a graveyard to the battlefield.",
         ],
         [
-            "a graveyard that is an opponent's",
-            "Return target creature card from an opponent's graveyard to the battlefield.",
-        ],
-        [
             "more than one target (the cards would enter together)",
             "Return up to two target creature cards from your graveyard to the battlefield.",
-        ],
-        [
-            "a source that is not a graveyard",
-            "Return target creature card from your hand to the battlefield.",
         ],
         [
             "a battlefield permanent you control (no zone change to name)",
@@ -216,13 +214,48 @@ describe("reanimation — refusals (fail-closed neighbours)", () => {
             "Return target permanent to the battlefield.",
         ],
         [
+            "a compound type noun (a type LIST is an OR to the engine)",
+            "Return target artifact creature card from your graveyard to the battlefield.",
+        ],
+        [
+            "any card (a card that cannot enter the battlefield)",
+            "Return target card from your graveyard to the battlefield.",
+        ],
+        [
+            "an instant card (cannot enter the battlefield)",
+            "Return target instant card from your graveyard to the battlefield.",
+        ],
+    ];
+
+    for (const [label, line] of REFUSED_BY_PREDICATE)
+        it(`refuses ${label}`, () => {
+            const outcome = compileCard(sorcery(line));
+            expect(outcome.state).toBe("unparsed");
+            if (outcome.state !== "unparsed") return;
+            expect(outcome.gaps.map((gap) => gap.reason)).toContain(
+                BATTLEFIELD_REFUSAL
+            );
+        });
+
+    // These never reach the lowering: the parse refuses them earlier, so they
+    // pin only that no slot reads the neighbour, not the predicate.
+    const REFUSED_BY_PARSE: [string, string][] = [
+        [
+            "an opponent's graveyard",
+            "Return target creature card from an opponent's graveyard to the battlefield.",
+        ],
+        [
+            "a source that is not a graveyard",
+            "Return target creature card from your hand to the battlefield.",
+        ],
+        [
             "a destination modifier the Op cannot carry",
             "Return target creature card from your graveyard to the battlefield tapped.",
         ],
     ];
 
-    for (const [label, line] of REFUSED)
-        it(`refuses ${label}`, () => {
+    for (const [label, line] of REFUSED_BY_PARSE)
+        it(`no slot reads ${label}`, () => {
             expect(compileCard(sorcery(line)).state).toBe("unparsed");
         });
 });
