@@ -73,6 +73,7 @@ interface Accumulator {
     compiledTriggeredAbilities: CompiledTriggeredAbility[];
     compiledStaticEffects: CompiledStaticEffect[];
     entersTapped: boolean;
+    drawStepReplacement: boolean;
     entersWithCounters: {
         type: string;
         count: number | "kicker" | { additionalCostPaid: string };
@@ -429,6 +430,8 @@ function lowerLine(
                     acc.plannedMechanics.push(granted.ability);
             acc.ungrantableKeywords.push(...(out.ungrantableKeywords ?? []));
             if (out.entersTapped === true) acc.entersTapped = true;
+            if (out.drawStepReplacement === true)
+                acc.drawStepReplacement = true;
             if (out.entersWithCounters !== undefined)
                 acc.entersWithCounters.push(out.entersWithCounters);
             if (out.kickerCounters !== undefined) {
@@ -588,6 +591,7 @@ export function lowerCard(
         compiledTriggeredAbilities: [],
         compiledStaticEffects: [],
         entersTapped: false,
+        drawStepReplacement: false,
         entersWithCounters: [],
         kickerRiders: [],
         plannedMechanics: [],
@@ -684,6 +688,9 @@ export function lowerCard(
     // CR 614.1c / 122.1 — entry riders, applied AS the permanent enters. Never
     // a continuous effect and never a trigger (issue #1693).
     if (acc.entersTapped) definition.entersTapped = true;
+    // CR 614.10 — "Skip your draw step" is a replacement effect the phase code
+    // reads off the definition, never a trigger and never a continuous effect.
+    if (acc.drawStepReplacement) definition.drawStepReplacement = true;
     // CR 702.33d — `count: "kicker"` reads how many times the spell was
     // kicked. "If this creature was kicked, it enters with N counters" means
     // 0 or N, which that tally gives only for a lone, single kicker: a second

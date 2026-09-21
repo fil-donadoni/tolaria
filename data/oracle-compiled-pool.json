@@ -88292,6 +88292,38 @@
         "setCode": "emn"
     },
     {
+        "name": "Yawgmoth's Bargain",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 4,
+            "B": 2
+        },
+        "oracleText": "Skip your draw step.\nPay 1 life: Draw a card.",
+        "activatedAbilities": [
+            {
+                "id": "yawgmoth-s-bargain-ability",
+                "oracleText": "Pay 1 life: Draw a card.",
+                "cost": {
+                    "life": 1
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "drawStepReplacement": true,
+        "id": "86901bf2-7722-43f8-b879-7a30630371fa",
+        "rarity": "rare",
+        "setCode": "uds"
+    },
+    {
         "name": "Dimir Guildmage",
         "types": [
             "Creature"
@@ -110211,6 +110243,49 @@
         "id": "a6d22f24-f752-4bc8-ba97-061b2c060ec8",
         "rarity": "common",
         "setCode": "mh2"
+    },
+    {
+        "name": "Symbiotic Deployment",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "oracleText": "Skip your draw step.\n{1}, Tap two untapped creatures you control: Draw a card.",
+        "activatedAbilities": [
+            {
+                "id": "symbiotic-deployment-ability",
+                "oracleText": "{1}, Tap two untapped creatures you control: Draw a card.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "tapOtherFilter": {
+                        "filter": {
+                            "types": [
+                                "Creature"
+                            ],
+                            "controllerRelation": "you"
+                        },
+                        "count": 2
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    }
+                ]
+            }
+        ],
+        "drawStepReplacement": true,
+        "id": "a6e2b7e9-d52b-478e-b118-e890a81fd471",
+        "rarity": "rare",
+        "setCode": "apc"
     },
     {
         "name": "Survey the Wreckage",

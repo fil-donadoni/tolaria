@@ -19478,8 +19478,12 @@ export interface CardDefinition {
      *  same card collide as expected. */
     castUniqueByName?: boolean;
     /** When true, the normal draw at draw step is suppressed if the controller
-     *  controls this permanent. A phaseTrigger at DRAW handles the choice
-     *  (skip or draw). Used by Island Sanctuary. */
+     *  controls this permanent. Two uses: a card whose own phaseTrigger at DRAW
+     *  handles the choice (skip or draw — Island Sanctuary, Fasting), and an
+     *  unconditional "Skip your draw step" with no trigger (Necropotence,
+     *  Solitary Confinement, and the compiled form of that sentence). Only the
+     *  draw is suppressed; the DRAW step still runs and its beginning-of-step
+     *  triggers still fire. */
     drawStepReplacement?: boolean;
     /** Continuous "plays with hand revealed" static (CR 702-adjacent — Zur's
      *  Weirding, Enduring Renewal; issue #735). While ANY permanent with this

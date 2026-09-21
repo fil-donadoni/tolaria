@@ -2,7 +2,7 @@
  * Lowering: static-clause IR → the `CardDefinition` fields a continuous static
  * ability lives in (CR 113.3d, ADR 0045 / ADR 0105).
  *
- * There are three destinations, and which one a clause takes is a statement
+ * There are four destinations, and which one a clause takes is a statement
  * about the ENGINE, not about the sentence — which is why this file exists
  * rather than the clause carrying its own encoding:
  *
@@ -14,6 +14,10 @@
  *    the permanent enters, before the first layer read, and the catalogue-wide
  *    guard `cards/__tests__/entersWithCounters.test.ts` reds on the trigger-
  *    shaped alternative;
+ *  - `drawStepReplacement` — CR 614.10, an unconditional skip of the
+ *    turn-based draw: a per-card flag `gre/phases.ts` reads live, exactly as
+ *    the hand-written Necropotence / Solitary Confinement declare it (it
+ *    suppresses the draw, not the step — see the frame in `staticClause.ts`);
  *  - `staticAbilities[]` — the `does-not-untap` marker, which the untap step
  *    reads directly (`gre/phases.ts`). A filtered `untap-restriction` static
  *    would be the wrong encoding for a permanent talking about itself; the
@@ -70,6 +74,8 @@ export interface LoweredStatic {
     /** CR 702.16n — "This effect doesn't remove this Aura." */
     readonly exemptFromProtectionDetach?: true;
     readonly entersTapped?: true;
+    /** CR 614.10 — "Skip your draw step". */
+    readonly drawStepReplacement?: true;
     readonly entersWithCounters?: {
         readonly type: string;
         readonly count: number;
@@ -322,6 +328,8 @@ export function lowerStaticClause(
                     ],
                 },
             };
+        case "skip-draw-step":
+            return { ok: true, lowered: { drawStepReplacement: true } };
         case "enchanted-host":
             return lowerHostClause(clause, nextId);
         default: {
