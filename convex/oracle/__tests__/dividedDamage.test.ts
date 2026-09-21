@@ -425,6 +425,45 @@ describe("divided damage — golden fixtures (CR 601.2d / 120.4)", () => {
     });
 });
 
+describe("divided damage — reaches ready", () => {
+    // The smoke planner cannot scenario-ize an announced division, so a
+    // divided card is `ready` only because the `divided damage` golden fixture
+    // (`grammar/fixtures.ts`) exhibits the form — at every site that prints it.
+    it.each([
+        [
+            "spell",
+            spell(
+                "Arc Lightning",
+                "{2}{R}",
+                "Sorcery",
+                "Arc Lightning deals 3 damage divided as you choose among one, two, or three targets."
+            ),
+        ],
+        [
+            "activated ability",
+            creature(
+                "Mogg Mob",
+                "{2}{R}",
+                "Creature — Goblin",
+                "Sacrifice this creature: It deals 3 damage divided as you choose among one, two, or three targets.",
+                "1"
+            ),
+        ],
+        [
+            "triggered ability",
+            creature(
+                "Gang of Devils",
+                "{3}{R}{R}",
+                "Creature — Devil",
+                "When this creature dies, it deals 3 damage divided as you choose among one, two, or three targets.",
+                "3"
+            ),
+        ],
+    ])("%s", (_site, card) => {
+        expect(compileCard(card).state).toBe("ready");
+    });
+});
+
 describe("divided damage — the hand-written catalogue's shape", () => {
     it("the compiled Arc Lightning equals the hand-written one (effects + targetRequirement)", () => {
         const handWritten = getCardByName("Arc Lightning");
