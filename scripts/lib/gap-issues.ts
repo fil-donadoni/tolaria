@@ -30,18 +30,22 @@
  * and the native `blocked by` edge this writes from it (issue #4052) — is the
  * last section of this file, with its own header.
  *
- * ── Parent: umbrellas partition by BAND (issue #4056) ──────────────────
+ * ── Parent: umbrellas partition by TARGET (issue #4056, ADR 0143) ──────
  *
- * Three kinds are partitioned — `grammar` under the Grammar Rules umbrellas,
+ * Four kinds are partitioned — `grammar` under the Grammar Rules umbrellas,
  * `mechanic` under the Ops umbrellas (new and existing Ops alike), `bot` under
- * the Bot Gaps umbrellas — one umbrella per band, `BAND_UMBRELLAS`. The band
- * is the COMPUTED one of `backlog:triage`: the strongest Target among the
- * cards the gap reaches (`strongestCardBand`), so the umbrella is chosen by the
- * same rule that computes the band and the partition cannot drift from the
- * axis it partitions (issue #3851 decision 7). An open issue whose band is
- * recomputed MOVES to its new band's umbrella — up or down, the board follows
- * the Target List — except out of a `P0` umbrella, which nothing moves an
- * issue OUT of (see the origin band below for how one gets INTO it).
+ * the Bot Gaps umbrellas, `hand-tail` under the Hand Tail umbrellas — one
+ * umbrella per (family, Target), `BAND_UMBRELLAS`, plus the family's hand-set
+ * `P0`. The Target is the one `backlog:triage` computes the band from: the
+ * strongest ranked Target among the cards the gap reaches
+ * (`strongestCardBand`, whose ranking is `targetBand()`'s), so the umbrella is
+ * chosen by the same rule that computes the band and the partition cannot
+ * drift from the axis it partitions (issue #3851 decision 7). An umbrella
+ * names its Target, not a band letter, so a band shift (a Target completing)
+ * re-parents nothing; an open issue moves only when the Target that lends its
+ * band changes — up or down, the board follows the Target List — except out of
+ * a `P0` umbrella, which nothing moves an issue OUT of (see the origin band
+ * below for how one gets INTO it).
  *
  * ── The ORIGIN band (issue #4158) ──────────────────────────────────────
  *
@@ -57,16 +61,18 @@
  * or one with no home (no parent, or a retired one): an existing issue is
  * never pulled up, and `planMove` never moves one back out of a P0 umbrella.
  *
- * A partitioned gap with NO computed band is residue: filed under its
- * family's P3 umbrella (`KIND_FALLBACK`, issue #4110), and an existing one
- * keeps its current parent — `gaps-sync.ts` lists it. The exception is a
- * parent in `RETIRED_UMBRELLAS` (issue #3972, the Op-gap pile this replaced,
- * and PRD #3820, the old fallback): a gap there moves to its fallback, so
- * neither holds computed gaps any more.
+ * A partitioned gap with NO ranked Target among its cards is residue: filed
+ * under its family's LOWEST-ranked Target umbrella (`KIND_FALLBACK`, issue
+ * #4110), never a computed one, and an existing one keeps its current parent —
+ * `gaps-sync.ts` lists it. The exception is a parent in `RETIRED_UMBRELLAS`
+ * (issue #3972, the Op-gap pile this replaced, PRD #3820, the old fallback,
+ * and #4113, the single Hand Tail pile the family replaced): a gap there moves
+ * to its fallback, so none holds computed gaps any more.
  *
  * The other kinds parent under their Target's set umbrella when there is one,
- * else their own P3 umbrella (`KIND_FALLBACK`). GitHub caps a parent at 100 sub-issues; a band holds a
- * bounded slice of the backlog, which is what keeps the cap unreachable, and
+ * else their own P3 umbrella (`KIND_FALLBACK`). GitHub caps a parent at 100
+ * sub-issues; an umbrella holds a bounded slice of the backlog, which is what
+ * keeps the cap unreachable, and
  * `syncGaps` still refuses up front, before any write, a run whose creates and
  * moves would push ANY parent past it.
  *
@@ -89,7 +95,6 @@
 
 import type { Allowlist } from "../check-gaps";
 import { declaredSection } from "./declared-section";
-import type { Band } from "./backlog-triage";
 import type { CardRow, Lockfile } from "./oracle-lockfile";
 import {
     claimId,
@@ -104,7 +109,7 @@ import {
 export const PRD_ISSUE = 3820;
 
 /** The umbrella families the partition knows (issue #4056). */
-export type UmbrellaFamily = "grammar-rules" | "ops" | "bot-gaps";
+export type UmbrellaFamily = "grammar-rules" | "ops" | "bot-gaps" | "hand-tail";
 
 /** The kinds parented by band, and the family each one files under. A kind
  *  missing here keeps the set-umbrella / PRD parent. */
@@ -114,61 +119,106 @@ export const PARTITIONED_KINDS: Readonly<
     grammar: "grammar-rules",
     mechanic: "ops",
     bot: "bot-gaps",
+    "hand-tail": "hand-tail",
 };
 
-/** A band an umbrella holds — `P0` too, although no rule computes it. */
-export type UmbrellaBand = "P0" | Band;
+/** The board's `Priority` values `gaps:sync --band` accepts — `P0` acts, the
+ *  rest change nothing (issue #4158). */
+export type UmbrellaBand = "P0" | "P1" | "P2" | "P3";
+
+/** A family's umbrellas: one per Target it partitions by, plus `P0`. */
+export type FamilyUmbrellas = Readonly<Record<string, number>> & {
+    readonly P0: number;
+};
 
 /**
- * One umbrella per (family, band). `P0` umbrellas are the owner's: no COMPUTED
- * band files into one — only a run told its origin band is `P0` does (issue
- * #4158) — and nothing is ever moved out of one. The umbrella's board
- * `Priority` IS its band — set by hand once, at creation, and inherited by its
- * children (issue #3212).
+ * One umbrella per (family, Target id) — ADR 0143 § Bands follow the Targets:
+ * an umbrella is named after its Target, so a band shift re-parents nothing.
+ * The keys are the Targets that hold a band TODAY (`data/targets.json`,
+ * `targetBand()`); a Target that starts lending a band with no row here files
+ * as residue until one is added, and `gap-issues.test.ts` reds on that drift.
+ *
+ * `P0` is the one slot no Target keys: those umbrellas are the owner's — no
+ * COMPUTED Target files into one, only a run told its origin band is `P0` does
+ * (issue #4158) — and nothing is ever moved out of one. An umbrella's board
+ * `Priority` follows its Target — set by hand once, at creation, and inherited
+ * by its children (issue #3212).
  */
-export const BAND_UMBRELLAS: Readonly<
-    Record<UmbrellaFamily, Readonly<Record<UmbrellaBand, number>>>
-> = {
-    "grammar-rules": { P0: 4091, P1: 4092, P2: 4093, P3: 4094 },
-    ops: { P0: 4095, P1: 4096, P2: 4097, P3: 4098 },
-    "bot-gaps": { P0: 4099, P1: 4100, P2: 4101, P3: 4102 },
-};
+export const BAND_UMBRELLAS: Readonly<Record<UmbrellaFamily, FamilyUmbrellas>> =
+    {
+        "grammar-rules": {
+            P0: 4091,
+            "premodern-metagame": 4092,
+            "vintage-cube": 4093,
+            "format-premodern": 4094,
+        },
+        ops: {
+            P0: 4095,
+            "premodern-metagame": 4096,
+            "vintage-cube": 4097,
+            "format-premodern": 4098,
+        },
+        "bot-gaps": {
+            P0: 4099,
+            "premodern-metagame": 4100,
+            "vintage-cube": 4101,
+            "format-premodern": 4102,
+        },
+        "hand-tail": {
+            P0: 4241,
+            "premodern-metagame": 4242,
+            "vintage-cube": 4243,
+            "format-premodern": 4244,
+        },
+    };
 
 /**
- * The fallback parent of each kind — its LOWEST band (issue #4110): a gap the
- * rule cannot band is deliberately-later work, never the parent PRD's band.
- * A partitioned kind falls back to its family's P3 umbrella; a kind with no
- * family yet has one P3 umbrella of its own.
+ * The lowest-ranked Target that lends a band (`targetBand()`'s third): the one
+ * whose umbrellas are every partitioned kind's fallback. A CONSTANT, not the
+ * ranking's live answer — residue is deliberately-later work and must not move
+ * with the roster (issue #4110); `gap-issues.test.ts` reds when it stops being
+ * the last ranked Target.
+ */
+export const LOWEST_RANKED_TARGET = "format-premodern";
+
+/**
+ * The fallback parent of each kind — the umbrella of the LOWEST-ranked Target
+ * (issue #4110): a gap the rule cannot band is deliberately-later work, never
+ * the parent PRD's band. A partitioned kind falls back to its family's
+ * umbrella of that Target; a kind with no family yet has one P3 umbrella of its
+ * own.
  */
 export const KIND_FALLBACK: Readonly<Record<GapKind, number>> = {
-    grammar: BAND_UMBRELLAS["grammar-rules"].P3,
-    mechanic: BAND_UMBRELLAS.ops.P3,
-    bot: BAND_UMBRELLAS["bot-gaps"].P3,
+    grammar: BAND_UMBRELLAS["grammar-rules"][LOWEST_RANKED_TARGET]!,
+    mechanic: BAND_UMBRELLAS.ops[LOWEST_RANKED_TARGET]!,
+    bot: BAND_UMBRELLAS["bot-gaps"][LOWEST_RANKED_TARGET]!,
     scenario: 4111,
     migration: 4112,
-    "hand-tail": 4113,
+    "hand-tail": BAND_UMBRELLAS["hand-tail"][LOWEST_RANKED_TARGET]!,
 };
 
 /**
- * Parents a gap is moved OFF, to its band umbrella or its fallback: issue
- * #3972 (the Op-gap pile the partition replaced) and PRD #3820, the old
+ * Parents a gap is moved OFF, to its Target umbrella or its fallback: issue
+ * #3972 (the Op-gap pile the partition replaced), PRD #3820, the old
  * fallback — it is closing, and a gap under it inherits its P0 band (issue
- * #3212), the opposite of what an unranked gap deserves (issue #4110).
+ * #3212), the opposite of what an unranked gap deserves (issue #4110) — and
+ * #4113, the single Hand Tail pile the Hand Tail family replaced (ADR 0143).
  */
 export const RETIRED_UMBRELLAS: ReadonlySet<number> = new Set([
     3972,
     PRD_ISSUE,
+    4113,
 ]);
 
-/** The band `parent` stands for within `family`, or null when it is not one
- *  of that family's umbrellas. */
-export function umbrellaBand(
+/** The key `parent` stands for within `family` — `"P0"` or a Target id — or
+ *  null when it is not one of that family's umbrellas. */
+export function umbrellaKey(
     family: UmbrellaFamily,
     parent: number | null
-): UmbrellaBand | null {
+): string | null {
     if (parent === null) return null;
-    for (const [band, n] of Object.entries(BAND_UMBRELLAS[family]))
-        if (n === parent) return band as UmbrellaBand;
+    for (const [key, n] of Object.entries(BAND_UMBRELLAS[family]))
+        if (n === parent) return key;
     return null;
 }
 
@@ -220,11 +270,11 @@ export interface GapFiling {
     /** The parent to use when `parentSetCode` names no live umbrella. */
     readonly fallbackParent: number;
     /**
-     * The COMPUTED band of a partitioned kind (`withPartitionBands`): its band
-     * umbrella wins over `parentSetCode` / `fallbackParent`. Absent or null =
-     * not partitioned, or residue.
+     * The Target lending a partitioned kind its band (`withPartitionBands`):
+     * its umbrella wins over `parentSetCode` / `fallbackParent`. Absent or null
+     * = not partitioned, or residue (no ranked Target among its cards).
      */
-    readonly band?: Band | null;
+    readonly target?: string | null;
     readonly body: (issue: number) => string;
 }
 
@@ -281,7 +331,9 @@ export const OP_KEY_PREFIX = "(op) › ";
  *   - `bot` — the cards carrying the key as their `CardRow.botGap` (a
  *     `played` row's stale key excluded);
  *   - `grammar` — a fragment gap key (`gapKeys`): the unparsed cards that
- *     carry it (issue #4219).
+ *     carry it (issue #4219);
+ *   - `hand-tail` — the card the key (its NAME) names: an unparsed row, the
+ *     only kind `buildHandTailFilings` files.
  *
  * Every lockfile card, not only the ranked ones: the band asks which Target
  * the gap reaches at all, and `cardBandIndex` already ignores a card no
@@ -313,9 +365,11 @@ export function partitionCardIndex(
             row.botReach !== "played"
         )
             add(claimId("bot", row.botGap), row.oracleId);
-        if (row.state === "unparsed")
+        if (row.state === "unparsed") {
             for (const key of gapKeys(row))
                 add(claimId("grammar", key), row.oracleId);
+            add(claimId("hand-tail", row.name), row.oracleId);
+        }
     }
     for (const [op, ids] of opUsers)
         for (const id of ids)
@@ -324,18 +378,19 @@ export function partitionCardIndex(
 }
 
 /**
- * Stamp each PARTITIONED filing with its computed band — `bandOf` is the
- * triage's cards source over the filing's reached cards. Every other filing
- * is returned unchanged.
+ * Stamp each PARTITIONED filing with the Target lending its band — `targetOf`
+ * is the triage's cards source over the filing's reached cards
+ * (`strongestCardBand(...)?.target`). Every other filing is returned
+ * unchanged.
  */
 export function withPartitionBands(
     filings: readonly GapFiling[],
-    bandOf: (filing: GapFiling) => Band | null
+    targetOf: (filing: GapFiling) => string | null
 ): GapFiling[] {
     return filings.map((filing) =>
         PARTITIONED_KINDS[filing.kind] === undefined
             ? filing
-            : { ...filing, band: bandOf(filing) }
+            : { ...filing, target: targetOf(filing) }
     );
 }
 
@@ -415,17 +470,18 @@ export interface GapSyncResult {
     readonly updatedRows: ReadonlyMap<string, number>;
 }
 
-/** The band umbrella `filing` belongs under, or null — not partitioned, or
- *  residue. */
+/** The Target umbrella `filing` belongs under, or null — not partitioned,
+ *  residue, or a Target with no umbrella yet (a roster shift the
+ *  `BAND_UMBRELLAS` table has not caught up with). */
 export function bandUmbrellaOf(filing: GapFiling): number | null {
     const family = PARTITIONED_KINDS[filing.kind];
     if (
         family === undefined ||
-        filing.band === undefined ||
-        filing.band === null
+        filing.target === undefined ||
+        filing.target === null
     )
         return null;
-    return BAND_UMBRELLAS[family][filing.band];
+    return BAND_UMBRELLAS[family][filing.target] ?? null;
 }
 
 /**
@@ -443,8 +499,8 @@ export function originUmbrellaOf(
 }
 
 /** The parent to file `filing` under — the origin band's P0 umbrella, else its
- *  band umbrella, else its Target's set umbrella, else the kind's own
- *  fallback (`KIND_FALLBACK`). */
+ *  Target umbrella (the Target lending its band), else its Target's set
+ *  umbrella, else the kind's own fallback (`KIND_FALLBACK`). */
 function parentOf(
     filing: GapFiling,
     tracker: GapTracker,
@@ -463,11 +519,11 @@ function parentOf(
 /**
  * Where an EXISTING open issue must move, or null (issue #4056):
  *
- *   - banded → its band umbrella, unless it is already there or sits in its
- *     family's hand-set `P0` umbrella;
+ *   - banded → its Target's umbrella, unless it is already there or sits in
+ *     its family's hand-set `P0` umbrella;
  *   - residue (or an unpartitioned kind) → nowhere, unless it has no parent
  *     or its parent is a retired umbrella, in which case the kind's fallback
- *     (`KIND_FALLBACK`, its lowest band) — or, when the run's origin band is
+ *     (`KIND_FALLBACK`, its lowest-ranked Target) — or, when the run's origin band is
  *     `P0`, its family's P0 umbrella (issue #4158): a homeless gap of P0 work
  *     is P0 work.
  */
@@ -490,7 +546,7 @@ export function planMove(
         return homeless ? filing.fallbackParent : null;
     }
     if (parent === target) return null;
-    if (umbrellaBand(PARTITIONED_KINDS[filing.kind]!, parent) === "P0")
+    if (umbrellaKey(PARTITIONED_KINDS[filing.kind]!, parent) === "P0")
         return null;
     return target;
 }

@@ -1212,23 +1212,30 @@ describe("staleClaims — a row no filing referenced", () => {
 // ── umbrellas partitioned by band (issue #4056) ─────────────────────────
 
 describe("umbrellas partition by band — the triage's cards source picks the parent (issue #4056)", () => {
-    /** One card per band, plus one no ranked Target holds. */
+    /** One card per ranked Target, plus one no ranked Target holds. */
     const INDEX = cardBandIndex(
         [
-            { id: "tier1-mono-black", ids: ["c-p1"] },
+            { id: "premodern-metagame", ids: ["c-p1"] },
             { id: "vintage-cube", ids: ["c-p2"] },
-            { id: "set-leg", ids: ["c-p3"] },
+            { id: "format-premodern", ids: ["c-p3"] },
         ],
         (id) =>
             (({
-                "tier1-mono-black": "P1",
+                "premodern-metagame": "P1",
                 "vintage-cube": "P2",
-                "set-leg": "P3",
+                "format-premodern": "P3",
             })[id] as Band | undefined) ?? null
     );
     const GRAMMAR = BAND_UMBRELLAS["grammar-rules"];
     const OPS = BAND_UMBRELLAS.ops;
     const BOTS = BAND_UMBRELLAS["bot-gaps"];
+    /** The Target umbrella of a family — the umbrella that Target's band held
+     *  under the band-letter keying this replaced. */
+    const [METAGAME, CUBE, POOL] = [
+        "premodern-metagame",
+        "vintage-cube",
+        "format-premodern",
+    ] as const;
 
     /** `gaps-sync.ts`'s composition, over synthetic inputs. */
     function banded(
@@ -1243,7 +1250,7 @@ describe("umbrellas partition by band — the triage's cards source picks the pa
                 strongestCardBand(
                     reached.get(claimId(f.kind, f.key)) ?? [],
                     INDEX
-                )?.band ?? null
+                )?.target ?? null
         );
     }
 
@@ -1268,17 +1275,17 @@ describe("umbrellas partition by band — the triage's cards source picks the pa
             { cards: [] },
             OP_USERS
         );
-        expect(filings.map((f) => [f.key, f.band])).toEqual([
-            ["(op) › drain", "P1"],
-            ["(op) › flicker", "P3"],
+        expect(filings.map((f) => [f.key, f.target])).toEqual([
+            ["(op) › drain", METAGAME],
+            ["(op) › flicker", POOL],
             ["(op) › oddity", null],
         ]);
         const tracker = new StubTracker();
         syncGaps(filings, tracker);
         expect(tracker.created.map((c) => [c.title, c.parent])).toEqual([
-            ["Grammar Gap: (op) › drain", GRAMMAR.P1],
-            ["Grammar Gap: (op) › flicker", GRAMMAR.P3],
-            ["Grammar Gap: (op) › oddity", GRAMMAR.P3],
+            ["Grammar Gap: (op) › drain", GRAMMAR[METAGAME]],
+            ["Grammar Gap: (op) › flicker", GRAMMAR[POOL]],
+            ["Grammar Gap: (op) › oddity", GRAMMAR[POOL]],
         ]);
     });
 
@@ -1303,7 +1310,7 @@ describe("umbrellas partition by band — the triage's cards source picks the pa
         tracker.issues.set(4501, { state: "OPEN", body: "x" });
         // Filed under P3 when only the set card used the Op; a tier1 card now
         // uses it too, so the band is P1.
-        tracker.parents.set(4501, GRAMMAR.P3);
+        tracker.parents.set(4501, GRAMMAR[POOL]);
         const filings = banded(
             buildGrammarGapFilings({
                 ops: [{ key: "(op) › drain", op: "drain", issue: 4501 }],
@@ -1317,11 +1324,11 @@ describe("umbrellas partition by band — the triage's cards source picks the pa
                 kind: "grammar",
                 key: "(op) › drain",
                 issue: 4501,
-                from: GRAMMAR.P3,
-                to: GRAMMAR.P1,
+                from: GRAMMAR[POOL],
+                to: GRAMMAR[METAGAME],
             },
         ]);
-        expect(tracker.parents.get(4501)).toBe(GRAMMAR.P1);
+        expect(tracker.parents.get(4501)).toBe(GRAMMAR[METAGAME]);
         const second = syncGaps(filings, tracker);
         expect(second.moves).toEqual([]);
         expect(tracker.moves).toHaveLength(1);
@@ -1361,8 +1368,8 @@ describe("umbrellas partition by band — the triage's cards source picks the pa
             OP_USERS
         );
         syncGaps(filings, tracker);
-        expect(tracker.parents.get(4503)).toBe(GRAMMAR.P3);
-        expect(tracker.parents.get(4504)).toBe(GRAMMAR.P3);
+        expect(tracker.parents.get(4503)).toBe(GRAMMAR[POOL]);
+        expect(tracker.parents.get(4504)).toBe(GRAMMAR[POOL]);
     });
 
     it("the Ops umbrellas partition the mechanic kind the same way — a new Op and an existing mechanic alike", () => {
@@ -1396,8 +1403,8 @@ describe("umbrellas partition by band — the triage's cards source picks the pa
                 .sort()
         ).toEqual(
             [
-                ["Quarantine (mechanic): planned-mechanic", OPS.P2],
-                ["Quarantine (mechanic): planned-op", OPS.P1],
+                ["Quarantine (mechanic): planned-mechanic", OPS[CUBE]],
+                ["Quarantine (mechanic): planned-op", OPS[METAGAME]],
             ].sort()
         );
     });
@@ -1423,7 +1430,7 @@ describe("umbrellas partition by band — the triage's cards source picks the pa
             ],
         };
         const filings = banded(buildBotGapFilings(inputs(lock)), lock);
-        expect(filings.map((f) => [f.key, f.band])).toEqual([[KEY, "P2"]]);
+        expect(filings.map((f) => [f.key, f.target])).toEqual([[KEY, CUBE]]);
         const tracker = new StubTracker();
         tracker.issues.set(4505, { state: "OPEN", body: "x" });
         tracker.parents.set(4505, PRD_ISSUE);
@@ -1431,7 +1438,7 @@ describe("umbrellas partition by band — the triage's cards source picks the pa
             filings.map((f) => ({ ...f, currentIssue: 4505 })),
             tracker
         );
-        expect(tracker.parents.get(4505)).toBe(BOTS.P2);
+        expect(tracker.parents.get(4505)).toBe(BOTS[CUBE]);
     });
 
     it("an unpartitioned kind files under its own P3 umbrella when no set umbrella claims it", () => {
@@ -1446,7 +1453,7 @@ describe("umbrellas partition by band — the triage's cards source picks the pa
             buildQuarantineFilings(inputs(lock), "scenario"),
             lock
         );
-        expect(filings[0]!.band).toBeUndefined();
+        expect(filings[0]!.target).toBeUndefined();
         const tracker = new StubTracker();
         syncGaps(filings, tracker);
         expect(tracker.created[0]!.parent).toBe(KIND_FALLBACK.scenario);
@@ -1456,7 +1463,7 @@ describe("umbrellas partition by band — the triage's cards source picks the pa
         const tracker = new StubTracker();
         tracker.issues.set(4506, { state: "OPEN", body: "x" });
         tracker.parents.set(4506, [...RETIRED_UMBRELLAS][0]!);
-        tracker.childCounts.set(GRAMMAR.P3, SUB_ISSUE_CAP);
+        tracker.childCounts.set(GRAMMAR[POOL], SUB_ISSUE_CAP);
         const filings = banded(
             buildGrammarGapFilings({
                 ops: [{ key: "(op) › flicker", op: "flicker", issue: 4506 }],
@@ -1493,7 +1500,7 @@ describe("umbrellas partition by band — the triage's cards source picks the pa
         }
         syncGaps([...scenario, oddity!], tracker);
         expect(tracker.parents.get(4600)).toBe(KIND_FALLBACK.scenario);
-        expect(tracker.parents.get(4601)).toBe(GRAMMAR.P3);
+        expect(tracker.parents.get(4601)).toBe(GRAMMAR[POOL]);
         expect(syncGaps([...scenario, oddity!], tracker).moves).toEqual([]);
         expect(tracker.moves).toHaveLength(2);
     });
@@ -1515,7 +1522,7 @@ describe("umbrellas partition by band — the triage's cards source picks the pa
                 key: "(op) › oddity",
                 issue: 4603,
                 from: null,
-                to: GRAMMAR.P3,
+                to: GRAMMAR[POOL],
             },
         ]);
         expect(syncGaps([oddity!], tracker).moves).toEqual([]);
@@ -1540,13 +1547,87 @@ describe("umbrellas partition by band — the triage's cards source picks the pa
         expect(tracker.parents.get(4602)).toBe(3838);
     });
 
-    it("every kind's fallback is its LOWEST band — a family's P3, never a PRD", () => {
-        expect(KIND_FALLBACK.grammar).toBe(GRAMMAR.P3);
-        expect(KIND_FALLBACK.mechanic).toBe(OPS.P3);
-        expect(KIND_FALLBACK.bot).toBe(BOTS.P3);
+    it("every kind's fallback is its LOWEST-ranked Target's umbrella — never a PRD", () => {
+        expect(KIND_FALLBACK.grammar).toBe(GRAMMAR[POOL]);
+        expect(KIND_FALLBACK.mechanic).toBe(OPS[POOL]);
+        expect(KIND_FALLBACK.bot).toBe(BOTS[POOL]);
+        expect(KIND_FALLBACK["hand-tail"]).toBe(
+            BAND_UMBRELLAS["hand-tail"][POOL]
+        );
         for (const parent of Object.values(KIND_FALLBACK))
             expect(RETIRED_UMBRELLAS.has(parent)).toBe(false);
         expect(RETIRED_UMBRELLAS.has(PRD_ISSUE)).toBe(true);
+    });
+
+    it("a Hand Tail card files under the Hand Tail umbrella of the Target lending its band, and residue under the lowest-ranked one (ADR 0143)", () => {
+        // Three cards, each below the floor on its own gap: one in the
+        // metagame, one in the cube, one in no ranked Target (`c-x`).
+        const lock = {
+            fragments: [
+                fragment("a first line"),
+                fragment("a second line"),
+                fragment("a third line"),
+            ],
+            cards: [
+                unparsed("c-p1", "Tail Metagame", [0]),
+                unparsed("c-p2", "Tail Cube", [1]),
+                unparsed("c-x", "Tail Off Road", [2]),
+                ...FILLER,
+            ],
+        };
+        const ids = new Set(["c-p1", "c-p2", "c-x"]);
+        const filings = banded(
+            buildHandTailFilings(
+                inputs(lock, {
+                    handTailFiling: true,
+                    ranked: ids,
+                    enforced: ids,
+                })
+            ).filings,
+            lock
+        );
+        expect(
+            Object.fromEntries(filings.map((f) => [f.key, f.target]))
+        ).toEqual({
+            "Tail Metagame": METAGAME,
+            "Tail Cube": CUBE,
+            "Tail Off Road": null,
+        });
+        const tracker = new StubTracker();
+        syncGaps(filings, tracker);
+        expect(
+            Object.fromEntries(
+                tracker.created.map((c) => [
+                    c.title.replace("Hand Tail: ", ""),
+                    c.parent,
+                ])
+            )
+        ).toEqual({
+            "Tail Metagame": BAND_UMBRELLAS["hand-tail"][METAGAME],
+            "Tail Cube": BAND_UMBRELLAS["hand-tail"][CUBE],
+            "Tail Off Road": BAND_UMBRELLAS["hand-tail"][POOL],
+        });
+    });
+
+    it("only an UNPARSED row is a Hand Tail card the partition can reach", () => {
+        const reached = partitionCardIndex(
+            {
+                cards: [
+                    unparsed("h-1", "Tail One", [0]),
+                    {
+                        oracleId: "h-2",
+                        name: "Ready One",
+                        state: "ready",
+                        opsUsed: [],
+                    },
+                ],
+            },
+            new Map()
+        );
+        expect([
+            ...(reached.get(claimId("hand-tail", "Tail One")) ?? []),
+        ]).toEqual(["h-1"]);
+        expect(reached.has(claimId("hand-tail", "Ready One"))).toBe(false);
     });
 });
 
@@ -1556,11 +1637,17 @@ describe("gaps:sync --band — the origin band files a P0 run's gaps under P0 (i
     const GRAMMAR = BAND_UMBRELLAS["grammar-rules"];
     const OPS = BAND_UMBRELLAS.ops;
     const BOTS = BAND_UMBRELLAS["bot-gaps"];
+    const [METAGAME, CUBE, POOL] = [
+        "premodern-metagame",
+        "vintage-cube",
+        "format-premodern",
+    ] as const;
 
-    /** A filing of `kind` with a COMPUTED band, unfiled unless `currentIssue`. */
+    /** A filing of `kind` whose band is lent by `target`, unfiled unless
+     *  `currentIssue`. */
     function gap(
         kind: GapFiling["kind"],
-        band: GapFiling["band"],
+        target: GapFiling["target"],
         currentIssue: number | null = null
     ): GapFiling {
         return {
@@ -1571,15 +1658,15 @@ describe("gaps:sync --band — the origin band files a P0 run's gaps under P0 (i
             labels: ["ready-for-agent"],
             parentSetCode: null,
             fallbackParent: KIND_FALLBACK[kind],
-            ...(band === undefined ? {} : { band }),
+            ...(target === undefined ? {} : { target }),
             body: () => "x",
         };
     }
 
     const PARTITIONED = [
-        gap("grammar", "P1"),
-        gap("mechanic", "P2"),
-        gap("bot", "P1"),
+        gap("grammar", METAGAME),
+        gap("mechanic", CUBE),
+        gap("bot", METAGAME),
     ];
 
     it("P0: a created bot, grammar and mechanic gap each lands in its OWN family's P0 umbrella, whatever band was computed", () => {
@@ -1600,9 +1687,9 @@ describe("gaps:sync --band — the origin band files a P0 run's gaps under P0 (i
 
     it("a second run with NO band leaves the gap in P0 — nothing moves out of a P0 umbrella", () => {
         const tracker = new StubTracker();
-        const first = syncGaps([gap("bot", "P1")], tracker, "P0");
+        const first = syncGaps([gap("bot", METAGAME)], tracker, "P0");
         const issue = [...first.updatedRows.values()][0]!;
-        const second = syncGaps([gap("bot", "P1", issue)], tracker);
+        const second = syncGaps([gap("bot", METAGAME, issue)], tracker);
         expect(second.moves).toEqual([]);
         expect(tracker.parents.get(issue)).toBe(BOTS.P0);
     });
@@ -1612,9 +1699,9 @@ describe("gaps:sync --band — the origin band files a P0 run's gaps under P0 (i
             const tracker = new StubTracker();
             syncGaps(PARTITIONED, tracker, band);
             expect(tracker.created.map((c) => c.parent)).toEqual([
-                GRAMMAR.P1,
-                OPS.P2,
-                BOTS.P1,
+                GRAMMAR[METAGAME],
+                OPS[CUBE],
+                BOTS[METAGAME],
             ]);
         }
     });
@@ -1622,10 +1709,10 @@ describe("gaps:sync --band — the origin band files a P0 run's gaps under P0 (i
     it("an existing open gap sitting in a P1 umbrella is NOT pulled up by a P0 run", () => {
         const tracker = new StubTracker();
         tracker.issues.set(4700, { state: "OPEN", body: "x" });
-        tracker.parents.set(4700, BOTS.P1);
-        const result = syncGaps([gap("bot", "P1", 4700)], tracker, "P0");
+        tracker.parents.set(4700, BOTS[METAGAME]);
+        const result = syncGaps([gap("bot", METAGAME, 4700)], tracker, "P0");
         expect(result.moves).toEqual([]);
-        expect(tracker.parents.get(4700)).toBe(BOTS.P1);
+        expect(tracker.parents.get(4700)).toBe(BOTS[METAGAME]);
     });
 
     it("a HOMELESS gap — no parent, or one under a retired umbrella — goes to P0 in a P0 run, to its fallback otherwise", () => {
@@ -1639,7 +1726,7 @@ describe("gaps:sync --band — the origin band files a P0 run's gaps under P0 (i
             syncGaps([gap("bot", null, 4701)], p0, "P0");
             syncGaps([gap("bot", null, 4701)], plain);
             expect(p0.parents.get(4701)).toBe(BOTS.P0);
-            expect(plain.parents.get(4701)).toBe(BOTS.P3);
+            expect(plain.parents.get(4701)).toBe(BOTS[POOL]);
         }
     });
 
@@ -1651,21 +1738,21 @@ describe("gaps:sync --band — the origin band files a P0 run's gaps under P0 (i
                 t.issues.set(4702, { state: "OPEN", body: "x" });
                 if (parent !== undefined) t.parents.set(4702, parent);
             }
-            syncGaps([gap("bot", "P1", 4702)], p0, "P0");
-            syncGaps([gap("bot", "P1", 4702)], plain);
+            syncGaps([gap("bot", METAGAME, 4702)], p0, "P0");
+            syncGaps([gap("bot", METAGAME, 4702)], plain);
             expect(p0.parents.get(4702)).toBe(BOTS.P0);
-            expect(plain.parents.get(4702)).toBe(BOTS.P1);
+            expect(plain.parents.get(4702)).toBe(BOTS[METAGAME]);
         }
     });
 
     it("a create reports the umbrella it was filed under", () => {
         const tracker = new StubTracker();
-        const { actions } = syncGaps([gap("bot", "P1")], tracker, "P0");
+        const { actions } = syncGaps([gap("bot", METAGAME)], tracker, "P0");
         expect(actions[0]).toMatchObject({ action: "create", parent: BOTS.P0 });
     });
 
-    it("kinds outside the partition — scenario, migration, hand-tail — ignore the band", () => {
-        for (const kind of ["scenario", "migration", "hand-tail"] as const) {
+    it("kinds outside the partition — scenario, migration — ignore the band", () => {
+        for (const kind of ["scenario", "migration"] as const) {
             expect(originUmbrellaOf(gap(kind, undefined), "P0")).toBeNull();
             const tracker = new StubTracker();
             syncGaps([gap(kind, undefined)], tracker, "P0");
@@ -1676,7 +1763,7 @@ describe("gaps:sync --band — the origin band files a P0 run's gaps under P0 (i
     it("the P0 umbrella counts against GitHub's sub-issue cap like any other parent", () => {
         const tracker = new StubTracker();
         tracker.childCounts.set(BOTS.P0, SUB_ISSUE_CAP);
-        expect(() => syncGaps([gap("bot", "P1")], tracker, "P0")).toThrow(
+        expect(() => syncGaps([gap("bot", METAGAME)], tracker, "P0")).toThrow(
             new RegExp(`#${BOTS.P0} holds ${SUB_ISSUE_CAP} sub-issues`)
         );
         expect(tracker.created).toEqual([]);

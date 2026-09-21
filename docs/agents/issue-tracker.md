@@ -88,26 +88,34 @@ fence (like the one above) is an example and is not read.
 its `` `Name` `` / `**Name**` spans — a proposal only: confirm against the
 body, then paste.
 
-## Umbrellas partition by band (issue #4056)
+## Umbrellas partition by Target (issue #4056, ADR 0143)
 
-**Open an umbrella per BAND, never per type** (issue #3851 decision 7). A
+**Open an umbrella per TARGET, never per type** (issue #3851 decision 7). A
 type umbrella is a pile: issue #3972 held 87 Op gaps in no order, and exists
-only because GitHub caps a parent at 100 sub-issues. A band umbrella is a
-bounded, ordered slice of the backlog, so the cap stops being reachable.
+only because GitHub caps a parent at 100 sub-issues. A Target umbrella is a
+bounded, ordered slice of the backlog, so the cap stops being reachable. It is
+named after its Target, not a band letter (ADR 0143 § Bands follow the
+Targets), so a Target completing re-parents nothing: the board `Priority` of
+the umbrella follows its Target.
 
-| Family        | Holds                                                                   | P0    | P1    | P2    | P3    |
-| ------------- | ----------------------------------------------------------------------- | ----- | ----- | ----- | ----- |
-| Grammar Rules | `Grammar Gap:` (`gaps:sync` kind `grammar`), `[Grammar]` rule tickets   | #4091 | #4092 | #4093 | #4094 |
-| Ops           | `Quarantine (mechanic):` (kind `mechanic`) — new and existing Ops alike | #4095 | #4096 | #4097 | #4098 |
-| Bot Gaps      | `Bot Gap:` (kind `bot`)                                                 | #4099 | #4100 | #4101 | #4102 |
+| Family        | Holds                                                                   | P0    | premodern-metagame | vintage-cube | format-premodern |
+| ------------- | ----------------------------------------------------------------------- | ----- | ------------------ | ------------ | ---------------- |
+| Grammar Rules | `Grammar Gap:` (`gaps:sync` kind `grammar`), `[Grammar]` rule tickets   | #4091 | #4092              | #4093        | #4094            |
+| Ops           | `Quarantine (mechanic):` (kind `mechanic`) — new and existing Ops alike | #4095 | #4096              | #4097        | #4098            |
+| Bot Gaps      | `Bot Gap:` (kind `bot`)                                                 | #4099 | #4100              | #4101        | #4102            |
+| Hand Tail     | `Hand Tail:` (kind `hand-tail`)                                         | #4241 | #4242              | #4243        | #4244            |
 
-- **The band is COMPUTED, and the parent follows it.** It is `backlog:triage`'s
-  cards source — the strongest registered Target among the cards the gap
-  reaches (`strongestCardBand`): the hand-written cards using the Op for an
-  Op gap, the quarantined cards for a mechanic class, the cards carrying the
-  key as `botGap` for a Bot Gap. `gaps:sync` files under that band's umbrella
-  and MOVES an open issue whose band was recomputed; the table lives in code
-  as `BAND_UMBRELLAS` (`scripts/lib/gap-issues.ts`).
+- **The Target is COMPUTED, and the parent follows it.** It is
+  `backlog:triage`'s cards source — the strongest registered Target among the
+  cards the gap reaches (`strongestCardBand`, ranked by `targetBand()`): the
+  hand-written cards using the Op for an Op gap, the quarantined cards for a
+  mechanic class, the cards carrying the key as `botGap` for a Bot Gap, the
+  card itself for a Hand Tail card. `gaps:sync` files under that Target's
+  umbrella and MOVES an open issue when the Target lending its band changes;
+  the table lives in code as `BAND_UMBRELLAS` (`scripts/lib/gap-issues.ts`),
+  keyed by Target id — plus `P0`. A Target that starts lending a band with no
+  row there files as residue, and `gap-issues.test.ts` reds on that drift:
+  open the family's umbrella and add the row.
 - **P0 is never COMPUTED — it is hand-set, or inherited from the work that
   spawned the gap** (issue #4158). No rule derives it from a Target, so the
   computed band never files into a P0 umbrella and nothing moves an issue out
@@ -121,17 +129,21 @@ bounded, ordered slice of the backlog, so the cap stops being reachable.
   `P0` acts; any other value leaves the computed band in charge, and an
   existing issue is never pulled up.
 - **Residue** — no ranked Target among its cards — files under its family's
-  **P3** umbrella: an unranked gap is deliberately-later work (issue #4110).
-  An existing one keeps a parent placed by hand; `gaps:sync` lists it.
+  umbrella of the **lowest-ranked** Target (`format-premodern`,
+  `LOWEST_RANKED_TARGET`): an unranked gap is deliberately-later work (issue
+  #4110), and the fallback is a constant, never a computed umbrella. An
+  existing one keeps a parent placed by hand; `gaps:sync` lists it.
 - **Kinds with no family yet** fall back to a P3 umbrella of their own:
-  Scenario Gaps #4111, Migrations #4112, Hand Tail #4113 (a set umbrella still
-  wins at create). The table is `KIND_FALLBACK`.
+  Scenario Gaps #4111, Migrations #4112 (a set umbrella still wins at create).
+  The table is `KIND_FALLBACK`.
 - **PRD #3820 is not a parent of computed gaps** — it is closing, and a child
-  inherits its P0 band (issue #3212). Like issue #3972 it is in
-  `RETIRED_UMBRELLAS`: a gap under either — or under no parent at all, a
-  create whose parent write failed — moves to its band or its fallback.
-- **Each umbrella's board `Priority` is its band**, set once by hand; its
-  children inherit it (issue #3212).
+  inherits its P0 band (issue #3212). Like issue #3972 and #4113 (the single
+  Hand Tail pile the Hand Tail family replaced) it is in
+  `RETIRED_UMBRELLAS`: a gap under any of them — or under no parent at all, a
+  create whose parent write failed — moves to its Target umbrella or its
+  fallback.
+- **Each umbrella's board `Priority` follows its Target**, set once by hand;
+  its children inherit it (issue #3212).
 - **A landed issue leaves its umbrella** (issue #4235). `land` runs
   `bun run umbrella:detach <issue>` for the issue the branch names, after
   `gaps:sync` (which reads the parent edge): a CLOSED child of a band umbrella
@@ -141,10 +153,10 @@ bounded, ordered slice of the backlog, so the cap stops being reachable.
   stays listed until it is closed and the command is re-run by hand. Retired
   umbrellas are not in the census; `gaps:sync` empties those.
 - **A hand-filed `[Grammar]` ticket** goes under the Grammar Rules umbrella of
-  the band its cards compute — `gaps:sync` does not file those.
+  the Target its cards compute — `gaps:sync` does not file those.
 
-A new family gets four umbrellas, a `BAND_UMBRELLAS` row and a row here —
-never one umbrella by type.
+A new family gets one umbrella per ranked Target plus a `P0`, a
+`BAND_UMBRELLAS` row and a row here — never one umbrella by type.
 
 ## Card names are Scryfall links (issue #3666)
 
