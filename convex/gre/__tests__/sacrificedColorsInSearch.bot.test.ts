@@ -62,7 +62,8 @@ function board(): GameState {
 }
 
 /** The enumerated Mind Extraction cast aimed at the OPPONENT. The enumerator
- *  offers one cast per legal target (CR 601.2c), the bot's own seat included —
+ *  announces its choice of target (CR 601.2c), so the enumerator offers one
+ *  cast per legal choice — the bot's own seat included, and
  *  taking the first blind would discard from the bot's own hand and prove
  *  nothing about the colour read. */
 function castMove(state: GameState, playerId: string): Move {
@@ -98,7 +99,7 @@ function oppGraveyardDefIds(state: GameState, meId: string): string[] {
 
 describe("cost-sacrificed colours in the search sandboxes (CR 105.2 / 608.2h, issue #3806)", () => {
     // Bot reachability seam 1: the Bot can PLAY the card at all — one cast is
-    // enumerated per legal target although the spell owes a mandatory
+    // enumerated per legal target choice although the spell owes a mandatory
     // additional sacrifice. `castCostPicks.sacrificeIds` is EMPTY here by
     // design and not a gap: a board with exactly one matching creature is
     // fungible, so the victim is auto-resolved server-side at announcement and

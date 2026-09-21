@@ -103,8 +103,9 @@ describe("Dragon Arch — {2}, {T}: put a multicolored creature from hand onto t
             "h2",
             "h3",
         ]);
-        // Nothing was CAST (CR 601.1) — the stack is empty after the ability
-        // resolved, with no creature spell on it.
+        // Nothing was CAST — casting puts a spell on the stack (CR 601.2) and
+        // this creature never went there: the stack is empty after the
+        // ability resolved, with no creature spell on it.
         expect(state.stack).toHaveLength(0);
     });
 
