@@ -8,7 +8,7 @@
 //     printed number is read, not assumed to be 1) and the spell slot (Mending
 //     Hands). Whole cards, whole Compiled Definitions.
 //  2. REFUSALS — the neighbours the rule must NOT read: a recipient other than
-//     "any target", a shield that is not a printed number, a shield with no
+//     "any target", a shield that is not printed digits, a shield with no
 //     duration, and the two real cards whose rider sentence is another
 //     Grammar Gap (Elvish Healer's "instead", Rakalite's delayed return) —
 //     each pinned to the SPAN that stops the card, so the shield sentence the
@@ -204,8 +204,8 @@ describe("prevent the next N damage — refusals stay fail-closed", () => {
             ).toBe("unparsed");
     });
 
-    it("a shield that is not a printed number is refused (X, 'that much')", () => {
-        for (const size of ["X", "that much"])
+    it("a shield that is not printed digits is refused (X, a spelled number)", () => {
+        for (const size of ["X", "one", "a"])
             expect(
                 compileCard(
                     instant(

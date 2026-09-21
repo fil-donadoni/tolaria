@@ -1522,11 +1522,13 @@ const COUNTER_DOMAIN_TAX =
 const SUPPRESS_DAMAGE_PREVENTION = "Damage can't be prevented this turn";
 
 /**
- * CR 615.7 — the prevention shield's printed form. The recipient is greedy up
- * to the trailing duration, which is read by the duration rule itself.
+ * CR 615.7 — the prevention shield's printed form. The size is the printed
+ * DIGITS and nothing else (no spelled number, no X, no "that much"): a size
+ * this rule has no fixture for is refused, not read. The recipient runs up to
+ * the trailing duration, which is read by the duration rule itself.
  */
 const PREVENT_NEXT_DAMAGE =
-    /^Prevent the next (\S+) damage that would be dealt to (.+?) (this turn)$/;
+    /^Prevent the next (\d+) damage that would be dealt to (.+?) (this turn)$/;
 
 const KEYWORDS = keywordVocabulary();
 
@@ -2072,12 +2074,6 @@ function effectSentence(
     // ── prevent the next N damage (CR 615.7) ───────────────────────────────
     const preventNext = span.match(PREVENT_NEXT_DAMAGE);
     if (preventNext !== null) {
-        const amount = readAmount(preventNext[1]!);
-        if (amount === null || amount.kind !== "fixed")
-            return fail(
-                `"${preventNext[1]}" is not a printed shield size (CR 615.7)`,
-                span
-            );
         const to = subjectRule.run(preventNext[2]!, ctx);
         if (!to.ok) return to;
         // CR 115.4 — read for "any target" only, the one recipient the corpus
@@ -2092,7 +2088,7 @@ function effectSentence(
         if (!duration.ok) return duration;
         return ok({
             kind: "prevent-next-damage" as const,
-            amount: amount.value,
+            amount: Number(preventNext[1]),
             to: to.value,
             duration: duration.value,
         } satisfies EffectSentenceIR);
