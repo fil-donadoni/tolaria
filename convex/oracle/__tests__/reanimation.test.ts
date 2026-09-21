@@ -208,6 +208,10 @@ describe("reanimation — refusals (fail-closed neighbours)", () => {
             "Return target creature card from your hand to the battlefield.",
         ],
         [
+            "a battlefield permanent you control (no zone change to name)",
+            "Return target creature you control to the battlefield.",
+        ],
+        [
             "a battlefield permanent named without a zone",
             "Return target permanent to the battlefield.",
         ],
