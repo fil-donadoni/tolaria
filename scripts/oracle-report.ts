@@ -319,7 +319,7 @@ async function botPlayVerdicts(
                 `--target ${id} --json <path>\`, then pass \`--bot-reach <path>\``,
         };
     const cards = report[id];
-    if (cards === undefined)
+    if (!Array.isArray(cards))
         return {
             missing: `${reportPath} carries no verdicts for Target \`${id}\` (pass --target ${id} to target-bot-reach)`,
         };

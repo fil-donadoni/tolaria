@@ -222,6 +222,65 @@ describe("targetCompleted — the three clauses of the v1 gate", () => {
         expect(completion.completed).toBe(true);
     });
 
+    it("an `unplayable` verdict for a card coverage calls playable is not proof (fail-open closed)", () => {
+        const completion = targetCompleted(
+            coverage(GREEN_IDS),
+            verdicts([
+                { name: "Ready", outcome: "unplayable" },
+                played("Held Hand-Written"),
+            ])
+        );
+        expect(completion.failing).toEqual(["bot-play"]);
+        expect(completion.botPlay.unmeasured).toEqual(["Ready"]);
+    });
+
+    it("a covered never-chosen card is listed by name, never silently discharged", () => {
+        const completion = targetCompleted(
+            coverage(GREEN_IDS),
+            verdicts(
+                [
+                    { name: "Ready", outcome: "ignored", gap: NEVER },
+                    played("Held Hand-Written"),
+                ],
+                ["Ready"]
+            )
+        );
+        expect(completion.botPlay.coveredByMust).toEqual(["Ready"]);
+        expect(formatCompletion(completion)).toBe(
+            "  completed: yes\n" +
+                "  never-chosen, covered by a must Test Position (1): Ready\n"
+        );
+    });
+
+    it("joins a split card's `Front // Back` row name to a blade entry's face name", () => {
+        const split = row("s2", "Fire // Ice", "ready");
+        const ctx = {
+            ...CTX,
+            byOracleId: new Map([...byOracleId, ["s2", split] as const]),
+        };
+        const cov = targetCoverage(
+            {
+                row: { id: "t", kind: "name-list", source: "t.txt" },
+                cards: [{ oracleId: "s2", name: "Fire // Ice" }],
+            },
+            ctx
+        );
+        const never = {
+            name: "Fire // Ice",
+            outcome: "ignored" as const,
+            gap: NEVER,
+        };
+        expect(
+            targetCompleted(cov, verdicts([never], ["Fire"])).completed
+        ).toBe(true);
+        expect(targetCompleted(cov, verdicts([never], ["Ice"])).completed).toBe(
+            true
+        );
+        expect(
+            targetCompleted(cov, verdicts([never], ["Fireball"])).completed
+        ).toBe(false);
+    });
+
     it("harness-bound cards never fail the predicate by themselves — they are listed by name", () => {
         const completion = targetCompleted(
             coverage(GREEN_IDS),
@@ -316,10 +375,14 @@ describe("mustCoveredCards — what a `must` Test Position covers", () => {
             mustCoveredCards([
                 {
                     tier: "must",
-                    expect: moves(
-                        { kind: "cast-spell", card: "Wrath of God" },
-                        { kind: "activate-ability", card: "Rishadan Port" }
-                    ),
+                    expect: moves({ kind: "cast-spell", card: "Wrath of God" }),
+                },
+                {
+                    tier: "must",
+                    expect: moves({
+                        kind: "activate-ability",
+                        card: "Rishadan Port",
+                    }),
                 },
                 {
                     tier: "must",
@@ -332,6 +395,34 @@ describe("mustCoveredCards — what a `must` Test Position covers", () => {
         ).toEqual(
             new Set(["Wrath of God", "Rishadan Port", "Volcanic Island"])
         );
+    });
+
+    it("an any-of list covers only the card EVERY alternative plays", () => {
+        expect(
+            mustCoveredCards([
+                {
+                    tier: "must",
+                    expect: moves(
+                        { kind: "cast-spell", card: "A" },
+                        { kind: "cast-spell", card: "B" }
+                    ),
+                },
+                {
+                    tier: "must",
+                    expect: moves(
+                        { kind: "cast-spell", card: "C", cards: ["D"] },
+                        { kind: "cast-spell", card: "C" }
+                    ),
+                },
+                {
+                    tier: "must",
+                    expect: moves(
+                        { kind: "cast-spell", card: "E" },
+                        { kind: "pass" }
+                    ),
+                },
+            ])
+        ).toEqual(new Set(["C"]));
     });
 
     it("ignores a stretch entry, a forbidden or predicate expectation, and a matcher that plays nothing", () => {
@@ -396,7 +487,7 @@ describe("oracle:report --targets <id> prints the `completed:` verdict", () => {
             path
         );
         expect(code).toBe(0);
-        expect(out).toMatch(/red: bot-play — no usable verdict \d+: /);
+        expect(out).toMatch(/red: bot-play — no classifiable verdict \d+ /);
     }, 180_000);
 
     it("a report with no verdicts for the named Target says so", () => {
@@ -407,6 +498,18 @@ describe("oracle:report --targets <id> prints the `completed:` verdict", () => {
             "--bot-reach",
             path
         );
+        expect(out).toContain("carries no verdicts for Target `vintage-cube`");
+    }, 180_000);
+
+    it("a Target whose verdicts are not a list is reported missing, not thrown on", () => {
+        const path = reportFile({ perCard: { "vintage-cube": { nope: 1 } } });
+        const { code, out } = report(
+            "--targets",
+            "vintage-cube",
+            "--bot-reach",
+            path
+        );
+        expect(code).toBe(0);
         expect(out).toContain("carries no verdicts for Target `vintage-cube`");
     }, 180_000);
 

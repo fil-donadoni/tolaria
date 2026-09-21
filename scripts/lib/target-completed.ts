@@ -77,6 +77,9 @@ export interface BotPlayClause {
     readonly neverChosen: readonly string[];
     /** Target cards with no verdict, or one whose cause the ADR does not classify. */
     readonly unmeasured: readonly string[];
+    /** `never-chosen` cards closed by a `must` Test Position — declared by
+     *  name, never a silent discharge (ADR 0143). */
+    readonly coveredByMust: readonly string[];
     /** Listed by name, never blocking. */
     readonly harnessBound: readonly HarnessBoundCard[];
 }
@@ -107,11 +110,13 @@ export interface TargetCompletion {
  */
 function botPlayClause(
     cardNames: readonly string[],
+    unplayable: ReadonlySet<string>,
     source: BotPlayVerdicts
 ): BotPlayClause {
     const verdicts = new Map(source.cards.map((c) => [c.name, c] as const));
     const frozen: string[] = [];
     const neverChosen: string[] = [];
+    const coveredByMust: string[] = [];
     const unmeasured: string[] = [];
     const harnessBound: HarnessBoundCard[] = [];
     for (const name of cardNames) {
@@ -120,8 +125,14 @@ function botPlayClause(
             unmeasured.push(name);
             continue;
         }
-        if (verdict.outcome === "played" || verdict.outcome === "unplayable")
+        if (verdict.outcome === "played") continue;
+        if (verdict.outcome === "unplayable") {
+            // The `playable` clause owns a card coverage calls unplayable; one
+            // the sweep could not play but coverage calls playable is a
+            // disagreement between two readers, and proves nothing.
+            if (!unplayable.has(name)) unmeasured.push(name);
             continue;
+        }
         if (verdict.outcome === "frozen") {
             frozen.push(name);
             continue;
@@ -129,7 +140,9 @@ function botPlayClause(
         const cause =
             verdict.gap === undefined ? null : botGapCause(verdict.gap);
         if (cause === "never-chosen") {
-            if (!source.mustCovered.has(name)) neverChosen.push(name);
+            if (isMustCovered(name, source.mustCovered))
+                coveredByMust.push(name);
+            else neverChosen.push(name);
         } else if (cause !== null && HARNESS_BOUND_CAUSES.has(cause)) {
             harnessBound.push({ name, cause });
         } else unmeasured.push(name);
@@ -142,8 +155,20 @@ function botPlayClause(
         frozen,
         neverChosen,
         unmeasured,
+        coveredByMust,
         harnessBound,
     };
+}
+
+const FACE_SEPARATOR = " // ";
+
+/** A blade entry names a card by its DEFINITION name — one face of a split or
+ *  double-faced card — while the lockfile row carries `Front // Back`. */
+function isMustCovered(name: string, covered: ReadonlySet<string>): boolean {
+    return (
+        covered.has(name) ||
+        name.split(FACE_SEPARATOR).some((face) => covered.has(face))
+    );
 }
 
 /** Every card of the Target — the coverage states partition it. */
@@ -170,9 +195,10 @@ export function targetCompleted(
                   frozen: [],
                   neverChosen: [],
                   unmeasured: [],
+                  coveredByMust: [],
                   harnessBound: [],
               }
-            : botPlayClause(cardNames, botPlay);
+            : botPlayClause(cardNames, new Set(coverage.unplayable), botPlay);
     const failing: CompletionClause[] = [];
     if (coverage.unplayable.length > 0) failing.push("playable");
     if (reds.length > 0) failing.push("coverage-invariant");
@@ -204,7 +230,11 @@ export function formatCompletion(completion: TargetCompletion): string {
                   .map((c) => `${c.name} (${c.cause})`)
                   .join(", ") +
               "\n";
-    if (completion.completed) return `  completed: yes\n${bound}`;
+    const covered =
+        completion.botPlay.coveredByMust.length === 0
+            ? ""
+            : `  never-chosen, covered by a must Test Position (${completion.botPlay.coveredByMust.length}): ${listed(completion.botPlay.coveredByMust)}\n`;
+    if (completion.completed) return `  completed: yes\n${covered}${bound}`;
     const lines: string[] = [];
     const reds = completion.coverageInvariant.reds.slice(0, RED_LINES_SHOWN);
     if (!completion.playable.green)
@@ -231,13 +261,14 @@ export function formatCompletion(completion: TargetCompletion): string {
             );
         if (bot.unmeasured.length > 0)
             parts.push(
-                `no usable verdict ${bot.unmeasured.length}: ${listed(bot.unmeasured)}`
+                `no classifiable verdict ${bot.unmeasured.length} (absent from the report, harness-error or another unclassified cause, or unplayable in the sweep only): ${listed(bot.unmeasured)}`
             );
         lines.push(`bot-play — ${parts.join("; ")}`);
     }
     return (
         `  completed: no — ${completion.failing.join(", ")}\n` +
         lines.map((l) => `    red: ${l}\n`).join("") +
+        covered +
         bound
     );
 }
@@ -266,10 +297,13 @@ const PLAYING_KINDS: ReadonlySet<string> = new Set([
 
 /**
  * The card names a `must` Test Position covers (ADR 0143: "shows the Bot
- * playing it in a position where playing it is sensible"): the cards a
- * `must` entry's POSITIVE expectation (`expect.moves`) names on a move that
- * plays a card. A `forbidden` or predicate expectation asserts nothing
- * positive, and a `stretch` entry is report-only.
+ * playing it in a position where playing it is sensible"). A blade entry's
+ * `expect.moves` is "the chosen move matches AT LEAST ONE matcher" (the
+ * "these are all acceptable best plays" shape), so a card is proved played
+ * only when EVERY alternative names it: the intersection over the matchers,
+ * where a matcher of a kind that plays nothing (a pass, a block) names no
+ * card. A `forbidden` or predicate expectation asserts nothing positive, and a
+ * `stretch` entry is report-only.
  */
 export function mustCoveredCards(
     scenarios: readonly BladeEntryShape[]
@@ -277,11 +311,18 @@ export function mustCoveredCards(
     const names = new Set<string>();
     for (const entry of scenarios) {
         if (entry.tier !== "must") continue;
-        for (const matcher of entry.expect.moves ?? []) {
-            if (!PLAYING_KINDS.has(matcher.kind)) continue;
-            if (matcher.card !== undefined) names.add(matcher.card);
-            for (const card of matcher.cards ?? []) names.add(card);
-        }
+        const matchers = entry.expect.moves ?? [];
+        if (matchers.length === 0) continue;
+        const named = matchers.map((matcher) =>
+            PLAYING_KINDS.has(matcher.kind)
+                ? new Set([
+                      ...(matcher.card === undefined ? [] : [matcher.card]),
+                      ...(matcher.cards ?? []),
+                  ])
+                : new Set<string>()
+        );
+        for (const card of named[0]!)
+            if (named.every((set) => set.has(card))) names.add(card);
     }
     return names;
 }
