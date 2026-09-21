@@ -231,6 +231,13 @@ import {
     castPermissionRequiredFor,
     castTimingBaseLegal,
 } from "./gre/rules";
+// CR 601.2c — the single authority on "an effect says an object must be chosen
+// as a target" (Flagbearer). The mutation re-derives the narrowing per pick;
+// `refreshRequiredTargetChoiceIds` publishes it for the client and the Bot.
+import {
+    computeRequiredTargetChoiceIds,
+    refreshRequiredTargetChoiceIds,
+} from "./gre/targetChoiceRequirements";
 import {
     announcedModeFields,
     modeInstanceTargetGroups,
@@ -5406,6 +5413,10 @@ export function advanceTargetGroupOrFinalize(
             ),
             pt.chosenX
         );
+        // CR 601.2c — one announcement, one set of targets: a requirement the
+        // earlier groups left unobeyed follows the walk into this one, and the
+        // ids it narrows to are this group's, not the previous group's.
+        refreshRequiredTargetChoiceIds(state, pt);
         return;
     }
     finalizeTargetSelection(state, pt, playerId);
@@ -7996,6 +8007,12 @@ export const announceCast = mutation({
                     resolvedCount!
                 ),
             };
+            // CR 601.2c — "while an opponent is choosing targets as part of
+            // casting a spell they control … that player must choose at least
+            // one Flagbearer if able": narrow the FIRST pick before the client
+            // ever renders it. Re-derived at every accepted pick, so this is
+            // the view, not the authority (`targetChoiceRequirements.ts`).
+            refreshRequiredTargetChoiceIds(state, state.pendingTarget);
 
             await saveGameState(
                 ctx,
@@ -11104,6 +11121,19 @@ export function applyOneTargetSelection(
         throw new Error("That target has already been chosen for this spell");
     }
 
+    // CR 601.2c — an effect saying an object MUST be chosen as a target
+    // (Flagbearer) narrows this pick. Re-derived from the live board rather
+    // than read off `pt.requiredTargetChoiceIds`: that field is the view the
+    // client and the Bot were handed, and the accepted set may never trust a
+    // value the chooser could have ignored (the same offered-vs-accepted
+    // discipline `checkPermanentTargetFilters` keeps for every other filter).
+    const required = computeRequiredTargetChoiceIds(state, pt);
+    if (required && !required.includes(target.id)) {
+        throw new Error(
+            "This pick must choose a permanent an effect requires you to target"
+        );
+    }
+
     pt.selected.push(target);
 
     // CR 601.2d / 120.4 — divide-as-you-choose: record the amount assigned
@@ -11139,7 +11169,13 @@ export function applyOneTargetSelection(
         // CR 601.2c — advance to the next independent target group
         // (Fumarole) when one is queued; otherwise finalize.
         advanceTargetGroupOrFinalize(state, pt, playerId);
+        return;
     }
+    // CR 601.2c — the selection stays open on a further slot of this group, so
+    // re-derive what that slot is allowed to choose: the pick just accepted may
+    // have SATISFIED the requirement (freeing everything that follows) or used
+    // up the last slot that could defer it.
+    refreshRequiredTargetChoiceIds(state, pt);
 }
 
 /** Select a target for a spell being announced (CR 601.2c). */

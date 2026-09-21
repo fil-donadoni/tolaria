@@ -8821,6 +8821,47 @@ export interface StaticAttackRequirement {
     ) => boolean;
 }
 
+/** Card-level TARGET-CHOICE requirement (CR 601.2c). Declares that a player
+ *  choosing targets — while casting a spell they control or activating an
+ *  ability they control — must choose at least one object matching `filter`
+ *  if able. CR 601.2c: "If any effects say that an object or player must be
+ *  chosen as a target, the player chooses targets so that they obey the
+ *  maximum possible number of such effects without violating any rules or
+ *  effects that say that an object or player can't be chosen as a target."
+ *
+ *  The positive twin of `StaticPermanentGuard.cantBeTargeted`, and read on the
+ *  same live-query model (CR 611 — a continuous effect applies only while its
+ *  source is on the battlefield, which is exactly the iteration set
+ *  `activeTargetChoiceRequirements` walks). It is a rules-modifying effect
+ *  (CR 613.11 — a continuous effect that affects the rules of the game rather
+ *  than objects, applied after every other continuous effect), never a
+ *  characteristic the layer system applies, so it sits with the other CR 611.3
+ *  kinds.
+ *
+ *  `filter` names the objects that SATISFY the requirement, not the source:
+ *  every Flagbearer card says "at least one Flagbearer", not "at least one of
+ *  me", so two Flagbearers on the battlefield impose ONE requirement that
+ *  either of them answers (`activeTargetChoiceRequirements` dedups by
+ *  `id` + binding side for exactly that reason). It is matched by the engine's
+ *  single `matchesPermanentFilter` authority against a battlefield candidate. */
+export interface StaticTargetChoiceRequirement {
+    kind: "target-choice-requirement";
+    id: string;
+    /** Oracle text (informational — the reason a pick was narrowed). */
+    oracleText: string;
+    /** Whose target choices this binds, relative to the source's controller.
+     *  `"opponents"` is the only shipped scope (CR 601.2c, the Flagbearer
+     *  wording "while an OPPONENT is choosing targets"); an effect binding its
+     *  own controller would add a member here rather than a second kind. */
+    binds: "opponents";
+    /** Which battlefield objects SATISFY the requirement, matched through the
+     *  engine's single `matchesPermanentFilter` authority (`cards/filters.ts`)
+     *  so it reads the LIVE, layer-materialized characteristics — a creature
+     *  that is a Flagbearer only because of an Aura (Coalition Flag's layer-4
+     *  `subtype-add`) answers the requirement exactly like a printed one. */
+    filter: PermanentFilter;
+}
+
 /** Card-level block requirement (CR 509.1c). Declares that creatures
  *  able to block the enchanted/source permanent must do so. The engine
  *  collects these from the card definition and attached auras at
@@ -9867,6 +9908,7 @@ export type StaticEffect =
         | StaticEntersTappedRestriction
         | StaticAttackRequirement
         | StaticBlockRequirement
+        | StaticTargetChoiceRequirement
         | StaticHandSizeOverride
         | StaticLoyaltyActivationAllowance
         | StaticCostModifier

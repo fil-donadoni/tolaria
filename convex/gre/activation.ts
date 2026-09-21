@@ -44,6 +44,9 @@ import {
     recordActivation,
 } from "./activationCommit";
 import { buildActivationSacrificeSelection } from "./activationCostPicks";
+// CR 601.2c via 602.2b — a Flagbearer-style requirement binds an activated
+// ability's target choice too (`gre/targetChoiceRequirements.ts`).
+import { refreshRequiredTargetChoiceIds } from "./targetChoiceRequirements";
 import { castAsAdventure } from "./adventure";
 import { handCardMatchesFilter } from "./alternativeCost";
 import { applyBestowCharacteristics } from "./bestow";
@@ -2727,6 +2730,11 @@ export function activateAbilityOnState(
                 ? { remainingRequirements: abilityAdditionalRequirements }
                 : {}),
         };
+        // CR 601.2c via 602.2b — "… or activating an ability they control":
+        // an activated ability's targets are bound by a Flagbearer-style
+        // requirement exactly as a spell's are, so the first pick is narrowed
+        // here the same way `announceCast` narrows its own.
+        refreshRequiredTargetChoiceIds(state, state.pendingTarget);
 
         return;
     }

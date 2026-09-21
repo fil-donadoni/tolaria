@@ -111,6 +111,14 @@ import {
     raisedPendingTargetOwedBy,
     requirementFromPendingTarget,
 } from "./pendingTargetOrigin";
+// CR 601.2c — the requirement that an announcement must choose a Flagbearer if
+// able. The enumerator drops the tuples the server would refuse mid-apply.
+import {
+    activeTargetChoiceRequirements,
+    groupPicksObeyTargetChoice,
+    obeysTargetChoiceRequirements,
+    requirementGroupCanSatisfy,
+} from "./targetChoiceRequirements";
 import {
     applyGenericOffset,
     delveEligibleCards,
@@ -2586,6 +2594,29 @@ function enumerateTargetGroupTuples(
         modeTargetCounts?: number[];
     };
     const groupInstances = modeInstances?.groupInstances;
+    // CR 601.2c (issue #3805) — the Flagbearer-style requirements binding this
+    // chooser. Empty on every ordinary board, and everything below it is then
+    // dead weight the `length === 0` guards skip: one battlefield walk is the
+    // whole cost of the rule for a game that never sees one.
+    const choiceRequirements = activeTargetChoiceRequirements(state, player.id);
+    const choiceSource = targetingSourceFromCard(card, true);
+    /** Can a group AFTER `g` still take an object the requirement wants? The
+     *  Bot-side mirror of `deferrableSlots` (`targetChoiceRequirements.ts`) —
+     *  the server lets the chooser defer past this group exactly when one can. */
+    const canSatisfyAfter = (g: number): boolean =>
+        groups
+            .slice(g + 1)
+            .some((req) =>
+                requirementGroupCanSatisfy(
+                    state,
+                    choiceRequirements,
+                    req,
+                    choiceSource,
+                    player.id,
+                    chosenX,
+                    "later"
+                )
+            );
     let acc: Tuple[] = [
         {
             targets: [],
@@ -2612,6 +2643,22 @@ function enumerateTargetGroupTuples(
         // announcement illegal (`announceCast` throws "Not enough legal
         // targets"), so the cast is not a move at all.
         if (groupTuples.length === 0) return [];
+        // CR 601.2c — this group's own share of the requirement: whether its
+        // legal set can answer one at all ("if able"), how many of its slots
+        // the chooser is FORCED to fill (the deferral window inside the
+        // group), and whether a later group could take the satisfier instead.
+        const groupCanSatisfy = requirementGroupCanSatisfy(
+            state,
+            choiceRequirements,
+            req,
+            choiceSource,
+            player.id,
+            chosenX,
+            "here"
+        );
+        const laterCanSatisfy =
+            choiceRequirements.length > 0 && canSatisfyAfter(g);
+        const groupMinSlots = req ? targetCount(req, chosenX).min : 0;
         const instance = groupInstances?.[g];
         const next: Tuple[] = [];
         for (const prefix of acc) {
@@ -2642,6 +2689,29 @@ function enumerateTargetGroupTuples(
                 ) {
                     continue;
                 }
+                // CR 601.2c — the per-pick rule, read as a property of this
+                // group's picks (`groupPicksObeyTargetChoice`). A tuple the
+                // server would refuse half-way through is not a move.
+                if (
+                    choiceRequirements.length > 0 &&
+                    !obeysTargetChoiceRequirements(
+                        state,
+                        choiceRequirements,
+                        prefix.targets
+                    ) &&
+                    !groupPicksObeyTargetChoice(
+                        state,
+                        choiceRequirements,
+                        tuple,
+                        groupMinSlots,
+                        {
+                            canSatisfyHere: groupCanSatisfy,
+                            canSatisfyLater: laterCanSatisfy,
+                        }
+                    )
+                ) {
+                    continue;
+                }
                 let modeTargetCounts = prefix.modeTargetCounts;
                 if (modeTargetCounts && instance !== undefined) {
                     modeTargetCounts = [...modeTargetCounts];
@@ -2661,6 +2731,13 @@ function enumerateTargetGroupTuples(
         if (next.length === 0) return [];
         acc = next;
     }
+    // CR 601.2c — "if any effects say that an object must be chosen as a
+    // target, the player chooses targets so that they obey the maximum
+    // possible number of such effects" (Flagbearer). Applied to the WHOLE
+    // announcement, which is the shape this function produces and the shape
+    // the rule is written about; the server applies the same rule pick by
+    // pick, so an announcement dropped here is one `selectTargets` would have
+    // thrown on half-way through.
     return acc;
 }
 
@@ -2777,6 +2854,11 @@ export function enumerateRaisedTargetMoves(
             if (moves.length >= MAX_COMBINATIONS) return moves;
         }
     }
+    // CR 601.2c does NOT reach here: this enumerator answers only RAISED
+    // selections (`raisedPendingTargetOwedBy` — a trigger choosing its targets,
+    // a retarget), and the rule binds a player "choosing targets as part of
+    // casting a spell or activating an ability". The announcement path is
+    // `enumerateTargetGroupTuples`, which does apply it.
     return moves;
 }
 

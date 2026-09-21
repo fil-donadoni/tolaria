@@ -8,7 +8,11 @@ import {
     matchesPlayerTargetFilters,
     wantsPlayerTarget,
 } from "~/lib/card-utils";
-import { isPlayerUntargetableByPending } from "~/lib/targeting";
+import {
+    isBarredByRequiredTargetChoice,
+    isPlayerUntargetableByPending,
+} from "~/lib/targeting";
+import { useDivideBuffer } from "~/hooks/useDivideBuffer";
 
 /** One legal target of an active divide-as-you-choose spell (CR 601.2d). The
  *  divide dialog renders these inline (a mini-card / player chip + its own
@@ -36,6 +40,10 @@ export type DivideTargetItem =
  *  the board agree on the target set. Returns `[]` outside a divide
  *  selection. */
 export function useDivideTargets(): DivideTargetItem[] {
+    // CR 601.2c / 601.2d — the picks buffered client-side so far. Nothing is
+    // submitted until "Done", so these are the only record of a requirement
+    // the chooser has already obeyed inside this dialog.
+    const { assignedIds } = useDivideBuffer();
     const {
         allPlayers,
         activePlayerId,
@@ -80,6 +88,13 @@ export function useDivideTargets(): DivideTargetItem[] {
                     activePlayerId,
                     controlContinuity,
                     emblems
+                ) &&
+                // CR 601.2c — the same Flagbearer narrowing the board applies,
+                // so the divide picker and the battlefield offer one set.
+                !isBarredByRequiredTargetChoice(
+                    pendingTarget,
+                    card.id,
+                    assignedIds
                 )
             ) {
                 items.push({
@@ -119,6 +134,14 @@ export function useDivideTargets(): DivideTargetItem[] {
                     allPlayers,
                     p.id,
                     playerProtectionFromEverything
+                ) &&
+                // CR 601.2c — a divided spell's targets are targets: while a
+                // target-choice requirement (Flagbearer) binds the pick, a
+                // player is not one of the permanents it narrowed to.
+                !isBarredByRequiredTargetChoice(
+                    pendingTarget,
+                    p.id,
+                    assignedIds
                 )
             ) {
                 items.push({

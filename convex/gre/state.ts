@@ -4701,6 +4701,22 @@ export type PendingTarget = {
      *  picks into `priorSelected`) instead of finalizing. Undefined/empty for
      *  single-group spells. */
     remainingRequirements?: TargetRequirement[];
+    /** CR 601.2c (issue #3805) — when a target-choice requirement binds the
+     *  pick being made NOW ("while an opponent is choosing targets …, that
+     *  player must choose at least one Flagbearer if able"), the permanent
+     *  instance ids the chooser must choose among. Absent — the ordinary case,
+     *  no such permanent on the battlefield — means the pick is unconstrained
+     *  by this rule.
+     *
+     *  Written by `refreshRequiredTargetChoiceIds`
+     *  (`gre/targetChoiceRequirements.ts`) at announcement, after every
+     *  accepted pick and at each hand-off to a further independent group; read
+     *  by the Bot's enumerators and by the client's clickability gate. It is a
+     *  VIEW of the rule, never its authority: `applyOneTargetSelection`
+     *  re-derives the narrowing from the live board before accepting a pick
+     *  (ADR 0074 — a client that ignored this field gets its illegal pick
+     *  rejected, not applied). */
+    requiredTargetChoiceIds?: string[];
     /** Targets already locked in from EARLIER target groups of a multi-group
      *  spell (CR 601.2c), in declaration order. `selected` tracks only the
      *  CURRENT group; on group completion its picks are appended here and

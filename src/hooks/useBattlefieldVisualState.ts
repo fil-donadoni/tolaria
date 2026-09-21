@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import type { CardInstance, Player } from "~/types/game";
 import { useGameContext } from "~/hooks/useGameContext";
 import { usePendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
+import { useDivideBuffer } from "~/hooks/useDivideBuffer";
 import { isEligibleAttacker } from "~/lib/attacker-eligibility";
 import { combatDeclarationCap } from "@convex/cards/attackRestrictions";
 import { useAttackSequence } from "~/hooks/useAttackSequence";
@@ -28,7 +29,10 @@ import {
     pendingCastRemainingGeneric,
 } from "~/lib/card-utils";
 import { pendingChoiceRoutesToBattlefield } from "~/lib/pending-choice-labels";
-import { isUntargetableByPending } from "~/lib/targeting";
+import {
+    isBarredByRequiredTargetChoice,
+    isUntargetableByPending,
+} from "~/lib/targeting";
 import {
     isTapOtherChoicePaid,
     type TapOtherCandidate,
@@ -124,6 +128,12 @@ export function useBattlefieldVisualState(
             ? { turn: engineTurn, controlChangedThisTurn }
             : undefined;
     const bufferCtx = usePendingChoiceBuffer();
+    // CR 601.2c / 601.2d — a divide-as-you-choose distribution is buffered
+    // client-side until "Done", so a requirement the chooser has already
+    // obeyed inside the buffer is not yet reflected in the server's published
+    // narrowing. Without this the board would keep every divide target but the
+    // Flagbearer greyed for the whole dialog.
+    const divideBuffer = useDivideBuffer();
     const attackSequence = useAttackSequence();
     const isMe = player.id === playerId;
 
@@ -469,6 +479,19 @@ export function useBattlefieldVisualState(
             ) {
                 return false;
             }
+            // CR 601.2c — an effect may say an object MUST be chosen as a
+            // target (Flagbearer): while one binds this pick, everything
+            // outside the engine's narrowed set is not a legal choice, so it
+            // must not read as clickable.
+            if (
+                isBarredByRequiredTargetChoice(
+                    pendingTarget,
+                    card.id,
+                    divideBuffer.assignedIds
+                )
+            ) {
+                return false;
+            }
             // CR 702.18 / 611 — a shrouded / "can't be the target" permanent is
             // not a legal target, so it must not read as clickable (#382). The
             // server also rejects it; this just mirrors the gate client-side.
@@ -652,6 +675,14 @@ export function useBattlefieldVisualState(
                 pendingTarget.kind,
                 stackItems,
                 pendingTarget.playerId
+            ) &&
+            // CR 601.2c — same reasoning one layer up: a permanent the
+            // Flagbearer requirement bars is not a target, so it must not glow
+            // as one.
+            !isBarredByRequiredTargetChoice(
+                pendingTarget,
+                card.id,
+                divideBuffer.assignedIds
             );
 
         const isTargetSelected =

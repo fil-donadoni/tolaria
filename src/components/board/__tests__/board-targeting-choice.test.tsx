@@ -282,6 +282,7 @@ describe("board targeting — divide-as-you-choose steppers (CR 601.2d)", () => 
             sum: 0,
             remaining: 4,
             get: () => 0,
+            assignedIds: [],
             inc: vi.fn(),
             dec: vi.fn(),
             canSubmit: false,

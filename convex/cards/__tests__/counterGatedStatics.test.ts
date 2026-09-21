@@ -82,6 +82,7 @@ const KIND_MATERIALIZATION: Record<
     "enters-tapped-restriction": "recomputed",
     "attack-requirement": "recomputed",
     "block-requirement": "recomputed",
+    "target-choice-requirement": "recomputed",
     "hand-size-override": "recomputed",
     "loyalty-activation-allowance": "recomputed",
     "cost-modifier": "recomputed",

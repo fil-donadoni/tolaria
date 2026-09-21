@@ -3,6 +3,7 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { StackItem } from "~/types/game";
 import { matchesSpellPendingTarget, wantsSpellTarget } from "~/lib/card-utils";
+import { isBarredByRequiredTargetChoice } from "~/lib/targeting";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useArrowHighlight } from "~/hooks/arrowHighlightContext";
 import { useDraggable } from "~/hooks/useDraggable";
@@ -355,7 +356,15 @@ export default function GameStack({
                                     playerId,
                                     activePlayerId,
                                     players: allPlayers,
-                                });
+                                }) &&
+                                // CR 601.2c — a target-choice requirement
+                                // (Flagbearer) narrows this pick to permanents
+                                // on the battlefield, so no stack object is a
+                                // legal choice while one binds.
+                                !isBarredByRequiredTargetChoice(
+                                    pendingTarget,
+                                    item.id
+                                );
 
                             const dimmed =
                                 highlight?.nodes != null &&

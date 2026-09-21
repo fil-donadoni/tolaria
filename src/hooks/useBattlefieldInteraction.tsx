@@ -37,7 +37,10 @@ import {
     displayCardId,
 } from "~/lib/card-utils";
 import { pendingChoiceRoutesToBattlefield } from "~/lib/pending-choice-labels";
-import { isUntargetableByPending } from "~/lib/targeting";
+import {
+    isBarredByRequiredTargetChoice,
+    isUntargetableByPending,
+} from "~/lib/targeting";
 import { activeSacrificeSelection } from "~/lib/sacrifice-selection";
 import { outstandingDamageAssigner } from "~/lib/priority";
 import { extractMutationError, type MutationError } from "~/lib/mutation-error";
@@ -629,7 +632,11 @@ export function useBattlefieldInteraction(player: Player) {
                 // CR 702.11b — the chooser controls the source; hexproof bars
                 // only an opponent's source, never the controller's own.
                 pendingTarget.playerId
-            )
+            ) &&
+            // CR 601.2c — don't fire selectTarget for a permanent a
+            // target-choice requirement (Flagbearer) bars from THIS pick; the
+            // server rejects it and the click would only raise a toast (#904).
+            !isBarredByRequiredTargetChoice(pendingTarget, card.id)
         ) {
             guardMutation(
                 selectTarget({
