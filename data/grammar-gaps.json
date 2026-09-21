@@ -606,6 +606,11 @@
         },
         {
             "kind": "bot",
+            "key": "position-unmodelled › Sorcery target:Artifact",
+            "issue": 4352
+        },
+        {
+            "kind": "bot",
             "key": "position-unmodelled › Sorcery target:Creature",
             "issue": 4265
         },
