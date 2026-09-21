@@ -17,7 +17,7 @@
  *
  * | Source                                  | P1                       | P2            | P3                  |
  * | --------------------------------------- | ------------------------ | ------------- | ------------------- |
- * | Cards it unlocks or names (lockfile)    | `premodern-metagame` / `tier1-*` | `vintage-cube` | only `set-*` / `format-*` |
+ * | Cards it unlocks or names (lockfile)    | the 1st not-completed ranked Target | the 2nd | the 3rd |
  * | Blocking edge                           | blocks a P1              | blocks a P2   | blocks a P3         |
  * | Parent (band inheritance, issue #3212)  | parent P1                | parent P2     | parent P3           |
  *
@@ -54,6 +54,8 @@
  * A neighbour at `P0` yields `P1`: the script never writes `P0`.
  */
 
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { PRD_ISSUE } from "./gap-issues";
 import { cardsNamedByTitle } from "./gap-kinds";
 import type { BoardPriority } from "./board-priority";
@@ -64,7 +66,7 @@ import {
     fencedLines,
 } from "./declared-section";
 import type { CardRow, Lockfile } from "./oracle-lockfile";
-import { quarantineClass, type ClaimRow } from "./targets";
+import { quarantineClass, readTargetRegistry, type ClaimRow } from "./targets";
 
 /** The bands the rule may WRITE — never `P0`. */
 export type Band = "P1" | "P2" | "P3";
@@ -79,15 +81,50 @@ const SOURCE_ORDER: readonly BandSource[] = [
     "parent",
 ];
 
-/** The band a registered Target lends its cards, by id — `null` for a Target
- *  the rule does not rank (it lends nothing, it does not demote). */
+/** A registry row as the ranking reads it. */
+export interface RankedTargetRow {
+    readonly id: string;
+    readonly priority?: number;
+}
+
+/**
+ * The bands the registry lends (ADR 0143 § Bands follow the Targets): the
+ * Targets that carry a `priority` and are NOT completed, in `priority` order —
+ * the 1st → `P1`, the 2nd → `P2`, the 3rd → `P3`. A later one, and a row with
+ * no `priority`, lends nothing. Only the order matters, so a gap in the
+ * numbering costs nothing.
+ */
+export function rankTargetBands(
+    rows: readonly RankedTargetRow[],
+    completed: ReadonlySet<string>
+): ReadonlyMap<string, Band> {
+    const open = rows
+        .filter((row) => row.priority !== undefined && !completed.has(row.id))
+        .sort((a, b) => a.priority! - b.priority!);
+    return new Map(
+        open.slice(0, BANDS.length).map((row, i) => [row.id, BANDS[i]!])
+    );
+}
+
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+
+let registryBands: ReadonlyMap<string, Band> | undefined;
+
+/**
+ * The band a registered Target lends its cards — `null` for a Target the rule
+ * does not rank (it lends nothing, it does not demote). Read from
+ * `data/targets.json` once per process.
+ *
+ * No Target is treated as completed here: `targetCompleted()` proves the Bot-play
+ * clause from a `target-bot-reach --json` report, none is persisted in the
+ * tree, and without one it answers "not completed" for every Target.
+ */
 export function targetBand(targetId: string): Band | null {
-    if (targetId === "premodern-metagame" || targetId.startsWith("tier1-"))
-        return "P1";
-    if (targetId === "vintage-cube") return "P2";
-    if (targetId.startsWith("set-") || targetId.startsWith("format-"))
-        return "P3";
-    return null;
+    registryBands ??= rankTargetBands(
+        readTargetRegistry(REPO_ROOT).targets,
+        new Set()
+    );
+    return registryBands.get(targetId) ?? null;
 }
 
 const rank = (band: Band): number => BANDS.indexOf(band);
@@ -112,11 +149,12 @@ export interface CardBand {
 }
 
 export function cardBandIndex(
-    targets: readonly { readonly id: string; readonly ids: Iterable<string> }[]
+    targets: readonly { readonly id: string; readonly ids: Iterable<string> }[],
+    bandOf: (targetId: string) => Band | null = targetBand
 ): Map<string, CardBand> {
     const index = new Map<string, CardBand>();
     for (const target of targets) {
-        const band = targetBand(target.id);
+        const band = bandOf(target.id);
         if (band === null) continue;
         for (const id of target.ids) {
             const held = index.get(id);

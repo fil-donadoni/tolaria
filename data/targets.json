@@ -107,7 +107,8 @@
         {
             "id": "format-premodern",
             "kind": "format",
-            "source": "premodern"
+            "source": "premodern",
+            "priority": 3
         },
         {
             "id": "format-pauper",

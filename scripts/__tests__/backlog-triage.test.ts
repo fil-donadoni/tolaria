@@ -28,6 +28,7 @@ import {
     planWrites,
     parseBand,
     parseCards,
+    rankTargetBands,
     renderReport,
     residueCause,
     resolveDeclaredCards,
@@ -54,14 +55,29 @@ const CARDS = {
 const byName = (name: string): string | undefined =>
     (CARDS as Record<string, string>)[name];
 
-const index = cardBandIndex([
-    { id: "premodern-metagame", ids: [CARDS.Meta] },
-    { id: "tier1-goblin", ids: [CARDS.Tier] },
-    // A card in both the cube and a set takes the cube's band.
-    { id: "vintage-cube", ids: [CARDS.Cube, CARDS.Meta] },
-    { id: "set-4ed", ids: [CARDS.SetOnly, CARDS.Cube] },
-    { id: "format-premodern", ids: [CARDS.Fmt] },
-]);
+// A synthetic registry: the three ranked rows in registry order, one row that
+// stops lending (a tier1 list carries no `priority`), one card-only set.
+const ROWS = [
+    { id: "premodern-metagame", priority: 1 },
+    { id: "vintage-cube", priority: 2 },
+    { id: "set-4ed", priority: 3 },
+    { id: "tier1-goblin" },
+    { id: "format-premodern" },
+];
+const syntheticBand = (id: string) =>
+    rankTargetBands(ROWS, new Set()).get(id) ?? null;
+
+const index = cardBandIndex(
+    [
+        { id: "premodern-metagame", ids: [CARDS.Meta] },
+        { id: "tier1-goblin", ids: [CARDS.Tier] },
+        // A card in both the cube and a set takes the cube's band.
+        { id: "vintage-cube", ids: [CARDS.Cube, CARDS.Meta] },
+        { id: "set-4ed", ids: [CARDS.SetOnly, CARDS.Cube] },
+        { id: "format-premodern", ids: [CARDS.Fmt] },
+    ],
+    syntheticBand
+);
 
 const issue = (
     number: number,
@@ -82,12 +98,55 @@ const verdictOf = (
 ) => triage(issues, index, board, 9999).get(n);
 
 describe("backlog-triage — targetBand", () => {
-    it("ranks the Target ids decision 3 names, and lends nothing for others", () => {
+    /** Four Targets, priorities 1 / 2 / 4 / 7 in a scrambled row order. */
+    const REGISTRY = [
+        { id: "c", priority: 4 },
+        { id: "unranked" },
+        { id: "a", priority: 1 },
+        { id: "d", priority: 7 },
+        { id: "b", priority: 2 },
+    ];
+    const bands = (completed: string[] = []) =>
+        Object.fromEntries(
+            rankTargetBands(REGISTRY, new Set(completed)).entries()
+        );
+
+    it("ranks by priority, not by row order", () => {
+        expect(bands()).toEqual({ a: "P1", b: "P2", c: "P3" });
+    });
+
+    it("a gap in the numbering costs nothing — c holds priority 4 and is still the 3rd", () => {
+        expect(bands().c).toBe("P3");
+    });
+
+    it("a Target beyond the third lends nothing", () => {
+        expect(bands()).not.toHaveProperty("d");
+    });
+
+    it("a completed Target drops out and promotes the next one", () => {
+        expect(bands(["a"])).toEqual({ b: "P1", c: "P2", d: "P3" });
+        expect(bands(["a", "b"])).toEqual({ c: "P1", d: "P2" });
+    });
+
+    it("completing a Target that is not ranked, or not in the registry, changes nothing", () => {
+        expect(bands(["unranked", "elsewhere"])).toEqual(bands());
+    });
+
+    it("an unranked Target lends null whatever else completes", () => {
+        expect(bands()).not.toHaveProperty("unranked");
+        expect(bands(["a", "b", "c", "d"])).toEqual({});
+    });
+
+    it("reads data/targets.json: the metagame, the cube and the premodern pool rank 1, 2, 3", () => {
         expect(targetBand("premodern-metagame")).toBe("P1");
-        expect(targetBand("tier1-aluren")).toBe("P1");
         expect(targetBand("vintage-cube")).toBe("P2");
-        expect(targetBand("set-2ed")).toBe("P3");
-        expect(targetBand("format-legacy")).toBe("P3");
+        expect(targetBand("format-premodern")).toBe("P3");
+    });
+
+    it("no id prefix lends a band — tier1-*, set-* and the other formats carry no priority", () => {
+        expect(targetBand("tier1-aluren")).toBeNull();
+        expect(targetBand("set-2ed")).toBeNull();
+        expect(targetBand("format-legacy")).toBeNull();
         expect(targetBand("someone-elses-list")).toBeNull();
     });
 
@@ -101,16 +160,16 @@ describe("backlog-triage — targetBand", () => {
 });
 
 describe("backlog-triage — the rule (issue #3851 decision 3)", () => {
-    it("a metagame card → P1, a tier1 card → P1", () => {
+    it("a metagame card → P1; a card only a priority-less list holds lends nothing", () => {
         expect(verdictOf([issue(1, { cards: [CARDS.Meta] })])).toEqual({
             kind: "band",
             band: "P1",
             source: "cards",
             via: "premodern-metagame",
         });
-        expect(verdictOf([issue(1, { cards: [CARDS.Tier] })])).toMatchObject({
-            band: "P1",
-            via: "tier1-goblin",
+        expect(verdictOf([issue(1, { cards: [CARDS.Tier] })])).toEqual({
+            kind: "residue",
+            cause: "off-road",
         });
     });
 
@@ -121,12 +180,13 @@ describe("backlog-triage — the rule (issue #3851 decision 3)", () => {
         });
     });
 
-    it("a set-only (or format-only) card → P3", () => {
+    it("the 3rd ranked Target's card → P3; an unranked format's card is residue", () => {
         expect(verdictOf([issue(1, { cards: [CARDS.SetOnly] })])).toMatchObject(
             { band: "P3", source: "cards", via: "set-4ed" }
         );
-        expect(verdictOf([issue(1, { cards: [CARDS.Fmt] })])).toMatchObject({
-            band: "P3",
+        expect(verdictOf([issue(1, { cards: [CARDS.Fmt] })])).toEqual({
+            kind: "residue",
+            cause: "off-road",
         });
     });
 
