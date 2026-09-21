@@ -910,6 +910,16 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Alabaster Wall",
+        "scryfallId": "9cf393a3-831e-4d3a-8404-ee83f60970aa",
+        "oracleId": "f9f52651-cc64-48c5-bc18-cd5f646dfb1f",
+        "firstSet": "mmq",
+        "firstPrintId": "9cf393a3-831e-4d3a-8404-ee83f60970aa",
+        "firstPrintSet": "mmq",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Alaborn Cavalier",
         "scryfallId": "8e865658-67c8-43b2-8d3a-909fb1c17e8a",
         "oracleId": "f8273146-f2e5-40ec-ba96-c0a4192caec8",
@@ -3204,6 +3214,16 @@
         "source": "compiled"
     },
     {
+        "name": "Aven Redeemer",
+        "scryfallId": "8a2fa0a3-e40f-49e4-a4fd-427e7e808afd",
+        "oracleId": "faac29f5-10ad-4800-a9d3-2259c4800352",
+        "firstSet": "lgn",
+        "firstPrintId": "8a2fa0a3-e40f-49e4-a4fd-427e7e808afd",
+        "firstPrintSet": "lgn",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Aven Reedstalker",
         "scryfallId": "f0c2d70a-d646-44eb-9f65-ddf6e329ab43",
         "oracleId": "d9f43942-4296-417d-a180-5b4f64e4b12d",
@@ -3619,6 +3639,16 @@
         "firstPrintId": "e23ebd3b-59bf-4f3d-b320-9283871c4540",
         "firstPrintSet": "tor",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Bandage",
+        "scryfallId": "79ed559a-9a88-43d2-85d1-4bbec038f71e",
+        "oracleId": "c664df64-0103-462b-a0f8-c483b152974a",
+        "firstSet": "sth",
+        "firstPrintId": "79ed559a-9a88-43d2-85d1-4bbec038f71e",
+        "firstPrintSet": "sth",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -4470,6 +4500,16 @@
         "firstSet": "inv",
         "firstPrintId": "b76b6660-d4b2-44de-a1a7-8d00811f90f6",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Benevolent Ancestor",
+        "scryfallId": "f23110b5-0dd4-49a2-8991-bc673aed53c9",
+        "oracleId": "ee414d20-b18e-4bed-97fc-3c7535089ec1",
+        "firstSet": "rav",
+        "firstPrintId": "f23110b5-0dd4-49a2-8991-bc673aed53c9",
+        "firstPrintSet": "rav",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Benthic Giant",
@@ -7216,6 +7256,16 @@
         "source": "compiled"
     },
     {
+        "name": "Caregiver",
+        "scryfallId": "0c33d3fe-cdd3-4829-8f10-6611f063983b",
+        "oracleId": "7661484b-1faa-4ed7-b77b-fc1e625d23e3",
+        "firstSet": "rav",
+        "firstPrintId": "0c33d3fe-cdd3-4829-8f10-6611f063983b",
+        "firstPrintSet": "rav",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Careless Celebrant",
         "scryfallId": "bac6bdd4-b25b-41f6-835d-7d1570cdb951",
         "oracleId": "56afad48-c5e5-4fbe-8889-15bcab234c31",
@@ -8558,6 +8608,16 @@
         "firstSet": "mh1",
         "firstPrintId": "51b657f0-6636-4d8a-9176-81027816e0ec",
         "firstPrintSet": "mh1",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Clergy en-Vec",
+        "scryfallId": "fcb0e068-16d0-4e1c-acad-0a6d34148c5a",
+        "oracleId": "a5a1b4c9-474a-42b7-b412-c2d43a3353db",
+        "firstSet": "tmp",
+        "firstPrintId": "fcb0e068-16d0-4e1c-acad-0a6d34148c5a",
+        "firstPrintSet": "tmp",
         "rarity": "common",
         "source": "compiled"
     },
@@ -16378,6 +16438,16 @@
         "source": "compiled"
     },
     {
+        "name": "Femeref Healer",
+        "scryfallId": "90dedd5e-e2ee-46ec-8541-27f1548b2a2a",
+        "oracleId": "e2117373-6f0a-41c8-ab6a-9014b9628e64",
+        "firstSet": "mir",
+        "firstPrintId": "90dedd5e-e2ee-46ec-8541-27f1548b2a2a",
+        "firstPrintSet": "mir",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Femeref Scouts",
         "scryfallId": "60192ded-689b-4cc5-9293-bff52924089b",
         "oracleId": "18710b5e-5403-48cd-9541-8154ba0a0b30",
@@ -17550,6 +17620,16 @@
         "firstSet": "ice",
         "firstPrintId": "6880a4d3-5cbc-4a01-9190-3565617efcc9",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Flowering Field",
+        "scryfallId": "c241fd76-f52d-48fc-864c-57caffa700f6",
+        "oracleId": "40155cfb-078a-4359-9551-9c71266d8a1c",
+        "firstSet": "pcy",
+        "firstPrintId": "c241fd76-f52d-48fc-864c-57caffa700f6",
+        "firstPrintSet": "pcy",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Flowstone Charger",
@@ -20266,6 +20346,16 @@
         "firstPrintSet": "usg"
     },
     {
+        "name": "Goblin Legionnaire",
+        "scryfallId": "c684407e-277a-4e32-a978-cdac9548acce",
+        "oracleId": "582fdfbe-c5fe-45d0-b3ff-e66db5183725",
+        "firstSet": "apc",
+        "firstPrintId": "c684407e-277a-4e32-a978-cdac9548acce",
+        "firstPrintSet": "apc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Goblin Lyre",
         "scryfallId": "951114fb-5ae5-4eb0-8e03-6e39b0b634b5",
         "oracleId": "0709e9c8-dbe7-4806-ae75-d2e2d745d6a4",
@@ -22460,6 +22550,16 @@
         "source": "compiled"
     },
     {
+        "name": "Healing Leaves",
+        "scryfallId": "d6f58258-a1bd-4364-954e-c39938f7dab2",
+        "oracleId": "9c675e7a-1d68-44b2-9c1a-543b73782437",
+        "firstSet": "plc",
+        "firstPrintId": "d6f58258-a1bd-4364-954e-c39938f7dab2",
+        "firstPrintSet": "plc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Healing Salve",
         "scryfallId": "e28de37e-84d5-4dc7-b36c-e14da5924729",
         "oracleId": "8da8644c-75a1-4fe9-8e94-900d948d631c",
@@ -23148,6 +23248,16 @@
         "firstSet": "mh1",
         "firstPrintId": "0049e68d-0caf-474f-9523-dad343f1250a",
         "firstPrintSet": "mh1"
+    },
+    {
+        "name": "Hold at Bay",
+        "scryfallId": "ffeb407d-6a42-488a-9869-83da3047e45d",
+        "oracleId": "a57b84e4-951c-4475-bb34-b68815858f87",
+        "firstSet": "bng",
+        "firstPrintId": "ffeb407d-6a42-488a-9869-83da3047e45d",
+        "firstPrintSet": "bng",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Holdout Settlement",
@@ -23920,6 +24030,16 @@
         "firstSet": "lea",
         "firstPrintId": "b43b900f-2d9b-442b-9699-058483604ec9",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Hypochondria",
+        "scryfallId": "3467c940-dae4-4667-bec8-524dbce13283",
+        "oracleId": "74c90ddc-4c6e-479d-ad68-b444d3109258",
+        "firstSet": "tor",
+        "firstPrintId": "3467c940-dae4-4667-bec8-524dbce13283",
+        "firstPrintSet": "tor",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Hyrax Tower Scout",
@@ -25210,6 +25330,16 @@
         "firstSet": "j25",
         "firstPrintId": "2ba70366-b6ae-423a-a8d8-29d2b8afd939",
         "firstPrintSet": "j25"
+    },
+    {
+        "name": "Ivory Charm",
+        "scryfallId": "0706acf6-587e-4f29-944a-fdf25aeacb6d",
+        "oracleId": "dded2874-e80f-401a-b700-52c54dd6da60",
+        "firstSet": "mir",
+        "firstPrintId": "0706acf6-587e-4f29-944a-fdf25aeacb6d",
+        "firstPrintSet": "mir",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Ivory Cup",
@@ -26619,6 +26749,16 @@
         "oracleId": "b4fd5a3f-3aec-4336-9dcd-6971c117515a",
         "firstSet": "lrw",
         "firstPrintId": "90d0d7fd-a580-41af-8e9d-fee74094ec47",
+        "firstPrintSet": "lrw",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Kithkin Healer",
+        "scryfallId": "44032574-a5bc-4366-af65-9824fd4302a2",
+        "oracleId": "e3bd74f3-1f38-4162-a0be-c76ad63e2d9b",
+        "firstSet": "lrw",
+        "firstPrintId": "44032574-a5bc-4366-af65-9824fd4302a2",
         "firstPrintSet": "lrw",
         "rarity": "common",
         "source": "compiled"
@@ -28804,6 +28944,16 @@
         "source": "compiled"
     },
     {
+        "name": "Loxodon Anchorite",
+        "scryfallId": "a55f0113-3ced-49c7-9fa8-f1cc873bdc4c",
+        "oracleId": "c70dded8-658b-4250-8057-54894350455c",
+        "firstSet": "5dn",
+        "firstPrintId": "a55f0113-3ced-49c7-9fa8-f1cc873bdc4c",
+        "firstPrintSet": "5dn",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Loxodon Convert",
         "scryfallId": "00c050c3-4f50-4bb6-8477-6737887ca10d",
         "oracleId": "d0a80814-c69c-457c-ba19-4e1ba3fbd485",
@@ -30086,6 +30236,16 @@
         "source": "compiled"
     },
     {
+        "name": "Master Healer",
+        "scryfallId": "e21a342c-ad80-43e4-8b2d-1c48241c52b1",
+        "oracleId": "7695b61a-8d44-44b1-9783-ea3114111c3e",
+        "firstSet": "uds",
+        "firstPrintId": "e21a342c-ad80-43e4-8b2d-1c48241c52b1",
+        "firstPrintSet": "uds",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Master of Death",
         "scryfallId": "b9775175-6763-4826-afc8-dc520a235c36",
         "oracleId": "3a16bdda-8499-47e4-b870-b9576f4c1a83",
@@ -30366,6 +30526,16 @@
         "firstSet": "hml",
         "firstPrintId": "3d2cc591-3a81-468a-91a4-3c3aac83a21a",
         "firstPrintSet": "hml"
+    },
+    {
+        "name": "Mending Hands",
+        "scryfallId": "5b6ba253-fb50-4240-8129-6b86895d1ff9",
+        "oracleId": "a612f30d-cd55-438b-a7de-8c80509183aa",
+        "firstSet": "bok",
+        "firstPrintId": "5b6ba253-fb50-4240-8129-6b86895d1ff9",
+        "firstPrintSet": "bok",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Mending Touch",
@@ -30828,6 +30998,16 @@
         "firstSet": "arn",
         "firstPrintId": "d3ddbe51-cd1a-4b2c-849a-7c82d622122a",
         "firstPrintSet": "arn"
+    },
+    {
+        "name": "Militant Monk",
+        "scryfallId": "886a3cfd-7f83-480a-bb22-eec67ad35e4f",
+        "oracleId": "29c0a904-43e3-44c3-8e00-deea523de8eb",
+        "firstSet": "tor",
+        "firstPrintId": "886a3cfd-7f83-480a-bb22-eec67ad35e4f",
+        "firstPrintSet": "tor",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Millennial Gargoyle",
@@ -32714,6 +32894,16 @@
         "source": "compiled"
     },
     {
+        "name": "Necra Disciple",
+        "scryfallId": "ae7a771f-bd21-4388-857f-08160b24e26e",
+        "oracleId": "ef85a5eb-9cde-47b7-97e4-daa9aa9d4676",
+        "firstSet": "apc",
+        "firstPrintId": "ae7a771f-bd21-4388-857f-08160b24e26e",
+        "firstPrintSet": "apc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Necra Sanctuary",
         "scryfallId": "5a0bf165-d7eb-4ae6-b30a-4e9fd55f401d",
         "oracleId": "2586a59d-8501-4c22-9d69-f4bf91de7024",
@@ -34538,6 +34728,16 @@
         "firstSet": "fem",
         "firstPrintId": "5af19ab0-4bd0-4d5f-8d2e-507e4fe87c18",
         "firstPrintSet": "fem"
+    },
+    {
+        "name": "Orim, Samite Healer",
+        "scryfallId": "7086d077-f083-4870-8b0b-2d34aca49df1",
+        "oracleId": "9d405e5b-0cee-4c8f-b3ef-65765853b8a4",
+        "firstSet": "tmp",
+        "firstPrintId": "7086d077-f083-4870-8b0b-2d34aca49df1",
+        "firstPrintSet": "tmp",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Orim's Chant",
@@ -38044,6 +38244,16 @@
         "source": "compiled"
     },
     {
+        "name": "Raka Disciple",
+        "scryfallId": "41462d43-4f9f-46ba-b79d-434597e74b6b",
+        "oracleId": "88c5a681-4095-4e37-9149-002bcbaf4c0b",
+        "firstSet": "apc",
+        "firstPrintId": "41462d43-4f9f-46ba-b79d-434597e74b6b",
+        "firstPrintSet": "apc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Raka Sanctuary",
         "scryfallId": "62cab0be-589c-42a0-a297-1faaec46c73f",
         "oracleId": "0b085c90-95df-4823-ba67-9eb398b1ec94",
@@ -41078,6 +41288,16 @@
         "source": "compiled"
     },
     {
+        "name": "Sanctum Custodian",
+        "scryfallId": "27a64b98-9002-48fe-a3e5-4449050c87e1",
+        "oracleId": "4d979fbf-5009-47a1-8d77-b1ce80bbe90d",
+        "firstSet": "usg",
+        "firstPrintId": "27a64b98-9002-48fe-a3e5-4449050c87e1",
+        "firstPrintSet": "usg",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Sanctum Gargoyle",
         "scryfallId": "1da1a2d5-d1fe-4aa2-aa83-64d6c269f7bc",
         "oracleId": "6ee9802a-7a44-49c7-93d9-f75c4d42e71e",
@@ -42718,6 +42938,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Serra Paladin",
+        "scryfallId": "7bd25adf-4d97-4229-abdb-1c060036cfbd",
+        "oracleId": "2fdbbca7-d1d0-4834-84df-2c2d9953f83a",
+        "firstSet": "hml",
+        "firstPrintId": "7bd25adf-4d97-4229-abdb-1c060036cfbd",
+        "firstPrintSet": "hml",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Serra Sphinx",
         "scryfallId": "f9a4d7ac-082b-4f66-9b7f-4d1d0fda78c7",
         "oracleId": "9b344428-ec35-45b9-9714-9ca58a338f5c",
@@ -43244,6 +43474,16 @@
         "firstSet": "leg",
         "firstPrintId": "a5032bf0-f9c0-4ef0-8ec2-fe7ccea9bdf3",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Shieldmate's Blessing",
+        "scryfallId": "f58a26f8-a2c9-48e5-8662-7cbd43c00411",
+        "oracleId": "4ed55e9c-84ea-42a3-a32f-469da56b3eb5",
+        "firstSet": "zen",
+        "firstPrintId": "f58a26f8-a2c9-48e5-8662-7cbd43c00411",
+        "firstPrintSet": "zen",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Shifting Woodland",
@@ -46230,6 +46470,16 @@
         "firstSet": "roe",
         "firstPrintId": "2f8f22fb-7291-4517-9b15-e98501f2856b",
         "firstPrintSet": "roe"
+    },
+    {
+        "name": "Split-Tail Miko",
+        "scryfallId": "0528fe29-f3c1-4d10-9030-053c3de57b7b",
+        "oracleId": "82732de2-b98d-4534-967f-2cf4c9e6bfbe",
+        "firstSet": "bok",
+        "firstPrintId": "0528fe29-f3c1-4d10-9030-053c3de57b7b",
+        "firstPrintSet": "bok",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Spock, Logical Choice",
@@ -51674,6 +51924,16 @@
         "source": "compiled"
     },
     {
+        "name": "Troubled Healer",
+        "scryfallId": "54407ba7-6671-42a9-acbe-8a1104c7166c",
+        "oracleId": "4377cc84-19d3-48e0-9588-d18b4fbf4e6d",
+        "firstSet": "pcy",
+        "firstPrintId": "54407ba7-6671-42a9-acbe-8a1104c7166c",
+        "firstPrintSet": "pcy",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Troublesome Spirit",
         "scryfallId": "23d7e856-6852-4b97-ae0e-a4becdfc8166",
         "oracleId": "601d9bc3-ca75-43de-beea-ab3f0a49f543",
@@ -56376,6 +56636,16 @@
         "firstSet": "ice",
         "firstPrintId": "ad1e6ae5-c972-42c0-ae78-f203873aeeb1",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Withstand",
+        "scryfallId": "bb458f79-13dd-4446-be75-463f19548867",
+        "oracleId": "ebf2816b-e042-43e9-8734-d3a896334c69",
+        "firstSet": "gpt",
+        "firstPrintId": "bb458f79-13dd-4446-be75-463f19548867",
+        "firstPrintSet": "gpt",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Withstand Death",

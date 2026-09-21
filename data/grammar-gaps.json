@@ -233,11 +233,6 @@
             "issue": 3938
         },
         {
-            "key": "(op) › preventDamage",
-            "op": "preventDamage",
-            "issue": 3939
-        },
-        {
             "key": "(op) › preventRegeneration",
             "op": "preventRegeneration",
             "issue": 3940
