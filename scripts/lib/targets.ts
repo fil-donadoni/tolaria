@@ -692,6 +692,8 @@ export interface TargetCoverage {
     readonly byState: Readonly<Record<CoverageState, readonly string[]>>;
     /** `ready ∪ hand-written` — the v1 gate, a figure apart from the invariant. */
     readonly playable: number;
+    /** The cards that are neither, by name in list order — `total - playable`. */
+    readonly unplayable: readonly string[];
     readonly migrable: readonly MigrableCard[];
     /** Every `unclaimed` card with the claim it lacks, in list order. */
     readonly unclaimed: readonly MigrableCard[];
@@ -733,7 +735,7 @@ export function targetCoverage(
         "hand-tail": [],
         unclaimed: [],
     };
-    let playable = 0;
+    const unplayable: string[] = [];
     const migrable: MigrableCard[] = [];
     const unclaimed: MigrableCard[] = [];
     const closureCompiles: string[] = [];
@@ -744,8 +746,8 @@ export function targetCoverage(
         if (missing !== undefined)
             unclaimed.push({ name: card.name, why: missing });
         if (ctx.closure.has(card.oracleId)) closureCompiles.push(card.name);
-        if (state === "ready" || ctx.handWritten.has(card.oracleId))
-            playable += 1;
+        if (state !== "ready" && !ctx.handWritten.has(card.oracleId))
+            unplayable.push(card.name);
         const why = migrableReason(row, ctx);
         if (why !== undefined) migrable.push({ name: card.name, why });
     }
@@ -758,9 +760,27 @@ export function targetCoverage(
         enforced: target.row.enforced === true,
         total: target.cards.length,
         byState,
-        playable,
+        playable: target.cards.length - unplayable.length,
+        unplayable,
         migrable,
         unclaimed,
         closureCompiles,
     };
+}
+
+/**
+ * The Coverage Invariant's reds for ONE Target, one line each — `check:targets`
+ * reds on them (enforced Targets only) and `targetCompleted` reads them as the
+ * second v1-gate clause (ADR 0143), so "green" has one definition.
+ */
+export function coverageReds(coverage: TargetCoverage): string[] {
+    return [
+        ...coverage.unclaimed.map(
+            ({ name, why }) => `${coverage.id}: ${name} — unclaimed: ${why}`
+        ),
+        ...coverage.migrable.map(
+            ({ name, why }) =>
+                `${coverage.id}: ${name} — hand-tail marker: ${why}`
+        ),
+    ];
 }

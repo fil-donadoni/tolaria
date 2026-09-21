@@ -37,6 +37,7 @@ import { resolve as resolvePath } from "node:path";
 import { buildCoverageContext } from "./lib/coverage-context";
 import { parseLockfile } from "./lib/oracle-lockfile";
 import {
+    coverageReds,
     readTargetRegistry,
     resolveContext,
     resolveTarget,
@@ -51,10 +52,7 @@ export function auditCoverage(coverages: readonly TargetCoverage[]): string[] {
     const reds: string[] = [];
     for (const coverage of coverages) {
         if (!coverage.enforced) continue;
-        for (const { name, why } of coverage.unclaimed)
-            reds.push(`${coverage.id}: ${name} — unclaimed: ${why}`);
-        for (const { name, why } of coverage.migrable)
-            reds.push(`${coverage.id}: ${name} — hand-tail marker: ${why}`);
+        reds.push(...coverageReds(coverage));
     }
     return reds;
 }
