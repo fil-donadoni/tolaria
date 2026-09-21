@@ -925,6 +925,11 @@ function selectorsFor(
     site: SiteOptions
 ): Lowered<EffectObjectSelector[]> {
     if (subject.kind === "self") return lowered([{ ref: "$source" }]);
+    // CR 303.4b / CR 115.10 — the Aura's host is named by the ability's own
+    // text, never announced, so no slot is consumed: `$host` is the attachment
+    // snapshot every ability site is seeded with (issue #1341). Reached only
+    // from the pump and keyword-grant verbs, the only two that parse it.
+    if (subject.kind === "host") return lowered([{ ref: "$host" }]);
     // CR 608.2h — "it" names whatever the SITE printed before the sentence…
     if (subject.kind === "pronoun") {
         // …unless the script has announced a target first, in which case THAT

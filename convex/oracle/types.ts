@@ -179,4 +179,12 @@ export interface ParseContext {
     readonly typeLine: ParsedTypeLine;
     /** Canonical marker that `normalize` substituted for the card's own name. */
     readonly selfMarker: string;
+    /**
+     * CR 303.4b — set by the activated slot, and ONLY there, on an Aura's own
+     * ability: "enchanted creature" in its effect names the permanent the
+     * source is attached to, which lowering reads as `$host`. Absent at every
+     * other site, so each of them keeps refusing the phrase under the gap key
+     * it already sits in.
+     */
+    readonly auraHost?: true;
 }

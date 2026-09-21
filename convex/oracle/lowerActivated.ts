@@ -13,6 +13,7 @@ import { hasFilteredGiveUpCost } from "../gre/constants";
 import {
     lowerActivationCost,
     type ActivationCostIR,
+    type CostAtomIR,
 } from "./grammar/shared/cost";
 import type {
     EffectSentenceIR,
@@ -65,6 +66,20 @@ function applyRestrictions(
     return null;
 }
 
+/** CR 118.1 — a cost leg that takes the SOURCE off the battlefield. */
+function removesSource(atom: CostAtomIR): boolean {
+    return (
+        atom.kind === "sacrifice-self" ||
+        atom.kind === "exile-self" ||
+        atom.kind === "return-self"
+    );
+}
+
+/** CR 303.4b — the sentence acts on the Aura's host ("enchanted creature"). */
+function actsOnHost(sentence: EffectSentenceIR): boolean {
+    return "subject" in sentence && sentence.subject.kind === "host";
+}
+
 export function lowerActivatedAbility(input: {
     readonly id: string;
     readonly oracleText: string;
@@ -76,6 +91,18 @@ export function lowerActivatedAbility(input: {
 }): LowerAbilityResult {
     const cost = lowerActivationCost(input.cost);
     if (!cost.ok) return { ok: false, reason: cost.reason };
+
+    // CR 608.2h — `$host` is read off the LIVE attachment link when the
+    // ability resolves (`seedSourceBindings`), and a cost that sacrifices,
+    // exiles or returns the Aura has already ended that link: the pump would
+    // resolve against no host and do nothing. Refused rather than compiled into
+    // a card that is activated, paid for, and inert; the form stays a gap of
+    // its own until the host is captured as last-known information.
+    if (input.cost.atoms.some(removesSource) && input.effects.some(actsOnHost))
+        return {
+            ok: false,
+            reason: "an Aura removed by its own cost has no attached host left to act on (CR 608.2h)",
+        };
 
     const walk = new SentenceWalk();
     const ops: EffectOp[] = [];

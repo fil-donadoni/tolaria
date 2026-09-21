@@ -48,6 +48,7 @@ import { playerRefRule, type PlayerRefIR } from "./playerRef";
 import { countedSetRule, readNumberWord, type CountedSetIR } from "./quantity";
 import { isSelfPhrase } from "./cost";
 import { SELF_MARKER } from "../../normalize";
+import type { ParseContext } from "../../types";
 import {
     controlsRule,
     kickedConditionRule,
@@ -254,6 +255,14 @@ export type SubjectIR =
      * issue #4127); a site that names no card refuses the line.
      */
     | { readonly kind: "that-card" }
+    /**
+     * CR 303.4b — "enchanted creature": the permanent the Aura's ability is
+     * attached to (the activated slot's `auraHost`). Never announced (CR 115.10
+     * — the ability's own text names it, so hexproof and protection do not
+     * apply); lowered to `$host`. Read by the pump and keyword-grant verbs
+     * only — the two forms a golden fixture pins.
+     */
+    | { readonly kind: "host" }
     /**
      * CR 608.2h — "it": the OBJECT the text before this sentence named.
      * Which object is not a fact about the sentence, so the word is read here
@@ -1062,6 +1071,23 @@ export const subjectRule: Rule<SubjectIR> = rule<SubjectIR>(
         return fail(`"${span}" is not a subject this grammar knows`, span);
     }
 );
+
+/**
+ * CR 303.4b — "Enchanted creature" as the subject of an Aura's own ability.
+ *
+ * Deliberately NOT a branch of {@link subjectRule}: that rule is every verb's
+ * and every site's, and a verb nobody has shown it to (fights, deals damage,
+ * phases out) would start reading a phrase it has no fixture for. The two
+ * verbs the corpus prints it under — the pump and the keyword grant — ask for
+ * it here, and only where the activated slot said the site is an Aura's
+ * (`ParseContext.auraHost`); anything else returns `null` and falls through to
+ * `subjectRule`'s refusal, under the gap key it already had.
+ */
+function hostSubject(span: string, ctx: unknown): RuleResult<SubjectIR> | null {
+    if (uncapitalise(span) !== "enchanted creature") return null;
+    if ((ctx as ParseContext).auraHost !== true) return null;
+    return ok({ kind: "host" as const });
+}
 
 /**
  * The subject of a verb that can act on a SWEEP: a mass subject when the span
@@ -1951,7 +1977,7 @@ function effectSentence(
             );
         const subject = group
             ? groupSubject(pump[1]!, ctx)
-            : subjectRule.run(pump[1]!, ctx);
+            : (hostSubject(pump[1]!, ctx) ?? subjectRule.run(pump[1]!, ctx));
         if (!subject.ok) return subject;
         const power = signedModifier(pump[4]!);
         const toughness = signedModifier(pump[5]!);
@@ -2001,7 +2027,9 @@ function effectSentence(
         !LIFE_FOR_EACH.test(span) &&
         !DRAIN.test(span)
     ) {
-        const subject = subjectRule.run(span.slice(0, gainsAt), ctx);
+        const subjectSpan = span.slice(0, gainsAt);
+        const subject =
+            hostSubject(subjectSpan, ctx) ?? subjectRule.run(subjectSpan, ctx);
         if (!subject.ok) return subject;
         const rest = span.slice(gainsAt + " gains ".length);
         const untilAt = rest.lastIndexOf(" until ");
