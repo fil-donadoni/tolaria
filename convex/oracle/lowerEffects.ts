@@ -1401,6 +1401,23 @@ function lowerSentenceBody(
         // reads it (issue #3303).
         case "suppress-damage-prevention":
             return lowered([{ op: "suppressDamagePrevention" }]);
+        // CR 615.7 — a prevent-the-next-N shield on the announced recipient.
+        // `preventDamage`'s `next-n` recipient union mirrors `dealDamage`'s,
+        // so the same selector (and its "damage" reach, which admits "any
+        // target") names it.
+        case "prevent-next-damage": {
+            const to = damageTarget(sentence.to, slots, site);
+            if (!to.ok) return to;
+            return lowered([
+                {
+                    op: "preventDamage",
+                    mode: "next-n",
+                    to: to.value,
+                    amount: sentence.amount,
+                    duration: durationSpec(sentence.duration),
+                },
+            ]);
+        }
         case "draw": {
             const player = playerRef(sentence.player, slots, site);
             if (!player.ok) return player;

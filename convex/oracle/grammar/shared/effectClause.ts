@@ -443,6 +443,25 @@ export type EffectSentenceIR =
           readonly kind: "suppress-damage-prevention";
       }
     | {
+          /**
+           * CR 615.7 — "Prevent the next N damage that would be dealt to
+           * <recipient> this turn."
+           *
+           * A prevention SHIELD of a printed size: each 1 damage dealt to the
+           * shielded permanent or player is prevented and shrinks the shield
+           * by 1. `amount` is the printed number and nothing else — an X or a
+           * "that much" shield is a different clause the corpus prints under
+           * its own gap. `to` is the recipient phrase, read by the one
+           * subject rule so a slot it announces goes through the same
+           * allocation every damage verb uses; `duration` is the printed
+           * "this turn".
+           */
+          readonly kind: "prevent-next-damage";
+          readonly amount: number;
+          readonly to: SubjectIR;
+          readonly duration: DurationIR;
+      }
+    | {
           readonly kind: "draw";
           readonly player: PlayerRefIR;
           readonly count: AmountIR;
@@ -1502,6 +1521,13 @@ const COUNTER_DOMAIN_TAX =
 /** CR 615.12 — the printed sentence, whole, without its full stop. */
 const SUPPRESS_DAMAGE_PREVENTION = "Damage can't be prevented this turn";
 
+/**
+ * CR 615.7 — the prevention shield's printed form. The recipient is greedy up
+ * to the trailing duration, which is read by the duration rule itself.
+ */
+const PREVENT_NEXT_DAMAGE =
+    /^Prevent the next (\S+) damage that would be dealt to (.+?) (this turn)$/;
+
 const KEYWORDS = keywordVocabulary();
 
 /** Exact restriction sentences (CR 602.5). Both templatings are printed. */
@@ -2042,6 +2068,35 @@ function effectSentence(
         return ok({
             kind: "suppress-damage-prevention" as const,
         } satisfies EffectSentenceIR);
+
+    // ── prevent the next N damage (CR 615.7) ───────────────────────────────
+    const preventNext = span.match(PREVENT_NEXT_DAMAGE);
+    if (preventNext !== null) {
+        const amount = readAmount(preventNext[1]!);
+        if (amount === null || amount.kind !== "fixed")
+            return fail(
+                `"${preventNext[1]}" is not a printed shield size (CR 615.7)`,
+                span
+            );
+        const to = subjectRule.run(preventNext[2]!, ctx);
+        if (!to.ok) return to;
+        // CR 115.4 — read for "any target" only, the one recipient the corpus
+        // prints this shield under; every other recipient phrase is refused
+        // under its own reason so it stays its own Grammar Gap.
+        if (to.value.kind !== "target" || to.value.requirement.type !== "any")
+            return fail(
+                `a prevention shield is read for "any target" only, not "${preventNext[2]}" (CR 615.7)`,
+                span
+            );
+        const duration = durationRule.run(preventNext[3]!, ctx);
+        if (!duration.ok) return duration;
+        return ok({
+            kind: "prevent-next-damage" as const,
+            amount: amount.value,
+            to: to.value,
+            duration: duration.value,
+        } satisfies EffectSentenceIR);
+    }
 
     // ── damage equal to the acted-on object's mana value (CR 202.3) ────────
     const damageMv = span.match(DAMAGE_EQUAL_MANA_VALUE);
