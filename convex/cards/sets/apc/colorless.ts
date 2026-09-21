@@ -22,7 +22,7 @@ import type { CardDefinition } from "../../types";
 //
 // hand-tail: "{2}, {T}: You may put a multicolored creature card from your hand onto the battlefield." (#3806)
 export const dragonArch: CardDefinition = {
-    id: "eec581b8-e509-420c-b142-afaa6dd06cc8", // APC 132
+    id: "eec581b8-e509-420c-b142-afaa6dd06cc8", // APC 135
     name: "Dragon Arch",
     rarity: "uncommon",
     oracleText:

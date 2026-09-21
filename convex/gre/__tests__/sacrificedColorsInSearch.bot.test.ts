@@ -92,7 +92,7 @@ function oppGraveyardDefIds(state: GameState, meId: string): string[] {
     return (
         state.players
             .find((p) => p.id !== meId)
-            ?.graveyard.map((c) => c.card.id ?? "")
+            ?.graveyard.map((c) => (c.card as { id?: string }).id ?? "")
             .sort() ?? []
     );
 }

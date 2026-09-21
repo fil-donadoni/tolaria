@@ -1290,6 +1290,81 @@ describe("validateEffectScript — EffectCardFilter.manaCostEquals (issue #1881)
     });
 });
 
+// --- EffectCardFilter.color — the dynamic sacrificed-colours shape ----------
+// (CR 105.2 / 608.2h, issue #3806)
+//
+// `color` accepts a literal colour (or array) OR the cost-sacrificed
+// permanent's last-known colours. The whole design defence of the shared
+// `{ sacrificed: { read } }` vocabulary is that its two `read` literals are
+// DISJOINT — `"colors"` is not in `EffectSacrificedValue`'s numeric union
+// ("manaValue" | "power" | "toughness") and vice versa — because
+// `resolveValue`'s `sacrificed` branch (`gre/effects/interpreter.ts`) is a
+// ternary chain that FALLS THROUGH to `getAdditionalSacrificeMv()`: a colour
+// read admitted in a numeric position would silently become a mana value.
+// `tsc` is the first gate; these are the second, and they are what reds if a
+// future widening loosens either union.
+describe("EffectCardFilter.color — { sacrificed: { read: 'colors' } } (issue #3806)", () => {
+    const discardOp = (filter: Record<string, unknown>): EffectOp =>
+        ({
+            op: "discard",
+            player: "opponent",
+            filter,
+        }) as never;
+
+    it("accepts the literal shapes and the dynamic sacrificed-colours shape", () => {
+        for (const color of [
+            "B",
+            ["B", "R"],
+            { sacrificed: { read: "colors" } },
+        ]) {
+            expect(
+                validateEffectScript(host({ effects: [discardOp({ color })] }))
+            ).toEqual([]);
+        }
+    });
+
+    it("REJECTS a numeric sacrificed read in the colour position", () => {
+        for (const read of ["manaValue", "power", "toughness"]) {
+            const errors = validateEffectScript(
+                host({
+                    effects: [discardOp({ color: { sacrificed: { read } } })],
+                })
+            );
+            expect(errors.length).toBeGreaterThan(0);
+        }
+    });
+
+    it("REJECTS a malformed dynamic shape — extra key, wrong key, bare string", () => {
+        for (const color of [
+            { sacrificed: { read: "colors", plus: 1 } },
+            { sacrificed: { read: "colors" }, of: "controller" },
+            { sacrificed: { reads: "colors" } },
+            { sacrificed: "colors" },
+            "colors",
+        ]) {
+            const errors = validateEffectScript(
+                host({ effects: [discardOp({ color })] })
+            );
+            expect(errors.length).toBeGreaterThan(0);
+        }
+    });
+
+    it("REJECTS the colours read in a NUMERIC value position (the fall-through trap)", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "dealDamage",
+                        amount: { sacrificed: { read: "colors" } },
+                        to: { target: 0 },
+                    } as never,
+                ],
+            })
+        );
+        expect(errors.length).toBeGreaterThan(0);
+    });
+});
+
 // --- EffectCardFilter.hasAbility — battlefield-only (issue #1097) -----------
 //
 // `hasAbility` reads the LIVE `staticAbilities` array via `toPermanentFilter`

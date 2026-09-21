@@ -35,6 +35,7 @@ import { getStaticAdditionalSacrifices } from "./state";
 import { getInstanceManaCost } from "../cards";
 import {
     applySacrificeSelection,
+    sacrificeSnapshotFromResults,
     autoResolveFungible,
     buildSacrificeRequirements,
     type SacrificeRequirement,
@@ -221,22 +222,9 @@ export function applyCastSacrificeVictims(
     for (const id of submitted) {
         if (!picked.includes(id)) picked.push(id);
     }
-    const results = applySacrificeSelection(state, { ...selection, picked });
-    const snap = results.find((r) => r.snapshot);
-    if (!snap) return undefined;
-    return {
-        cardInstanceId: snap.id,
-        mv: snap.mv,
-        ...(snap.subtypes ? { subtypes: snap.subtypes } : {}),
-        ...(snap.power !== undefined ? { power: snap.power } : {}),
-        ...(snap.toughness !== undefined ? { toughness: snap.toughness } : {}),
-        // CR 105.2 / 608.2h (issue #3806) — the SANDBOX copy of the mutation
-        // path's stamp. Dropping it here is the bug class this function's own
-        // doc comment records for `mv`/`subtypes`: the search would pay a
-        // creature for a Mind Extraction that discards nothing inside the
-        // tree, and never find the line.
-        ...(snap.colors !== undefined ? { colors: snap.colors } : {}),
-    };
+    return sacrificeSnapshotFromResults(
+        applySacrificeSelection(state, { ...selection, picked })
+    );
 }
 
 /** The deterministic (K=1) picks for every mandatory additional-cost park a

@@ -164,7 +164,7 @@ describe("Mind Extraction — the cost sacrifice snapshots its COLOURS (CR 105.2
     it("survives the wire projection and the persistence round trip un-slimmed", () => {
         const state = board(GREEN_CREATURE);
         finalizeTargetSelection(state, pendingTarget(), "p1");
-        const projected = projectPublicState(state, "p1");
+        const projected = projectPublicState(state, 1, "p1");
         expect(projected.stack[0].additionalSacrificeSnapshot?.colors).toEqual([
             "G",
         ]);

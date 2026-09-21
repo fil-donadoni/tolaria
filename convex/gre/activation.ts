@@ -96,6 +96,7 @@ import {
 import { announcementModeFacts, modeHasLegalTargets } from "./modeAnnouncement";
 import {
     applySacrificeSelection,
+    sacrificeSnapshotFromResults,
     canAffordSacrifice,
     isSacrificeSelectionComplete,
     type SacrificeSelection,
@@ -2127,20 +2128,9 @@ export function sacrificeSnapshotFromSelection(
     state: GameState
 ): StackItem["additionalSacrificeSnapshot"] | undefined {
     if (!selection) return undefined;
-    const results = applySacrificeSelection(state, selection);
-    const snap = results.find((r) => r.snapshot);
-    if (!snap) return undefined;
-    return {
-        cardInstanceId: snap.id,
-        mv: snap.mv,
-        ...(snap.subtypes ? { subtypes: snap.subtypes } : {}),
-        ...(snap.power !== undefined ? { power: snap.power } : {}),
-        ...(snap.toughness !== undefined ? { toughness: snap.toughness } : {}),
-        // CR 105.2 / 608.2h (issue #3806) — forwarded 1:1, empty array
-        // included: a colourless victim's empty set is a real answer, so it is
-        // NOT collapsed into "omitted" the way `subtypes` is.
-        ...(snap.colors !== undefined ? { colors: snap.colors } : {}),
-    };
+    return sacrificeSnapshotFromResults(
+        applySacrificeSelection(state, selection)
+    );
 }
 
 /** Snapshot the card a `cost.exileFromGraveyard` activation cost is about to

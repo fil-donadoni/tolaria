@@ -124,8 +124,8 @@ describe("Dead Ringers — destroy two target nonblack creatures unless either i
         const legal = getLegalTargets(
             state,
             DEAD_RINGERS.targetRequirement!,
-            "p1",
-            NO_TARGETING_SOURCE
+            NO_TARGETING_SOURCE,
+            "p1"
         );
         const ids = legal
             .filter((t) => t.type === "permanent")
