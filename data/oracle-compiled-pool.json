@@ -21583,6 +21583,112 @@
         "setCode": "dis"
     },
     {
+        "name": "Ecologist's Terrarium",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 2
+        },
+        "oracleText": "When this artifact enters, you may search your library for a basic land card, reveal it, put it into your hand, then shuffle.\n{2}, {T}, Sacrifice this artifact: Put a +1/+1 counter on target creature. Activate only as a sorcery.",
+        "activatedAbilities": [
+            {
+                "id": "ecologist-s-terrarium-ability",
+                "oracleText": "{2}, {T}, Sacrifice this artifact: Put a +1/+1 counter on target creature. Activate only as a sorcery.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "counters",
+                        "action": "add",
+                        "counter": "+1/+1",
+                        "target": {
+                            "target": 0
+                        },
+                        "count": 1
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                },
+                "sorcerySpeedOnly": true
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "ecologist-s-terrarium-trigger",
+                "oracleText": "When this artifact enters, you may search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Search your library for a basic land card, reveal it, put it into your hand, then shuffle?",
+                        "bind": "$may2"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may2"
+                        },
+                        "then": [
+                            {
+                                "op": "choice",
+                                "kind": "search-library",
+                                "player": "controller",
+                                "zone": "library",
+                                "filter": {
+                                    "type": "Land",
+                                    "supertype": "Basic"
+                                },
+                                "count": {
+                                    "min": 0,
+                                    "max": 1
+                                },
+                                "prompt": "Search your library for a basic land card.",
+                                "bind": "$found1"
+                            },
+                            {
+                                "op": "reveal",
+                                "player": "controller",
+                                "cards": {
+                                    "ref": "$found1"
+                                }
+                            },
+                            {
+                                "op": "moveZone",
+                                "cards": {
+                                    "ref": "$found1"
+                                },
+                                "player": "controller",
+                                "from": "library",
+                                "to": "hand"
+                            },
+                            {
+                                "op": "libraryLook",
+                                "action": "shuffle",
+                                "player": "controller"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "1d981026-b2df-4d8d-a9b4-296b011d9925",
+        "rarity": "common",
+        "setCode": "neo"
+    },
+    {
         "name": "Sanctum Gargoyle",
         "types": [
             "Artifact",
@@ -40068,6 +40174,71 @@
         "setCode": "ice"
     },
     {
+        "name": "Journeyer's Kite",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 2
+        },
+        "oracleText": "{3}, {T}: Search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+        "activatedAbilities": [
+            {
+                "id": "journeyer-s-kite-ability",
+                "oracleText": "{3}, {T}: Search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+                "cost": {
+                    "mana": {
+                        "X": 3
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "search-library",
+                        "player": "controller",
+                        "zone": "library",
+                        "filter": {
+                            "type": "Land",
+                            "supertype": "Basic"
+                        },
+                        "count": {
+                            "min": 0,
+                            "max": 1
+                        },
+                        "prompt": "Search your library for a basic land card.",
+                        "bind": "$found1"
+                    },
+                    {
+                        "op": "reveal",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$found1"
+                        }
+                    },
+                    {
+                        "op": "moveZone",
+                        "cards": {
+                            "ref": "$found1"
+                        },
+                        "player": "controller",
+                        "from": "library",
+                        "to": "hand"
+                    },
+                    {
+                        "op": "libraryLook",
+                        "action": "shuffle",
+                        "player": "controller"
+                    }
+                ]
+            }
+        ],
+        "id": "3aa17062-4355-468f-b8ba-352b7511b847",
+        "rarity": "rare",
+        "setCode": "chk"
+    },
+    {
         "name": "Leaf Gilder",
         "types": [
             "Creature"
@@ -46996,6 +47167,66 @@
         "id": "46acbabc-9d0a-4fba-9604-7d131c22cdeb",
         "rarity": "common",
         "setCode": "con"
+    },
+    {
+        "name": "Environmental Sciences",
+        "types": [
+            "Sorcery"
+        ],
+        "subtypes": [
+            "Lesson"
+        ],
+        "manaCost": {
+            "X": 2
+        },
+        "oracleText": "Search your library for a basic land card, reveal it, put it into your hand, then shuffle. You gain 2 life.",
+        "effects": [
+            {
+                "op": "choice",
+                "kind": "search-library",
+                "player": "controller",
+                "zone": "library",
+                "filter": {
+                    "type": "Land",
+                    "supertype": "Basic"
+                },
+                "count": {
+                    "min": 0,
+                    "max": 1
+                },
+                "prompt": "Search your library for a basic land card.",
+                "bind": "$found1"
+            },
+            {
+                "op": "reveal",
+                "player": "controller",
+                "cards": {
+                    "ref": "$found1"
+                }
+            },
+            {
+                "op": "moveZone",
+                "cards": {
+                    "ref": "$found1"
+                },
+                "player": "controller",
+                "from": "library",
+                "to": "hand"
+            },
+            {
+                "op": "libraryLook",
+                "action": "shuffle",
+                "player": "controller"
+            },
+            {
+                "op": "gainLife",
+                "player": "controller",
+                "amount": 2
+            }
+        ],
+        "id": "46b394fc-a99c-44e7-9226-da0699167541",
+        "rarity": "common",
+        "setCode": "stx"
     },
     {
         "name": "Kraul Stinger",
@@ -55137,6 +55368,90 @@
         "setCode": "m11"
     },
     {
+        "name": "Farfinder",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Fox"
+        ],
+        "manaCost": {
+            "X": 3
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Vigilance\nWhen this creature enters, you may search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+        "staticAbilities": [
+            "vigilance"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "farfinder-trigger",
+                "oracleText": "When this creature enters, you may search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Search your library for a basic land card, reveal it, put it into your hand, then shuffle?",
+                        "bind": "$may2"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may2"
+                        },
+                        "then": [
+                            {
+                                "op": "choice",
+                                "kind": "search-library",
+                                "player": "controller",
+                                "zone": "library",
+                                "filter": {
+                                    "type": "Land",
+                                    "supertype": "Basic"
+                                },
+                                "count": {
+                                    "min": 0,
+                                    "max": 1
+                                },
+                                "prompt": "Search your library for a basic land card.",
+                                "bind": "$found1"
+                            },
+                            {
+                                "op": "reveal",
+                                "player": "controller",
+                                "cards": {
+                                    "ref": "$found1"
+                                }
+                            },
+                            {
+                                "op": "moveZone",
+                                "cards": {
+                                    "ref": "$found1"
+                                },
+                                "player": "controller",
+                                "from": "library",
+                                "to": "hand"
+                            },
+                            {
+                                "op": "libraryLook",
+                                "action": "shuffle",
+                                "player": "controller"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "53f63f40-46f1-4b9e-b447-ff9274f2b926",
+        "rarity": "common",
+        "setCode": "iko"
+    },
+    {
         "name": "Captive Flame",
         "types": [
             "Enchantment"
@@ -62622,6 +62937,90 @@
         "setCode": "pcy"
     },
     {
+        "name": "Sylvan Ranger",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elf",
+            "Scout",
+            "Ranger"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "When this creature enters, you may search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "sylvan-ranger-trigger",
+                "oracleText": "When this creature enters, you may search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Search your library for a basic land card, reveal it, put it into your hand, then shuffle?",
+                        "bind": "$may2"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may2"
+                        },
+                        "then": [
+                            {
+                                "op": "choice",
+                                "kind": "search-library",
+                                "player": "controller",
+                                "zone": "library",
+                                "filter": {
+                                    "type": "Land",
+                                    "supertype": "Basic"
+                                },
+                                "count": {
+                                    "min": 0,
+                                    "max": 1
+                                },
+                                "prompt": "Search your library for a basic land card.",
+                                "bind": "$found1"
+                            },
+                            {
+                                "op": "reveal",
+                                "player": "controller",
+                                "cards": {
+                                    "ref": "$found1"
+                                }
+                            },
+                            {
+                                "op": "moveZone",
+                                "cards": {
+                                    "ref": "$found1"
+                                },
+                                "player": "controller",
+                                "from": "library",
+                                "to": "hand"
+                            },
+                            {
+                                "op": "libraryLook",
+                                "action": "shuffle",
+                                "player": "controller"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "5f73ea30-c6d2-4224-ae54-f6b89e006cf4",
+        "rarity": "common",
+        "setCode": "m11"
+    },
+    {
         "name": "Bloodtallow Candle",
         "types": [
             "Artifact"
@@ -66254,6 +66653,90 @@
         "id": "653cc07b-0f53-4b5b-9c5f-885b8b4a6e5f",
         "rarity": "rare",
         "setCode": "ons"
+    },
+    {
+        "name": "Civic Wayfinder",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elf",
+            "Druid",
+            "Warrior"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "When this creature enters, you may search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "civic-wayfinder-trigger",
+                "oracleText": "When this creature enters, you may search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Search your library for a basic land card, reveal it, put it into your hand, then shuffle?",
+                        "bind": "$may2"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may2"
+                        },
+                        "then": [
+                            {
+                                "op": "choice",
+                                "kind": "search-library",
+                                "player": "controller",
+                                "zone": "library",
+                                "filter": {
+                                    "type": "Land",
+                                    "supertype": "Basic"
+                                },
+                                "count": {
+                                    "min": 0,
+                                    "max": 1
+                                },
+                                "prompt": "Search your library for a basic land card.",
+                                "bind": "$found1"
+                            },
+                            {
+                                "op": "reveal",
+                                "player": "controller",
+                                "cards": {
+                                    "ref": "$found1"
+                                }
+                            },
+                            {
+                                "op": "moveZone",
+                                "cards": {
+                                    "ref": "$found1"
+                                },
+                                "player": "controller",
+                                "from": "library",
+                                "to": "hand"
+                            },
+                            {
+                                "op": "libraryLook",
+                                "action": "shuffle",
+                                "player": "controller"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "654eacc9-5f80-44ea-8d7b-71cd8227fa38",
+        "rarity": "common",
+        "setCode": "rav"
     },
     {
         "name": "Needleverge Pathway",
@@ -94868,6 +95351,71 @@
         "setCode": "drk"
     },
     {
+        "name": "Wanderer's Twig",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 1
+        },
+        "oracleText": "{1}, Sacrifice this artifact: Search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+        "activatedAbilities": [
+            {
+                "id": "wanderer-s-twig-ability",
+                "oracleText": "{1}, Sacrifice this artifact: Search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "search-library",
+                        "player": "controller",
+                        "zone": "library",
+                        "filter": {
+                            "type": "Land",
+                            "supertype": "Basic"
+                        },
+                        "count": {
+                            "min": 0,
+                            "max": 1
+                        },
+                        "prompt": "Search your library for a basic land card.",
+                        "bind": "$found1"
+                    },
+                    {
+                        "op": "reveal",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$found1"
+                        }
+                    },
+                    {
+                        "op": "moveZone",
+                        "cards": {
+                            "ref": "$found1"
+                        },
+                        "player": "controller",
+                        "from": "library",
+                        "to": "hand"
+                    },
+                    {
+                        "op": "libraryLook",
+                        "action": "shuffle",
+                        "player": "controller"
+                    }
+                ]
+            }
+        ],
+        "id": "8ea7b2c0-c641-478f-b8d9-17aa17fa1cbe",
+        "rarity": "common",
+        "setCode": "lrw"
+    },
+    {
         "name": "Thunderhead Squadron",
         "types": [
             "Creature"
@@ -95747,6 +96295,58 @@
         "setCode": "tmc"
     },
     {
+        "name": "Lay of the Land",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "oracleText": "Search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+        "effects": [
+            {
+                "op": "choice",
+                "kind": "search-library",
+                "player": "controller",
+                "zone": "library",
+                "filter": {
+                    "type": "Land",
+                    "supertype": "Basic"
+                },
+                "count": {
+                    "min": 0,
+                    "max": 1
+                },
+                "prompt": "Search your library for a basic land card.",
+                "bind": "$found1"
+            },
+            {
+                "op": "reveal",
+                "player": "controller",
+                "cards": {
+                    "ref": "$found1"
+                }
+            },
+            {
+                "op": "moveZone",
+                "cards": {
+                    "ref": "$found1"
+                },
+                "player": "controller",
+                "from": "library",
+                "to": "hand"
+            },
+            {
+                "op": "libraryLook",
+                "action": "shuffle",
+                "player": "controller"
+            }
+        ],
+        "id": "90b10608-8917-4337-ad60-ab31ab8c0fc4",
+        "rarity": "common",
+        "setCode": "apc"
+    },
+    {
         "name": "Maw of the Mire",
         "types": [
             "Sorcery"
@@ -95882,6 +96482,88 @@
         "id": "90c4b759-f53d-4977-8d97-a93762622e75",
         "rarity": "common",
         "setCode": "tmp"
+    },
+    {
+        "name": "Skittering Surveyor",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Construct"
+        ],
+        "manaCost": {
+            "X": 3
+        },
+        "power": 1,
+        "toughness": 2,
+        "oracleText": "When this creature enters, you may search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "skittering-surveyor-trigger",
+                "oracleText": "When this creature enters, you may search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Search your library for a basic land card, reveal it, put it into your hand, then shuffle?",
+                        "bind": "$may2"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may2"
+                        },
+                        "then": [
+                            {
+                                "op": "choice",
+                                "kind": "search-library",
+                                "player": "controller",
+                                "zone": "library",
+                                "filter": {
+                                    "type": "Land",
+                                    "supertype": "Basic"
+                                },
+                                "count": {
+                                    "min": 0,
+                                    "max": 1
+                                },
+                                "prompt": "Search your library for a basic land card.",
+                                "bind": "$found1"
+                            },
+                            {
+                                "op": "reveal",
+                                "player": "controller",
+                                "cards": {
+                                    "ref": "$found1"
+                                }
+                            },
+                            {
+                                "op": "moveZone",
+                                "cards": {
+                                    "ref": "$found1"
+                                },
+                                "player": "controller",
+                                "from": "library",
+                                "to": "hand"
+                            },
+                            {
+                                "op": "libraryLook",
+                                "action": "shuffle",
+                                "player": "controller"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "90c7bea0-79c9-4856-8279-cef7cee82fc1",
+        "rarity": "common",
+        "setCode": "dom"
     },
     {
         "name": "Goblin Instigator",
@@ -109533,6 +110215,71 @@
         "setCode": "grn"
     },
     {
+        "name": "Traveler's Amulet",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 1
+        },
+        "oracleText": "{1}, Sacrifice this artifact: Search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+        "activatedAbilities": [
+            {
+                "id": "traveler-s-amulet-ability",
+                "oracleText": "{1}, Sacrifice this artifact: Search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+                "cost": {
+                    "mana": {
+                        "X": 1
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "search-library",
+                        "player": "controller",
+                        "zone": "library",
+                        "filter": {
+                            "type": "Land",
+                            "supertype": "Basic"
+                        },
+                        "count": {
+                            "min": 0,
+                            "max": 1
+                        },
+                        "prompt": "Search your library for a basic land card.",
+                        "bind": "$found1"
+                    },
+                    {
+                        "op": "reveal",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$found1"
+                        }
+                    },
+                    {
+                        "op": "moveZone",
+                        "cards": {
+                            "ref": "$found1"
+                        },
+                        "player": "controller",
+                        "from": "library",
+                        "to": "hand"
+                    },
+                    {
+                        "op": "libraryLook",
+                        "action": "shuffle",
+                        "player": "controller"
+                    }
+                ]
+            }
+        ],
+        "id": "a5b0afa7-e9f9-4751-af36-d85343fabc26",
+        "rarity": "common",
+        "setCode": "isd"
+    },
+    {
         "name": "Coastal Hornclaw",
         "types": [
             "Creature"
@@ -114462,6 +115209,70 @@
         "setCode": "neo"
     },
     {
+        "name": "Renegade Map",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 1
+        },
+        "oracleText": "This artifact enters tapped.\n{T}, Sacrifice this artifact: Search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+        "activatedAbilities": [
+            {
+                "id": "renegade-map-ability",
+                "oracleText": "{T}, Sacrifice this artifact: Search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+                "cost": {
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "search-library",
+                        "player": "controller",
+                        "zone": "library",
+                        "filter": {
+                            "type": "Land",
+                            "supertype": "Basic"
+                        },
+                        "count": {
+                            "min": 0,
+                            "max": 1
+                        },
+                        "prompt": "Search your library for a basic land card.",
+                        "bind": "$found1"
+                    },
+                    {
+                        "op": "reveal",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$found1"
+                        }
+                    },
+                    {
+                        "op": "moveZone",
+                        "cards": {
+                            "ref": "$found1"
+                        },
+                        "player": "controller",
+                        "from": "library",
+                        "to": "hand"
+                    },
+                    {
+                        "op": "libraryLook",
+                        "action": "shuffle",
+                        "player": "controller"
+                    }
+                ]
+            }
+        ],
+        "entersTapped": true,
+        "id": "ac063445-d0e2-4015-96dc-97098433f30a",
+        "rarity": "common",
+        "setCode": "aer"
+    },
+    {
         "name": "Silent Clearing",
         "types": [
             "Land"
@@ -114985,6 +115796,107 @@
         "id": "acf932ac-5ea5-491b-b555-5e9ea971d93d",
         "rarity": "uncommon",
         "setCode": "gtc"
+    },
+    {
+        "name": "Thrór's Map",
+        "types": [
+            "Artifact"
+        ],
+        "supertypes": [
+            "Legendary"
+        ],
+        "manaCost": {
+            "X": 2
+        },
+        "oracleText": "When Thrór's Map enters, search your library for a basic land card, reveal it, put it into your hand, then shuffle.\n{2}, {T}: Draw a card, then discard a card.",
+        "activatedAbilities": [
+            {
+                "id": "thr-r-s-map-ability",
+                "oracleText": "{2}, {T}: Draw a card, then discard a card.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "draw",
+                        "player": "controller",
+                        "count": 1
+                    },
+                    {
+                        "op": "choice",
+                        "kind": "choose-hand-card",
+                        "player": "controller",
+                        "zone": "hand",
+                        "count": 1,
+                        "prompt": "Discard a card.",
+                        "bind": "$discard1"
+                    },
+                    {
+                        "op": "discard",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$discard1"
+                        }
+                    }
+                ]
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "thr-r-s-map-trigger",
+                "oracleText": "When {self} enters, search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "search-library",
+                        "player": "controller",
+                        "zone": "library",
+                        "filter": {
+                            "type": "Land",
+                            "supertype": "Basic"
+                        },
+                        "count": {
+                            "min": 0,
+                            "max": 1
+                        },
+                        "prompt": "Search your library for a basic land card.",
+                        "bind": "$found1"
+                    },
+                    {
+                        "op": "reveal",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$found1"
+                        }
+                    },
+                    {
+                        "op": "moveZone",
+                        "cards": {
+                            "ref": "$found1"
+                        },
+                        "player": "controller",
+                        "from": "library",
+                        "to": "hand"
+                    },
+                    {
+                        "op": "libraryLook",
+                        "action": "shuffle",
+                        "player": "controller"
+                    }
+                ]
+            }
+        ],
+        "id": "ad0dba36-d056-4bc1-987a-391da26ad267",
+        "rarity": "uncommon",
+        "setCode": "hob"
     },
     {
         "name": "Heralds of Tzeentch",
@@ -126158,6 +127070,90 @@
         "setCode": "pls"
     },
     {
+        "name": "Borderland Ranger",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Scout",
+            "Ranger"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "When this creature enters, you may search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "borderland-ranger-trigger",
+                "oracleText": "When this creature enters, you may search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Search your library for a basic land card, reveal it, put it into your hand, then shuffle?",
+                        "bind": "$may2"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may2"
+                        },
+                        "then": [
+                            {
+                                "op": "choice",
+                                "kind": "search-library",
+                                "player": "controller",
+                                "zone": "library",
+                                "filter": {
+                                    "type": "Land",
+                                    "supertype": "Basic"
+                                },
+                                "count": {
+                                    "min": 0,
+                                    "max": 1
+                                },
+                                "prompt": "Search your library for a basic land card.",
+                                "bind": "$found1"
+                            },
+                            {
+                                "op": "reveal",
+                                "player": "controller",
+                                "cards": {
+                                    "ref": "$found1"
+                                }
+                            },
+                            {
+                                "op": "moveZone",
+                                "cards": {
+                                    "ref": "$found1"
+                                },
+                                "player": "controller",
+                                "from": "library",
+                                "to": "hand"
+                            },
+                            {
+                                "op": "libraryLook",
+                                "action": "shuffle",
+                                "player": "controller"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "bdd0f8c8-1a1f-4d9b-a6e1-3654f3995012",
+        "rarity": "common",
+        "setCode": "m10"
+    },
+    {
         "name": "Merfolk of the Depths",
         "types": [
             "Creature"
@@ -135357,6 +136353,91 @@
         "setCode": "emn"
     },
     {
+        "name": "Pilgrim's Eye",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Thopter"
+        ],
+        "manaCost": {
+            "X": 3
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Flying\nWhen this creature enters, you may search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "pilgrim-s-eye-trigger",
+                "oracleText": "When this creature enters, you may search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Search your library for a basic land card, reveal it, put it into your hand, then shuffle?",
+                        "bind": "$may2"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may2"
+                        },
+                        "then": [
+                            {
+                                "op": "choice",
+                                "kind": "search-library",
+                                "player": "controller",
+                                "zone": "library",
+                                "filter": {
+                                    "type": "Land",
+                                    "supertype": "Basic"
+                                },
+                                "count": {
+                                    "min": 0,
+                                    "max": 1
+                                },
+                                "prompt": "Search your library for a basic land card.",
+                                "bind": "$found1"
+                            },
+                            {
+                                "op": "reveal",
+                                "player": "controller",
+                                "cards": {
+                                    "ref": "$found1"
+                                }
+                            },
+                            {
+                                "op": "moveZone",
+                                "cards": {
+                                    "ref": "$found1"
+                                },
+                                "player": "controller",
+                                "from": "library",
+                                "to": "hand"
+                            },
+                            {
+                                "op": "libraryLook",
+                                "action": "shuffle",
+                                "player": "controller"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "cd2a474b-5eac-4e0d-b65c-5610385f2011",
+        "rarity": "common",
+        "setCode": "wwk"
+    },
+    {
         "name": "Riot Devils",
         "types": [
             "Creature"
@@ -142416,6 +143497,98 @@
         "setCode": "avr"
     },
     {
+        "name": "Sagu Wildling",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Dragon"
+        ],
+        "manaCost": {
+            "X": 4,
+            "G": 1
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "Flying\nWhen this creature enters, you gain 3 life.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "sagu-wildling-trigger",
+                "oracleText": "When this creature enters, you gain 3 life.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 3
+                    }
+                ]
+            }
+        ],
+        "insetSpell": {
+            "kind": "adventure",
+            "name": "Roost Seek",
+            "manaCost": {
+                "G": 1
+            },
+            "types": [
+                "Sorcery"
+            ],
+            "subtypes": [
+                "Omen"
+            ],
+            "oracleText": "Search your library for a basic land card, reveal it, put it into your hand, then shuffle. (Also shuffle this card.)",
+            "effects": [
+                {
+                    "op": "choice",
+                    "kind": "search-library",
+                    "player": "controller",
+                    "zone": "library",
+                    "filter": {
+                        "type": "Land",
+                        "supertype": "Basic"
+                    },
+                    "count": {
+                        "min": 0,
+                        "max": 1
+                    },
+                    "prompt": "Search your library for a basic land card.",
+                    "bind": "$found1"
+                },
+                {
+                    "op": "reveal",
+                    "player": "controller",
+                    "cards": {
+                        "ref": "$found1"
+                    }
+                },
+                {
+                    "op": "moveZone",
+                    "cards": {
+                        "ref": "$found1"
+                    },
+                    "player": "controller",
+                    "from": "library",
+                    "to": "hand"
+                },
+                {
+                    "op": "libraryLook",
+                    "action": "shuffle",
+                    "player": "controller"
+                }
+            ]
+        },
+        "id": "d8b43b00-f4d1-436c-bf3f-6d414cd4ce38",
+        "rarity": "common",
+        "setCode": "tdm"
+    },
+    {
         "name": "Feral Incarnation",
         "types": [
             "Sorcery"
@@ -147163,6 +148336,97 @@
         "setCode": "ptk"
     },
     {
+        "name": "Ominous Parcel",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 1
+        },
+        "oracleText": "{2}, {T}, Sacrifice this artifact: Search your library for a basic land card, reveal it, put it into your hand, then shuffle.\n{5}, {T}, Sacrifice this artifact: It deals 4 damage to target creature.",
+        "activatedAbilities": [
+            {
+                "id": "ominous-parcel-ability",
+                "oracleText": "{2}, {T}, Sacrifice this artifact: Search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+                "cost": {
+                    "mana": {
+                        "X": 2
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "search-library",
+                        "player": "controller",
+                        "zone": "library",
+                        "filter": {
+                            "type": "Land",
+                            "supertype": "Basic"
+                        },
+                        "count": {
+                            "min": 0,
+                            "max": 1
+                        },
+                        "prompt": "Search your library for a basic land card.",
+                        "bind": "$found1"
+                    },
+                    {
+                        "op": "reveal",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$found1"
+                        }
+                    },
+                    {
+                        "op": "moveZone",
+                        "cards": {
+                            "ref": "$found1"
+                        },
+                        "player": "controller",
+                        "from": "library",
+                        "to": "hand"
+                    },
+                    {
+                        "op": "libraryLook",
+                        "action": "shuffle",
+                        "player": "controller"
+                    }
+                ]
+            },
+            {
+                "id": "ominous-parcel-ability-2",
+                "oracleText": "{5}, {T}, Sacrifice this artifact: It deals 4 damage to target creature.",
+                "cost": {
+                    "mana": {
+                        "X": 5
+                    },
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 4,
+                        "to": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "e1691374-e9f2-4a8b-abdb-0bb1dbc96715",
+        "rarity": "common",
+        "setCode": "snc"
+    },
+    {
         "name": "Hard Cover",
         "types": [
             "Enchantment"
@@ -149547,6 +150811,107 @@
         "setCode": "m21"
     },
     {
+        "name": "Evolution Charm",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "oracleText": "Choose one —\n• Search your library for a basic land card, reveal it, put it into your hand, then shuffle.\n• Return target creature card from your graveyard to your hand.\n• Target creature gains flying until end of turn.",
+        "modes": [
+            {
+                "id": "evolution-charm-mode-1",
+                "label": "Search your library for a basic land card, reveal it, put it into your hand, then shuffle",
+                "oracleText": "Search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "search-library",
+                        "player": "controller",
+                        "zone": "library",
+                        "filter": {
+                            "type": "Land",
+                            "supertype": "Basic"
+                        },
+                        "count": {
+                            "min": 0,
+                            "max": 1
+                        },
+                        "prompt": "Search your library for a basic land card.",
+                        "bind": "$found1"
+                    },
+                    {
+                        "op": "reveal",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$found1"
+                        }
+                    },
+                    {
+                        "op": "moveZone",
+                        "cards": {
+                            "ref": "$found1"
+                        },
+                        "player": "controller",
+                        "from": "library",
+                        "to": "hand"
+                    },
+                    {
+                        "op": "libraryLook",
+                        "action": "shuffle",
+                        "player": "controller"
+                    }
+                ]
+            },
+            {
+                "id": "evolution-charm-mode-2",
+                "label": "Return target creature card from your graveyard to your hand",
+                "oracleText": "Return target creature card from your graveyard to your hand.",
+                "effects": [
+                    {
+                        "op": "moveZone",
+                        "target": {
+                            "target": 0
+                        },
+                        "to": "hand"
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "zone": "graveyard",
+                    "controller": "you"
+                }
+            },
+            {
+                "id": "evolution-charm-mode-3",
+                "label": "Target creature gains flying until end of turn",
+                "oracleText": "Target creature gains flying until end of turn.",
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "target": 0
+                        },
+                        "ability": "flying",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "e4546059-71fe-43c1-9272-3b054e668e3c",
+        "rarity": "common",
+        "setCode": "plc"
+    },
+    {
         "name": "Squirming Mass",
         "types": [
             "Creature"
@@ -149784,6 +151149,87 @@
         "id": "e4ec8ada-09a6-449a-ac4a-7d3acbd08014",
         "rarity": "uncommon",
         "setCode": "rtr"
+    },
+    {
+        "name": "Go Forth",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "oracleText": "Choose one —\n• Search your library for a basic land card, reveal it, put it into your hand, then shuffle.\n• Target creature gets +2/+2 until end of turn.",
+        "modes": [
+            {
+                "id": "go-forth-mode-1",
+                "label": "Search your library for a basic land card, reveal it, put it into your hand, then shuffle",
+                "oracleText": "Search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "search-library",
+                        "player": "controller",
+                        "zone": "library",
+                        "filter": {
+                            "type": "Land",
+                            "supertype": "Basic"
+                        },
+                        "count": {
+                            "min": 0,
+                            "max": 1
+                        },
+                        "prompt": "Search your library for a basic land card.",
+                        "bind": "$found1"
+                    },
+                    {
+                        "op": "reveal",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$found1"
+                        }
+                    },
+                    {
+                        "op": "moveZone",
+                        "cards": {
+                            "ref": "$found1"
+                        },
+                        "player": "controller",
+                        "from": "library",
+                        "to": "hand"
+                    },
+                    {
+                        "op": "libraryLook",
+                        "action": "shuffle",
+                        "player": "controller"
+                    }
+                ]
+            },
+            {
+                "id": "go-forth-mode-2",
+                "label": "Target creature gets +2/+2 until end of turn",
+                "oracleText": "Target creature gets +2/+2 until end of turn.",
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "target": 0
+                        },
+                        "power": 2,
+                        "toughness": 2,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "e4ed67f0-85cc-4b1d-b745-e13e5bea3397",
+        "rarity": "common",
+        "setCode": "j25"
     },
     {
         "name": "Jungle Shrine",
@@ -157882,6 +159328,89 @@
         "setCode": "m11"
     },
     {
+        "name": "Environmental Scientist",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Druid"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "When this creature enters, you may search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "environmental-scientist-trigger",
+                "oracleText": "When this creature enters, you may search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "mayPay",
+                        "player": "controller",
+                        "prompt": "Search your library for a basic land card, reveal it, put it into your hand, then shuffle?",
+                        "bind": "$may2"
+                    },
+                    {
+                        "op": "if",
+                        "predicate": {
+                            "binding": "$may2"
+                        },
+                        "then": [
+                            {
+                                "op": "choice",
+                                "kind": "search-library",
+                                "player": "controller",
+                                "zone": "library",
+                                "filter": {
+                                    "type": "Land",
+                                    "supertype": "Basic"
+                                },
+                                "count": {
+                                    "min": 0,
+                                    "max": 1
+                                },
+                                "prompt": "Search your library for a basic land card.",
+                                "bind": "$found1"
+                            },
+                            {
+                                "op": "reveal",
+                                "player": "controller",
+                                "cards": {
+                                    "ref": "$found1"
+                                }
+                            },
+                            {
+                                "op": "moveZone",
+                                "cards": {
+                                    "ref": "$found1"
+                                },
+                                "player": "controller",
+                                "from": "library",
+                                "to": "hand"
+                            },
+                            {
+                                "op": "libraryLook",
+                                "action": "shuffle",
+                                "player": "controller"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "f2bf6b36-43e4-49d9-98b2-cbb4304c248b",
+        "rarity": "uncommon",
+        "setCode": "sos"
+    },
+    {
         "name": "Colossodon Yearling",
         "types": [
             "Creature"
@@ -158026,6 +159555,81 @@
         "id": "f2d93d05-98bc-4504-9045-dedb925895ae",
         "rarity": "uncommon",
         "setCode": "ice"
+    },
+    {
+        "name": "Greenseeker",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elf",
+            "Spellshaper"
+        ],
+        "manaCost": {
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "{G}, {T}, Discard a card: Search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+        "activatedAbilities": [
+            {
+                "id": "greenseeker-ability",
+                "oracleText": "{G}, {T}, Discard a card: Search your library for a basic land card, reveal it, put it into your hand, then shuffle.",
+                "cost": {
+                    "mana": {
+                        "G": 1
+                    },
+                    "tap": true,
+                    "discardFilter": {
+                        "filter": {},
+                        "count": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "choice",
+                        "kind": "search-library",
+                        "player": "controller",
+                        "zone": "library",
+                        "filter": {
+                            "type": "Land",
+                            "supertype": "Basic"
+                        },
+                        "count": {
+                            "min": 0,
+                            "max": 1
+                        },
+                        "prompt": "Search your library for a basic land card.",
+                        "bind": "$found1"
+                    },
+                    {
+                        "op": "reveal",
+                        "player": "controller",
+                        "cards": {
+                            "ref": "$found1"
+                        }
+                    },
+                    {
+                        "op": "moveZone",
+                        "cards": {
+                            "ref": "$found1"
+                        },
+                        "player": "controller",
+                        "from": "library",
+                        "to": "hand"
+                    },
+                    {
+                        "op": "libraryLook",
+                        "action": "shuffle",
+                        "player": "controller"
+                    }
+                ]
+            }
+        ],
+        "id": "f2dfa231-349a-4dce-bed6-c82a136fe0a1",
+        "rarity": "common",
+        "setCode": "tsp"
     },
     {
         "name": "Gravelgill Duo",
