@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest";
 import { getCardByName } from "../../../cards";
 import { withTemporaryDefinition } from "../../../cards/registry";
-import type { CardDefinition } from "../../../cards/types";
+import type { CardDefinition, EffectSignedValue } from "../../../cards/types";
 import { decidingPlayer } from "../../search";
 import { enumerateMoves } from "../../moves";
 import {
@@ -217,8 +217,8 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
     const forEachPump = (
         id: string,
         select: Record<string, unknown>,
-        power: unknown,
-        toughness: unknown
+        power: EffectSignedValue,
+        toughness: EffectSignedValue
     ): CardDefinition => ({
         id: `bot-reach-test:${id}`,
         name: `Bot Reach ${id}`,
