@@ -181,14 +181,14 @@ describe("compileCard — states", () => {
                 // does not stop at the first gap, so both lines must fail for
                 // a reason of their own rather than because no slot applies.
                 oracleText:
-                    "Destroy all green creatures.\nEach player sacrifices a creature.",
+                    "Destroy all green creatures.\nEach player shuffles their graveyard into their library.",
             })
         );
         expect(outcome.state).toBe("unparsed");
         if (outcome.state === "unparsed") {
             expect(outcome.gaps.map((g) => g.fragment)).toEqual([
                 "Destroy all green creatures.",
-                "Each player sacrifices a creature.",
+                "Each player shuffles their graveyard into their library.",
             ]);
         }
     });

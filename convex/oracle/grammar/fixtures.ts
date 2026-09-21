@@ -203,6 +203,248 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 701.21a + CR 101.4 — "Each player sacrifices a land of their choice.": the same simultaneous
+    // `forEach` as Innocent Blood over the land filter. The smoke form names the
+    // filter, so each filter is its own form and needs its own evidence.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "0fa0f562-e66f-4630-890a-9a4ae24fd6c0",
+            name: "Tremble",
+            manaCost: "{1}{R}",
+            typeLine: "Sorcery",
+            oracleText: "Each player sacrifices a land of their choice.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Tremble",
+            types: ["Sorcery"],
+            manaCost: {
+                X: 1,
+                R: 1,
+            },
+            oracleText: "Each player sacrifices a land of their choice.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "players",
+                    },
+                    simultaneous: true,
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "sacrifice-permanents",
+                            player: {
+                                ref: "$each",
+                            },
+                            zone: "battlefield",
+                            filter: {
+                                type: "Land",
+                            },
+                            count: 1,
+                            prompt: "Sacrifice a land.",
+                            bind: "$sacrifice1",
+                        },
+                        {
+                            op: "sacrifice",
+                            permanents: {
+                                ref: "$sacrifice1",
+                            },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 701.21a + CR 101.4 — "Each player sacrifices an enchantment of their choice.": the same simultaneous
+    // `forEach` as Innocent Blood over the enchantment filter. The smoke form names the
+    // filter, so each filter is its own form and needs its own evidence.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "853cac98-34dc-471f-af87-1a94b0022b67",
+            name: "Simplify",
+            manaCost: "{G}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Each player sacrifices an enchantment of their choice.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Simplify",
+            types: ["Sorcery"],
+            manaCost: {
+                G: 1,
+            },
+            oracleText:
+                "Each player sacrifices an enchantment of their choice.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "players",
+                    },
+                    simultaneous: true,
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "sacrifice-permanents",
+                            player: {
+                                ref: "$each",
+                            },
+                            zone: "battlefield",
+                            filter: {
+                                type: "Enchantment",
+                            },
+                            count: 1,
+                            prompt: "Sacrifice an enchantment.",
+                            bind: "$sacrifice1",
+                        },
+                        {
+                            op: "sacrifice",
+                            permanents: {
+                                ref: "$sacrifice1",
+                            },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 701.21a + CR 101.4 — "Each player sacrifices a permanent of their choice.": the same simultaneous
+    // `forEach` as Innocent Blood over the whole-permanent list. The smoke form names the
+    // filter, so each filter is its own form and needs its own evidence.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "eb107601-f4ff-4504-9e3f-3de63b0d9e6b",
+            name: "Crack the Earth",
+            manaCost: "{R}",
+            typeLine: "Sorcery — Arcane",
+            oracleText: "Each player sacrifices a permanent of their choice.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Crack the Earth",
+            types: ["Sorcery"],
+            subtypes: ["Arcane"],
+            manaCost: {
+                R: 1,
+            },
+            oracleText: "Each player sacrifices a permanent of their choice.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "players",
+                    },
+                    simultaneous: true,
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "sacrifice-permanents",
+                            player: {
+                                ref: "$each",
+                            },
+                            zone: "battlefield",
+                            filter: {
+                                type: [
+                                    "Artifact",
+                                    "Battle",
+                                    "Creature",
+                                    "Enchantment",
+                                    "Land",
+                                    "Planeswalker",
+                                ],
+                            },
+                            count: 1,
+                            prompt: "Sacrifice a permanent.",
+                            bind: "$sacrifice1",
+                        },
+                        {
+                            op: "sacrifice",
+                            permanents: {
+                                ref: "$sacrifice1",
+                            },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 701.21a + CR 101.4 — "When this creature enters, each player sacrifices a creature or planeswalker of their choice.": the same simultaneous
+    // `forEach` as Innocent Blood over the creature-or-planeswalker union, at an enters head. The smoke form names the
+    // filter, so each filter is its own form and needs its own evidence.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "d5a33091-a348-4b13-8dbd-79ab0ad99afe",
+            name: "Demon's Disciple",
+            manaCost: "{2}{B}",
+            typeLine: "Creature — Human Cleric",
+            oracleText:
+                "When this creature enters, each player sacrifices a creature or planeswalker of their choice.",
+            layout: "normal",
+            power: "3",
+            toughness: "1",
+        },
+        expected: {
+            name: "Demon's Disciple",
+            types: ["Creature"],
+            subtypes: ["Human", "Cleric"],
+            manaCost: {
+                X: 2,
+                B: 1,
+            },
+            power: 3,
+            toughness: 1,
+            oracleText:
+                "When this creature enters, each player sacrifices a creature or planeswalker of their choice.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "demon-s-disciple-trigger",
+                    oracleText:
+                        "When this creature enters, each player sacrifices a creature or planeswalker of their choice.",
+                    head: {
+                        kind: "entered",
+                        scope: "self",
+                    },
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "players",
+                            },
+                            simultaneous: true,
+                            effects: [
+                                {
+                                    op: "choice",
+                                    kind: "sacrifice-permanents",
+                                    player: {
+                                        ref: "$each",
+                                    },
+                                    zone: "battlefield",
+                                    filter: {
+                                        type: ["Creature", "Planeswalker"],
+                                    },
+                                    count: 1,
+                                    prompt: "Sacrifice a creature or planeswalker.",
+                                    bind: "$sacrifice1",
+                                },
+                                {
+                                    op: "sacrifice",
+                                    permanents: {
+                                        ref: "$sacrifice1",
+                                    },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 111.1 + CR 608.2h — "Create X <token>s, where X is that creature's
     // mana value": X is read off the snapshot the previous sentence's Op
     // binds before the object leaves the battlefield. Exhibits two forms the

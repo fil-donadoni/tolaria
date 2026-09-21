@@ -456,7 +456,7 @@ export type EffectSentenceIR =
            *
            * `phrase` is the printed "a creature" / "two creatures", kept for
            * the prompt the chooser reads. `count` is the printed number; the
-           * pick clamps to what the player controls (CR 608.2b).
+           * pick clamps to what the player controls (CR 101.3).
            */
           readonly kind: "sacrifice";
           readonly player: PlayerRefIR;

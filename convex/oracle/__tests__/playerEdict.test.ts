@@ -1,5 +1,5 @@
 // Player EDICT — "<player> sacrifices a <permanent filter> [of their choice]"
-// (CR 701.21a, CR 101.4, CR 608.2b, issue #4246).
+// (CR 701.21a, CR 101.4, CR 101.3, issue #4246).
 //
 // Four layers:
 //
@@ -506,7 +506,7 @@ describe("player edict — behaviour through the real interpreter (CR 701.21a)",
             expect(head.playerId).toBe("p2"); // the target, not the caster
             expect(head.count).toBe(1);
             expect(head.prompt).toBe("Sacrifice a creature.");
-            expect(state.stack).toHaveLength(1); // CR 608.3 — held across the wait
+            expect(state.stack).toHaveLength(1); // held across the wait
 
             submit(state, "p2", ["t2"]);
             expect(getPlayer(state, "p2").battlefield.map((c) => c.id)).toEqual(
@@ -523,7 +523,7 @@ describe("player edict — behaviour through the real interpreter (CR 701.21a)",
         });
     });
 
-    it("a target with NO creature sacrifices nothing — no prompt, no error (CR 608.2b)", () => {
+    it("a target with NO creature sacrifices nothing — no prompt, no error (CR 101.3)", () => {
         withCompiled(DIABOLIC_EDICT, (id) => {
             const state = makeState({
                 players: [
@@ -620,7 +620,7 @@ describe("player edict — behaviour through the real interpreter (CR 701.21a)",
         });
     });
 
-    it("Barter in Blood: two picks, clamped to what a player controls (CR 608.2b)", () => {
+    it("Barter in Blood: two picks, clamped to what a player controls (CR 101.3)", () => {
         withCompiled(BARTER_IN_BLOOD, (id) => {
             const state = makeState({
                 players: [

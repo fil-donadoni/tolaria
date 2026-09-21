@@ -1575,7 +1575,7 @@ function lowerSentenceBody(
             // of the Veil), the choice raised for the player who sacrifices —
             // never the caster. A player with no matching permanent gets no
             // candidates, so neither the prompt nor the sacrifice happens
-            // (CR 608.2b).
+            // (CR 101.3 — an impossible instruction is ignored).
             //
             // "you" is refused: Oracle never prints "you sacrifices", and the
             // controller's own sacrifice is a different sentence form.
