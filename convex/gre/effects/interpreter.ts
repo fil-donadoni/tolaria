@@ -2012,9 +2012,10 @@ function boundSetCandidates(
 }
 
 /** CR 608.2h — the ids among `ids` tied for the greatest (or least) `stat`.
- *  The stat is read live, layer-computed (`getPower` is the effective power,
- *  so an anthem changes who is greatest); an empty pool has no extreme and
- *  leaves no candidates. */
+ *  Power is the layer-computed effective power (an anthem changes who is
+ *  greatest); mana value is the instance's own cost (CR 202.3), so a token or
+ *  copy with no mana cost ranks as 0. An empty pool has no extreme and leaves
+ *  no candidates. */
 function extremeByStat(
     ctx: SpellContext,
     ids: readonly string[],
@@ -2022,9 +2023,14 @@ function extremeByStat(
 ): string[] {
     const read = (id: string): number => {
         const target = { type: "permanent" as const, id };
-        return superlative.stat === "power"
-            ? ctx.getPower(target)
-            : ctx.getManaValue(target);
+        switch (superlative.stat) {
+            case "power":
+                return ctx.getPower(target);
+            case "mana-value":
+                return ctx.getManaValue(target);
+            default:
+                return superlative.stat satisfies never;
+        }
     };
     const scored = ids.map((id) => ({ id, value: read(id) }));
     if (scored.length === 0) return [];
@@ -2047,6 +2053,14 @@ function choiceCandidates(
     op: OpOf<"choice">,
     zoneOwnerId: string
 ): { available: number; candidateIds?: string[] } {
+    // Fail closed if a script bypassed the validator: a restriction that
+    // cannot be applied here must leave NO candidate, never the whole zone.
+    if (
+        op.superlative &&
+        (op.zone !== "battlefield" || op.candidates || op.allControllers)
+    ) {
+        return { available: 0, candidateIds: [] };
+    }
     if (op.zone === "battlefield") {
         // CR 601.2c / 608.2 — `candidates` narrows the pick to specific
         // ALREADY-KNOWN objects (the announced targets) instead of the whole

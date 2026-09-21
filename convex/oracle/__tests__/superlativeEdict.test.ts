@@ -245,7 +245,7 @@ describe("superlative edict — refusals (fail-closed, ADR 0105 § 2)", () => {
             "creatures they control",
         ],
         // Power is a creature's characteristic; a pool that holds a planeswalker
-        // has permanents with no power to rank (CR 208.1).
+        // has permanents with no power to rank (CR 208.3).
         [
             "Target opponent sacrifices a creature or planeswalker with the greatest power among creatures and planeswalkers they control.",
             "power",

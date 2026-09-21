@@ -237,6 +237,21 @@ describe("choice.superlative — resolution (CR 608.2h)", () => {
         );
     });
 
+    it("mana value is the INSTANCE's: a token copy with no mana cost ranks 0, not its printed cost (CR 202.3, CR 707.2)", () => {
+        withScript(
+            edictScript(CREATURE, { stat: "mana-value", extreme: "greatest" }),
+            (id) => {
+                const costlyCopy = held("p2", COSTLY, "costly-copy");
+                costlyCopy.manaCostOverride = {}; // e.g. an Eternalize token
+                const { head } = raise(id, [
+                    costlyCopy,
+                    held("p2", CHEAP, "cheap"), // printed mana value 1
+                ]);
+                expect(head?.candidateIds).toEqual(["cheap"]);
+            }
+        );
+    });
+
     it("the pool is what `filter` matches: a permanent outside it is neither ranked nor offered", () => {
         withScript(
             edictScript(
@@ -352,6 +367,7 @@ describe("choice.superlative — validation (fail-closed)", () => {
         ["a missing extreme", { stat: "power" }],
         ["an extra key", { stat: "power", extreme: "greatest", among: "all" }],
         ["a bare string", "greatest"],
+        ["null", null],
     ])("%s is rejected, never read as no restriction", (_label, value) => {
         expect(check({}, value)).not.toEqual([]);
     });
@@ -373,7 +389,7 @@ describe("choice.superlative — validation (fail-closed)", () => {
         ).toMatch(/never together with "candidates" or "allControllers"/);
     });
 
-    it("power over a pool that can hold a powerless permanent is refused (CR 208.1)", () => {
+    it("power over a pool that can hold a powerless permanent is refused (CR 208.3)", () => {
         for (const filter of [
             { type: ["Creature", "Planeswalker"] },
             { type: "Planeswalker" },
@@ -383,5 +399,37 @@ describe("choice.superlative — validation (fail-closed)", () => {
                 /by power requires filter: \{ type: "Creature" \}/
             );
         }
+    });
+
+    it("a count other than 1 is refused — a superlative names ONE permanent", () => {
+        expect(check({ count: 2 }).join("\n")).toMatch(/selects ONE permanent/);
+        expect(check({ count: { min: 0, max: 1 } }).join("\n")).toMatch(
+            /selects ONE permanent/
+        );
+    });
+});
+
+describe("choice.superlative — defence in depth (a script that skipped the validator)", () => {
+    it.each([
+        ["a non-battlefield zone", { zone: "hand" }],
+        ["`candidates`", { candidates: [{ target: 0 }] }],
+        [
+            "`allControllers`",
+            { kind: "choose-permanents", allControllers: true },
+        ],
+    ])("%s leaves NO candidate — never the whole zone", (_label, overrides) => {
+        const script = [
+            {
+                ...(edictScript(CREATURE, POWER)[0] as object),
+                ...overrides,
+            },
+        ] as unknown as readonly EffectOp[];
+        withScript(script, (id) => {
+            const { head } = raise(id, [
+                held("p2", BEAR, "bear"),
+                held("p2", OGRE, "ogre"),
+            ]);
+            expect(head).toBeUndefined();
+        });
     });
 });

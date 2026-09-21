@@ -1760,7 +1760,7 @@ function isChoiceSuperlative(value: unknown): boolean {
 }
 
 /** True when a `choice` filter pins the pool to creatures and nothing else in
- *  its `type` — the precondition for ranking by power (CR 208.1: only a
+ *  its `type` — the precondition for ranking by power (CR 208.3: only a
  *  creature has power). */
 function filterIsCreatureOnly(value: unknown): boolean {
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -5078,7 +5078,9 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             // two answers to "the greatest among WHAT" — refused, never
             // resolved by picking one. A hidden-zone card has no layer-computed
             // stat to rank.
-            if (entry.superlative !== undefined) {
+            // A malformed value already failed its field check, but `check` still
+            // runs after it — read nothing off it until the shape is proven.
+            if (isChoiceSuperlative(entry.superlative)) {
                 if (
                     entry.zone !== "battlefield" ||
                     entry.candidates !== undefined ||
@@ -5088,10 +5090,18 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                         '"superlative" is valid only with zone: "battlefield", and never together with "candidates" or "allControllers"'
                     );
                 }
+                // "a creature with the greatest power" names ONE permanent; a
+                // count of two would mean "two of the tied set", an encoding
+                // nobody defined (the grammar refuses the counted form too).
+                if (entry.count !== 1) {
+                    errors.push(
+                        '"superlative" selects ONE permanent — its "count" must be exactly 1'
+                    );
+                }
                 const stat = (entry.superlative as { stat?: unknown }).stat;
                 if (stat === "power" && !filterIsCreatureOnly(entry.filter)) {
                     errors.push(
-                        '"superlative" by power requires filter: { type: "Creature" } — a permanent with no power cannot be ranked (CR 208.1)'
+                        '"superlative" by power requires filter: { type: "Creature" } — a permanent with no power cannot be ranked (CR 208.3)'
                     );
                 }
             }

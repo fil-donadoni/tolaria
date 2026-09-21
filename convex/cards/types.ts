@@ -17197,7 +17197,8 @@ export type EffectOp =
            *  greatest power among creatures they control"). Every permanent
            *  tied for the extreme stays a candidate and the chooser picks
            *  among them; an empty pool leaves none. Computed ONCE, when the
-           *  choice is raised, over the layer-computed stat — never again
+           *  choice is raised, over the stat as it stands then (layer-computed power, the
+           *  instance's own mana cost) — never again
            *  after the pick. `zone: "battlefield"` only, over the owner's own
            *  battlefield: it does not compose with `candidates` or
            *  `allControllers` (validator-enforced), and `power` requires a

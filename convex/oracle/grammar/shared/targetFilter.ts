@@ -1072,7 +1072,7 @@ export function superlativeFromClause(
             `the set "${set}" is not the candidates' own permanent types`,
             set
         );
-    // CR 208.1 — only a creature has power, so a power ranking over any other
+    // CR 208.3 — only a creature has power, so a power ranking over any other
     // pool would rank permanents with no value.
     if (statKey === "power" && filter.type !== "Creature")
         return fail("only creatures can be ranked by power", "power");

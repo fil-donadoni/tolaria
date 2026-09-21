@@ -63,7 +63,10 @@ import {
     tryGetDefinition,
     isPrintedInSet as isCardPrintedInSet,
 } from "../cards";
-import { declaresLingeringStaticEffect } from "../cards/registry";
+import {
+    declaresLingeringStaticEffect,
+    getInstanceManaCost,
+} from "../cards/registry";
 import { resolveTokenStaticEffects } from "../cards/tokenStaticEffects";
 import { getEmblemDefinition, tryGetEmblemDefinition } from "../cards/emblems";
 import { tokenPrintIdFor } from "../cards/tokenPrintLookup";
@@ -19103,9 +19106,9 @@ export function buildSpellContext(
             if (target.type === "permanent") {
                 const found = findOnBattlefield(state, target.id);
                 if (!found) return 0;
-                const cardId = (found.card.card as { id?: string }).id;
-                const def = cardId ? tryGetDefinition(cardId) : undefined;
-                return manaValue(def?.manaCost);
+                // CR 202.3 / 707.2 — the instance's own cost, so a token or copy
+                // "with no mana cost" (`manaCostOverride`) has mana value 0.
+                return manaValue(getInstanceManaCost(found.card));
             }
             if (target.type === "spell") {
                 const stackItem =
