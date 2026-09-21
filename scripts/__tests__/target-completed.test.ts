@@ -360,6 +360,27 @@ describe("targetCompleted — the three clauses of the v1 gate", () => {
             "red: playable — 1 card(s) neither ready nor hand-written: Grammar Pending"
         );
         expect(text).toContain("red: bot-play — frozen 1: Ready");
+        expect(text).not.toContain("covered by a must Test Position");
+    });
+
+    it("a red Target still lists the never-chosen cards a must Test Position covers", () => {
+        const completion = targetCompleted(
+            coverage(GREEN_IDS),
+            verdicts(
+                [
+                    { name: "Ready", outcome: "ignored", gap: NEVER },
+                    {
+                        name: "Held Hand-Written",
+                        outcome: "frozen",
+                        gap: "no-legal-move › x",
+                    },
+                ],
+                ["Ready"]
+            )
+        );
+        expect(formatCompletion(completion)).toContain(
+            "never-chosen, covered by a must Test Position (1): Ready"
+        );
     });
 });
 
