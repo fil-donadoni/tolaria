@@ -100,6 +100,78 @@ const SELF_GRANTED_HASTE_CREATURE: CardDefinition = {
     ],
 };
 
+/** CR 701.21a / 608.2b — an edict: the TARGET player owes a mandatory
+ *  `sacrifice-permanents` choice mid-resolution, so the follow-through must
+ *  answer it and see the spell leave the stack (issue #4189). */
+const EDICT_INSTANT: CardDefinition = {
+    id: "bot-reach-test:edict",
+    name: "Bot Reach Edict",
+    rarity: "common",
+    manaCost: { B: 1, generic: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "player", count: 1 },
+    effects: [
+        {
+            op: "choice",
+            kind: "sacrifice-permanents",
+            player: { target: 0 },
+            zone: "battlefield",
+            filter: { type: "Creature" },
+            count: 1,
+            prompt: "Sacrifice a creature.",
+            bind: "$sacrifice1",
+        },
+        { op: "sacrifice", permanents: { ref: "$sacrifice1" } },
+    ],
+};
+
+/** CR 603.3 / 701.21a — a creature whose enters-the-battlefield trigger asks
+ *  "you may return target creature card from your graveyard to your hand".
+ *  Every step of its follow-through is a choice answer (issue #4189). */
+const RAISE_DEAD_CREATURE: CardDefinition = {
+    id: "bot-reach-test:raise-dead",
+    name: "Bot Reach Raise Dead",
+    rarity: "common",
+    manaCost: { B: 1, generic: 3 },
+    types: ["Creature"],
+    subtypes: ["Zombie"],
+    power: 2,
+    toughness: 2,
+    compiledTriggeredAbilities: [
+        {
+            id: "bot-reach-raise-dead-trigger",
+            oracleText:
+                "When this creature enters, you may return target creature card from your graveyard to your hand.",
+            head: { kind: "entered", scope: "self" },
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                zone: "graveyard",
+                controller: "you",
+            },
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
+                    prompt: "Return target creature card from your graveyard to your hand?",
+                    bind: "$may1",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$may1" },
+                    then: [
+                        {
+                            op: "moveZone",
+                            target: { target: 0 },
+                            to: "hand",
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+};
+
 describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
     it("played — the Bot casts an affordable creature at both seats", () => {
         expect(playTwice(getCardByName("Grizzly Bears"))).toEqual({
@@ -111,6 +183,24 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
         expect(playTwice(getCardByName("Lightning Bolt")).outcome).toBe(
             "played"
         );
+    });
+
+    // Issue #4189: the follow-through applied each answer with the greedy 1-ply
+    // sandbox, which leaves a `resolution-choice` as a no-op, so the answered
+    // choice stayed pending and the sweep read the harness's own stall as a
+    // Bot Gap (`no-progress › follow-through`) on 24 cards.
+    it("played — an edict's mandatory sacrifice choice is answered and settles", () => {
+        withTemporaryDefinition(EDICT_INSTANT, () => {
+            expect(playTwice(EDICT_INSTANT)).toEqual({ outcome: "played" });
+        });
+    });
+
+    it("played — an enters-trigger 'you may return' settles through its choices", () => {
+        withTemporaryDefinition(RAISE_DEAD_CREATURE, () => {
+            expect(playTwice(RAISE_DEAD_CREATURE)).toEqual({
+                outcome: "played",
+            });
+        });
     });
 
     it("ignored — a legal, affordable no-op is never chosen, and ships", () => {

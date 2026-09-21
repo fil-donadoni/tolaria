@@ -41,9 +41,10 @@
  */
 
 import { applyMoveForSearch } from "../applyMove";
+import { cloneGameState } from "../clone";
 import { buildBladeBaseState } from "./blade/baseState";
 import { buildStateFromScenario } from "../scenarioBuilder";
-import { decidingPlayer, searchWithTrace } from "../search";
+import { applyMoveInSearch, decidingPlayer, searchWithTrace } from "../search";
 import { enumerateMoves, type Move } from "../moves";
 import { getLegalActions } from "../rules";
 import { allocInstanceId, type GameState } from "../state";
@@ -597,7 +598,15 @@ function followThrough(
                 { iterations: budget.iterations },
                 seed
             ).move ?? moves[0]!;
-        state = applyMoveForSearch(state, decider, next);
+        // The ISMCTS applier, never the greedy 1-ply sandbox: that one leaves a
+        // `resolution-choice` / `pass` answer as a no-op ("no board change
+        // worth modelling"), so the choice this loop just answered stayed
+        // pending and every step re-answered it until the budget ran out — a
+        // verdict about THIS harness read as a Bot Gap (issue #4189). Every
+        // answer the search itself makes in-tree goes through this applier.
+        const applied = cloneGameState(state);
+        applyMoveInSearch(applied, decider, next);
+        state = applied;
     }
     return unsettled(state, instanceId)
         ? { outcome: "ignored", cause: "no-progress", form: "follow-through" }
