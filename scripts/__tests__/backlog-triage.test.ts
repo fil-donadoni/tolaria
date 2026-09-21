@@ -14,6 +14,7 @@
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+    applyClears,
     applyWrites,
     fetchOpenIssues,
     OPEN_ISSUES_QUERY,
@@ -27,11 +28,13 @@ import {
     claimedCards,
     issueCards,
     labelBand,
+    planClear,
     planUmbrellas,
     planWrites,
     parseBand,
     parseCards,
     rankTargetBands,
+    renderClearReport,
     renderReport,
     residueCause,
     resolveDeclaredCards,
@@ -1418,6 +1421,7 @@ function stubTracker(
     const calls: string[][] = [];
     const mutations: string[] = [];
     const written: { number: number; value: string }[] = [];
+    const cleared: number[] = [];
     const OPTION: Record<string, string> = {
         P0: "OPT_P0",
         P1: "OPT_P1",
@@ -1523,11 +1527,19 @@ function stubTracker(
                 written.push({ number: n, value: board[n]! });
                 data[m[1]!] = { projectV2Item: { id: `PVTI_${n}` } };
             }
+            for (const m of query.matchAll(
+                /(c\d+): clearProjectV2ItemFieldValue\(input: \{ projectId: "PVT_1", itemId: "PVTI_(\d+)", fieldId: "FLD_PRIO" \}\)/g
+            )) {
+                const n = Number(m[2]);
+                delete board[n];
+                cleared.push(n);
+                data[m[1]!] = { projectV2Item: { id: `PVTI_${n}` } };
+            }
             return JSON.stringify({ data });
         }
         throw new Error(`unexpected gh call: ${args.join(" ")}`);
     };
-    return { client, calls, mutations, written };
+    return { client, calls, mutations, written, cleared };
 }
 
 describe("backlog-triage — runTriage --write", () => {
@@ -1770,5 +1782,188 @@ describe("backlog-triage — runTriage --write", () => {
             runTriage({ root: ROOT, argv: ["--write"], ghClient: t.client });
             expect(t.mutations).toEqual([]);
         }, 60_000);
+    });
+});
+
+describe("backlog-triage — --clear-residue, the one-shot blank (issue #4232)", () => {
+    // #3820 is the user-decision root: its children are P1. Label defaults:
+    // `user-report` → P1, `enhancement` → P3, `prd` → none (see LABEL_BAND_TABLE).
+    const OPEN = [
+        { number: 30, parent: null, labels: ["prd"] }, // residue, P2 → blank
+        { number: 31, parent: null, labels: [] }, // residue, P1 → blank
+        { number: 32, parent: null, labels: ["user-report"] }, // labels-banded (P1), stale P3 → NOT blanked
+        { number: 33, parent: null, labels: ["prd"] }, // residue, P0 → never
+        { number: 34, parent: null, labels: [] }, // residue, no value → owes nothing
+        { number: 35, parent: 3820, labels: [] }, // banded by a source → NOT blanked
+        { number: 36, parent: null, labels: ["prd"] }, // residue, P3 → blank
+    ];
+    const BOARD = (): Record<number, BoardPriority> => ({
+        30: "P2",
+        31: "P1",
+        32: "P3",
+        33: "P0",
+        35: "P3",
+        36: "P3",
+    });
+
+    it("a dry run lists every row it would blank with its value and the count, and mutates nothing", () => {
+        const board = BOARD();
+        const t = stubTracker(board, OPEN);
+        const report = runTriage({
+            root: ROOT,
+            argv: ["--clear-residue"],
+            ghClient: t.client,
+        });
+        expect(report).toContain("ONE-SHOT");
+        expect(report).toContain("DRY RUN, nothing written — would blank 3");
+        expect(report).toContain("#30 [board P2]");
+        expect(report).toContain("#31 [board P1]");
+        expect(report).toContain("#36 [board P3]");
+        for (const n of [32, 33, 34, 35])
+            expect(report).not.toMatch(new RegExp(`#${n} \\[board`));
+        expect(t.mutations).toEqual([]);
+        expect(t.calls).toHaveLength(2);
+        expect(board).toEqual(BOARD());
+    }, 60_000);
+
+    it("--write blanks exactly those rows and no others; the normal pass is not run", () => {
+        const board = BOARD();
+        const t = stubTracker(board, OPEN);
+        const report = runTriage({
+            root: ROOT,
+            argv: ["--clear-residue", "--write"],
+            ghClient: t.client,
+        });
+        expect(t.cleared).toEqual([30, 31, 36]);
+        expect(t.written).toEqual([]);
+        expect(report).toContain("WRITE — 3 board value(s) blanked");
+        expect(board).toEqual({ 32: "P3", 33: "P0", 35: "P3" });
+    }, 60_000);
+
+    it("clear → default pass → clear again owes zero writes (issue #4232: safe to run twice)", () => {
+        const board = BOARD();
+        runTriage({
+            root: ROOT,
+            argv: ["--clear-residue", "--write"],
+            ghClient: stubTracker(board, OPEN).client,
+        });
+        runTriage({
+            root: ROOT,
+            argv: ["--write"],
+            ghClient: stubTracker(board, OPEN).client,
+        });
+        // The default pass put the labels default and the parent band back…
+        expect(board[32]).toBe("P1");
+        expect(board[35]).toBe("P1");
+        // …and left the blanked residue blank.
+        expect(board[30]).toBeUndefined();
+        const again = stubTracker(board, OPEN);
+        const report = runTriage({
+            root: ROOT,
+            argv: ["--clear-residue", "--write"],
+            ghClient: again.client,
+        });
+        expect(again.mutations).toEqual([]);
+        expect(report).toContain("WRITE — 0 board value(s) blanked");
+    }, 60_000);
+
+    it("never blanks a row a `labels` default bands — residue is read AFTER the labels source", () => {
+        const issues = [
+            issue(1, { labels: ["user-report"] }), // labels → P1, board holds a stale P3
+            issue(2, { labels: ["prd"] }), // no default → residue
+        ];
+        expect(planClear(issues, index, { 1: "P3", 2: "P3" })).toEqual([
+            { number: 2, title: "issue 2", from: "P3" },
+        ]);
+    });
+
+    it("a residue parent's blank cascades: its child, banded only by the parent's stale value, is blanked in the SAME run", () => {
+        // #2 (residue, board P2) lends its P2 to #3 through the `parent`
+        // source. One reading of the board would blank only #2, and a second
+        // run would then blank #3 — the fixed point blanks both at once.
+        const issues = [
+            issue(2, { labels: ["prd"] }),
+            issue(3, { parent: 2, labels: ["prd"] }),
+        ];
+        const board: Record<number, BoardPriority> = { 2: "P2", 3: "P2" };
+        const clears = planClear(issues, index, board);
+        expect(clears.map((c) => c.number)).toEqual([2, 3]);
+        const left: Record<number, BoardPriority> = { ...board };
+        for (const c of clears) delete left[c.number];
+        expect(planClear(issues, index, left)).toEqual([]);
+    });
+
+    it("a P0 parent keeps lending, so its child is banded and not blanked", () => {
+        const issues = [
+            issue(2, { labels: ["prd"] }),
+            issue(3, { parent: 2, labels: ["prd"] }),
+        ];
+        expect(
+            planClear(issues, index, { 2: "P0", 3: "P3" }).map((c) => c.number)
+        ).toEqual([]);
+    });
+
+    it("a Target-keyed umbrella is never blanked — its own value follows its Target", () => {
+        // 4097 is the open `vintage-cube` ops umbrella (BAND_UMBRELLAS); its
+        // Target lends no band here (`bandOf` → null), so it owes no write and
+        // is residue by its own verdict — but it is owned, so it is not cleared.
+        const slots = [
+            { number: 4097, family: "ops", targetId: "vintage-cube" },
+        ];
+        const umbrellas = planUmbrellas(slots, { 4097: "P2" }, () => null);
+        expect(
+            planClear(
+                [issue(4097, { labels: ["prd"] })],
+                index,
+                { 4097: "P2" },
+                umbrellas
+            )
+        ).toEqual([]);
+    });
+
+    it("applyClears batches one add and one clear request per batch, and makes no call for []", () => {
+        const n = WRITE_BATCH + 3;
+        const open = Array.from({ length: n }, (_, i) => ({
+            number: i + 1,
+            parent: null,
+        }));
+        const board: Record<number, BoardPriority> = Object.fromEntries(
+            open.map((i) => [i.number, "P2" as const])
+        );
+        const t = stubTracker(board, open);
+        const applied = applyClears(
+            t.client,
+            open.map((i) => ({
+                number: i.number,
+                title: "",
+                from: "P2" as const,
+            })),
+            new Map(open.map((i) => [i.number, `I_${i.number}`]))
+        );
+        expect(applied).toHaveLength(n);
+        expect(t.mutations).toHaveLength(4);
+        expect(t.cleared).toHaveLength(n);
+        expect(board).toEqual({});
+        expect(applyClears(t.client, [], new Map())).toEqual([]);
+        expect(t.calls).toHaveLength(5);
+    });
+
+    it("refuses `--write` with `--dry-run` and `--clear-residue` with `--suggest-cards`", () => {
+        const t = stubTracker({}, []);
+        expect(() =>
+            runTriage({
+                root: ROOT,
+                argv: ["--clear-residue", "--write", "--dry-run"],
+                ghClient: t.client,
+            })
+        ).toThrow(/pick one/);
+        expect(() =>
+            runTriage({
+                root: ROOT,
+                argv: ["--clear-residue", "--suggest-cards"],
+                ghClient: t.client,
+            })
+        ).toThrow(/pick one/);
+        expect(renderClearReport([])).toContain("would blank 0");
     });
 });
