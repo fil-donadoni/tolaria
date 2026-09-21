@@ -11,7 +11,11 @@
 
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { cardBandIndex, strongestCardBand } from "../lib/backlog-triage";
+import {
+    cardBandIndex,
+    strongestCardBand,
+    type Band,
+} from "../lib/backlog-triage";
 import {
     applyUpdatedIssues,
     BAND_UMBRELLAS,
@@ -1019,11 +1023,19 @@ describe("staleClaims — a row no filing referenced", () => {
 
 describe("umbrellas partition by band — the triage's cards source picks the parent (issue #4056)", () => {
     /** One card per band, plus one no ranked Target holds. */
-    const INDEX = cardBandIndex([
-        { id: "tier1-mono-black", ids: ["c-p1"] },
-        { id: "vintage-cube", ids: ["c-p2"] },
-        { id: "set-leg", ids: ["c-p3"] },
-    ]);
+    const INDEX = cardBandIndex(
+        [
+            { id: "tier1-mono-black", ids: ["c-p1"] },
+            { id: "vintage-cube", ids: ["c-p2"] },
+            { id: "set-leg", ids: ["c-p3"] },
+        ],
+        (id) =>
+            (({
+                "tier1-mono-black": "P1",
+                "vintage-cube": "P2",
+                "set-leg": "P3",
+            })[id] as Band | undefined) ?? null
+    );
     const GRAMMAR = BAND_UMBRELLAS["grammar-rules"];
     const OPS = BAND_UMBRELLAS.ops;
     const BOTS = BAND_UMBRELLAS["bot-gaps"];

@@ -64,8 +64,8 @@ An issue may carry a `## Cards` section naming the cards it is ABOUT — the
 cards it ships, or the cards the engine work waits on. `bun run backlog:triage`
 bands the issue by them, exactly as it bands by the cards a claim unlocks or a
 title names: a card some ranked Target requires lends that Target's band
-(`premodern-metagame` / `tier1-*` → P1, `vintage-cube` → P2, `set-*` /
-`format-*` → P3). **A card cited as an example or a test case never goes
+(the Targets carrying a `priority` in `data/targets.json`, not yet
+`completed`, in `priority` order → P1, P2, P3; a Target with none lends no band). **A card cited as an example or a test case never goes
 here** — the section is a declaration, and reading a body's free text instead
 would band a framework issue by the card it happens to test on.
 
