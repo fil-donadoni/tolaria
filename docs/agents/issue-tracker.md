@@ -95,8 +95,9 @@ type umbrella is a pile: issue #3972 held 87 Op gaps in no order, and exists
 only because GitHub caps a parent at 100 sub-issues. A Target umbrella is a
 bounded, ordered slice of the backlog, so the cap stops being reachable. It is
 named after its Target, not a band letter (ADR 0143 § Bands follow the
-Targets), so a Target completing re-parents nothing: the board `Priority` of
-the umbrella follows its Target.
+Targets), so a Target completing re-parents nothing. The board `Priority` of an
+umbrella is hand-set by the owner (`lib/backlog-triage.ts`, decision 7), again
+whenever the roster shifts, and children inherit it (issue #3212).
 
 | Family        | Holds                                                                   | P0    | premodern-metagame | vintage-cube | format-premodern |
 | ------------- | ----------------------------------------------------------------------- | ----- | ------------------ | ------------ | ---------------- |
@@ -130,8 +131,9 @@ the umbrella follows its Target.
   existing issue is never pulled up.
 - **Residue** — no ranked Target among its cards — files under its family's
   umbrella of the **lowest-ranked** Target (`format-premodern`,
-  `LOWEST_RANKED_TARGET`): an unranked gap is deliberately-later work (issue
-  #4110), and the fallback is a constant, never a computed umbrella. An
+  `LOWEST_RANKED_TARGET`) unless a set umbrella claims it at create: an
+  unranked gap is deliberately-later work (issue #4110), and the fallback is a
+  constant, never a computed umbrella. An
   existing one keeps a parent placed by hand; `gaps:sync` lists it.
 - **Kinds with no family yet** fall back to a P3 umbrella of their own:
   Scenario Gaps #4111, Migrations #4112 (a set umbrella still wins at create).
@@ -142,8 +144,9 @@ the umbrella follows its Target.
   `RETIRED_UMBRELLAS`: a gap under any of them — or under no parent at all, a
   create whose parent write failed — moves to its Target umbrella or its
   fallback.
-- **Each umbrella's board `Priority` follows its Target**, set once by hand;
-  its children inherit it (issue #3212).
+- **Each umbrella's board `Priority` is its Target's band**, set by hand — at
+  creation and again whenever a Target completes and the ranking shifts; its
+  children inherit it (issue #3212).
 - **A landed issue leaves its umbrella** (issue #4235). `land` runs
   `bun run umbrella:detach <issue>` for the issue the branch names, after
   `gaps:sync` (which reads the parent edge): a CLOSED child of a band umbrella
