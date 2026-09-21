@@ -21,18 +21,16 @@ export const vindicate: CardDefinition = {
     effects: [{ op: "destroy", target: { target: 0 } }],
 };
 
-// hand-tail: Target player discards two cards. You gain 3 life for each land card discarded this way. (#4332)
-//
 // Gerrard's Verdict. CR 701.9a — the discard moves a card from its owner's
 // hand to that player's graveyard, and the affected player chooses which: the
 // canonical choice + discard pair, whose picks binding is exactly what
 // "discarded this way" then names.
-//
 // CR 608.2h — the life is counted once, as the effect is applied. `picks`
 // narrows the graveyard count to those two cards, so a land that was already
 // in that graveyard is not counted; `times: 3` is the printed multiplier.
 // A player holding fewer than two cards discards what they have, and the
 // count follows (CR 608.2 — the spell does as much as it can).
+// hand-tail: Target player discards two cards. You gain 3 life for each land card discarded this way. (#4332)
 export const gerrardsVerdict: CardDefinition = {
     id: "583740c0-68cf-4205-b682-2f97c0880d42",
     rarity: "uncommon",

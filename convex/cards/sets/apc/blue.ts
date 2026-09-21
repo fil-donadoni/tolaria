@@ -5,22 +5,19 @@
 import type { CardDefinition } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
-// hand-tail: {R}, Sacrifice this creature: Each player shuffles the cards from their hand into their library, then draws that many cards. (#4358)
-//
 // Whirlpool Warrior. Its ETB half is the same clause Whirlpool Rider and Drake
 // ship COMPILED; only the activated half sits below the hand-tail floor, and a
 // card is not split across two authoring paths, so both halves are written
 // here.
-//
 // CR 121.1 — "that many" is the hand size BEFORE the cards move, which
 // `bindCount` records as the hand empties: a `draw` placed after the move
 // could only recount a hand that is already gone.
-//
 // The activated half is the same three Ops under `forEach { set: "players" }`.
 // A body binding is scoped to its iteration, so each player gets their own
 // count and draws back their OWN hand size. The iterations run in sequence
 // rather than `simultaneous`: every iteration touches only that player's hand
 // and library, so none of them can observe another's.
+// hand-tail: {R}, Sacrifice this creature: Each player shuffles the cards from their hand into their library, then draws that many cards. (#4358)
 export const whirlpoolWarrior: CardDefinition = {
     id: "01f891ca-4e6a-4710-b1cf-5dabb5e1ad93",
     rarity: "rare",
