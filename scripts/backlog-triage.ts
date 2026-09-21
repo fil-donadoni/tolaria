@@ -18,6 +18,12 @@
  * `addProjectV2ItemById` batch (idempotent — it returns the existing item for
  * an issue already on the board) then one `updateProjectV2ItemFieldValue`
  * batch. A run cut short leaves a board the next run simply finishes.
+ * A Target-keyed umbrella (`BAND_UMBRELLAS`, a `P0` slot excluded) is banded
+ * from its Target's `targetBand()` instead of its own verdict (issue #4212),
+ * so a Target completing shifts its umbrellas in the same batched write, and
+ * the children that inherit the umbrella are banded from the value it is
+ * about to hold, so one run converges them too. The Target's band outranks a
+ * `## Band` ruling on the umbrella itself.
  * An issue whose body carries a `## Band` line (`P2 — <reason>`, issue #4230)
  * is banded by it — the `user-decision` source, the truth over every other
  * one; a line that bands nothing is reported under `## Band residue`. An issue
@@ -53,6 +59,7 @@ import {
     cardBandIndex,
     claimedCards,
     issueCards,
+    planUmbrellas,
     planWrites,
     parseBand,
     parseCards,
@@ -62,14 +69,16 @@ import {
     suggestCards,
     summarize,
     triage,
+    umbrellaSlots,
     type Band,
     type BandWrite,
     type BandResidue,
     type CardsResidue,
     type TriageIssue,
 } from "./lib/backlog-triage";
-import { fetchBoardPriority } from "./lib/board-priority";
+import { fetchBoardPriority, type BoardPriority } from "./lib/board-priority";
 import { gh } from "./lib/gh";
+import { BAND_UMBRELLAS } from "./lib/gap-issues";
 import { parseLockfile } from "./lib/oracle-lockfile";
 import {
     gapIndex,
@@ -422,16 +431,33 @@ export function runTriage(opts: {
             labels: i.labels,
         };
     });
-    const verdicts = triage(issues, index, board);
+    // A Target-keyed umbrella's own Priority follows its Target (issue #4212):
+    // planned in dry runs too, so the report names what `--write` would do.
+    const umbrellas = planUmbrellas(
+        umbrellaSlots(BAND_UMBRELLAS, new Set(open.map((i) => i.number))),
+        board
+    );
+    // Children inherit the umbrella's board value (`parent` source): triage
+    // reads it as this run will leave it, so one run converges the children
+    // too. `planWrites` and `summarize` compare against the board AS IT IS.
+    const settled: Record<number, BoardPriority> = { ...board };
+    for (const w of umbrellas.writes) settled[w.number] = w.band;
+    const verdicts = triage(issues, index, settled);
     const summary = summarize(issues, verdicts, board);
     const written = write
         ? applyWrites(
               opts.ghClient,
-              planWrites(verdicts, board),
+              planWrites(verdicts, board, umbrellas),
               new Map(open.map((i) => [i.number, i.nodeId]))
           )
         : null;
-    const report = renderReport(summary, written, cardsResidue, bandResidue);
+    const report = renderReport(
+        summary,
+        written,
+        cardsResidue,
+        bandResidue,
+        umbrellas.writes
+    );
     if (!opts.argv.includes("--suggest-cards")) return report;
     // The backfill is a PROPOSAL: printed, never written. An issue that
     // already declares its cards has been ruled on — its bad lines are in
