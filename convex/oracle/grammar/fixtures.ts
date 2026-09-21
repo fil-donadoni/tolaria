@@ -121,6 +121,88 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             targetRequirement: { type: "player", count: 1 },
         },
     },
+    // CR 701.21a — "Target player sacrifices a creature of their choice": the
+    // sacrificing player picks (`choice` kind `sacrifice-permanents`, raised
+    // for the announced player, never the caster), then a `sacrifice` Op
+    // consumes the picks binding. Exhibits the "sacrifice consumes a choice
+    // binding" form the canned smoke scenario cannot answer, so this fixture
+    // is the evidence the pair is emitted as the hand-written edicts write it
+    // (Liliana of the Veil's -2, sets/isd/black.ts).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "058917c1-21ab-488a-9f9c-591c55f3c596",
+            name: "Diabolic Edict",
+            manaCost: "{1}{B}",
+            typeLine: "Instant",
+            oracleText: "Target player sacrifices a creature of their choice.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Diabolic Edict",
+            types: ["Instant"],
+            manaCost: { X: 1, B: 1 },
+            oracleText: "Target player sacrifices a creature of their choice.",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "sacrifice-permanents",
+                    player: { target: 0 },
+                    zone: "battlefield",
+                    filter: { type: "Creature" },
+                    count: 1,
+                    prompt: "Sacrifice a creature.",
+                    bind: "$sacrifice1",
+                },
+                { op: "sacrifice", permanents: { ref: "$sacrifice1" } },
+            ],
+            targetRequirement: { type: "player", count: 1 },
+        },
+    },
+    // CR 701.21a + CR 101.4 — "Each player sacrifices a creature of their
+    // choice": every player picks in APNAP order inside a simultaneous
+    // `forEach`, then the picks are sacrificed together. Exhibits the two
+    // forms the smoke scenario cannot build — a `forEach` over the runtime
+    // player set and a `choice` acting on its `$each` — so this fixture is the
+    // evidence both are emitted as the hand-written Innocent Blood
+    // (sets/ody/black.ts) writes them, the card the round-trip also compares.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "6791ec3c-c397-4087-8c8c-84d3797df415",
+            name: "Innocent Blood",
+            manaCost: "{B}",
+            typeLine: "Sorcery",
+            oracleText: "Each player sacrifices a creature of their choice.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Innocent Blood",
+            types: ["Sorcery"],
+            manaCost: { B: 1 },
+            oracleText: "Each player sacrifices a creature of their choice.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "players" },
+                    simultaneous: true,
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "sacrifice-permanents",
+                            player: { ref: "$each" },
+                            zone: "battlefield",
+                            filter: { type: "Creature" },
+                            count: 1,
+                            prompt: "Sacrifice a creature.",
+                            bind: "$sacrifice1",
+                        },
+                        { op: "sacrifice", permanents: { ref: "$sacrifice1" } },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 111.1 + CR 608.2h — "Create X <token>s, where X is that creature's
     // mana value": X is read off the snapshot the previous sentence's Op
     // binds before the object leaves the battlefield. Exhibits two forms the

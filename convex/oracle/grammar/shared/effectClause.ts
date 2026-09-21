@@ -25,7 +25,7 @@
  * the line rather than being dropped.
  */
 
-import type { TargetRequirement } from "../../../cards/types";
+import type { EffectCardFilter, TargetRequirement } from "../../../cards/types";
 import type { KeywordIR } from "../ir";
 import type { CardType } from "../../../cards/types";
 import type { Phase } from "../../../gre/types";
@@ -59,6 +59,7 @@ import {
 import {
     descriptorRule,
     opensTargetPhrase,
+    sacrificeFilterFromDescriptor,
     targetFilterRule,
 } from "./targetFilter";
 import { zoneRefRule, type ZoneRefIR } from "./zoneRef";
@@ -444,6 +445,24 @@ export type EffectSentenceIR =
           readonly kind: "discard";
           readonly player: PlayerRefIR;
           readonly count: AmountIR;
+      }
+    | {
+          /**
+           * CR 701.21a — "<player> sacrifices a <permanent filter> [of their
+           * choice]": an EDICT. The sacrificing player CHOOSES which of their
+           * own permanents go (CR 701.21a names the controller as the one who
+           * moves it), so "of their choice" is the default reading spelled out,
+           * and a sentence without it means the same thing.
+           *
+           * `phrase` is the printed "a creature" / "two creatures", kept for
+           * the prompt the chooser reads. `count` is the printed number; the
+           * pick clamps to what the player controls (CR 608.2b).
+           */
+          readonly kind: "sacrifice";
+          readonly player: PlayerRefIR;
+          readonly count: number;
+          readonly filter: EffectCardFilter;
+          readonly phrase: string;
       }
     | {
           /**
@@ -1297,6 +1316,13 @@ const COUNTERS = /^Put (\S+) (\S+) counters? on (.+)$/;
 const DISCARD_RANDOM = /^(.+) discards (\S+) cards? at random$/;
 /** CR 701.9b — "Target player discards two cards": the player's own choice. */
 const DISCARD_CHOICE = /^(.+) discards (\S+) cards?$/;
+/**
+ * CR 701.21a — "Target player sacrifices a creature of their choice": the
+ * count word and the permanent phrase, "of their choice" optional. Anything
+ * after the phrase ("with flying", "for each …", ", then …") stays inside
+ * the phrase, where the descriptor reader refuses it.
+ */
+const SACRIFICE_EDICT = /^(.+?) sacrifices (\S+) (.+?)(?: of their choice)?$/;
 /**
  * CR 608.2c — "You draw a card and you lose 1 life": a draw, then a life
  * loss, each with the explicit "you" the Oracle text prints. Anchored at both
@@ -2292,6 +2318,32 @@ function effectSentence(
             kind: "discard" as const,
             player,
             count,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── sacrifice, the player's choice (CR 701.21a) ────────────────────────
+    const edict = span.match(SACRIFICE_EDICT);
+    if (edict !== null) {
+        const player = playerSubject(edict[1]!, ctx);
+        if (player === null) return fail(`"${edict[1]}" is not a player`, span);
+        const count = readNumberWord(edict[2]!);
+        if (count === null) return fail(`"${edict[2]}" is not a count`, span);
+        const descriptor = descriptorRule.run(edict[3]!, ctx);
+        if (!descriptor.ok) return descriptor;
+        // The noun's number is the count's: "a creature", "two creatures".
+        if ((descriptor.value.plural === true) !== (count !== 1))
+            return fail(
+                `"${edict[2]} ${edict[3]}" disagrees in number`,
+                edict[3]!
+            );
+        const filter = sacrificeFilterFromDescriptor(descriptor.value);
+        if (!filter.ok) return filter;
+        return ok({
+            kind: "sacrifice" as const,
+            player,
+            count,
+            filter: filter.value,
+            phrase: `${edict[2]} ${edict[3]}`,
         } satisfies EffectSentenceIR);
     }
 
