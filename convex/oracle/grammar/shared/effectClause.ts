@@ -65,6 +65,7 @@ import {
 } from "./targetFilter";
 import { zoneRefRule, type ZoneRefIR } from "./zoneRef";
 import { BASIC_LAND_SUBTYPE_ORDER, CREATURE_SUBTYPES } from "./subtypes";
+import { readThenChain } from "./thenChain";
 import { createTokenRule, type CreateTokenIR } from "./tokenSpec";
 
 export const EFFECT_CLAUSE = "effect clause";
@@ -714,6 +715,15 @@ export type SentenceIR =
     | { readonly role: "effect"; readonly effect: EffectSentenceIR }
     | { readonly role: "restriction"; readonly restriction: RestrictionIR }
     | { readonly role: "modifier"; readonly modifier: ModifierIR }
+    /**
+     * CR 608.2c — "Create <token>, then <effect>": two effects in printed
+     * order, flattened by `assembleSentences` into the same list the two
+     * full-stop sentences would give (`thenChain.ts`).
+     */
+    | {
+          readonly role: "then-chain";
+          readonly effects: readonly EffectSentenceIR[];
+      }
     /** The window half of a `look-distribute` (see there). */
     | {
           readonly role: "library-look";
@@ -920,6 +930,10 @@ export function assembleSentences(
                 ...previous,
                 cantBeRegenerated: true,
             };
+            continue;
+        }
+        if (sentence.role === "then-chain") {
+            effects.push(...sentence.effects);
             continue;
         }
         effects.push(sentence.effect);
@@ -1632,6 +1646,11 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
 
         const library = libraryHalf(span);
         if (library !== null) return library;
+
+        const chained = readThenChain(span, ctx, (tail) =>
+            sentenceRule.run(capitalise(tail), ctx)
+        );
+        if (chained !== null) return chained;
 
         const effect = effectSentence(span, ctx);
         if (!effect.ok) return effect;
