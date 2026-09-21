@@ -297,6 +297,27 @@ export function lowerStaticClause(
                 ok: true,
                 lowered: { staticAbility: DOES_NOT_UNTAP_MARKER },
             };
+        // CR 601.2c — the engine's own `StaticTargetChoiceRequirement`, whole
+        // (see `CompiledStaticEffect`). The id is a private handle, so it is
+        // card-scoped like a combat restriction's; the engine dedups by clause
+        // (`binds` + `filter`), never by id.
+        case "target-choice-requirement":
+            return {
+                ok: true,
+                lowered: {
+                    effects: [
+                        {
+                            kind: "target-choice-requirement",
+                            id: nextId(
+                                `${clause.subtype.toLowerCase()}-requirement`
+                            ),
+                            oracleText,
+                            binds: clause.binds,
+                            filter: { subtypes: [clause.subtype] },
+                        },
+                    ],
+                },
+            };
         case "enchanted-host":
             return lowerHostClause(clause, nextId);
         default: {
