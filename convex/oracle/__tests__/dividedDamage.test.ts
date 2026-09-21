@@ -78,9 +78,6 @@ function compiled(card: ReturnType<typeof oracleCard>) {
     return outcome.definition;
 }
 
-const refused = (card: ReturnType<typeof oracleCard>) =>
-    compileCard(card).state === "unparsed";
-
 /** The divide budget the rule attaches to a group. */
 const divided = (total: number | "X") => ({ total });
 
