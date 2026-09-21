@@ -2653,4 +2653,111 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             },
         },
     },
+    // CR 303.4b / CR 115.10 — "Enchanted creature gets +1/+0 until end of
+    // turn" on an Aura's own activated ability: the host is named by the text,
+    // never announced, so the pump acts on `{ ref: "$host" }` (issue #1341).
+    // Exhibits the form the canned smoke scenario refuses — a `pump` on a
+    // subject it does not seed (`$host` is neither a target slot nor the
+    // seeded `$source`) — so this fixture is the evidence the grammar emits
+    // the host pump the hand-written `$host` cards write (Umezawa's Jitte's
+    // "+2/+2", sets/bok/colorless.ts), for every Aura printing the same
+    // "Enchanted creature gets +N/+M" form (issue #4303).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "8603bf74-faab-4910-8e45-0f2e3b318efb",
+            name: "Firebreathing",
+            manaCost: "{R}",
+            typeLine: "Enchantment — Aura",
+            oracleText:
+                "Enchant creature\n{R}: Enchanted creature gets +1/+0 until end of turn.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Firebreathing",
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+            manaCost: { R: 1 },
+            oracleText:
+                "Enchant creature\n{R}: Enchanted creature gets +1/+0 until end of turn.",
+            activatedAbilities: [
+                {
+                    id: "firebreathing-ability",
+                    oracleText:
+                        "{R}: Enchanted creature gets +1/+0 until end of turn.",
+                    cost: { mana: { R: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "pump",
+                            target: { ref: "$host" },
+                            power: 1,
+                            toughness: 0,
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+            targetRequirement: { type: "Creature", count: 1 },
+        },
+    },
+    // CR 303.4b / CR 613.1f — the keyword-grant twin: "Enchanted creature
+    // gains vigilance until end of turn" is a `grantAbility` on `$host`.
+    // Exhibits its own smoke skip (a different reason string than the pump's,
+    // so a different form) — the evidence for every Aura printing the grant
+    // form (issue #4303).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "e649614a-ff23-4234-92f4-6f564cbfe648",
+            name: "Ocular Halo",
+            manaCost: "{3}{U}",
+            typeLine: "Enchantment — Aura",
+            oracleText:
+                'Enchant creature\nEnchanted creature has "{T}: Draw a card."\n{W}: Enchanted creature gains vigilance until end of turn.',
+            layout: "normal",
+        },
+        expected: {
+            name: "Ocular Halo",
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+            manaCost: { X: 3, U: 1 },
+            oracleText:
+                'Enchant creature\nEnchanted creature has "{T}: Draw a card."\n{W}: Enchanted creature gains vigilance until end of turn.',
+            activatedAbilities: [
+                {
+                    id: "ocular-halo-ability",
+                    oracleText:
+                        "{W}: Enchanted creature gains vigilance until end of turn.",
+                    cost: { mana: { W: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "grantAbility",
+                            target: { ref: "$host" },
+                            ability: "vigilance",
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+            compiledStaticEffects: [
+                {
+                    kind: "activated-grant",
+                    appliesTo: "host",
+                    abilityId: "ocular-halo-granted",
+                },
+            ],
+            grantTemplates: [
+                {
+                    id: "ocular-halo-granted",
+                    oracleText: "{T}: Draw a card.",
+                    cost: { tap: true },
+                    useStack: true,
+                    effects: [{ op: "draw", player: "controller", count: 1 }],
+                },
+            ],
+            targetRequirement: { type: "Creature", count: 1 },
+        },
+    },
 ]);

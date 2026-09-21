@@ -66,7 +66,7 @@ function applyRestrictions(
     return null;
 }
 
-/** CR 118.1 — a cost leg that takes the SOURCE off the battlefield. */
+/** A cost leg that takes the SOURCE off the battlefield. */
 function removesSource(atom: CostAtomIR): boolean {
     return (
         atom.kind === "sacrifice-self" ||
