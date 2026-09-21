@@ -657,6 +657,12 @@
             "name": "Phyrexian Myr"
         }
     ],
+    "50a6aa80-79a3-46f3-9cc1-5bf663b64976": [
+        {
+            "scryfallId": "cd76092f-0f5e-4890-996c-33f4f47c659c",
+            "name": "Villain"
+        }
+    ],
     "50cb4bf3-70d1-4acc-a1fb-49f4ea74ca16": [
         {
             "scryfallId": "33ee3f6c-5df6-4271-b2f9-86b9afffab7b",
@@ -1417,6 +1423,12 @@
         {
             "scryfallId": "c06d2c07-7d3e-46e3-86f0-7ceba3b0aee0",
             "name": "Drake"
+        }
+    ],
+    "ab0ba4ef-9e82-4177-a80f-8fa6f6a5bd60": [
+        {
+            "scryfallId": "8dd768c3-f278-41f8-b329-8403391d6326",
+            "name": "Thopter"
         }
     ],
     "ab1c1375-9908-4fe8-960a-595b9b58cd10": [

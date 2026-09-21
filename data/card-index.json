@@ -11924,6 +11924,16 @@
         "source": "compiled"
     },
     {
+        "name": "Depose // Deploy",
+        "scryfallId": "ab0ba4ef-9e82-4177-a80f-8fa6f6a5bd60",
+        "oracleId": "c547c9ab-a303-48fb-9579-37f9de9a558b",
+        "firstSet": "rna",
+        "firstPrintId": "ab0ba4ef-9e82-4177-a80f-8fa6f6a5bd60",
+        "firstPrintSet": "rna",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Deranged Outcast",
         "scryfallId": "e2b35fee-8e24-4d89-ad77-d55d06bb1d7f",
         "oracleId": "115f1397-fa24-4412-80b7-e2a6ddedcd4c",
@@ -23052,6 +23062,16 @@
         "firstSet": "tle",
         "firstPrintId": "24ca6ca8-e239-4fe5-8711-24098b74e2fe",
         "firstPrintSet": "tle",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Hire a Crew",
+        "scryfallId": "50a6aa80-79a3-46f3-9cc1-5bf663b64976",
+        "oracleId": "6eb7a870-b626-4326-9e4c-45193f8ce138",
+        "firstSet": "msh",
+        "firstPrintId": "50a6aa80-79a3-46f3-9cc1-5bf663b64976",
+        "firstPrintSet": "msh",
         "rarity": "common",
         "source": "compiled"
     },
