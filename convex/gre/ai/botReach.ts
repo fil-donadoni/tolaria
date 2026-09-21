@@ -89,6 +89,39 @@ function destroysSomething(node: unknown): boolean {
     );
 }
 
+/** A `forEach` over the battlefield, as the sweep detectors read it. */
+interface BattlefieldForEach {
+    readonly select: Extract<EffectForEachSelector, { set: "permanents" }>;
+    readonly effects: unknown;
+}
+
+/**
+ * Every `forEach` over `set: "permanents"` in the card's SPELL script — only
+ * `effects` and `modes` are read, so a sweep hosted by a triggered or
+ * activated ability is not one. The three detectors below read the same nodes
+ * and differ only in which selector and body they claim.
+ */
+function battlefieldForEaches(def: CardDefinition): BattlefieldForEach[] {
+    const found: BattlefieldForEach[] = [];
+    const visit = (node: unknown): void => {
+        if (Array.isArray(node)) return node.forEach(visit);
+        if (node === null || typeof node !== "object") return;
+        const record = node as Record<string, unknown>;
+        const select = record.select as EffectForEachSelector | undefined;
+        if (record.op === "forEach" && select?.set === "permanents")
+            found.push({ select, effects: record.effects });
+        Object.values(record).forEach(visit);
+    };
+    visit(def.effects);
+    visit(def.modes);
+    return found;
+}
+
+/** Does the selector name creatures — `type: "Creature"`, alone or in a list? */
+function selectsCreatures(select: BattlefieldForEach["select"]): boolean {
+    return [select.filter?.type ?? []].flat().includes("Creature");
+}
+
 /**
  * The permanent types the card's SPELL script destroys on every player's
  * battlefield — a `forEach` over `set: "permanents"` with no `controller` (an
@@ -98,14 +131,12 @@ function destroysSomething(node: unknown): boolean {
  * sweeps nothing.
  *
  * What it does NOT model, each one leaving the symmetric pose:
- *  - a sweep whose body does not destroy (a `-1/-1` or a `+1/+1` to every
- *    creature, an animate): the pose is a claim that the opponent LOSES more
- *    than the holder, which only a destroying body makes; a mass buff posed
- *    that way would argue against casting it;
+ *  - a sweep whose body does not destroy (a `+1/+1` to every creature, an
+ *    animate). A toughness SHRINK is the other kind of sweep a creature can
+ *    die to, and {@link shrinksEveryCreature} poses it;
  *  - a filter on anything but `type` (`excludeType`, `subtype`, …): not read,
  *    so no claim is made rather than a wrong one;
- *  - a sweep hosted by a triggered or activated ability — only `effects` and
- *    `modes`, the spell's own script, are read.
+ *  - a sweep hosted by a triggered or activated ability.
  *
  * Lives HERE for the same reason as `needsStackTarget`: it decides what the
  * generated position CONTAINS, so it is a verdict input and must be inside the
@@ -113,32 +144,85 @@ function destroysSomething(node: unknown): boolean {
  */
 function sweptTypes(def: CardDefinition): ReadonlySet<SweepableType> {
     const swept = new Set<SweepableType>();
-    const visit = (node: unknown): void => {
-        if (Array.isArray(node)) return node.forEach(visit);
-        if (node === null || typeof node !== "object") return;
-        const record = node as Record<string, unknown>;
-        const select = record.select as EffectForEachSelector | undefined;
-        if (
-            record.op === "forEach" &&
-            select?.set === "permanents" &&
-            select.controller === undefined &&
-            destroysSomething(record.effects)
-        ) {
-            const named =
-                select.filter === undefined
-                    ? SWEEPABLE_TYPES
-                    : select.filter.type === undefined
-                      ? []
-                      : [select.filter.type].flat();
-            for (const t of named)
-                if ((SWEEPABLE_TYPES as readonly string[]).includes(t))
-                    swept.add(t as SweepableType);
-        }
-        Object.values(record).forEach(visit);
-    };
-    visit(def.effects);
-    visit(def.modes);
+    for (const { select, effects } of battlefieldForEaches(def)) {
+        if (select.controller !== undefined || !destroysSomething(effects))
+            continue;
+        const named =
+            select.filter === undefined
+                ? SWEEPABLE_TYPES
+                : select.filter.type === undefined
+                  ? []
+                  : [select.filter.type].flat();
+        for (const t of named)
+            if ((SWEEPABLE_TYPES as readonly string[]).includes(t))
+                swept.add(t as SweepableType);
+    }
     return swept;
+}
+
+/** Is `value` a pump amount the sweep detectors can sign — a literal, or the
+ *  `negate` wrapper (`-X/-X`, Toxic Deluge; a domain count, Planar Despair)? */
+function signOf(value: unknown): "up" | "down" | "none" {
+    if (typeof value === "number")
+        return value > 0 ? "up" : value < 0 ? "down" : "none";
+    return value !== null && typeof value === "object" && "negate" in value
+        ? "down"
+        : "none";
+}
+
+/** Does any `pump` under `node` move `axis` in `direction`? */
+function pumps(
+    node: unknown,
+    axis: "power" | "toughness",
+    direction: "up" | "down"
+): boolean {
+    if (Array.isArray(node)) return node.some((n) => pumps(n, axis, direction));
+    if (node === null || typeof node !== "object") return false;
+    const record = node as Record<string, unknown>;
+    return (
+        (record.op === "pump" && signOf(record[axis]) === direction) ||
+        Object.values(record).some((n) => pumps(n, axis, direction))
+    );
+}
+
+/**
+ * CR 613.4c / 704.5f — does the SPELL script shrink the toughness of EVERY
+ * player's creatures (a `forEach` over their battlefields, no `controller`,
+ * whose body pumps toughness down)? A creature at toughness 0 or less dies to
+ * a state-based action, so this is a sweep the way a destroy is: Infest,
+ * Rollick of Abandon and a `-1/-1` to everything all cost the holder the card
+ * and kill whatever the shrink reaches.
+ *
+ * Read only on the shrink's own axis: a `-2/-0` shrinks nothing that dies. The
+ * amount is not read — a `negate` is a computed one (Planar Despair's domain
+ * count reads 1 in a position whose lands are one basic type), and the pose
+ * hands the opponent bodies that die to ANY shrink. Same reason as
+ * `sweptTypes` for living HERE: it decides what the position CONTAINS.
+ */
+function shrinksEveryCreature(def: CardDefinition): boolean {
+    return battlefieldForEaches(def).some(
+        ({ select, effects }) =>
+            select.controller === undefined &&
+            selectsCreatures(select) &&
+            pumps(effects, "toughness", "down")
+    );
+}
+
+/**
+ * CR 613.4c — does the SPELL script raise the POWER of the holder's own
+ * creatures alone (a `forEach` over `controller: "controller"`, body pumps
+ * power up — Desperate Charge)? Such a spell is worth what the holder's
+ * creatures do with the extra power, so the pose gives the holder more of
+ * them than the opponent has blockers for. One that pumps EVERY player's
+ * creatures (no `controller`) helps the opponent as much and makes no claim.
+ */
+function pumpsOwnCreatures(def: CardDefinition): boolean {
+    return battlefieldForEaches(def).some(
+        ({ select, effects }) =>
+            select.controller === "controller" &&
+            selectsCreatures(select) &&
+            pumps(effects, "power", "up")
+    );
 }
 
 export type BotReachOutcome = "played" | "ignored" | "frozen";
@@ -242,8 +326,13 @@ const FILLER_CREATURE = "Grizzly Bears";
 /** An artifact, for artifact targets. NOT a noncreature one: Ornithopter is
  *  an artifact CREATURE, so a surplus of it is a surplus of bodies too. */
 const FILLER_ARTIFACT = "Ornithopter";
-/** A global enchantment, for enchantment targets. */
+/** A global enchantment, for enchantment targets. It gives its controller's
+ *  untapped creatures +0/+2, so it is not inert to a toughness shrink and the
+ *  shrink pose leaves it out ({@link shrinksEveryCreature}). */
 const FILLER_ENCHANTMENT = "Castle";
+/** A vanilla 1/1 — a body that dies to ANY toughness shrink, the surplus a
+ *  shrinking sweep is posed against. */
+const FILLER_SMALL_CREATURE = "Mons's Goblin Raiders";
 
 /**
  * The generated position, as a `ScenarioSpec` for the HOLDER seat (`me`): its
@@ -252,7 +341,11 @@ const FILLER_ENCHANTMENT = "Castle";
  * graveyards, an opaque card in hand (a discard cost), a filler library, main phase,
  * the holder active with priority. When the card targets a spell, the
  * opponent's filler spell is on the stack instead — CR 117.1a keeps the cast
- * legal at instant speed only, which is what such a card is.
+ * legal at instant speed only, which is what such a card is. A card whose
+ * value lies in what it does to a whole battlefield is posed where it wins:
+ * a destroying sweep against the opponent's surplus of the swept type, a
+ * toughness shrink against a surplus of 1/1s (and no Castle to prop them up),
+ * a pump of the holder's own creatures with the holder's surplus of attackers.
  *
  * The card itself is NOT in the spec: the spec names cards, and a compiled
  * definition is registered by id only. The caller adds it to the hand.
@@ -272,12 +365,37 @@ export function botReachSpec(
             zone: "battlefield",
         });
     }
+    const shrinks = shrinksEveryCreature(def);
     for (const owner of ["me", "opp"] as const) {
         cards.push({ name: FILLER_CREATURE, owner, zone: "battlefield" });
         cards.push({ name: FILLER_ARTIFACT, owner, zone: "battlefield" });
-        cards.push({ name: FILLER_ENCHANTMENT, owner, zone: "battlefield" });
+        if (!shrinks)
+            cards.push({
+                name: FILLER_ENCHANTMENT,
+                owner,
+                zone: "battlefield",
+            });
         cards.push({ name: FILLER_CREATURE, owner, zone: "graveyard" });
     }
+    if (shrinks)
+        // The shrink's reach is the opponent's surplus of small bodies: what
+        // it kills there pays for the card and for whatever of the holder's
+        // own it reaches.
+        cards.push({
+            name: FILLER_SMALL_CREATURE,
+            owner: "opp",
+            zone: "battlefield",
+            count: SWEEP_SURPLUS,
+        });
+    if (pumpsOwnCreatures(def))
+        // Extra power is worth what the holder's creatures do with it: more
+        // attackers than the opponent has blockers for.
+        cards.push({
+            name: FILLER_CREATURE,
+            owner: "me",
+            zone: "battlefield",
+            count: SWEEP_SURPLUS,
+        });
     const swept = sweptTypes(def);
     const surplus: Record<Exclude<SweepableType, "Land">, string> = {
         Creature: FILLER_CREATURE,
