@@ -785,6 +785,78 @@ export interface BandWrite {
     readonly from: BoardPriority | null;
 }
 
+/** One Target-keyed umbrella (`BAND_UMBRELLAS`, a `P0` slot excluded) — the
+ *  issue whose own board `Priority` follows its Target's band. */
+export interface UmbrellaSlot {
+    readonly number: number;
+    readonly family: string;
+    readonly targetId: string;
+}
+
+/** A `BandWrite` that names the umbrella slot it corrects. */
+export interface UmbrellaWrite extends BandWrite {
+    readonly family: string;
+    readonly targetId: string;
+}
+
+/**
+ * What the umbrella pass decided: `owned` is every OPEN Target-keyed umbrella
+ * (the ordinary verdict path must not write these — the Target's band is their
+ * truth, the parent-inherited one is not), `writes` the ones whose board value
+ * is stale.
+ */
+export interface UmbrellaPlan {
+    readonly owned: ReadonlySet<number>;
+    readonly writes: readonly UmbrellaWrite[];
+}
+
+const NO_UMBRELLAS: UmbrellaPlan = { owned: new Set(), writes: [] };
+
+/**
+ * The Target-keyed slots of a family table (`BAND_UMBRELLAS`, issue #4212): one
+ * per `(family, targetId)`, the hand-set `P0` slot skipped, an umbrella that is
+ * not open dropped (a closed umbrella has no board work left to band).
+ */
+export function umbrellaSlots(
+    umbrellas: Readonly<Record<string, Readonly<Record<string, number>>>>,
+    open: ReadonlySet<number>
+): UmbrellaSlot[] {
+    const out: UmbrellaSlot[] = [];
+    for (const [family, slots] of Object.entries(umbrellas))
+        for (const [targetId, number] of Object.entries(slots))
+            if (targetId !== "P0" && open.has(number))
+                out.push({ number, family, targetId });
+    return out.sort((a, b) => a.number - b.number);
+}
+
+/**
+ * An umbrella's own `Priority` is its Target's band (ADR 0143 § Bands follow
+ * the Targets), so a Target completing shifts it with no owner edit — the
+ * `vintage-cube` umbrellas turn `P1` the day `premodern-metagame` completes.
+ *
+ *   - a Target that lends no band (`bandOf` → `null`, e.g. it just completed)
+ *     owes nothing: it does not demote, like every other abstention here;
+ *   - a board `P0` is never written — an owner's hand-set slot;
+ *   - a value the board already holds owes nothing.
+ */
+export function planUmbrellas(
+    slots: readonly UmbrellaSlot[],
+    board: Readonly<Record<number, BoardPriority>>,
+    bandOf: (targetId: string) => Band | null = targetBand
+): UmbrellaPlan {
+    const writes: UmbrellaWrite[] = [];
+    for (const { number, family, targetId } of slots) {
+        const band = bandOf(targetId);
+        const from = board[number] ?? null;
+        if (band === null || from === "P0" || from === band) continue;
+        writes.push({ number, band, from, family, targetId });
+    }
+    return {
+        owned: new Set(slots.map((s) => s.number)),
+        writes: writes.sort((a, b) => a.number - b.number),
+    };
+}
+
 /**
  * The writes a `--write` run owes (issue #4055): ONLY the values that differ
  * from the board, so a re-run on unchanged inputs owes nothing — the GraphQL
@@ -795,15 +867,18 @@ export interface BandWrite {
  *     otherwise (belt and braces — `triage` already maps it to `p0`);
  *   - residue owes nothing — not `P3`, not a clear: the rule abstained, and
  *     whatever the owner set stays;
- *   - a band the board already holds owes nothing.
+ *   - a band the board already holds owes nothing;
+ *   - a Target-keyed umbrella (issue #4212) is written from its Target's band
+ *     through `umbrellas`, in the same list — and never from its own verdict.
  */
 export function planWrites(
     verdicts: ReadonlyMap<number, TriageVerdict>,
-    board: Readonly<Record<number, BoardPriority>>
+    board: Readonly<Record<number, BoardPriority>>,
+    umbrellas: UmbrellaPlan = NO_UMBRELLAS
 ): BandWrite[] {
-    const out: BandWrite[] = [];
+    const out: BandWrite[] = [...umbrellas.writes];
     for (const [number, v] of verdicts) {
-        if (v.kind !== "band") continue;
+        if (v.kind !== "band" || umbrellas.owned.has(number)) continue;
         const from = board[number] ?? null;
         if (from === "P0" || from === v.band) continue;
         out.push({ number, band: v.band, from });
@@ -822,7 +897,8 @@ export function renderReport(
     summary: TriageSummary,
     written: readonly BandWrite[] | null = null,
     cardsResidue: readonly CardsResidue[] = [],
-    bandResidue: readonly BandResidue[] = []
+    bandResidue: readonly BandResidue[] = [],
+    umbrellaWrites: readonly UmbrellaWrite[] = []
 ): string {
     const header =
         written === null
@@ -878,5 +954,13 @@ export function renderReport(
     );
     for (const r of bandResidue)
         lines.push(`  #${r.issue}  ${r.line}  — ${r.reason}`);
+    lines.push(
+        "",
+        `## Target umbrellas (own Priority follows the Target's band; P0 slots never touched): ${umbrellaWrites.length} ${written === null ? "to write" : "written"}`
+    );
+    for (const w of umbrellaWrites)
+        lines.push(
+            `  #${w.number}  ${w.family} / ${w.targetId}  ${w.from ?? "unprioritized"} → ${w.band}`
+        );
     return lines.join("\n");
 }

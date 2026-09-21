@@ -27,6 +27,7 @@ import {
     claimedCards,
     issueCards,
     labelBand,
+    planUmbrellas,
     planWrites,
     parseBand,
     parseCards,
@@ -38,6 +39,7 @@ import {
     summarize,
     targetBand,
     triage,
+    umbrellaSlots,
     type TriageIssue,
 } from "../lib/backlog-triage";
 import type { BoardPriority } from "../lib/board-priority";
@@ -1286,6 +1288,120 @@ describe("backlog-triage — planWrites", () => {
     });
 });
 
+describe("backlog-triage — Target-keyed umbrellas follow their Target (issue #4212)", () => {
+    // Three ranked Targets; `premodern-metagame` completes in `after`.
+    const RANKED = [
+        { id: "premodern-metagame", priority: 1 },
+        { id: "vintage-cube", priority: 2 },
+        { id: "format-premodern", priority: 3 },
+    ];
+    const before = (id: string) =>
+        rankTargetBands(RANKED, new Set()).get(id) ?? null;
+    const after = (id: string) =>
+        rankTargetBands(RANKED, new Set(["premodern-metagame"])).get(id) ??
+        null;
+    const TABLE = {
+        ops: {
+            P0: 90,
+            "premodern-metagame": 91,
+            "vintage-cube": 92,
+            "format-premodern": 93,
+        },
+    };
+    const ALL_OPEN = new Set([90, 91, 92, 93]);
+    // Hand-set once, while `premodern-metagame` was still open.
+    const STALE: Record<number, BoardPriority> = {
+        90: "P0",
+        91: "P1",
+        92: "P2",
+        93: "P3",
+    };
+
+    it("umbrellaSlots skips the P0 slot and an umbrella that is not open", () => {
+        expect(umbrellaSlots(TABLE, ALL_OPEN).map((s) => s.number)).toEqual([
+            91, 92, 93,
+        ]);
+        expect(
+            umbrellaSlots(TABLE, new Set([90, 92])).map((s) => [
+                s.family,
+                s.targetId,
+            ])
+        ).toEqual([["ops", "vintage-cube"]]);
+    });
+
+    it("a Target completing owes its umbrellas the shifted values, and the completed one is left alone", () => {
+        const slots = umbrellaSlots(TABLE, ALL_OPEN);
+        expect(planUmbrellas(slots, STALE, before).writes).toEqual([]);
+        expect(planUmbrellas(slots, STALE, after).writes).toEqual([
+            {
+                number: 92,
+                band: "P1",
+                from: "P2",
+                family: "ops",
+                targetId: "vintage-cube",
+            },
+            {
+                number: 93,
+                band: "P2",
+                from: "P3",
+                family: "ops",
+                targetId: "format-premodern",
+            },
+        ]);
+    });
+
+    it("never writes a P0 board value, and an unprioritized umbrella gains its band", () => {
+        const slots = umbrellaSlots(TABLE, ALL_OPEN);
+        const board: Record<number, BoardPriority> = { 92: "P0" };
+        expect(
+            planUmbrellas(slots, board, after).writes.map((w) => [
+                w.number,
+                w.from,
+                w.band,
+            ])
+        ).toEqual([[93, null, "P2"]]);
+    });
+
+    it("planWrites merges the umbrella writes and never lets an umbrella's own verdict write over them", () => {
+        const slots = umbrellaSlots(TABLE, ALL_OPEN);
+        const plan = planUmbrellas(slots, STALE, after);
+        const inherited = (b: "P1" | "P2" | "P3") =>
+            ({
+                kind: "band",
+                band: b,
+                source: "parent",
+                via: "#1",
+            }) as const;
+        const verdicts = new Map([
+            [92, inherited("P3")], // stale board, wrong inherited band
+            [91, inherited("P2")], // Target lends nothing now — left alone
+            [94, inherited("P2")], // an ordinary issue, still written
+        ]);
+        expect(planWrites(verdicts, STALE, plan)).toEqual([
+            {
+                number: 92,
+                band: "P1",
+                from: "P2",
+                family: "ops",
+                targetId: "vintage-cube",
+            },
+            {
+                number: 93,
+                band: "P2",
+                from: "P3",
+                family: "ops",
+                targetId: "format-premodern",
+            },
+            { number: 94, band: "P2", from: null },
+        ]);
+        // Once the board agrees, the umbrella's own verdict still owes nothing.
+        const settled = { ...STALE, 92: "P1", 93: "P2" } as const;
+        expect(
+            planWrites(verdicts, settled, planUmbrellas(slots, settled, after))
+        ).toEqual([{ number: 94, band: "P2", from: null }]);
+    });
+});
+
 /**
  * A tracker whose board MOVES: `add` returns the board item (idempotently),
  * `update` sets the option on it. Every call is recorded; every mutation is
@@ -1557,5 +1673,73 @@ describe("backlog-triage — runTriage --write", () => {
             )
         ).toThrow(/no `P3` option/);
         expect(t.mutations).toEqual([]);
+    });
+    describe("Target-keyed umbrellas (issue #4212)", () => {
+        // The real BAND_UMBRELLAS numbers: grammar-rules P0 4091, ops
+        // vintage-cube 4097, ops format-premodern 4098, an umbrella that is
+        // not open 4099 (bot-gaps P0).
+        const wrong = (band: string | null): BoardPriority =>
+            band === "P3" ? "P2" : "P3";
+        const cube = targetBand("vintage-cube")!;
+        const fmt = targetBand("format-premodern")!;
+        const open = [
+            // Parented under the user-decision root: its OWN verdict says P1.
+            { number: 4097, parent: 3820, labels: ["prd"] },
+            { number: 4098, parent: null, labels: ["prd"] },
+            { number: 4091, parent: null, labels: ["prd"] }, // P0 slot
+        ];
+        const board = (): Record<number, BoardPriority> => ({
+            4097: wrong(cube),
+            4098: fmt,
+            4091: "P0",
+        });
+
+        it("writes the stale umbrella from its Target, never from its own verdict, and a re-run writes nothing", () => {
+            const b = board();
+            const first = stubTracker(b, open);
+            const report = runTriage({
+                root: ROOT,
+                argv: ["--write"],
+                ghClient: first.client,
+            });
+            expect(first.written).toEqual([{ number: 4097, value: cube }]);
+            expect(b).toEqual({ 4097: cube, 4098: fmt, 4091: "P0" });
+            expect(report).toContain(
+                `#4097  ops / vintage-cube  ${wrong(cube)} → ${cube}`
+            );
+            expect(report).toContain("1 written");
+
+            const second = stubTracker(b, open);
+            runTriage({
+                root: ROOT,
+                argv: ["--write"],
+                ghClient: second.client,
+            });
+            expect(second.mutations).toEqual([]);
+        }, 60_000);
+
+        it("a dry run reports the same umbrella change and writes nothing", () => {
+            const b = board();
+            const t = stubTracker(b, open);
+            const report = runTriage({
+                root: ROOT,
+                argv: [],
+                ghClient: t.client,
+            });
+            expect(report).toContain("DRY RUN");
+            expect(report).toContain("1 to write");
+            expect(report).toContain(
+                `#4097  ops / vintage-cube  ${wrong(cube)} → ${cube}`
+            );
+            expect(t.mutations).toEqual([]);
+            expect(b).toEqual(board());
+        }, 60_000);
+
+        it("an umbrella that is not open is not written", () => {
+            const b: Record<number, BoardPriority> = { 4097: wrong(cube) };
+            const t = stubTracker(b, [{ number: 12, parent: null }]);
+            runTriage({ root: ROOT, argv: ["--write"], ghClient: t.client });
+            expect(t.mutations).toEqual([]);
+        }, 60_000);
     });
 });

@@ -141,8 +141,8 @@ export type FamilyUmbrellas = Readonly<Record<string, number>> & {
  * `P0` is the one slot no Target keys: those umbrellas are the owner's — no
  * COMPUTED Target files into one, only a run told its origin band is `P0` does
  * (issue #4158) — and nothing is ever moved out of one. An umbrella's board
- * `Priority` follows its Target — set by hand once, at creation, and inherited
- * by its children (issue #3212).
+ * `Priority` follows its Target — `backlog:triage --write` keeps it current
+ * (issue #4212) and its children inherit it (issue #3212).
  */
 export const BAND_UMBRELLAS: Readonly<Record<UmbrellaFamily, FamilyUmbrellas>> =
     {
