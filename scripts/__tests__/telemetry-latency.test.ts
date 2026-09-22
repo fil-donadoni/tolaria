@@ -596,6 +596,21 @@ describe("parseLaneForcingPath (issue #4376)", () => {
         expect(parseLaneForcingPath(receipt(["src/App.tsx"]))).toBeNull();
     });
 
+    /**
+     * The anchor is what makes the parser a PARSER and not a grep. A gate-run
+     * log is the whole gate's stdout — the lane receipt followed by every
+     * check it then ran — so a bare `\(first: …\)` search reads a test's own
+     * failure message as a forcing path and manufactures a fallback landing
+     * that never happened.
+     */
+    it("ignores a `(first: …)` that is not the lane line's own", () => {
+        const log =
+            renderPlan(classifyLane(["convex/gre/sba.ts"]), "abc1234def56") +
+            "\n FAIL  scripts/__tests__/x.test.ts > paths (first: docs/img/a.png)\n";
+        expect(parseLaneLine(log)).toBe("engine");
+        expect(parseLaneForcingPath(log)).toBeNull();
+    });
+
     it("returns null on a log with no lane line at all", () => {
         expect(parseLaneForcingPath("lane: ran\n")).toBeNull();
         expect(parseLaneForcingPath("")).toBeNull();

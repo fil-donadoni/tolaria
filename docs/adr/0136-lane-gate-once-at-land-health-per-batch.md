@@ -89,6 +89,9 @@ is not, because each of them then debugs a failure that is not theirs.
    `check:oracle`, `cr:lint`) are in every non-docs lane. Prose in a mixed
    diff no longer forces `full`: the code decides the lane and the docs
    lane's test list (`check:docs`'s node files, seconds) is appended to it.
+   **`.claude/**`is split** (issue #4376):`.claude/skills/\*_/_.md`and`.claude/rules/\*.md`are`docs`, because what a skill or a rule index can
+break is the closed set of guards `check:docs`already runs, pinned by`docs-lane.test.ts`'s `.claude/`census; hooks, settings and any non-prose
+file under a skill stay`full`, because a program can change anything.
 4. **A `cards` lane**, for a diff entirely under `convex/cards/sets/**` plus
    `data/**`: `tsc -b convex`, `check:index`, `check:stubs`, `check:oracle`,
    `cr:lint`, `convex/cards/__tests__` (node) with its three bot censuses
@@ -155,6 +158,16 @@ is not, because each of them then debugs a failure that is not theirs.
   script change, reversing the shape is not.
 - Unchanged on purpose: the `check:ui` receipt per `skin` PR (ADR 0131/0132),
   the content of the release gate, the review round.
+- **The KPI table is five rows, not four** (issue #4376). `bun run
+telemetry:latency` prints PR throughput by concurrency, the per-reviewer
+  blocking-finding rate, red-on-a-red-baseline, the gate-run lane histogram
+  and — new — the **lane fallback rate**: the landings that paid `full`
+  because one path matched no lane rule at all, each named with its forcing
+  path. The histogram alone cannot answer that, because its `full` bucket
+  mixes the src-plus-engine diff that is `full` BY DESIGN (item 3 refuses to
+  narrow it) with the unrecognised path that is `full` BY FALLBACK and is a
+  question. Measured over the 100 landings to 2026-09-22: 23% fell back, 9
+  points of it `.claude/**` prose, which item 3 now reclassifies — 14% after.
 - Not decided here: the `dom` project's environment and transform cost and
   the catalogue import share. Both were tried before (issues #811, #2433,
   #2435/#2447, #2871); they get a measurement-first investigation of their
