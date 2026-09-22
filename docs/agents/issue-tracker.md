@@ -124,11 +124,12 @@ whenever the roster shifts, and children inherit it (issue #3212).
   that run CREATES (or finds homeless) files under its family's P0 umbrella,
   because a gap born of P0 work is P0 work (an umbrella closes only when its
   last child does, issue #3212). `land` derives the band from the issue the
-  landed branch names — the stronger of its board `Priority` and its parent's,
-  the rule `queue:plan` orders by — and passes it; nobody types it after a
-  landing. A P0 session running `gaps:sync` by hand passes `--band P0`. Only
-  `P0` acts; any other value leaves the computed band in charge, and an
-  existing issue is never pulled up.
+  landed branch names — its parent PRD's board `Priority` when the parent
+  carries one, else its own, the rule `queue:plan` orders by (issue #4371) —
+  and passes it; nobody types it after a landing. A P0 session running
+  `gaps:sync` by hand passes `--band P0`. Only `P0` acts; any other value
+  leaves the computed band in charge, and an existing issue is never pulled
+  up.
 - **Residue** — no ranked Target among its cards — files under its family's
   umbrella of the **lowest-ranked** Target (`format-premodern`,
   `LOWEST_RANKED_TARGET`) unless a set umbrella claims it at create: an
