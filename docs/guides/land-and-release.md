@@ -71,12 +71,12 @@ pre-PR gate). Run it on a tree already rebased onto `origin/<base>` and a green
 verdict is one `land` can reuse. It classifies the diff against
 `origin/<base>` and runs exactly what that lane owes:
 
-| Lane     | Diff                                                         | Runs                                                                 | Measured |
-| -------- | ------------------------------------------------------------ | -------------------------------------------------------------------- | -------- |
-| `skin`   | `src/**`, `public/**`, `index.html` only                     | format, lint, `check:ts` (app + scripts), bundle, `dom` + `node`/src | ~222 s   |
-| `engine` | no `src/**`                                                  | format, lint, whole `check:ts`, index/stubs, bot fast lane, `node`   | ~175 s   |
-| `docs`   | markdown only                                                | `check:docs` — seconds                                               |          |
-| `full`   | anything else (mixed, `package.json`, `.claude/**`, scripts) | `check:pr` verbatim                                                  | ~305 s   |
+| Lane     | Diff                                                         | Runs                                                                                                                         | Measured |
+| -------- | ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `skin`   | `src/**`, `public/**`, `index.html` only                     | format, lint, `check:ts` (app + scripts), bundle, `dom` + `node`/src, plus each bot project the diff can reach (issue #3435) | ~222 s   |
+| `engine` | no `src/**`                                                  | format, lint, whole `check:ts`, index/stubs, bot fast lane, `node`                                                           | ~175 s   |
+| `docs`   | markdown only                                                | `check:docs` — seconds                                                                                                       |          |
+| `full`   | anything else (mixed, `package.json`, `.claude/**`, scripts) | `check:pr` verbatim                                                                                                          | ~305 s   |
 
 **Never hand-pick a subset of `check:pr`.** On formatting drift run
 `bun run format` and re-run; the gate verifies, it does not repair.

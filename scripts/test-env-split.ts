@@ -78,18 +78,38 @@ const ISOLATION_MARKERS = [
 
 export const SRC_NODE_DISQUALIFIERS = [...DOM_MARKERS, ...ISOLATION_MARKERS];
 
-function collect(dir: string, out: string[] = []): string[] {
+/**
+ * Every file under `dir` whose BASENAME satisfies `matches`, absolute.
+ *
+ * One walker, two populations: the general `*.test.ts` set the env split
+ * classifies, and the `*.bot.test.{ts,tsx}` set `botSubjects` starts from.
+ * The skip rules (`node_modules`, dotfiles) are the same for both and are
+ * the half worth not writing twice.
+ */
+function collect(
+    dir: string,
+    matches: (basename: string) => boolean,
+    out: string[] = []
+): string[] {
     if (!fs.existsSync(dir)) return out;
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
         if (entry.name === "node_modules" || entry.name.startsWith(".")) {
             continue;
         }
         const full = path.join(dir, entry.name);
-        if (entry.isDirectory()) collect(full, out);
-        else if (entry.name.endsWith(".test.ts")) out.push(full);
+        if (entry.isDirectory()) collect(full, matches, out);
+        else if (matches(entry.name)) out.push(full);
     }
     return out;
 }
+
+/** The general suite's membership: `*.test.ts`, bot and perf files included
+ *  (the callers filter those out by their own rules). */
+const isTest = (basename: string) => basename.endsWith(".test.ts");
+
+/** The bot projects' membership — the filename convention
+ *  `bot-suite-boundary.test.ts` enforces, `.tsx` included. */
+const isBotTest = (basename: string) => /\.bot\.test\.tsx?$/.test(basename);
 
 export interface SrcTestSplit {
     /** `src` tests that can run in the node project, repo-relative, posix. */
@@ -102,7 +122,7 @@ export interface SrcTestSplit {
 export function splitSrcTests(root: string): SrcTestSplit {
     const node: string[] = [];
     const dom: string[] = [];
-    for (const file of collect(path.join(root, "src")).sort()) {
+    for (const file of collect(path.join(root, "src"), isTest).sort()) {
         if (file.endsWith(".bot.test.ts")) continue;
         const rel = path.relative(root, file).split(path.sep).join("/");
         const source = fs.readFileSync(file, "utf8");
@@ -239,10 +259,81 @@ export interface ScriptsTestSplit {
 export function splitScriptsTests(root: string): ScriptsTestSplit {
     const engine: string[] = [];
     const tooling: string[] = [];
-    for (const file of collect(path.join(root, "scripts")).sort()) {
+    for (const file of collect(path.join(root, "scripts"), isTest).sort()) {
         if (/\.(bot|perf)\.test\.ts$/.test(file)) continue;
         const rel = path.relative(root, file).split(path.sep).join("/");
         (reachesEngine(root, file) ? engine : tooling).push(rel);
     }
     return { engine, tooling };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Which `src/**` files a BOT project's tests can see (issue #3435).
+//
+// The bot projects are selected by FILENAME (`*.bot.test.{ts,tsx}`), and the
+// split routes `src/**/*.bot.test.{ts,tsx}` to `bot-dom` while EXCLUDING those
+// files from `dom`. So a `src/**` file's bot tests live in a project the `skin`
+// lane never ran, and the lane's skip line asserted the bot suites "cannot go
+// red" for a diff that could red them — the whole `src/lib/ai` client host, the
+// vs-AI driver hook and the DecisionTrace debug components, plus
+// `src/lib/ai/selfplay/ladder.ts`, which a `scripts/**` bot test imports and so
+// reaches `bot-node` too.
+//
+// A HAND-MAINTAINED LIST WAS THE WRONG ANSWER, and the repo already had two
+// overlapping ones (`BOT_GLOBS` and the boundary guard's exact-module list) —
+// adding a third is how the hole stays open for whatever the third forgets.
+// What the lane actually needs to know is not "is this file the Bot" but "can
+// this file red a bot test", and that is COMPUTED: the transitive local import
+// closure of every bot test file, keeping the `src/**` half. Measured 150 of
+// 1449 `src` code files in 0.3s, so the `skin` lane keeps its cost on the ~90%
+// of diffs that cannot reach a bot test and pays the project on the ones that
+// can.
+//
+// Conservative in the direction that matters, exactly as `reachesEngine` is: a
+// false positive costs the lane one project, a false negative is a suite that
+// stops covering its own subject. `botSubjects` is therefore UNIONED at the
+// call site with `matchesBotGlob` (`scripts/lib/bot-globs.ts`), which catches
+// what an import walk structurally cannot — `brain-client.ts` spawns
+// `brain.worker.ts` through `new Worker(new URL(...))`, a specifier no import
+// graph contains.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface BotSubjects {
+    /** `src/**` paths reachable from a `bot-dom` test, the tests included. */
+    dom: string[];
+    /** `src/**` paths reachable from a `bot-node` test (`convex`, `scripts`). */
+    node: string[];
+}
+
+/** The `src/**` half of the transitive local import closure of `entries`. */
+function srcClosure(root: string, entries: string[]): string[] {
+    const srcRoot = path.join(root, "src");
+    const seen = new Set<string>();
+    const stack = [...entries];
+    while (stack.length > 0) {
+        const file = stack.pop()!;
+        if (seen.has(file)) continue;
+        seen.add(file);
+        if (!/\.(tsx?|mjs|js)$/.test(file) || !fs.existsSync(file)) continue;
+        const source = fs.readFileSync(file, "utf8");
+        for (const m of source.matchAll(IMPORT_SPECIFIER)) {
+            const resolved = resolveLocal(root, file, m[1] ?? m[2] ?? m[3]);
+            if (resolved) stack.push(resolved);
+        }
+    }
+    return [...seen]
+        .filter((f) => f.startsWith(`${srcRoot}${path.sep}`))
+        .map((f) => path.relative(root, f).split(path.sep).join("/"))
+        .sort();
+}
+
+/** The `src/**` paths each bot project's tests can reach. */
+export function botSubjects(root: string): BotSubjects {
+    return {
+        dom: srcClosure(root, collect(path.join(root, "src"), isBotTest)),
+        node: srcClosure(root, [
+            ...collect(path.join(root, "convex"), isBotTest),
+            ...collect(path.join(root, "scripts"), isBotTest),
+        ]),
+    };
 }

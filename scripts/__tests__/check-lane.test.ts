@@ -636,9 +636,135 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "check:index",
             "check:stubs",
             "check:oracle",
-            "bot fast lane",
+            // A board component reaches no bot test, so both bot projects
+            // are skipped BY NAME with a reason each (issue #3435) — the
+            // single "bot fast lane" entry this replaced claimed the bot
+            // suites "cannot go red" for every skin diff, which is false for
+            // any src path a bot test imports.
+            "bot-dom",
+            "bot-node",
             "node[convex]",
         ]);
+    });
+
+    /**
+     * Issue #3435 — the `skin` lane skipped every `src` bot test, including
+     * the ones its own diff had just changed.
+     *
+     * `src/**\/*.bot.test.{ts,tsx}` is `bot-dom`'s include and is EXCLUDED
+     * from `dom`, so the two projects the lane ran covered none of it, and
+     * the lane said so in a skip line asserting the bot suites "cannot go
+     * red". Observed on the issue #3404 PR: three bot modules changed, two
+     * new `src` bot tests shipped, and the plan ran neither.
+     *
+     * The predicate is COMPUTED, not declared (`test-env-split.ts` §
+     * botSubjects) — so these assertions run against the real closure of the
+     * real tree, which is the only thing that can catch the hole reopening
+     * for a module nobody thought to list. The mechanics of the admission
+     * are pinned separately below against an injected closure, so the guard
+     * is not merely the walk restating itself.
+     */
+    describe("the skin lane admits a bot project the diff can red (issue #3435)", () => {
+        const botIds = (plan: LanePlan) =>
+            ids(plan.run).filter((id) => id.startsWith("bot-"));
+
+        it("a client-host bot module runs bot-dom", () => {
+            const plan = classifyLane(["src/lib/ai/brain-client.ts"]);
+            expect(plan.lane).toBe("skin");
+            expect(botIds(plan)).toContain("bot-dom");
+            expect(ids(plan.skip)).not.toContain("bot-dom");
+        });
+
+        it("the vs-AI driver hook runs bot-dom", () => {
+            const plan = classifyLane(["src/hooks/useVsAiDriver.ts"]);
+            expect(plan.lane).toBe("skin");
+            expect(botIds(plan)).toContain("bot-dom");
+        });
+
+        /**
+         * The family a list-shaped predicate would have missed: the
+         * DecisionTrace debug components are named by neither `BOT_GLOBS` nor
+         * the bot-suite boundary guard's exact-module list, yet
+         * `ai-decision-trace-box.bot.test.tsx` renders them.
+         */
+        it("a DecisionTrace debug component runs bot-dom", () => {
+            const plan = classifyLane([
+                "src/components/debug/ai-decision-trace-box.tsx",
+            ]);
+            expect(botIds(plan)).toContain("bot-dom");
+        });
+
+        /** `scripts/__tests__/ladder-worker-boundary.bot.test.ts` imports it,
+         *  and that test is `bot-node` — so a `src`-only diff can red the
+         *  convex-side bot project too. */
+        it("a src module a convex/scripts bot test imports runs bot-node", () => {
+            const plan = classifyLane(["src/lib/ai/selfplay/ladder.ts"]);
+            expect(botIds(plan)).toEqual(["bot-dom", "bot-node"]);
+        });
+
+        it("a diff that reaches no bot test skips both, naming each", () => {
+            const plan = classifyLane(["src/components/board/Card.tsx"]);
+            expect(botIds(plan)).toEqual([]);
+            const skipped = plan.skip.filter((s) => s.id.startsWith("bot-"));
+            expect(ids(skipped)).toEqual(["bot-dom", "bot-node"]);
+            for (const s of skipped) {
+                expect(s.reason).toMatch(/reachable/);
+                // The defect was a reason that asserted the suites could not
+                // go red for every skin diff. No reason may ever say that.
+                expect(s.reason).not.toMatch(/cannot go red/);
+            }
+        });
+
+        it("admission reads the injected closure, whole project or nothing", () => {
+            const subjects = () => ({
+                dom: ["src/components/x/Subject.tsx"],
+                node: ["src/components/y/Other.tsx"],
+            });
+            const dom = classifyLane(
+                ["src/components/x/Subject.tsx"],
+                undefined,
+                subjects
+            );
+            expect(dom.run).toContainEqual({
+                id: "bot-dom",
+                command: "TOLARIA_BOT_FAST=1 bunx vitest run --project bot-dom",
+            });
+            expect(ids(dom.run)).not.toContain("bot-node");
+
+            const node = classifyLane(
+                ["src/components/y/Other.tsx"],
+                undefined,
+                subjects
+            );
+            expect(ids(node.run)).toContain("bot-node");
+            expect(ids(node.run)).not.toContain("bot-dom");
+
+            const neither = classifyLane(
+                ["src/components/z/Third.tsx"],
+                undefined,
+                subjects
+            );
+            expect(
+                ids(neither.run).filter((i) => i.startsWith("bot-"))
+            ).toEqual([]);
+        });
+
+        /**
+         * `brain-client.ts` spawns the Brain worker through
+         * `new Worker(new URL("./brain.worker.ts", import.meta.url))` — a
+         * specifier no import graph contains. The `BOT_GLOBS` union is the
+         * net for exactly that shape, and it is `bot-dom`'s alone.
+         */
+        it("a Bot-glob path runs bot-dom even when the closure cannot see it", () => {
+            const empty = () => ({ dom: [], node: [] });
+            const plan = classifyLane(
+                ["src/lib/ai/brain.worker.ts"],
+                undefined,
+                empty
+            );
+            expect(ids(plan.run)).toContain("bot-dom");
+            expect(ids(plan.run)).not.toContain("bot-node");
+        });
     });
 
     it("engine admits node-tooling whole for a scripts/** diff, never a slice (ADR 0136 §5)", () => {
