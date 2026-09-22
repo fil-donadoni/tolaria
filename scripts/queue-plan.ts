@@ -14,6 +14,7 @@
 //   bun run queue:plan --pretty
 //   bun run queue:plan --no-cap       # plan past the session cap deliberately
 //   bun run queue:plan --inferred '{"2104":["convex/cards/sets/ice/**"]}'
+//   bun run queue:plan --lineage 2180   # only PRD #2180's open children
 //
 // It REFUSES to plan in two cases (ADR 0136 §6-7, issue #3775): while live
 // claims are at `sessions.cap`, and while the release-health `RED` marker is
@@ -52,6 +53,7 @@ import {
     capCensus,
     capRefusal,
     buildPlanRecord,
+    lineageRefusal,
     liveClaims,
     redRefusal,
     releasedClaims,
@@ -458,6 +460,26 @@ function fetchBoardPriority(): Record<number, BoardPriority> {
     }
 }
 
+/**
+ * `--lineage <N>` — scope the plan to ONE umbrella's open children (issue
+ * #2327).
+ *
+ * Parsing only. Whether `N` may be planned is `lineageRefusal`'s decision,
+ * in the pure module with the other two refusals: a wrapper that decided it
+ * here would be a rule with no test, which is exactly what this file is not
+ * for.
+ */
+function lineageArg(): number | null {
+    const i = process.argv.indexOf("--lineage");
+    if (i === -1) return null;
+    const value = Number(process.argv[i + 1]);
+    if (!Number.isInteger(value) || value <= 0) {
+        console.error("✗ --lineage needs an issue number");
+        process.exit(2);
+    }
+    return value;
+}
+
 function inferredTargetFiles(): Record<number, string[]> | undefined {
     const i = process.argv.indexOf("--inferred");
     if (i === -1) return undefined;
@@ -528,7 +550,8 @@ function pruneOldPlans(dir: string): void {
  */
 function writePlanArtefact(
     plan: ReturnType<typeof planBatch>,
-    now: string
+    now: string,
+    lineage: number | null
 ): void {
     try {
         const dir = join(process.cwd(), ".claude/telemetry/plans");
@@ -536,7 +559,7 @@ function writePlanArtefact(
         pruneOldPlans(dir);
         const session = process.env.CLAUDE_CODE_SESSION_ID ?? "";
         const noPriority = process.argv.includes("--no-priority");
-        const record = buildPlanRecord(plan, session, now, noPriority);
+        const record = buildPlanRecord(plan, session, now, noPriority, lineage);
         const file = join(dir, planFilename(session, now));
         writeFileSync(file, JSON.stringify(record, null, 2) + "\n");
     } catch (err) {
@@ -680,6 +703,24 @@ function main(): void {
         },
     };
 
+    // The lineage restriction is decided BEFORE the plan, and it is fatal:
+    // a `--lineage` whose target is wrong must never degrade into a plan over
+    // the whole queue, which is the hand-assembly this flag replaces. The
+    // umbrella's own detail goes through the same cached port as every
+    // candidate's, so the check costs at most one extra round-trip.
+    const lineage = lineageArg();
+    if (lineage != null) {
+        const scoped = issues
+            .filter((issue) => issue.parent?.number === lineage)
+            .map((issue) => issue.number);
+        const admitted = lineageRefusal(
+            lineage,
+            port.issueDetail(lineage),
+            scoped
+        );
+        if (!admitted.admitted) die(admitted.message);
+    }
+
     const config: PlanConfig = {
         batchCap: arg("cap", DEFAULTS.cap),
         staleClaimHours: arg("stale-hours", DEFAULTS.staleClaimHours),
@@ -690,6 +731,7 @@ function main(): void {
         // session is the human an HITL flag is asking for, so it keeps seeing
         // that work. See `PlanConfig.excludeHitl`.
         excludeHitl: process.argv.includes("--exclude-hitl"),
+        lineage: lineage ?? undefined,
     };
 
     const plan = planBatch(issues, config, port);
@@ -735,7 +777,7 @@ function main(): void {
     // and `loop-drain` reads a non-zero exit as "stop", which is the point.
     if (!admission.admitted) die(admission.message);
 
-    writePlanArtefact(plan, config.now);
+    writePlanArtefact(plan, config.now, lineage);
 
     process.stdout.write(
         JSON.stringify(plan, null, process.argv.includes("--pretty") ? 2 : 0) +

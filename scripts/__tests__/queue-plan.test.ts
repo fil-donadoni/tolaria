@@ -29,6 +29,7 @@ import {
     priorityRank,
     effectivePriority,
     bandIsInherited,
+    lineageRefusal,
     UNPRIORITIZED,
     type AdmissionInput,
     type BatchPlan,
@@ -1509,6 +1510,233 @@ describe("HITL is not eligible for an unattended run (#3088)", () => {
     });
 });
 
+describe("queue planner — `--lineage <N>` scopes the batch to one umbrella (issue #2327)", () => {
+    /**
+     * The flag exists so "finish PRD #N" goes THROUGH the planner instead of
+     * around it. Every test here therefore asserts that a restricted plan is
+     * the same plan the unrestricted pipeline would have produced over that
+     * subset — same sort, same disjointness, same model resolution — and never
+     * that the restriction has rules of its own.
+     */
+    const LINEAGE: PlanConfig = { ...CONFIG, lineage: 900 };
+
+    it("keeps only the umbrella's own children as candidates", () => {
+        const issues = [
+            issue(100, { parent: 900 }),
+            issue(200, { parent: 901 }),
+            issue(300, {}),
+            issue(400, { parent: 900 }),
+        ];
+        const details = {
+            100: { body: body({ targetFiles: ["src/a.ts"] }) },
+            200: { body: body({ targetFiles: ["src/b.ts"] }) },
+            300: { body: body({ targetFiles: ["src/c.ts"] }) },
+            400: { body: body({ targetFiles: ["src/d.ts"] }) },
+        };
+        const plan = planBatch(issues, LINEAGE, makePort(details));
+
+        expect(numbers(plan)).toEqual([100, 400]);
+        // Out of lineage is not "deferred" — it was never a candidate, and a
+        // deferral would claim the planner weighed it this pass.
+        expect(deferredNumbers(plan)).not.toContain(200);
+        expect(deferredNumbers(plan)).not.toContain(300);
+    });
+
+    it("reads the NATIVE sub-issue edge, not a prose parent line", () => {
+        const issues = [issue(100, {}), issue(200, { parent: 900 })];
+        const details = {
+            // #100 SAYS it belongs to the umbrella and carries no edge. Prose
+            // is documentation; the edge is the relationship.
+            100: {
+                body: `Split out of #900\n\n${body({ targetFiles: ["src/a.ts"] })}`,
+            },
+            200: { body: body({ targetFiles: ["src/b.ts"] }) },
+        };
+        const plan = planBatch(issues, LINEAGE, makePort(details));
+
+        expect(numbers(plan)).toEqual([200]);
+    });
+
+    it("still counts claims OUTSIDE the lineage — the session cap is a whole-queue fact", () => {
+        const issues = [
+            issue(100, { parent: 900 }),
+            issue(200, {
+                parent: 901,
+                labels: ["ready-for-agent", "in-progress"],
+            }),
+        ];
+        const details = { 100: { body: body({ targetFiles: ["src/a.ts"] }) } };
+        // #200's claim is live (it has an open PR), and it belongs to another
+        // umbrella. Filtering before the claim classification would hide it
+        // from `liveClaims` and let a scoped plan admit past `sessions.cap`.
+        const plan = planBatch(issues, LINEAGE, makePort(details, [200]));
+
+        expect(numbers(plan)).toEqual([100]);
+        expect(plan.activeClaims).toEqual([200]);
+    });
+
+    it("resolves the model per issue exactly as an unrestricted plan does", () => {
+        const issues = [
+            issue(100, {
+                parent: 900,
+                labels: ["ready-for-agent", "model:opus"],
+            }),
+            issue(400, { parent: 900 }),
+        ];
+        const details = {
+            100: { body: body({ targetFiles: ["src/a.ts"] }) },
+            400: { body: body({ targetFiles: ["src/d.ts"] }) },
+        };
+        const scoped = planBatch(issues, LINEAGE, makePort(details));
+        const whole = planBatch(issues, CONFIG, makePort(details));
+
+        expect(scoped.batch.map((b) => b.model)).toEqual(["opus", "sonnet"]);
+        expect(scoped.batch).toEqual(whole.batch);
+    });
+
+    it("combines with the batch cap", () => {
+        const issues = [
+            issue(100, { parent: 900 }),
+            issue(200, { parent: 900 }),
+        ];
+        const details = {
+            100: { body: body({ targetFiles: ["src/a.ts"] }) },
+            200: { body: body({ targetFiles: ["src/b.ts"] }) },
+        };
+        const plan = planBatch(
+            issues,
+            { ...LINEAGE, batchCap: 1 },
+            makePort(details)
+        );
+
+        expect(numbers(plan)).toEqual([100]);
+        expect(plan.deferred).toContainEqual({
+            number: 200,
+            reason: "batch is full",
+            conflictsWith: null,
+        });
+    });
+
+    it("combines with the inferred file sets", () => {
+        const issues = [
+            issue(100, { parent: 900 }),
+            issue(200, { parent: 900 }),
+        ];
+        const details = {
+            // Neither declares a blast radius — without the overrides the
+            // planner refuses to guess and the batch goes solo.
+            100: { body: body({ targetFiles: null }) },
+            200: { body: body({ targetFiles: null }) },
+        };
+        const plan = planBatch(
+            issues,
+            {
+                ...LINEAGE,
+                inferredTargetFiles: {
+                    100: ["src/a.ts"],
+                    200: ["src/b.ts"],
+                },
+            },
+            makePort(details)
+        );
+
+        expect(numbers(plan)).toEqual([100, 200]);
+        expect(plan.batch.map((b) => b.blastRadius)).toEqual([
+            "inferred",
+            "inferred",
+        ]);
+    });
+
+    it("applies disjointness inside the lineage — siblings that collide do not batch", () => {
+        const issues = [
+            issue(100, { parent: 900 }),
+            issue(200, { parent: 900 }),
+        ];
+        const details = {
+            100: { body: body({ targetFiles: ["src/shared.ts"] }) },
+            200: { body: body({ targetFiles: ["src/shared.ts"] }) },
+        };
+        const plan = planBatch(issues, LINEAGE, makePort(details));
+
+        expect(numbers(plan)).toEqual([100]);
+        expect(plan.deferred[0].conflictsWith).toBe(100);
+    });
+
+    it("plans the whole queue when no lineage is configured", () => {
+        const issues = [issue(100, { parent: 900 }), issue(200, {})];
+        const details = {
+            100: { body: body({ targetFiles: ["src/a.ts"] }) },
+            200: { body: body({ targetFiles: ["src/b.ts"] }) },
+        };
+        // Both, and in the unrestricted order: the standalone #200 sorts on
+        // its own number, the slice #100 on its umbrella's #900.
+        expect(numbers(planBatch(issues, CONFIG, makePort(details)))).toEqual([
+            200, 100,
+        ]);
+    });
+});
+
+describe("`--lineage <N>` refuses a target it cannot scope to (issue #2327)", () => {
+    const umbrella: IssueDetail = {
+        state: "OPEN",
+        stateReason: null,
+        labels: ["prd", "enhancement"],
+        body: "",
+    };
+
+    it("admits an umbrella with open children", () => {
+        expect(lineageRefusal(900, umbrella, [100, 400])).toEqual({
+            admitted: true,
+        });
+    });
+
+    it("refuses a target that is not an umbrella, and says which failure it was", () => {
+        const refusal = lineageRefusal(
+            100,
+            { ...umbrella, labels: ["enhancement", "ready-for-agent"] },
+            []
+        );
+        expect(refusal.admitted).toBe(false);
+        if (refusal.admitted) throw new Error("unreachable");
+        expect(refusal.refusal).toBe("lineage-not-umbrella");
+        expect(refusal.message).toContain("#100");
+        expect(refusal.message).toContain("`prd`");
+    });
+
+    it("refuses an umbrella with no open children, and says which failure it was", () => {
+        const refusal = lineageRefusal(900, umbrella, []);
+        expect(refusal.admitted).toBe(false);
+        if (refusal.admitted) throw new Error("unreachable");
+        expect(refusal.refusal).toBe("lineage-empty");
+        expect(refusal.message).toContain("#900");
+        expect(refusal.message).toContain("no open");
+    });
+
+    it("does not refuse an umbrella whose children are all claimed — that is an empty PLAN, not a bad target", () => {
+        // The children exist; nothing is pickable right now. An unrestricted
+        // pass over a fully-claimed queue prints an empty batch and exits 0,
+        // and a scoped one must not invent a refusal the whole-queue path
+        // does not have.
+        expect(lineageRefusal(900, umbrella, [100])).toEqual({
+            admitted: true,
+        });
+    });
+
+    it("never falls back to the unrestricted queue — every refusal is terminal", () => {
+        // The type is the enforcement: a refusal carries no plan, so the only
+        // thing the wrapper can do with one is `die`.
+        const cases: IssueDetail[] = [
+            { ...umbrella, labels: ["enhancement"] },
+            umbrella,
+        ];
+        for (const detail of cases) {
+            const refusal = lineageRefusal(900, detail, []);
+            expect(refusal.admitted).toBe(false);
+            expect(Object.keys(refusal)).not.toContain("plan");
+        }
+    });
+});
+
 describe("queue planner — determinism and cost (issue #2181)", () => {
     it("returns the same plan for the same snapshot", () => {
         const details: Record<number, { body: string }> = {};
@@ -1871,6 +2099,10 @@ describe("plan artefact (issue #2518)", () => {
                 session: "sess-A",
                 ts: "2026-08-18T00:00:00Z",
                 noPriority: false,
+                // An unrestricted plan records the restriction it did NOT
+                // apply, explicitly (issue #2327): absent and "whole queue"
+                // must not read the same on a later audit.
+                lineage: null,
                 plan: SAMPLE_PLAN,
             });
         });
