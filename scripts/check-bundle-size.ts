@@ -62,17 +62,29 @@ interface Budget {
 const BUDGETS: Budget[] = [
     // measured 440,553 B (issue #3053)
     { prefix: "card-catalogue-", gzipBudgetBytes: 490_000 },
-    // measured 610,101 B (issue #3053); RE-ANCHORED to 675,412 B at issue #3230,
-    // which is ORDINARY CODE/CATALOGUE GROWTH and not the accident this row
-    // guards. Measured on both sides of that diff with this same `vite build`:
-    // `origin/staging` 674,181 B (599 B under the old 675,000 ceiling — the
-    // base tip was already at 99.9% of it) and the branch 675,412 B, the two
-    // new card definitions plus two replacement event types accounting for the
-    // ~1.2 KB between them. Headroom is deliberately ~2% rather than the ~10%
-    // the card-catalogue row carries: pool RE-ENTRY is +99 KB gzip, so it reds
-    // this row from any of these numbers, and a tight margin is what makes the
-    // next re-anchor a decision somebody takes on purpose.
-    { prefix: "brain.worker-", gzipBudgetBytes: 689_000 },
+    // measured 610,101 B (issue #3053); RE-ANCHORED to 675,412 B at issue #3230
+    // and again to 689,547 B at issue #3808 — both times ORDINARY CODE GROWTH
+    // and not the accident this row guards.
+    //
+    // #3230: `origin/staging` 674,181 B (599 B under the old 675,000 ceiling)
+    // and the branch 675,412 B — two card definitions plus two replacement
+    // event types.
+    //
+    // #3808: the same measurement, the same `vite build`, both sides in the
+    // same worktree — `origin/staging` **688,847 B** (153 B under the 689,000
+    // ceiling; the base tip was at 99.98% of it, exactly the #3230 shape) and
+    // the branch **689,547 B**. The 700 B between them is categorised library
+    // selection: two card definitions, a `categories` field on the `choice`
+    // Op with its interpreter branch, a whole-library `reveal` shape, and the
+    // bot's categorised pick policy. The pool is not back in either graph —
+    // `card-catalogue` moved by 400 B over the same diff, and pool re-entry is
+    // +99 KB, which would red both rows by two orders of magnitude.
+    //
+    // Headroom stays ~2% rather than the ~10% the card-catalogue row carries:
+    // pool RE-ENTRY reds this row from any of these numbers, and a tight
+    // margin is what makes the next re-anchor a decision somebody takes on
+    // purpose rather than a ceiling that quietly absorbs a regression.
+    { prefix: "brain.worker-", gzipBudgetBytes: 703_000 },
 ];
 
 function findChunk(prefix: string): string | null {
