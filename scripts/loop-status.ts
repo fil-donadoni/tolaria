@@ -69,6 +69,7 @@ import {
     type ReadyQueueIssue,
     type ReceiptsSummary,
 } from "./lib/loop-status";
+import type { IssueState } from "./lib/orphans";
 
 // Same trap as every other script that shells `gh`: bun auto-loads
 // `.env.local`, whose GITHUB_TOKEN shadows the developer's gh keyring login.
@@ -182,11 +183,17 @@ export function fetchUnclaimedReadyQueue(
     ) as {
         number: number;
         labels: { name: string }[];
-        parent?: { number: number } | null;
+        parent?: { number: number; state: IssueState } | null;
     }[];
-    return raw
-        .filter((i) => !i.labels.some((l) => l.name === "in-progress"))
-        .map((i) => ({ number: i.number, parent: i.parent ?? null }));
+    return (
+        raw
+            .filter((i) => !i.labels.some((l) => l.name === "in-progress"))
+            // The parent's `state` rides along with it and is KEPT: a CLOSED
+            // parent governs no band (issue #4105), and dropping the field here
+            // would have this counter bucket an orphan under a dead umbrella's
+            // priority while the planner refuses to pick it at all.
+            .map((i) => ({ number: i.number, parent: i.parent ?? null }))
+    );
 }
 
 /** Headroom above a measured 334 open issues on this repo (2026-08-26) — the

@@ -29,6 +29,11 @@
 
 import { lintIssue, targetFilesSection, type Finding } from "./queue-lint";
 import { classifyPath, laneFor, type Lane } from "../check-lane";
+import {
+    parentIsAbandoned,
+    type IssueState,
+    type StateReason,
+} from "./orphans";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Input — the shape `gh issue list --json number,title,labels,parent,assignees,updatedAt`
@@ -45,6 +50,18 @@ export interface QueueLabel {
 
 export interface QueueParent {
     number: number;
+    /**
+     * The parent's lifecycle, which `gh issue list --json parent` already
+     * returns alongside its number and title — so both the band degradation
+     * and the orphan refusal below cost zero extra round-trips (issue #4105).
+     *
+     * REQUIRED, not optional: `effectivePriority` must treat a CLOSED parent
+     * as no parent at all, and a field that may be missing degrades that rule
+     * to "unless the caller forgot", silently. Making it required puts the
+     * enforcement in `tsc` — a new call site that builds a parent without its
+     * state goes red instead of inheriting a dead umbrella's band.
+     */
+    state: IssueState;
     [key: string]: unknown;
 }
 
@@ -65,7 +82,11 @@ export interface QueueIssue {
 
 /** Stage-2 detail for one issue. */
 export interface IssueDetail {
-    state: "OPEN" | "CLOSED";
+    state: IssueState;
+    /** Why it closed, when it is closed — `NOT_PLANNED` is what makes an open
+     *  child of this issue an ORPHAN (issue #4105). `null` for an open issue,
+     *  and for a closed one GitHub attributed to nothing. */
+    stateReason: StateReason;
     labels: string[];
     body: string;
 }
@@ -134,7 +155,28 @@ export function priorityRank(p: BoardPriority | null | undefined): number {
  *  ready-queue rows `loop-status` gathers. */
 export interface BandedIssue {
     number: number;
-    parent?: { number: number } | null;
+    parent?: { number: number; state: IssueState } | null;
+}
+
+/**
+ * Whether the parent edge is one that GOVERNS the child's band.
+ *
+ * A CLOSED parent governs nothing (issue #4105). `gh issue list --json parent`
+ * returns the parent whether it is open or closed, and the board map can still
+ * carry a closed umbrella's `Priority` — so before this, an orphan under a
+ * dead P0 epic kept competing in the P0 band, and because the parent GOVERNS
+ * (issue #4371) the child's own value could no longer outrank it. The band a
+ * maintainer maintains is the one on an OPEN umbrella; a closed one is a
+ * ruling nobody is re-reading.
+ *
+ * The degradation is to the child's own value, not to unprioritized: the
+ * child's `Priority` is a real statement, it was merely outranked by a
+ * statement that has since stopped being made.
+ */
+function parentGoverns(
+    parent: { number: number; state: IssueState } | null | undefined
+): parent is { number: number; state: IssueState } {
+    return parent != null && parent.state !== "CLOSED";
 }
 
 /**
@@ -158,7 +200,10 @@ export interface BandedIssue {
  * the slices INSIDE their umbrella's turn.
  *
  * A parent with no board value makes no statement, so the band degrades to the
- * child's own — an unprioritized umbrella must not bury its children.
+ * child's own — an unprioritized umbrella must not bury its children. A CLOSED
+ * parent makes no statement either (issue #4105, `parentGoverns`): it is a
+ * ruling nobody re-reads, and an orphan under a dead P0 epic must not hold the
+ * P0 band against the live queue.
  *
  * ONE level. `gh issue list --json parent` carries the parent's number and
  * title and nothing else — no grandparent, no priority of its own — and the
@@ -170,7 +215,7 @@ export function effectivePriority(
     priority: Record<number, BoardPriority>
 ): BoardPriority | null {
     const own = priority[issue.number] ?? null;
-    const parent = issue.parent
+    const parent = parentGoverns(issue.parent)
         ? (priority[issue.parent.number] ?? null)
         : null;
     return parent ?? own;
@@ -192,7 +237,7 @@ export function bandIsInherited(
     issue: BandedIssue,
     priority: Record<number, BoardPriority>
 ): boolean {
-    return issue.parent != null && priority[issue.parent.number] != null;
+    return parentGoverns(issue.parent) && priority[issue.parent.number] != null;
 }
 
 export interface PlanConfig {
@@ -260,7 +305,11 @@ export type SkipAction =
     /** Strip the stray `ready-for-agent` from an umbrella. */
     | "strip-ready"
     /** The issue is malformed; send it back for information. */
-    | "needs-info";
+    | "needs-info"
+    /** Its native parent was closed as `not planned`: the work was abandoned.
+     *  Close it (`bun run issues:orphans --close`) or re-parent it to a live
+     *  umbrella — issue #4105. */
+    | "close-orphan";
 
 /** How much of the tree an issue may touch — the input to disjointness. */
 export type BlastRadius =
@@ -821,6 +870,38 @@ export function planBatch(
                 conflictsWith: batch[0].number,
             });
             continue;
+        }
+
+        // Orphan refusal (issue #4105). An open child of a parent closed as
+        // `not planned` is ABANDONED work — after the `/audit-tracker` fix a
+        // tracker with live slices stays OPEN as a retired umbrella, so this
+        // shape no longer overlaps with "survivor slice". Issue #3016 is the
+        // case that paid for it: `ready-for-agent`, on the board, picked by a
+        // session, and obsolete.
+        //
+        // SKIPPED, not deferred, and it names its exit: a deferral repeats
+        // itself on every pass forever, which is precisely the state #3016 sat
+        // in. The parent's `stateReason` is the one field the cheap Stage-1
+        // list does not carry, so it costs ONE detail fetch — and only for a
+        // candidate whose parent is already known CLOSED from that list.
+        // The refusal is decided on lineage alone, so it never pays for the
+        // orphan's own body — and the WRAPPER's `issueDetail` cache collapses
+        // a whole abandoned epic's children into one parent read.
+        if (issue.parent != null && issue.parent.state === "CLOSED") {
+            const parentDetail = port.issueDetail(issue.parent.number);
+            if (
+                parentIsAbandoned({
+                    state: parentDetail.state,
+                    stateReason: parentDetail.stateReason,
+                })
+            ) {
+                skipped.push({
+                    number: issue.number,
+                    reason: `orphan — its native parent #${issue.parent.number} is closed as \`not planned\`, so this work was abandoned, not moved (issue #4105). Close it (\`bun run issues:orphans --close\`) or re-parent it to a live umbrella`,
+                    action: "close-orphan",
+                });
+                continue;
+            }
         }
 
         const detail = port.issueDetail(issue.number);

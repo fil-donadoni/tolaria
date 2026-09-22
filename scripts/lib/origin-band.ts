@@ -17,6 +17,7 @@
 import { gh } from "./gh";
 import { fetchBoardPriority, type BoardPriority } from "./board-priority";
 import { effectivePriority } from "./queue-plan";
+import type { IssueState } from "./orphans";
 
 export interface OriginBand {
     /** The band, or null when none could be determined. */
@@ -25,9 +26,16 @@ export interface OriginBand {
     readonly reason?: string;
 }
 
+/** A native parent edge, with the lifecycle that decides whether it governs
+ *  the child's band at all (issue #4105). */
+export interface ParentEdge {
+    number: number;
+    state: IssueState;
+}
+
 export interface OriginBandDeps {
-    /** The issue's native parent number, or null. May throw. */
-    readParent: (issue: number) => number | null;
+    /** The issue's native parent edge, or null. May throw. */
+    readParent: (issue: number) => ParentEdge | null;
     /** The board's `Priority` per issue number. May throw. */
     readBoard: () => Record<number, BoardPriority>;
 }
@@ -42,7 +50,7 @@ export function originBandOfIssue(
     issue: number,
     deps: OriginBandDeps
 ): OriginBand {
-    let parent: number | null;
+    let parent: ParentEdge | null;
     try {
         parent = deps.readParent(issue);
     } catch (err) {
@@ -60,10 +68,10 @@ export function originBandOfIssue(
             reason: `could not read the board Priority (${(err as Error).message})`,
         };
     }
-    const band = effectivePriority(
-        { number: issue, parent: parent === null ? null : { number: parent } },
-        board
-    );
+    // `parent` carries its own state, so a CLOSED umbrella degrades the band
+    // to the issue's own value (issue #4105) instead of filing this landing's
+    // gaps under a dead epic.
+    const band = effectivePriority({ number: issue, parent }, board);
     return band === null
         ? {
               band: null,
@@ -79,16 +87,18 @@ const PROJECT_REPO = process.env.TOLARIA_PROJECT_REPO ?? "fil-donadoni/tolaria";
 /** The real reads: `gh` for the parent, the shared board reader for `Priority`. */
 export const LIVE_ORIGIN_BAND_DEPS: OriginBandDeps = {
     readParent(issue) {
-        const raw = gh([
-            "issue",
-            "view",
-            String(issue),
-            "--json",
-            "parent",
-            "--jq",
-            ".parent.number // empty",
-        ]).trim();
-        return raw === "" ? null : Number(raw);
+        // `state` rides along with the parent object the API already
+        // returns — the band must know whether the umbrella is still open
+        // (issue #4105), and asking for it costs no extra call.
+        const raw = JSON.parse(
+            gh(["issue", "view", String(issue), "--json", "parent"])
+        ) as { parent?: { number: number; state?: string } | null };
+        const parent = raw.parent;
+        if (parent == null) return null;
+        return {
+            number: parent.number,
+            state: parent.state === "CLOSED" ? "CLOSED" : "OPEN",
+        };
     },
     readBoard() {
         return fetchBoardPriority({
