@@ -5174,7 +5174,12 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                         entry.kind !== "choose-library-card")
                 ) {
                     errors.push(
-                        '"categories" is valid only with zone: "library" and kind "search-library" (CR 701.23a) or "choose-library-card" (CR 701.20a) — a hand/battlefield categorized pick is the chooseCategorized Op, which applies the COVER rule instead'
+                        '"categories" is valid only with zone: "library" and kind ' +
+                            // CR 701.23a — Search.
+                            '"search-library" (CR 701.23a) or ' +
+                            // CR 701.20a — Reveal.
+                            '"choose-library-card" (CR 701.20a) — ' +
+                            "a hand/battlefield categorized pick is the chooseCategorized Op, which applies the COVER rule instead"
                     );
                 }
                 // Both rank or widen a battlefield pool; a categorised

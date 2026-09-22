@@ -19034,7 +19034,7 @@ export interface CardDefinition {
          *  field ever had. A parameter on the existing leg, not a second leg:
          *  `SacrificeRequirement` (`gre/state.ts`) has carried a `count` all
          *  along for the board-wide static additional sacrifices (Drought,
-         *  CR 118.5), so the whole downstream — the unified `sacrificeChoice`
+         *  CR 118.8), so the whole downstream — the unified `sacrificeChoice`
          *  picker, `completeSacrificeSelection`, the search's cost payment —
          *  already means "N victims" and only the two cast-cost builders
          *  (`gre/castCostPicks.ts`, `game.ts`'s mirror) hard-coded the 1.
