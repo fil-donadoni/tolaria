@@ -1164,7 +1164,23 @@ export function applyPendingChoiceSubmit(
         // unsound here (an artifact creature seated as "Creature" can strand a
         // plain creature), so this runs the same bipartite matching the client
         // gates its clicks with.
-        if (head.kind === "look-distribute" && head.categories) {
+        //
+        // issue #3808 — the same rule, the same module, for a CATEGORISED
+        // LIBRARY pick: `search-library` (CR 701.23a — Gaea's Balance's "a
+        // land card of each basic land type") and `choose-library-card`
+        // (CR 701.20a — Guided Passage's "a creature card, a land card, and
+        // a noncreature, nonland card", picked by an OPPONENT out of the
+        // revealed library). Those picks LEAVE the library, so one card can
+        // never answer two descriptions: the injective rule, never
+        // `chooseCategorized`'s cover rule. Gated on the kind rather than on
+        // `head.categories` alone so a future categorised kind has to come
+        // here and say which rule it means.
+        if (
+            head.categories &&
+            (head.kind === "look-distribute" ||
+                head.kind === "search-library" ||
+                head.kind === "choose-library-card")
+        ) {
             if (
                 !isCategorizedPickLegal(head.categories, args.cardInstanceIds)
             ) {

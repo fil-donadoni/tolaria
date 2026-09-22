@@ -7091,12 +7091,19 @@ export interface SpellContext {
      *   - `chosenModeIds` — the chosen mode(s) (CR 700.2a, ADR 0094); written
      *     onto the stack item so the modes' bodies run. Both shipped callers
      *     pick exactly one mode.
-     *   - `additionalSacrificeId` — a permanent on the CONTROLLED OPPONENT's
-     *     battlefield to sacrifice as an additional cost (CR 118.8). It is
-     *     sacrificed on commit and its pre-sacrifice mana value snapshotted for
-     *     `getAdditionalSacrificeMv()`. The caller must validate it matches the
-     *     card's `additionalCosts.sacrificeFilter`; a missing/illegal pick
-     *     means the cost is unmeetable → the spell is NOT played ("if able").
+     *   - `additionalSacrificeIds` — the permanents on the CONTROLLED
+     *     OPPONENT's battlefield to sacrifice as an additional cost
+     *     (CR 118.8). A LIST since issue #3808: `sacrificeFilterCount` can
+     *     demand more than one ("sacrifice five lands", Gaea's Balance), and
+     *     a single-id parameter silently charged one of them. All of them are
+     *     sacrificed on commit; the pre-sacrifice mana value is snapshotted
+     *     for `getAdditionalSacrificeMv()` only when the cost eats EXACTLY
+     *     one, since "the sacrificed permanent" has no referent otherwise
+     *     (the policy `gre/activation.ts` states for the activated twin). The
+     *     caller must validate they match the card's
+     *     `additionalCosts.sacrificeFilter` and that there are as many as the
+     *     cost demands; a missing/short/illegal pick means the cost is
+     *     unmeetable → the spell is NOT played ("if able").
      *  Any of these unpayable/unmeetable from the opponent's resources →
      *  returns false, nothing changes. */
     castChosenSpell: (
@@ -7107,7 +7114,7 @@ export interface SpellContext {
             targets?: TargetSelection[];
             chosenX?: number;
             chosenModeIds?: string[];
-            additionalSacrificeId?: string;
+            additionalSacrificeIds?: string[];
             /** CR 608.2f (issue #1477) — the zone the card is cast FROM.
              *  Defaults to `"hand"` (Word of Command's controlled cast). The
              *  cast-during-resolution Op passes `"graveyard"` (Malcolm) or
@@ -7141,14 +7148,19 @@ export interface SpellContext {
      *  variable {X} in its mana cost (a string-valued `X`). Lets a controlled
      *  cast (Word of Command) know it must ask the Acting Player for X. */
     cardHasXCost: (casterId: string, cardInstanceId: string) => boolean;
-    /** ADR 0037 / CR 118.8 — the `additionalCosts.sacrificeFilter` of a card in
-     *  `casterId`'s hand, or `undefined` if it has no sacrifice additional
-     *  cost. Lets a controlled cast (Word of Command) enumerate the controlled
-     *  opponent's matching permanents for the Acting Player to choose from. */
-    getCardSacrificeFilter: (
+    /** ADR 0037 / CR 118.8 — the sacrifice additional cost of a card in
+     *  `casterId`'s hand: its `sacrificeFilter` AND how many permanents that
+     *  cost demands (`sacrificeFilterCount`, default 1 — issue #3808).
+     *  `undefined` when the card has no sacrifice additional cost. Lets a
+     *  controlled cast (Word of Command) enumerate the controlled opponent's
+     *  matching permanents for the Acting Player to choose from, and charge
+     *  the RIGHT NUMBER of them: it returns the count alongside the filter
+     *  rather than beside it, because a caller that reads one and forgets the
+     *  other is exactly the five-lands-for-one discount this shape closes. */
+    getCardSacrificeCost: (
         casterId: string,
         cardInstanceId: string
-    ) => PermanentFilter | undefined;
+    ) => { filter: PermanentFilter; count: number } | undefined;
     /** ADR 0037 / CR 107.3 — the highest value of X payable for a card in
      *  `controllerId`'s hand SOLELY from lands `controllerId` controls (Word of
      *  Command's mana restriction). Computed by auto-tapping the controlled
@@ -17136,7 +17148,7 @@ export type EffectOp =
      *  reveals their hand, you choose a card from it"). No-op on an empty
      *  hand (CR 608.2b — nothing to reveal).
      *
-     *  Two shapes, exactly one of `zone` / `cards` (mutually exclusive):
+     *  Three shapes, exactly one of `zone` / `cards` (mutually exclusive):
      *   - `zone: "hand"` — the ALL-PLAYERS hand reveal above
      *     (Thoughtseize/Duress/Inquisition of Kozilek/Grief).
      *   - `cards: EffectRef` (issue #945) — reveal the SPECIFIC cards a
@@ -17152,10 +17164,40 @@ export type EffectOp =
      *     cards still in the library (CR 701.20). No-op when the choice found
      *     nothing (the binding was never captured, CR 608.2b).
      *
+     *   - `zone: "library"` (issue #3808) — reveal the WHOLE library
+     *     ("Reveal the cards in your library", Guided Passage). The SAME
+     *     `markKnownToAll` + `notifyReveal` pair as the hand shape, over
+     *     `getLibraryCards(player)` instead of the hand: every library card
+     *     is stamped known to every player, so `knownLibraryIndices`
+     *     (`gre/libraryKnownRuns.ts`) hands the whole pile to every viewer
+     *     face-up, and `determinize` stops re-dealing it for the bot's
+     *     search. CR 400.2 still calls the ZONE hidden ("even if all the
+     *     cards in one such zone happen to be revealed"), which is why this
+     *     is a knowledge stamp and not a zone change, and why the reveal dies
+     *     at the trailing shuffle (CR 701.20d — `shuffleLibrary` clears every
+     *     library card's knowledge, an unwitnessed reorder). No-op on an
+     *     empty library (CR 608.2b).
+     *
+     *     `bind` (optional, this shape only) snapshots the revealed ids as a
+     *     PICKS binding, which is what lets the CR 701.20a invariant a
+     *     `choose-library-card` pick rests on hold BY CONSTRUCTION: the
+     *     candidate set a following `choice { kind: "choose-library-card",
+     *     candidates: [{ ref }] }` names is exactly the set this Op made
+     *     public, checked by the validator's `revealedBindings` pass rather
+     *     than asserted by the author. Guided Passage's opponent picks from
+     *     the library it was just shown, and from nothing else.
+     *
      *  A library-top reveal (Caustic Bronco-class) is a distinct
      *  positional-order case left for a future Op (`EFFECT_OP_BACKLOG`'s
-     *  broader "reveal" note, `mechanicsRegistry.ts`). */
+     *  broader "reveal" note, `mechanicsRegistry.ts`) — that one is about a
+     *  POSITION, which this whole-zone stamp says nothing about. */
     | { op: "reveal"; player: EffectPlayerRef; zone: "hand" }
+    | {
+          op: "reveal";
+          player: EffectPlayerRef;
+          zone: "library";
+          bind?: string;
+      }
     | { op: "reveal"; player: EffectPlayerRef; cards: EffectRef }
     /** CR 400.2 look (Urza's Bauble) — "Look at a card at random in
      *  `player`'s hand", a PRIVATE look shown only to `looker` (default the
@@ -17371,6 +17413,50 @@ export type EffectOp =
            *  `filter.type` of Creature so a permanent with no power can never
            *  be ranked. */
           superlative?: EffectChoiceSuperlative;
+          /** CR 701.23a / 701.20a (issue #3808) — CATEGORISED selection over a
+           *  whole LIBRARY: "a land card of each basic land type" (Gaea's
+           *  Balance), "a creature card, a land card, and a noncreature,
+           *  nonland card" (Guided Passage). Each entry is a display label
+           *  plus the `EffectCardFilter` deciding which library cards answer
+           *  it; a card answering several categories may be taken for only
+           *  ONE of them, so the legal pick-sets are exactly those admitting
+           *  an injective card → category assignment — `revealAndCategorize`'s
+           *  rule, computed by the shared bipartite core
+           *  `gre/categorizedPick.ts` and by nothing else (the client gates
+           *  each click through it, the submit validator re-checks it, the
+           *  bot's candidate generator prunes with it).
+           *
+           *  It is a FIELD on `choice` rather than a fourth categorised Op
+           *  (ADR 0045 "generalize, don't add") because the domain here is
+           *  the one thing `revealAndCategorize` and `chooseCategorized`
+           *  cannot reach and `choice` already owns end to end: a whole
+           *  hidden library, its `zoneOwnerId` chooser split, its
+           *  `candidateIds` allow-list, its CR 701.23a search entitlement,
+           *  its bound picks. Everything categorisation adds is the bipartite
+           *  legality rule; everything else is `choice` unchanged.
+           *
+           *  `zone: "library"` ONLY (validator-enforced), and only with
+           *  `kind: "search-library"` (CR 701.23a — the chooser looks at the
+           *  whole library, `isSearch`, and CR 701.23b makes every category a
+           *  "you may": author `count: { min: 0, max: N }`) or
+           *  `kind: "choose-library-card"` (CR 701.20a — the set was REVEALED
+           *  first, no search happened, so no `LIBRARY_SEARCHED` trigger and
+           *  the pick is mandatory: author a plain `count`). It does not
+           *  compose with `superlative` or `allControllers`
+           *  (validator-enforced) — both rank or widen the battlefield, a
+           *  zone this field is not about.
+           *
+           *  `count` still clamps as it always did, against the size of the
+           *  MAXIMUM MATCHING rather than the raw candidate count (CR 608.2b
+           *  — never offer a pick that cannot be made): a library holding
+           *  three Forests and nothing else offers Gaea's Balance ONE card,
+           *  not three. `candidateIds` becomes the union of the categories,
+           *  so a card answering no category is never pickable — and, on a
+           *  search, is still LOOKED at (the whole library is exposed; only
+           *  eligibility narrows). Composes with `filter` (which narrows the
+           *  pool the categories are resolved over) and with `candidates`
+           *  (the revealed set, for `choose-library-card`). */
+          categories?: { label: string; filter: EffectCardFilter }[];
           /** Pick count, clamped to availability (CR 608.2b). A plain number
            *  is an EXACT count (the chooser must pick that many, down to
            *  however many exist). `{ min, max }` (issue #677) is an OPTIONAL
@@ -18953,6 +19039,25 @@ export interface CardDefinition {
      *  additional-cost picker opens (CR 601.2f), then mana is paid. */
     additionalCosts?: {
         sacrificeFilter?: PermanentFilter;
+        /** CR 601.2f / 118.8 (issue #3808) — how MANY permanents matching
+         *  `sacrificeFilter` the cost demands ("As an additional cost to cast
+         *  this spell, sacrifice five lands" — Gaea's Balance). Defaults to 1,
+         *  which is every pre-existing card's cost and the only count the
+         *  field ever had. A parameter on the existing leg, not a second leg:
+         *  `SacrificeRequirement` (`gre/state.ts`) has carried a `count` all
+         *  along for the board-wide static additional sacrifices (Drought,
+         *  CR 118.8), so the whole downstream — the unified `sacrificeChoice`
+         *  picker, `completeSacrificeSelection`, the search's cost payment —
+         *  already means "N victims" and only the two cast-cost builders
+         *  (`gre/castCostPicks.ts`, `game.ts`'s mirror) hard-coded the 1.
+         *
+         *  CR 601.2h — the cast is illegal unless the caster controls at
+         *  least this many matching permanents (`canPayAdditionalCostSpec`
+         *  server-side, `card-utils.ts` for the client affordance): a player
+         *  with four lands cannot cast Gaea's Balance, and one with exactly
+         *  five sacrifices all five. Ignored by `exileFilter`, which has no
+         *  counted form today. */
+        sacrificeFilterCount?: number;
         exileFilter?: PermanentFilter;
         /** CR 601.2b / 118.4 — "As an additional cost to cast this spell, pay X
          *  life." The caster chooses X at announcement (independent of the mana

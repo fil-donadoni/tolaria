@@ -19128,6 +19128,14 @@
         "firstPrintSet": "atq"
     },
     {
+        "name": "Gaea's Balance",
+        "scryfallId": "f1ffc5f8-ff1c-4733-b046-8679fa16371b",
+        "oracleId": "5aadbd03-c459-4893-aa1b-efcf193faa1b",
+        "firstSet": "apc",
+        "firstPrintId": "f1ffc5f8-ff1c-4733-b046-8679fa16371b",
+        "firstPrintSet": "apc"
+    },
+    {
         "name": "Gaea's Blessing",
         "scryfallId": "ee83d511-57e0-40fb-a4db-62f6c2c39888",
         "oracleId": "bd5478df-3854-404b-8634-9debcef69b99",
@@ -22200,6 +22208,14 @@
         "firstSet": "mh3",
         "firstPrintId": "76c3cad2-1e25-4abe-878d-9194de6fcc27",
         "firstPrintSet": "mh3"
+    },
+    {
+        "name": "Guided Passage",
+        "scryfallId": "0b2e8e58-aee1-4882-943a-17a6af2f8410",
+        "oracleId": "f4b30f6c-09ac-407e-9c72-da64d212ce93",
+        "firstSet": "apc",
+        "firstPrintId": "0b2e8e58-aee1-4882-943a-17a6af2f8410",
+        "firstPrintSet": "apc"
     },
     {
         "name": "Gumato",

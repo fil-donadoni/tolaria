@@ -6806,15 +6806,25 @@ export function finalizeTargetSelection(
  *  candidate-matching logic instead of a hand-mirrored copy (issue #944). */
 export function buildAdditionalCostPicker(
     spec:
-        | { sacrificeFilter?: PermanentFilter; exileFilter?: PermanentFilter }
+        | {
+              sacrificeFilter?: PermanentFilter;
+              sacrificeFilterCount?: number;
+              exileFilter?: PermanentFilter;
+          }
         | undefined,
     player: PlayerState
-): { kind: "sacrifice" | "exile"; filter: PermanentFilter } | undefined {
+):
+    | { kind: "sacrifice" | "exile"; filter: PermanentFilter; count: number }
+    | undefined {
     const filter = spec?.sacrificeFilter ?? spec?.exileFilter;
     if (!filter) return undefined;
     const kind: "sacrifice" | "exile" = spec?.exileFilter
         ? "exile"
         : "sacrifice";
+    // CR 601.2f / 118.8 (issue #3808) — how many permanents the leg costs.
+    // Only the sacrifice leg has a counted form today; the exile leg is
+    // always exactly one (Soul Exchange).
+    const count = kind === "sacrifice" ? (spec?.sacrificeFilterCount ?? 1) : 1;
     // Effective colours are derived per-candidate via the layer system
     // (mirrors `tapOtherCostCandidates`, `gre/activation.ts`) so a `colors` filter (Natural
     // Order's "a green creature") reads the same colour the rest of the
@@ -6830,10 +6840,10 @@ export function buildAdditionalCostPicker(
     // reaches this function with zero legal candidates (`assertLegalAction`
     // rejects the mutation first). This throw is now an unreachable
     // invariant guard, kept as defense in depth.
-    if (candidates.length === 0) {
+    if (candidates.length < count) {
         throw new Error("No legal permanent to pay the additional cost");
     }
-    return { kind, filter };
+    return { kind, filter, count };
 }
 
 /** CR 601.2f / 118.5 / 701.21a — assemble every filtered sacrifice a cast owes
@@ -6848,7 +6858,11 @@ export function buildCastSacrificeSelection(
     announced: CardInstanceState,
     player: PlayerState,
     additionalCosts:
-        | { sacrificeFilter?: PermanentFilter; exileFilter?: PermanentFilter }
+        | {
+              sacrificeFilter?: PermanentFilter;
+              sacrificeFilterCount?: number;
+              exileFilter?: PermanentFilter;
+          }
         | undefined,
     reason: string,
     /** CR 601.3 / 702.34 — the zone this cast originates from. On a `"graveyard"`
@@ -6867,7 +6881,16 @@ export function buildCastSacrificeSelection(
         if (picker.kind === "exile") {
             exilePicker = { kind: "exile", filter: picker.filter };
         } else {
-            specs.push({ filter: picker.filter, count: 1, snapshot: true });
+            specs.push({
+                filter: picker.filter,
+                // issue #3808 — the counted sacrifice leg ("sacrifice five
+                // lands"); `buildAdditionalCostPicker` already priced it.
+                count: picker.count,
+                // Mirrors `gre/castCostPicks.ts`: "the sacrificed permanent"
+                // has no referent once the cost eats more than one, so a
+                // counted cost snapshots nothing.
+                snapshot: picker.count === 1,
+            });
         }
     }
     // CR 702.34a / 118.8 — the flashback-only "Sacrifice a <filter>" cost, added

@@ -67,6 +67,7 @@ const evilPresence = getDefinition("0551d66e-8cd4-48f0-aa17-15f26be9d85f");
 const fear = getDefinition("0cd927be-e63f-4371-a1d8-7a0489cb187e");
 const fireball = getDefinition("b7623c00-144b-4a8f-9c6c-f5e9e4f65ece");
 const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
+const gaeasBalance = getDefinition("f1ffc5f8-ff1c-4733-b046-8679fa16371b");
 const gloom = getDefinition("a8d10bc7-daeb-4c0d-9e4a-8eae8d11699f");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 const howlFromBeyond = getDefinition("67ec17e1-174b-4d07-a27f-91a333c4b2fb");
@@ -4131,6 +4132,98 @@ describe("Word of Command (controlled cast, ADR 0037, CR 601 / 305.2)", () => {
         expect(
             state.players[0].graveyard.find((c) => c.id === "blue-merfolk")
         ).toBeDefined();
+    });
+
+    // Issue #3808 — the COUNTED additional sacrifice. Word of Command is the
+    // controlled-cast path, and it pays the cost itself rather than through
+    // `buildCastCostSelection`: before this it asked for exactly ONE permanent
+    // whatever the card demanded, so naming Gaea's Balance bought its
+    // "sacrifice five lands" for one land — a four-land discount, free, on the
+    // OPPONENT's board. CR 601.2h: partial payments are not allowed.
+    function submitPicks(state: GameState, pickIds: string[]) {
+        const head = (state.pendingChoices ?? [])[0];
+        if (!head) throw new Error("no pending choice");
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: pickIds,
+        });
+    }
+
+    /** p2 holding Gaea's Balance with `lands` Forests and enough mana. */
+    function balanceBoard(lands: number): GameState {
+        const gaeas = makeInstance(gaeasBalance.id, {
+            id: "opp-balance",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    hand: [gaeas],
+                    battlefield: Array.from({ length: lands }, (_, i) =>
+                        makeInstance(forest.id, {
+                            id: `opp-forest-${i}`,
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "battlefield",
+                        })
+                    ),
+                    manaPool: { G: 4 },
+                }),
+            ],
+        });
+    }
+
+    it("counted additional cost: the controlled cast charges ALL five lands (CR 118.8 / 601.2h, issue #3808)", () => {
+        const state = balanceBoard(5);
+        castWordOfCommand(state);
+        submitPick(state, "opp-balance");
+
+        const sacChoice = state.pendingChoices![0];
+        expect(sacChoice.kind).toBe("choose-permanents");
+        expect(sacChoice.zoneOwnerId).toBe("p2");
+        // The cost demands FIVE, not one.
+        expect(sacChoice.count).toBe(5);
+
+        submitPicks(state, [
+            "opp-forest-0",
+            "opp-forest-1",
+            "opp-forest-2",
+            "opp-forest-3",
+            "opp-forest-4",
+        ]);
+
+        const cast = state.stack.find(
+            (item) => (item.card as { id?: string }).id === gaeasBalance.id
+        );
+        expect(cast?.castById).toBe("p2");
+        // Every land left the battlefield — the discount is gone.
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.players[1].graveyard).toHaveLength(5);
+        // "The sacrificed permanent" has no referent once five paid, so the
+        // snapshot is absent rather than an arbitrary one of them.
+        expect(cast?.additionalSacrificeSnapshot).toBeUndefined();
+    });
+
+    it("counted additional cost: four lands cannot pay a five-land cost, so the card is not played", () => {
+        const state = balanceBoard(4);
+        castWordOfCommand(state);
+        submitPick(state, "opp-balance");
+
+        // No sacrifice prompt, no cast: the cost is unmeetable ("if able").
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(
+            state.stack.some(
+                (item) => (item.card as { id?: string }).id === gaeasBalance.id
+            )
+        ).toBe(false);
+        expect(state.players[1].battlefield).toHaveLength(4);
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["opp-balance"]);
     });
 
     it("additional-cost spell: controller picks the sacrifice from the OPPONENT's battlefield (CR 118.8)", () => {

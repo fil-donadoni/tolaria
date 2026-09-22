@@ -67,6 +67,75 @@ export const gerrardsVerdict: CardDefinition = {
     ],
 };
 
+// Guided Passage — the first CATEGORISED PICK an OPPONENT makes out of a
+// REVEALED library (issue #3808).
+//
+// CR 701.20a — "Reveal the cards in your library" shows every card to every
+// player. That is a knowledge stamp, not a zone change: CR 400.2 keeps a
+// library hidden "even if all the cards in one such zone happen to be
+// revealed", so the reveal Op marks the cards known to all and the trailing
+// shuffle takes the knowledge back (CR 701.20d). It also BINDS what it
+// revealed, which is what lets the pick below name a set CR 701.20a actually
+// made public rather than reaching into a hidden zone.
+//
+// No search happens here — the opponent is shown the cards, they do not look
+// through the library — so the pick is `choose-library-card`, never
+// `search-library`: no `LIBRARY_SEARCHED` trigger fires (Aven Mindcensor and
+// friends have nothing to replace), and CR 701.23b's "you need not find" does
+// not apply, so the choice is MANDATORY. The opponent chooses as many of the
+// three descriptions as the library can answer, and the interpreter clamps the
+// count to the maximum matching (CR 608.2b — a library with no land offers two
+// cards, not three).
+//
+// The three categories are injective by construction of the text: a creature
+// LAND (Dryad Arbor) answers "a creature card" or "a land card", never both,
+// because three distinct cards are chosen and put into a hand.
+// hand-tail: "Reveal the cards in your library. An opponent chooses from among them a creature card, a land card, and a noncreature, nonland card. You put the chosen cards into your hand. Then shuffle." (#4333)
+export const guidedPassage: CardDefinition = {
+    id: "0b2e8e58-aee1-4882-943a-17a6af2f8410",
+    rarity: "rare",
+    name: "Guided Passage",
+    oracleText:
+        "Reveal the cards in your library. An opponent chooses from among them a creature card, a land card, and a noncreature, nonland card. You put the chosen cards into your hand. Then shuffle.",
+    manaCost: { G: 1, U: 1, R: 1 },
+    types: ["Sorcery"],
+    effects: [
+        {
+            op: "reveal",
+            player: "controller",
+            zone: "library",
+            bind: "$revealed",
+        },
+        {
+            op: "choice",
+            kind: "choose-library-card",
+            player: "opponent",
+            zoneOwnerId: "controller",
+            zone: "library",
+            candidates: [{ ref: "$revealed" }],
+            categories: [
+                { label: "Creature card", filter: { type: "Creature" } },
+                { label: "Land card", filter: { type: "Land" } },
+                {
+                    label: "Noncreature, nonland card",
+                    filter: { excludeType: ["Creature", "Land"] },
+                },
+            ],
+            count: 3,
+            prompt: "Choose a creature card, a land card, and a noncreature, nonland card.",
+            bind: "$chosen",
+        },
+        {
+            op: "moveZone",
+            cards: { ref: "$chosen" },
+            player: "controller",
+            from: "library",
+            to: "hand",
+        },
+        { op: "libraryLook", action: "shuffle", player: "controller" },
+    ],
+};
+
 // ─────────────────────────────────────────────────────────────────────────
 // Split card (CR 709.1–709.4, ADR 0121 §6 slice 2, issue #3308)
 //

@@ -392,7 +392,17 @@ describe("CR 701.20a — census: every shipped `reveal` Op notifies (issue #3425
         // calling `notifyReveal` itself would pass the sweep above while
         // leaving the Op broken for everyone else.
         for (const { card, op } of ops) {
-            const keys = Object.keys(op as Record<string, unknown>).sort();
+            const keys = Object.keys(op as Record<string, unknown>)
+                // Issue #3808 — the whole-library shape's optional `bind`
+                // names the set the reveal made public (a picks binding a
+                // following `choose-library-card` reads), which is DATA in
+                // exactly the sense this census is about: it declares an
+                // output, it does not reach for a dialog. Dropped before the
+                // key comparison rather than spelled into a fourth expected
+                // shape, so the census keeps saying "these three fields and
+                // nothing else that could be a hand-rolled notification".
+                .filter((key) => key !== "bind")
+                .sort();
             expect(keys, card).toEqual(
                 keys.includes("cards")
                     ? ["cards", "op", "player"]

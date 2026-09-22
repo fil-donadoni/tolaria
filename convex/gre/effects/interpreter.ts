@@ -2346,6 +2346,46 @@ function choiceCandidates(
     return { available: ids.length, candidateIds: ids };
 }
 
+/** CR 701.23a / 701.20a (issue #3808) — resolve a categorised library
+ *  `choice`'s `categories` into the `{ label, cardIds }` buckets the
+ *  `PendingChoice` carries, the bipartite core validates against and the
+ *  client gates its clicks with (`gre/categorizedPick.ts`).
+ *
+ *  The buckets are cut out of the pool `choiceCandidates` already produced
+ *  (`poolIds`), NOT out of the raw library: that is what makes `filter` and
+ *  `candidates` compose — Guided Passage's categories are resolved over
+ *  exactly the revealed set its `candidates` named, and a card that fell out
+ *  of the library since the reveal is already gone from the pool. An absent
+ *  `poolIds` means "the whole zone" (the unfiltered branch), so the library
+ *  is read directly there.
+ *
+ *  A category matching nothing stays in the list as an EMPTY bucket rather
+ *  than being dropped: the bipartite matching needs it to contribute nothing
+ *  to the maximum, and `count.max` is read straight off that matching. It is
+ *  NOT kept for display — the library grid picker renders one flat,
+ *  unlabelled grid and passes `categories` to `CardsPile` only for a
+ *  `look-distribute` pick (`src/components/board/player-library.tsx`), so a
+ *  chooser sees the per-click gate refuse a second Forest without being told
+ *  which bucket it belonged to. Recorded in `docs/findings/`. */
+function resolveChoiceCategories(
+    ctx: SpellContext,
+    op: OpOf<"choice">,
+    zoneOwnerId: string,
+    poolIds: string[] | undefined
+): { label: string; cardIds: string[] }[] {
+    const zoneCards = ctx.getLibraryCards(zoneOwnerId);
+    const pool =
+        poolIds === undefined
+            ? zoneCards
+            : zoneCards.filter((c) => poolIds.includes(c.id));
+    return (op.categories ?? []).map((category) => ({
+        label: category.label,
+        cardIds: pool
+            .filter((c) => matchesCardFilter(ctx, c, category.filter))
+            .map((c) => c.id),
+    }));
+}
+
 /** Shared tail of `lookDistribute` (issue #984, extended #1266 / #1101): send the
  *  un-kept looked-at cards to `destination`. `pickSet` is the ids that went to
  *  hand; the un-kept set is every looked-at id not in it (incl. filter-
@@ -5400,6 +5440,24 @@ export const OP_EXECUTORS: {
             revealToAllPlayers(ctx, playerId, ids);
             return;
         }
+        // issue #3808 — the WHOLE-LIBRARY reveal (CR 701.20a, Guided Passage:
+        // "Reveal the cards in your library"). The same `markKnownToAll` +
+        // `notifyReveal` pair, over the library instead of the hand: every
+        // card is stamped known to every player, which is what
+        // `knownLibraryIndices` reads to hand the pile over face-up and what
+        // `determinize` reads to stop re-dealing it (ADR 0026). CR 400.2
+        // keeps the ZONE hidden regardless, and the trailing shuffle clears
+        // the stamp again (CR 701.20d). `bind` records the revealed set as a
+        // picks binding so a following `choose-library-card` pick can name
+        // exactly what was shown and nothing else — the invariant the
+        // validator checks rather than trusting.
+        if (op.zone === "library") {
+            const libraryIds = ctx.getLibraryCards(playerId).map((c) => c.id);
+            if (libraryIds.length === 0) return; // CR 608.2b — empty library
+            revealToAllPlayers(ctx, playerId, libraryIds);
+            if (op.bind) ctx.noteChoice(op.bind, libraryIds);
+            return;
+        }
         const ids = ctx.getHandIds(playerId);
         if (ids.length === 0) return; // CR 608.2b — nothing to reveal
         revealToAllPlayers(ctx, playerId, ids);
@@ -5555,11 +5613,30 @@ export const OP_EXECUTORS: {
         // accepted), which is precisely what the sentinel exists to prevent.
         const pickFilter = toPermanentFilter(ctx, op.filter);
         if (pickFilter === UNMATCHABLE_FILTER) return;
-        const { available, candidateIds } = choiceCandidates(
+        const { available: poolSize, candidateIds: poolIds } = choiceCandidates(
             ctx,
             op,
             zoneOwnerId
         );
+        // CR 701.23a / 701.20a (issue #3808) — a CATEGORISED library pick
+        // ("a land card of each basic land type"; "a creature card, a land
+        // card, and a noncreature, nonland card"). The categories are
+        // resolved over the pool `choiceCandidates` just produced — so
+        // `filter` and `candidates` compose unchanged — and from here on the
+        // choice's availability is the size of the MAXIMUM MATCHING, never
+        // the raw candidate count: three Forests answer Gaea's Balance once,
+        // not three times (CR 608.2b — never offer a pick that cannot be
+        // made). The allow-list narrows to the union of the categories, so a
+        // card answering none of them is looked at but never pickable.
+        const categories = op.categories
+            ? resolveChoiceCategories(ctx, op, zoneOwnerId, poolIds)
+            : undefined;
+        const available = categories
+            ? maxCategorizedPicks(categories)
+            : poolSize;
+        const candidateIds = categories
+            ? categorizedEligibleIds(categories)
+            : poolIds;
         // CR 608.2b / 701.9b — clamp to what exists; nothing to choose from
         // means no choice at all (and no binding, so consumers skip too).
         // A plain number is an EXACT count; a `{ min, max }` range (issue
@@ -5627,6 +5704,17 @@ export const OP_EXECUTORS: {
             // is a genuine search. `emitLibrarySearchedEvent` gates on this
             // flag, not on `kind` alone — see `PendingChoice.isSearch`.
             ...(op.kind === "search-library" ? { isSearch: true } : {}),
+            // CR 701.23a / 701.20a (issue #3808) — the resolved category
+            // buckets ride the PendingChoice so the submit validator, the
+            // client's per-click gate and the bot's candidate generator all
+            // read the SAME bipartite legality (`gre/categorizedPick.ts`)
+            // rather than three re-derivations of it. No `categoryRule`: a
+            // library pick is `revealAndCategorize`'s INJECTIVE rule, because
+            // the picked cards LEAVE the library — one card cannot be found
+            // for two descriptions and then put onto the battlefield twice,
+            // which is exactly what `chooseCategorized`'s COVER rule permits
+            // for a dual land that merely stays where it is.
+            ...(categories ? { categories } : {}),
         });
         if (picks === undefined) return "suspend"; // enqueued — wait
         // issue #1282 — when `id` diverges from `bind`, `requestChoice`
@@ -7476,14 +7564,16 @@ function runCastDuringResolution(
     // ADDITIONAL COST — sacrifice (CR 118.8). Applies even to a free cast
     // (only the mana cost is waived). No matching permanent => the cost is
     // unmeetable, the card is NOT cast ("if able").
-    const sacrificeFilter = ctx.getCardSacrificeFilter(
-        playerId,
-        cardInstanceId
-    );
-    let additionalSacrificeId: string | undefined;
-    if (sacrificeFilter) {
-        const candidateIds = ctx.getBattlefieldIds(playerId, sacrificeFilter);
-        if (candidateIds.length === 0) {
+    // Issue #3808 — the cost's COUNT rides with its filter, so a card whose
+    // additional cost is "sacrifice five lands" is not cast here for one.
+    const sacrificeCost = ctx.getCardSacrificeCost(playerId, cardInstanceId);
+    let additionalSacrificeIds: string[] | undefined;
+    if (sacrificeCost) {
+        const candidateIds = ctx.getBattlefieldIds(
+            playerId,
+            sacrificeCost.filter
+        );
+        if (candidateIds.length < sacrificeCost.count) {
             finish(false, "pass"); // unmeetable — not cast
             return;
         }
@@ -7493,14 +7583,17 @@ function runCastDuringResolution(
             kind: "choose-permanents",
             zone: "battlefield",
             zoneOwnerId: playerId,
-            filter: sacrificeFilter,
+            filter: sacrificeCost.filter,
             candidateIds,
-            count: 1,
-            prompt: "Choose a permanent to sacrifice.",
+            count: sacrificeCost.count,
+            prompt:
+                sacrificeCost.count === 1
+                    ? "Choose a permanent to sacrifice."
+                    : `Choose ${sacrificeCost.count} permanents to sacrifice.`,
         });
         if (pickedSac === undefined) return "suspend";
-        additionalSacrificeId = pickedSac[0];
-        if (!additionalSacrificeId) return;
+        if (pickedSac.length !== sacrificeCost.count) return;
+        additionalSacrificeIds = pickedSac;
     }
 
     // TARGETS (CR 601.2c) — the caster chooses targets for the cast card
@@ -7562,7 +7655,7 @@ function runCastDuringResolution(
         targets: chosenTargets,
         chosenX,
         chosenModeIds: chosenModeId ? [chosenModeId] : undefined,
-        additionalSacrificeId,
+        additionalSacrificeIds,
         sourceZone,
         free: op.free,
     });

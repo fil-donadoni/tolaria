@@ -562,3 +562,46 @@ describe("catalogue guard — every additionalCosts.oneOf is well formed (CR 601
         expect(malformedOneOfLegs([bitterTriumph])).toEqual([]);
     });
 });
+
+// Issue #3808 — the COUNT lives on the spec, not on a leg. A leg REPLACES the
+// base `sacrificeFilter`, so it has to replace the base count with it:
+// `AdditionalCostLeg` has no counted form, and a leg that inherited
+// `sacrificeFilterCount: 5` would demand five of whatever the LEG names.
+// `LEG_COST_KEYS` structurally cannot catch this — it guards the keys a LEG
+// declares — so the guard is here instead.
+describe("resolveAdditionalCosts — a leg never inherits the base sacrifice COUNT (issue #3808)", () => {
+    const counted: AdditionalCostSpec = {
+        sacrificeFilter: { types: "Land" },
+        sacrificeFilterCount: 5,
+        oneOf: [
+            {
+                id: "creature",
+                label: "Sacrifice a creature",
+                sacrificeFilter: { types: "Creature" },
+            },
+            { id: "life", label: "Pay 3 life", payLife: 3 },
+        ],
+    };
+
+    it("drops the count when the chosen leg supplies its own filter", () => {
+        const flat = resolveAdditionalCosts(counted, "creature");
+        expect(flat?.sacrificeFilter).toEqual({ types: "Creature" });
+        // ONE creature, not five.
+        expect(flat?.sacrificeFilterCount).toBeUndefined();
+    });
+
+    it("keeps the base leg intact when the chosen leg names no filter", () => {
+        const flat = resolveAdditionalCosts(counted, "life");
+        expect(flat?.sacrificeFilter).toEqual({ types: "Land" });
+        expect(flat?.sacrificeFilterCount).toBe(5);
+        expect(flat?.payLife).toBe(3);
+    });
+
+    it("leaves a spec with no disjunction exactly as it was", () => {
+        const plain: AdditionalCostSpec = {
+            sacrificeFilter: { types: "Land" },
+            sacrificeFilterCount: 5,
+        };
+        expect(resolveAdditionalCosts(plain, undefined)).toEqual(plain);
+    });
+});

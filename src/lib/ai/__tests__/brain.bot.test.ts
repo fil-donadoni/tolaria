@@ -926,6 +926,142 @@ describe("chooseResolution: categorized look-distribute (Atraxa, issue #1364)", 
     });
 });
 
+// The two LIBRARY kinds that carry the same buckets (issue #3808). They reach
+// the shared branch from opposite polarities and, unlike every earlier
+// categorized pick, from opposite COUNTS:
+//
+//   `search-library` (Gaea's Balance, CR 701.23a) — the searcher's own find,
+//   so BEST first. CR 701.23b makes every category a "you may", so `min` is 0
+//   and the pre-#3808 `slice(0, min)` would have found NOTHING at all.
+//
+//   `choose-library-card` (Guided Passage, CR 701.20a) — the bot is the
+//   OPPONENT handing cards over, so WORST first, and the pick is MANDATORY:
+//   a bare `slice(0, min)` hands over three lands, which answers one
+//   description three times and is rejected server-side (a bot freeze).
+describe("chooseResolution: categorized LIBRARY picks (issue #3808)", () => {
+    /** Gaea's Balance: two Forests and a Plains in the library. */
+    const owedSearch = (overrides: Partial<OwedChoice> = {}): OwedChoice => ({
+        kind: "search-library",
+        min: 0,
+        max: 2,
+        candidates: [
+            { id: "forest-good", value: 30 },
+            { id: "forest-bad", value: 20 },
+            { id: "plains", value: 10 },
+        ],
+        categories: [
+            { label: "Plains", cardIds: ["plains"] },
+            { label: "Forest", cardIds: ["forest-good", "forest-bad"] },
+        ],
+        ...overrides,
+    });
+
+    it("CR 701.23b — the optional search still finds, one card per type", () => {
+        // `min` is 0; a `slice(0, min)` returns [] and the card does nothing.
+        expect(chooseResolution(owedSearch())).toEqual([
+            "forest-good",
+            "plains",
+        ]);
+    });
+
+    it("never finds two cards of the same basic land type", () => {
+        const picks = chooseResolution(
+            owedSearch({
+                max: 1,
+                categories: [
+                    {
+                        label: "Forest",
+                        cardIds: ["forest-good", "forest-bad"],
+                    },
+                ],
+                candidates: [
+                    { id: "forest-good", value: 30 },
+                    { id: "forest-bad", value: 20 },
+                ],
+            })
+        );
+        expect(picks).toEqual(["forest-good"]);
+    });
+
+    it("leaves an UNCATEGORISED search on its old count — `min`, not `max`", () => {
+        const picks = chooseResolution(
+            owedSearch({ categories: undefined, min: 1, max: 2 })
+        );
+        expect(picks).toEqual(["forest-good"]);
+    });
+
+    /** Guided Passage: the bot is the opponent, choosing what to hand over. */
+    const owedForeignPick = (
+        overrides: Partial<OwedChoice> = {}
+    ): OwedChoice => ({
+        kind: "choose-library-card",
+        min: 3,
+        max: 3,
+        candidates: [
+            { id: "bomb", value: 200 },
+            { id: "bear", value: 120 },
+            { id: "bolt", value: 90 },
+            { id: "forest", value: 12 },
+            { id: "swamp", value: 8 },
+        ],
+        categories: [
+            { label: "Creature card", cardIds: ["bomb", "bear"] },
+            { label: "Land card", cardIds: ["forest", "swamp"] },
+            { label: "Noncreature, nonland card", cardIds: ["bolt"] },
+        ],
+        ...overrides,
+    });
+
+    it("hands over the WORST card answering each description, never three lands", () => {
+        const picks = chooseResolution(owedForeignPick());
+        expect([...picks].sort()).toEqual(["bear", "bolt", "swamp"]);
+        expect(picks).toHaveLength(3);
+    });
+
+    it("reaches the MANDATORY count from ANY value order — a short submission would be rejected", () => {
+        // The greedy walk cannot stop below the maximum matching: the
+        // matchable sets form a transversal matroid, so a smaller matchable
+        // set always admits another member — whatever order the walk sees
+        // them in. Re-running the same input would only re-assert one path
+        // through a pure function, so the VALUES are permuted instead: each
+        // arrangement makes the greedy reach for a different card first, and
+        // one that could strand a category would show up as a short answer.
+        const orders = [
+            { bomb: 200, bear: 120, bolt: 90, forest: 12, swamp: 8 },
+            { bomb: 1, bear: 2, bolt: 3, forest: 4, swamp: 5 },
+            { bomb: 50, bear: 50, bolt: 50, forest: 50, swamp: 50 },
+            { bomb: 9, bear: 400, bolt: 1, forest: 7, swamp: 300 },
+        ];
+        for (const values of orders) {
+            const picks = chooseResolution(
+                owedForeignPick({
+                    candidates: Object.entries(values).map(([id, value]) => ({
+                        id,
+                        value,
+                    })),
+                })
+            );
+            expect(picks, JSON.stringify(values)).toHaveLength(3);
+            // And every answer really is one card per description.
+            const bucket: Record<string, string> = {
+                bomb: "creature",
+                bear: "creature",
+                bolt: "other",
+                forest: "land",
+                swamp: "land",
+            };
+            expect(new Set(picks.map((id) => bucket[id])).size).toBe(3);
+        }
+    });
+
+    it("leaves the UNCATEGORISED revealed pick adversarial and unchanged", () => {
+        const picks = chooseResolution(
+            owedForeignPick({ categories: undefined, min: 1, max: 1 })
+        );
+        expect(picks).toEqual(["swamp"]);
+    });
+});
+
 // A `choose-categorized` pick (issue #1945) shares the categorized branch but
 // flips two things `look-distribute` never had to model:
 //

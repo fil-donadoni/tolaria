@@ -212,6 +212,70 @@ describe("PlayerLibrary", () => {
         expect(toggle).toHaveBeenCalledWith("s1");
     });
 
+    it("gates a CATEGORISED search's clicks through the bipartite rule (issue #3808)", () => {
+        // Gaea's Balance: "a land card of each basic land type". Two Forests
+        // are each individually eligible and the PAIR is illegal — a plain
+        // count cap (max 2 here) cannot express that, so the per-click gate
+        // has to run the same `canAddCategorizedPick` the server validates
+        // the submission with. Without it the picker offers a combination the
+        // mutation rejects, which is a dead Done button on a live choice.
+        cardsPileSpy.mockClear();
+        const search = [
+            makeCard("forest-1"),
+            makeCard("forest-2"),
+            makeCard("plains-1"),
+        ];
+        const player = makePlayer({ count: 3 }, {
+            librarySearch: search,
+        } as Partial<Player>);
+        const toggle = vi.fn();
+        const buffer: PendingChoiceBuffer = {
+            ...noopBuffer,
+            // One Forest already taken: the Forest seat is spent.
+            buffer: ["forest-1"],
+            toggle,
+        };
+        renderWithContext(<PlayerLibrary player={player} />, "me", {
+            pendingChoices: [
+                {
+                    stackItemId: "stk",
+                    step: 0,
+                    choiceId: "$found",
+                    playerId: "me",
+                    kind: "search-library",
+                    zone: "library",
+                    isSearch: true,
+                    candidateIds: ["forest-1", "forest-2", "plains-1"],
+                    categories: [
+                        { label: "Plains", cardIds: ["plains-1"] },
+                        {
+                            label: "Forest",
+                            cardIds: ["forest-1", "forest-2"],
+                        },
+                    ],
+                    count: { min: 0, max: 2 },
+                    prompt: "Search your library for a land card of each basic land type.",
+                },
+            ],
+            buffer,
+        });
+        const pileProps = cardsPileSpy.mock.calls.at(-1)?.[0];
+        // Only the categorised cards are pickable — an uncategorised card is
+        // looked at (CR 701.23a) but never eligible.
+        expect(pileProps.eligibleIds).toEqual(
+            new Set(["forest-1", "forest-2", "plains-1"])
+        );
+        // The second Forest would seat twice in one category: refused.
+        pileProps.onCardClick({ id: "forest-2" });
+        expect(toggle).not.toHaveBeenCalled();
+        // The Plains answers a free category: accepted.
+        pileProps.onCardClick({ id: "plains-1" });
+        expect(toggle).toHaveBeenCalledWith("plains-1");
+        // And deselecting the card already buffered always works.
+        pileProps.onCardClick({ id: "forest-1" });
+        expect(toggle).toHaveBeenCalledWith("forest-1");
+    });
+
     it("renders exactly the looked-at top N as a face-up grid for a look-top pick (Stock Up, #942)", () => {
         // Stock Up looks at the top five and keeps two. The projection exposes
         // ONLY those five as `libraryPeek` (never the whole library), and the

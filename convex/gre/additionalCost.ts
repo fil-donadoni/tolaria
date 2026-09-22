@@ -61,6 +61,13 @@ export function resolveAdditionalCosts(
     if (leg.payLife !== undefined) flat.payLife = leg.payLife;
     if (leg.sacrificeFilter !== undefined) {
         flat.sacrificeFilter = leg.sacrificeFilter;
+        // Issue #3808 — the leg REPLACES the base filter, so it must replace
+        // the base COUNT with it. `AdditionalCostLeg` has no counted form, so
+        // a leg's sacrifice is exactly one; inheriting a base
+        // `sacrificeFilterCount: 5` would demand five of whatever the LEG
+        // names. `LEG_COST_KEYS` cannot catch this — it guards the keys a leg
+        // declares, and the count lives on the SPEC.
+        delete flat.sacrificeFilterCount;
     }
     if (leg.exileFilter !== undefined) flat.exileFilter = leg.exileFilter;
     return flat;
@@ -193,14 +200,23 @@ export function canPayAdditionalCostSpec(
     if (!spec) return true;
     const filter = spec.sacrificeFilter ?? spec.exileFilter;
     if (filter) {
-        const ok = player.battlefield.some((c) =>
+        // CR 601.2h (issue #3808) — "unpayable costs can't be paid", and a
+        // COUNTED sacrifice leg ("sacrifice five lands", Gaea's Balance) is
+        // unpayable below its count, not merely below one. `sacrificeFilterCount`
+        // defaults to 1, which is the `.some()` this replaced; the exile leg
+        // has no counted form and prices at 1 the same way.
+        const owed =
+            spec.sacrificeFilter !== undefined
+                ? (spec.sacrificeFilterCount ?? 1)
+                : 1;
+        const matching = player.battlefield.filter((c) =>
             matchesPermanentFilter(
                 { ...c, colors: STATIC_EFFECT_CTX.getColors(c) },
                 filter,
                 { selfControllerId: player.id }
             )
-        );
-        if (!ok) return false;
+        ).length;
+        if (matching < owed) return false;
     }
     if ((spec.payLife ?? 0) > player.life) return false;
     const handLeg = additionalCostHandLeg(spec);

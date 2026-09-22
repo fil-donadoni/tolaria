@@ -5050,12 +5050,29 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     //    (Caustic Bronco-class) is still a distinct future Op.
     reveal: {
         required: { player: isPlayerRef },
-        optional: { zone: (v) => v === "hand", cards: isBarePicksRef },
+        optional: {
+            // issue #3808 — `"library"` is the WHOLE-LIBRARY reveal
+            // (CR 701.20a, Guided Passage). CR 400.2 keeps the zone hidden;
+            // this only stamps knowledge, which the trailing shuffle clears.
+            zone: (v) => v === "hand" || v === "library",
+            cards: isBarePicksRef,
+            bind: isBindingName,
+        },
         check: (entry) => {
             const hasZone = "zone" in entry;
             const hasCards = "cards" in entry;
             if (hasZone === hasCards) {
                 return ['exactly one of "zone" or "cards" is required'];
+            }
+            // The picks binding names the set the reveal made public, so it
+            // only means anything on the shape that reveals a whole hidden
+            // zone whose members no earlier binding already named. A hand
+            // reveal has no consumer for it today and a `cards` reveal was
+            // handed its ids by the binding it would shadow.
+            if ("bind" in entry && entry.zone !== "library") {
+                return [
+                    '"bind" is valid only with zone: "library" — it names the set the whole-library reveal (CR 701.20a) just made public',
+                ];
             }
             return [];
         },
@@ -5131,9 +5148,52 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                 Array.isArray(v) && v.length > 0 && v.every(isObjectSelector),
             bindOther: isBindingName,
             superlative: isChoiceSuperlative,
+            // issue #3808 — CATEGORISED selection over a whole library. Same
+            // `{ label, filter }` list `revealAndCategorize` /
+            // `chooseCategorized` carry, same bipartite legality module;
+            // which zones and kinds may carry it is gated in `check` below
+            // (a field validator cannot see its siblings).
+            categories: isPickCategoryList,
         },
         check: (entry) => {
             const errors: string[] = [];
+            // CR 701.23a / 701.20a (issue #3808) — a categorised pick is a
+            // LIBRARY capability: the two kinds that reach a whole library
+            // and nothing else. `search-library` is the CR 701.23a search
+            // (the chooser looks at every card); `choose-library-card` is the
+            // CR 701.20a revealed set. A hand or battlefield categorisation
+            // is `chooseCategorized`'s job — it owns the COVER rule those
+            // domains need, and admitting it here would silently give it the
+            // injective one. A graveyard/exile categorisation has no shipped
+            // card and no rule chosen for it, so it is refused rather than
+            // defaulted.
+            if (entry.categories !== undefined) {
+                if (
+                    entry.zone !== "library" ||
+                    (entry.kind !== "search-library" &&
+                        entry.kind !== "choose-library-card")
+                ) {
+                    errors.push(
+                        '"categories" is valid only with zone: "library" and kind ' +
+                            // CR 701.23a — Search.
+                            '"search-library" (CR 701.23a) or ' +
+                            // CR 701.20a — Reveal.
+                            '"choose-library-card" (CR 701.20a) — ' +
+                            "a hand/battlefield categorized pick is the chooseCategorized Op, which applies the COVER rule instead"
+                    );
+                }
+                // Both rank or widen a battlefield pool; a categorised
+                // library pick is neither, so a pairing is two answers to
+                // "chosen from WHAT" and is refused rather than ordered.
+                if (
+                    entry.superlative !== undefined ||
+                    entry.allControllers !== undefined
+                ) {
+                    errors.push(
+                        '"categories" never pairs with "superlative" or "allControllers" — both are battlefield-pool constructs'
+                    );
+                }
+            }
             // CR 608.2h — the superlative ranks the zone owner's OWN
             // battlefield pool. `candidates` names its set some other way and
             // `allControllers` widens it past the owner, so either pairing is
@@ -6093,6 +6153,12 @@ function bindingKindOf(op: unknown): BindingKind {
     // so a later `EffectCardFilter.name` bare ref reads it through the SAME
     // picks family (not a new binding kind).
     if (op === "nameCard") return "picks";
+    // issue #3808 — `reveal { zone: "library", bind }` records the ids it just
+    // made public (CR 701.20a) as the same picks family a `choice` binds: a
+    // following `choose-library-card` names it in `candidates`, `moveZone`
+    // could name it in `cards`. It is a SET of instance ids, which is exactly
+    // what the family means.
+    if (op === "reveal") return "picks";
     return "snapshot";
 }
 
@@ -7179,6 +7245,18 @@ function checkOpListRefs(
             if (cards && typeof cards.ref === "string") {
                 revealedBindings.set(
                     cards.ref,
+                    JSON.stringify(entry.player ?? null)
+                );
+            }
+            // issue #3808 — the WHOLE-LIBRARY reveal registers its OWN
+            // binding: the set it made public is the set it bound, so the
+            // CR 701.20a invariant a `choose-library-card` pick rests on is
+            // true by construction rather than by the author remembering to
+            // pair a `reveal { cards }` with the right binding. Guided
+            // Passage's opponent picks from the library it was shown.
+            if (entry.zone === "library" && typeof entry.bind === "string") {
+                revealedBindings.set(
+                    entry.bind,
                     JSON.stringify(entry.player ?? null)
                 );
             }

@@ -33,6 +33,7 @@
 // register here against this same contract.
 
 import { matchesPermanentFilter } from "../../cards/filters";
+import { canAddCategorizedPick } from "../categorizedPick";
 import { effectivePermanentView } from "../permanentView";
 import type {
     CardInstanceState,
@@ -897,6 +898,7 @@ const searchLibraryCandidates: ChoiceCandidateGenerator = (state, choice) => {
                 (a.identity < b.identity ? -1 : a.identity > b.identity ? 1 : 0)
         );
 
+    const categories = choice.categories;
     const seenIdentities = new Set<string>();
     const seenKeys = new Set<string>();
     for (const lead of ranked) {
@@ -908,6 +910,23 @@ const searchLibraryCandidates: ChoiceCandidateGenerator = (state, choice) => {
         for (const other of ranked) {
             if (picked.length >= take) break;
             if (other.card.id === lead.card.id) continue;
+            // CR 701.23a (issue #3808) — a CATEGORISED search ("a land card
+            // of each basic land type") admits only sets with an injective
+            // card → category assignment, so the greedy prefix has to test
+            // each addition rather than take the next-best: two Forests are
+            // both eligible and the pair is illegal. A submission the server
+            // rejects ESCAPES the search as a throw, which is why this is
+            // pruned here and not merely valued down.
+            if (
+                categories &&
+                !canAddCategorizedPick(
+                    categories,
+                    picked.map((p) => p.card.id),
+                    other.card.id
+                )
+            ) {
+                continue;
+            }
             picked.push(other);
         }
         const cards = picked.map((p) => p.card);

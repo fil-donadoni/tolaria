@@ -22758,10 +22758,16 @@ export function buildSpellContext(
                 ? true
                 : false;
         },
-        getCardSacrificeFilter(casterId, cardInstanceId) {
-            // CR 118.8 — the additional sacrifice cost's filter, if any.
+        getCardSacrificeCost(casterId, cardInstanceId) {
+            // CR 118.8 — the additional sacrifice cost's filter AND its
+            // count, together (issue #3808: "sacrifice five lands").
             const def = getHandCardDef(state, casterId, cardInstanceId);
-            return def?.additionalCosts?.sacrificeFilter;
+            const filter = def?.additionalCosts?.sacrificeFilter;
+            if (!filter) return undefined;
+            return {
+                filter,
+                count: def?.additionalCosts?.sacrificeFilterCount ?? 1,
+            };
         },
         getMaxAffordableX(controllerId, cardInstanceId) {
             // CR 107.3 / ADR 0037 — the largest X payable SOLELY from lands the
@@ -22875,7 +22881,7 @@ export function buildSpellContext(
             const targets = opts?.targets;
             const chosenX = opts?.chosenX;
             const chosenModeIds = opts?.chosenModeIds;
-            const additionalSacrificeId = opts?.additionalSacrificeId;
+            const additionalSacrificeIds = opts?.additionalSacrificeIds ?? [];
             // CR 608.2f (issue #1477) — the source zone (default hand, Word of
             // Command) and the free-cast waiver (Malcolm casts the discarded
             // card without paying its mana cost).
@@ -22917,24 +22923,41 @@ export function buildSpellContext(
             // sacrifice filter; an absent/illegal pick when the card REQUIRES a
             // sacrifice means the cost is unmeetable → not played ("if able").
             const sacrificeFilter = def.additionalCosts?.sacrificeFilter;
-            let sacrificed: CardInstanceState | undefined;
+            // Issue #3808 — the cost can demand MORE THAN ONE permanent
+            // ("sacrifice five lands"). Every id must be distinct, present on
+            // the controlled opponent's battlefield and matching, and there
+            // must be exactly as many as the cost demands: a short list is an
+            // unmeetable cost, not a discount.
+            const sacrificeCount =
+                def.additionalCosts?.sacrificeFilterCount ?? 1;
+            const sacrificed: CardInstanceState[] = [];
             if (sacrificeFilter) {
-                sacrificed = owner.battlefield.find(
-                    (c) => c.id === additionalSacrificeId
-                );
-                if (
-                    !sacrificed ||
-                    !matchesPermanentFilter(
-                        // CR 202.2 — populate effective colors so color-scoped
-                        // sacrifice filters match (mirrors getBattlefieldIds).
-                        {
-                            ...sacrificed,
-                            colors: STATIC_EFFECT_CTX.getColors(sacrificed),
-                        },
-                        sacrificeFilter
-                    )
-                ) {
-                    return false; // unmeetable additional cost — not played
+                const seen = new Set<string>();
+                for (const id of additionalSacrificeIds) {
+                    if (seen.has(id)) {
+                        return false; // one permanent cannot pay twice
+                    }
+                    seen.add(id);
+                    const victim = owner.battlefield.find((c) => c.id === id);
+                    if (
+                        !victim ||
+                        !matchesPermanentFilter(
+                            // CR 202.2 — populate effective colors so
+                            // color-scoped sacrifice filters match (mirrors
+                            // getBattlefieldIds).
+                            {
+                                ...victim,
+                                colors: STATIC_EFFECT_CTX.getColors(victim),
+                            },
+                            sacrificeFilter
+                        )
+                    ) {
+                        return false; // unmeetable additional cost — not played
+                    }
+                    sacrificed.push(victim);
+                }
+                if (sacrificed.length !== sacrificeCount) {
+                    return false; // CR 601.2h — partial payments are not allowed
                 }
             }
 
@@ -23012,8 +23035,14 @@ export function buildSpellContext(
             let additionalSacrificeSnapshot:
                 | StackItem["additionalSacrificeSnapshot"]
                 | undefined;
-            if (sacrificed) {
-                const sacCardId = (sacrificed.card as { id?: string }).id;
+            // The snapshot names "the sacrificed permanent", which only has a
+            // referent when the cost ate exactly one (issue #3808; the same
+            // rule `gre/activation.ts` states for the activated twin). A
+            // counted cost leaves it undefined rather than picking an
+            // arbitrary one of five.
+            if (sacrificed.length === 1) {
+                const only = sacrificed[0];
+                const sacCardId = (only.card as { id?: string }).id;
                 const sacDef = sacCardId
                     ? tryGetDefinition(sacCardId)
                     : undefined;
@@ -23023,13 +23052,12 @@ export function buildSpellContext(
                           0
                       )
                     : 0;
-                additionalSacrificeSnapshot = {
-                    cardInstanceId: sacrificed.id,
-                    mv,
-                };
+                additionalSacrificeSnapshot = { cardInstanceId: only.id, mv };
+            }
+            for (const victim of sacrificed) {
                 const movedSac = removePermanentTo(
                     state,
-                    sacrificed.id,
+                    victim.id,
                     "graveyard",
                     "sacrifice"
                 );
