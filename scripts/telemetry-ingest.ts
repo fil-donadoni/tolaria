@@ -40,7 +40,11 @@ import {
     listSessions,
     listMessages,
 } from "./lib/opencode-telemetry.ts";
-import { parseLaneLine, parseHealthLogRed } from "./lib/telemetry-latency.ts";
+import {
+    parseLaneLine,
+    parseLaneForcingPath,
+    parseHealthLogRed,
+} from "./lib/telemetry-latency.ts";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
 const DB_PATH = join(PROJECT_DIR, ".claude/telemetry/telemetry.db");
@@ -1010,8 +1014,8 @@ function ingestGateRuns(db: Sqlite): number {
     );
     const put = db.prepare(
         `INSERT OR REPLACE INTO gate_runs
-         (run, cmd, head, base, lane, green, started, ingested)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+         (run, cmd, head, base, lane, lane_forced_by, green, started, ingested)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
     const now = Math.floor(Date.now() / 1000);
     let n = 0;
@@ -1044,6 +1048,10 @@ function ingestGateRuns(db: Sqlite): number {
             readOpt("head"),
             readOpt("base"),
             parseLaneLine(log),
+            // The FALLBACK half of a `full` lane (issue #4376): parsed from
+            // the same line, out of the same log, at the same moment — so a
+            // row can never carry a lane without the reason it was that lane.
+            parseLaneForcingPath(log),
             existsSync(join(dir, "green")) ? 1 : 0,
             started,
             now

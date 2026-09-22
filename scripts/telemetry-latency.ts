@@ -33,6 +33,8 @@ import {
     isIssueClosing,
     isNextIssue,
     laneHistogram,
+    laneFallbackRate,
+    landPrOfCommand,
     blockingFindingRate,
     isGitCommitCommand,
     isTargetedVitestCommand,
@@ -186,11 +188,14 @@ const prMetaRows = db
     .all() as Array<{ pr: number; mergedAt: string }>;
 
 const gateRunRows = db
-    .query("SELECT cmd, base, lane, green, started FROM gate_runs")
+    .query(
+        "SELECT cmd, base, lane, lane_forced_by AS laneForcedBy, green, started FROM gate_runs"
+    )
     .all() as Array<{
     cmd: string;
     base: string | null;
     lane: string | null;
+    laneForcedBy: string | null;
     green: number;
     started: number | null;
 }>;
@@ -264,9 +269,9 @@ const sessionByPr = new Map<number, string>();
 for (const m of meta) for (const pr of m.prs) sessionByPr.set(pr, m.session);
 const sessionBases: SessionBaseSha[] = [];
 for (const g of gateRunRows) {
-    const m = g.cmd.match(/^land (\d+)$/);
-    if (!m || !g.base) continue;
-    const session = sessionByPr.get(Number(m[1]));
+    const pr = landPrOfCommand(g.cmd);
+    if (pr === null || !g.base) continue;
+    const session = sessionByPr.get(pr);
     if (session) sessionBases.push({ session, base: g.base });
 }
 const health: HealthVerdict[] = healthRows.map((r) => ({
@@ -280,10 +285,27 @@ const redOnRed = redOnRedBaseline(vitestSpans, sessionBases, health);
 // links to none — so it cannot be windowed through SESSIONS_IN_WINDOW).
 const fromS = Math.floor(new Date(`${from}T00:00:00`).getTime() / 1000);
 const toS = Math.floor(new Date(`${to}T23:59:59`).getTime() / 1000);
-const gateRunLanes: GateRunLane[] = gateRunRows
-    .filter((g) => g.started !== null && g.started >= fromS && g.started <= toS)
-    .map((g) => ({ lane: g.lane, green: g.green === 1 }));
+const inWindow = gateRunRows.filter(
+    (g) => g.started !== null && g.started >= fromS && g.started <= toS
+);
+const gateRunLanes: GateRunLane[] = inWindow.map((g) => ({
+    lane: g.lane,
+    green: g.green === 1,
+}));
 const lanes = laneHistogram(gateRunLanes);
+
+// Row 5 — lane fallback rate (issue #4376), over the LANDINGS in the same
+// window: the `full` runs that were `full` because a path matched no lane
+// rule, as opposed to the mixed src/**-plus-engine diffs `full` is for.
+const fallback = laneFallbackRate(
+    inWindow
+        .filter((g) => landPrOfCommand(g.cmd) !== null)
+        .map((g) => ({
+            cmd: g.cmd,
+            lane: g.lane,
+            forcedBy: g.laneForcedBy,
+        }))
+);
 
 const maxSeconds = maxHours * 3600;
 const rows = allSessionLatencies(turns, spans, meta).filter(
@@ -311,7 +333,7 @@ if (asJson) {
                 maxHours,
                 cohorts,
                 sessions: rows.slice(0, showSessions),
-                adr0136: { concurrency, reviewers, redOnRed, lanes },
+                adr0136: { concurrency, reviewers, redOnRed, lanes, fallback },
             },
             null,
             2
@@ -320,7 +342,9 @@ if (asJson) {
 } else {
     console.log(formatReport(from, to, cohorts, maxHours));
     console.log("");
-    console.log(formatAdr0136Rows(concurrency, reviewers, redOnRed, lanes));
+    console.log(
+        formatAdr0136Rows(concurrency, reviewers, redOnRed, lanes, fallback)
+    );
     if (showSessions > 0) {
         console.log("");
         console.log(`  slowest ${showSessions} sessions`);

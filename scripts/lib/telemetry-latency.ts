@@ -700,6 +700,73 @@ export function laneHistogram(rows: GateRunLane[]): LaneCount[] {
 }
 
 /**
+ * One landing's lane facts (issue #4376) — a `gate_runs` row whose command is
+ * `land <PR#>`, carrying the lane `check:lane` classified inside `land`'s
+ * locked command and, when that lane was `full` BY FALLBACK, the first path
+ * the classifier recognised no rule for.
+ */
+export interface GateRunLanding {
+    /** The run dir's command file, verbatim (`land 4376`). */
+    cmd: string;
+    /** `gate_runs.lane`, or null when the log carried no `check:lane` line. */
+    lane: string | null;
+    /** `gate_runs.lane_forced_by`: the first unrecognised path, else null. */
+    forcedBy: string | null;
+}
+
+export interface LaneFallbackRate {
+    /** Landings that PAID a lane in the window (a lane line was parsed). */
+    landings: number;
+    /** Of those, the ones whose lane was `full` because a path matched no rule. */
+    fallback: number;
+    rate: number;
+    /** One row per fallback landing, newest-agnostic, with the forcing path. */
+    forced: Array<{ cmd: string; path: string }>;
+}
+
+/**
+ * ADR 0136's fifth KPI row (issue #4376): how often a landing paid the FULL
+ * gate not because the diff really spanned the client and the engine, but
+ * because one path matched no lane rule at all.
+ *
+ * WHY IT IS ITS OWN ROW and not a slice of {@link laneHistogram}: the
+ * histogram counts `full` runs, and `full` has two causes that cost the same
+ * and mean opposite things. A diff spanning `src/**` and `convex/**` is
+ * `full` BY DESIGN — that is the mixed case ADR 0136 §3 deliberately refuses
+ * to narrow. A diff stopped by a path outside every rule is `full` BY
+ * FALLBACK, and each one is a question: should that path have a lane? Nothing
+ * measured the second kind, which is how `.claude/**` went on charging
+ * `check:pr` for a `SKILL.md` for as long as it did.
+ *
+ * Only the fallback case is counted, and it is read positively: the
+ * classifier's own rationale names the first unrecognised path, so a row here
+ * always has a path to point at. Landings with no parsed lane are excluded
+ * from BOTH sides rather than folded in as green — `land` writes no
+ * `check:lane` line when it skips the lane on an already-gated tip, and a
+ * skipped lane is not a `full` one.
+ */
+export function laneFallbackRate(rows: GateRunLanding[]): LaneFallbackRate {
+    const withLane = rows.filter((r) => r.lane !== null);
+    const forced = withLane
+        .filter((r) => r.lane === "full" && r.forcedBy !== null)
+        .map((r) => ({ cmd: r.cmd, path: r.forcedBy as string }));
+    return {
+        landings: withLane.length,
+        fallback: forced.length,
+        rate: withLane.length > 0 ? forced.length / withLane.length : 0,
+        forced,
+    };
+}
+
+/** The PR number of a `land <PR#>` gate-run command, else null. Shared by the
+ *  base-sha join of {@link redOnRedBaseline} and the landing filter of
+ *  {@link laneFallbackRate}, so "what counts as a landing" is one predicate. */
+export function landPrOfCommand(cmd: string): number | null {
+    const m = cmd.match(/^land (\d+)$/);
+    return m ? Number(m[1]) : null;
+}
+
+/**
  * Does `cmd` actually INVOKE `git commit`, rather than merely mention the
  * words? `spans.cmd` is the verbatim (160-char-truncated) shell command, so a
  * `grep -rn "git commit" ...` run in the SAME session as a review span would
@@ -729,6 +796,24 @@ export function isTargetedVitestCommand(cmd: string): boolean {
  */
 export function parseLaneLine(log: string): string | null {
     const m = log.match(/^lane:\s{2,}(\S+)\s+\(HEAD\b/m);
+    return m ? m[1] : null;
+}
+
+/**
+ * The path that FORCED the full gate, from a `full` lane receipt (issue
+ * #4376) — `fullRationale` in `check-lane.ts` writes
+ * `N files, M outside every lane rule (first: <path>)` into the same line
+ * {@link parseLaneLine} reads.
+ *
+ * Returns null for every other shape, and that is the load-bearing part: the
+ * OTHER `full` rationale ("spanning src/** and convex|scripts|data/**") is the
+ * mixed case, `full` by design rather than by fallback, and it carries no
+ * such clause. So a null here means "not a fallback", never "could not tell".
+ */
+export function parseLaneForcingPath(log: string): string | null {
+    const m = log.match(
+        /^lane:\s{2,}full\s+\(HEAD\b.*?outside every lane rule \(first: ([^)\n]+)\)/m
+    );
     return m ? m[1] : null;
 }
 
@@ -804,7 +889,7 @@ export function formatReport(
 }
 
 /**
- * Render the four ADR 0136 KPI rows as a plain-text receipt appended after
+ * Render the five ADR 0136 KPI rows as a plain-text receipt appended after
  * {@link formatReport} — same window (the caller passes rows already
  * restricted to the sessions the shared window query selected), one section
  * per row.
@@ -813,7 +898,8 @@ export function formatAdr0136Rows(
     concurrency: ConcurrencyRow[],
     reviewers: ReviewerModelRow[],
     redOnRed: RedOnRedBaseline,
-    lanes: LaneCount[]
+    lanes: LaneCount[],
+    fallback: LaneFallbackRate
 ): string {
     const out: string[] = [];
 
@@ -873,6 +959,20 @@ export function formatAdr0136Rows(
                 7
             )}`
         );
+    }
+
+    out.push("");
+    out.push(
+        "  lane fallback rate — landings that paid `full` for a path outside every lane rule"
+    );
+    out.push(
+        `  ${fallback.fallback} / ${fallback.landings} landings ` +
+            `(${(fallback.rate * 100).toFixed(0)}%) fell back`
+    );
+    // Named per landing, not just counted: the row exists to point at a path
+    // and ask whether it should have a lane.
+    for (const f of fallback.forced) {
+        out.push(`  ${pad(f.cmd, 12, false)} ${f.path}`);
     }
 
     return out.join("\n");

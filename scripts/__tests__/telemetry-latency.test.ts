@@ -3,6 +3,7 @@ import {
     allSessionLatencies,
     blockingFindingRate,
     estimateGenerationSeconds,
+    formatAdr0136Rows,
     formatReport,
     hourlyThroughput,
     isGateSpan,
@@ -11,6 +12,9 @@ import {
     isNextIssue,
     isTargetedVitestCommand,
     laneHistogram,
+    laneFallbackRate,
+    landPrOfCommand,
+    parseLaneForcingPath,
     parseHealthLogRed,
     parseLaneLine,
     quantile,
@@ -25,6 +29,7 @@ import {
     type LatencySpan,
     type LatencyTurn,
 } from "../lib/telemetry-latency";
+import { classifyLane, renderPlan } from "../check-lane";
 
 /**
  * `scripts/lib/telemetry-latency.ts` (issue #3079) — the wall/tool/model/idle
@@ -560,6 +565,119 @@ describe("parseLaneLine", () => {
         const m = "lane: ran\n".match(loose);
         expect(m?.[1]).toBe("ran"); // the bug this test guards against
         expect(parseLaneLine("lane: ran\n")).toBeNull(); // the real parser does not
+    });
+});
+
+describe("parseLaneForcingPath (issue #4376)", () => {
+    /**
+     * Not a hand-typed string: `renderPlan` is what really writes the line the
+     * ingest parses, so the fixture comes from it. A parser tested against a
+     * transcription of a format is a parser that keeps passing after the
+     * format moves.
+     */
+    const receipt = (files: string[]) =>
+        renderPlan(classifyLane(files), "abc1234def56");
+
+    it("names the first path outside every lane rule", () => {
+        const log = receipt([".claude/hooks/deny-guard.sh", "src/App.tsx"]);
+        expect(parseLaneForcingPath(log)).toBe(".claude/hooks/deny-guard.sh");
+    });
+
+    it("returns null for the MIXED full diff — full by design, not by fallback", () => {
+        const log = receipt(["src/App.tsx", "convex/gre/sba.ts"]);
+        expect(parseLaneLine(log)).toBe("full");
+        expect(parseLaneForcingPath(log)).toBeNull();
+    });
+
+    it("returns null for a narrowed lane", () => {
+        expect(
+            parseLaneForcingPath(receipt(["docs/adr/0136-x.md"]))
+        ).toBeNull();
+        expect(parseLaneForcingPath(receipt(["src/App.tsx"]))).toBeNull();
+    });
+
+    it("returns null on a log with no lane line at all", () => {
+        expect(parseLaneForcingPath("lane: ran\n")).toBeNull();
+        expect(parseLaneForcingPath("")).toBeNull();
+    });
+
+    /**
+     * The `.claude/**` split this issue shipped, read back end to end: the
+     * skill edit that used to be a fallback is now a docs lane with no
+     * forcing path, and the hook edit still is one.
+     */
+    it("a SKILL.md no longer forces the full gate; a hook still does", () => {
+        expect(
+            parseLaneForcingPath(
+                receipt([".claude/skills/next-issue/SKILL.md"])
+            )
+        ).toBeNull();
+        expect(
+            parseLaneForcingPath(receipt([".claude/skills/next-issue/run.sh"]))
+        ).toBe(".claude/skills/next-issue/run.sh");
+    });
+});
+
+describe("landPrOfCommand", () => {
+    it("reads the PR out of a land command and nothing else", () => {
+        expect(landPrOfCommand("land 4376")).toBe(4376);
+        expect(landPrOfCommand("check:lane")).toBeNull();
+        expect(landPrOfCommand("land 4376 --force")).toBeNull();
+        expect(landPrOfCommand("bun run land 4376")).toBeNull();
+    });
+});
+
+describe("laneFallbackRate (issue #4376)", () => {
+    it("counts only the landings that were full BY FALLBACK", () => {
+        const r = laneFallbackRate([
+            { cmd: "land 1", lane: "full", forcedBy: ".claude/hooks/x.sh" },
+            { cmd: "land 2", lane: "full", forcedBy: null }, // the mixed case
+            { cmd: "land 3", lane: "engine", forcedBy: null },
+            { cmd: "land 4", lane: "cards", forcedBy: null },
+        ]);
+        expect(r.landings).toBe(4);
+        expect(r.fallback).toBe(1);
+        expect(r.rate).toBeCloseTo(0.25);
+        expect(r.forced).toEqual([
+            { cmd: "land 1", path: ".claude/hooks/x.sh" },
+        ]);
+    });
+
+    it("excludes a landing that paid no lane from BOTH sides", () => {
+        // `land` writes no check:lane line when it skips the lane on an
+        // already-gated tip; a skipped lane is not a `full` one.
+        const r = laneFallbackRate([
+            { cmd: "land 1", lane: null, forcedBy: null },
+            { cmd: "land 2", lane: "full", forcedBy: "package.json" },
+        ]);
+        expect(r.landings).toBe(1);
+        expect(r.fallback).toBe(1);
+        expect(r.rate).toBe(1);
+    });
+
+    it("is 0/0 rather than NaN on an empty window", () => {
+        const r = laneFallbackRate([]);
+        expect(r).toEqual({ landings: 0, fallback: 0, rate: 0, forced: [] });
+    });
+
+    it("renders the rate and names the forcing path per landing", () => {
+        const out = formatAdr0136Rows(
+            [],
+            [],
+            { redRuns: 0, onRedBaseline: 0, rate: 0 },
+            [],
+            laneFallbackRate([
+                {
+                    cmd: "land 4376",
+                    lane: "full",
+                    forcedBy: ".claude/hooks/deny-guard.sh",
+                },
+                { cmd: "land 4377", lane: "engine", forcedBy: null },
+            ])
+        );
+        expect(out).toContain("lane fallback rate");
+        expect(out).toContain("1 / 2 landings (50%) fell back");
+        expect(out).toMatch(/land 4376\s+\.claude\/hooks\/deny-guard\.sh/);
     });
 });
 
