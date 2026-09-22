@@ -57,11 +57,38 @@ export function parentIsAbandoned(parent: ParentState | null): boolean {
     );
 }
 
-/** An open issue as the sweep sees it — `gh issue list --json number,title,parent`. */
+/** An open issue as the sweep sees it —
+ *  `gh issue list --json number,title,parent,labels,assignees`. */
 export interface SweepIssue {
     number: number;
     title: string;
     parent: { number: number; state?: string } | null;
+    /** REQUIRED, like `QueueParent.state`: the sweep can CLOSE things, and a
+     *  claim field a caller may omit degrades the hold-back below to "unless
+     *  somebody forgot to ask for labels". `tsc` is the enforcement. */
+    labels: { name: string }[];
+    assignees: { login: string }[];
+}
+
+/**
+ * Who is holding this issue right now, as a phrase to print — `null` when
+ * nobody is.
+ *
+ * The invariant the whole feature rests on ("a `NOT_PLANNED` parent means
+ * abandoned") is upheld by CONVENTION: `/audit-tracker` Phase 7 keeps a
+ * tracker with survivors open, but nothing stops a maintainer closing a
+ * tracker as `not planned` from the GitHub UI while a child is genuinely
+ * mid-flight. So the sweep mirrors `planBatch`'s Stage-1 filter — the picker
+ * diverts every `in-progress` and assigned issue before the orphan check ever
+ * runs, and a sweep that did not would close a live issue out from under the
+ * session working it.
+ */
+export function claimOf(issue: SweepIssue): string | null {
+    if (issue.labels.some((l) => l.name === "in-progress")) {
+        return "in-progress";
+    }
+    const assignees = issue.assignees.map((a) => a.login);
+    return assignees.length > 0 ? `assigned to ${assignees.join(", ")}` : null;
 }
 
 /** One orphan, ready to print or to close. */
@@ -69,6 +96,9 @@ export interface Orphan {
     number: number;
     title: string;
     parent: number;
+    /** `claimOf` — printed on the row, and what holds the issue back from
+     *  `--close`. */
+    claim: string | null;
 }
 
 /**
@@ -98,6 +128,7 @@ export function orphanedIssues(
             number: issue.number,
             title: issue.title,
             parent: issue.parent.number,
+            claim: claimOf(issue),
         });
     }
     return out;
@@ -116,6 +147,24 @@ export function distinctParents(issues: readonly SweepIssue[]): number[] {
         if (issue.parent != null) seen.add(issue.parent.number);
     }
     return [...seen].sort((a, b) => a - b);
+}
+
+/**
+ * `--close`'s two piles: the orphans it may close, and the ones a live claim
+ * holds back.
+ *
+ * A partition, not a filter, because the held ones must still be REPORTED —
+ * an orphan silently dropped from the sweep is the state issue #3016 sat in,
+ * one convention removed.
+ */
+export function partitionForClose(orphans: readonly Orphan[]): {
+    closable: Orphan[];
+    held: Orphan[];
+} {
+    return {
+        closable: orphans.filter((o) => o.claim === null),
+        held: orphans.filter((o) => o.claim !== null),
+    };
 }
 
 /** The comment the sweep leaves when it closes an orphan — named here so the

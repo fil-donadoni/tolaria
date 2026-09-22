@@ -1,9 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
+    claimOf,
     distinctParents,
     orphanCloseComment,
     orphanedIssues,
     parentIsAbandoned,
+    partitionForClose,
     type ParentState,
     type SweepIssue,
 } from "../lib/orphans";
@@ -21,9 +23,16 @@ import { truncationWarning } from "../issues-orphans";
 
 function sweepIssue(
     number: number,
-    parent: { number: number; state?: string } | null = null
+    parent: { number: number; state?: string } | null = null,
+    claim: { labels?: string[]; assignees?: string[] } = {}
 ): SweepIssue {
-    return { number, title: `issue ${number}`, parent };
+    return {
+        number,
+        title: `issue ${number}`,
+        parent,
+        labels: (claim.labels ?? []).map((name) => ({ name })),
+        assignees: (claim.assignees ?? []).map((login) => ({ login })),
+    };
 }
 
 const ABANDONED: ParentState = {
@@ -71,8 +80,8 @@ describe("orphanedIssues — the sweep's classification", () => {
             () => ABANDONED
         );
         expect(orphans).toEqual([
-            { number: 200, title: "issue 200", parent: 100 },
-            { number: 201, title: "issue 201", parent: 100 },
+            { number: 200, title: "issue 200", parent: 100, claim: null },
+            { number: 201, title: "issue 201", parent: 100, claim: null },
         ]);
     });
 
@@ -96,6 +105,63 @@ describe("orphanedIssues — the sweep's classification", () => {
                 () => undefined
             )
         ).toEqual([]);
+    });
+});
+
+describe("claimOf — a live claim holds an orphan back from --close", () => {
+    // The `NOT_PLANNED` parent is a CONVENTION (`/audit-tracker` Phase 7), not
+    // a lock: nothing stops a maintainer closing a tracker as `not planned`
+    // from the GitHub UI while a child is mid-flight. `planBatch` diverts every
+    // claimed and assigned issue before its orphan check ever runs; a sweep
+    // that did not mirror that would close a live issue out from under the
+    // session working it.
+    it("reports the in-progress label", () => {
+        expect(
+            claimOf(sweepIssue(200, null, { labels: ["in-progress"] }))
+        ).toBe("in-progress");
+    });
+
+    it("reports assignees when there is no claim label", () => {
+        expect(claimOf(sweepIssue(200, null, { assignees: ["ada"] }))).toBe(
+            "assigned to ada"
+        );
+    });
+
+    it("is null for an unclaimed, unassigned issue", () => {
+        expect(claimOf(sweepIssue(200, null, { labels: ["bug"] }))).toBe(null);
+    });
+
+    it("carries the claim onto the orphan row", () => {
+        const [orphan] = orphanedIssues(
+            [
+                sweepIssue(
+                    200,
+                    { number: 100, state: "CLOSED" },
+                    { labels: ["in-progress"] }
+                ),
+            ],
+            () => ABANDONED
+        );
+        expect(orphan.claim).toBe("in-progress");
+    });
+});
+
+describe("partitionForClose — what --close may actually close", () => {
+    const orphans = [
+        { number: 200, title: "a", parent: 100, claim: null },
+        { number: 201, title: "b", parent: 100, claim: "in-progress" },
+        { number: 202, title: "c", parent: 100, claim: "assigned to ada" },
+    ];
+
+    it("holds every claimed orphan back", () => {
+        const { closable, held } = partitionForClose(orphans);
+        expect(closable.map((o) => o.number)).toEqual([200]);
+        expect(held.map((o) => o.number)).toEqual([201, 202]);
+    });
+
+    it("partitions — a held orphan is still reported, never dropped", () => {
+        const { closable, held } = partitionForClose(orphans);
+        expect(closable.length + held.length).toBe(orphans.length);
     });
 });
 
@@ -132,6 +198,7 @@ describe("orphanCloseComment", () => {
             number: 200,
             title: "issue 200",
             parent: 100,
+            claim: null,
         });
         expect(comment).toContain("#100");
         expect(comment).toContain("not planned");

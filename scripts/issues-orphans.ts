@@ -21,6 +21,7 @@ import {
     distinctParents,
     orphanCloseComment,
     orphanedIssues,
+    partitionForClose,
     type Orphan,
     type ParentState,
     type SweepIssue,
@@ -73,8 +74,9 @@ function fetchOpenIssues(limit: number): SweepIssue[] {
             "--json",
             // `parent` carries the parent's number and `state`; `stateReason`
             // is NOT on it, which is why the parents are resolved separately
-            // below — once each, not once per child.
-            "number,title,parent",
+            // below — once each, not once per child. `labels`/`assignees` are
+            // the claim, which holds an orphan back from `--close`.
+            "number,title,parent,labels,assignees",
             "--limit",
             String(limit),
         ]) || "[]"
@@ -155,22 +157,34 @@ function main(): void {
     console.log(
         `${BOLD}${orphans.length} orphan(s)${RESET} ${DIM}— open, under a parent closed as \`not planned\` (issue #4105)${RESET}\n`
     );
+    const { closable, held } = partitionForClose(orphans);
     for (const orphan of orphans) {
+        const claim = orphan.claim
+            ? `  ${YELLOW}HELD — ${orphan.claim}${RESET}`
+            : "";
         console.log(
-            `  #${orphan.number}  ${orphan.title}\n    ${DIM}parent #${orphan.parent} — CLOSED / NOT_PLANNED${RESET}`
+            `  #${orphan.number}  ${orphan.title}${claim}\n    ${DIM}parent #${orphan.parent} — CLOSED / NOT_PLANNED${RESET}`
+        );
+    }
+
+    if (held.length > 0) {
+        console.log(
+            `\n${YELLOW}${held.length} of these is held by a live claim${RESET} and will NOT be closed: the ` +
+                `\`NOT_PLANNED\` parent is a convention, not a lock, and somebody may be working it right now. ` +
+                `Reopen and re-parent it, or release the claim first.`
         );
     }
 
     if (!close) {
         console.log(
-            `\n${DIM}read-only. Re-run with --close to close them as \`not planned\` with a comment citing the parent;\n` +
+            `\n${DIM}read-only. Re-run with --close to close the unheld ones as \`not planned\` with a comment citing the parent;\n` +
                 `a slice that is still live should be reopened and re-parented to an OPEN umbrella instead.${RESET}`
         );
         return;
     }
 
     console.log("");
-    for (const orphan of orphans) {
+    for (const orphan of closable) {
         try {
             closeOrphan(orphan);
             console.log(`  ${GREEN}✓${RESET} closed #${orphan.number}`);
@@ -179,6 +193,11 @@ function main(): void {
                 `  ${YELLOW}⚠${RESET} #${orphan.number} — ${(err as Error).message.split("\n")[0]}`
             );
         }
+    }
+    for (const orphan of held) {
+        console.log(
+            `  ${YELLOW}·${RESET} left open #${orphan.number} ${DIM}(${orphan.claim})${RESET}`
+        );
     }
 }
 
