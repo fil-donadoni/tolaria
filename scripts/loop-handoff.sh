@@ -287,10 +287,13 @@ stamp_stream() {
 DETACH_PIPELINE='_prog=$1; shift; if command -v perl >/dev/null 2>&1; then "$@" 2>&1 | perl -ne "$_prog"; else "$@" 2>&1; fi'
 
 # The session-detaching wrapper, named once so the --dry-run line and the real
-# spawn can never print different things. Deliberately free of `$` and of
-# backticks so it survives `perl -e "$SETSID_PERL"`: the older inline form
-# carried `die "exec: $!"`, which a double-quoted expansion would have turned
-# into the shell's last background pid.
+# spawn can never print different things — the old inline form was printed by
+# one and executed by the other, which is exactly how the two drift.
+# Single-quoted, so the perl program is one opaque word: the shell expands
+# this variable once and never re-scans the result, which is why `@ARGV` and a
+# `$`-carrying perl program would both be safe here. It is nonetheless written
+# without `$` because the --dry-run line prints it UNQUOTED, and a reader
+# copying that line into a terminal would have the shell eat it.
 SETSID_PERL='use POSIX (); POSIX::setsid(); exec @ARGV; die "loop-handoff: exec failed\n";'
 
 # What an operator reads immediately before the run begins. A function rather
