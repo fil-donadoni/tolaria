@@ -1,7 +1,8 @@
 ---
 title: check:lane's skin lane skips the bot suite for a src/lib/ai/** diff
 discoveredBy: 3404
-status: draft
+status: triaged
+issue: 3435
 confidence: high
 ---
 

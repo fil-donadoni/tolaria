@@ -127,8 +127,10 @@ node-tooling src/ scripts/`), with
 a paired skip entry recording what that excludes. The only diff-derived
 commands are `format(diff)` / `lint(diff)`, which are prettier and eslint,
 not vitest projects. What a lane otherwise decides is whether a project runs
-**at all**: `skin` never runs the bot fast lane or the node project's
-`convex/**` half; `engine` runs `node-engine` and admits `node-tooling` only
+**at all**: `skin` never runs the node project's `convex/**` half and admits
+each bot project only when the diff contains a path one of its tests can
+reach (see § The skin lane and the bot projects below); `engine` runs
+`node-engine` and admits `node-tooling` only
 for a `scripts/**` diff (see § Node partitions below); `engine` never runs
 `dom` — and that last one **is** a
 deliberate narrowing of #2655's admission decision, not a preservation of
@@ -179,20 +181,21 @@ now confirm.
 
 ### What each lane skips, and why each skip is safe
 
-| check                 | skin                       | engine      | cards                                |
-| --------------------- | -------------------------- | ----------- | ------------------------------------ |
-| format + lint         | diff-scoped                | diff-scoped | diff-scoped                          |
-| `check:ts`            | `app` + `scripts` projects | whole       | `convex` project                     |
-| `check:bundle`        | yes                        | yes         | yes                                  |
-| `check:index`/`stubs` | no                         | yes         | yes                                  |
-| `check:oracle`        | no                         | yes         | yes                                  |
-| `cr:lint`             | yes                        | yes         | yes                                  |
-| bot fast lane         | no                         | yes         | no — `bot-node` over `convex/cards/` |
-| `node` — `convex/**`  | no                         | yes         | `convex/cards/` only                 |
-| `node` — `scripts/**` | yes                        | yes         | no                                   |
-| `node` — `src/**`     | yes                        | no          | no                                   |
-| `node[docs]`          | if prose in the diff       | same        | same                                 |
-| `dom`                 | whole                      | no          | no                                   |
+| check                 | skin                       | engine      | cards                |
+| --------------------- | -------------------------- | ----------- | -------------------- |
+| format + lint         | diff-scoped                | diff-scoped | diff-scoped          |
+| `check:ts`            | `app` + `scripts` projects | whole       | `convex` project     |
+| `check:bundle`        | yes                        | yes         | yes                  |
+| `check:index`/`stubs` | no                         | yes         | yes                  |
+| `check:oracle`        | no                         | yes         | yes                  |
+| `cr:lint`             | yes                        | yes         | yes                  |
+| `bot-dom`             | if the diff reaches one    | yes         | no                   |
+| `bot-node`            | if the diff reaches one    | yes         | `convex/cards/` only |
+| `node` — `convex/**`  | no                         | yes         | `convex/cards/` only |
+| `node` — `scripts/**` | yes                        | yes         | no                   |
+| `node` — `src/**`     | yes                        | no          | no                   |
+| `node[docs]`          | if prose in the diff       | same        | same                 |
+| `dom`                 | whole                      | no          | no                   |
 
 Three rows are decisions, not oversights (PRD #2738 § Implementation
 Decisions has the full reasoning; summarised here):
@@ -261,6 +264,41 @@ both; 109 classify as `engine` after the change, against 34 before):
   receipt's skip reasons say "no changed **code** under X" for exactly this
   reason: a nested `CLAUDE.md` sits under the directory they name, and the
   truth test in `check-lane.test.ts` checks the claim against the code paths.
+
+### The skin lane and the bot projects — a computed reach, not a fourth list (issue #3435)
+
+`skin` used to skip both bot projects with one entry whose reason read "no
+changed code under `convex/**` or `scripts/**` — the bot suites cannot go
+red". That reason was false. `vitest.config.ts` routes
+`src/**/*.bot.test.{ts,tsx}` to `bot-dom` and EXCLUDES those files from `dom`,
+and `bot-dom` is selected only by the `engine` lane and `test:bot` — so no
+lane a `src/**`-only diff can land in ran a `src` bot test, **including the
+bot tests of the very modules the diff changed**. Observed on the issue #3404
+PR: three bot modules changed, two new `src` bot tests shipped, `skip: bot
+fast lane`. `bun run release` caught it later, on the base tip, against
+whoever landed next.
+
+`scripts/__tests__/ladder-worker-boundary.bot.test.ts` imports
+`src/lib/ai/selfplay/ladder.ts`, so the same hole existed for `bot-node`.
+
+**The predicate is computed, never declared.** `botSubjects`
+(`scripts/test-env-split.ts`) walks the transitive local import closure of
+every `*.bot.test.{ts,tsx}` and keeps its `src/**` half, once per bot project;
+the `skin` lane runs a project when the diff contains one of those paths.
+Measured 150 of 1449 `src` code files in 0.3s — so the ~90% of skin diffs that
+cannot reach a bot test keep their cost, and the ones that can pay the project
+**whole** (ADR 0104: admission, never a diff-derived subset).
+
+A hand-maintained list was the wrong shape and the repo already had two
+overlapping ones — `BOT_GLOBS` (`scripts/lib/bot-globs.ts`) and the
+bot-suite boundary guard's exact-module list. Neither names the DecisionTrace
+debug components under `src/components/debug/`, which
+`ai-decision-trace-box.bot.test.tsx` renders, so a list-shaped fix would have
+closed the hole for `src/lib/ai/**` and left it open there. `BOT_GLOBS` is
+unchanged and unions in as `bot-dom`'s net for the one shape an import walk
+structurally cannot see: `brain-client.ts` spawns the Brain worker through
+`new Worker(new URL("./brain.worker.ts", import.meta.url))`, a specifier no
+import graph contains.
 
 ### `.claude/**` is split: skills and rules are prose, hooks are programs (issue #4376)
 
