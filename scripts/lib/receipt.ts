@@ -162,8 +162,9 @@ export interface WorkReceipt extends ReceiptCommon, RoundedReceipt {
      * (`BOT_GLOBS` in `bot-globs.ts`) — see {@link BladeField}. `writeReceipt`
      * enforces this (issue #2688); `parseReceipt` itself never does, on
      * purpose, because it is also what every EXISTING receipt on disk is read
-     * through (`readReceipts`/`readReceiptsFromDir`, which back the
-     * merge-train's `queue:train`), and hundreds of those predate this field.
+     * through (`readReceipts`/`readReceiptsFromDir`, which backed the
+     * merge-train's `queue:train` and today back `loop:status`), and hundreds
+     * of those predate this field.
      * So: optional on parse always — a non-Bot PR carries no opinion on blade
      * entries, and a Bot-touching receipt written before this schema existed
      * (or hand-constructed by a test) still parses with the field absent —
@@ -575,8 +576,9 @@ export function parseReceipt(value: unknown): Receipt {
     // NOTE: the #2688 "Bot-touching work receipt must declare `blade`" rule
     // is deliberately NOT enforced here. `parseReceipt` is also how every
     // receipt already on disk gets read back (`readReceipts` /
-    // `readReceiptsFromDir`, which the merge-train's `queue:train` runs on),
-    // and this field postdates hundreds of those. Enforcing it at parse time
+    // `readReceiptsFromDir`, which the merge-train's `queue:train` ran on and
+    // `loop:status` runs on today), and this field postdates hundreds of
+    // those. Enforcing it at parse time
     // would retroactively flip every pre-existing Bot-touching receipt to
     // "unreadable" and quarantine its issue out of any batch that reads it —
     // punishing history for a schema it could not have known about. The rule
@@ -610,9 +612,10 @@ export function receiptDir(projectRoot: string, batchId: string): string {
  * `12-fixup-3.json`.
  *
  * **Round 1 (or an absent `round`) MUST keep the un-suffixed name.** That is
- * not an implementation detail: `.claude/hooks/receipt-guard.sh`'s accounting,
- * the scorecard's readers, every test fixture on disk and every doc line that
- * instructs an agent to write `<issue>-<role>.json` all key off it. Only
+ * not an implementation detail: the retired `receipt-guard.sh`'s accounting
+ * and the scorecard's readers keyed off it, and every test fixture on disk and
+ * every doc line that instructs an agent to write `<issue>-<role>.json` still
+ * do. Only
  * `round >= 2` earns a suffix, so the overwhelming common case — one
  * implement, one review, at most one fixup — is unaffected by this file
  * existing at all.
@@ -734,8 +737,8 @@ export function writeReceipt(
 
     // Misrouted-batch guard: a subagent handed the WRONG batch id (a typo'd
     // session id, e.g.) writes into a directory that looks empty and is
-    // therefore silently invisible to `queue:train` — the exact failure this
-    // exists to catch (a reviewer's verdict landed in a batch dir nobody read
+    // therefore silently invisible to the reader it was written for — the
+    // exact failure this exists to catch (a reviewer's verdict landed in a batch dir nobody read
     // back). The signal is cheap and specific: this issue's receipts already
     // live in a DIFFERENT batch directory, and we are about to create a new
     // one. A subagent can never learn its own session id (it only ever
@@ -748,8 +751,8 @@ export function writeReceipt(
     // directory already exists, so the check is skipped entirely); or a
     // misroute where the repeated issue's receipt is written SECOND into a
     // dir some other (issue, role) already created. And in the real loop the
-    // batch dir usually exists before any numbered receipt reaches it at all
-    // — `.claude/hooks/receipt-guard.sh` does `mkdir -p "$dir"` on every
+    // batch dir usually existed before any numbered receipt reached it at all
+    // — the retired `receipt-guard.sh` did `mkdir -p "$dir"` on every
     // `SubagentStop`, which in the 08-18 batch ran a full hour before the
     // first receipt was written — so this guard fires far less often than a
     // reader would assume from its name. Do not treat it as a general
@@ -768,10 +771,10 @@ export function writeReceipt(
                     `issue ${receipt.issue} — issue ${receipt.issue} already has ` +
                     `receipt(s) in ${sibling}, a different batch. This is the shape ` +
                     `of a caller handed the wrong batch id (a typo'd session id ` +
-                    `mints a new, empty-looking directory that "queue:train" never ` +
-                    `reads, since it only ever reads the ONE batch dir it was told ` +
+                    `mints a new, empty-looking directory a batch reader never ` +
+                    `opens, since it only ever reads the ONE batch dir it was told ` +
                     `about — the new one). Writing into ${sibling} instead would make ` +
-                    `the receipt invisible to the CURRENT train, which is the same ` +
+                    `the receipt invisible to the CURRENT batch, which is the same ` +
                     `misroute again. Re-run with the correct batch id, or — if this ` +
                     `genuinely is a fresh re-attempt of issue ${receipt.issue} in a ` +
                     `new batch — set TOLARIA_ALLOW_RECEIPT_REBATCH=1 and re-run.`
@@ -953,9 +956,9 @@ function nowSeconds(): number {
  * The newest batch directory directly under `receiptsRoot`, by mtime — "the
  * current batch's receipts" that `loop:status` (#2519) surfaces. Nothing
  * indexes batches by recency elsewhere; the closest precedent
- * (`loop-scorecard.ts`) reads every batch dir for a window, which is the
- * wrong shape here (a scorecard aggregates history, `loop:status` wants only
- * what is happening right now).
+ * (the retired `loop-scorecard.ts`) read every batch dir for a window, which
+ * is the wrong shape here (a scorecard aggregates history, `loop:status` wants
+ * only what is happening right now).
  *
  * Tolerant like every other reader in this module: an unreadable or
  * concurrently-removed entry is skipped rather than thrown — several

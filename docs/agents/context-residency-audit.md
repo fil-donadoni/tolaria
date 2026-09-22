@@ -16,7 +16,7 @@ events over 293 sessions — is **gitignored** (`.gitignore:46`). It lives only 
 the machine that produced it. This audit was run in a remote container cloned
 fresh from `origin`, where the same file holds **28 events from this session
 alone** and `.claude/receipts/` does not exist. `bun run loop:scorecard --days
-30` prints zeroes and says so.
+30` (the script issue #3131 has since retired) printed zeroes and said so.
 
 So the programme splits cleanly in two, and only one half is answerable here:
 
