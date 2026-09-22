@@ -88,7 +88,7 @@ describe("ResultCard availability gating", () => {
         expect(onAdd).toHaveBeenCalledWith(
             "print-1",
             "Sliver Queen",
-            "print-1"
+            undefined
         );
     });
 
@@ -108,9 +108,62 @@ describe("ResultCard availability gating", () => {
             expect(onAdd).toHaveBeenCalledWith(
                 "print-1",
                 "Sliver Queen",
-                "print-1"
+                undefined
             );
             unmount();
         }
+    });
+});
+
+// Card Prints (ADR 0140, issue #4117): which id the grid hands `onAdd` as the
+// DEFINITION id. A search-index entry's `cardId` IS the Card Definition id, so
+// it is sent. A Full Catalogue entry's `cardId` is a PRINT id
+// (`makeCatalogueEntry`), and sending that would store a printing in the
+// definition field permanently — `withDefinitionId` only fills a MISSING one —
+// so the card must send nothing and let the server resolve it.
+describe("ResultCard definitionId hand-off", () => {
+    it("sends the entry's own cardId for a search-index entry", () => {
+        const onAdd = vi.fn();
+        const indexed: CardIndexEntry = {
+            ...entry(true),
+            cardId: "sliver-queen",
+            oracleText: "All Sliver creatures have this ability.",
+            oracleFold: "all sliver creatures have this ability.",
+        };
+        const { getByTestId } = render(
+            <ResultCard
+                entry={indexed}
+                activeSets={[]}
+                allowedSets={null}
+                enforceAvailability
+                onAdd={onAdd}
+            />
+        );
+        fireEvent.click(getByTestId("draggable"));
+        expect(onAdd).toHaveBeenCalledWith(
+            "print-1",
+            "Sliver Queen",
+            "sliver-queen"
+        );
+    });
+
+    it("sends nothing for a Full Catalogue entry, whose cardId is a print id", () => {
+        const onAdd = vi.fn();
+        const { getByTestId } = render(
+            <ResultCard
+                entry={entry(true)}
+                activeSets={[]}
+                allowedSets={null}
+                enforceAvailability={false}
+                onAdd={onAdd}
+            />
+        );
+        fireEvent.click(getByTestId("draggable"));
+        expect(onAdd).toHaveBeenCalledWith(
+            "print-1",
+            "Sliver Queen",
+            undefined
+        );
+        expect(onAdd.mock.calls[0][2]).toBeUndefined();
     });
 });

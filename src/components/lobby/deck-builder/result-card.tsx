@@ -24,7 +24,13 @@ interface ResultCardProps {
      *  playable by construction (ADR 0080), so availability says nothing about
      *  whether the card belongs in the deck. */
     enforceAvailability: boolean;
-    onAdd: (printId: string, cardName: string, definitionId: string) => void;
+    /** `definitionId` is omitted for a Full Catalogue entry, whose `cardId`
+     *  is a PRINT id rather than a Card Definition id (`makeCatalogueEntry`
+     *  in `useCardSearch.ts`) — sending it would store a printing under the
+     *  definition field and no later write would ever correct it, because
+     *  `withDefinitionId` only fills a MISSING one. Omitted, the server
+     *  resolves it (ADR 0140, issue #4117). */
+    onAdd: (printId: string, cardName: string, definitionId?: string) => void;
 }
 
 export default function ResultCard({
@@ -80,9 +86,13 @@ export default function ResultCard({
         ? (scryfallEditions ?? [catalogueSingle])
         : (tableOptions ?? indexOptions);
 
+    // A Full Catalogue entry's `cardId` is a PRINT id, which
+    // `cardPrints.listByCardId` can never match — and its options come from
+    // the Scryfall path anyway, so the table query is not merely useless but
+    // a billed read per dropdown open. Only the index path loads it.
     const loadEditionOptions = () => {
         loadEditions();
-        loadTablePrints();
+        if (!isCatalogue) loadTablePrints();
     };
 
     const defaultPrintId = isCatalogue
@@ -147,7 +157,13 @@ export default function ResultCard({
                     cardId: selected,
                     cardName: entry.name,
                 }}
-                onClick={() => onAdd(selected, entry.name, entry.cardId)}
+                onClick={() =>
+                    onAdd(
+                        selected,
+                        entry.name,
+                        isCatalogue ? undefined : entry.cardId
+                    )
+                }
                 title={`Add ${entry.name} (drag to a zone)`}
                 className="group relative w-full hover:scale-[1.03]"
             >

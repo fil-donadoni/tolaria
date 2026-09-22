@@ -18,7 +18,7 @@ interface ResultsGridProps {
     /** False in manual mode, where a card the GRE does not implement is still
      *  fully playable (ADR 0080) and must stay selectable. */
     enforceAvailability: boolean;
-    onAdd: (printId: string, cardName: string, definitionId: string) => void;
+    onAdd: (printId: string, cardName: string, definitionId?: string) => void;
 }
 
 export default function ResultsGrid({
