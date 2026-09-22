@@ -1,4 +1,4 @@
-# A finished pass hands off to a detached driver, and a crash is retried
+# A finished pass hands the loop off to a driver, and a crash is retried
 
 ## Status
 
@@ -145,6 +145,17 @@ policies, which is why 0097 split the reasons in the first place.
 - The stop-file remains the kill switch and is still never cleared
   automatically — `bun run loop:afk --resume` is the explicit way to clear it
   and start again.
+- **`--detach` gained a second long-lived process, and with it a SIGPIPE
+  surface it did not have.** The old shape `exec`'d the driver and left nothing
+  else alive; the stamper is now a sibling inside the same detached session for
+  the whole run, so if it is killed independently — an OOM reap, or a stray
+  `pkill perl`, newly ambiguous because `perl` now serves both `setsid` and the
+  stamping — the driver takes SIGPIPE on its next write and dies by default
+  disposition, with the log simply stopping. Accepted rather than papered over:
+  suppressing SIGPIPE in the driver would trade a visible stop for an
+  unattended run writing into a closed pipe for hours. The symptom to look for
+  is a log that stops mid-pass while `--status` still reports a live pid;
+  revisit if it is ever observed.
 
 ## What would change the answer
 
