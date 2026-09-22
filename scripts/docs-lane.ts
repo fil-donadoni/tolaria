@@ -115,21 +115,17 @@ export const DOC_GATE_TESTS_EXCLUDED: Record<string, string> = {
     "scripts/__tests__/live-activity.test.ts":
         "the `~/.claude/projects` path is Claude Code's own transcript directory outside this repo; it reads no repo document",
     "scripts/__tests__/loop-drain.test.ts":
-        "names `.claude/hooks/receipt-guard.sh` in a header comment as the hook it mirrors in-process — hooks stay `full`; it reads no document",
+        "names the retired `.claude/hooks/receipt-guard.sh` in a header comment as the hook its own sh-driving shape came from — hooks stay `full`; it reads no document",
     "scripts/__tests__/receipt.test.ts":
         "the `.claude/receipts/` path is the RUNTIME review-receipt directory, gitignored and per-batch; it reads no repo document",
     "scripts/__tests__/session-origin.test.ts":
         "the `.claude/telemetry/sessions.jsonl` path is the RUNTIME session journal, gitignored; it reads no repo document",
     "scripts/__tests__/telemetry-serve.test.ts":
         "the `.claude/telemetry/` paths are the RUNTIME mirror the dashboard serves, gitignored; it reads no repo document",
-    "scripts/__tests__/train-order.test.ts":
-        "the `.claude/receipts/` path is the RUNTIME receipt directory a path-joining assertion names; it reads no repo document",
     "scripts/__tests__/usage-window.test.ts":
         "builds a scratch `~/.claude/projects` fixture outside this repo; it reads no repo document",
     "scripts/__tests__/vacuous-alias-assertion.test.ts":
         "cites `.claude/rules/gre-development.md` in a header comment as the prose half of the rule it enforces; it scans test sources and reads no document",
-    "scripts/__tests__/write-review-receipt.test.ts":
-        "the `.claude/receipts/` paths are the RUNTIME receipt directory the writer targets, gitignored; it reads no repo document",
     "scripts/__tests__/telemetry-latency.test.ts":
         "the `.claude/` paths are synthetic changed-path fixtures fed to classifyLane()/renderPlan() to build a real lane receipt for parseLaneForcingPath to parse; the `.claude/telemetry` mention names the RUNTIME store; it reads no repo document",
     "scripts/__tests__/check-marker-liveness.test.ts":
