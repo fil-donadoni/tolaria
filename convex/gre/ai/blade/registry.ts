@@ -29,6 +29,7 @@ import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
 import { getCardByName, getInstanceManaCost } from "../../../cards";
 import { activationSacrificeVictims } from "../../activationCostPicks";
 import { SPLICE_COST_ID_PREFIX } from "../../splice";
+import { isCategorizedPickLegal } from "../../categorizedPick";
 
 /** CR 702.34a — five untapped Mountains, exactly Firebolt's {4}{R} flashback
  *  cost, shared by the two halves of the issue-#2971 graveyard-cast pair so the
@@ -7990,15 +7991,35 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         budget: { iterations: 200 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
+        // A PREDICATE, not a `moves` matcher, and deliberately: what this
+        // entry judges is a PROPERTY of the submission — that it is a legal
+        // categorised pick and a maximal one — not which card is the better
+        // find. `moves`/`forbidden` lower to Verdicts and oblige a weight
+        // refit (`weightFit.bot.test.ts`); a legality guard has no business
+        // in the evaluation corpus, and the fit over this corpus says as
+        // much (`bun run fit:weights` refuses the paste: the fitted vector
+        // orders no more verdicts than the committed one).
         expect: {
-            moves: [
-                {
-                    kind: "resolution-choice",
-                    cards: ["Forest", "Plains"],
-                },
-            ],
+            predicate: (move, state) => {
+                if (!move || move.kind !== "resolution-choice") return false;
+                const head = state.pendingChoices?.[0];
+                if (!head?.categories) return false;
+                const picks = move.cardInstanceIds;
+                // CR 608.2b — the offer was clamped to the maximum matching,
+                // so a maximal answer is exactly `count.max` cards.
+                const owed =
+                    typeof head.count === "number"
+                        ? head.count
+                        : head.count.max;
+                return (
+                    picks.length === owed &&
+                    isCategorizedPickLegal(head.categories, picks)
+                );
+            },
+            describe:
+                "answers the categorised search with a LEGAL, maximal set — one land per basic land type, never two of one",
         },
-        note: "Issue #3808, the categorised-search seam (CR 701.23a). The root decision is the live `search-library` choice, reached by really casting Gaea's Balance — which also pays the first COUNTED additional sacrifice (five lands) through the search's own cost path. `searchLibraryCandidates` builds each candidate as the best set LED BY one card, a greedy prefix that knows nothing about categories: with two Forests ranked adjacently it proposes both, a submission `applyPendingChoiceSubmit` REJECTS, and a rejected submission inside the tree is a throw rather than a low score. Proof-of-failure: removing the `canAddCategorizedPick` gate from the inner fill loop in `gre/ai/choiceCandidates.ts` reds this at every seed (the chosen set is two Forests and no Plains).",
+        note: "Issue #3808, the categorised-search seam (CR 701.23a). The root decision is the live `search-library` choice, reached by really casting Gaea's Balance — which also pays the first COUNTED additional sacrifice (five lands) through the search's own cost path. `searchLibraryCandidates` builds each candidate as the best set LED BY one card, a greedy prefix that knows nothing about categories: with two Forests ranked adjacently it proposes both, a submission `applyPendingChoiceSubmit` REJECTS, and a rejected submission inside the tree is a throw rather than a low score. Proof-of-failure: removing the `canAddCategorizedPick` gate from the inner fill loop in `gre/ai/choiceCandidates.ts` reds this at every seed (the chosen set is two Forests, which the predicate refuses as unmatchable).",
     },
 ];
 

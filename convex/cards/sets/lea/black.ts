@@ -1603,17 +1603,18 @@ export const wordOfCommand: CardDefinition = {
         // on the CONTROLLED OPPONENT's battlefield; it is sacrificed on commit.
         // No matching permanent → the cost is unmeetable, the spell is NOT
         // played ("if able", CR 118.8 / 601.2f).
-        const sacrificeFilter = ctx.getCardSacrificeFilter(
-            opponentId,
-            chosenId
-        );
-        let additionalSacrificeId: string | undefined;
-        if (sacrificeFilter) {
+        // Issue #3808 — the cost's COUNT rides with its filter ("sacrifice
+        // five lands", Gaea's Balance): naming such a card must charge all
+        // five of the opponent's lands, not one of them.
+        const sacrificeCost = ctx.getCardSacrificeCost(opponentId, chosenId);
+        let additionalSacrificeIds: string[] | undefined;
+        if (sacrificeCost) {
             const candidateIds = ctx.getBattlefieldIds(
                 opponentId,
-                sacrificeFilter
+                sacrificeCost.filter
             );
-            if (candidateIds.length === 0) return; // unmeetable — not played
+            // unmeetable — not played (CR 601.2h, partial payments)
+            if (candidateIds.length < sacrificeCost.count) return;
             const pickedSac = ctx.requestChoice({
                 playerId: controllerId,
                 choiceId: `${controllerId}:sacrifice`,
@@ -1621,14 +1622,17 @@ export const wordOfCommand: CardDefinition = {
                 kind: "choose-permanents",
                 zone: "battlefield",
                 zoneOwnerId: opponentId,
-                filter: sacrificeFilter,
+                filter: sacrificeCost.filter,
                 candidateIds,
-                count: 1,
-                prompt: "Choose a permanent for the opponent to sacrifice.",
+                count: sacrificeCost.count,
+                prompt:
+                    sacrificeCost.count === 1
+                        ? "Choose a permanent for the opponent to sacrifice."
+                        : `Choose ${sacrificeCost.count} permanents for the opponent to sacrifice.`,
             });
             if (pickedSac === undefined) return; // suspend — resume on submit
-            additionalSacrificeId = pickedSac[0];
-            if (!additionalSacrificeId) return;
+            if (pickedSac.length !== sacrificeCost.count) return;
+            additionalSacrificeIds = pickedSac;
         }
 
         // TARGETED spell (#578, CR 601.2c) — the Acting Player chooses the
@@ -1697,7 +1701,7 @@ export const wordOfCommand: CardDefinition = {
             targets: chosenTargets,
             chosenX,
             chosenModeIds: chosenModeId ? [chosenModeId] : undefined,
-            additionalSacrificeId,
+            additionalSacrificeIds,
         });
     },
 };

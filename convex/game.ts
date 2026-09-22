@@ -6886,7 +6886,10 @@ export function buildCastSacrificeSelection(
                 // issue #3808 — the counted sacrifice leg ("sacrifice five
                 // lands"); `buildAdditionalCostPicker` already priced it.
                 count: picker.count,
-                snapshot: true,
+                // Mirrors `gre/castCostPicks.ts`: "the sacrificed permanent"
+                // has no referent once the cost eats more than one, so a
+                // counted cost snapshots nothing.
+                snapshot: picker.count === 1,
             });
         }
     }

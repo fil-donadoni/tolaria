@@ -34,6 +34,9 @@ import { chooseResolution } from "../brain";
 import type { PublicGameState } from "@convex/gameProjections";
 
 const INTUITION = getCardByName("Intuition").id;
+const GUIDED_PASSAGE = getCardByName("Guided Passage").id;
+const FOREST = getCardByName("Forest").id;
+const LIGHTNING_BOLT = getCardByName("Lightning Bolt").id;
 const ISLAND = getCardByName("Island").id;
 const COUNTERSPELL = getCardByName("Counterspell").id;
 const GRIZZLY_BEARS = getCardByName("Grizzly Bears").id;
@@ -127,5 +130,101 @@ describe("Intuition — the BOT can answer the opponent-side pick", () => {
         expect(state.pendingChoices ?? []).toHaveLength(0);
         const p1 = state.players.find((p) => p.id === "p1")!;
         expect(p1.hand.map((c) => c.id)).toEqual(answer);
+    });
+});
+
+// Guided Passage — the CATEGORISED twin of the pick above (issue #3808).
+//
+// Same seam, one more thing that has to cross it: the `categories` buckets.
+// `buildBotView` only forwards `head.categories` for the kinds it names, and
+// `choose-library-card` had to be added to that list. Nothing else in the
+// suite covers that line — `brain.bot.test.ts` hand-builds an `OwedChoice`
+// with the buckets already set (so it tests the POLICY, not the projection),
+// and the blade entry answers Gaea's Balance through the server-side
+// candidate generator, never through `buildBotView`. `choose-library-card`
+// has no generator at all, so this client path is the card's ONLY answer.
+//
+// Drop the forwarding and the bot hands over three cards chosen by raw value
+// alone — for this library, three that cannot each answer a different
+// description — the server throws, the state is unchanged, the policy is
+// deterministic, and the game is frozen (ADR 0047).
+describe("Guided Passage — the BOT answers the CATEGORISED opponent-side pick", () => {
+    it("receives the category buckets and submits one card per description", () => {
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    library: [
+                        // Two lands and two creatures, so raw "worst first"
+                        // would reach for two of the same description.
+                        [FOREST, "lib0"],
+                        [FOREST, "lib1"],
+                        [GRIZZLY_BEARS, "lib2"],
+                        [GRIZZLY_BEARS, "lib3"],
+                        [LIGHTNING_BOLT, "lib4"],
+                    ].map(([cardId, id]) =>
+                        makeInstance(cardId, {
+                            id,
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        })
+                    ),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, GUIDED_PASSAGE, "p1");
+        resolveTopOfStack(state);
+
+        const pick = (state.pendingChoices ?? [])[0];
+        expect(pick.playerId, "the opponent chooses").toBe("p2");
+
+        const view = buildBotView(
+            projectPublicState(state, 1, "p2") as PublicGameState,
+            "p2"
+        );
+        const owed = view.owedChoice;
+        expect(owed?.kind).toBe("choose-library-card");
+        // Seam 1 — the whole revealed library crossed the wire.
+        expect(owed!.candidates.map((c) => c.id).sort()).toEqual([
+            "lib0",
+            "lib1",
+            "lib2",
+            "lib3",
+            "lib4",
+        ]);
+        // Seam 2 — and so did the BUCKETS. Without them `chooseResolution`
+        // falls back to `worstFirst().slice(0, min)`.
+        expect(owed!.categories?.map((c) => c.label)).toEqual([
+            "Creature card",
+            "Land card",
+            "Noncreature, nonland card",
+        ]);
+
+        // Seam 3 — the brain's answer is legal AND the server takes it.
+        const answer = chooseResolution(owed!);
+        expect(answer).toHaveLength(3);
+        expect(() =>
+            applyPendingChoiceSubmit(state, {
+                playerId: pick.playerId,
+                stackItemId: pick.stackItemId,
+                step: pick.step,
+                choiceId: pick.choiceId,
+                cardInstanceIds: answer,
+            })
+        ).not.toThrow();
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        const p1 = state.players.find((p) => p.id === "p1")!;
+        expect(p1.hand.map((c) => c.id).sort()).toEqual([...answer].sort());
+        // One card per description, never two of one — the property the
+        // buckets exist to enforce.
+        const byId = new Map([
+            ["lib0", "land"],
+            ["lib1", "land"],
+            ["lib2", "creature"],
+            ["lib3", "creature"],
+            ["lib4", "other"],
+        ] as const);
+        expect(new Set(answer.map((id) => byId.get(id))).size).toBe(3);
     });
 });

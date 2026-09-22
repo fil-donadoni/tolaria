@@ -2359,11 +2359,14 @@ function choiceCandidates(
  *  `poolIds` means "the whole zone" (the unfiltered branch), so the library
  *  is read directly there.
  *
- *  A category matching nothing stays in the list as an EMPTY bucket: the
- *  bipartite matching treats it as unanswerable (contributing nothing to the
- *  maximum), and the client still renders its label, which is how a chooser
- *  sees that the basic land type they have no card for was offered and
- *  missed rather than silently dropped. */
+ *  A category matching nothing stays in the list as an EMPTY bucket rather
+ *  than being dropped: the bipartite matching needs it to contribute nothing
+ *  to the maximum, and `count.max` is read straight off that matching. It is
+ *  NOT kept for display — the library grid picker renders one flat,
+ *  unlabelled grid and passes `categories` to `CardsPile` only for a
+ *  `look-distribute` pick (`src/components/board/player-library.tsx`), so a
+ *  chooser sees the per-click gate refuse a second Forest without being told
+ *  which bucket it belonged to. Recorded in `docs/findings/`. */
 function resolveChoiceCategories(
     ctx: SpellContext,
     op: OpOf<"choice">,
@@ -7561,14 +7564,16 @@ function runCastDuringResolution(
     // ADDITIONAL COST — sacrifice (CR 118.8). Applies even to a free cast
     // (only the mana cost is waived). No matching permanent => the cost is
     // unmeetable, the card is NOT cast ("if able").
-    const sacrificeFilter = ctx.getCardSacrificeFilter(
-        playerId,
-        cardInstanceId
-    );
-    let additionalSacrificeId: string | undefined;
-    if (sacrificeFilter) {
-        const candidateIds = ctx.getBattlefieldIds(playerId, sacrificeFilter);
-        if (candidateIds.length === 0) {
+    // Issue #3808 — the cost's COUNT rides with its filter, so a card whose
+    // additional cost is "sacrifice five lands" is not cast here for one.
+    const sacrificeCost = ctx.getCardSacrificeCost(playerId, cardInstanceId);
+    let additionalSacrificeIds: string[] | undefined;
+    if (sacrificeCost) {
+        const candidateIds = ctx.getBattlefieldIds(
+            playerId,
+            sacrificeCost.filter
+        );
+        if (candidateIds.length < sacrificeCost.count) {
             finish(false, "pass"); // unmeetable — not cast
             return;
         }
@@ -7578,14 +7583,17 @@ function runCastDuringResolution(
             kind: "choose-permanents",
             zone: "battlefield",
             zoneOwnerId: playerId,
-            filter: sacrificeFilter,
+            filter: sacrificeCost.filter,
             candidateIds,
-            count: 1,
-            prompt: "Choose a permanent to sacrifice.",
+            count: sacrificeCost.count,
+            prompt:
+                sacrificeCost.count === 1
+                    ? "Choose a permanent to sacrifice."
+                    : `Choose ${sacrificeCost.count} permanents to sacrifice.`,
         });
         if (pickedSac === undefined) return "suspend";
-        additionalSacrificeId = pickedSac[0];
-        if (!additionalSacrificeId) return;
+        if (pickedSac.length !== sacrificeCost.count) return;
+        additionalSacrificeIds = pickedSac;
     }
 
     // TARGETS (CR 601.2c) — the caster chooses targets for the cast card
@@ -7647,7 +7655,7 @@ function runCastDuringResolution(
         targets: chosenTargets,
         chosenX,
         chosenModeIds: chosenModeId ? [chosenModeId] : undefined,
-        additionalSacrificeId,
+        additionalSacrificeIds,
         sourceZone,
         free: op.free,
     });

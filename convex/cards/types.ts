@@ -7091,12 +7091,19 @@ export interface SpellContext {
      *   - `chosenModeIds` — the chosen mode(s) (CR 700.2a, ADR 0094); written
      *     onto the stack item so the modes' bodies run. Both shipped callers
      *     pick exactly one mode.
-     *   - `additionalSacrificeId` — a permanent on the CONTROLLED OPPONENT's
-     *     battlefield to sacrifice as an additional cost (CR 118.8). It is
-     *     sacrificed on commit and its pre-sacrifice mana value snapshotted for
-     *     `getAdditionalSacrificeMv()`. The caller must validate it matches the
-     *     card's `additionalCosts.sacrificeFilter`; a missing/illegal pick
-     *     means the cost is unmeetable → the spell is NOT played ("if able").
+     *   - `additionalSacrificeIds` — the permanents on the CONTROLLED
+     *     OPPONENT's battlefield to sacrifice as an additional cost
+     *     (CR 118.8). A LIST since issue #3808: `sacrificeFilterCount` can
+     *     demand more than one ("sacrifice five lands", Gaea's Balance), and
+     *     a single-id parameter silently charged one of them. All of them are
+     *     sacrificed on commit; the pre-sacrifice mana value is snapshotted
+     *     for `getAdditionalSacrificeMv()` only when the cost eats EXACTLY
+     *     one, since "the sacrificed permanent" has no referent otherwise
+     *     (the policy `gre/activation.ts` states for the activated twin). The
+     *     caller must validate they match the card's
+     *     `additionalCosts.sacrificeFilter` and that there are as many as the
+     *     cost demands; a missing/short/illegal pick means the cost is
+     *     unmeetable → the spell is NOT played ("if able").
      *  Any of these unpayable/unmeetable from the opponent's resources →
      *  returns false, nothing changes. */
     castChosenSpell: (
@@ -7107,7 +7114,7 @@ export interface SpellContext {
             targets?: TargetSelection[];
             chosenX?: number;
             chosenModeIds?: string[];
-            additionalSacrificeId?: string;
+            additionalSacrificeIds?: string[];
             /** CR 608.2f (issue #1477) — the zone the card is cast FROM.
              *  Defaults to `"hand"` (Word of Command's controlled cast). The
              *  cast-during-resolution Op passes `"graveyard"` (Malcolm) or
@@ -7141,14 +7148,19 @@ export interface SpellContext {
      *  variable {X} in its mana cost (a string-valued `X`). Lets a controlled
      *  cast (Word of Command) know it must ask the Acting Player for X. */
     cardHasXCost: (casterId: string, cardInstanceId: string) => boolean;
-    /** ADR 0037 / CR 118.8 — the `additionalCosts.sacrificeFilter` of a card in
-     *  `casterId`'s hand, or `undefined` if it has no sacrifice additional
-     *  cost. Lets a controlled cast (Word of Command) enumerate the controlled
-     *  opponent's matching permanents for the Acting Player to choose from. */
-    getCardSacrificeFilter: (
+    /** ADR 0037 / CR 118.8 — the sacrifice additional cost of a card in
+     *  `casterId`'s hand: its `sacrificeFilter` AND how many permanents that
+     *  cost demands (`sacrificeFilterCount`, default 1 — issue #3808).
+     *  `undefined` when the card has no sacrifice additional cost. Lets a
+     *  controlled cast (Word of Command) enumerate the controlled opponent's
+     *  matching permanents for the Acting Player to choose from, and charge
+     *  the RIGHT NUMBER of them: it returns the count alongside the filter
+     *  rather than beside it, because a caller that reads one and forgets the
+     *  other is exactly the five-lands-for-one discount this shape closes. */
+    getCardSacrificeCost: (
         casterId: string,
         cardInstanceId: string
-    ) => PermanentFilter | undefined;
+    ) => { filter: PermanentFilter; count: number } | undefined;
     /** ADR 0037 / CR 107.3 — the highest value of X payable for a card in
      *  `controllerId`'s hand SOLELY from lands `controllerId` controls (Word of
      *  Command's mana restriction). Computed by auto-tapping the controlled

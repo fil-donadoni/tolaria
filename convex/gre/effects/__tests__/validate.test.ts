@@ -7364,3 +7364,174 @@ describe("count narrowed by a picks binding (CR 608.2h / 701.9a, issue #3807)", 
         ).toBeGreaterThan(0);
     });
 });
+
+// The three gates issue #3808 added, each a FAIL-CLOSED refusal. They are the
+// only thing standing between an author and a categorised pick validated under
+// the WRONG legality rule — `chooseCategorized`'s COVER rule would let one card
+// answer two descriptions, which for a pick whose cards LEAVE the library means
+// putting the same card onto the battlefield twice. Nothing else in the suite
+// reaches them; a future edit that widened the zone check would be silent.
+describe("validateEffectScript — categorised library selection (CR 701.23a / 701.20a, issue #3808)", () => {
+    const CATEGORIES = [
+        {
+            label: "Plains",
+            filter: { type: "Land" as CardType, subtype: "Plains" },
+        },
+        {
+            label: "Forest",
+            filter: { type: "Land" as CardType, subtype: "Forest" },
+        },
+    ];
+
+    const search = (overrides: Record<string, unknown> = {}): EffectOp =>
+        ({
+            op: "choice",
+            kind: "search-library",
+            player: "controller",
+            zone: "library",
+            categories: CATEGORIES,
+            count: { min: 0, max: 2 },
+            prompt: "Search.",
+            bind: "$found",
+            ...overrides,
+        }) as unknown as EffectOp;
+
+    it("accepts the two library kinds and nothing else", () => {
+        expect(validateEffectScript(host({ effects: [search()] }))).toEqual([]);
+        // `choose-library-card` needs its revealed candidate set, so it is
+        // exercised through the whole Guided Passage shape below.
+        for (const bad of [
+            search({ zone: "hand", kind: "discard-hand" }),
+            search({ zone: "graveyard", kind: "choose-graveyard-card" }),
+            search({ zone: "battlefield", kind: "choose-permanents" }),
+            search({ kind: "look-top" }),
+        ]) {
+            const errors = validateEffectScript(host({ effects: [bad] }));
+            expect(
+                errors.some((e) => /"categories" is valid only/.test(e)),
+                JSON.stringify(bad)
+            ).toBe(true);
+        }
+    });
+
+    it("refuses to pair categories with a battlefield-pool construct", () => {
+        const errors = validateEffectScript(
+            host({ effects: [search({ allControllers: true })] })
+        );
+        expect(
+            errors.some((e) =>
+                /never pairs with "superlative" or "allControllers"/.test(e)
+            )
+        ).toBe(true);
+    });
+
+    it("accepts the whole Guided Passage shape — reveal binds, the pick names it", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            op: "reveal",
+                            player: "controller",
+                            zone: "library",
+                            bind: "$revealed",
+                        },
+                        {
+                            op: "choice",
+                            kind: "choose-library-card",
+                            player: "opponent",
+                            zoneOwnerId: "controller",
+                            zone: "library",
+                            candidates: [{ ref: "$revealed" }],
+                            categories: CATEGORIES,
+                            count: 2,
+                            prompt: "Choose.",
+                            bind: "$chosen",
+                        },
+                    ] as unknown as EffectOp[],
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("refuses a `choose-library-card` whose candidates were never revealed", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "choice",
+                        kind: "search-library",
+                        player: "controller",
+                        zone: "library",
+                        count: 1,
+                        prompt: "Search.",
+                        bind: "$found",
+                    },
+                    {
+                        op: "choice",
+                        kind: "choose-library-card",
+                        player: "opponent",
+                        zoneOwnerId: "controller",
+                        zone: "library",
+                        candidates: [{ ref: "$found" }],
+                        categories: CATEGORIES,
+                        count: 1,
+                        prompt: "Choose.",
+                        bind: "$chosen",
+                    },
+                ] as unknown as EffectOp[],
+            })
+        );
+        expect(errors.some((e) => /was never revealed/.test(e))).toBe(true);
+    });
+
+    it("refuses a whole-library reveal of a DIFFERENT player's zones", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "reveal",
+                        player: "opponent",
+                        zone: "library",
+                        bind: "$revealed",
+                    },
+                    {
+                        op: "choice",
+                        kind: "choose-library-card",
+                        player: "opponent",
+                        zoneOwnerId: "controller",
+                        zone: "library",
+                        candidates: [{ ref: "$revealed" }],
+                        categories: CATEGORIES,
+                        count: 1,
+                        prompt: "Choose.",
+                        bind: "$chosen",
+                    },
+                ] as unknown as EffectOp[],
+            })
+        );
+        expect(
+            errors.some((e) => /revealed to a DIFFERENT player's zones/.test(e))
+        ).toBe(true);
+    });
+
+    it("refuses `bind` on a reveal that is not the whole-library shape", () => {
+        for (const bad of [
+            { op: "reveal", player: "controller", zone: "hand", bind: "$r" },
+            {
+                op: "reveal",
+                player: "controller",
+                cards: { ref: "$picked" },
+                bind: "$r",
+            },
+        ]) {
+            const errors = validateEffectScript(
+                host({ effects: [bad] as unknown as EffectOp[] })
+            );
+            expect(
+                errors.some((e) => /"bind" is valid only with zone/.test(e)),
+                JSON.stringify(bad)
+            ).toBe(true);
+        }
+    });
+});

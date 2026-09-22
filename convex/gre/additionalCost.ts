@@ -61,6 +61,13 @@ export function resolveAdditionalCosts(
     if (leg.payLife !== undefined) flat.payLife = leg.payLife;
     if (leg.sacrificeFilter !== undefined) {
         flat.sacrificeFilter = leg.sacrificeFilter;
+        // Issue #3808 — the leg REPLACES the base filter, so it must replace
+        // the base COUNT with it. `AdditionalCostLeg` has no counted form, so
+        // a leg's sacrifice is exactly one; inheriting a base
+        // `sacrificeFilterCount: 5` would demand five of whatever the LEG
+        // names. `LEG_COST_KEYS` cannot catch this — it guards the keys a leg
+        // declares, and the count lives on the SPEC.
+        delete flat.sacrificeFilterCount;
     }
     if (leg.exileFilter !== undefined) flat.exileFilter = leg.exileFilter;
     return flat;

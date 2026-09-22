@@ -30,6 +30,7 @@
 
 import { describe, it, expect } from "vitest";
 import { submitResolutionChoice, buildAdditionalCostPicker } from "../game";
+import { buildCastCostSelection } from "../gre/castCostPicks";
 import { assertLegalAction } from "../gre/rules";
 import { resolveTopOfStack, getPlayer } from "../gre/state";
 import type { GameState } from "../gre/state";
@@ -142,6 +143,29 @@ describe("Gaea's Balance — counted sacrifice cost (CR 601.2f / 118.8, issue #3
             filter: { types: "Land" },
             count: 5,
         });
+    });
+
+    it("the search's own cost path asks for five and snapshots none of them", () => {
+        // `gre/castCostPicks.ts` is the SECOND builder — the one the bot's
+        // search pays with, so a fix to `game.ts` alone would leave the bot
+        // casting this for one land inside its own tree.
+        const state = board(5);
+        const player = getPlayer(state, "p1");
+        const { selection } = buildCastCostSelection(
+            state,
+            player,
+            player.hand[0],
+            gaeasBalance.additionalCosts,
+            "Gaea's Balance"
+        );
+        expect(selection?.requirements).toHaveLength(1);
+        expect(selection!.requirements[0].count).toBe(5);
+        // "The sacrificed permanent" has no referent once five pay, so the
+        // requirement is NOT snapshot-flagged — the policy `gre/activation.ts`
+        // states for the activated twin, applied to the cast cost.
+        expect(selection!.requirements[0].snapshot).toBe(false);
+        // Exactly five lands were auto-resolved (they are fungible here).
+        expect(selection!.picked).toHaveLength(5);
     });
 });
 

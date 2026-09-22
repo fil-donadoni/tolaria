@@ -132,14 +132,20 @@ export function buildCastCostSelection(
 } {
     const specs: SacrificeRequirement[] = [];
     if (additionalCosts?.sacrificeFilter) {
+        const owed = additionalCosts.sacrificeFilterCount ?? 1;
         specs.push({
             filter: additionalCosts.sacrificeFilter,
             // CR 601.2f / 118.8 (issue #3808) — "sacrifice five lands"
             // (Gaea's Balance). `SacrificeRequirement.count` has carried the
             // counted form since the board-wide statics (Drought); the cost
             // just stopped hard-coding 1.
-            count: additionalCosts.sacrificeFilterCount ?? 1,
-            snapshot: true,
+            count: owed,
+            // "The sacrificed permanent" has a referent only when the cost
+            // ate exactly one — `gre/activation.ts` states the rule for the
+            // activated twin and `activationCostPicks.ts` applies it the same
+            // way. A counted cost stamps nothing rather than an arbitrary one
+            // of five, so a reader gets `undefined` and not a plausible lie.
+            snapshot: owed === 1,
         });
     }
     // CR 702.34a / 118.8 — the flashback-only "Sacrifice a <filter>" cost (Lava

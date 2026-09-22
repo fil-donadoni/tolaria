@@ -1018,12 +1018,39 @@ describe("chooseResolution: categorized LIBRARY picks (issue #3808)", () => {
         expect(picks).toHaveLength(3);
     });
 
-    it("reaches the MANDATORY count — a short submission would be rejected", () => {
+    it("reaches the MANDATORY count from ANY value order — a short submission would be rejected", () => {
         // The greedy walk cannot stop below the maximum matching: the
         // matchable sets form a transversal matroid, so a smaller matchable
-        // set always admits another member.
-        for (const _ of [0, 1, 2]) {
-            expect(chooseResolution(owedForeignPick())).toHaveLength(3);
+        // set always admits another member — whatever order the walk sees
+        // them in. Re-running the same input would only re-assert one path
+        // through a pure function, so the VALUES are permuted instead: each
+        // arrangement makes the greedy reach for a different card first, and
+        // one that could strand a category would show up as a short answer.
+        const orders = [
+            { bomb: 200, bear: 120, bolt: 90, forest: 12, swamp: 8 },
+            { bomb: 1, bear: 2, bolt: 3, forest: 4, swamp: 5 },
+            { bomb: 50, bear: 50, bolt: 50, forest: 50, swamp: 50 },
+            { bomb: 9, bear: 400, bolt: 1, forest: 7, swamp: 300 },
+        ];
+        for (const values of orders) {
+            const picks = chooseResolution(
+                owedForeignPick({
+                    candidates: Object.entries(values).map(([id, value]) => ({
+                        id,
+                        value,
+                    })),
+                })
+            );
+            expect(picks, JSON.stringify(values)).toHaveLength(3);
+            // And every answer really is one card per description.
+            const bucket: Record<string, string> = {
+                bomb: "creature",
+                bear: "creature",
+                bolt: "other",
+                forest: "land",
+                swamp: "land",
+            };
+            expect(new Set(picks.map((id) => bucket[id])).size).toBe(3);
         }
     });
 
