@@ -719,8 +719,13 @@ const VERIFY_MERGED_TIP =
  * header comment for why `lockedEnv()` alone cannot reach this: `sh` never
  * reads `.env.local`, so this is the one point in the pipeline the bug-report
  * PAT cannot re-populate (review round 3, B1).
+ *
+ * Exported because EVERY locked shell string that touches the network needs
+ * it, not just this file's: `scripts/docs-lane.ts` shipped without it and its
+ * landing push 403'd exactly the same way (issue #2579). Shared, so a second
+ * lane cannot drift back to the bug a third time.
  */
-const UNSET_GITHUB_TOKEN = "unset GITHUB_TOKEN";
+export const UNSET_GITHUB_TOKEN = "unset GITHUB_TOKEN";
 
 /**
  * Delete the remote head branch, wrapped so it can never gate `land`'s exit

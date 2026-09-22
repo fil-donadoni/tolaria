@@ -35,7 +35,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
-import { remoteBranchDeleteStep } from "./land";
+import { remoteBranchDeleteStep, UNSET_GITHUB_TOKEN } from "./land";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -232,6 +232,15 @@ function shQuote(s: string): string {
  * to stderr even though its exit code is swallowed. `land.ts` fixed this
  * once; sharing the helper here keeps this lane from drifting back to the
  * same bug.
+ *
+ * `UNSET_GITHUB_TOKEN` LEADS the string, for the reason `land`'s CREDENTIALS
+ * header comment spells out: `NET_ENV` above strips the bug-report PAT from
+ * the env THIS process hands to `gate.ts`, but `gate.ts` is a `bun` process
+ * that re-reads `.env.local` from its own cwd and spreads `{...process.env}`
+ * onto the `sh -c` child — so the push and the merge in here saw the PAT
+ * again and 403'd, AFTER the doc gate had already run inside the lock
+ * (issue #2579). `sh` never reads `.env.local`: unsetting it here is the one
+ * point in the pipeline the PAT cannot re-populate.
  */
 export function buildShipMergeCommand(opts: {
     branch: string;
@@ -241,6 +250,7 @@ export function buildShipMergeCommand(opts: {
 }): string {
     const b = shQuote(opts.branch);
     return [
+        UNSET_GITHUB_TOKEN,
         `git fetch origin ${BASE_BRANCH} -q`,
         `git rebase ${ORIGIN_BASE}`,
         "bun run check:docs",
