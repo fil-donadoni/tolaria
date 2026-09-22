@@ -246,3 +246,88 @@ export function splitScriptsTests(root: string): ScriptsTestSplit {
     }
     return { engine, tooling };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Which `src/**` files a BOT project's tests can see (issue #3435).
+//
+// The bot projects are selected by FILENAME (`*.bot.test.{ts,tsx}`), and the
+// split routes `src/**/*.bot.test.{ts,tsx}` to `bot-dom` while EXCLUDING those
+// files from `dom`. So a `src/**` file's bot tests live in a project the `skin`
+// lane never ran, and the lane's skip line asserted the bot suites "cannot go
+// red" for a diff that could red them — the whole `src/lib/ai` client host, the
+// vs-AI driver hook and the DecisionTrace debug components, plus
+// `src/lib/ai/selfplay/ladder.ts`, which a `scripts/**` bot test imports and so
+// reaches `bot-node` too.
+//
+// A HAND-MAINTAINED LIST WAS THE WRONG ANSWER, and the repo already had two
+// overlapping ones (`BOT_GLOBS` and the boundary guard's exact-module list) —
+// adding a third is how the hole stays open for whatever the third forgets.
+// What the lane actually needs to know is not "is this file the Bot" but "can
+// this file red a bot test", and that is COMPUTED: the transitive local import
+// closure of every bot test file, keeping the `src/**` half. Measured 150 of
+// 1449 `src` code files in 0.3s, so the `skin` lane keeps its cost on the ~90%
+// of diffs that cannot reach a bot test and pays the project on the ones that
+// can.
+//
+// Conservative in the direction that matters, exactly as `reachesEngine` is: a
+// false positive costs the lane one project, a false negative is a suite that
+// stops covering its own subject. `botSubjects` is therefore UNIONED at the
+// call site with `matchesBotGlob` (`scripts/lib/bot-globs.ts`), which catches
+// what an import walk structurally cannot — `brain-client.ts` spawns
+// `brain.worker.ts` through `new Worker(new URL(...))`, a specifier no import
+// graph contains.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface BotSubjects {
+    /** `src/**` paths reachable from a `bot-dom` test, the tests included. */
+    dom: string[];
+    /** `src/**` paths reachable from a `bot-node` test (`convex`, `scripts`). */
+    node: string[];
+}
+
+/** Every `*.bot.test.{ts,tsx}` under `dir`, absolute. */
+function collectBotTests(dir: string, out: string[] = []): string[] {
+    if (!fs.existsSync(dir)) return out;
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (entry.name === "node_modules" || entry.name.startsWith(".")) {
+            continue;
+        }
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) collectBotTests(full, out);
+        else if (/\.bot\.test\.tsx?$/.test(entry.name)) out.push(full);
+    }
+    return out;
+}
+
+/** The `src/**` half of the transitive local import closure of `entries`. */
+function srcClosure(root: string, entries: string[]): string[] {
+    const srcRoot = path.join(root, "src");
+    const seen = new Set<string>();
+    const stack = [...entries];
+    while (stack.length > 0) {
+        const file = stack.pop()!;
+        if (seen.has(file)) continue;
+        seen.add(file);
+        if (!/\.(tsx?|mjs|js)$/.test(file) || !fs.existsSync(file)) continue;
+        const source = fs.readFileSync(file, "utf8");
+        for (const m of source.matchAll(IMPORT_SPECIFIER)) {
+            const resolved = resolveLocal(root, file, m[1] ?? m[2] ?? m[3]);
+            if (resolved) stack.push(resolved);
+        }
+    }
+    return [...seen]
+        .filter((f) => f.startsWith(`${srcRoot}${path.sep}`))
+        .map((f) => path.relative(root, f).split(path.sep).join("/"))
+        .sort();
+}
+
+/** The `src/**` paths each bot project's tests can reach. */
+export function botSubjects(root: string): BotSubjects {
+    return {
+        dom: srcClosure(root, collectBotTests(path.join(root, "src"))),
+        node: srcClosure(root, [
+            ...collectBotTests(path.join(root, "convex")),
+            ...collectBotTests(path.join(root, "scripts")),
+        ]),
+    };
+}

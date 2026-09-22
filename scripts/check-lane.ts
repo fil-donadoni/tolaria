@@ -73,12 +73,32 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { ORIGIN_BASE } from "./lib/branches";
 import { DOC_GATE_TESTS } from "./lib/doc-gate-tests";
+import { matchesBotGlob } from "./lib/bot-globs";
+import { botSubjects, type BotSubjects } from "./test-env-split";
 
 /** The whole node project, as its two fixed partitions (ADR 0136 §5). */
 export const NODE_PARTITIONS = "--project node-engine --project node-tooling";
+
+/**
+ * Which `src/**` paths can red a bot test — computed, never declared
+ * (issue #3435). See `test-env-split.ts` § botSubjects for why this is an
+ * import-graph closure and not a fourth hand-maintained list of bot paths,
+ * and why the call site below unions it with `matchesBotGlob`.
+ *
+ * Memoised: `classifyLane` is called once per process, but the walk is
+ * ~0.5s and the `--plan` mode exists precisely so asking which lane a diff
+ * owes costs nothing (ADR 0136 §1/§8).
+ */
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+let memoisedBotSubjects: BotSubjects | null = null;
+function defaultBotSubjects(): BotSubjects {
+    memoisedBotSubjects ??= botSubjects(REPO_ROOT);
+    return memoisedBotSubjects;
+}
 
 // ─────────────────────────────────────────────────────────────────────────
 // Path classification
@@ -373,7 +393,16 @@ function scopedCheck(
  */
 export function classifyLane(
     changedPaths: string[],
-    presentPaths: string[] = changedPaths
+    presentPaths: string[] = changedPaths,
+    /**
+     * The `src/**` paths each bot project's tests reach (issue #3435).
+     * Injectable so the plan builder stays a pure function over its inputs —
+     * a test pins the `skin` branch against a fixture closure instead of the
+     * live tree, which would make the guard restate whatever the walk
+     * currently returns. Read ONLY in the `skin` branch, and lazily, so no
+     * other lane pays the walk.
+     */
+    subjects: () => BotSubjects = defaultBotSubjects
 ): LanePlan {
     const files = [...changedPaths];
     const lane = laneFor(files.map(classifyPath));
@@ -471,6 +500,45 @@ export function classifyLane(
             },
             { id: "dom", command: "bunx vitest run --project dom" }
         );
+        // ADMISSION, NOT SCOPING (ADR 0104): each bot project runs WHOLE or
+        // not at all, and what decides is whether the diff contains a path
+        // one of its tests can reach. The union with `matchesBotGlob` is the
+        // safety net for what an import walk structurally cannot see — see
+        // `test-env-split.ts` § botSubjects.
+        const reach = subjects();
+        const botSkips: SkippedCheck[] = [];
+        // The `matchesBotGlob` net is `bot-dom`'s alone, and on purpose: what
+        // the walk cannot see is a module loaded WITHOUT an import specifier
+        // (`new Worker(new URL("./brain.worker.ts", import.meta.url))`), and a
+        // `src` module in that shape is covered by a `src` bot test, which is
+        // `bot-dom` by the project split. A `convex`/`scripts` bot test reaches
+        // `src` only through a static specifier, which the walk does see — so
+        // netting `bot-node` too would run the heavy convex bot suite on every
+        // `src/lib/ai/**` diff for a reachability the closure already answers.
+        for (const [project, reachable, net, envelope] of [
+            ["bot-dom", reach.dom, true, "a src/**/*.bot.test.{ts,tsx}"],
+            [
+                "bot-node",
+                reach.node,
+                false,
+                "a convex/** or scripts/** *.bot.test.ts",
+            ],
+        ] as const) {
+            const touched = files.filter(
+                (p) => reachable.includes(p) || (net && matchesBotGlob(p))
+            );
+            if (touched.length > 0) {
+                run.push({
+                    id: project,
+                    command: `TOLARIA_BOT_FAST=1 bunx vitest run --project ${project}`,
+                });
+            } else {
+                botSkips.push({
+                    id: project,
+                    reason: `no changed path is reachable from ${envelope}${net ? " and none is under the Bot globs" : ""} — nothing this project covers moved`,
+                });
+            }
+        }
         skip.push(
             {
                 id: "tsc[convex,node]",
@@ -488,10 +556,7 @@ export function classifyLane(
                 id: "check:oracle",
                 reason: "no changed code under convex/** or data/** — the oracle lockfile cannot drift",
             },
-            {
-                id: "bot fast lane",
-                reason: "no changed code under convex/** or scripts/** — the bot suites cannot go red",
-            },
+            ...botSkips,
             {
                 id: "node[convex]",
                 reason: "no changed code under convex/** — the engine tests cannot go red",
