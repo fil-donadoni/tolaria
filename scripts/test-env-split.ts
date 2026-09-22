@@ -78,18 +78,38 @@ const ISOLATION_MARKERS = [
 
 export const SRC_NODE_DISQUALIFIERS = [...DOM_MARKERS, ...ISOLATION_MARKERS];
 
-function collect(dir: string, out: string[] = []): string[] {
+/**
+ * Every file under `dir` whose BASENAME satisfies `matches`, absolute.
+ *
+ * One walker, two populations: the general `*.test.ts` set the env split
+ * classifies, and the `*.bot.test.{ts,tsx}` set `botSubjects` starts from.
+ * The skip rules (`node_modules`, dotfiles) are the same for both and are
+ * the half worth not writing twice.
+ */
+function collect(
+    dir: string,
+    matches: (basename: string) => boolean,
+    out: string[] = []
+): string[] {
     if (!fs.existsSync(dir)) return out;
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
         if (entry.name === "node_modules" || entry.name.startsWith(".")) {
             continue;
         }
         const full = path.join(dir, entry.name);
-        if (entry.isDirectory()) collect(full, out);
-        else if (entry.name.endsWith(".test.ts")) out.push(full);
+        if (entry.isDirectory()) collect(full, matches, out);
+        else if (matches(entry.name)) out.push(full);
     }
     return out;
 }
+
+/** The general suite's membership: `*.test.ts`, bot and perf files included
+ *  (the callers filter those out by their own rules). */
+const isTest = (basename: string) => basename.endsWith(".test.ts");
+
+/** The bot projects' membership — the filename convention
+ *  `bot-suite-boundary.test.ts` enforces, `.tsx` included. */
+const isBotTest = (basename: string) => /\.bot\.test\.tsx?$/.test(basename);
 
 export interface SrcTestSplit {
     /** `src` tests that can run in the node project, repo-relative, posix. */
@@ -102,7 +122,7 @@ export interface SrcTestSplit {
 export function splitSrcTests(root: string): SrcTestSplit {
     const node: string[] = [];
     const dom: string[] = [];
-    for (const file of collect(path.join(root, "src")).sort()) {
+    for (const file of collect(path.join(root, "src"), isTest).sort()) {
         if (file.endsWith(".bot.test.ts")) continue;
         const rel = path.relative(root, file).split(path.sep).join("/");
         const source = fs.readFileSync(file, "utf8");
@@ -239,7 +259,7 @@ export interface ScriptsTestSplit {
 export function splitScriptsTests(root: string): ScriptsTestSplit {
     const engine: string[] = [];
     const tooling: string[] = [];
-    for (const file of collect(path.join(root, "scripts")).sort()) {
+    for (const file of collect(path.join(root, "scripts"), isTest).sort()) {
         if (/\.(bot|perf)\.test\.ts$/.test(file)) continue;
         const rel = path.relative(root, file).split(path.sep).join("/");
         (reachesEngine(root, file) ? engine : tooling).push(rel);
@@ -285,20 +305,6 @@ export interface BotSubjects {
     node: string[];
 }
 
-/** Every `*.bot.test.{ts,tsx}` under `dir`, absolute. */
-function collectBotTests(dir: string, out: string[] = []): string[] {
-    if (!fs.existsSync(dir)) return out;
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-        if (entry.name === "node_modules" || entry.name.startsWith(".")) {
-            continue;
-        }
-        const full = path.join(dir, entry.name);
-        if (entry.isDirectory()) collectBotTests(full, out);
-        else if (/\.bot\.test\.tsx?$/.test(entry.name)) out.push(full);
-    }
-    return out;
-}
-
 /** The `src/**` half of the transitive local import closure of `entries`. */
 function srcClosure(root: string, entries: string[]): string[] {
     const srcRoot = path.join(root, "src");
@@ -324,10 +330,10 @@ function srcClosure(root: string, entries: string[]): string[] {
 /** The `src/**` paths each bot project's tests can reach. */
 export function botSubjects(root: string): BotSubjects {
     return {
-        dom: srcClosure(root, collectBotTests(path.join(root, "src"))),
+        dom: srcClosure(root, collect(path.join(root, "src"), isBotTest)),
         node: srcClosure(root, [
-            ...collectBotTests(path.join(root, "convex")),
-            ...collectBotTests(path.join(root, "scripts")),
+            ...collect(path.join(root, "convex"), isBotTest),
+            ...collect(path.join(root, "scripts"), isBotTest),
         ]),
     };
 }
