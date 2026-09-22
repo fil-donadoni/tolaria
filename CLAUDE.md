@@ -40,9 +40,8 @@ it is only a view of the state.
 
 `@convex-dev/auth` Password provider (email + password + nickname). Every
 query/mutation touching user-owned data uses `getCurrentUser(ctx)` /
-`getCurrentUserId(ctx)` from `convex/auth.ts`. Router root wrapped in
-`<AuthGate>` — every route requires login, no anonymous play. Email
-verification off in development.
+`getCurrentUserId(ctx)` from `convex/auth.ts`. `<AuthGate>` at the router
+root: every route requires login. Email verification off in development.
 
 ### Player identity in games
 
@@ -59,8 +58,7 @@ clients cannot spoof identity.
 - `gameTicks` — ~150-byte wake-up companion row, written with every
   `gameStates` save so a subscriber need not hold the fat row.
 - **There is no event log.** `game_events` was designed, never built: the
-  snapshot is the source of truth and replay-from-log does not exist.
-  Detail: `docs/PROJECT.md` § Data model.
+  snapshot is the source of truth. Detail: `docs/PROJECT.md` § Data model.
 
 User decks in `userDecks` (indexed by `userId`); preset decks in
 `convex/deckPresets.ts` (`api.decks.list`). State saved **only at stable
@@ -87,8 +85,8 @@ POSTCOMBAT_MAIN → ENDING. Untap and cleanup are automatic (no priority).
 ## Key boundary — authority, not imports
 
 **ADR 0074**: the frontend MAY import pure engine modules from `convex/gre/`
-and `convex/limited/` (client-side Brain, Draft Lab do so routinely — sharing
-the module prevents drift). What the frontend never has is **authority**: no
+and `convex/limited/` (the client-side Brain and Draft Lab do). What the
+frontend never has is **authority**: no
 client-side engine run produces persisted or trusted state; every real move
 goes through a public mutation in `convex/game.ts` and is re-validated
 server-side.
@@ -155,7 +153,8 @@ decisions or genuine CR ambiguity affecting behavior.
 
 **A multi-token command is a shell ARRAY, never a quoted string.**
 `CMD="tool --a 1"` + `"$CMD"` runs a file named `tool --a 1`. Write
-`CMD=(tool --a 1)` + `"${CMD[@]}"`; a wrapper (`env`, `xargs`) is no exception.
+`CMD=(tool --a 1)` + `"${CMD[@]}"`; a wrapper (`/usr/bin/time`, `env`,
+`xargs`) is no exception.
 
 ## Browser verification
 
@@ -199,11 +198,11 @@ only the invariants; derivations and worked examples live in a nested
 that directory** (`docs/agents/context-residency-audit.md` § Lever 4).
 Frontmatter `globs:` do NOT gate loading; nesting does.
 
-| Touching    | Resident index                                                                                    | Full text, on demand |
-| ----------- | ------------------------------------------------------------------------------------------------- | -------------------- |
-| `convex/**` | `.claude/rules/gre-development.md`                                                                | `convex/CLAUDE.md`   |
-| `src/**`    | `.claude/rules/frontend-components.md` + `chrome-debug.md`                                        | `src/CLAUDE.md`      |
-| the Bot     | `.claude/rules/bot-development.md` (whole — its `globs:` is parsed by `scripts/lib/bot-globs.ts`) | `/bot-slice`         |
+| Touching    | Resident index                                                                            | Full text, on demand |
+| ----------- | ----------------------------------------------------------------------------------------- | -------------------- |
+| `convex/**` | `.claude/rules/gre-development.md`                                                        | `convex/CLAUDE.md`   |
+| `src/**`    | `.claude/rules/frontend-components.md` + `chrome-debug.md`                                | `src/CLAUDE.md`      |
+| the Bot     | `.claude/rules/bot-development.md` (whole; its `globs:` feeds `scripts/lib/bot-globs.ts`) | `/bot-slice`         |
 
 A norm belongs in the index only if acting without it is a mistake **before**
 any file is opened; everything else goes in the nested file.
@@ -311,19 +310,23 @@ an `origin/<name>` literal elsewhere reds `branches.test.ts`.
 (#2537 — any directory checked out on it; the base and release branches are
 refused). `land` holds the gate mutex across rebase → `check:lane` → push →
 merge, so the tree that lands is the tree that was gated; it refuses a PR
-whose base is not the base branch. Worktrees: `bun run wt:new <N>`.
-`deny-guard.sh` § 1 denies a hand-typed `gh pr merge` (hatch:
-`TOLARIA_ALLOW_MANUAL_MERGE=1`); if only the MERGE failed, retry
-`bun scripts/pr-merge.ts <PR#>`, **then re-run `land`** — on a MERGED PR it
-runs only the housekeeping (#4159). A `skin`-lane PR owes a byte-exact
-`check:ui` receipt only if its diff can reach the DOM (ADR 0110 §4).
+whose base is not the base branch. No health per landing — `land` only
+appends the tip and detaches the batch decision. Worktrees:
+`bun run wt:new <N>`. `deny-guard.sh` § 1 denies a hand-typed `gh pr merge`
+(hatch: `TOLARIA_ALLOW_MANUAL_MERGE=1`); if only the MERGE failed, retry
+`bun scripts/pr-merge.ts <PR#>` (a second `land` re-pays the gate), **then
+re-run `land`** — on a MERGED PR it runs only the housekeeping (#4159). A
+`skin`-lane PR owes a byte-exact `check:ui` receipt only if its diff can reach
+the DOM — a test-only `src/**` diff is exempt (ADR 0110 §4).
 
 **Fresh worktrees need `bun run worktree:init`** — `216 files failed, 0 tests
 failed` is a missing bootstrap, not a red baseline.
 
 **Green-at-release (ADR 0116): the release branch only moves to a
-health-proven base tip.** A failed health or release leaves a durable `RED`
-marker (`bun run health:status`): fix-forward FIRST (`bun run health:fix`) —
+health-proven base tip.** `land` proves the lane, the batch health proves the
+rest between releases, `release` re-proves it on the exact tip. Either leaves
+a durable `RED` marker on failure (`bun run health:status`): fix-forward FIRST
+(`bun run health:fix`) —
 never stack work on a red tip, never silence a test, "not my test" is not an
 exemption.
 
@@ -349,7 +352,8 @@ vs defer together.
 reds on one missing from `data/cr/citations-ledger.json` and names the fix —
 read the rule it prints, then `bun run cr:ledger confirm <file>:<line>`, ONE
 line per call, `<line>` = the id's line, a wrapped citation read whole (#2514).
-`cr:check` / `cr:sync` track a newer document, outside `check:all` (offline by
+A wrong id is fixed on its line, then confirmed. `cr:check` / `cr:sync` track
+a newer document, outside `check:all` (offline by
 contract). Derivation: `docs/agents/gre-guards.md` § CR citation linting.
 
 ## Implemented engine capabilities
@@ -386,7 +390,6 @@ A capability that genuinely isn't built: flag it explicitly — most are.
   `docs/adr/README.md` is the queryable index; **every new ADR MUST add its
   index row** in the same change.
 
-This project uses [Convex](https://convex.dev). When working on Convex code,
-**always read `convex/_generated/ai/guidelines.md` first** — it overrides
-training-data knowledge of Convex APIs. Convex agent skills:
+This project uses Convex: **always read `convex/_generated/ai/guidelines.md`
+first** — it overrides training-data knowledge. Skills:
 `npx convex ai-files install`.

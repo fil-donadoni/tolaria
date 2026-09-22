@@ -4,18 +4,18 @@
 shown it.** happy-dom has no layout engine, so "the card is in the document"
 passes on a screen where the card sits in a 24px-tall container.
 
-**This file is the index; the full text is `src/CLAUDE.md`**, which the harness
-loads on demand the first time a session reads a file under `src/`. Procedure
-and the probe: `docs/guides/browser-verification.md`; click sequences:
+**This file is the index; the full text is `src/CLAUDE.md`**, loaded on demand
+the first time a session reads a file under `src/`. Procedure and probe:
+`docs/guides/browser-verification.md`; click sequences:
 `docs/guides/ui-runbooks.md`.
 
 **Applies to** any diff reaching a component, CSS, layout, responsive rule,
 overlay/z-index or scroll container. Not to engine/Convex/script/doc changes —
 say so in one line and move on.
 
-**Run `bun run check:ui`** (#2580). It owns its own Vite + headless Chrome,
-signs in, walks the runbook surfaces at all five viewports (ADR 0101), probes
-and runs axe; nine Floors at zero (ADR 0132). **Its output IS the receipt —
+**Run `bun run check:ui`** (#2580): its own Vite + headless Chrome, signs in,
+walks the runbook surfaces at all five viewports (ADR 0101), probes and runs
+axe; nine Floors at zero (ADR 0132). **Its output IS the receipt —
 paste it byte-exact** (#2760); `bun run land` re-derives its verdict block and
 refuses a mismatch or a non-`PASS` line. A no-flag run walks the diff's surfaces and
 prints `SCOPED` (ADR 0131), re-derived by `land`; `RECEIPT` covers any diff;
@@ -24,9 +24,9 @@ never `DIAGNOSTIC`; never reflow a row.
 **Unreached prints `UNWALKED`; a walk the machine cut short, `INFRA` (#3644)** —
 both red the run: unproven, not a pass.
 
-**Measure, never eyeball.** A screenshot of a clipped row reads as "the cards
-are there" — that is how the bug above shipped. A UI PR with no receipt and no
-"cannot reach the DOM" note is not done.
+**Measure, never eyeball** — a screenshot of a clipped row reads as "the cards
+are there". A UI PR with no receipt and no "cannot reach the DOM" note is not
+done.
 
 **Gameplay checks use solo mode** — one user, both seats. Never a second tab
 for the opponent.

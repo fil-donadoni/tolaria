@@ -56,9 +56,8 @@ it is only a view of the state.
 
 `@convex-dev/auth` Password provider (email + password + nickname). Every
 query/mutation touching user-owned data uses `getCurrentUser(ctx)` /
-`getCurrentUserId(ctx)` from `convex/auth.ts`. Router root wrapped in
-`<AuthGate>` — every route requires login, no anonymous play. Email
-verification off in development.
+`getCurrentUserId(ctx)` from `convex/auth.ts`. `<AuthGate>` at the router
+root: every route requires login. Email verification off in development.
 
 ### Player identity in games
 
@@ -75,8 +74,7 @@ clients cannot spoof identity.
 - `gameTicks` — ~150-byte wake-up companion row, written with every
   `gameStates` save so a subscriber need not hold the fat row.
 - **There is no event log.** `game_events` was designed, never built: the
-  snapshot is the source of truth and replay-from-log does not exist.
-  Detail: `docs/PROJECT.md` § Data model.
+  snapshot is the source of truth. Detail: `docs/PROJECT.md` § Data model.
 
 User decks in `userDecks` (indexed by `userId`); preset decks in
 `convex/deckPresets.ts` (`api.decks.list`). State saved **only at stable
@@ -103,8 +101,8 @@ POSTCOMBAT_MAIN → ENDING. Untap and cleanup are automatic (no priority).
 ## Key boundary — authority, not imports
 
 **ADR 0074**: the frontend MAY import pure engine modules from `convex/gre/`
-and `convex/limited/` (client-side Brain, Draft Lab do so routinely — sharing
-the module prevents drift). What the frontend never has is **authority**: no
+and `convex/limited/` (the client-side Brain and Draft Lab do). What the
+frontend never has is **authority**: no
 client-side engine run produces persisted or trusted state; every real move
 goes through a public mutation in `convex/game.ts` and is re-validated
 server-side.
@@ -171,7 +169,8 @@ decisions or genuine CR ambiguity affecting behavior.
 
 **A multi-token command is a shell ARRAY, never a quoted string.**
 `CMD="tool --a 1"` + `"$CMD"` runs a file named `tool --a 1`. Write
-`CMD=(tool --a 1)` + `"${CMD[@]}"`; a wrapper (`env`, `xargs`) is no exception.
+`CMD=(tool --a 1)` + `"${CMD[@]}"`; a wrapper (`/usr/bin/time`, `env`,
+`xargs`) is no exception.
 
 ## Browser verification
 
@@ -309,19 +308,23 @@ an `origin/<name>` literal elsewhere reds `branches.test.ts`.
 (#2537 — any directory checked out on it; the base and release branches are
 refused). `land` holds the gate mutex across rebase → `check:lane` → push →
 merge, so the tree that lands is the tree that was gated; it refuses a PR
-whose base is not the base branch. Worktrees: `bun run wt:new <N>`.
-`deny-guard.sh` § 1 denies a hand-typed `gh pr merge` (hatch:
-`TOLARIA_ALLOW_MANUAL_MERGE=1`); if only the MERGE failed, retry
-`bun scripts/pr-merge.ts <PR#>`, **then re-run `land`** — on a MERGED PR it
-runs only the housekeeping (#4159). A `skin`-lane PR owes a byte-exact
-`check:ui` receipt only if its diff can reach the DOM (ADR 0110 §4).
+whose base is not the base branch. No health per landing — `land` only
+appends the tip and detaches the batch decision. Worktrees:
+`bun run wt:new <N>`. `deny-guard.sh` § 1 denies a hand-typed `gh pr merge`
+(hatch: `TOLARIA_ALLOW_MANUAL_MERGE=1`); if only the MERGE failed, retry
+`bun scripts/pr-merge.ts <PR#>` (a second `land` re-pays the gate), **then
+re-run `land`** — on a MERGED PR it runs only the housekeeping (#4159). A
+`skin`-lane PR owes a byte-exact `check:ui` receipt only if its diff can reach
+the DOM — a test-only `src/**` diff is exempt (ADR 0110 §4).
 
 **Fresh worktrees need `bun run worktree:init`** — `216 files failed, 0 tests
 failed` is a missing bootstrap, not a red baseline.
 
 **Green-at-release (ADR 0116): the release branch only moves to a
-health-proven base tip.** A failed health or release leaves a durable `RED`
-marker (`bun run health:status`): fix-forward FIRST (`bun run health:fix`) —
+health-proven base tip.** `land` proves the lane, the batch health proves the
+rest between releases, `release` re-proves it on the exact tip. Either leaves
+a durable `RED` marker on failure (`bun run health:status`): fix-forward FIRST
+(`bun run health:fix`) —
 never stack work on a red tip, never silence a test, "not my test" is not an
 exemption.
 
@@ -347,7 +350,8 @@ vs defer together.
 reds on one missing from `data/cr/citations-ledger.json` and names the fix —
 read the rule it prints, then `bun run cr:ledger confirm <file>:<line>`, ONE
 line per call, `<line>` = the id's line, a wrapped citation read whole (#2514).
-`cr:check` / `cr:sync` track a newer document, outside `check:all` (offline by
+A wrong id is fixed on its line, then confirmed. `cr:check` / `cr:sync` track
+a newer document, outside `check:all` (offline by
 contract). Derivation: `docs/agents/gre-guards.md` § CR citation linting.
 
 ## Implemented engine capabilities
@@ -384,9 +388,8 @@ A capability that genuinely isn't built: flag it explicitly — most are.
   `docs/adr/README.md` is the queryable index; **every new ADR MUST add its
   index row** in the same change.
 
-This project uses [Convex](https://convex.dev). When working on Convex code,
-**always read `convex/_generated/ai/guidelines.md` first** — it overrides
-training-data knowledge of Convex APIs. Convex agent skills:
+This project uses Convex: **always read `convex/_generated/ai/guidelines.md`
+first** — it overrides training-data knowledge. Skills:
 `npx convex ai-files install`.
 
 ---
@@ -435,9 +438,9 @@ passes on a screen where the card sits in a 24px-tall container.
 overlay/z-index or scroll container. Not to engine/Convex/script/doc changes —
 say so in one line and move on.
 
-**Run `bun run check:ui`** (#2580). It owns its own Vite + headless Chrome,
-signs in, walks the runbook surfaces at all five viewports (ADR 0101), probes
-and runs axe; nine Floors at zero (ADR 0132). **Its output IS the receipt —
+**Run `bun run check:ui`** (#2580): its own Vite + headless Chrome, signs in,
+walks the runbook surfaces at all five viewports (ADR 0101), probes and runs
+axe; nine Floors at zero (ADR 0132). **Its output IS the receipt —
 paste it byte-exact** (#2760); `bun run land` re-derives its verdict block and
 refuses a mismatch or a non-`PASS` line. A no-flag run walks the diff's surfaces and
 prints `SCOPED` (ADR 0131), re-derived by `land`; `RECEIPT` covers any diff;
@@ -446,9 +449,9 @@ never `DIAGNOSTIC`; never reflow a row.
 **Unreached prints `UNWALKED`; a walk the machine cut short, `INFRA` (#3644)** —
 both red the run: unproven, not a pass.
 
-**Measure, never eyeball.** A screenshot of a clipped row reads as "the cards
-are there" — that is how the bug above shipped. A UI PR with no receipt and no
-"cannot reach the DOM" note is not done.
+**Measure, never eyeball** — a screenshot of a clipped row reads as "the cards
+are there". A UI PR with no receipt and no "cannot reach the DOM" note is not
+done.
 
 **Gameplay checks use solo mode** — one user, both seats. Never a second tab
 for the opponent.
@@ -539,17 +542,17 @@ full-path integration test.**
 ### Frontend wiring analysis (mandatory for EVERY new card/mechanic)
 
 A card correct in the GRE can be dead in the UI — the client sees only view
-reducers, and every reducer can silently drop a field. This is the single most
-common recurring bug class. **Walk the reducers before marking done**:
+reducers, and every reducer can silently drop a field: the most common
+recurring bug class. **Walk the reducers before marking done**:
 `projectPublicState`, `buildTriggerStateView`, `getStackAbilities`,
 `matchesTargetRequirement` / `TARGET_LABEL`.
 
 ### Bot reachability analysis (mandatory for EVERY new card/mechanic)
 
-Mirror of the above, other side of the engine: a card correct in the GRE can be
-one the **Bot never plays**. Nothing catches that for a new card — the censuses
-cover VALUATION only, and the `blade` receipt field fires on `BOT_GLOBS`, which
-`cards/sets/**` never touches. **Walk three seams**: `enumerateMoves`
+A card correct in the GRE can be one the **Bot never plays**, and nothing
+catches that for a new card (the censuses cover valuation only; the `blade`
+receipt fires on `BOT_GLOBS`, never on `cards/sets/**`). **Walk three seams**:
+`enumerateMoves`
 (reachable?), the choice surface (can it answer?), `OP_VALUERS` +
 `OP_BENEFICENCE` (does it want to? — the sign fails open to neutral). Declare
 the outcome in the PR like a preset scenario: a `must` blade entry, or one line
@@ -570,10 +573,9 @@ Every optional `GameState` field goes in `PERSISTED_OPTIONAL_KEYS` or
 
 An engine identifier is named after the MECHANIC: `playerAttackRequirements`,
 never `islandSanctuaryProtection`. The generic NAME comes from card #1 — always,
-it is a mechanical rename; the generic SHAPE waits for card #2 to show the axis
-of variation. Enforced catalogue-wide by
-`convex/cards/__tests__/engineIdentifierNames.test.ts` (issue #1918) over every
-top-level declaration in `gre/state.ts` + `cards/types.ts` plus the Op names.
+a mechanical rename; the generic SHAPE waits for card #2 to show the axis of
+variation. Enforced by `convex/cards/__tests__/engineIdentifierNames.test.ts`
+(issue #1918) over `gre/state.ts`, `cards/types.ts` and the Op names.
 Derivation: `docs/agents/gre-guards.md` § No card name in an engine identifier.
 
 ### Code patterns

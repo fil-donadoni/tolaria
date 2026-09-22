@@ -2,12 +2,9 @@
 
 When modifying files in `convex/gre/` or `convex/cards/`.
 
-**This file is the index; the full text is `convex/CLAUDE.md`**, which the
-harness loads on demand the first time a session reads a file under `convex/`
-(measured, not assumed — see `docs/agents/context-residency-audit.md` § Lever 4
-applied). Every `§` anchor cited from the codebase resolves in that file. What
-stays here is the invariant a session must not violate even before it opens an
-engine file; what moved is the derivation, the tables and the worked examples.
+**This file is the index; the full text is `convex/CLAUDE.md`**, loaded on
+demand the first time a session reads a file under `convex/`. Every `§` anchor
+cited from the codebase resolves there; here stay only the invariants.
 
 ## Rules compliance
 
@@ -72,17 +69,17 @@ full-path integration test.**
 ## Frontend wiring analysis (mandatory for EVERY new card/mechanic)
 
 A card correct in the GRE can be dead in the UI — the client sees only view
-reducers, and every reducer can silently drop a field. This is the single most
-common recurring bug class. **Walk the reducers before marking done**:
+reducers, and every reducer can silently drop a field: the most common
+recurring bug class. **Walk the reducers before marking done**:
 `projectPublicState`, `buildTriggerStateView`, `getStackAbilities`,
 `matchesTargetRequirement` / `TARGET_LABEL`.
 
 ## Bot reachability analysis (mandatory for EVERY new card/mechanic)
 
-Mirror of the above, other side of the engine: a card correct in the GRE can be
-one the **Bot never plays**. Nothing catches that for a new card — the censuses
-cover VALUATION only, and the `blade` receipt field fires on `BOT_GLOBS`, which
-`cards/sets/**` never touches. **Walk three seams**: `enumerateMoves`
+A card correct in the GRE can be one the **Bot never plays**, and nothing
+catches that for a new card (the censuses cover valuation only; the `blade`
+receipt fires on `BOT_GLOBS`, never on `cards/sets/**`). **Walk three seams**:
+`enumerateMoves`
 (reachable?), the choice surface (can it answer?), `OP_VALUERS` +
 `OP_BENEFICENCE` (does it want to? — the sign fails open to neutral). Declare
 the outcome in the PR like a preset scenario: a `must` blade entry, or one line
@@ -103,10 +100,9 @@ Every optional `GameState` field goes in `PERSISTED_OPTIONAL_KEYS` or
 
 An engine identifier is named after the MECHANIC: `playerAttackRequirements`,
 never `islandSanctuaryProtection`. The generic NAME comes from card #1 — always,
-it is a mechanical rename; the generic SHAPE waits for card #2 to show the axis
-of variation. Enforced catalogue-wide by
-`convex/cards/__tests__/engineIdentifierNames.test.ts` (issue #1918) over every
-top-level declaration in `gre/state.ts` + `cards/types.ts` plus the Op names.
+a mechanical rename; the generic SHAPE waits for card #2 to show the axis of
+variation. Enforced by `convex/cards/__tests__/engineIdentifierNames.test.ts`
+(issue #1918) over `gre/state.ts`, `cards/types.ts` and the Op names.
 Derivation: `docs/agents/gre-guards.md` § No card name in an engine identifier.
 
 ## Code patterns
