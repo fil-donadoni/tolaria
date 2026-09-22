@@ -8,7 +8,7 @@ before relitigating a rule.
 
 Tolaria is an MTG (Magic: The Gathering) gameplay engine for study and
 experimentation: rules correctness and real-time reactivity between two
-clients. Not commercial — an extensible engine with a working subset of cards.
+clients. Not commercial: an extensible engine with a working subset of cards.
 
 Stack, toolchain, commands and the file map are NOT here — read on demand from
 `docs/PROJECT.md` (§ 2 Stack & toolchain / Comandi essenziali, § 7.3 Struttura
