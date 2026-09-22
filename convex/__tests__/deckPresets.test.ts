@@ -7,6 +7,7 @@ import {
     sortLobbyPresets,
 } from "../decks";
 import { getDefinition } from "../cards";
+import { withDefinitionId } from "../cards/catalogue";
 import type { Doc } from "../_generated/dataModel";
 
 // `deckPresets.ts` is now seed data only (PRD #466, ADR 0033). These tests
@@ -74,7 +75,9 @@ describe("DB-backed api.decks.list", () => {
             expect(lobby).toBeDefined();
             expect(lobby!.name).toBe(preset.name);
             expect(lobby!.colors).toEqual(preset.colors);
-            expect(lobby!.cards).toEqual(preset.cards);
+            // `presetToInsert` fills `definitionId` (issue #4117) on the way
+            // to the row this pipeline reads back.
+            expect(lobby!.cards).toEqual(preset.cards.map(withDefinitionId));
         }
     });
 

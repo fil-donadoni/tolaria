@@ -4,6 +4,7 @@ import {
     getPrintingsForCard,
     getPrintsForCard,
     resolveDeckCardMeta,
+    withDefinitionId,
 } from "../index";
 
 // Lightning Bolt: LEA original + LEB reprint. ids from sets/lea.ts & sets/leb.ts.
@@ -111,5 +112,49 @@ describe("getAllSetCodes", () => {
         expect(codes).toContain("lea");
         expect(codes).toContain("leb");
         expect([...codes]).toEqual([...codes].sort());
+    });
+});
+
+// Card Prints (ADR 0140, issue #4117) — `withDefinitionId` is what every
+// `userDecks`/`presetDecks` write runs a deck card entry through so
+// `definitionId` is never actually absent at rest.
+describe("withDefinitionId (deck entry Card Prints split, issue #4117)", () => {
+    it("resolves a reprint's cardId (chosen printing) to its home definitionId", () => {
+        expect(
+            withDefinitionId({ cardId: LIGHTNING_BOLT_LEB, cardName: "Bolt" })
+        ).toEqual({
+            cardId: LIGHTNING_BOLT_LEB,
+            cardName: "Bolt",
+            definitionId: LIGHTNING_BOLT_LEA,
+        });
+    });
+
+    it("resolves the definition's own printing to itself", () => {
+        expect(
+            withDefinitionId({ cardId: LIGHTNING_BOLT_LEA, cardName: "Bolt" })
+        ).toEqual({
+            cardId: LIGHTNING_BOLT_LEA,
+            cardName: "Bolt",
+            definitionId: LIGHTNING_BOLT_LEA,
+        });
+    });
+
+    it("falls back to the cardId itself when the registry cannot resolve it (never drops the card)", () => {
+        expect(
+            withDefinitionId({ cardId: "withdrawn-print", cardName: "Ghost" })
+        ).toEqual({
+            cardId: "withdrawn-print",
+            cardName: "Ghost",
+            definitionId: "withdrawn-print",
+        });
+    });
+
+    it("is idempotent — an entry that already carries definitionId is left untouched", () => {
+        const card = {
+            cardId: LIGHTNING_BOLT_LEB,
+            cardName: "Bolt",
+            definitionId: "already-set",
+        };
+        expect(withDefinitionId(card)).toEqual(card);
     });
 });

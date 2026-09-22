@@ -794,3 +794,24 @@ export const resolveDeckCardMeta = (cardId: string): DeckCardMeta | null => {
         isBasic,
     };
 };
+
+type DeckCardArg = { cardId: string; cardName: string; definitionId?: string };
+
+/**
+ * Fills a deck card entry's `definitionId` (Card Prints, ADR 0140/issue
+ * #4117) when the caller omitted it — `cardId` here is the chosen PRINTING,
+ * exactly the same overload `resolveDeckCardMeta` already unwinds to build a
+ * Game's Library. So every write through `userDecks`/`presetDecks` ends up
+ * with `definitionId` set, whether or not the client (deck builder, Limited
+ * Auto-Build, deck import, …) was updated to send one — the field never
+ * needs its OWN migration across every caller of those mutations. A `cardId`
+ * the registry cannot resolve (a withdrawn/renamed printing) falls back to
+ * itself rather than dropping the card.
+ */
+export function withDefinitionId(card: DeckCardArg): Required<DeckCardArg> {
+    if (card.definitionId) return card as Required<DeckCardArg>;
+    return {
+        ...card,
+        definitionId: resolveDeckCardMeta(card.cardId)?.cardId ?? card.cardId,
+    };
+}

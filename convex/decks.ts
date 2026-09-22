@@ -4,6 +4,7 @@ import { internalMutation } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { assertIsAdmin } from "./auth";
 import { loadBanlistOverrides } from "./banlists";
+import { withDefinitionId } from "./cards/catalogue";
 import {
     type DeckCard,
     type DeckPreset,
@@ -40,6 +41,7 @@ const formatValidator = v.union(
 const deckCardValidator = v.object({
     cardId: v.string(),
     cardName: v.string(),
+    definitionId: v.optional(v.string()),
 });
 
 // A single legality failure reason mirroring `formats.Reason` (ADR 0036).
@@ -164,8 +166,8 @@ export function presetToInsert(preset: DeckPreset): PresetInsert {
         format: preset.format,
         description: preset.description,
         colors: preset.colors,
-        cards: preset.cards,
-        sideboard: preset.sideboard,
+        cards: preset.cards.map(withDefinitionId),
+        sideboard: preset.sideboard?.map(withDefinitionId),
     };
 }
 
@@ -271,8 +273,10 @@ export function buildPresetPatch(
         patch.name = input.name.trim() || "Untitled preset";
     }
     if (input.colors !== undefined) patch.colors = input.colors;
-    if (input.cards !== undefined) patch.cards = input.cards;
-    if (input.sideboard !== undefined) patch.sideboard = input.sideboard;
+    if (input.cards !== undefined)
+        patch.cards = input.cards.map(withDefinitionId);
+    if (input.sideboard !== undefined)
+        patch.sideboard = input.sideboard.map(withDefinitionId);
     if (input.description !== undefined) patch.description = input.description;
     if (input.featuredCardId !== undefined)
         patch.featuredCardId = input.featuredCardId;
@@ -306,8 +310,8 @@ export function buildNewPresetRow(input: PresetCreateInput): PresetInsert {
         format: input.format ?? "freeform",
         description: input.description,
         colors: input.colors ?? [],
-        cards: input.cards ?? [],
-        sideboard: input.sideboard,
+        cards: (input.cards ?? []).map(withDefinitionId),
+        sideboard: input.sideboard?.map(withDefinitionId),
         // Featured Card override (PRD #589, issue #593). Stored verbatim; absent
         // ⇒ the resolver defaults to the first Maindeck card on read.
         featuredCardId: input.featuredCardId,
@@ -430,6 +434,41 @@ export const wipePresets = internalMutation({
             await ctx.db.delete(row._id);
         }
         return { deleted: rows.length };
+    },
+});
+
+/**
+ * One-shot migration (issue #4117, ADR 0140): backfill `definitionId` on
+ * every `presetDecks` row's Maindeck and Sideboard entries via
+ * `withDefinitionId`, mirroring `userDecks.migrateDefinitionIds`. Idempotent
+ * — a row where every entry already carries `definitionId` is left
+ * untouched. Run once via the Convex dashboard / `mcp run` after this slice
+ * deploys.
+ */
+export const migrateDefinitionIds = internalMutation({
+    args: {},
+    returns: v.object({ migrated: v.number(), unchanged: v.number() }),
+    handler: async (ctx) => {
+        const rows = await ctx.db.query("presetDecks").collect();
+        let migrated = 0;
+        let unchanged = 0;
+        for (const row of rows) {
+            const cards = row.cards.map(withDefinitionId);
+            const sideboard = row.sideboard?.map(withDefinitionId);
+            const cardsChanged = cards.some(
+                (c, i) => c.definitionId !== row.cards[i].definitionId
+            );
+            const sideboardChanged = sideboard?.some(
+                (c, i) => c.definitionId !== row.sideboard![i].definitionId
+            );
+            if (!cardsChanged && !sideboardChanged) {
+                unchanged++;
+                continue;
+            }
+            await ctx.db.patch(row._id, { cards, sideboard });
+            migrated++;
+        }
+        return { migrated, unchanged };
     },
 });
 

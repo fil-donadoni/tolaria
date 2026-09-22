@@ -10,6 +10,11 @@ import { render, fireEvent } from "@testing-library/react";
 import type { CardIndexEntry } from "../useCardSearch";
 import ResultCard from "../result-card";
 
+// The Card Prints edition query (issue #4117) is irrelevant to the
+// availability branch this file tests — never opened here, so `useQuery`
+// never runs, but the module import still needs a client-free stub.
+vi.mock("convex/react", () => ({ useQuery: () => undefined }));
+
 // Leaf presentational children — irrelevant to the availability branch, and
 // `DraggableCard` needs a dnd-kit provider we do not want in this test.
 vi.mock("~/components/cards/card-image", () => ({
@@ -58,6 +63,7 @@ describe("ResultCard availability gating", () => {
             <ResultCard
                 entry={entry(false)}
                 activeSets={[]}
+                allowedSets={null}
                 enforceAvailability
                 onAdd={onAdd}
             />
@@ -72,13 +78,18 @@ describe("ResultCard availability gating", () => {
             <ResultCard
                 entry={entry(false)}
                 activeSets={[]}
+                allowedSets={null}
                 enforceAvailability={false}
                 onAdd={onAdd}
             />
         );
         expect(queryByText("Not yet available")).toBeNull();
         fireEvent.click(getByTestId("draggable"));
-        expect(onAdd).toHaveBeenCalledWith("print-1", "Sliver Queen");
+        expect(onAdd).toHaveBeenCalledWith(
+            "print-1",
+            "Sliver Queen",
+            "print-1"
+        );
     });
 
     it("an available card is selectable either way", () => {
@@ -88,12 +99,17 @@ describe("ResultCard availability gating", () => {
                 <ResultCard
                     entry={entry(true)}
                     activeSets={[]}
+                    allowedSets={null}
                     enforceAvailability={enforce}
                     onAdd={onAdd}
                 />
             );
             fireEvent.click(getByTestId("draggable"));
-            expect(onAdd).toHaveBeenCalledWith("print-1", "Sliver Queen");
+            expect(onAdd).toHaveBeenCalledWith(
+                "print-1",
+                "Sliver Queen",
+                "print-1"
+            );
             unmount();
         }
     });

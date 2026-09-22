@@ -10,16 +10,22 @@ interface ResultsGridProps {
     idle: boolean;
     /** Active set filter — forwarded to each card to pick its default edition. */
     activeSets: string[];
+    /** The deck's Format allowed Sets (Old School / Alpha 40), `null` for
+     *  every other Format — forwarded so each card's edition selector queries
+     *  `cardPrints` pre-filtered to what the Format can legally offer (ADR
+     *  0140, issue #4117). */
+    allowedSets: string[] | null;
     /** False in manual mode, where a card the GRE does not implement is still
      *  fully playable (ADR 0080) and must stay selectable. */
     enforceAvailability: boolean;
-    onAdd: (printId: string, cardName: string) => void;
+    onAdd: (printId: string, cardName: string, definitionId: string) => void;
 }
 
 export default function ResultsGrid({
     entries,
     idle,
     activeSets,
+    allowedSets,
     enforceAvailability,
     onAdd,
 }: ResultsGridProps) {
@@ -88,6 +94,7 @@ export default function ResultsGrid({
                             key={entry.cardId}
                             entry={entry}
                             activeSets={activeSets}
+                            allowedSets={allowedSets}
                             enforceAvailability={enforceAvailability}
                             onAdd={onAdd}
                         />

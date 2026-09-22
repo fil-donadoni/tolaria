@@ -177,11 +177,21 @@ export default defineSchema({
         format: formatValidator,
         description: v.optional(v.string()),
         colors: v.array(v.string()),
-        // Maindeck: the cards that build the starting Library.
+        // Maindeck: the cards that build the starting Library. `cardId` is
+        // the chosen PRINTING (Card Prints, ADR 0140/issue #4117 — it long
+        // predates the split and is kept, unrenamed, to avoid rippling the
+        // ~100 downstream readers of this shape). `definitionId` (widen →
+        // migrate → narrow, issue #4117): every existing row was backfilled
+        // by `migrateDefinitionIds` and every write since fills it
+        // server-side (`withDefinitionId`) whether or not the caller sent
+        // one, so it is REQUIRED here — the mutation ARGS validators stay
+        // `optional()` for exactly that reason, only the stored row is
+        // guaranteed to carry it.
         cards: v.array(
             v.object({
                 cardId: v.string(),
                 cardName: v.string(),
+                definitionId: v.string(),
             })
         ),
         // Sideboard: 0–15 cards held aside (PRD #387, issue #391). Optional so
@@ -191,6 +201,7 @@ export default defineSchema({
                 v.object({
                     cardId: v.string(),
                     cardName: v.string(),
+                    definitionId: v.string(),
                 })
             )
         ),
@@ -250,11 +261,13 @@ export default defineSchema({
         format: formatValidator,
         description: v.optional(v.string()),
         colors: v.array(v.string()),
-        // Maindeck: the cards that build the starting Library.
+        // Maindeck: the cards that build the starting Library. See
+        // `userDecks.cards` above for `definitionId` (issue #4117).
         cards: v.array(
             v.object({
                 cardId: v.string(),
                 cardName: v.string(),
+                definitionId: v.string(),
             })
         ),
         // Sideboard: 0–15 cards held aside (PRD #387). Optional; absent ===
@@ -264,6 +277,7 @@ export default defineSchema({
                 v.object({
                     cardId: v.string(),
                     cardName: v.string(),
+                    definitionId: v.string(),
                 })
             )
         ),

@@ -13,6 +13,7 @@ import {
 } from "../decks";
 import { PRESET_DECKS, type DeckPreset } from "../deckPresets";
 import { isAdminUser } from "../auth";
+import { withDefinitionId } from "../cards/catalogue";
 import type { Doc } from "../_generated/dataModel";
 
 describe("slugify (PRD #466, ADR 0033)", () => {
@@ -79,7 +80,9 @@ describe("presetToInsert", () => {
         const row = presetToInsert(preset);
         expect(row.slug).toBe(preset.presetId);
         expect(row.name).toBe(preset.name);
-        expect(row.cards).toEqual(preset.cards);
+        // `presetToInsert` fills `definitionId` (issue #4117) on every card —
+        // `withDefinitionId` is the same resolver the mutation applies.
+        expect(row.cards).toEqual(preset.cards.map(withDefinitionId));
     });
 
     it("carries the sideboard through (or leaves it absent)", () => {
@@ -93,7 +96,9 @@ describe("presetToInsert", () => {
             sideboard: [{ cardId: "y", cardName: "Y" }],
         };
         expect(presetToInsert(withSb).sideboard).toEqual([
-            { cardId: "y", cardName: "Y" },
+            // "y" resolves to no CardDefinition — `withDefinitionId` falls
+            // back to the cardId itself rather than dropping the card.
+            { cardId: "y", cardName: "Y", definitionId: "y" },
         ]);
         const noSb = { ...withSb, sideboard: undefined };
         expect(presetToInsert(noSb).sideboard).toBeUndefined();
@@ -133,16 +138,20 @@ describe("presetRowToLobby — wire shape", () => {
         format: "freeform",
         description: "Fast.",
         colors: ["R"],
-        cards: [{ cardId: "a", cardName: "A" }],
-        sideboard: [{ cardId: "b", cardName: "B" }],
+        cards: [{ cardId: "a", cardName: "A", definitionId: "a" }],
+        sideboard: [{ cardId: "b", cardName: "B", definitionId: "b" }],
     };
 
     it("exposes the slug as the public presetId (unchanged wire format)", () => {
         const lobby = presetRowToLobby(row);
         expect(lobby.presetId).toBe("mono-red-burn");
         expect(lobby.name).toBe("Mono Red Burn");
-        expect(lobby.cards).toEqual([{ cardId: "a", cardName: "A" }]);
-        expect(lobby.sideboard).toEqual([{ cardId: "b", cardName: "B" }]);
+        expect(lobby.cards).toEqual([
+            { cardId: "a", cardName: "A", definitionId: "a" },
+        ]);
+        expect(lobby.sideboard).toEqual([
+            { cardId: "b", cardName: "B", definitionId: "b" },
+        ]);
     });
 
     it("defaults a missing description to an empty string", () => {
@@ -221,7 +230,9 @@ describe("buildPresetPatch — slug is read-only (ADR 0033)", () => {
 
     it("carries an explicit sideboard through (preset edit can include one)", () => {
         const sb = [{ cardId: "s", cardName: "S" }];
-        expect(buildPresetPatch({ sideboard: sb }).sideboard).toEqual(sb);
+        expect(buildPresetPatch({ sideboard: sb }).sideboard).toEqual(
+            sb.map(withDefinitionId)
+        );
     });
 
     it("yields an empty patch for an empty input (caller skips the write)", () => {
@@ -284,7 +295,9 @@ describe("buildNewPresetRow — admin create (issue #469)", () => {
             _id: "row1" as Doc<"presetDecks">["_id"],
             _creationTime: 0,
             ...row,
-            cards: [{ cardId: "first", cardName: "First" }],
+            cards: [
+                { cardId: "first", cardName: "First", definitionId: "first" },
+            ],
         });
         expect(lobby.featuredCardId).toBe("first");
     });
@@ -301,9 +314,15 @@ describe("buildNewPresetRow — admin create (issue #469)", () => {
         expect(row.format).toBe("old-school");
         expect(row.colors).toEqual(["R", "G"]);
         expect(row.cards).toEqual([
-            { cardId: "bolt", cardName: "Lightning Bolt" },
+            {
+                cardId: "bolt",
+                cardName: "Lightning Bolt",
+                definitionId: "bolt",
+            },
         ]);
-        expect(row.sideboard).toEqual([{ cardId: "smash", cardName: "Smash" }]);
+        expect(row.sideboard).toEqual([
+            { cardId: "smash", cardName: "Smash", definitionId: "smash" },
+        ]);
         expect(row.description).toBe("A test deck.");
     });
 
@@ -325,7 +344,11 @@ describe("buildNewPresetRow — admin create (issue #469)", () => {
         expect(lobby.presetId).toBe("mono-white-aggro");
         expect(lobby.name).toBe("Mono White Aggro");
         expect(lobby.cards).toEqual([
-            { cardId: "savannah", cardName: "Savannah Lions" },
+            {
+                cardId: "savannah",
+                cardName: "Savannah Lions",
+                definitionId: "savannah",
+            },
         ]);
     });
 });
@@ -388,8 +411,8 @@ describe("deletePreset — admin gate + hard delete by slug (issue #470)", () =>
         format: p.format,
         description: p.description,
         colors: p.colors,
-        cards: p.cards,
-        sideboard: p.sideboard,
+        cards: p.cards.map(withDefinitionId),
+        sideboard: p.sideboard?.map(withDefinitionId),
     }));
 
     it("rejects a non-admin (assertIsAdmin gate runs first)", () => {
@@ -441,8 +464,20 @@ describe("preset edit round-trip — getPreset → editor → list (ADR 0033)", 
         format: "freeform",
         description: "Fast aggro.",
         colors: ["R"],
-        cards: [{ cardId: "bolt", cardName: "Lightning Bolt" }],
-        sideboard: [{ cardId: "smash", cardName: "Smash to Smithereens" }],
+        cards: [
+            {
+                cardId: "bolt",
+                cardName: "Lightning Bolt",
+                definitionId: "bolt",
+            },
+        ],
+        sideboard: [
+            {
+                cardId: "smash",
+                cardName: "Smash to Smithereens",
+                definitionId: "smash",
+            },
+        ],
     };
 
     it("getPreset's wire shape feeds the editor with the slug as presetId", () => {
@@ -482,8 +517,12 @@ describe("presetSeedDecision — upsert by slug (issue #3168)", () => {
         format: "premodern" as const,
         description: "Premodern Tier 1 — list supplied 2026-08-23.",
         colors: ["R", "G"],
-        cards: [{ cardId: "id-1", cardName: "Terravore" }],
-        sideboard: [{ cardId: "id-2", cardName: "Pyroblast" }],
+        cards: [
+            { cardId: "id-1", cardName: "Terravore", definitionId: "id-1" },
+        ],
+        sideboard: [
+            { cardId: "id-2", cardName: "Pyroblast", definitionId: "id-2" },
+        ],
     };
 
     it("inserts the whole row when the slug is absent", () => {
