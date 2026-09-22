@@ -196,23 +196,30 @@ describe("loop-status — queueDepthByPriority", () => {
             ],
             { 1: "P0", 100: "P0", 2: "P1", 200: "P2", 4: "P1" }
         );
+        // #4 counts under its P2 umbrella, not its own P1 — the parent
+        // governs (issue #4371), and the depth line is the display of the
+        // planner's ordering, so it has to move with it.
         expect(depth).toEqual({
             P0: 3,
-            P1: 1,
-            P2: 0,
+            P1: 0,
+            P2: 1,
             P3: 0,
             unprioritized: 0,
             total: 4,
         });
     });
 
-    it("never demotes a child below its own priority", () => {
+    it("counts a P0 child of a P2 umbrella in P2 — the parent governs (issue #4371)", () => {
+        // Two derivations of "which band is this issue in" is the bug this
+        // counter exists to avoid. If the planner demotes and the depth line
+        // does not, the operator reads a P0 backlog the planner will not
+        // touch.
         const depth = queueDepthByPriority(
             [{ number: 2, parent: { number: 100 } }],
             { 100: "P2", 2: "P0" }
         );
-        expect(depth.P0).toBe(1);
-        expect(depth.P2).toBe(0);
+        expect(depth.P0).toBe(0);
+        expect(depth.P2).toBe(1);
     });
 
     it("does NOT fold an unprioritized issue into P2 — they are different facts", () => {

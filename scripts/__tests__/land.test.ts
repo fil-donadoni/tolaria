@@ -583,13 +583,17 @@ describe("land.ts — the locked command", () => {
         expect(
             originBandForBranch("feat/issue-4128", deps({ 4128: 4099 })).band
         ).toBe("P0");
-        // The stronger wins, never the parent unconditionally.
+        // The parent governs, in both directions (issue #4371): a P2 child of
+        // a P0 umbrella rises, and a P0 child of a P3 umbrella falls. The
+        // second case is what keeps `gaps:sync --band` honest — a gap born of
+        // work the maintainer filed under a P3 epic is P3 work, whatever the
+        // slice was hand-marked at filing time.
         expect(
             originBandForBranch("fix/issue-4200", deps({ 4200: 4099 })).band
         ).toBe("P0");
         expect(
             originBandForBranch("fix/issue-4099", deps({ 4099: 4300 })).band
-        ).toBe("P0");
+        ).toBe("P3");
     });
 
     it("originBandForBranch: never throws — a branch naming no issue, an unprioritised issue and an unreadable board are a null band plus a reason (issue #4158)", () => {
