@@ -14,7 +14,8 @@
 //
 //  1. GOLDENS — one per verb the corpus prints the phrase under: `dealDamage`
 //     (plain "This creature", Thrashing Wumpus; the "It" pronoun dealer
-//     behind a sacrifice cost, Bloodfire Colossus) and `preventDamage`
+//     behind a sacrifice cost, Bloodfire Colossus — read at COMPILE time
+//     only) and `preventDamage`
 //     (Kitsune Palliator). Both dealDamage and preventDamage forms are
 //     registered `GOLDEN_FIXTURES` rows (the smoke generator cannot build a
 //     `forEach`/`$each` script), so a golden here also asserts the fixture
@@ -140,7 +141,14 @@ describe("each creature and each player (CR 120.3) — goldens", () => {
         );
     });
 
-    it("dealDamage, 'It' dealer behind a sacrifice cost: Bloodfire Colossus deals 6 (CR 120.1, CR 608.2h)", () => {
+    // COMPILE-ONLY, deliberately: this asserts the grammar reads "It" as the
+    // dealer and lowers it to `$source`, nothing more. Whether `$source` still
+    // resolves once the sacrifice cost has moved the creature off the
+    // battlefield is a GRE question, already exercised by the hand-written
+    // cards that print the same shape (`sets/ice/black.ts`, `fem/black.ts`,
+    // `sets/lea/black.ts`) — claiming it here would be a test whose docstring
+    // covers more than the test does.
+    it("dealDamage, 'It' dealer behind a sacrifice cost: Bloodfire Colossus deals 6 (CR 120.1)", () => {
         expect(sortKeys(compiled(BLOODFIRE_COLOSSUS))).toEqual(
             sortKeys({
                 name: "Bloodfire Colossus",
