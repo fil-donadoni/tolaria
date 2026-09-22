@@ -351,12 +351,13 @@ export type EffectSentenceIR =
       }
     | {
           /**
-           * CR 613.1e/1f — "Choose a color. <mass subject> gain(s) protection
-           * from the chosen color until <duration>.": one `optionChoice` mode
-           * per CR 105.1 colour (`colorChoiceModes`, ADR 0045 "generalize,
-           * don't add" — the SAME five-mode builder `set-color-choice` uses),
-           * each granting `protection from <colour>` (Guard A via the
-           * "protection" registry row) to every member of the sweep.
+           * CR 613.1f/702.16a — "Choose a color. <mass subject> gain(s)
+           * protection from the chosen color until <duration>.": one
+           * `optionChoice` mode per CR 105.1 colour (`colorChoiceModes`, ADR
+           * 0045 "generalize, don't add" — the SAME five-mode builder
+           * `set-color-choice` uses), each granting `protection from
+           * <colour>` (Guard A via the "protection" registry row) to every
+           * member of the sweep.
            *
            * Folded onto the preceding `{ role: "choose-color" }` marker by
            * `assembleSentences` — a card printing the grant with no "Choose a
@@ -811,8 +812,8 @@ export type SentenceIR =
     | { readonly role: "restriction"; readonly restriction: RestrictionIR }
     | { readonly role: "modifier"; readonly modifier: ModifierIR }
     /**
-     * CR 105.1/613.1e — "Choose a color.": a marker establishing the pick a
-     * LATER sentence of the same ability reads as "the chosen color"
+     * CR 105.1 — "Choose a color.": a marker establishing the pick a LATER
+     * sentence of the same ability reads as "the chosen color"
      * (`choose-color-grant-protection`). Diverted from `effects` by
      * `assembleSentences`, mirroring the `library-look` window — it carries
      * no effect of its own and is never lowered.
@@ -910,10 +911,10 @@ export function assembleSentences(
     const restrictions: RestrictionIR[] = [];
     // CR 608.2c — a library window waits for the sentence that routes it.
     let window: Extract<SentenceIR, { role: "library-look" }> | null = null;
-    // CR 105.1/613.1e — a "Choose a color." marker waits for the ONE
-    // sentence that reads its pick (`choose-color-grant-protection`); every
-    // other follower, including a second marker or the end of the list,
-    // has no antecedent to feed.
+    // CR 105.1 — a "Choose a color." marker waits for the ONE sentence that
+    // reads its pick (`choose-color-grant-protection`); every other
+    // follower, including a second marker or the end of the list, has no
+    // antecedent to feed.
     let awaitingColorChoice = false;
     for (const sentence of sentences) {
         if (awaitingColorChoice) {
@@ -1071,9 +1072,9 @@ export function assembleSentences(
             effects.push(...sentence.effects);
             continue;
         }
-        // CR 613.1e — "the chosen color" names no pick without a "Choose a
-        // color." sentence right before it; reaching this fold (rather than
-        // the `awaitingColorChoice` one above) means it never got one.
+        // "The chosen color" names no pick without a "Choose a color."
+        // sentence right before it; reaching this fold (rather than the
+        // `awaitingColorChoice` one above) means it never got one.
         if (sentence.effect.kind === "choose-color-grant-protection")
             return {
                 ok: false,
@@ -1709,7 +1710,7 @@ const RESTRICTIONS: ReadonlyMap<string, RestrictionIR> = new Map<
 ]);
 
 /**
- * CR 613.1e/1f — "<mass subject> gain protection from the chosen color until
+ * CR 613.1f — "<mass subject> gain protection from the chosen color until
  * <duration>", the plural-verb reader for `choose-color-grant-protection`
  * (Glory). The GRANT half a "Choose a color." marker's antecedent feeds; the
  * marker itself is read where restrictions are, in `sentenceRule`.
@@ -1827,9 +1828,9 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
                 role: "modifier" as const,
                 modifier: { kind: "cant-be-regenerated" as const },
             });
-        // CR 105.1/613.1e — "Choose a color.", a marker (see the role's own
-        // doc comment); never printed lowercase (a trigger's effect clause
-        // reads it as an antecedent-carrying sentence too, but no corpus card
+        // CR 105.1 — "Choose a color.", a marker (see the role's own doc
+        // comment); never printed lowercase (a trigger's effect clause reads
+        // it as an antecedent-carrying sentence too, but no corpus card
         // prints it there, so only the sentence-initial casing is read).
         if (span === "Choose a color")
             return ok({ role: "choose-color" as const });

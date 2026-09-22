@@ -1,6 +1,6 @@
 // "Choose a color." + "<mass subject> gain protection from the chosen
 // color until <duration>." — the activated-ability effect clause pairing
-// (CR 105.1/613.1e/1f, issue #4307). Grammar Gap `activated › effect clause
+// (CR 105.1/613.1f, issue #4307). Grammar Gap `activated › effect clause
 // › Choose a color`.
 //
 // Two layers:
@@ -41,7 +41,7 @@ function activatedEffects(line: string): EffectOp[] {
 const GLORY_ABILITY =
     "{2}{W}: Choose a color. Creatures you control gain protection from the chosen color until end of turn. Activate only if this card is in your graveyard.";
 
-describe("Choose a color. → protection grant (CR 105.1, 613.1e, 613.1f)", () => {
+describe("Choose a color. → protection grant (CR 105.1, 613.1f)", () => {
     it("Glory: one optionChoice, five colour modes, each a forEach protection grant", () => {
         const effects = activatedEffects(GLORY_ABILITY);
         expect(effects).toEqual([

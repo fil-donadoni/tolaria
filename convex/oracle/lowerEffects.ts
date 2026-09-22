@@ -1900,7 +1900,7 @@ function lowerSentenceBody(
             ]);
         }
         case "choose-color-grant-protection": {
-            // CR 613.1e/1f — evidenced by exactly one corpus form (Glory): a
+            // CR 613.1f — evidenced by exactly one corpus form (Glory): a
             // plain controller-scoped sweep. A target-player sweep or an
             // X-bounded one is a different selector shape (`sweepOps`'s two
             // extra branches) with no fixture behind it here — refused
