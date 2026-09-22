@@ -21,15 +21,36 @@
 //   * TYPED AT THE BOUNDARY — `parseReceipt` rejects a malformed receipt where
 //     it is written, with a message naming the offending field. A shape-by-
 //     convention receipt fails far from its cause; this one fails at the write.
-//   * MISSING ≠ EMPTY — a subagent that stopped without writing anything gets a
-//     recorded `missing` marker from the SubagentStop hook
-//     (`.claude/hooks/receipt-guard.sh`). The hook is the guarantee; the
-//     subagent's own write is the payload. "No receipt" is a fact on disk, not
-//     the absence of one.
+//   * MISSING ≠ EMPTY — a subagent that stopped without writing anything got a
+//     recorded `missing` marker from a SubagentStop hook (retired with the rest
+//     of the write path, see STATUS below). The hook was the guarantee; the
+//     subagent's own write was the payload. "No receipt" was a fact on disk,
+//     not the absence of one — `MissingReceipt` still parses, because markers
+//     written before the retirement are still on disk to be read.
 //
 // The schema is the deliverable as much as the plumbing: the merge-train order
-// (#2185) reads `targetFiles`, and the scorecard (#2187) reads `outcome` and
+// (#2185) read `targetFiles`, and the scorecard (#2187) read `outcome` and
 // `proofOfFailure`.
+//
+// ─────────────────────────────────────────────────────────────────────────────
+// STATUS AFTER ISSUE #3131 — READER, NOT WRITER.
+//
+// ADR 0110 retired the fan-out orchestrator, and issue #3131 retired the three
+// consumers named above with it: `review:receipt` (the CLI a subagent called to
+// write its receipt), `queue:train` (#2185) and `loop:scorecard` (#2187), plus
+// the `receipt-guard.sh` SubagentStop hook that minted the `missing` markers.
+// Nothing writes a receipt any more.
+//
+// This module survives because it is the READ path `loop:status` and the
+// dashboard's batch section still run on (`scripts/loop-status.ts` →
+// `readReceiptsFromDir` / `newestBatchDir` / `RECEIPTS_ROOT`, rendered by
+// `dashboard/components/now/BatchSection.tsx`): receipts already on disk stay
+// readable, and the surface degrades to "No batch has recorded receipts yet"
+// rather than breaking. `writeReceipt` stays with it on purpose — it is the
+// only sanctioned way to produce a well-formed receipt, so `receipt.test.ts`
+// asserts the contract through a real write → disk → read round-trip instead
+// of comparing an object with itself, and `readReceipts`' tamper detection is
+// defined against what it writes.
 
 import * as fs from "fs";
 import * as path from "path";

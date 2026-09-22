@@ -256,11 +256,13 @@ const fmt = (s: number | null) =>
 // before side-file enrichment the hook could never produce them (0 of 538
 // events had tokens).
 //
-// Not to be confused with `bun run loop:scorecard` (#2187), which measures the
-// LOOP — issues landed, tokens per landed issue by role, review-blocking rate,
-// fixup rounds — by joining telemetry with the batch receipts. Different
-// question, different denominator: this one is per-subagent context/cost, that
-// one is per-landed-issue throughput. Neither redefines the other's rates.
+// It used to share its name with `bun run loop:scorecard` (#2187), which
+// measured the fan-out LOOP — issues landed, tokens per landed issue by role,
+// review-blocking rate, fixup rounds — by joining telemetry with the batch
+// receipts. That script was retired with the fan-out loop (issue #3131, ADR
+// 0110); per-landed-issue throughput now comes from `bun run
+// telemetry:latency` and the dashboard. This flag has always answered the
+// other question — per-subagent context/cost — and is unaffected.
 function printScorecard() {
     if (!existsSync(projectsRoot)) {
         console.log("No transcript side-files under", projectsRoot);

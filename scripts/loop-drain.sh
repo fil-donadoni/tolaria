@@ -662,7 +662,7 @@ while :; do
     # folded into `no-progress`, so the morning's log says what to fix.
     if [ -f "$HEALTH_RED_FILE" ]; then
         stop_reason="health-red"
-        echo "loop-drain: main is RED (post-merge health gate, ADR 0110) — stopping rather than stacking work on a red tip. Run 'bun run health:status' and fix forward. Marker:" >&2
+        echo "loop-drain: the base tip is RED (the last release/health run found it red, ADR 0116) — stopping rather than stacking work on a red tip. Run 'bun run health:status' and fix forward. Marker:" >&2
         cat "$HEALTH_RED_FILE" >&2 || true
         break
     fi

@@ -537,7 +537,7 @@ export const GLOSSARY = {
     },
     "section.batch": {
         label: "Batch",
-        tip: "The newest batch of review receipts under .claude/receipts: one receipt per subagent that yielded, plus a marker for each session the receipt guard saw with no receipt. Only wip, failed, blocking and collision receipts are listed individually.",
+        tip: "The newest batch of review receipts under .claude/receipts: one receipt per subagent that yielded, plus a marker for each session the receipt guard saw with no receipt. Only wip, failed, blocking and collision receipts are listed individually. Historical: the writer and the guard were retired with the fan-out loop (issue #3131), so nothing adds to this any more.",
     },
     "section.timeline": {
         label: "Last 24 hours",
@@ -603,7 +603,7 @@ export const GLOSSARY = {
     },
     "receipts.missing": {
         label: "missing session markers",
-        tip: "Sessions the receipt guard saw finish with no receipt written — a marker file per session, not a review. Large counts are normal: every subagent that never owed a receipt leaves one.",
+        tip: "Sessions the receipt guard saw finish with no receipt written — a marker file per session, not a review. Large counts are normal: every subagent that never owed a receipt left one. The guard was retired by issue #3131; only markers already on disk are counted.",
     },
     "receipts.attention": {
         label: "needing attention",

@@ -29,9 +29,6 @@ import {
  * comparing an object with itself.
  */
 
-const REPO_ROOT = path.resolve(__dirname, "..", "..");
-const HOOK = path.join(REPO_ROOT, ".claude", "hooks", "receipt-guard.sh");
-
 let tmp: string;
 beforeEach(() => {
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tolaria-receipt-"));
@@ -470,8 +467,8 @@ describe("a receipt round has its own canonical name — round 1 keeps the old o
 // hook payload on stdin — so the batch id passed to `writeReceipt` has to stay
 // a caller-supplied parameter. That means a typo'd or stale id is possible,
 // and it is silent: the directory it names looks like a fresh, empty batch,
-// `writeReceipt` happily creates it, and `queue:train` — which only reads the
-// ONE batch directory it was told about — never sees the receipt at all. The
+// `writeReceipt` happily creates it, and a reader that opens only the ONE
+// batch directory it was told about never sees the receipt at all. The
 // real incident: a reviewer's verdict landed in a batch dir nobody read back,
 // caught only by eye.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -696,202 +693,6 @@ describe("readReceipts detects tampering outside the sanctioned write path", () 
         );
         const { errors } = readReceipts(tmp, "sess-1");
         expect(errors).toEqual([]);
-    });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// The SubagentStop hook. Its whole job is the case the subagent cannot cover:
-// a subagent that crashed, was interrupted, or forgot leaves a FACT behind.
-// ─────────────────────────────────────────────────────────────────────────────
-
-function runHook(
-    session: string,
-    projectDir: string,
-    transcript?: string,
-    agent?: { id: string; type?: string; transcript?: string }
-) {
-    return spawnSync("sh", [HOOK], {
-        input: JSON.stringify({
-            session_id: session,
-            hook_event_name: "SubagentStop",
-            ...(transcript ? { transcript_path: transcript } : {}),
-            ...(agent
-                ? {
-                      agent_id: agent.id,
-                      ...(agent.type ? { agent_type: agent.type } : {}),
-                      ...(agent.transcript
-                          ? { agent_transcript_path: agent.transcript }
-                          : {}),
-                  }
-                : {}),
-        }),
-        encoding: "utf8",
-        env: { ...process.env, CLAUDE_PROJECT_DIR: projectDir },
-    });
-}
-
-const missingMarkers = (dir: string): string[] =>
-    fs.existsSync(dir)
-        ? fs.readdirSync(dir).filter((f) => f.startsWith("missing-"))
-        : [];
-
-describe("SubagentStop hook — a missing receipt is recorded as missing", () => {
-    it("records a marker when the subagent wrote nothing", () => {
-        const result = runHook("sess-1", tmp, "/tmp/transcript.jsonl");
-        expect(result.status).toBe(0);
-        const markers = missingMarkers(receiptDir(tmp, "sess-1"));
-        expect(markers).toHaveLength(1);
-
-        // The marker is a valid receipt — the scorecard reads it like any other.
-        const parsed = parseReceipt(
-            JSON.parse(
-                fs.readFileSync(
-                    path.join(receiptDir(tmp, "sess-1"), markers[0]),
-                    "utf8"
-                )
-            )
-        );
-        expect(parsed.role).toBe("missing");
-        expect(parsed.role === "missing" && parsed.transcript).toBe(
-            "/tmp/transcript.jsonl"
-        );
-    });
-
-    it("stays silent when the subagent DID write a receipt", () => {
-        writeReceipt(tmp, "sess-1", workReceipt());
-        expect(runHook("sess-1", tmp).status).toBe(0);
-        expect(missingMarkers(receiptDir(tmp, "sess-1"))).toHaveLength(0);
-    });
-
-    it("accounts per subagent, not per session — the second stop with no new receipt is charged", () => {
-        // Subagent A writes; its stop is clean.
-        writeReceipt(tmp, "sess-1", workReceipt());
-        runHook("sess-1", tmp);
-        expect(missingMarkers(receiptDir(tmp, "sess-1"))).toHaveLength(0);
-
-        // Subagent B writes nothing. A count-based hook would see one receipt
-        // for two stops and stay silent; filename accounting catches it.
-        runHook("sess-1", tmp);
-        expect(missingMarkers(receiptDir(tmp, "sess-1"))).toHaveLength(1);
-
-        // Subagent C writes — clean again, and the earlier marker survives.
-        writeReceipt(tmp, "sess-1", workReceipt({ issue: 2183 }));
-        runHook("sess-1", tmp);
-        expect(missingMarkers(receiptDir(tmp, "sess-1"))).toHaveLength(1);
-    });
-
-    it("keeps sessions apart", () => {
-        writeReceipt(tmp, "sess-1", workReceipt());
-        runHook("sess-2", tmp);
-        expect(missingMarkers(receiptDir(tmp, "sess-1"))).toHaveLength(0);
-        expect(missingMarkers(receiptDir(tmp, "sess-2"))).toHaveLength(1);
-    });
-
-    // ─────────────────────────────────────────────────────────────────────
-    // `SubagentStop` fires on EVERY yield of a background agent, not once per
-    // subagent — 131 events for 4 subagents in one measured 94-minute run. A
-    // marker minted per stop buried the real gaps under ~97% noise, so the
-    // marker is keyed on `agent_id` and overwritten instead.
-    // ─────────────────────────────────────────────────────────────────────
-
-    it("collapses a background agent's repeated yields onto ONE marker", () => {
-        for (let i = 0; i < 5; i++) {
-            runHook("sess-1", tmp, "/tmp/parent.jsonl", { id: "agent-aaa" });
-        }
-        expect(missingMarkers(receiptDir(tmp, "sess-1"))).toEqual([
-            "missing-agent-aaa.json",
-        ]);
-    });
-
-    it("keeps one marker per subagent when several yield", () => {
-        runHook("sess-1", tmp, undefined, { id: "agent-aaa" });
-        runHook("sess-1", tmp, undefined, { id: "agent-bbb" });
-        runHook("sess-1", tmp, undefined, { id: "agent-aaa" });
-        expect(missingMarkers(receiptDir(tmp, "sess-1")).sort()).toEqual([
-            "missing-agent-aaa.json",
-            "missing-agent-bbb.json",
-        ]);
-    });
-
-    it("clears an agent's marker once a receipt lands", () => {
-        runHook("sess-1", tmp, undefined, { id: "agent-aaa" });
-        expect(missingMarkers(receiptDir(tmp, "sess-1"))).toHaveLength(1);
-
-        // The agent writes its receipt, then stops for good.
-        writeReceipt(tmp, "sess-1", workReceipt());
-        runHook("sess-1", tmp, undefined, { id: "agent-aaa" });
-        expect(missingMarkers(receiptDir(tmp, "sess-1"))).toHaveLength(0);
-    });
-
-    it("re-marks an agent that yields again without delivering", () => {
-        // A concurrent agent's receipt can clear the wrong marker — the hook
-        // cannot attribute a receipt to an agent. It self-corrects: the agent
-        // that still owes one is re-marked at its very next yield, so the end
-        // state is right even when an intermediate one was not.
-        runHook("sess-1", tmp, undefined, { id: "agent-aaa" });
-        writeReceipt(tmp, "sess-1", workReceipt());
-        runHook("sess-1", tmp, undefined, { id: "agent-aaa" });
-        expect(missingMarkers(receiptDir(tmp, "sess-1"))).toHaveLength(0);
-
-        runHook("sess-1", tmp, undefined, { id: "agent-aaa" });
-        expect(missingMarkers(receiptDir(tmp, "sess-1"))).toEqual([
-            "missing-agent-aaa.json",
-        ]);
-    });
-
-    it("records which subagent left the gap, and its own transcript", () => {
-        runHook("sess-1", tmp, "/tmp/parent.jsonl", {
-            id: "agent-aaa",
-            type: "general-purpose",
-            transcript: "/tmp/subagents/agent-aaa.jsonl",
-        });
-        const parsed = parseReceipt(
-            JSON.parse(
-                fs.readFileSync(
-                    path.join(
-                        receiptDir(tmp, "sess-1"),
-                        "missing-agent-aaa.json"
-                    ),
-                    "utf8"
-                )
-            )
-        );
-        expect(parsed.role).toBe("missing");
-        if (parsed.role !== "missing") throw new Error("unreachable");
-        expect(parsed.agentId).toBe("agent-aaa");
-        expect(parsed.agentType).toBe("general-purpose");
-        expect(parsed.agentTranscript).toBe("/tmp/subagents/agent-aaa.jsonl");
-        // The parent transcript is still there, and is NOT the agent's own.
-        expect(parsed.transcript).toBe("/tmp/parent.jsonl");
-    });
-
-    it("keeps an agent id from escaping the receipts directory", () => {
-        runHook("sess-1", tmp, undefined, { id: "../../etc/passwd" });
-        const markers = missingMarkers(receiptDir(tmp, "sess-1"));
-        expect(markers).toHaveLength(1);
-        expect(markers[0]).not.toContain("/");
-        expect(fs.existsSync(path.join(tmp, "etc", "passwd"))).toBe(false);
-    });
-
-    it("parses a marker written by the older hook, which had no agent fields", () => {
-        const parsed = parseReceipt({
-            version: 1,
-            role: "missing",
-            outcome: "missing",
-            session: "sess-1",
-            transcript: "/tmp/parent.jsonl",
-            ts: 1786097305,
-        });
-        expect(parsed.role === "missing" && parsed.agentId).toBe(null);
-    });
-
-    it("exits 0 with no session id rather than taking the run with it", () => {
-        const result = spawnSync("sh", [HOOK], {
-            input: "{}",
-            encoding: "utf8",
-            env: { ...process.env, CLAUDE_PROJECT_DIR: tmp },
-        });
-        expect(result.status).toBe(0);
     });
 });
 

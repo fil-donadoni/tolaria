@@ -14,9 +14,11 @@ vi.setConfig({ testTimeout: 15_000 });
 
 /**
  * `scripts/loop-drain.sh` is the out-of-process AFK driver around
- * `claude -p "/process-gh-issues"` (ADR 0097). It is POSIX `sh`, run here
- * exactly the way `.claude/hooks/receipt-guard.sh` is driven in
- * `receipt.test.ts:567-` — a scratch cwd, a `bin/` directory prepended onto
+ * `claude -p "/next-issue"` (ADR 0097; the prompt was `/process-gh-issues`
+ * until ADR 0110 retired the fan-out loop). It is POSIX `sh`, run here
+ * exactly the way `.claude/hooks/receipt-guard.sh` was driven in
+ * `receipt.test.ts` before issue #3131 retired that hook — a scratch cwd, a
+ * `bin/` directory prepended onto
  * PATH with stub `gh`/`claude`/`bun` executables, assertions on exit code,
  * stop reason, and the log line the script writes.
  *
