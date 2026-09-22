@@ -112,6 +112,7 @@ PIDF="$RUN_DIR/pid"
 PIDSTART="$RUN_DIR/pidstart"
 HEAD_F="$RUN_DIR/head"
 BASE_F="$RUN_DIR/base"
+END_HEAD_F="$RUN_DIR/end-head"
 CMD_F="$RUN_DIR/command"
 GREEN_F="$RUN_DIR/green"
 STARTF="$RUN_DIR/started"
@@ -230,16 +231,17 @@ elif [ -f "$RC" ] &&
 fi
 
 if [ "$attached" -eq 0 ] && [ "$finished" -eq 0 ]; then
-    rm -f "$RC" "$PIDF" "$PIDSTART" "$GREEN_F"
+    rm -f "$RC" "$PIDF" "$PIDSTART" "$GREEN_F" "$END_HEAD_F"
     : >"$LOG"
     date +%s >"$STARTF"
     git_head >"$HEAD_F"
-    # (head, base, command, green) is the record `land` reads to skip a lane it
-    # would pay a second time on the same tree (ADR 0136 §2): the rebased tip
-    # equal to `head`, the base tip equal to `base`, `command` exactly
-    # `check:lane`, and `green` present. `green` is removed above BEFORE
-    # `head`/`base` are rewritten, so a half-written record never reads as a
-    # green run of the new tree.
+    # (head, base, end-head, command, green) is the record `land` reads to skip
+    # a lane it would pay a second time on the same tree (ADR 0136 §2): the
+    # rebased tip equal to `head`, the base tip equal to `base`, `end-head`
+    # equal to `head` (issue #4379 — the tree did not move under the gate),
+    # `command` exactly `check:lane`, and `green` present. `green` is removed
+    # above BEFORE `head`/`base` are rewritten, so a half-written record never
+    # reads as a green run of the new tree.
     git_base >"$BASE_F"
     printf '%s\n' "$*" >"$CMD_F"
     # `set -m` puts the background job in its OWN process group, so a
@@ -269,6 +271,13 @@ if [ "$attached" -eq 0 ] && [ "$finished" -eq 0 ]; then
         # `green` outlives the `rc` file on purpose: `rc` is cleared the moment
         # a caller reads the verdict, `green` stays until the next run of the
         # same command in the same place starts — it is what `land` reads.
+        # The tree the gate FINISHED on (issue #4379, finding 2727). `land`
+        # refuses a green `check:lane` record whose end head differs from the
+        # `head` written above: a lint-staged stash or a concurrent commit
+        # moved the tree under the gate, so the verdict describes a tree
+        # nobody had. Written BEFORE `green`, the same ordering as the rest
+        # of the record, so a half-written record never reads as green.
+        git_head >"$END_HEAD_F"
         [ "$_rc" -ne 0 ] || : >"$GREEN_F"
         echo "$_rc" >"$RC"
     ) </dev/null >/dev/null 2>&1 &

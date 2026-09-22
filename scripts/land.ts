@@ -633,17 +633,30 @@ export function gateRunRoot(env: NodeJS.ProcessEnv): string {
  * another base, and a green `land` or `test:app`, say nothing about the lane
  * this tree owes. Both shas must be full hex: they are spliced into the
  * locked shell string, and anything else can never match a `git rev-parse`.
+ *
+ * `endHead` is the tree the gate FINISHED on (issue #4379, finding 2727),
+ * and it must equal `head`. A record whose two differ is a receipt for a
+ * tree nobody ever had — a `lint-staged` stash or a concurrent commit moved
+ * it under the run — and licensing a SKIP off it would spend the one thing
+ * ADR 0136 §2 buys the lane skip with: that the recorded pair describes the
+ * tree that is landing. Refused, which costs a re-gate and nothing else. A
+ * record with no `end-head` at all is refused for the same reason: this is
+ * the fail-closed side of the file, and the only writers are `laneStep`
+ * below and `gate-run.sh`, both of which write it.
  */
 export function greenLaneRunOf(files: {
     command: string | null;
     head: string | null;
     base: string | null;
+    endHead: string | null;
     green: boolean;
 }): GreenLaneRun | null {
     if (!files.green || files.command?.trim() !== "check:lane") return null;
     const head = files.head?.trim() ?? "";
     const base = files.base?.trim() ?? "";
+    const endHead = files.endHead?.trim() ?? "";
     if (!FULL_SHA.test(head) || !FULL_SHA.test(base)) return null;
+    if (endHead !== head) return null;
     return { head, base };
 }
 
@@ -669,6 +682,7 @@ export function readGreenLaneRuns(root: string): GreenLaneRun[] {
             command: read(join(dir, "command")),
             head: read(join(dir, "head")),
             base: read(join(dir, "base")),
+            endHead: read(join(dir, "end-head")),
             green: existsSync(join(dir, "green")),
         });
         if (run) runs.push(run);
@@ -688,6 +702,12 @@ export function readGreenLaneRuns(root: string): GreenLaneRun[] {
  * the lane's own red): a cache dir that cannot be written costs a re-gate
  * next time, never a failed landing. `green` is removed before `head`/`base`
  * are rewritten, the same ordering `gate-run.sh` keeps.
+ *
+ * `end-head` is re-derived AFTER the lane returns (issue #4379): `LANE_TIP`
+ * was captured before it, and the window this whole change exists to close
+ * is the tree moving in between. `greenLaneRunOf` refuses a record whose
+ * two differ, so a lane that was gated on a tree nobody had can never
+ * license a skip.
  */
 export function laneStep(
     gatedGreen: GreenLaneRun[],
@@ -702,9 +722,10 @@ export function laneStep(
             : (() => {
                   const d = shQuote(laneRecordDir);
                   return (
-                      ` && { (mkdir -p ${d} && rm -f ${d}/green && ` +
+                      ` && { (mkdir -p ${d} && rm -f ${d}/green ${d}/end-head && ` +
                       `printf '%s\n' "$LANE_TIP" >${d}/head && ` +
                       `printf '%s\n' "$LANE_BASE" >${d}/base && ` +
+                      `printf '%s\n' "$(git rev-parse HEAD)" >${d}/end-head && ` +
                       `printf 'check:lane\n' >${d}/command && : >${d}/green) 2>/dev/null || true; }`
                   );
               })();

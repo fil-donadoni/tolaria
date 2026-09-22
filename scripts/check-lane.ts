@@ -51,7 +51,9 @@
  *   bun run check:lane --plan         # print the classification, run NOTHING
  *
  * Exits 1 on a dirty working tree, so the HEAD SHA it prints describes
- * exactly what was classified.
+ * exactly what was classified — and exits 1 again if that tree MOVES under
+ * the run (issue #4379, finding 2727: husky's `lint-staged` stash). The
+ * receipt carries the start and end SHA it asserted.
  *
  * `--plan` IS NOT A LANE FLAG (ADR 0136 §8). It suppresses EXECUTION, never
  * classification: the lane still comes from the diff, through the same
@@ -705,9 +707,16 @@ export function renderPlan(plan: LanePlan, head: string): string {
 export function renderJson(
     plan: LanePlan,
     head: string,
-    result?: RunResult
+    result?: RunResult,
+    endHead?: string
 ): string {
-    return JSON.stringify({ head, ...plan, ...result }, null, 2);
+    return JSON.stringify(
+        endHead === undefined
+            ? { head, ...plan, ...result }
+            : { head, endHead, ...plan, ...result },
+        null,
+        2
+    );
 }
 
 /**
@@ -757,10 +766,15 @@ export interface RunResult {
  * stops everything after it today. A check that never ran because an
  * earlier one failed is recorded `not-run` rather than silently missing
  * from the receipt, so every planned check is accounted for either way.
+ *
+ * `assertQuiet` is the tree re-assertion (issue #4379), called before each
+ * check that actually runs; it exits the process on a tree that moved.
+ * Required, not defaulted: see `executePlan`.
  */
 export function runPlan(
     plan: LanePlan,
-    exec: (command: string) => { ok: boolean; ms: number }
+    exec: (command: string) => { ok: boolean; ms: number },
+    assertQuiet: () => unknown
 ): RunResult {
     const outcomes: CheckOutcome[] = [];
     let ok = true;
@@ -770,6 +784,16 @@ export function runPlan(
             outcomes.push({ id: check.id, status: "not-run", ms: 0 });
             continue;
         }
+        // BEFORE EVERY CHECK, not once around the whole phase (round-1
+        // review of #4379). An `engine` or `full` lane runs fourteen checks
+        // over minutes; a stash that is pushed and popped inside that span
+        // leaves HEAD, status and the stash list identical at both ends,
+        // so a single assertion after the last check sees nothing — while
+        // whichever checks ran in the middle read the moved tree. That is
+        // the bug this file exists to close, relocated one level down. The
+        // assertion is three cheap git reads against a check that costs
+        // seconds at minimum.
+        assertQuiet();
         const result = exec(check.command);
         totalMs += result.ms;
         outcomes.push({
@@ -786,8 +810,18 @@ export function runPlan(
  * The receipt: per-check pass/fail/not-run with wall-clock, rendered from
  * the `RunResult` `runPlan` returned — never a second list. Replaces the
  * old `note: INERT` line now that this executes for real.
+ *
+ * `heads` is the pair this run ASSERTED (issue #4379, finding 2727): the
+ * HEAD the lane classified and the HEAD it still saw when the last check
+ * returned. A run that reaches here has already refused a moved tree, so
+ * the two are equal — printing them anyway is what makes the receipt say
+ * WHICH tree it describes rather than merely implying one, and it is the
+ * pair `land` re-checks on the record it reads back (ADR 0136 §2).
  */
-export function renderReceipt(result: RunResult): string {
+export function renderReceipt(
+    result: RunResult,
+    heads: { start: string; end: string }
+): string {
     const lines: string[] = [];
     const width = Math.max(...result.outcomes.map((o) => o.id.length));
     const mark: Record<CheckStatus, string> = {
@@ -801,10 +835,106 @@ export function renderReceipt(result: RunResult): string {
         lines.push(`  ${mark[o.status]} ${o.id.padEnd(width)}${time}`);
     }
     lines.push("");
+    lines.push(`tree:  ${heads.start} → ${heads.end}   (start → end)`);
     lines.push(
         `${result.ok ? "PASS" : "FAIL"}  ${(result.totalMs / 1000).toFixed(1)}s total`
     );
     return lines.join("\n");
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Tree stability (issue #4379, finding 2727) — the dirty-tree refusal in
+// `main()` covers the tree being dirty when the run STARTS. It does not
+// cover the tree being rewritten UNDER the run, which is exactly what
+// husky's `lint-staged` does on every commit: it stashes the working state
+// (`lint-staged automatic backup`), runs prettier, then restores it. A
+// `git commit && bun run check:lane` chain — the shape every AFK session
+// types — can therefore classify and gate files while the stash is still
+// applied. Observed on a `skin` diff: the lane saw a diff it could not
+// place and fell back to `check:pr`, and a ratchet test failed with a count
+// matching a partially-restored tree; the identical quiet tree passed on
+// re-run.
+//
+// The cost that matters is not the wasted gate — it is a receipt whose HEAD
+// SHA describes a tree that was never on disk, which is precisely the
+// property the dirty-tree refusal exists to give. So the snapshot is taken
+// once at the start and RE-ASSERTED after classification and again before
+// the receipt is printed.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** What the working tree looked like at one instant during the run. */
+export interface TreeSnapshot {
+    /** `git rev-parse --short HEAD`. */
+    head: string;
+    /** `git status --porcelain`, verbatim — compared, never parsed. */
+    status: string;
+    /** `git stash list --format=%gs`, verbatim — compared, never parsed. */
+    stash: string;
+}
+
+/**
+ * The refusal message for a tree that moved between two snapshots, or null
+ * when nothing moved. Pure, so the DECISION is testable without a
+ * subprocess — same convention as every other decision in this file.
+ *
+ * THE SIGNAL IS THE STASH STACK CHANGING, NOT A LINT-STAGED ENTRY BEING
+ * PRESENT. Issue #4379 asked for the direct check — "an entry whose message
+ * starts with `lint-staged automatic backup` while the lane runs is the same
+ * refusal" — and that is wrong on this machine, for two reasons that only
+ * showed up against a real repo. The stash stack is shared by every worktree,
+ * so one session's entry refuses every other session's lane; and a
+ * lint-staged that dies between its stash and its restore leaves the entry
+ * behind forever. One such entry, dated 2026-09-17, was sitting on this
+ * repo's stack when this guard was first run — presence alone would have
+ * refused every `check:lane` (and therefore every `land`) on the machine
+ * until a human dropped it.
+ *
+ * A lint-staged run that races us, by contrast, PUSHES its backup and then
+ * DROPS it, so the stack differs between two snapshots — which is exactly
+ * the observed failure (the lint-staged banner appearing inside the lane's
+ * own log). Comparing the list catches that and is inert against a stale
+ * entry, which changes nothing and is applied to nothing.
+ */
+export function treeMoved(
+    start: TreeSnapshot,
+    now: TreeSnapshot
+): string | null {
+    const moved =
+        "the tree moved under the lane — a lint-staged stash or a concurrent commit; re-run on a quiet tree";
+    if (start.head !== now.head) {
+        return `${moved} (HEAD ${start.head} → ${now.head})`;
+    }
+    if (start.status !== now.status) {
+        const first = now.status.trim().split("\n")[0] ?? "";
+        return `${moved} (working tree no longer matches the one classified${
+            first === "" ? "" : `, first change: ${first}`
+        })`;
+    }
+    if (start.stash !== now.stash) {
+        return `${moved} (${
+            hasLintStagedStash(start.stash) || hasLintStagedStash(now.stash)
+                ? "a `lint-staged automatic backup` stash entry was pushed or dropped under the run"
+                : "the stash stack changed under the run"
+        })`;
+    }
+    return null;
+}
+
+/**
+ * Whether `git stash list --format=%gs` shows a lint-staged backup. Names
+ * the cause in the refusal above; never a refusal on its own, per the
+ * stale-entry reasoning there. The prefix strip keeps this honest against a
+ * plain `git stash list`, whose lines carry a `stash@{N}: ` prefix the
+ * `--format` above drops.
+ */
+export function hasLintStagedStash(stashList: string): boolean {
+    return stashList
+        .split("\n")
+        .some((line) =>
+            line
+                .replace(/^stash@\{\d+\}:\s*/, "")
+                .startsWith("lint-staged automatic backup")
+        );
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -837,6 +967,15 @@ export function changedPaths(
     return git(["diff", "-z", "--name-only", ...filter, `${base}...HEAD`], cwd)
         .split("\0")
         .filter((p) => p.length > 0);
+}
+
+/** One instant of the working tree. Thin plumbing; `treeMoved` decides. */
+function snapshotTree(cwd: string): TreeSnapshot {
+    return {
+        head: git(["rev-parse", "--short", "HEAD"], cwd).trim(),
+        status: git(["status", "--porcelain"], cwd),
+        stash: git(["stash", "list", "--format=%gs"], cwd),
+    };
 }
 
 function fail(message: string): never {
@@ -909,23 +1048,41 @@ function shellRun(
  * the rebuild an obvious edit rather than an invisible one; it does not
  * make it impossible.
  *
- * `exec` and `log` are injected so a test can drive this with a hand-built
- * plan and a fake shell, with no subprocess — same pattern as `runPlan`'s
- * injectable `exec`.
+ * `exec`, `log` and `endHeadOf` are injected so a test can drive this with a
+ * hand-built plan and a fake shell, with no subprocess — same pattern as
+ * `runPlan`'s injectable `exec`. `endHeadOf` is the tree re-assertion
+ * (issue #4379): it runs before every check and again before the receipt,
+ * and `main()` passes one that refuses a tree that moved under the run.
+ *
+ * NONE OF THE THREE HAS A DEFAULT (round-1 review of #4379). `log` and
+ * `endHeadOf` used to default to `console.log` and `() => head`, and the
+ * second of those is a silent no-op: a future caller that forgot the
+ * argument would get the pre-#4379 behaviour back with nothing — not `tsc`,
+ * not a test — saying so. A required parameter is the signal.
  */
 export function executePlan(
     plan: LanePlan,
     head: string,
     json: boolean,
     exec: (command: string) => { ok: boolean; ms: number },
-    log: (line: string) => void = console.log
+    log: (line: string) => void,
+    endHeadOf: () => string
 ): RunResult {
     if (!json) log(renderPlan(plan, head));
 
-    const result = runPlan(plan, exec);
+    // `endHeadOf` goes down into the loop as well, so the tree is asserted
+    // before every check and not only around the phase (round-1 review of
+    // #4379).
+    const result = runPlan(plan, exec, endHeadOf);
 
-    if (json) log(renderJson(plan, head, result));
-    else log(renderReceipt(result));
+    // BEFORE either rendering, never after (issue #4379): `endHeadOf` is
+    // `main()`'s re-assertion, which exits on a tree that moved under the
+    // run. A receipt printed first would already have told the reader that
+    // this tree was gated.
+    const endHead = endHeadOf();
+
+    if (json) log(renderJson(plan, head, result, endHead));
+    else log(renderReceipt(result, { start: head, end: endHead }));
 
     return result;
 }
@@ -964,13 +1121,28 @@ function main(): void {
     const cwd = process.cwd();
     const { base, json, planOnly } = parseArgs(process.argv.slice(2));
 
-    if (git(["status", "--porcelain"], cwd).trim() !== "") {
+    const start = snapshotTree(cwd);
+    if (start.status.trim() !== "") {
         fail(
             "working tree is dirty — commit or stash first, so the HEAD SHA in the receipt describes exactly what was classified"
         );
     }
 
-    const head = git(["rev-parse", "--short", "HEAD"], cwd).trim();
+    /**
+     * Re-assert the tree is the one classified, and return its HEAD
+     * (issue #4379). Called after classification and again after the last
+     * check: the dirty-tree refusal above is a single instant, and a
+     * `lint-staged` stash applied a beat later rewrites the very files the
+     * lane is about to read.
+     */
+    const assertQuiet = (): string => {
+        const now = snapshotTree(cwd);
+        const moved = treeMoved(start, now);
+        if (moved) fail(moved);
+        return now.head;
+    };
+
+    const head = assertQuiet();
     // ONE plan, built once — passed to executePlan, the single function
     // that reads it for rendering AND execution. Never build a second list
     // of commands, and never render the JSON form by hand next to
@@ -980,6 +1152,10 @@ function main(): void {
         changedPaths(base, cwd, false)
     );
 
+    // The classification read the tree; assert it is still the tree the
+    // start snapshot described before anything is printed or run.
+    assertQuiet();
+
     // `--plan` stops HERE, after the one `classifyLane` call above and
     // before any shell: the session asking which path §3 owes it must not
     // pay a gate to find out (ADR 0136 §1/§8).
@@ -988,8 +1164,13 @@ function main(): void {
         process.exit(0);
     }
 
-    const result = executePlan(plan, head, json, (command) =>
-        shellRun(command, cwd, json)
+    const result = executePlan(
+        plan,
+        head,
+        json,
+        (command) => shellRun(command, cwd, json),
+        console.log,
+        assertQuiet
     );
 
     process.exit(result.ok ? 0 : 1);
