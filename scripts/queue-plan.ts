@@ -644,6 +644,11 @@ function main(): void {
     const health = redRefusal(readHealthMarker(primaryCheckout()));
     if (!health.admitted) die(health.message);
 
+    // Parsed before the first round-trip too: a malformed `--lineage` is a
+    // typo, and paying a queue read and a board read to be told so is two
+    // `gh` budgets spent on nothing.
+    const lineage = lineageArg();
+
     const limit = arg("limit", DEFAULTS.limit);
 
     const issues = JSON.parse(
@@ -708,7 +713,6 @@ function main(): void {
     // the whole queue, which is the hand-assembly this flag replaces. The
     // umbrella's own detail goes through the same cached port as every
     // candidate's, so the check costs at most one extra round-trip.
-    const lineage = lineageArg();
     if (lineage != null) {
         const scoped = issues
             .filter((issue) => issue.parent?.number === lineage)
