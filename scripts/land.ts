@@ -100,6 +100,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "./lib/branches";
+import { issueWorktree } from "./lib/issue-worktree";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -420,7 +421,25 @@ export function landMode(prState: string | null): LandMode {
  * already on the base branch, which is the silence this issue removes.
  */
 export function refusalReason(facts: LandFacts): string | null {
-    if (facts.branch === BASE_BRANCH || facts.branch === RELEASE_BRANCH) {
+    // `prState` is already in hand by the time anything here runs (`main`
+    // fetches it before building these facts), so reading the mode first
+    // costs nothing and changes no `full`-mode outcome: `landMode(null)` is
+    // `"full"`, so a missing PR still hits the branch refusal it always did.
+    const mode = landMode(facts.prState);
+    // The two BRANCH-IDENTITY refusals are `full`-mode gates (issue #4378).
+    // A merge still has to happen there, and it happens on the branch the
+    // caller is standing on — so standing on the base branch, or on some
+    // other PR's branch, is a refusal. In housekeeping mode there is no merge
+    // left: the tree is already on the base branch, the head branch may
+    // already be deleted, and the one place the recovery can realistically be
+    // invoked from is the primary checkout — which is exactly what these two
+    // used to refuse, making #4159's recovery unreachable in the case it
+    // exists for. Everything the housekeeping needs a branch FOR it takes
+    // from the PR's own `headRefName`, never from `cwd`'s HEAD.
+    if (
+        mode === "full" &&
+        (facts.branch === BASE_BRANCH || facts.branch === RELEASE_BRANCH)
+    ) {
         return `on \`${facts.branch}\` — land runs from the PR's own branch, never from \`${BASE_BRANCH}\` or \`${RELEASE_BRANCH}\``;
     }
     if (facts.dirty) {
@@ -429,11 +448,10 @@ export function refusalReason(facts: LandFacts): string | null {
     if (facts.prState === null) {
         return "PR not found";
     }
-    const mode = landMode(facts.prState);
     if (mode === "full" && facts.prState !== "OPEN") {
         return `PR is not open (state: ${facts.prState})`;
     }
-    if (facts.prHeadRefName !== facts.branch) {
+    if (mode === "full" && facts.prHeadRefName !== facts.branch) {
         return `PR head branch (${facts.prHeadRefName}) does not match the current branch (${facts.branch})`;
     }
     if (facts.prBaseRefName !== BASE_BRANCH) {
@@ -530,12 +548,28 @@ export function resolveGeneratedArtifactsStep(): string {
  * reading one of those would be a step the recovery path could not run.
  */
 export interface HousekeepingOptions {
+    /**
+     * The PR's HEAD branch — never `cwd`'s HEAD (issue #4378). In the full
+     * path the two are the same (`refusalReason` refuses when they differ);
+     * in housekeeping mode the caller is typically standing on the base
+     * branch, and every step that takes a branch here would otherwise be
+     * handed `staging`: the claim release and the umbrella detach would find
+     * no issue in it, and the ref cleanup would try to delete the BASE
+     * BRANCH, locally and on the remote.
+     */
     branch: string;
     pr: number;
     /** The main checkout — where green-sha lives and teardown runs from. */
     primaryCheckout: string;
-    /** The worktree `land` runs from — removed on teardown. */
-    worktree: string;
+    /**
+     * The issue worktree to remove on teardown — derived from `branch` by
+     * `issueWorktree()`, the same rule `wt:new` creates it with, NOT from
+     * `cwd` (issue #4378): the recovery path runs from a checkout that is not
+     * the worktree, and tearing down `cwd` there would ask git to remove the
+     * primary checkout while leaving the real worktree behind. null for a
+     * branch that names no issue — nothing to tear down.
+     */
+    worktree: string | null;
     /** false for `--keep`: skip worktree teardown after a successful merge. */
     teardown: boolean;
     /**
@@ -804,6 +838,50 @@ export function issueOfBranch(branch: string): number | null {
 }
 
 /**
+ * What this landing is ABOUT: the branch every housekeeping step takes, and
+ * the worktree the teardown removes (issue #4378).
+ *
+ * Both used to be read off `cwd` — the current HEAD and the current
+ * directory. On the full path that is right by construction: `refusalReason`
+ * refuses unless the current branch IS the PR's head branch, and `land` is
+ * run from the issue worktree. On the HOUSEKEEPING path (issue #4159) it is
+ * wrong twice over, because that path exists for a PR whose worktree is
+ * already gone and is therefore invoked from the primary checkout:
+ *
+ *  - the branch would be the BASE branch, so `releaseClaimStep` and
+ *    `umbrellaDetachStep` would find no issue in it and silently return null,
+ *    and the ref cleanup would ask git to delete `staging` — locally and on
+ *    the remote;
+ *  - the worktree would be the PRIMARY CHECKOUT, so the teardown would ask
+ *    git to remove the main working tree (refused, swallowed by `|| true`)
+ *    and leave the real worktree, if any, standing.
+ *
+ * So both come from the PR's own `headRefName`, and the worktree from the
+ * same `issueWorktree()` rule `wt:new` created it with. A null worktree means
+ * the branch names no issue — a docs-lane or hand-made branch has no worktree
+ * of ours to remove.
+ */
+export function landingTarget(
+    primaryCheckout: string,
+    currentBranch: string,
+    prHeadRefName: string | null
+): { branch: string; worktree: string | null } {
+    const branch = prHeadRefName ?? currentBranch;
+    const issue = issueOfBranch(branch);
+    return {
+        branch,
+        worktree:
+            issue === null
+                ? null
+                : issueWorktree(
+                      primaryCheckout,
+                      issue,
+                      branch.startsWith("fix/") ? "fix" : "feat"
+                  ).worktree,
+    };
+}
+
+/**
  * The origin band `gaps:sync --band` is told for `branch` (issue #4158): the
  * band of the issue the branch names, by the rule `queue:plan` orders by. A
  * branch naming no issue, or a band that cannot be read, is a null band and a
@@ -1049,9 +1127,33 @@ export function postMergeHousekeepingSteps(
     // teardown, and `--keep` means none of it.
     if (opts.teardown) {
         steps.push(remoteBranchDeleteStep(opts.branch));
-        steps.push(
-            `(git -C ${shQuote(opts.primaryCheckout)} worktree remove --force ${shQuote(opts.worktree)} || true)`
-        );
+        // `[ -e ]` first (issue #4378): the recovery path exists precisely
+        // for a landing whose earlier run already tore the worktree down and
+        // then crashed, so the path it is handed is routinely gone. git 2.54
+        // splits that into two states, and the branch below has to handle
+        // BOTH — measured, not assumed:
+        //
+        //  - ALREADY UNREGISTERED (a previous `git worktree remove` succeeded
+        //    and the crash came after): `worktree remove` is `fatal: '…' is
+        //    not a working tree`, exit 128. `|| true` already kept that out of
+        //    `land`'s exit status; the guard keeps it out of the operator's
+        //    terminal, where a fatal printed by the recovery step reads as the
+        //    recovery having failed.
+        //  - STILL REGISTERED, directory `rm -rf`'d by hand: the unconditional
+        //    `worktree remove` used to self-prune it (exit 0). Guarding on
+        //    `[ -e ]` alone would skip that, leaving the stale
+        //    `.git/worktrees/` entry — and `branch -D` below then refuses a
+        //    branch git still believes is checked out, swallowed by `|| true`.
+        //    Hence the `prune`: it restores exactly what the guard would
+        //    otherwise have taken away (review round 1, finding 1).
+        //
+        // null when the branch names no issue — there is no worktree of ours
+        // to remove, and the step is not emitted at all.
+        if (opts.worktree !== null) {
+            steps.push(
+                `(if [ -e ${shQuote(opts.worktree)} ]; then git -C ${shQuote(opts.primaryCheckout)} worktree remove --force ${shQuote(opts.worktree)} || true; else git -C ${shQuote(opts.primaryCheckout)} worktree prune || true; fi; true)`
+            );
+        }
         steps.push(
             `(git -C ${shQuote(opts.primaryCheckout)} branch -D ${shQuote(opts.branch)} || true)`
         );
@@ -1272,6 +1374,16 @@ function main(): void {
     // serialise against another session's `land`.
     const mode = landMode(prState);
 
+    // The branch every step below is ABOUT, and the worktree the teardown
+    // removes — from the PR's head ref, never from `cwd` (issue #4378). See
+    // `landingTarget` for what reading either off `cwd` does to the recovery
+    // path.
+    const { branch: landingBranch, worktree: landingWorktree } = landingTarget(
+        primary,
+        branch,
+        prHeadRefName
+    );
+
     // Read BEFORE the lock and the merge, while the issue is still open and the
     // board still shows it; non-gating — an unreadable band is a warning and a
     // `gaps:sync` that keeps its computed band (issue #4158).
@@ -1284,17 +1396,17 @@ function main(): void {
     // landing path would have.
     const origin: OriginBand =
         mode === "housekeeping" || merge
-            ? originBandForBranch(branch)
+            ? originBandForBranch(landingBranch)
             : { band: null };
     if (origin.reason !== undefined)
         console.warn(`land: gaps:sync gets no --band (${origin.reason})`);
 
     const runRoot = gateRunRoot(process.env);
     const housekeeping: HousekeepingOptions = {
-        branch,
+        branch: landingBranch,
         pr,
         primaryCheckout: primary,
-        worktree: cwd,
+        worktree: landingWorktree,
         teardown,
         originBand: origin.band,
     };
@@ -1310,11 +1422,20 @@ function main(): void {
 
     console.log(
         mode === "housekeeping"
-            ? `land: PR #${pr} is already MERGED — running the post-merge housekeeping only (no rebase, no lane gate, no merge)`
-            : `land: gating PR #${pr} on ${branch} — one heavy lock, ${
+            ? `land: mode=housekeeping — PR #${pr} (${landingBranch}) is already MERGED, running the post-merge housekeeping only (no rebase, no lane gate, no merge)`
+            : `land: mode=full — gating PR #${pr} on ${branch}, one heavy lock, ${
                   merge ? "with" : "without"
               } merge`
     );
+    if (mode === "housekeeping" && teardown) {
+        console.log(
+            landingWorktree === null
+                ? `land: ${landingBranch} names no issue — no worktree to tear down`
+                : `land: worktree teardown will look for ${landingWorktree}${
+                      existsSync(landingWorktree) ? "" : " (absent — skipped)"
+                  }`
+        );
+    }
     // `--no-merge` means "gate and push, never merge", and there is nothing
     // left here to withhold: the merge already happened. Say so rather than
     // running a full housekeeping pass under a flag the caller read as

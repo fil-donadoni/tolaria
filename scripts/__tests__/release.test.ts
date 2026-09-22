@@ -9,7 +9,7 @@ import {
     type HealthRecord,
     type LoopInputs,
 } from "../release";
-import { issueWorktree } from "../wt-new";
+import { issueWorktree } from "../lib/issue-worktree";
 
 /**
  * `bun run release` (ADR 0116) — the one decision it makes is pure: the

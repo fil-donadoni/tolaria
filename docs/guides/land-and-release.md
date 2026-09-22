@@ -152,6 +152,35 @@ it already passed — but it is still the long way round. `deny-guard.sh` § 1 d
 hand-typed `gh pr merge` everywhere; `TOLARIA_ALLOW_MANUAL_MERGE=1` is the
 per-command hatch for a real recovery.
 
+#### Recovery: the housekeeping alone, on a PR that already merged
+
+`land` on a **MERGED** PR runs steps 8–9 and nothing else — no rebase, no lane
+gate, no merge. It says so on its first line, `land: mode=housekeeping — …`.
+That is the mode a `pr-merge.ts` retry leaves owing, and a hand-typed merge
+too: the seed, the fast-forward, `gaps:sync --band`, the claim release, the
+umbrella detach and the health cadence all still have to happen.
+
+**Run it from anywhere, the primary checkout included** (issue #4378):
+
+```bash
+bun run gate:run land <PR#>      # from ~/code/mtg/tolaria, on the base branch
+```
+
+Housekeeping mode drops the two branch-identity refusals the full path keeps —
+"land runs from the PR's own branch" and the head-branch mismatch. It has to:
+the recovery exists for a PR whose worktree is **gone** (a previous run tore it
+down and then crashed, or someone removed it by hand), and that worktree is the
+only checkout the full path would have accepted. Everything the housekeeping
+needs a branch for it takes from the PR's own `headRefName`, and the worktree
+it tears down is the path `wt:new` would have created for the issue that branch
+names (`scripts/lib/issue-worktree.ts`, the one definition both use) — never
+the directory you happen to be standing in. `land` prints that path before it
+starts, marked `(absent — skipped)` when there is nothing there to remove.
+
+The refusals that **stay** in housekeeping mode are the structural ones: a
+dirty tree (the teardown would discard it) and a PR merged into some base other
+than this one (its housekeeping is not the base branch's to run).
+
 ### The batch health gate — every 5 landings, or every 2 h
 
 The full offline gate is not a landing's business, but it is not a release's
