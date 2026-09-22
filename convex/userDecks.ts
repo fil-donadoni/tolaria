@@ -3,6 +3,7 @@ import type { GenericMutationCtx, GenericQueryCtx } from "convex/server";
 import type { DataModel, Doc, Id } from "./_generated/dataModel";
 import { internalMutation, mutation, query } from "./_generated/server";
 import { getCurrentUserId } from "./auth";
+import { withDefinitionId } from "./cards/catalogue";
 import { storedDeckColumnLayoutValidator } from "./deckLayoutStorage";
 import { type FormatId, isFormatId } from "./formats";
 import { openPlayPhaseIfReady } from "./limitedEvents";
@@ -16,6 +17,7 @@ import { hydrateSeat } from "./limitedSeatStore";
 const deckCardValidator = v.object({
     cardId: v.string(),
     cardName: v.string(),
+    definitionId: v.optional(v.string()),
 });
 
 // Typed deck Format (ADR 0036). Chosen at creation and immutable thereafter,
@@ -167,8 +169,8 @@ export const create = mutation({
             name,
             format: args.format,
             colors: args.colors,
-            cards: args.cards,
-            sideboard: args.sideboard,
+            cards: args.cards.map(withDefinitionId),
+            sideboard: args.sideboard?.map(withDefinitionId),
             description: args.description,
             featuredCardId: args.featuredCardId,
             limitedEventId: args.limitedEventId,
@@ -227,9 +229,10 @@ export const update = mutation({
             patch.name = args.patch.name.trim() || "Untitled deck";
         }
         if (args.patch.colors !== undefined) patch.colors = args.patch.colors;
-        if (args.patch.cards !== undefined) patch.cards = args.patch.cards;
+        if (args.patch.cards !== undefined)
+            patch.cards = args.patch.cards.map(withDefinitionId);
         if (args.patch.sideboard !== undefined)
-            patch.sideboard = args.patch.sideboard;
+            patch.sideboard = args.patch.sideboard.map(withDefinitionId);
         if (args.patch.description !== undefined)
             patch.description = args.patch.description;
         if (args.patch.featuredCardId !== undefined)
@@ -289,6 +292,41 @@ export const migrateLegacyFormats = internalMutation({
                 continue;
             }
             await ctx.db.patch(row._id, { format: normalized });
+            migrated++;
+        }
+        return { migrated, unchanged };
+    },
+});
+
+/**
+ * One-shot migration (issue #4117, ADR 0140): backfill `definitionId` on
+ * every `userDecks` row's Maindeck and Sideboard entries via
+ * `withDefinitionId`, ahead of narrowing the schema field to required.
+ * Idempotent — a row where every entry already carries `definitionId` is
+ * left untouched. Run once via the Convex dashboard / `mcp run` after this
+ * slice deploys, same as `migrateLegacyFormats` above.
+ */
+export const migrateDefinitionIds = internalMutation({
+    args: {},
+    returns: v.object({ migrated: v.number(), unchanged: v.number() }),
+    handler: async (ctx) => {
+        const rows = await ctx.db.query("userDecks").collect();
+        let migrated = 0;
+        let unchanged = 0;
+        for (const row of rows) {
+            const cards = row.cards.map(withDefinitionId);
+            const sideboard = row.sideboard?.map(withDefinitionId);
+            const cardsChanged = cards.some(
+                (c, i) => c.definitionId !== row.cards[i].definitionId
+            );
+            const sideboardChanged = sideboard?.some(
+                (c, i) => c.definitionId !== row.sideboard![i].definitionId
+            );
+            if (!cardsChanged && !sideboardChanged) {
+                unchanged++;
+                continue;
+            }
+            await ctx.db.patch(row._id, { cards, sideboard });
             migrated++;
         }
         return { migrated, unchanged };

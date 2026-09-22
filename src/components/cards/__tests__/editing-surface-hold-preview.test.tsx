@@ -194,6 +194,7 @@ describe("editing-surface hold-preview census (issue #2583)", () => {
             <ResultCard
                 entry={SEARCH_ENTRY}
                 activeSets={[]}
+                allowedSets={null}
                 enforceAvailability
                 onAdd={vi.fn()}
             />

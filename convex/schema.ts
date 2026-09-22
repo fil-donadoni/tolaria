@@ -177,11 +177,27 @@ export default defineSchema({
         format: formatValidator,
         description: v.optional(v.string()),
         colors: v.array(v.string()),
-        // Maindeck: the cards that build the starting Library.
+        // Maindeck: the cards that build the starting Library. `cardId` is
+        // the chosen PRINTING (Card Prints, ADR 0140/issue #4117 — it long
+        // predates the split and is kept, unrenamed, to avoid rippling the
+        // ~100 downstream readers of this shape). `definitionId` (issue
+        // #4117) is the card's canonical Card Definition id, filled
+        // server-side by `withDefinitionId` on every write whether or not
+        // the caller sent one.
+        //
+        // It stays OPTIONAL here, and that is the WIDEN step, not an
+        // oversight: Convex validates every existing document against the
+        // pushed schema BEFORE the new functions go live, so a brand-new
+        // REQUIRED field and the backfill that would populate it cannot ship
+        // in the same push — the push is rejected before
+        // `migrateDefinitionIds` exists to run. Widen (this slice) → migrate
+        // (run both `migrateDefinitionIds` against the deployed, still
+        // optional schema) → narrow to `v.string()` in issue #4386.
         cards: v.array(
             v.object({
                 cardId: v.string(),
                 cardName: v.string(),
+                definitionId: v.optional(v.string()),
             })
         ),
         // Sideboard: 0–15 cards held aside (PRD #387, issue #391). Optional so
@@ -191,6 +207,7 @@ export default defineSchema({
                 v.object({
                     cardId: v.string(),
                     cardName: v.string(),
+                    definitionId: v.optional(v.string()),
                 })
             )
         ),
@@ -250,11 +267,14 @@ export default defineSchema({
         format: formatValidator,
         description: v.optional(v.string()),
         colors: v.array(v.string()),
-        // Maindeck: the cards that build the starting Library.
+        // Maindeck: the cards that build the starting Library. See
+        // `userDecks.cards` above for `definitionId` (issue #4117) and for
+        // why it stays optional until issue #4386 narrows it.
         cards: v.array(
             v.object({
                 cardId: v.string(),
                 cardName: v.string(),
+                definitionId: v.optional(v.string()),
             })
         ),
         // Sideboard: 0–15 cards held aside (PRD #387). Optional; absent ===
@@ -264,6 +284,7 @@ export default defineSchema({
                 v.object({
                     cardId: v.string(),
                     cardName: v.string(),
+                    definitionId: v.optional(v.string()),
                 })
             )
         ),

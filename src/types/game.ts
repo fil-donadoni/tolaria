@@ -121,6 +121,14 @@ export interface Deck {
 export type DeckCard = {
     cardId: string;
     cardName: string;
+    /** The card's identity (Card Prints, ADR 0140/issue #4117) — `cardId`
+     *  above is the chosen PRINTING and stays unrenamed (it predates the
+     *  split and ~100 call sites read it that way); `definitionId` is the
+     *  new, additive field the deck builder's edition selector uses to query
+     *  `cardPrints`. Optional here too: a row saved before this slice, or a
+     *  caller that has not been updated, omits it and the server backfills
+     *  it (`convex/cards/catalogue.ts`'s `withDefinitionId`). */
+    definitionId?: string;
 };
 
 /**

@@ -1,11 +1,11 @@
-// Card Prints (ADR 0140, issue #4116) — the only writer of the `cardPrints`
-// table. `bun run prints:sync` is the sole caller, via `convex run
-// cardPrints:upsertBatch`; nothing else writes this table, and nothing reads
-// it yet (the deck entry migration, engine transport and selector are later
-// slices of PRD #4115).
+// Card Prints (ADR 0140, issue #4116/#4117) — `upsertBatch` (via
+// `bun run prints:sync`) is the ONLY writer of this table; `listByCardId`
+// below is its first reader, the deck builder's edition selector (issue
+// #4117). Engine transport and token art are later slices of PRD #4115.
 
 import { v } from "convex/values";
-import { internalMutation } from "./_generated/server";
+import { paginationOptsValidator } from "convex/server";
+import { internalMutation, query } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 
 // Kept in sync with `Rarity` (`convex/cards/types.ts`) and the copy in
@@ -106,5 +106,51 @@ export const upsertBatch = internalMutation({
             patched++;
         }
         return { inserted, patched, unchanged: unchangedCount };
+    },
+});
+
+/**
+ * The deck builder's edition selector (issue #4117, ADR 0140): every
+ * printing of ONE Card ID, paginated (a basic land has on the order of a
+ * thousand rows — `.collect()` would ship ~200 KB per dropdown open) and
+ * filtered server-side by `allowedSets` when given, so an Old School / Alpha
+ * 40 deck's selector never pulls a set it cannot legally offer. Queried only
+ * when the dropdown opens (`onOpen` on `EditionDropdown`) — never eagerly.
+ */
+export const listByCardId = query({
+    args: {
+        cardId: v.string(),
+        allowedSets: v.optional(v.array(v.string())),
+        paginationOpts: paginationOptsValidator,
+    },
+    returns: v.object({
+        page: v.array(cardPrintRowValidator),
+        isDone: v.boolean(),
+        continueCursor: v.string(),
+    }),
+    handler: async (ctx, { cardId, allowedSets, paginationOpts }) => {
+        let q = ctx.db
+            .query("cardPrints")
+            .withIndex("by_cardId", (idx) => idx.eq("cardId", cardId));
+        if (allowedSets) {
+            const sets = allowedSets;
+            q = q.filter((f) =>
+                f.or(...sets.map((set) => f.eq(f.field("set"), set)))
+            );
+        }
+        const result = await q.paginate(paginationOpts);
+        return {
+            page: result.page.map((row) => ({
+                printId: row.printId,
+                cardId: row.cardId,
+                set: row.set,
+                rarity: row.rarity,
+                digital: row.digital,
+                promo: row.promo,
+                tokenPrints: row.tokenPrints,
+            })),
+            isDone: result.isDone,
+            continueCursor: result.continueCursor,
+        };
     },
 });

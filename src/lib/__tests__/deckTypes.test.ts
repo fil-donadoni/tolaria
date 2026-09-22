@@ -22,6 +22,13 @@ type UserDeckFixture = Partial<Doc<"userDecks">> & {
     reasons?: Reason[];
 };
 
+// `definitionId` (issue #4117) is required on a real `userDecks` row —
+// this fixture's own id doubles as its definitionId, matching
+// `withDefinitionId`'s fallback for an id the registry cannot resolve.
+function dc(cardId: string, cardName: string) {
+    return { cardId, cardName, definitionId: cardId };
+}
+
 function userDeck(overrides: UserDeckFixture = {}): Doc<"userDecks"> & {
     isLegal?: boolean;
     reasons?: Reason[];
@@ -33,7 +40,7 @@ function userDeck(overrides: UserDeckFixture = {}): Doc<"userDecks"> & {
         name: "My Deck",
         format: "freeform",
         colors: ["R"],
-        cards: [{ cardId: "bolt", cardName: "Lightning Bolt" }],
+        cards: [dc("bolt", "Lightning Bolt")],
         ...overrides,
     };
 }
@@ -48,12 +55,10 @@ describe("toUserLobbyDeck (issue #391 backward compatibility)", () => {
     it("carries an explicit sideboard through unchanged", () => {
         const deck = toUserLobbyDeck(
             userDeck({
-                sideboard: [{ cardId: "disenchant", cardName: "Disenchant" }],
+                sideboard: [dc("disenchant", "Disenchant")],
             })
         );
-        expect(deck.sideboard).toEqual([
-            { cardId: "disenchant", cardName: "Disenchant" },
-        ]);
+        expect(deck.sideboard).toEqual([dc("disenchant", "Disenchant")]);
     });
 });
 
@@ -89,14 +94,8 @@ describe("derived deck legality on lobby decks (ADR 0036, issue #512)", () => {
         return [
             // 4 Bolt respects the 4-copy limit (#516); Mountain is a basic and
             // therefore unlimited, padding the deck to the 60-card minimum.
-            ...Array.from({ length: 4 }, () => ({
-                cardId: BOLT_LEA,
-                cardName: "Lightning Bolt",
-            })),
-            ...Array.from({ length: 56 }, () => ({
-                cardId: MOUNTAIN,
-                cardName: "Mountain",
-            })),
+            ...Array.from({ length: 4 }, () => dc(BOLT_LEA, "Lightning Bolt")),
+            ...Array.from({ length: 56 }, () => dc(MOUNTAIN, "Mountain")),
         ];
     }
 
@@ -112,7 +111,7 @@ describe("derived deck legality on lobby decks (ADR 0036, issue #512)", () => {
         const deck = toUserLobbyDeck(
             userDeck({
                 format: "old-school",
-                cards: [{ cardId: BOLT_LEA, cardName: "Lightning Bolt" }],
+                cards: [dc(BOLT_LEA, "Lightning Bolt")],
             })
         );
         expect(deck.isLegal).toBe(false);
@@ -195,10 +194,7 @@ describe("Featured Card on lobby decks (PRD #589, issue #593)", () => {
     it("resolves a user deck's absent override to the first Maindeck card", () => {
         const deck = toUserLobbyDeck(
             userDeck({
-                cards: [
-                    { cardId: "bolt", cardName: "Lightning Bolt" },
-                    { cardId: "shock", cardName: "Shock" },
-                ],
+                cards: [dc("bolt", "Lightning Bolt"), dc("shock", "Shock")],
             })
         );
         expect(deck.featuredCardId).toBe("bolt");
@@ -207,10 +203,7 @@ describe("Featured Card on lobby decks (PRD #589, issue #593)", () => {
     it("surfaces a user deck's in-deck Featured Card override", () => {
         const deck = toUserLobbyDeck(
             userDeck({
-                cards: [
-                    { cardId: "bolt", cardName: "Lightning Bolt" },
-                    { cardId: "shock", cardName: "Shock" },
-                ],
+                cards: [dc("bolt", "Lightning Bolt"), dc("shock", "Shock")],
                 featuredCardId: "shock",
             })
         );
@@ -220,7 +213,7 @@ describe("Featured Card on lobby decks (PRD #589, issue #593)", () => {
     it("self-heals a user deck's dangling override to the first card", () => {
         const deck = toUserLobbyDeck(
             userDeck({
-                cards: [{ cardId: "bolt", cardName: "Lightning Bolt" }],
+                cards: [dc("bolt", "Lightning Bolt")],
                 featuredCardId: "removed",
             })
         );

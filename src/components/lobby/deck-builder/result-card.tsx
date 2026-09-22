@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import CardImage from "~/components/cards/card-image";
 import { defaultEdition, editionOptions } from "~/lib/editions";
 import type { EditionOption } from "~/lib/editions";
+import { useCardPrintEditions } from "~/lib/useCardPrintEditions";
 import { useScryfallEditions } from "~/lib/scryfallApi";
 import type { CardIndexEntry } from "./useCardSearch";
 import DraggableCard from "./draggable-card";
@@ -12,22 +13,48 @@ interface ResultCardProps {
     /** Active set filter — drives the default edition when one of the card's
      *  printings belongs to a selected set. */
     activeSets: string[];
+    /** The deck's Format allowed Sets (Old School / Alpha 40), `null`
+     *  otherwise — pre-filters the `cardPrints` query so those two Formats'
+     *  selectors never offer a set they'd have to reject (ADR 0140, issue
+     *  #4117). */
+    allowedSets: string[] | null;
     /** Whether an Unavailable Card (one the GRE does not implement) is dimmed
      *  and unselectable. TRUE for a real deck — it could not be played. FALSE
      *  in manual mode, where no rule is enforced and every printed card is
      *  playable by construction (ADR 0080), so availability says nothing about
      *  whether the card belongs in the deck. */
     enforceAvailability: boolean;
-    onAdd: (printId: string, cardName: string) => void;
+    /** `definitionId` is omitted for a Full Catalogue entry, whose `cardId`
+     *  is a PRINT id rather than a Card Definition id (`makeCatalogueEntry`
+     *  in `useCardSearch.ts`) — sending it would store a printing under the
+     *  definition field and no later write would ever correct it, because
+     *  `withDefinitionId` only fills a MISSING one. Omitted, the server
+     *  resolves it (ADR 0140, issue #4117). */
+    onAdd: (printId: string, cardName: string, definitionId?: string) => void;
 }
 
 export default function ResultCard({
     entry,
     activeSets,
+    allowedSets,
     enforceAvailability,
     onAdd,
 }: ResultCardProps) {
     const isCatalogue = entry.oracleText === "";
+
+    // Card Prints (ADR 0140, issue #4117): the table is the source of truth
+    // for every printing — promos, Secret Lair and digital-only included —
+    // queried by Card ID only once the dropdown opens (`onOpen` below), never
+    // eagerly. `entry.prints` (the hand-written catalogue) is kept only as
+    // the pre-load fallback so the collapsed dropdown shows something before
+    // the query resolves, exactly like the Scryfall-editions path already did.
+    // Fed through the SAME `editionOptions`/`defaultEdition` (`~/lib/editions`)
+    // the catalogue path uses — both produce `CardPrinting[]`, so the labeling
+    // and default-selection logic is format-agnostic of its source.
+    const { prints: tablePrints, load: loadTablePrints } = useCardPrintEditions(
+        entry.cardId,
+        allowedSets
+    );
 
     const indexOptions = useMemo(
         () => editionOptions(entry.prints),
@@ -36,6 +63,15 @@ export default function ResultCard({
     const indexDefault = useMemo(
         () => defaultEdition(entry.prints, activeSets),
         [entry.prints, activeSets]
+    );
+    const tableOptions = useMemo(
+        () => (tablePrints ? editionOptions(tablePrints) : undefined),
+        [tablePrints]
+    );
+    const tableDefault = useMemo(
+        () =>
+            tablePrints ? defaultEdition(tablePrints, activeSets) : undefined,
+        [tablePrints, activeSets]
     );
 
     const { editions: scryfallEditions, load: loadEditions } =
@@ -48,9 +84,20 @@ export default function ResultCard({
 
     const options: EditionOption[] = isCatalogue
         ? (scryfallEditions ?? [catalogueSingle])
-        : indexOptions;
+        : (tableOptions ?? indexOptions);
 
-    const defaultPrintId = isCatalogue ? entry.prints[0].printId : indexDefault;
+    // A Full Catalogue entry's `cardId` is a PRINT id, which
+    // `cardPrints.listByCardId` can never match — and its options come from
+    // the Scryfall path anyway, so the table query is not merely useless but
+    // a billed read per dropdown open. Only the index path loads it.
+    const loadEditionOptions = () => {
+        loadEditions();
+        if (!isCatalogue) loadTablePrints();
+    };
+
+    const defaultPrintId = isCatalogue
+        ? entry.prints[0].printId
+        : (tableDefault ?? indexDefault);
 
     const [override, setOverride] = useState<string | null>(null);
     const selected = override ?? defaultPrintId;
@@ -70,7 +117,7 @@ export default function ResultCard({
             options={options}
             value={selected}
             onChange={setOverride}
-            onOpen={loadEditions}
+            onOpen={loadEditionOptions}
         />
     );
 
@@ -110,7 +157,13 @@ export default function ResultCard({
                     cardId: selected,
                     cardName: entry.name,
                 }}
-                onClick={() => onAdd(selected, entry.name)}
+                onClick={() =>
+                    onAdd(
+                        selected,
+                        entry.name,
+                        isCatalogue ? undefined : entry.cardId
+                    )
+                }
                 title={`Add ${entry.name} (drag to a zone)`}
                 className="group relative w-full hover:scale-[1.03]"
             >

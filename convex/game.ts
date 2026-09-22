@@ -3366,26 +3366,29 @@ export const listOpenGames = query({
 
 const PLAYER_COLORS = ["#4B5A6C", "#63768D"];
 
+// `definitionId` (Card Prints, ADR 0140/issue #4117) rides along on every deck
+// card the deck builder saves, so a deck handed to `createGame` /
+// `createSoloGame` / `joinGame` carries it and an args validator that does not
+// name it rejects the whole mutation. It is ACCEPTED and then dropped: the
+// game domain keys off `cardId` (the chosen PRINTING) alone, and both write
+// boundaries already narrow — `copyCards` for `gameDecks`/`matchDecks`,
+// `toStoredGameSeat` for the `games` row's identity-only deck copy
+// (`convex/deckStore.ts`). Optional because a caller that predates the field,
+// and every test fixture, sends none.
+const deckCardValidator = v.object({
+    cardId: v.string(),
+    cardName: v.string(),
+    definitionId: v.optional(v.string()),
+});
+
 const deckValidator = v.object({
     id: v.string(),
     name: v.string(),
     format: v.string(),
-    cards: v.array(
-        v.object({
-            cardId: v.string(),
-            cardName: v.string(),
-        })
-    ),
+    cards: v.array(deckCardValidator),
     // Sideboard (PRD #387). Optional so legacy callers (and tests) without a
     // sideboard still validate; snapshotted into the Match deck copy.
-    sideboard: v.optional(
-        v.array(
-            v.object({
-                cardId: v.string(),
-                cardName: v.string(),
-            })
-        )
-    ),
+    sideboard: v.optional(v.array(deckCardValidator)),
     // Limited Event + Seat reference (ADR 0054/0055, issue #1109/#1111).
     // Present only for a `format: "limited"` deck; `assertDeckLegal`'s
     // injected `ResolvePool` reads these two to resolve the deck's

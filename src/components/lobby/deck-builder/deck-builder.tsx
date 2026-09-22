@@ -506,9 +506,20 @@ export default function DeckBuilder({
     // `count` defaults to 1 for every EXISTING caller (the search grid's
     // one-card-at-a-time `onAdd`) and is passed explicitly by the basics bar
     // (issue #1627) so a `+5` click appends five copies in one working-deck
-    // update rather than five separate ones.
+    // update rather than five separate ones. `definitionId` (Card Prints,
+    // issue #4117) is optional for the same reason: the search grid's result
+    // card knows it cheaply (the search entry's own `cardId`) and passes it,
+    // the basics bar does not bother — either way `userDecks.create`/`update`
+    // backfills a missing one server-side (`withDefinitionId`), so nothing
+    // here is load-bearing for correctness, only for an immediate-render
+    // Featured Card/grouping affordance that has one before the next save.
     const handleAdd = useCallback(
-        (cardId: string, cardName: string, count = 1) => {
+        (
+            cardId: string,
+            cardName: string,
+            count = 1,
+            definitionId?: string
+        ) => {
             updateDeck((d) => ({
                 ...d,
                 cards: [
@@ -516,6 +527,7 @@ export default function DeckBuilder({
                     ...Array.from({ length: count }, () => ({
                         cardId,
                         cardName,
+                        definitionId,
                     })),
                 ],
             }));
@@ -1149,8 +1161,11 @@ export default function DeckBuilder({
                             entries={entries}
                             idle={idle}
                             activeSets={filters.sets}
+                            allowedSets={FORMAT_RULES[deck.format].allowedSets}
                             enforceAvailability={deck.format !== "manual"}
-                            onAdd={handleAdd}
+                            onAdd={(cardId, cardName, definitionId) =>
+                                handleAdd(cardId, cardName, 1, definitionId)
+                            }
                         />
                     </div>
                 ),
