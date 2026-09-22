@@ -294,10 +294,13 @@ budget over `.claude/rules/**`), `agents-md-drift.test.ts` (the generated
 `AGENTS.md` mirror), `bot-globs.test.ts` (`bot-development.md`'s `globs:`
 feeds `scripts/lib/bot-globs.ts`), `destructive-data-recipes.test.ts` (scans
 `.claude/skills/**/*.md`), `gate-rule-parity.test.ts` (the gate rule held in
-both `deny-guard.sh` and the `/next-issue` skill), `action-space.test.ts` and
-`cr-citation-ledger.test.ts` (a `CR` line in a skill owes a ledger entry).
-`format:check`'s `**/*.{…,md}` glob already reaches these files, and
-`.claude/**` is not in `.prettierignore` apart from `settings.local.json`.
+both `deny-guard.sh` and the `/next-issue` skill), `action-space.test.ts`,
+`cr-citation-ledger.test.ts` (a `CR` line in a skill owes a ledger entry) and
+`cr-source.test.ts` (ADR 0098's no-third-party-mirror sweep reads the
+instruction files themselves, and asserts the rules-check skill still points
+at the vendored document). `format:check`'s `**/*.{…,md}` glob already reaches
+these files, and `.claude/**` is not in `.prettierignore` apart from
+`settings.local.json`.
 
 **That set is pinned, not asserted.** `docs-lane.test.ts` sweeps every
 `scripts/__tests__/*.test.ts` whose source contains the fixed string
@@ -309,6 +312,24 @@ directory (`.claude/telemetry/`, `.claude/receipts/`, `~/.claude/projects`) or
 cite a rule file in a header comment; each carries its own row. No guard
 outside `scripts/__tests__` reads `.claude/**` — the mentions under `convex/`
 and `src/` are all CR-style citations in comments.
+
+**The census's own blind spot, and the second guard that closes it.** An
+exclusion row is a claim about the WHOLE test, written once — and widening
+what the lane CARRIES can falsify a row nobody touched. `cr-source.test.ts`
+was excluded as "guards `data/cr/`, the vendored rules document — not repo
+prose", which was true of half the file: its other half is ADR 0098's
+no-third-party-mirror sweep, which reads
+`.claude/skills/<skill>/SKILL.md` and `.claude/rules/gre-development.md` and
+asserts the rules-check skill still names the vendored document. Harmless
+while every `.claude/**` edit forced the full gate (`check:guards` runs the
+whole node projects); a hole the moment a `SKILL.md` took the cheap lane. It
+is now a `DOC_GATE_TESTS` row. The guard against the next one: an excluded
+test that names a `.claude/{skills,rules}` path AS A WHOLE STRING, outside a
+comment, must say in its reason that the path is a FIXTURE — a test that
+really reads one cannot honestly write that word, and has to earn a
+`DOC_GATE_TESTS` row instead. Comments are stripped first, because a header
+citing a rule file is prose about the rule, not a use of it, and every
+rule-mechanising guard in this repo carries one.
 
 **The other half does not move.** The carve-out is anchored to `.md` inside
 two named directories, for the same reason `DOCS_PATTERNS` is anchored to
