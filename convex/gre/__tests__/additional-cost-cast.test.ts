@@ -94,6 +94,9 @@ describe("announceCast — unpayable additional-cost sacrifice (issue #944)", ()
         expect(picker).toEqual({
             kind: "sacrifice",
             filter: { types: "Creature", colors: "G" },
+            // Issue #3808 — the leg now carries its COUNT; every card that
+            // declares no `sacrificeFilterCount` owes exactly one victim.
+            count: 1,
         });
     });
 
@@ -159,6 +162,8 @@ describe("announceCast — unpayable additional-cost sacrifice (issue #944)", ()
         expect(picker).toEqual({
             kind: "exile",
             filter: { types: "Creature", controllerRelation: "you" },
+            // The exile leg has no counted form (issue #3808) — always one.
+            count: 1,
         });
     });
 });
