@@ -5360,6 +5360,16 @@
         "source": "compiled"
     },
     {
+        "name": "Bloodfire Colossus",
+        "scryfallId": "518145f3-9919-4ed6-9e2e-772ee349ea57",
+        "oracleId": "cc59e28a-eda3-468c-a31b-73e4b615f953",
+        "firstSet": "apc",
+        "firstPrintId": "518145f3-9919-4ed6-9e2e-772ee349ea57",
+        "firstPrintSet": "apc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Bloodfire Expert",
         "scryfallId": "0742564e-f7a7-4107-b9ed-63703ca4702c",
         "oracleId": "341cf654-faf7-4db9-bd9a-70783f1ccff0",
@@ -10704,6 +10714,16 @@
         "source": "compiled"
     },
     {
+        "name": "Dakmor Plague",
+        "scryfallId": "58b38ef1-5839-4292-91d6-e45698c69a75",
+        "oracleId": "a6cc516d-5a4b-455a-ab16-367d64215527",
+        "firstSet": "p02",
+        "firstPrintId": "58b38ef1-5839-4292-91d6-e45698c69a75",
+        "firstPrintSet": "p02",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Dakmor Scorpion",
         "scryfallId": "2d860dee-93a9-48e5-ba7a-80ad8cdc84e4",
         "oracleId": "008290c2-499d-425b-9a6c-c4aeb47c33ff",
@@ -12302,6 +12322,16 @@
         "firstPrintSet": "atq"
     },
     {
+        "name": "Devastate",
+        "scryfallId": "bfe7c990-a34b-475e-a612-447c22f998d3",
+        "oracleId": "90b3e2df-182d-4dad-9934-597a048fefc6",
+        "firstSet": "pcy",
+        "firstPrintId": "bfe7c990-a34b-475e-a612-447c22f998d3",
+        "firstPrintSet": "pcy",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Deviant Glee",
         "scryfallId": "e150896e-8745-42ac-894b-8f42a92bd7a7",
         "oracleId": "13aeccd5-cca2-4249-904d-d5516f977440",
@@ -13739,6 +13769,16 @@
         "firstPrintId": "1997e6a0-9e66-486d-921d-d64137c3221d",
         "firstPrintSet": "soi",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Dry Spell",
+        "scryfallId": "547c10ea-8ace-4496-8b99-61863c0cec1b",
+        "oracleId": "980a9957-6b52-45c6-b847-f84974d5a653",
+        "firstSet": "hml",
+        "firstPrintId": "547c10ea-8ace-4496-8b99-61863c0cec1b",
+        "firstPrintSet": "hml",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -16288,6 +16328,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Famine",
+        "scryfallId": "8d6c10ca-f6d6-4322-aa17-7e874cb10bb1",
+        "oracleId": "1f82fe6b-1ec7-400b-a80d-40921b359723",
+        "firstSet": "ptk",
+        "firstPrintId": "8d6c10ca-f6d6-4322-aa17-7e874cb10bb1",
+        "firstPrintSet": "ptk",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Fan Bearer",
         "scryfallId": "f6cec477-f86f-4ccf-aa57-b6b7ade46eed",
         "oracleId": "d2e7198a-0eb5-4d30-973f-4b2d9617436f",
@@ -16836,6 +16886,16 @@
         "source": "compiled"
     },
     {
+        "name": "Festering Evil",
+        "scryfallId": "2d688bda-fee2-496d-9793-794c2568b54e",
+        "oracleId": "0581b047-ffa1-42cc-a175-b7bf928e279e",
+        "firstSet": "wth",
+        "firstPrintId": "2d688bda-fee2-496d-9793-794c2568b54e",
+        "firstPrintSet": "wth",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Festering Goblin",
         "scryfallId": "e7209cc8-b519-4f27-87d8-b12e239a121f",
         "oracleId": "66fb4764-d309-4c30-a2a4-474f9030dc87",
@@ -17196,6 +17256,16 @@
         "firstSet": "leg",
         "firstPrintId": "d26fa79a-ede8-4c80-98d5-f49696f8104d",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Fire Tempest",
+        "scryfallId": "92334ebe-3d7a-46de-8b91-931e5d56a5a5",
+        "oracleId": "ede6a352-52de-4ae0-816f-50140033dedf",
+        "firstSet": "por",
+        "firstPrintId": "92334ebe-3d7a-46de-8b91-931e5d56a5a5",
+        "firstPrintSet": "por",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Fire Whip",
@@ -27024,6 +27094,16 @@
         "source": "compiled"
     },
     {
+        "name": "Kitsune Palliator",
+        "scryfallId": "eb981f8b-4f03-4fd2-a255-b10635958bfd",
+        "oracleId": "ed854708-5a65-4293-bebc-d7c639407ba5",
+        "firstSet": "bok",
+        "firstPrintId": "eb981f8b-4f03-4fd2-a255-b10635958bfd",
+        "firstPrintSet": "bok",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Kjeldoran Dead",
         "scryfallId": "d3f7b614-6075-4b7c-acc7-ab63185b570b",
         "oracleId": "61e00946-7df7-4298-91b2-c656169e6601",
@@ -29570,6 +29650,16 @@
         "firstSet": "pls",
         "firstPrintId": "d9752bc3-0bdf-4657-8750-73c8cbc8e83f",
         "firstPrintSet": "pls"
+    },
+    {
+        "name": "Magma Giant",
+        "scryfallId": "92bec2e0-a016-42bd-85d9-fbb262998110",
+        "oracleId": "f71d8073-d265-4387-8d08-0b9815fd2242",
+        "firstSet": "p02",
+        "firstPrintId": "92bec2e0-a016-42bd-85d9-fbb262998110",
+        "firstPrintSet": "p02",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Magma Rift",
@@ -33984,6 +34074,16 @@
         "source": "compiled"
     },
     {
+        "name": "Noxious Field",
+        "scryfallId": "10c84d09-555c-472b-b445-5dd5a44cd555",
+        "oracleId": "c75ec3c6-2786-4386-b758-ac03610f2a99",
+        "firstSet": "pcy",
+        "firstPrintId": "10c84d09-555c-472b-b445-5dd5a44cd555",
+        "firstPrintSet": "pcy",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Noxious Groodion",
         "scryfallId": "b6cb3d78-1a60-4e9b-b387-afeb58677536",
         "oracleId": "aed587bf-c6e5-4850-baeb-2715cb27bf4c",
@@ -35954,6 +36054,16 @@
         "firstSet": "lea",
         "firstPrintId": "d42a6350-b16b-4e10-a273-e6cbb55dcb7a",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Pestilence Demon",
+        "scryfallId": "a6931673-20e0-410e-bc2a-d14efa2b488a",
+        "oracleId": "2572add6-c0b1-44bd-8713-1e94e3fe69d6",
+        "firstSet": "roe",
+        "firstPrintId": "a6931673-20e0-410e-bc2a-d14efa2b488a",
+        "firstPrintSet": "roe",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Pestilence Rats",
@@ -38516,6 +38626,16 @@
         "firstSet": "fem",
         "firstPrintId": "907a3396-706b-4ca2-9973-bca758986032",
         "firstPrintSet": "fem"
+    },
+    {
+        "name": "Rain of Embers",
+        "scryfallId": "2d5391a9-6c30-4f9b-b746-a4427a3e63fc",
+        "oracleId": "041e2a01-3652-46c1-a9d1-d38ae7ee0551",
+        "firstSet": "rav",
+        "firstPrintId": "2d5391a9-6c30-4f9b-b746-a4427a3e63fc",
+        "firstPrintSet": "rav",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Rain of Revelation",
@@ -42465,6 +42585,16 @@
         "firstPrintId": "ed36a150-a686-4fa6-8364-8be262ad7d98",
         "firstPrintSet": "ths",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Screams of the Damned",
+        "scryfallId": "66cc53cf-13eb-4028-944d-a670ad30dbca",
+        "oracleId": "831bb507-aaf0-4e6a-98d9-f010f96aff96",
+        "firstSet": "ody",
+        "firstPrintId": "66cc53cf-13eb-4028-944d-a670ad30dbca",
+        "firstPrintSet": "ody",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -47568,6 +47698,16 @@
         "source": "compiled"
     },
     {
+        "name": "Steam Blast",
+        "scryfallId": "144a1b4e-d960-4c3a-810b-11a0c78635ad",
+        "oracleId": "92f4bdfd-1c84-4541-bc46-2a65c39de717",
+        "firstSet": "usg",
+        "firstPrintId": "144a1b4e-d960-4c3a-810b-11a0c78635ad",
+        "firstPrintSet": "usg",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Steam Spitter",
         "scryfallId": "8aa585b7-cf7e-4f04-9490-1e6c53631647",
         "oracleId": "76ed34d2-e09e-4b53-98bd-d96b367fd315",
@@ -50767,6 +50907,16 @@
         "firstPrintId": "0d9264ff-9f7c-46f3-862a-fee7ad213250",
         "firstPrintSet": "rix",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Thrashing Wumpus",
+        "scryfallId": "86bc07c6-2ba7-41f8-90ab-f9bbac86dd08",
+        "oracleId": "ef220824-fab4-4d8e-9ba4-65ff5ba1db66",
+        "firstSet": "mmq",
+        "firstPrintId": "86bc07c6-2ba7-41f8-90ab-f9bbac86dd08",
+        "firstPrintSet": "mmq",
+        "rarity": "rare",
         "source": "compiled"
     },
     {

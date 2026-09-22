@@ -12036,6 +12036,82 @@
         "setCode": "tmp"
     },
     {
+        "name": "Noxious Field",
+        "types": [
+            "Enchantment"
+        ],
+        "subtypes": [
+            "Aura"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 2
+        },
+        "oracleText": "Enchant land\nEnchanted land has \"{T}: This land deals 1 damage to each creature and each player.\"",
+        "compiledStaticEffects": [
+            {
+                "kind": "activated-grant",
+                "appliesTo": "host",
+                "abilityId": "noxious-field-granted"
+            }
+        ],
+        "grantTemplates": [
+            {
+                "id": "noxious-field-granted",
+                "oracleText": "{T}: This land deals 1 damage to each creature and each player.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "dealDamage",
+                                "amount": 1,
+                                "to": {
+                                    "ref": "$each"
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "players"
+                        },
+                        "effects": [
+                            {
+                                "op": "dealDamage",
+                                "amount": 1,
+                                "to": {
+                                    "player": {
+                                        "ref": "$each"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Land",
+            "count": 1
+        },
+        "id": "10c84d09-555c-472b-b445-5dd5a44cd555",
+        "rarity": "uncommon",
+        "setCode": "pcy"
+    },
+    {
         "name": "Toucan-Puffin",
         "types": [
             "Creature"
@@ -14371,6 +14447,58 @@
         "id": "14456a8e-016c-4407-8410-c490db3f5ea9",
         "rarity": "common",
         "setCode": "mom"
+    },
+    {
+        "name": "Steam Blast",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "oracleText": "Steam Blast deals 2 damage to each creature and each player.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 2,
+                        "to": {
+                            "ref": "$each"
+                        }
+                    }
+                ]
+            },
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "players"
+                },
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 2,
+                        "to": {
+                            "player": {
+                                "ref": "$each"
+                            }
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "144a1b4e-d960-4c3a-810b-11a0c78635ad",
+        "rarity": "uncommon",
+        "setCode": "usg"
     },
     {
         "name": "Caves of Koilos",
@@ -31416,6 +31544,58 @@
         "setCode": "roe"
     },
     {
+        "name": "Rain of Embers",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1
+        },
+        "oracleText": "Rain of Embers deals 1 damage to each creature and each player.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 1,
+                        "to": {
+                            "ref": "$each"
+                        }
+                    }
+                ]
+            },
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "players"
+                },
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 1,
+                        "to": {
+                            "player": {
+                                "ref": "$each"
+                            }
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "2d5391a9-6c30-4f9b-b746-a4427a3e63fc",
+        "rarity": "common",
+        "setCode": "rav"
+    },
+    {
         "name": "Woodland Mystic",
         "types": [
             "Creature"
@@ -31447,6 +31627,120 @@
         "id": "2d6117cf-5cb3-41f3-8756-c01b5e9c760e",
         "rarity": "common",
         "setCode": "m20"
+    },
+    {
+        "name": "Festering Evil",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 2
+        },
+        "oracleText": "At the beginning of your upkeep, this enchantment deals 1 damage to each creature and each player.\n{B}{B}, Sacrifice this enchantment: It deals 3 damage to each creature and each player.",
+        "activatedAbilities": [
+            {
+                "id": "festering-evil-ability",
+                "oracleText": "{B}{B}, Sacrifice this enchantment: It deals 3 damage to each creature and each player.",
+                "cost": {
+                    "mana": {
+                        "B": 2
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "dealDamage",
+                                "amount": 3,
+                                "to": {
+                                    "ref": "$each"
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "players"
+                        },
+                        "effects": [
+                            {
+                                "op": "dealDamage",
+                                "amount": 3,
+                                "to": {
+                                    "player": {
+                                        "ref": "$each"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "festering-evil-trigger",
+                "oracleText": "At the beginning of your upkeep, this enchantment deals 1 damage to each creature and each player.",
+                "head": {
+                    "kind": "phase",
+                    "phase": "UPKEEP",
+                    "scope": "your"
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "dealDamage",
+                                "amount": 1,
+                                "to": {
+                                    "ref": "$each"
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "players"
+                        },
+                        "effects": [
+                            {
+                                "op": "dealDamage",
+                                "amount": 1,
+                                "to": {
+                                    "player": {
+                                        "ref": "$each"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "2d688bda-fee2-496d-9793-794c2568b54e",
+        "rarity": "uncommon",
+        "setCode": "wth"
     },
     {
         "name": "Dakmor Scorpion",
@@ -53842,6 +54136,76 @@
         "setCode": "isd"
     },
     {
+        "name": "Bloodfire Colossus",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Giant"
+        ],
+        "manaCost": {
+            "X": 6,
+            "R": 2
+        },
+        "power": 6,
+        "toughness": 6,
+        "oracleText": "{R}, Sacrifice this creature: It deals 6 damage to each creature and each player.",
+        "activatedAbilities": [
+            {
+                "id": "bloodfire-colossus-ability",
+                "oracleText": "{R}, Sacrifice this creature: It deals 6 damage to each creature and each player.",
+                "cost": {
+                    "mana": {
+                        "R": 1
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "dealDamage",
+                                "amount": 6,
+                                "to": {
+                                    "ref": "$each"
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "players"
+                        },
+                        "effects": [
+                            {
+                                "op": "dealDamage",
+                                "amount": 6,
+                                "to": {
+                                    "player": {
+                                        "ref": "$each"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "518145f3-9919-4ed6-9e2e-772ee349ea57",
+        "rarity": "rare",
+        "setCode": "apc"
+    },
+    {
         "name": "Curious Killbot",
         "types": [
             "Artifact",
@@ -55990,6 +56354,58 @@
         "id": "5470b3bb-5061-4beb-9f44-b56c3b2fd816",
         "rarity": "common",
         "setCode": "pcy"
+    },
+    {
+        "name": "Dry Spell",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Dry Spell deals 1 damage to each creature and each player.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 1,
+                        "to": {
+                            "ref": "$each"
+                        }
+                    }
+                ]
+            },
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "players"
+                },
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 1,
+                        "to": {
+                            "player": {
+                                "ref": "$each"
+                            }
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "547c10ea-8ace-4496-8b99-61863c0cec1b",
+        "rarity": "common",
+        "setCode": "hml"
     },
     {
         "name": "Evasive Maneuvers",
@@ -58419,6 +58835,58 @@
         "id": "58706bd8-558a-43b9-9f1e-c1ff0044203b",
         "rarity": "uncommon",
         "setCode": "blb"
+    },
+    {
+        "name": "Dakmor Plague",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 2
+        },
+        "oracleText": "Dakmor Plague deals 3 damage to each creature and each player.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 3,
+                        "to": {
+                            "ref": "$each"
+                        }
+                    }
+                ]
+            },
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "players"
+                },
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 3,
+                        "to": {
+                            "player": {
+                                "ref": "$each"
+                            }
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "58b38ef1-5839-4292-91d6-e45698c69a75",
+        "rarity": "uncommon",
+        "setCode": "p02"
     },
     {
         "name": "Fume Spitter",
@@ -67760,6 +68228,75 @@
         "id": "66a3645f-2b71-4816-a1f2-6cd4e987882f",
         "rarity": "common",
         "setCode": "xln"
+    },
+    {
+        "name": "Screams of the Damned",
+        "types": [
+            "Enchantment"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 2
+        },
+        "oracleText": "{1}{B}, Exile a card from your graveyard: This enchantment deals 1 damage to each creature and each player.",
+        "activatedAbilities": [
+            {
+                "id": "screams-of-the-damned-ability",
+                "oracleText": "{1}{B}, Exile a card from your graveyard: This enchantment deals 1 damage to each creature and each player.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "B": 1
+                    },
+                    "exileFromGraveyard": {
+                        "count": 1,
+                        "owner": "you"
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "dealDamage",
+                                "amount": 1,
+                                "to": {
+                                    "ref": "$each"
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "players"
+                        },
+                        "effects": [
+                            {
+                                "op": "dealDamage",
+                                "amount": 1,
+                                "to": {
+                                    "player": {
+                                        "ref": "$each"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "66cc53cf-13eb-4028-944d-a670ad30dbca",
+        "rarity": "uncommon",
+        "setCode": "ody"
     },
     {
         "name": "Take Vengeance",
@@ -88973,6 +89510,75 @@
         "setCode": "thb"
     },
     {
+        "name": "Thrashing Wumpus",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Beast"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 2
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "{B}: This creature deals 1 damage to each creature and each player.",
+        "activatedAbilities": [
+            {
+                "id": "thrashing-wumpus-ability",
+                "oracleText": "{B}: This creature deals 1 damage to each creature and each player.",
+                "cost": {
+                    "mana": {
+                        "B": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "dealDamage",
+                                "amount": 1,
+                                "to": {
+                                    "ref": "$each"
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "players"
+                        },
+                        "effects": [
+                            {
+                                "op": "dealDamage",
+                                "amount": 1,
+                                "to": {
+                                    "player": {
+                                        "ref": "$each"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "86bc07c6-2ba7-41f8-90ab-f9bbac86dd08",
+        "rarity": "rare",
+        "setCode": "mmq"
+    },
+    {
         "name": "Icatian Scout",
         "types": [
             "Creature"
@@ -94091,6 +94697,58 @@
         "setCode": "ths"
     },
     {
+        "name": "Famine",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 2
+        },
+        "oracleText": "Famine deals 3 damage to each creature and each player.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 3,
+                        "to": {
+                            "ref": "$each"
+                        }
+                    }
+                ]
+            },
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "players"
+                },
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 3,
+                        "to": {
+                            "player": {
+                                "ref": "$each"
+                            }
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "8d6c10ca-f6d6-4322-aa17-7e874cb10bb1",
+        "rarity": "uncommon",
+        "setCode": "ptk"
+    },
+    {
         "name": "Shivan Hellkite",
         "types": [
             "Creature"
@@ -97378,6 +98036,58 @@
         "setCode": "sth"
     },
     {
+        "name": "Fire Tempest",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 5,
+            "R": 2
+        },
+        "oracleText": "Fire Tempest deals 6 damage to each creature and each player.",
+        "effects": [
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 6,
+                        "to": {
+                            "ref": "$each"
+                        }
+                    }
+                ]
+            },
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "players"
+                },
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 6,
+                        "to": {
+                            "player": {
+                                "ref": "$each"
+                            }
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "92334ebe-3d7a-46de-8b91-931e5d56a5a5",
+        "rarity": "rare",
+        "setCode": "por"
+    },
+    {
         "name": "Dune Beetle",
         "types": [
             "Creature"
@@ -97563,6 +98273,73 @@
         "id": "92b300a3-e6a8-4ca9-bb26-03f57b5ff6ec",
         "rarity": "common",
         "setCode": "chk"
+    },
+    {
+        "name": "Magma Giant",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Giant"
+        ],
+        "manaCost": {
+            "X": 5,
+            "R": 2
+        },
+        "power": 5,
+        "toughness": 5,
+        "oracleText": "When this creature enters, it deals 2 damage to each creature and each player.",
+        "compiledTriggeredAbilities": [
+            {
+                "id": "magma-giant-trigger",
+                "oracleText": "When this creature enters, it deals 2 damage to each creature and each player.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "dealDamage",
+                                "amount": 2,
+                                "to": {
+                                    "ref": "$each"
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "players"
+                        },
+                        "effects": [
+                            {
+                                "op": "dealDamage",
+                                "amount": 2,
+                                "to": {
+                                    "player": {
+                                        "ref": "$each"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "92bec2e0-a016-42bd-85d9-fbb262998110",
+        "rarity": "rare",
+        "setCode": "p02"
     },
     {
         "name": "Storm Shaman",
@@ -110835,6 +111612,78 @@
         "id": "a683f79b-0330-4fac-8279-6c0d888414b8",
         "rarity": "common",
         "setCode": "aer"
+    },
+    {
+        "name": "Pestilence Demon",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Demon"
+        ],
+        "manaCost": {
+            "X": 5,
+            "B": 3
+        },
+        "power": 7,
+        "toughness": 6,
+        "oracleText": "Flying\n{B}: This creature deals 1 damage to each creature and each player.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "pestilence-demon-ability",
+                "oracleText": "{B}: This creature deals 1 damage to each creature and each player.",
+                "cost": {
+                    "mana": {
+                        "B": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "dealDamage",
+                                "amount": 1,
+                                "to": {
+                                    "ref": "$each"
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "players"
+                        },
+                        "effects": [
+                            {
+                                "op": "dealDamage",
+                                "amount": 1,
+                                "to": {
+                                    "player": {
+                                        "ref": "$each"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "a6931673-20e0-410e-bc2a-d14efa2b488a",
+        "rarity": "rare",
+        "setCode": "roe"
     },
     {
         "name": "Blood Mist",
@@ -128507,6 +129356,68 @@
         "id": "bfe5e62c-83ce-4c2b-a745-acd7670e115d",
         "rarity": "common",
         "setCode": "m11"
+    },
+    {
+        "name": "Devastate",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "R": 2
+        },
+        "oracleText": "Destroy target land. Devastate deals 1 damage to each creature and each player.",
+        "effects": [
+            {
+                "op": "destroy",
+                "target": {
+                    "target": 0
+                }
+            },
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "permanents",
+                    "zone": "battlefield",
+                    "filter": {
+                        "type": "Creature"
+                    }
+                },
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 1,
+                        "to": {
+                            "ref": "$each"
+                        }
+                    }
+                ]
+            },
+            {
+                "op": "forEach",
+                "select": {
+                    "set": "players"
+                },
+                "effects": [
+                    {
+                        "op": "dealDamage",
+                        "amount": 1,
+                        "to": {
+                            "player": {
+                                "ref": "$each"
+                            }
+                        }
+                    }
+                ]
+            }
+        ],
+        "targetRequirement": {
+            "type": "Land",
+            "count": 1
+        },
+        "id": "bfe7c990-a34b-475e-a612-447c22f998d3",
+        "rarity": "common",
+        "setCode": "pcy"
     },
     {
         "name": "Akki Avalanchers",
@@ -155149,6 +156060,82 @@
         "id": "eb94bc02-b348-43c2-9e78-e2e3fd541d6a",
         "rarity": "common",
         "setCode": "mrd"
+    },
+    {
+        "name": "Kitsune Palliator",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Fox",
+            "Cleric"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "power": 0,
+        "toughness": 2,
+        "oracleText": "{T}: Prevent the next 1 damage that would be dealt to each creature and each player this turn.",
+        "activatedAbilities": [
+            {
+                "id": "kitsune-palliator-ability",
+                "oracleText": "{T}: Prevent the next 1 damage that would be dealt to each creature and each player this turn.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "filter": {
+                                "type": "Creature"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "preventDamage",
+                                "mode": "next-n",
+                                "to": {
+                                    "ref": "$each"
+                                },
+                                "amount": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "players"
+                        },
+                        "effects": [
+                            {
+                                "op": "preventDamage",
+                                "mode": "next-n",
+                                "to": {
+                                    "player": {
+                                        "ref": "$each"
+                                    }
+                                },
+                                "amount": 1,
+                                "duration": {
+                                    "phase": "end-of-turn"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "eb981f8b-4f03-4fd2-a255-b10635958bfd",
+        "rarity": "uncommon",
+        "setCode": "bok"
     },
     {
         "name": "Merfolk Traders",
