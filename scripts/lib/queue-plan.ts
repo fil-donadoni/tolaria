@@ -32,7 +32,12 @@
 //
 // The orchestrator EXECUTES this plan; it does not re-derive it.
 
-import { lintIssue, targetFilesSection, type Finding } from "./queue-lint";
+import {
+    lintIssue,
+    parseDependencies,
+    targetFilesSection,
+    type Finding,
+} from "./queue-lint";
 import { classifyPath, laneFor, type Lane } from "../check-lane";
 import {
     parentIsAbandoned,
@@ -109,6 +114,18 @@ export interface IssueDetail {
  */
 export interface QueuePort {
     issueDetail(number: number): IssueDetail;
+    /**
+     * The NATIVE blocked-by edges of one issue — the dependency graph the
+     * board reads, which is a different store from the `## Blocked by` prose
+     * in the body (issue #3794).
+     *
+     * A method, not a data field, because it is a per-issue REST round-trip
+     * with no bulk form: unlike `priority`, there is no one call that answers
+     * it for the whole queue. It is therefore part of the call-count contract
+     * above — exactly ONE per Stage-2 candidate, paid beside the candidate's
+     * own `issueDetail` and never for a blocker or a parent.
+     */
+    nativeBlockedBy(number: number): number[];
     /** Issues that currently have an open PR — the liveness signal that keeps a
      *  long-running claim from being swept as orphaned. */
     issuesWithOpenPr: number[];
@@ -546,9 +563,6 @@ export const DEFAULT_APPEND_ONLY_PATHS = [
  *  expensive mistake, since a wrong abstraction survives review. */
 const MODEL_RANK = ["haiku", "sonnet", "opus", "fable"];
 
-const DEPENDENCY_KEYWORDS =
-    /(blocked by|depends on|depend on|requires|after)\s*:?\s*#(\d+)/gi;
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Small helpers
 // ─────────────────────────────────────────────────────────────────────────────
@@ -653,8 +667,6 @@ export function isAppendOnlyPath(path: string, point: string): boolean {
 // Body parsing
 // ─────────────────────────────────────────────────────────────────────────────
 
-const HEADING = /^#{1,6}\s+/;
-
 /**
  * Read the `Target files` section, in either form the queue contains — the
  * `## Target files` heading and the Agent Brief template's `**Target files:**`
@@ -693,37 +705,18 @@ export function parseTargetFiles(body: string): string[] | null {
 /**
  * Read every issue this one declares a dependency on.
  *
- * Two shapes, because tickets use both: the prose keyword form ("depends on
- * #999") and the template's `## Blocked by` section, whose refs sit on their
- * own list lines with no keyword anywhere near them. Reading only the keyword
- * form would miss every ticket this project's own intake skill emits.
+ * Re-exported from `./queue-lint`, which is where it moved when the lint grew
+ * the `dependency-parity` rule (issue #3794): the parity rule compares the
+ * body's dependency set against the NATIVE blocked-by edges, and it has to be
+ * the planner's own reader that computes the first half of that comparison. A
+ * second regex agreeing with this one today is how they disagree tomorrow —
+ * and the copy the three intake skills carried did exactly that, matching the
+ * `## Blocked by` section and ignoring the inline keyword form entirely.
  *
- * A `## Parent` reference is deliberately NOT a dependency — an umbrella is
- * context for its slice, not a blocker.
+ * Importers keep reaching for it here; the planner is still its loudest
+ * consumer and the module it reads as belonging to.
  */
-export function parseDependencies(body: string, self: number): number[] {
-    const found = new Set<number>();
-
-    for (const match of body.matchAll(DEPENDENCY_KEYWORDS)) {
-        found.add(Number(match[2]));
-    }
-
-    const lines = body.split("\n");
-    const start = lines.findIndex((l) => /^#{1,6}\s+blocked by/i.test(l));
-    if (start !== -1) {
-        for (const line of lines.slice(start + 1)) {
-            if (HEADING.test(line)) break;
-            const trimmed = line.trim();
-            if (trimmed === "") continue;
-            if (!/^[-*]\s+/.test(trimmed)) break;
-            for (const m of trimmed.matchAll(/#(\d+)/g))
-                found.add(Number(m[1]));
-        }
-    }
-
-    found.delete(self);
-    return [...found].sort((a, b) => a - b);
-}
+export { parseDependencies };
 
 const isHitl = (body: string): boolean => /⚠️\s*HITL|\bHITL\b/.test(body);
 
@@ -1016,11 +1009,18 @@ export function planBatch(
         // declared target files, no acceptance criteria) describe 66 and 44 of
         // 100 issues respectively, and a planner that refused those would be an
         // outage, not a gate.
+        // ONE REST round-trip per Stage-2 candidate (issue #3794), read here
+        // so both consumers below share it: the lint's parity rule and the
+        // dependency check. Reading it twice would double the planner's most
+        // expensive per-candidate cost for nothing.
+        const nativeBlockedBy = port.nativeBlockedBy(issue.number);
+
         const lintFindings = lintIssue({
             number: issue.number,
             title: issue.title,
             labels: labelNames(issue),
             parentNumber: issue.parent?.number ?? null,
+            blockedByNative: nativeBlockedBy,
             body: detail.body,
         });
         const lintBlockers = lintFindings.filter(
@@ -1046,7 +1046,19 @@ export function planBatch(
             continue;
         }
 
-        const blockers = parseDependencies(detail.body, issue.number);
+        // The UNION of the two stores, never one of them (issue #3794). A
+        // native-only edge used to be invisible here, so the planner admitted
+        // the issue and the session discovered the unmerged prerequisite by
+        // bouncing off it; a body-only edge is invisible on the board. Until
+        // the parity rule has driven the disagreement to zero the planner
+        // treats either declaration as binding — deferring an issue that was
+        // going to block anyway costs one pass, admitting it costs a session.
+        const blockers = [
+            ...new Set([
+                ...parseDependencies(detail.body, issue.number),
+                ...nativeBlockedBy.filter((n) => n !== issue.number),
+            ]),
+        ].sort((a, b) => a - b);
         const openBlocker = blockers.find(
             (n) => port.issueDetail(n).state === "OPEN"
         );

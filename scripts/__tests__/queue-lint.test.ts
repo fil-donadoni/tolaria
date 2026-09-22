@@ -53,6 +53,9 @@ function issue(over: Partial<LintableIssue> = {}): LintableIssue {
         title: "feat: a thing",
         labels: ["enhancement", "ready-for-agent"],
         parentNumber: null,
+        // UNREAD by default, which is what every caller that has not paid the
+        // REST round-trip must pass — see the `dependency-parity` block below.
+        blockedByNative: null,
         body: WELL_FORMED,
         ...over,
     };
@@ -453,5 +456,110 @@ describe("queue lint — unlinked-card-name (issue #3666)", () => {
         expect(
             lintIssue(issue({ body: `${WELL_FORMED}\nLightning Bolt\n` }))
         ).toEqual([]);
+    });
+});
+
+describe("queue lint — dependency parity (issue #3794)", () => {
+    const blockedBody = (refs: number[]) =>
+        `${WELL_FORMED}\n## Blocked by\n\n${refs.map((n) => `- #${n}`).join("\n")}\n`;
+
+    const parity = (i: LintableIssue) =>
+        lintIssue(i).find((f) => f.rule === "dependency-parity");
+
+    it("an UNREAD native set (null) produces nothing — absence of evidence is not disagreement", () => {
+        // The whole queue would light up otherwise: the planner's own
+        // `lintIssue` call and every caller that does not pay the REST
+        // round-trip pass null, and reading null as "GitHub says none" would
+        // report a missing native edge for every body dependency there is.
+        expect(
+            parity(issue({ blockedByNative: null, body: blockedBody([500]) }))
+        ).toBeUndefined();
+    });
+
+    it("both sides agree → clean, and the whole issue stays clean", () => {
+        const i = issue({
+            blockedByNative: [500],
+            body: blockedBody([500]),
+        });
+        expect(parity(i)).toBeUndefined();
+        expect(lintIssue(i)).toEqual([]);
+    });
+
+    it("an empty native set beside an empty body is agreement, not a finding", () => {
+        expect(parity(issue({ blockedByNative: [] }))).toBeUndefined();
+    });
+
+    it("body-only edge → names the missing native edge and the one-line fix", () => {
+        const f = parity(
+            issue({ blockedByNative: [], body: blockedBody([500, 501]) })
+        );
+        expect(f?.severity).toBe("advisory");
+        expect(f?.message).toContain("no native edge for: #500, #501");
+        expect(f?.fix).toContain("gh issue edit 100 --add-blocked-by 500,501");
+    });
+
+    it("native-only edge → names the `## Blocked by` lines to add", () => {
+        const f = parity(issue({ blockedByNative: [500] }));
+        expect(f?.message).toContain("not stated in the body: #500");
+        expect(f?.fix).toContain("`- #500`");
+    });
+
+    it("reports BOTH halves when each side is missing a different ref", () => {
+        const f = parity(
+            issue({ blockedByNative: [501], body: blockedBody([500]) })
+        );
+        expect(f?.message).toContain("no native edge for: #500");
+        expect(f?.message).toContain("not stated in the body: #501");
+        expect(f?.fix).toContain("--add-blocked-by 500");
+        expect(f?.fix).toContain("`- #501`");
+    });
+
+    it("counts the INLINE keyword form — the parser is the planner's, not a second regex", () => {
+        // The ad-hoc read-back the intake skills carried matched the
+        // `## Blocked by` section only, so it reported parity on a body the
+        // planner already read as blocked. Both shapes, one parser.
+        for (const prose of [
+            "This one depends on #500 landing first.",
+            "Blocked by #500 until the schema moves.",
+            "Only makes sense after #500.",
+            "Requires #500.",
+        ]) {
+            const f = parity(
+                issue({
+                    blockedByNative: [],
+                    body: `${WELL_FORMED}\n${prose}\n`,
+                })
+            );
+            expect(f?.message).toContain("no native edge for: #500");
+        }
+    });
+
+    it("does not read a `## Parent` reference as a dependency", () => {
+        expect(
+            parity(
+                issue({
+                    parentNumber: 50,
+                    blockedByNative: [],
+                    body: `## Parent\n\n#50\n\n${WELL_FORMED}`,
+                })
+            )
+        ).toBeUndefined();
+    });
+
+    it("ignores a self-reference on EITHER side", () => {
+        expect(
+            parity(
+                issue({
+                    blockedByNative: [100],
+                    body: `${WELL_FORMED}\nSupersedes the cleanup after #100.\n`,
+                })
+            )
+        ).toBeUndefined();
+    });
+
+    it("is never blocking — a drifted edge is fixable in one command, not a reason to empty the queue", () => {
+        expect(isBlocking(lintIssue(issue({ blockedByNative: [500] })))).toBe(
+            false
+        );
     });
 });

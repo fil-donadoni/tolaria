@@ -80,6 +80,7 @@ import { ALLOWLIST_PATH, parseAllowlist } from "./check-gaps";
 import { BASE_BRANCH } from "./lib/branches";
 import {
     gh,
+    issueBlockedBy,
     setIssueParent,
     subIssueCount as sharedSubIssueCount,
 } from "./lib/gh";
@@ -339,25 +340,13 @@ export class GhGapTracker implements GapTracker {
         return rows;
     }
 
-    /** Paginated: this is both the idempotency check and `addBlockedBy`'s only
-     *  proof that the write took, and `gh api` pages at 30 — past that a
-     *  freshly written edge falls off page one and the write reads as failed. */
+    /** Paginated (`issueBlockedBy`): this is both the idempotency check and
+     *  `addBlockedBy`'s only proof that the write took, and `gh api` pages at
+     *  30 — past that a freshly written edge falls off page one and the write
+     *  reads as failed. Shared with the queue lint's parity rule since issue
+     *  #3794; one reader, so the pagination rule cannot be re-learned. */
     blockedBy(issue: number): readonly number[] {
-        // One number per line, every page: `--slurp` is refused beside `--jq`,
-        // and the concatenated per-page output of a scalar filter is the shape
-        // `gh` does give across pages.
-        const out = gh([
-            "api",
-            "--paginate",
-            `repos/{owner}/{repo}/issues/${issue}/dependencies/blocked_by`,
-            "--jq",
-            ".[].number",
-        ]);
-        return out
-            .split("\n")
-            .map((line) => line.trim())
-            .filter((line) => line !== "")
-            .map(Number);
+        return issueBlockedBy(issue);
     }
 
     /**
