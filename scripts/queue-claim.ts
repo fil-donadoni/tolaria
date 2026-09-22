@@ -20,6 +20,7 @@ import {
     readdirSync,
     readFileSync,
     rmSync,
+    statSync,
     writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
@@ -30,13 +31,14 @@ import { sessionCap } from "./lib/branches";
 import { primaryCheckout } from "./lib/primary-checkout";
 import { claimLedgerPath, interpretPsResult } from "./loop-doctor";
 import { isStaleClaim, releasedClaims } from "./lib/queue-plan";
-import { DEFAULTS } from "./queue-plan";
+import { DEFAULTS, issuesWithOpenPr } from "./queue-plan";
 import {
     buildClaimRow,
     claimDecision,
     claimLockVerdict,
     latestPlanFor,
     liveClaimSet,
+    ownsClaimLock,
     parsePpidComm,
     type ClaimLockOwner,
     type ClaimRowOwner,
@@ -50,7 +52,9 @@ const LOCK_ROOT =
     process.env.TOLARIA_GATE_LOCK_ROOT ?? join(homedir(), ".cache", "tolaria");
 const LOCK_DIR = join(LOCK_ROOT, "claim.lock");
 const OWNER_FILE = join(LOCK_DIR, "owner.json");
-/** A claim is two `gh` calls; a holder past this is hung. */
+/** How long an owner-LESS lock directory (a crash between `mkdir` and the
+ *  stamp) is waited on before it is treated as the orphan it is. A live
+ *  holder is never reclaimed on age — see `claimLockVerdict`. */
 const STALE_MS = Number(process.env.TOLARIA_CLAIM_LOCK_STALE_MS ?? 30_000);
 /** Bounded wait: a waiter that never gives up is the hang it was meant to avoid. */
 const WAIT_MS = Number(process.env.TOLARIA_CLAIM_LOCK_WAIT_MS ?? 60_000);
@@ -80,15 +84,34 @@ function tryTake(label: string): boolean {
         return false;
     }
     const owner: ClaimLockOwner = { pid: process.pid, ts: Date.now(), label };
-    writeFileSync(OWNER_FILE, JSON.stringify(owner));
+    try {
+        writeFileSync(OWNER_FILE, JSON.stringify(owner));
+    } catch (err) {
+        // The directory exists and nothing stamps it: every later run would
+        // read an owner-less lock and wait. Give it back before re-throwing.
+        rmSync(LOCK_DIR, { recursive: true, force: true });
+        throw err;
+    }
     return true;
 }
 
+/** Epoch ms the lock directory was created — the age of an owner-less lock. */
+function lockDirCreatedAt(): number | null {
+    try {
+        return statSync(LOCK_DIR).birthtimeMs || statSync(LOCK_DIR).ctimeMs;
+    } catch {
+        return null;
+    }
+}
+
+/** Release ONLY a lock stamped with this pid: a long holder must not, on
+ *  its way out, remove a lock a reclaim has since handed to someone else. */
 function releaseLock(): void {
+    if (!ownsClaimLock(readOwner(), process.pid)) return;
     try {
         rmSync(LOCK_DIR, { recursive: true, force: true });
     } catch {
-        /* another waiter reclaimed it — nothing to do */
+        /* already gone */
     }
 }
 
@@ -103,19 +126,24 @@ async function withClaimLock<T>(label: string, fn: () => T): Promise<T> {
             owner,
             now,
             STALE_MS,
-            owner !== null && alive(owner.pid)
+            owner !== null && alive(owner.pid),
+            owner === null ? lockDirCreatedAt() : null
         );
         if (verdict !== "wait") {
             console.error(
-                `queue:claim: reclaiming the claim lock — ${verdict === "reclaim-dead" ? "holder is gone" : "holder is hung"} (pid ${owner?.pid}, ${owner?.label})`
+                `queue:claim: reclaiming the claim lock — ${verdict === "reclaim-dead" ? `holder pid ${owner?.pid} is gone (${owner?.label})` : "a lock directory with no owner stamp, older than the stale window"}`
             );
-            releaseLock();
+            try {
+                rmSync(LOCK_DIR, { recursive: true, force: true });
+            } catch {
+                /* another waiter reclaimed it first */
+            }
             continue;
         }
         if (now - t0 > WAIT_MS) {
             throw new Error(
                 `claim lock held for ${Math.round((now - t0) / 1000)}s by pid ${owner?.pid ?? "?"} (${owner?.label ?? "unreadable owner"}) — ` +
-                    `a claim is two gh calls; if that process is gone, remove ${LOCK_DIR} and retry`
+                    `a live holder is never reclaimed; if it is hung, stop that process and retry`
             );
         }
         await new Promise((r) => setTimeout(r, POLL_MS));
@@ -144,25 +172,6 @@ function claimedIssues(): { number: number; updatedAt: string }[] {
             "number,updatedAt",
         ])
     ) as { number: number; updatedAt: string }[];
-}
-
-function issuesWithOpenPr(): number[] {
-    const prs = JSON.parse(
-        gh([
-            "pr",
-            "list",
-            "--state",
-            "open",
-            "--limit",
-            "200",
-            "--json",
-            "headRefName",
-        ])
-    ) as { headRefName: string }[];
-    return prs
-        .map((p) => /issue-(\d+)$/.exec(p.headRefName)?.[1])
-        .filter((n): n is string => n !== undefined)
-        .map(Number);
 }
 
 function projectRoot(): string {
@@ -266,6 +275,10 @@ async function main(): Promise<void> {
     const noCap = args.includes("--no-cap");
     const root = projectRoot();
     const session = process.env.CLAUDE_CODE_SESSION_ID ?? "";
+    if (session === "")
+        console.error(
+            "queue:claim: no CLAUDE_CODE_SESSION_ID — this claim is recorded with an empty session, so the end-of-session sweep will not release it; `loop:doctor` will, by evidence"
+        );
 
     const outcome = await withClaimLock(`claim #${issue}`, () => {
         const now = new Date().toISOString();

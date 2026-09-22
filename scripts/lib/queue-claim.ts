@@ -16,10 +16,11 @@
 // sessions racing the verb serialise on the lock and the second one reads the
 // first one's label.
 //
-// The lock is the gate's MECHANISM (atomic `mkdir`, an owner stamp, a stale
-// reclaim) in its OWN directory beside the gate's, never the gate's heavy mutex
-// itself: a claim is two `gh` calls, and queueing it behind a ten-minute health
-// gate would be exactly the wait the light tier exists to avoid.
+// The lock is the gate's MECHANISM (atomic `mkdir`, an owner stamp, a reclaim
+// of a dead holder) in its OWN directory beside the gate's, never the gate's
+// heavy mutex itself: a claim is a few `gh` round trips, and queueing it
+// behind a ten-minute health gate would be exactly the wait the light tier
+// exists to avoid.
 
 import { capRefusal, type Admission } from "./queue-plan";
 
@@ -70,13 +71,19 @@ export interface ClaimedIssue {
 }
 
 /**
- * The live set the cap counts, derived exactly as `planBatch` derives its
- * `activeClaims`: every `in-progress` issue, minus the ones the journal says
- * this machine released, minus the STALE ones (no open PR and untouched for
- * longer than `staleClaimHours`). A claim the planner would call stale is
- * work nobody is doing; counting it toward the cap here while the planner
- * ignores it would let the two verbs disagree — the planner admits the pick
- * and the claim refuses it.
+ * The live set the cap counts: every open `in-progress` issue, minus the ones
+ * the journal says this machine released, minus the STALE ones (no open PR
+ * and untouched for longer than `staleClaimHours` — `isStaleClaim`, the
+ * planner's own rule, shared). A claim the planner would call stale is work
+ * nobody is doing; counting it here would let three abandoned labels refuse
+ * every claim with no session running.
+ *
+ * The set is a SUPERSET of the planner's `activeClaims`, deliberately: the
+ * planner reads only its `ready-for-agent` snapshot and skips a `prd` row,
+ * while a live session is a live session whether or not its issue still
+ * carries `ready-for-agent` (a hand-picked `/next-issue N`, a slice filed
+ * without the label). So the verb can refuse where the planner admitted —
+ * never the reverse, which is the safe direction for a cap.
  */
 export function liveClaimSet(
     claimed: ClaimedIssue[],
@@ -116,26 +123,55 @@ export interface ClaimLockOwner {
 }
 
 /** What a waiter does with a lock it could not take. */
-export type ClaimLockVerdict = "wait" | "reclaim-dead" | "reclaim-stale";
+export type ClaimLockVerdict = "wait" | "reclaim-dead" | "reclaim-orphan";
 
 /**
- * Pure: whether a held lock is still someone's. The holder's pid gone is an
- * orphan (a crashed verb); a live pid past `staleMs` is a hung one (a claim is
- * two `gh` calls — nothing legitimate holds this for half a minute). An
- * unreadable owner file is a lock mid-write or mid-release, and is WAITED on,
- * never reclaimed: reclaiming it would race the holder that is about to stamp
- * it.
+ * Pure: whether a held lock is still someone's.
+ *
+ * A LIVE holder is never reclaimed, however long it has held: a `gh` call has
+ * no timeout, a rate-limited round trip can legitimately take a while, and a
+ * waiter that deleted a live holder's lock would put two processes inside the
+ * locked body at once — the exact state the lock exists to forbid. A live
+ * holder that is genuinely hung is the WAITER's bounded wait to report, by
+ * pid, not this verdict's to steal from.
+ *
+ * The holder's pid gone is an orphan (a crashed verb) and is reclaimed at
+ * once. An owner file that cannot be read is a lock mid-write — `mkdir` done,
+ * stamp not yet written — and is waited on for `staleMs` measured from the
+ * DIRECTORY's own age; past that it is a stamp that never came (the process
+ * died between the two calls) and is reclaimed too. Without that clause a
+ * crash in that one window would wedge every later claim until a human
+ * removed the directory by hand.
  */
 export function claimLockVerdict(
     owner: ClaimLockOwner | null,
     now: number,
     staleMs: number,
-    alive: boolean
+    alive: boolean,
+    /** Epoch ms the lock directory was created, when the owner is unreadable. */
+    dirCreatedAt: number | null = null
 ): ClaimLockVerdict {
-    if (owner === null) return "wait";
+    if (owner === null) {
+        if (dirCreatedAt !== null && now - dirCreatedAt > staleMs)
+            return "reclaim-orphan";
+        return "wait";
+    }
     if (!alive) return "reclaim-dead";
-    if (now - owner.ts > staleMs) return "reclaim-stale";
     return "wait";
+}
+
+/**
+ * Pure: whether the process about to release the lock is the one holding it.
+ * A holder that ran long — a slow `gh` — must not, on its way out, remove a
+ * lock that a later reclaim handed to someone else: it releases ONLY a lock
+ * stamped with its own pid. An unreadable stamp is left alone for the same
+ * reason.
+ */
+export function ownsClaimLock(
+    owner: ClaimLockOwner | null,
+    pid: number
+): boolean {
+    return owner !== null && owner.pid === pid;
 }
 
 // ── The journal row ──────────────────────────────────────────────────────────
@@ -159,12 +195,13 @@ export interface ClaimRow {
 }
 
 /**
- * The row `queue:claim` appends to `.claude/telemetry/claims.jsonl`. It is the
- * SAME shape `claim-ledger.sh` writes — `claim-sweep.sh` releases by
- * `session`, `loop:doctor` reads `owner` for liveness, the dashboard joins on
- * `plan` — because the hook is a PreToolUse observer of Bash TOOL calls and a
- * `gh` invocation inside a bun script is invisible to it. Every reader keeps
- * working; only the writer moved.
+ * The row `queue:claim` appends to `.claude/telemetry/claims.jsonl`: every
+ * field `claim-ledger.sh` writes, with the same meaning — `claim-sweep.sh`
+ * releases by `session`, `loop:doctor` reads `owner` for liveness, the
+ * dashboard joins on `plan` — plus `via`, which names the writer. The hook is a
+ * PreToolUse observer of Bash TOOL calls and a `gh` invocation inside a bun
+ * script is invisible to it. Every reader keeps working; `via` is the one
+ * field a reader may use to tell the two writers apart.
  *
  * `planned` is the admitted batch of the latest plan for this session, or
  * `null` when no plan preceded the claim (an interactive `/next-issue N` with

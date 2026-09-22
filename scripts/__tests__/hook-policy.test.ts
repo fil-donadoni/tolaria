@@ -1240,11 +1240,29 @@ describe("deny-guard — the claim is one locked act: queue:claim, never a hand-
             "gh issue edit 4375 --add-label in-progress --add-assignee @me",
             "git fetch && gh issue edit 4375 --add-label in-progress",
             "FOO=1 gh issue edit 4375 --add-label in-progress",
+            // The splitter does not break on a pipe: a claim behind one is
+            // still a claim.
+            "true | gh issue edit 4375 --add-label in-progress",
+            // Every label spelling `gh` accepts.
+            "gh issue edit 4375 --add-label=in-progress",
+            'gh issue edit 4375 --add-label "in-progress"',
+            "gh issue edit 4375 --add-label in-progress,model:opus",
         ]) {
             const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
             expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
             expect(r.stderr).toMatch(/bun run queue:claim/);
         }
+    });
+
+    it("does not deny a label that merely starts with the claim's name", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bash(
+                "gh issue edit 4375 --add-label in-progress-review",
+                issueWorktree
+            )
+        );
+        expect(denied(r)).toBe(false);
     });
 
     it("allows a release — `--remove-label in-progress` is not a claim", () => {

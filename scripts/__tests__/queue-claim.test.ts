@@ -9,6 +9,7 @@ import {
     claimLockVerdict,
     latestPlanFor,
     liveClaimSet,
+    ownsClaimLock,
     parsePpidComm,
 } from "../lib/queue-claim";
 import { isStaleClaim } from "../lib/queue-plan";
@@ -155,14 +156,37 @@ describe("queue:claim — the lock verdict (issue #4375)", () => {
         );
     });
 
-    it("reclaims a live holder past the stale window — a claim is two gh calls", () => {
-        expect(claimLockVerdict(owner, 1_031_000, 30_000, true)).toBe(
-            "reclaim-stale"
+    it("NEVER reclaims a live holder, however long it has held — a slow gh is not a dead process", () => {
+        // A waiter that deleted a live holder's lock would put two processes
+        // inside the locked body at once — the state the lock exists to
+        // forbid — and the first one's release would then remove the second
+        // one's lock. A hung live holder is the bounded wait's to report.
+        expect(claimLockVerdict(owner, 1_031_000, 30_000, true)).toBe("wait");
+        expect(claimLockVerdict(owner, 9_999_999, 30_000, true)).toBe("wait");
+    });
+
+    it("WAITS on an unreadable owner file inside the window — it is a lock mid-write", () => {
+        expect(
+            claimLockVerdict(null, 1_010_000, 30_000, false, 1_000_000)
+        ).toBe("wait");
+        // No directory age known at all: wait, never guess.
+        expect(claimLockVerdict(null, 1_031_000, 30_000, false, null)).toBe(
+            "wait"
         );
     });
 
-    it("WAITS on an unreadable owner file — it is a lock mid-write, and reclaiming it would race the holder", () => {
-        expect(claimLockVerdict(null, 1_031_000, 30_000, false)).toBe("wait");
+    it("reclaims an owner-less directory past the window — a stamp that never came", () => {
+        // A crash between `mkdir` and the stamp. Without this clause every
+        // later claim on the machine waits on it until a human removes it.
+        expect(
+            claimLockVerdict(null, 1_031_000, 30_000, false, 1_000_000)
+        ).toBe("reclaim-orphan");
+    });
+
+    it("a process releases ONLY a lock stamped with its own pid", () => {
+        expect(ownsClaimLock({ pid: 42, ts: 1, label: "x" }, 42)).toBe(true);
+        expect(ownsClaimLock({ pid: 42, ts: 1, label: "x" }, 43)).toBe(false);
+        expect(ownsClaimLock(null, 42)).toBe(false);
     });
 });
 

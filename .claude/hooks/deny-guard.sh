@@ -736,10 +736,13 @@ fi
 # denied and pointed at the verb. The hatch exists for a repair — releasing or
 # re-labelling by hand — never for a pass.
 #
-# Match the INVOCATION shape (an env-var prefix allowed), the same anchoring
-# `claim-ledger.sh` uses, so a commit message quoting this rule is not a claim.
-# A `--remove-label in-progress` is a release, not a claim, and stays allowed.
-CLAIM_INVOKE='^[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*gh[[:space:]]+issue[[:space:]]+edit[[:space:]].*--add-label[[:space:]]+in-progress([[:space:]]|$)'
+# Match the INVOCATION shape — at the start of a segment or right after a `|`
+# (the splitter does not break on a pipe), an env-var prefix allowed — so a
+# commit message quoting this rule is not a claim. The label in every form
+# `gh` accepts: `--add-label in-progress`, `--add-label=in-progress`, quoted,
+# first of a comma list. A `--remove-label in-progress` is a release, not a
+# claim, and stays allowed.
+CLAIM_INVOKE='(^|\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*gh[[:space:]]+issue[[:space:]]+edit[[:space:]].*--add-label(=|[[:space:]]+)["'"'"']?in-progress["'"'"']?([[:space:],]|$)'
 if seg_has "$CLAIM_INVOKE" && ! seg_has 'TOLARIA_ALLOW_MANUAL_CLAIM=1' "$CLAIM_INVOKE"; then
     deny "BLOCKED: hand-typed claim — the claim is one locked act (issue #4375).
 \`queue:plan\` counts the live claims and refuses a plan at \`sessions.cap\`,
