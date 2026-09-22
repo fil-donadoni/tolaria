@@ -1769,7 +1769,7 @@ describe("health RED — the green-main invariant (ADR 0110)", () => {
         stubGhCountingFrom(5);
         writeRed();
         const r = run({ args: ["--claude-args", "x"] });
-        expect(r.stderr).toMatch(/main is RED/);
+        expect(r.stderr).toMatch(/the base tip is RED/);
         expect(r.stderr).toMatch(/red at test:app/);
     });
 
