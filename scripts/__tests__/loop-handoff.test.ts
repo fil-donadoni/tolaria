@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { spawnSync } from "child_process";
+import { spawn, spawnSync } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -7,9 +7,10 @@ import * as path from "path";
 vi.setConfig({ testTimeout: 15_000 });
 
 /**
- * `scripts/loop-handoff.sh` is the AFK entry point: it detaches
- * `scripts/loop-drain.sh` into its own session ONLY when a human asks
- * (`--start` / `--resume`), always with a token budget. `--from-pass` — the
+ * `scripts/loop-handoff.sh` is the AFK entry point: it runs
+ * `scripts/loop-drain.sh` ONLY when a human asks (`--start` / `--resume`),
+ * always with a token budget, in the FOREGROUND by default and in its own
+ * session under `--detach` (issue #4389). `--from-pass` — the
  * end-of-pass autostart of ADR 0099 — is a dead switch since ADR 0109: a
  * pass never starts the driver.
  *
@@ -80,7 +81,7 @@ describe("a pass NEVER starts the driver (ADR 0109)", () => {
         const r = run({ args: ["--from-pass", "--dry-run"] });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
         expect(r.stdout).toMatch(/never starts the driver/);
-        expect(r.stdout).not.toMatch(/would detach/);
+        expect(r.stdout).not.toMatch(/\[dry-run\] would/);
     });
 
     it("--from-pass is a no-op EVEN WHEN armed, budgeted and unblocked", () => {
@@ -92,7 +93,7 @@ describe("a pass NEVER starts the driver (ADR 0109)", () => {
         const r = run({ args: ["--from-pass", "--dry-run"] });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
         expect(r.stdout).toMatch(/never starts the driver/);
-        expect(r.stdout).not.toMatch(/would detach/);
+        expect(r.stdout).not.toMatch(/\[dry-run\] would/);
         expect(r.stdout).not.toMatch(/driver detached/);
     });
 
@@ -165,14 +166,15 @@ describe("budget is mandatory on --start (ADR 0109)", () => {
     });
 
     it("TOLARIA_LOOP_TOKEN_BUDGET in the environment satisfies --start", () => {
-        // The detached driver inherits the env, so an env budget is a real
-        // budget — refusing it would only teach people to pass --budget 1.
+        // The driver inherits the env on both paths, so an env budget is a
+        // real budget — refusing it would only teach people to pass
+        // --budget 1.
         const r = run({
             args: ["--start", "--dry-run"],
             env: { TOLARIA_LOOP_TOKEN_BUDGET: "888" },
         });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
-        expect(r.stdout).toMatch(/would detach/);
+        expect(r.stdout).toMatch(/would run in the foreground/);
     });
 });
 
@@ -186,7 +188,7 @@ describe("blocked-start guards — every reason a driver must NOT be detached", 
         });
         expect(r.status).toBe(1);
         expect(r.stderr).toMatch(/TOLARIA_LOOP_DRAIN=1/);
-        expect(r.stdout).not.toMatch(/would detach/);
+        expect(r.stdout).not.toMatch(/\[dry-run\] would/);
     });
 
     it("--start refuses when a driver is already running over this checkout", () => {
@@ -194,14 +196,14 @@ describe("blocked-start guards — every reason a driver must NOT be detached", 
         const r = run({ args: ["--start", "--dry-run", "--budget", "1"] });
         expect(r.status).toBe(1);
         expect(r.stderr).toMatch(/already running/);
-        expect(r.stdout).not.toMatch(/would detach/);
+        expect(r.stdout).not.toMatch(/\[dry-run\] would/);
     });
 
     it("ignores a STALE pid file — a killed driver must not block every future run", () => {
         fs.writeFileSync(PID(), "2147483647");
         const r = run({ args: ["--start", "--dry-run", "--budget", "1"] });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
-        expect(r.stdout).toMatch(/would detach/);
+        expect(r.stdout).toMatch(/\[dry-run\] would/);
     });
 
     it("a blocked --from-pass is a quiet exit 0, never a failed batch", () => {
@@ -235,7 +237,7 @@ describe("stop / resume / status", () => {
         const r = run({ args: ["--resume", "--dry-run", "--budget", "1"] });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
         expect(fs.existsSync(STOP())).toBe(false);
-        expect(r.stdout).toMatch(/would detach/);
+        expect(r.stdout).toMatch(/\[dry-run\] would/);
     });
 
     it("--status reports armed / driver / stop-file without changing anything", () => {
@@ -352,5 +354,177 @@ describe("--prompt — scoping an unattended run to part of the queue", () => {
         // …and --start leaves it unscoped all the way to the driver argv: no
         // --prompt at all, so the driver's pre-flight stays ON (#3083).
         expect(driverArgv()).not.toMatch(/--prompt/);
+    });
+});
+
+describe("foreground by default, --detach is the opt-in (issue #4389)", () => {
+    /** A stub driver in the scratch cwd: the real one would wait 45s and then
+     *  shell out to `claude`. `sh` is the interpreter the handoff names, so
+     *  the shebang is decoration — the mode bit is not needed. */
+    const stubDriver = (body: string): void =>
+        fs.writeFileSync(
+            path.join(tmp, "scripts", "loop-drain.sh"),
+            `#!/bin/sh\n${body}\n`
+        );
+
+    const AFK_LOG = () => telemetry("loop-afk.log");
+    const STAMPED = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} /;
+
+    it("--start --dry-run prints a FOREGROUND command: no setsid, no nohup", () => {
+        // The operator who typed --start is AT the keyboard (ADR 0109 made a
+        // human --start the only way a run begins), so the default must not
+        // cost them a second shell and a `tail -f`.
+        const r = run({ args: ["--start", "--dry-run", "--budget", "1"] });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        expect(r.stdout).toMatch(/\[dry-run\] would run in the foreground:/);
+        expect(r.stdout).not.toMatch(/setsid/);
+        expect(r.stdout).not.toMatch(/nohup/);
+        // …and it is still the same driver, with the same lock.
+        expect(r.stdout).toMatch(/loop-drain\.sh --single-instance/);
+    });
+
+    it("--start --detach --dry-run still prints the setsid form", () => {
+        const r = run({
+            args: ["--start", "--detach", "--dry-run", "--budget", "1"],
+        });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        expect(r.stdout).toMatch(/\[dry-run\] would detach:/);
+        expect(r.stdout).toMatch(/POSIX::setsid\(\)/);
+        expect(r.stdout).toMatch(/loop-drain\.sh --single-instance/);
+    });
+
+    it("caffeinate stays on BOTH paths — an overnight foreground run sleeps otherwise", () => {
+        // The one layer that is not about process groups: the Mac must stay
+        // awake whether or not anyone is watching the terminal.
+        const fg = run({ args: ["--start", "--dry-run", "--budget", "1"] });
+        const bg = run({
+            args: ["--start", "--detach", "--dry-run", "--budget", "1"],
+        });
+        for (const out of [fg.stdout, bg.stdout]) {
+            expect(out).toMatch(/caffeinate -i -s/);
+        }
+        expect(
+            run({
+                args: [
+                    "--start",
+                    "--dry-run",
+                    "--no-caffeinate",
+                    "--budget",
+                    "1",
+                ],
+            }).stdout
+        ).not.toMatch(/caffeinate/);
+    });
+
+    it("blocks until the driver exits, stamps every line, and writes the SAME bytes to the log", () => {
+        // loop-drain.sh writes most of its progress to stderr, so the 2>&1
+        // merge has to happen BEFORE the stamper — a stub that prints to both
+        // is what proves the merge is on the right side of the filter.
+        stubDriver(
+            [
+                'echo "out one"',
+                'echo "err one" >&2',
+                'echo "out two"',
+                'echo "err two" >&2',
+                'echo "out three"',
+                'echo "err three" >&2',
+            ].join("\n")
+        );
+        const r = run({ args: ["--start", "--budget", "1"] });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+
+        // Returned only after the stub exited: its last line is already here,
+        // and spawnSync does not return before the child does.
+        expect(r.stdout).toContain("err three");
+        // Merged: nothing was left on the caller's stderr.
+        expect(r.stderr).toBe("");
+
+        const lines = r.stdout.split("\n").filter((l) => l !== "");
+        expect(lines.length).toBeGreaterThan(6);
+        for (const line of lines) expect(line).toMatch(STAMPED);
+
+        // The file is byte-identical to what the terminal saw, which is the
+        // point of one `tee` downstream of one filter: --status and a
+        // `tail -f` read exactly what the operator read.
+        const logLines = fs
+            .readFileSync(AFK_LOG(), "utf8")
+            .split("\n")
+            .filter((l) => l !== "");
+        expect(logLines.slice(-lines.length)).toEqual(lines);
+    });
+
+    it("propagates the driver's exit code — `$?` after the pipeline is tee's, which is always 0", () => {
+        stubDriver('echo "crashing"\nexit 7');
+        const r = run({ args: ["--start", "--budget", "1"] });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(7);
+        expect(r.stdout).toMatch(/crashing/);
+        // The rc file is an implementation detail and must not survive.
+        expect(
+            fs
+                .readdirSync(telemetry())
+                .filter((f) => f.startsWith("loop-afk.rc"))
+        ).toEqual([]);
+    });
+
+    it("SIGINT ends the run, leaves no live descendant and writes NO stop-file", () => {
+        // The whole reason setsid is gone from this path: the driver stays in
+        // the caller's process group, so the terminal's Ctrl-C reaches the
+        // `claude` pass in flight. `pkill -P` cannot verify that — it walks
+        // parents, and the stamper and tee are siblings in the pipeline — so
+        // the sweep here is by PGID, exactly as the signal is.
+        stubDriver('echo "started"\nsleep 60');
+        const child = spawn("sh", [HANDOFF, "--start", "--budget", "1"], {
+            cwd: tmp,
+            detached: true, // its own process group, so kill(-pid) is scoped
+            stdio: ["ignore", "pipe", "pipe"],
+            env: {
+                ...process.env,
+                TOLARIA_LOOP_DRAIN: "",
+                TOLARIA_LOOP_TOKEN_BUDGET: "",
+            },
+        });
+        const pgid = child.pid!;
+        let seen = "";
+        child.stdout!.on("data", (b: Buffer) => (seen += b.toString()));
+
+        return new Promise<void>((resolve, reject) => {
+            const fail = (e: unknown) => {
+                try {
+                    process.kill(-pgid, "SIGKILL");
+                } catch {
+                    /* already gone */
+                }
+                reject(e);
+            };
+            const waitForStart = setInterval(() => {
+                if (!seen.includes("started")) return;
+                clearInterval(waitForStart);
+                process.kill(-pgid, "SIGINT");
+            }, 50);
+            const guard = setTimeout(
+                () => fail(new Error(`stub never started: ${seen}`)),
+                10_000
+            );
+            child.on("exit", () => {
+                clearInterval(waitForStart);
+                clearTimeout(guard);
+                try {
+                    // The signal ended the run: nothing in the group survives
+                    // it — not the stub standing in for `claude`, not the
+                    // caffeinate wrapper, not the stamper.
+                    const survivors = spawnSync("pgrep", ["-g", String(pgid)], {
+                        encoding: "utf8",
+                    });
+                    expect(survivors.stdout.trim()).toBe("");
+                    // --resume is the answer to a stop-file, not to an
+                    // interrupted foreground run: an interrupt that wrote one
+                    // would silently block the operator's next --start.
+                    expect(fs.existsSync(STOP())).toBe(false);
+                    resolve();
+                } catch (e) {
+                    fail(e);
+                }
+            });
+        });
     });
 });

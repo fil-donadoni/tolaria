@@ -662,9 +662,9 @@ export const REMEDY = {
     reads: "check `gh auth status` and the API rate limit, then re-run `bun run loop:status`",
     orphans:
         "`bun run loop:doctor` to inspect, `bun run loop:doctor --release` to drop `in-progress` on the orphans",
-    start: "`bun run loop:afk` starts a detached driver",
-    resume: "`bun run loop:afk --resume` clears the stop-file and starts a driver",
-    arm: "`bun run loop:afk` arms the loop and starts a driver",
+    start: "`bun run loop:afk` runs a driver in this terminal — add `--detach` to background it",
+    resume: "`bun run loop:afk --resume` clears the stop-file and runs a driver in this terminal — add `--detach` to background it",
+    arm: "`bun run loop:afk` arms the loop and runs a driver in this terminal — add `--detach` to background it",
     none: "nothing to do — `bun run loop:afk --stop` asks the driver to stop after the current pass",
     feed: "label issues `ready-for-agent` to give the loop work",
 } as const;

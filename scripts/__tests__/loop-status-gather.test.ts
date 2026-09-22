@@ -459,7 +459,7 @@ describe("loop-status — gatherLoopStatus carries the shared verdict (#2624)", 
                 verdict: {
                     state: "STALLED",
                     sentence: "The loop is armed but no driver is running.",
-                    remedy: "`bun run loop:afk` starts a detached driver",
+                    remedy: "`bun run loop:afk` runs a driver in this terminal",
                     findings: [
                         { code: "claims-held", detail: "5 issue(s) held" },
                     ],
