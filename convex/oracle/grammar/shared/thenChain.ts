@@ -24,7 +24,9 @@
  *  - a tail that points back at the token ("it", "that token", "them") needs
  *    the antecedent the created token would be, and the sentence walk binds
  *    those pronouns to the SITE's object instead — reading one here would
- *    silently attach the second clause to the wrong permanent.
+ *    silently attach the second clause to the wrong permanent;
+ *  - a tail that reads a choice an EARLIER sentence made has no antecedent
+ *    here at all (`NEEDS_EARLIER_CHOICE` below).
  */
 
 import { fail, ok, type RuleResult } from "../../rule";
@@ -32,6 +34,22 @@ import type { EffectSentenceIR, SentenceIR } from "./effectClause";
 import { createTokenRule } from "./tokenSpec";
 
 const THEN = ", then ";
+
+/**
+ * CR 608.2c + CR 105.1 — an effect whose meaning depends on a pick an EARLIER
+ * sentence made ("the chosen color") can never be a chain's tail. A chain is
+ * ONE sentence, and `assembleSentences` folds a "Choose a color." marker onto
+ * the sentence that FOLLOWS it — it never looks inside a flattened chain, so
+ * a tail read here would be accepted with no marker on the line at all. The
+ * bare-sentence path refuses exactly this; without this set the chain path is
+ * a way around it.
+ *
+ * Every `EffectSentenceIR` kind that reads an earlier sentence's choice
+ * belongs here.
+ */
+const NEEDS_EARLIER_CHOICE: ReadonlySet<EffectSentenceIR["kind"]> = new Set([
+    "choose-color-grant-protection",
+]);
 
 /** A word that names the token the head created (CR 608.2h). */
 const POINTS_BACK_AT_TOKEN =
@@ -58,6 +76,11 @@ export function readThenChain(
     if (tail.value.role !== "effect")
         return fail(
             `", then" continues with an effect, not a ${tail.value.role}`,
+            span
+        );
+    if (NEEDS_EARLIER_CHOICE.has(tail.value.effect.kind))
+        return fail(
+            `", then" continues with "${tail.value.effect.kind}", which reads a choice an earlier sentence makes; a chain's tail has no antecedent`,
             span
         );
     const head: EffectSentenceIR = { kind: "create-token", ...created.value };

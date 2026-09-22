@@ -127,4 +127,24 @@ describe("refused neighbours (ADR 0105 § 2, fail-closed)", () => {
         const parsed = activatedSlot.run(line, parseContext());
         expect(parsed.ok).toBe(false);
     });
+
+    // CR 608.2c — the ", then" chain (`thenChain.ts`) reads its tail with the
+    // SAME sentence grammar, so without an explicit refusal there it becomes a
+    // second, unguarded way into the grant: `assembleSentences` folds the
+    // "Choose a color." marker onto the sentence that FOLLOWS it and never
+    // looks inside a flattened chain, so this line would be accepted with no
+    // marker on it at all.
+    it("a chain's tail cannot read the chosen color — there is no marker to fold", () => {
+        const line =
+            "{1}{W}: Create a 1/1 white Soldier creature token, then creatures you control gain protection from the chosen color until end of turn.";
+        const parsed = activatedSlot.run(line, parseContext());
+        expect(parsed.ok).toBe(false);
+    });
+
+    it("the same chain is still refused when the marker IS printed first", () => {
+        const line =
+            "{1}{W}: Choose a color. Create a 1/1 white Soldier creature token, then creatures you control gain protection from the chosen color until end of turn.";
+        const parsed = activatedSlot.run(line, parseContext());
+        expect(parsed.ok).toBe(false);
+    });
 });
