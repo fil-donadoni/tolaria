@@ -27,10 +27,14 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { gh } from "./lib/gh";
-import { sessionCap } from "./lib/branches";
+import { ORIGIN_BASE, sessionCap } from "./lib/branches";
 import { primaryCheckout } from "./lib/primary-checkout";
-import { claimLedgerPath, interpretPsResult } from "./loop-doctor";
-import { isStaleClaim, releasedClaims } from "./lib/queue-plan";
+import {
+    claimLedgerPath,
+    claimVerdicts,
+    interpretPsResult,
+} from "./loop-doctor";
+import { capCensus, isStaleClaim, releasedClaims } from "./lib/queue-plan";
 import { DEFAULTS, issuesWithOpenPr } from "./queue-plan";
 import {
     buildClaimRow,
@@ -157,7 +161,14 @@ async function withClaimLock<T>(label: string, fn: () => T): Promise<T> {
 
 // ── reads ────────────────────────────────────────────────────────────────────
 
-function claimedIssues(): { number: number; updatedAt: string }[] {
+/** `title` is carried for the liveness classifier's sake (issue #4384) — it
+ *  is what `loop:doctor` prints beside a verdict, and asking for it costs
+ *  nothing on a query that is already being made. */
+function claimedIssues(): {
+    number: number;
+    title: string;
+    updatedAt: string;
+}[] {
     return JSON.parse(
         gh([
             "issue",
@@ -169,9 +180,9 @@ function claimedIssues(): { number: number; updatedAt: string }[] {
             "--limit",
             "500",
             "--json",
-            "number,updatedAt",
+            "number,title,updatedAt",
         ])
-    ) as { number: number; updatedAt: string }[];
+    ) as { number: number; title: string; updatedAt: string }[];
 }
 
 function projectRoot(): string {
@@ -282,19 +293,35 @@ async function main(): Promise<void> {
 
     const outcome = await withClaimLock(`claim #${issue}`, () => {
         const now = new Date().toISOString();
-        const live = liveClaimSet(
-            claimedIssues(),
+        const claimed = claimedIssues();
+        const reconciled = liveClaimSet(
+            claimed,
             issuesWithOpenPr(),
             releasedOnThisMachine(root),
             now,
             DEFAULTS.staleClaimHours,
             isStaleClaim
         );
+        // The cap counts ACTIVE sessions, so it asks the liveness classifier —
+        // `loop:doctor`'s, imported, never a second opinion (issue #4384). A
+        // claim proved `recoverable` keeps its label and gives up its slot;
+        // nothing here writes a release, which stays `loop:doctor --release`'s
+        // call alone. No verdict at all counts as live: uncertainty never
+        // authorises more concurrency.
+        const { live, recoverable } = capCensus(
+            reconciled,
+            claimVerdicts(
+                claimed.filter((i) => reconciled.includes(i.number)),
+                ORIGIN_BASE,
+                root
+            )
+        );
         const decision = claimDecision({
             issue,
             live,
             cap: sessionCap(),
             noCap,
+            recoverable,
         });
         if (!decision.admitted) return decision;
         gh([
@@ -307,7 +334,7 @@ async function main(): Promise<void> {
             "@me",
         ]);
         appendJournalRow(root, issue, session);
-        return { admitted: true as const, live };
+        return { admitted: true as const, live, recoverable };
     });
 
     if (!outcome.admitted) {
@@ -315,8 +342,12 @@ async function main(): Promise<void> {
         process.exit(1);
     }
     const cap = sessionCap();
+    const recovered =
+        outcome.recoverable.length === 0
+            ? ""
+            : `, ${outcome.recoverable.length} recoverable not counted (${outcome.recoverable.map((n) => `#${n}`).join(", ")} — \`bun run loop:doctor\`)`;
     console.log(
-        `queue:claim: claimed issue #${issue} (${outcome.live.length + 1}/${cap} live claims${noCap && outcome.live.length >= cap ? ", past the cap by --no-cap" : ""})`
+        `queue:claim: claimed issue #${issue} (${outcome.live.length + 1}/${cap} live claims${noCap && outcome.live.length >= cap ? ", past the cap by --no-cap" : ""}${recovered})`
     );
 }
 

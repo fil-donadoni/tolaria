@@ -12,7 +12,12 @@ import {
     ownsClaimLock,
     parsePpidComm,
 } from "../lib/queue-claim";
-import { isStaleClaim } from "../lib/queue-plan";
+import { capCensus, isStaleClaim } from "../lib/queue-plan";
+import {
+    classifyClaims,
+    type ClaimVerdictState,
+    type ProcessProbe,
+} from "../loop-doctor";
 
 /**
  * `queue:claim` — the claim as ONE locked act (issue #4375, PRD #4373).
@@ -262,6 +267,212 @@ describe("queue:claim — the journal row is the hook's row (issue #4375, #2518,
         });
         expect(parsePpidComm("")).toBeNull();
         expect(parsePpidComm("PPID COMM")).toBeNull();
+    });
+});
+
+describe("queue:claim — the cap counts LIVE SESSIONS, not labels (issue #4384)", () => {
+    // The 2026-09-22 shape: two `loop-drain` passes died mid-issue leaving
+    // three claims standing, `ps` showed zero owning processes, `loop:doctor`
+    // printed `2 RECOVERABLE` — and the next claim was still refused at
+    // `3/3 live claims` with no session running at all. The classifier had the
+    // evidence; the cap never asked for it.
+    const verdicts = (rows: [number, ClaimVerdictState][]) => new Map(rows);
+
+    it("admits at a cap of 3 when two of the three claims classify `recoverable`, and reports 1 live", () => {
+        const census = capCensus(
+            [10, 20, 30],
+            verdicts([
+                [10, "live"],
+                [20, "recoverable"],
+                [30, "recoverable"],
+            ])
+        );
+        expect(census).toEqual({ live: [10], recoverable: [20, 30] });
+        const d = claimDecision({
+            issue: 40,
+            live: census.live,
+            cap: 3,
+            noCap: false,
+            recoverable: census.recoverable,
+        });
+        expect(d.admitted).toBe(true);
+    });
+
+    it("refuses when one of the three classifies UNKNOWN — uncertainty never authorises more concurrency", () => {
+        // `unknown` is the absence of a verdict: the probe could not answer,
+        // `git ls-remote` could not reach the network, the journal is missing.
+        // It is the mirror of `ClaimFacts.ownerAlive`'s `=== true` asymmetry
+        // at the other end of the same pipeline.
+        const census = capCensus(
+            [10, 20, 30],
+            verdicts([
+                [10, "live"],
+                [20, "live"],
+                // #30 deliberately absent — no reading at all.
+            ])
+        );
+        expect(census).toEqual({ live: [10, 20, 30], recoverable: [] });
+        const d = claimDecision({
+            issue: 40,
+            live: census.live,
+            cap: 3,
+            noCap: false,
+            recoverable: census.recoverable,
+        });
+        expect(d.admitted).toBe(false);
+        if (!d.admitted) expect(d.refusal).toBe("cap");
+    });
+
+    it("counts `suspect` and `orphan` too — only a PROVED recoverable gives up its slot", () => {
+        // `orphan` is `loop:doctor --release`'s to drop, and `suspect` is what
+        // a healthy pass looks like before its first push. Neither is evidence
+        // that no process is burning CPU.
+        expect(
+            capCensus(
+                [10, 20, 30],
+                verdicts([
+                    [10, "suspect"],
+                    [20, "orphan"],
+                    [30, "recoverable"],
+                ])
+            )
+        ).toEqual({ live: [10, 20], recoverable: [30] });
+    });
+
+    it("the refusal breaks the count into live / recoverable and names `bun run loop:doctor`", () => {
+        const d = claimDecision({
+            issue: 40,
+            live: [10, 20, 30],
+            cap: 3,
+            noCap: false,
+            recoverable: [50, 60],
+        });
+        expect(d.admitted).toBe(false);
+        if (!d.admitted) {
+            expect(d.message).toMatch(/3\/3 live claims/);
+            expect(d.message).toMatch(
+                /5 claimed, 3 live, 2 recoverable \(not counted\): #50, #60/
+            );
+            expect(d.message).toMatch(/bun run loop:doctor/);
+            expect(d.message).toMatch(/resume or salvage those branches/);
+            expect(d.message).toMatch(/--no-cap/);
+        }
+    });
+
+    it("says nothing about recoverable claims when there are none — the refusal keeps its old shape", () => {
+        const d = claimDecision({
+            issue: 40,
+            live: [10, 20, 30],
+            cap: 3,
+            noCap: false,
+        });
+        expect(d.admitted).toBe(false);
+        if (!d.admitted) expect(d.message).not.toMatch(/recoverable/);
+    });
+
+    it("the classifier really does call a dead pass with committed work `recoverable` — end to end", () => {
+        // Not a hand-written verdict map: the SAME `classifyClaims` the verbs
+        // import, over the facts of the observed incident. #4117 has a local
+        // branch with one unpushed commit and a dead owner; #4306 is the same
+        // shape with two; #4400 is a live pass.
+        const probe: ProcessProbe = (pid) =>
+            pid === 999 ? "Tue Sep 22 09:00:00 2026" : "";
+        const classified = classifyClaims(
+            [
+                { number: 4117, title: "a", updatedAt: "2026-09-22T11:00:00Z" },
+                { number: 4306, title: "b", updatedAt: "2026-09-22T11:00:00Z" },
+                { number: 4400, title: "c", updatedAt: "2026-09-22T11:00:00Z" },
+            ],
+            {
+                prBranches: new Set<string>(),
+                branches: {
+                    local: [
+                        "fix/issue-4117",
+                        "feat/issue-4306",
+                        "feat/issue-4400",
+                    ],
+                    remote: [],
+                },
+                owners: new Map([
+                    [
+                        4117,
+                        {
+                            session: "s1",
+                            pid: 111,
+                            startedAt: "Tue Sep 22 08:00:00 2026",
+                        },
+                    ],
+                    [
+                        4306,
+                        {
+                            session: "s2",
+                            pid: 222,
+                            startedAt: "Tue Sep 22 08:30:00 2026",
+                        },
+                    ],
+                    [
+                        4400,
+                        {
+                            session: "s3",
+                            pid: 999,
+                            startedAt: "Tue Sep 22 09:00:00 2026",
+                        },
+                    ],
+                ]),
+                baseRef: "origin/staging",
+                now: Date.parse("2026-09-22T12:00:00Z"),
+                probe,
+                countRunner: (_cmd, args) =>
+                    /issue-4117$/.test(args[args.length - 1]) ? "1" : "2",
+            }
+        );
+        const states = new Map(
+            classified.map((c) => [c.issue, c.verdict.state])
+        );
+        expect(states.get(4117)).toBe("recoverable");
+        expect(states.get(4306)).toBe("recoverable");
+        expect(states.get(4400)).toBe("live");
+
+        // …and the census then hands the cap ONE live claim out of three.
+        expect(
+            capCensus(
+                [4117, 4306, 4400],
+                states as Map<number, ClaimVerdictState>
+            )
+        ).toEqual({
+            live: [4400],
+            recoverable: [4117, 4306],
+        });
+    });
+});
+
+describe("queue:claim — ONE liveness definition, imported (issue #4384)", () => {
+    // The discipline `loop-drain.test.ts:1998` already enforces for staleness:
+    // a second spelling of "is this claim alive" in the queue verbs is how the
+    // two ends drift, and the behavioural tests above would pass just as
+    // happily against a private re-derivation.
+    const read = (rel: string) =>
+        readFileSync(join(__dirname, "..", rel), "utf8");
+
+    for (const verb of ["queue-claim.ts", "queue-plan.ts"]) {
+        it(`${verb} imports the classifier from loop-doctor and re-implements nothing`, () => {
+            const source = read(verb);
+            expect(source).toMatch(/claimVerdicts/);
+            expect(source).toMatch(/from "\.\/loop-doctor"/);
+            expect(source).toMatch(/capCensus/);
+            // No private opinion on liveness: the facts and the thresholds
+            // belong to `loop-doctor.ts` alone.
+            expect(source).not.toMatch(/ownerAlive|unpushedCommits/);
+            expect(source).not.toMatch(/classifyClaim\s*\(/);
+        });
+    }
+
+    it("the admission path writes NO release — a recoverable claim keeps its label", () => {
+        // Releasing it would orphan the dead pass's commits, and that call is
+        // `loop:doctor --release`'s alone (issue #3698). The cap only stops
+        // counting it.
+        expect(read("queue-claim.ts")).not.toMatch(/--remove-label/);
+        expect(read("queue-plan.ts")).not.toMatch(/--remove-label/);
     });
 });
 

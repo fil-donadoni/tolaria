@@ -41,6 +41,11 @@ export interface ClaimInput {
     /** `--no-cap`: the announced escape from the cap refusal ONLY — it never
      *  lets a session claim an issue another session holds. */
     noCap: boolean;
+    /** Claims `capCensus` kept OUT of `live` because the liveness classifier
+     *  proved them recoverable (issue #4384) — named in the refusal so it
+     *  points at the branches to resume. Not part of the decision: they are
+     *  already absent from `live`. */
+    recoverable?: number[];
 }
 
 /**
@@ -59,7 +64,12 @@ export function claimDecision(input: ClaimInput): ClaimDecision {
                 `(\`/next-issue\` §2; a claim with no branch and no PR is released by \`loop:doctor\`, not by hand).`,
         };
     }
-    return capRefusal(input.live, input.cap, input.noCap);
+    return capRefusal(
+        input.live,
+        input.cap,
+        input.noCap,
+        input.recoverable ?? []
+    );
 }
 
 // ── The stale-claim rule, shared with the planner ───────────────────────────
@@ -77,6 +87,11 @@ export interface ClaimedIssue {
  * planner's own rule, shared). A claim the planner would call stale is work
  * nobody is doing; counting it here would let three abandoned labels refuse
  * every claim with no session running.
+ *
+ * This set is what the cap's CENSUS then splits (`capCensus`, issue #4384):
+ * the stale rule here is about the ISSUE's silence, the census is about the
+ * owning PROCESS, and a claim whose pass is provably dead with committed work
+ * on its branch keeps its label without holding a slot.
  *
  * The set is a SUPERSET of the planner's `activeClaims`, deliberately: the
  * planner reads only its `ready-for-agent` snapshot and skips a `prd` row,

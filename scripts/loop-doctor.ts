@@ -624,6 +624,115 @@ export function countUnpushedCommits(
     return Number.isInteger(n) && n >= 0 ? n : null;
 }
 
+// ── the classification pipeline, shared with the queue verbs (issue #4384) ──
+//
+// THE BUG THIS EXISTS FOR. The session cap counted LABELS. `queue:claim` and
+// `queue:plan` built their live set from the `in-progress` labels minus an
+// open PR minus 24 hours of silence, and that path held no process-liveness
+// evidence at all — while this file's classifier had it, and had already
+// printed the right diagnosis. Observed 2026-09-22: two `loop-drain` passes
+// died mid-issue leaving three claims standing (#4117, #4306, #4307), `ps`
+// showed ZERO owning processes, `loop:doctor` reported `2 RECOVERABLE`, and
+// the next claim was still refused at `3/3 live claims`. Real concurrent
+// sessions: none. The cap measures ACTIVE sessions (the PR/h knee,
+// `docs/agents/quality-gates.md` § Session admission); it was counting
+// corpses.
+//
+// So the verdict is exported rather than re-derived. The discipline is the one
+// `loop-drain.test.ts` already enforces for staleness: ONE definition, imported.
+// A second opinion in the queue verbs is how the two ends drift.
+
+export type ClaimClassification = {
+    issue: number;
+    title: string;
+    verdict: ClaimVerdict;
+};
+
+/**
+ * Pure: every claim's verdict, from facts the caller gathered. The CLI below
+ * and both queue verbs run exactly this, so "live" means one thing on this
+ * machine.
+ */
+export function classifyClaims(
+    issues: ClaimedIssue[],
+    deps: {
+        prBranches: Set<string>;
+        branches: BranchNames;
+        owners: Map<number, ClaimOwner>;
+        baseRef: string;
+        now?: number;
+        probe?: ProcessProbe;
+        /** The runner `countUnpushedCommits` uses — the tests' seam. */
+        countRunner?: ShRunner;
+    }
+): ClaimClassification[] {
+    const now = deps.now ?? Date.now();
+    return issues.map((issue) => {
+        const owner = deps.owners.get(issue.number);
+        const facts = buildClaimFacts(
+            issue,
+            deps.prBranches,
+            deps.branches,
+            now,
+            isOwnerAlive(owner, deps.probe),
+            countUnpushedCommits(
+                issue.number,
+                deps.branches.local,
+                deps.baseRef,
+                deps.countRunner
+            )
+        );
+        return {
+            issue: issue.number,
+            title: issue.title,
+            verdict: classifyClaim(facts),
+        };
+    });
+}
+
+/** The claim journal, folded to owners. Missing or unreadable → an empty map,
+ *  i.e. every claim reads `ownerAlive: null` (unknown) and no verdict moves. */
+export function readClaimOwners(
+    root = process.env.CLAUDE_PROJECT_DIR ?? "."
+): Map<number, ClaimOwner> {
+    try {
+        return parseClaimOwners(readFileSync(claimLedgerPath(root), "utf8"));
+    } catch {
+        return new Map();
+    }
+}
+
+/**
+ * The I/O wrapper the queue verbs call: issue number → verdict state, over
+ * the same scans `loop:doctor` runs.
+ *
+ * TOTAL BY CONTRACT, and the direction is the safe one. Every read here can
+ * fail — `git ls-remote` needs the network, `gh pr list` can be rate-limited,
+ * a worktree may have no journal — and a failure yields an EMPTY map, which
+ * the census reads as "no evidence" and therefore as live. A broken probe can
+ * only ever make the cap stricter, never let a session past it.
+ */
+export function claimVerdicts(
+    issues: ClaimedIssue[],
+    baseRef: string,
+    root = process.env.CLAUDE_PROJECT_DIR ?? ".",
+    now: number = Date.now()
+): Map<number, ClaimVerdictState> {
+    if (issues.length === 0) return new Map();
+    try {
+        const classified = classifyClaims(issues, {
+            prBranches: fetchOpenPrBranches(),
+            branches: fetchBranchNames(),
+            owners: readClaimOwners(root),
+            baseRef,
+            now,
+        });
+        return new Map(classified.map((c) => [c.issue, c.verdict.state]));
+    } catch {
+        return new Map();
+    }
+}
+
 if (import.meta.main) {
     const release = process.argv.includes("--release");
 
@@ -641,30 +750,19 @@ if (import.meta.main) {
     // Missing file → an empty map → every claim reads `ownerAlive: null`
     // (unknown), i.e. the pre-#2627 behaviour.
     const ledgerFile = claimLedgerPath();
-    const owners = parseClaimOwners(
-        (() => {
-            try {
-                return readFileSync(ledgerFile, "utf8");
-            } catch {
-                return "";
-            }
-        })()
-    );
+    const owners = readClaimOwners();
 
-    const now = Date.now();
     const orphans: { issue: number; verdict: ClaimVerdict }[] = [];
     const recoverable: { issue: number; verdict: ClaimVerdict }[] = [];
-    for (const issue of issues) {
-        const owner = owners.get(issue.number);
-        const facts = buildClaimFacts(
-            issue,
-            prBranches,
-            branches,
-            now,
-            isOwnerAlive(owner),
-            countUnpushedCommits(issue.number, branches.local, ORIGIN_BASE)
-        );
-        const v = classifyClaim(facts);
+    // The SAME call the queue verbs make (issue #4384) — this CLI is not
+    // allowed a private spelling of its own classification.
+    for (const { issue: number, title, verdict: v } of classifyClaims(issues, {
+        prBranches,
+        branches,
+        owners,
+        baseRef: ORIGIN_BASE,
+    })) {
+        const issue = { number, title };
         const mark =
             v.state === "orphan"
                 ? "×"
