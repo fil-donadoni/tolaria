@@ -73,7 +73,7 @@ import { claimLedgerPath } from "./loop-doctor";
 // functions).
 const REPO_ROOT = resolve(__dirname, "..");
 
-const DEFAULTS = {
+export const DEFAULTS = {
     cap: 4,
     // Deep enough to see the WHOLE queue, not a window of it.
     //

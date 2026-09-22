@@ -151,8 +151,12 @@ slip), add `model:opus` to the issue so the NEXT routing is right.
 
 ## 2. Claim + worktree
 
-- Claim: `gh issue edit N --add-label in-progress`. Already claimed by a live
-  branch/PR → pick the next issue instead.
+- Claim: `bun run queue:claim N` — ONE locked act (issue #4375): it re-reads
+  the live claims under the claim lock, refuses at `sessions.cap` (`--no-cap`
+  is the announced escape, never for a pass) or when a live session already
+  holds N, then writes the label and the journal row. A refusal is the exit:
+  `claimed` → pick the next issue; `cap` → stop, as §0 would have. Never type
+  `gh issue edit N --add-label in-progress` — `deny-guard.sh` § 6 denies it.
 - Ephemeral worktree (bootstrap is ~2s warm — never reuse a standing one):
   `cd "$(bun run --silent wt:new N)"` (`--fix` for bugs). It branches from
   `origin/<base>` — the base branch named in `tolaria.config.json`, never

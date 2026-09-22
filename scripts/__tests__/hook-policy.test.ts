@@ -1230,6 +1230,103 @@ describe("deny-guard — scope", () => {
     });
 });
 
+describe("deny-guard — the claim is one locked act: queue:claim, never a hand-typed label (issue #4375)", () => {
+    // `queue:plan` counts the live claims and refuses at the cap; a label typed
+    // later races that read, and two sessions in the window both pass
+    // (observed `4/3 live claims`, 2026-09-22). The verb re-reads UNDER a lock.
+    it("denies `gh issue edit N --add-label in-progress` and names the verb", () => {
+        for (const cmd of [
+            "gh issue edit 4375 --add-label in-progress",
+            "gh issue edit 4375 --add-label in-progress --add-assignee @me",
+            "git fetch && gh issue edit 4375 --add-label in-progress",
+            "FOO=1 gh issue edit 4375 --add-label in-progress",
+        ]) {
+            const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
+            expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
+            expect(r.stderr).toMatch(/bun run queue:claim/);
+        }
+    });
+
+    it("allows a release — `--remove-label in-progress` is not a claim", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bash("gh issue edit 4375 --remove-label in-progress", issueWorktree)
+        );
+        expect(denied(r)).toBe(false);
+    });
+
+    it("allows an edit that adds some OTHER label", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bash(
+                "gh issue edit 4375 --add-label ready-for-agent",
+                issueWorktree
+            )
+        );
+        expect(denied(r)).toBe(false);
+    });
+
+    it("allows the repair hatch, on the command itself", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bash(
+                "TOLARIA_ALLOW_MANUAL_CLAIM=1 gh issue edit 4375 --add-label in-progress",
+                issueWorktree
+            )
+        );
+        expect(denied(r)).toBe(false);
+    });
+
+    it("does not deny prose that quotes the command", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bash(
+                "git commit -m 'never type gh issue edit N --add-label in-progress by hand'",
+                issueWorktree
+            )
+        );
+        expect(denied(r)).toBe(false);
+    });
+
+    it("`bun run queue:claim N` is allowed, and is NOT a planner run (§5 MAX_PASSES)", () => {
+        const projectDir = fs.mkdtempSync(
+            path.join(os.tmpdir(), "hook-claim-")
+        );
+        const env = { CLAUDE_PROJECT_DIR: projectDir };
+        try {
+            for (let i = 0; i < 2; i++) {
+                const r = runHook(
+                    DENY_GUARD,
+                    bash("bun run queue:claim 4375", issueWorktree, "sess-c"),
+                    env
+                );
+                expect(denied(r), `claim call ${i + 1}`).toBe(false);
+            }
+            // Two claims left no pass marker, so the FIRST planner run of the
+            // session is still allowed — the verb did not spend the pass.
+            expect(
+                fs.existsSync(
+                    path.join(
+                        projectDir,
+                        ".claude",
+                        "telemetry",
+                        "pass-markers",
+                        "sess-c"
+                    )
+                )
+            ).toBe(false);
+            const plan = runHook(
+                DENY_GUARD,
+                bash("bun run queue:plan --cap 1", issueWorktree, "sess-c"),
+                env
+            );
+            expect(denied(plan)).toBe(false);
+        } finally {
+            fs.rmSync(projectDir, { recursive: true, force: true });
+        }
+    });
+});
+
 describe("claim-ledger — records what THIS session claimed", () => {
     let projectDir: string;
 

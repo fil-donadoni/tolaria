@@ -743,6 +743,25 @@ line in a log is a signal by itself.
 
 ## Session admission — the cap, the RED refusal, and the number behind them
 
+**The claim is one locked act (issue #4375, PRD #4373).** Until then the cap
+was enforced by a READ — `queue:plan` counted the live `in-progress` claims and
+refused a plan at `sessions.cap` — while the claim itself was typed by the
+session in `/next-issue` §2, and nothing sat between the two: `claim-ledger.sh`
+observes and never blocks, `deny-guard.sh` had no rule on the label. The window
+was the whole §0→§2, and `✗ session cap reached — 4/3 live claims` (2026-09-22)
+was that design working as written: the refusal could only describe the
+overshoot afterwards. `bun run queue:claim N` takes the claim lock (the gate's
+mechanism — atomic `mkdir`, an owner stamp, a stale reclaim — in its own
+directory beside the gate's, never the heavy mutex: a claim is two `gh` calls
+and must not queue behind a health gate), re-reads the live claims exactly as
+the planner derives `activeClaims` (`isStaleClaim` is the one shared rule),
+refuses on a collision (not escapable) or at the cap (`--no-cap`, announced),
+writes the label and the journal row, releases. `queue:plan` stays read-only,
+so `MAX_PASSES` still counts planner runs and a replan can never double-claim.
+The hand-typed claim is denied (`deny-guard.sh` § 6, hatch
+`TOLARIA_ALLOW_MANUAL_CLAIM=1` for a repair); release is unchanged — `land`'s
+housekeeping and `loop:doctor`'s evidence-based sweep.
+
 CPU admission control above serialises the GATES several sessions run. This is
 the level above it: how many sessions may be draining the queue **at all**.
 `bun run queue:plan` refuses a pick in two cases (ADR 0136 §6-7, issue #3775),

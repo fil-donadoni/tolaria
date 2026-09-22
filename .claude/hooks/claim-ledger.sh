@@ -16,6 +16,14 @@
 #
 # Observer only: always exits 0, never blocks. Denial is `deny-guard.sh`'s job.
 #
+# Since issue #4375 the claim is `bun run queue:claim N`, which runs `gh` INSIDE
+# a bun process — invisible to a PreToolUse hook — and appends this same row
+# shape itself (`buildClaimRow`, scripts/lib/queue-claim.ts, `via:
+# "queue:claim"`). This hook keeps recording the hand-typed claim, which
+# `deny-guard.sh` § 6 now denies outside `TOLARIA_ALLOW_MANUAL_CLAIM=1`: a
+# repair made behind the hatch is still a claim this session took, and the
+# sweep must still release it.
+#
 # ── Plan join (issue #2518) ─────────────────────────────────────────────────
 # Nothing checked that the batch a pass claimed WAS the batch `queue:plan`
 # produced, and nothing recorded which plan a claim came from — a hand-picked
