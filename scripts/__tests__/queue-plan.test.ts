@@ -28,6 +28,7 @@ import {
     releasedClaims,
     priorityRank,
     effectivePriority,
+    bandIsInherited,
     UNPRIORITIZED,
     type AdmissionInput,
     type BatchPlan,
@@ -333,20 +334,19 @@ describe("priority axis — the rank table and its sentinel (issue #4051)", () =
     });
 });
 
-describe("priority axis — band inheritance over four values (issue #3212, issue #4051)", () => {
+describe("priority axis — the parent PRD governs the band (issue #3212, issue #4051, issue #4371)", () => {
     const P3_CHILD = { number: 20, parent: { number: 100 } };
 
     /**
      * The band, AND that every value the case names is a RANKED one.
      *
-     * The label alone does not discriminate (PR #4059 review, finding 4).
-     * With `P3` absent from `PRIORITY_RANK`, `priorityRank("P3")` is
-     * `undefined`, every `<=` against it is false, and `effectivePriority`
-     * falls through to the branch that happens to return the expected label
-     * anyway — four of these five cases passed against the pre-change table.
-     * Asserting the rank puts the table and its sentinel back inside the
-     * assertion: `undefined < 4` is red before the change, and `3 < 3` is red
-     * under the collision the sentinel guards against.
+     * The label alone does not discriminate (PR #4059 review, finding 4): a
+     * `P3` missing from `PRIORITY_RANK` ranks `undefined`, and a band rule
+     * that consults the rank table can fall through to a branch that returns
+     * the expected LABEL anyway while the comparator it feeds has already
+     * stopped ordering. Asserting the rank keeps the table and its sentinel
+     * inside the assertion whatever the rule's shape: `undefined < 4` is red,
+     * and so is a `P3` that collides with unprioritized.
      */
     function expectBand(
         priority: Record<number, BoardPriority>,
@@ -362,8 +362,12 @@ describe("priority axis — band inheritance over four values (issue #3212, issu
         expectBand({ 100: "P1", 20: "P3" }, "P1");
     });
 
-    it("never demotes a P1 child of a P3 parent — the stronger wins, not the parent", () => {
-        expectBand({ 100: "P3", 20: "P1" }, "P1");
+    it("DEMOTES a P1 child of a P3 parent — the parent governs (issue #4371)", () => {
+        // The reversal. A per-slice `Priority` is set once at filing time and
+        // rots there; the umbrella is the row a maintainer re-reads. Taking
+        // the stronger of the two turned every stale child value into a
+        // board-wide override nobody ruled on again.
+        expectBand({ 100: "P3", 20: "P1" }, "P3");
     });
 
     it("keeps a P3 child of a P3 parent in the P3 band, NOT unprioritized", () => {
@@ -376,6 +380,18 @@ describe("priority axis — band inheritance over four values (issue #3212, issu
 
     it("inherits P3 from the parent when the child itself has no value", () => {
         expectBand({ 100: "P3" }, "P3");
+    });
+
+    it("reports the band as inherited only when the parent carries a value", () => {
+        // The key that puts a standalone ahead of a slice in the same band.
+        // An unprioritised umbrella governs nothing, so its children compete
+        // as standalones — the same degradation the band itself makes.
+        expect(bandIsInherited(P3_CHILD, { 100: "P0", 20: "P1" })).toBe(true);
+        expect(bandIsInherited(P3_CHILD, { 20: "P1" })).toBe(false);
+        expect(bandIsInherited({ number: 20 }, { 20: "P1" })).toBe(false);
+        expect(
+            bandIsInherited({ number: 20, parent: null }, { 20: "P1" })
+        ).toBe(false);
     });
 });
 
@@ -478,7 +494,7 @@ describe("queue planner — board priority (GitHub Project `Priority` field)", (
     });
 });
 
-describe("queue planner — inherited priority band (issue #3212)", () => {
+describe("queue planner — the PRD-governed priority band (issue #3212, issue #4371)", () => {
     const disjoint = (...ns: number[]) =>
         Object.fromEntries(
             ns.map((n) => [
@@ -504,10 +520,9 @@ describe("queue planner — inherited priority band (issue #3212)", () => {
         expect(numbers(plan)).toEqual([20, 30]);
     });
 
-    it("orders INSIDE the band by own priority, standalone P0 ahead of a P0 PRD's P1 slice", () => {
-        // "Ordinandoli internamente in base alla loro P" — the band is the
-        // zeroth key, own priority the first, so inheritance lifts a slice
-        // into the P0 band without pretending it is itself a P0.
+    it("orders INSIDE the band: standalone first, then the slices by their own priority", () => {
+        // The maintainer's enumeration (issue #4371), read off one batch:
+        // no PRD + P0, then PRD P0 + P0, then PRD P0 + anything weaker.
         const issues = [
             issue(20, { parent: 100 }), // P1 slice of P0 PRD
             issue(30, { parent: 100 }), // unprioritized slice of the same PRD
@@ -524,23 +539,52 @@ describe("queue planner — inherited priority band (issue #3212)", () => {
                 50: "P0",
             })
         );
-        // 40 and 50 both rank P0 own; 40 wins on lineage (no parent ⇒ its own
-        // number 40 < the PRD's 100). Then the P1 slice, then the
-        // unprioritized one.
+        // #40 leads on standalone-before-slice, not on the lineage tie-break:
+        // its band is its own, #50's is the umbrella's. Then the slices by
+        // own priority — P0, P1, unprioritized.
         expect(numbers(plan)).toEqual([40, 50, 20, 30]);
     });
 
-    it("never DEMOTES: a P0 child of a P2 umbrella keeps the P0 band", () => {
-        // A hand-set P0 on the child is the maintainer looking at that child.
-        // Strict inheritance would bury it under the P2 epic's turn and make
-        // the override unreadable.
+    it("puts a standalone P0 ahead of a P0 PRD's P0 slice, whatever the lineage says", () => {
+        // The discriminating pair for the standalone key: the slice's parent
+        // is #10, OLDER than the standalone #40, so the lineage tie-break
+        // would hand it the lead. `P0` on an issue with no umbrella points at
+        // that issue and nothing else; a P0 slice is one of several ways into
+        // the same epic.
+        const issues = [issue(50, { parent: 10 }), issue(40)];
+        const plan = planBatch(
+            issues,
+            { ...CONFIG, batchCap: 5 },
+            makePort(disjoint(40, 50), [], { 10: "P0", 50: "P0", 40: "P0" })
+        );
+        expect(numbers(plan)).toEqual([40, 50]);
+    });
+
+    it("DEMOTES: a P0 child of a P2 umbrella competes in the P2 band (issue #4371)", () => {
+        // The bug that filed issue #4371, in the small: the child's `P0` is a
+        // per-slice value nobody re-reads, the umbrella's `P2` is the ruling
+        // that gets maintained, and under "the stronger wins" the stale value
+        // was jumping the whole queue.
         const issues = [issue(20, { parent: 100 }), issue(30)];
         const plan = planBatch(
             issues,
             { ...CONFIG, batchCap: 5 },
             makePort(disjoint(20, 30), [], { 100: "P2", 20: "P0", 30: "P1" })
         );
-        expect(numbers(plan)).toEqual([20, 30]);
+        expect(numbers(plan)).toEqual([30, 20]);
+    });
+
+    it("picks the unprioritized slice of a P0 umbrella over a mis-marked P0 under a P1 PRD", () => {
+        // The reported shape, verbatim (issue #4371): the loop was taking #20
+        // — hand-marked P0, correctly filed under a P1 PRD — ahead of #30,
+        // which carries no value of its own but blocks a P0 umbrella's close.
+        const issues = [issue(20, { parent: 100 }), issue(30, { parent: 200 })];
+        const plan = planBatch(
+            issues,
+            { ...CONFIG, batchCap: 5 },
+            makePort(disjoint(20, 30), [], { 100: "P1", 200: "P0", 20: "P0" })
+        );
+        expect(numbers(plan)).toEqual([30, 20]);
     });
 
     it("degrades to the child's own priority when the parent is not on the board", () => {
@@ -555,10 +599,11 @@ describe("queue planner — inherited priority band (issue #3212)", () => {
         expect(numbers(plan)).toEqual([20, 30]);
     });
 
-    it("keeps bug-first BELOW both priority keys", () => {
-        // The band and own priority are the maintainer's; `bug` is the default
-        // for what nobody ruled on. A P1 slice of a P0 PRD outranks a
-        // standalone P1 bug, and inside the band the bug still leads.
+    it("keeps bug-first BELOW all three priority keys", () => {
+        // The band, the standalone key and own priority are the maintainer's;
+        // `bug` is the default for what nobody ruled on. A P1 slice of a P0
+        // PRD outranks a standalone P1 bug, and inside the band the bug still
+        // leads.
         const issues = [
             issue(30, { labels: ["bug", "ready-for-agent"] }), // standalone P1 bug
             issue(20, { parent: 100 }), // P1 slice of a P0 PRD
@@ -577,10 +622,11 @@ describe("queue planner — inherited priority band (issue #3212)", () => {
         expect(numbers(plan)).toEqual([40, 20, 30]);
     });
 
-    it("echoes `priorityBand` only when the parent LIFTED the issue", () => {
-        // Present means "this outran its own priority, here is what with".
-        // Absent means the two agree and there is nothing to explain — echoing
-        // it always would make the interesting case invisible.
+    it("echoes `priorityBand` only when the parent MOVED the issue off its own value", () => {
+        // Present means "this did not compete on its own priority, here is the
+        // band it competed in". Absent means the two agree and there is
+        // nothing to explain — echoing it always would make the interesting
+        // case invisible.
         const plan = planBatch(
             [issue(20, { parent: 100 }), issue(30)],
             { ...CONFIG, batchCap: 5 },
@@ -592,6 +638,24 @@ describe("queue planner — inherited priority band (issue #3212)", () => {
             priorityBand: "P0",
         });
         expect(plan.batch[1]).not.toHaveProperty("priorityBand");
+    });
+
+    it("echoes `priorityBand` on a DEMOTION too — the reading that most needs it (issue #4371)", () => {
+        // A P0 slice planned behind a P1 standalone reads as a planner bug
+        // until the band is on the row beside it. Under the lift-only echo
+        // this row said `priority: P0` and nothing else.
+        const plan = planBatch(
+            [issue(20, { parent: 100 }), issue(30)],
+            { ...CONFIG, batchCap: 5 },
+            makePort(disjoint(20, 30), [], { 100: "P2", 20: "P0", 30: "P1" })
+        );
+        expect(plan.batch[0]).toMatchObject({ number: 30, priority: "P1" });
+        expect(plan.batch[0]).not.toHaveProperty("priorityBand");
+        expect(plan.batch[1]).toMatchObject({
+            number: 20,
+            priority: "P0",
+            priorityBand: "P2",
+        });
     });
 });
 

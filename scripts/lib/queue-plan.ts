@@ -138,25 +138,32 @@ export interface BandedIssue {
 }
 
 /**
- * The priority BAND an issue competes in: the stronger of its own board
- * `Priority` and its parent PRD's (issue #3212).
+ * The priority BAND an issue competes in: its parent PRD's board `Priority`
+ * when the parent carries one, else its own (issue #3212, issue #4371).
  *
  * A P0 PRD is P0 because it must CLOSE soon, and an umbrella closes only when
  * its last child does — so its children carry that urgency whatever their own
  * value says. Without this, a P0 epic drains in dribs while every standalone
  * P1 interleaves, and the board's strongest statement buys nothing.
  *
- * Inheritance never DEMOTES. A `P0` hand-set on a child of a `P2` umbrella is
- * the maintainer looking at that child and saying so — the same live override
- * the whole priority axis exists to honour — so the band takes the STRONGER of
- * the two, never the parent's unconditionally. (No live issue is in that shape
- * today; the clause is what stops a future one from being swallowed.)
+ * The parent GOVERNS, and that includes demoting (issue #4371 — it reverses
+ * the "never demotes" clause this function shipped with). The umbrella is the
+ * ruling a maintainer actually maintains: it is one row, re-read whenever the
+ * plan changes. A child's own `Priority` is set per-slice, often at filing
+ * time and often wrong — issue #4371 was filed on a queue where children
+ * mis-marked `P0` under a correctly-`P1` PRD were outranking unprioritized
+ * children of a `P0` umbrella. Taking the stronger of the two makes every such
+ * slip a board-wide override that nobody rules on again. The child's own value
+ * is not discarded: it is the comparator key right below the band, ordering
+ * the slices INSIDE their umbrella's turn.
+ *
+ * A parent with no board value makes no statement, so the band degrades to the
+ * child's own — an unprioritized umbrella must not bury its children.
  *
  * ONE level. `gh issue list --json parent` carries the parent's number and
  * title and nothing else — no grandparent, no priority of its own — and the
  * band is a lookup into the board map already in hand, so it costs no extra
- * API call. A parent absent from that map ranks `UNPRIORITIZED`, which makes
- * the minimum degrade to the child's own priority.
+ * API call.
  */
 export function effectivePriority(
     issue: BandedIssue,
@@ -166,9 +173,26 @@ export function effectivePriority(
     const parent = issue.parent
         ? (priority[issue.parent.number] ?? null)
         : null;
-    if (own === null) return parent;
-    if (parent === null) return own;
-    return priorityRank(own) <= priorityRank(parent) ? own : parent;
+    return parent ?? own;
+}
+
+/** True when the BAND came from the parent PRD rather than the issue itself —
+ *  the comparator key right under the band (issue #4371).
+ *
+ *  Inside one band, a standalone issue leads the children of a PRD that landed
+ *  in the same band: `P0` set on an issue with no umbrella is the maintainer
+ *  pointing at that issue and nothing else, while a `P0` slice is one of many
+ *  ways into the same epic. Without this key the two tie on own priority and
+ *  the order falls to the lineage tie-break, which is a creation date.
+ *
+ *  A parent that carries no board value governs nothing, so its children are
+ *  `false` here and compete as standalones — the same degradation
+ *  `effectivePriority` makes. */
+export function bandIsInherited(
+    issue: BandedIssue,
+    priority: Record<number, BoardPriority>
+): boolean {
+    return issue.parent != null && priority[issue.parent.number] != null;
 }
 
 export interface PlanConfig {
@@ -265,11 +289,14 @@ export interface PlannedIssue {
      *  says WHY an issue jumped the queue — an unexplained reordering reads as
      *  a planner bug and gets "fixed". */
     priority?: BoardPriority;
-    /** The band the issue actually competed in, echoed ONLY when it is
-     *  stronger than `priority` — i.e. when the parent PRD lifted it (issue
-     *  #3212). Present means "this outran its own priority, and here is the
-     *  value it outran it with"; absent means the two agree and there is
-     *  nothing to explain. */
+    /** The band the issue actually competed in, echoed ONLY when it DIFFERS
+     *  from `priority` — i.e. when the parent PRD moved it, in either
+     *  direction (issue #3212, issue #4371). Present means "this did not
+     *  compete on its own priority, and here is the value it competed on";
+     *  absent means the two agree and there is nothing to explain. The
+     *  demotion case is the one that now most needs saying: a `P0` slice
+     *  planned under a `P1` band looks like a planner bug until the band is on
+     *  the row beside it. */
     priorityBand?: BoardPriority;
     targetFiles: string[];
     blastRadius: BlastRadius;
@@ -444,17 +471,17 @@ const hasLabel = (issue: QueueIssue, name: string): boolean =>
 const lineage = (issue: QueueIssue): number =>
     issue.parent?.number ?? issue.number;
 
-/** The band, but only when the parent LIFTED it above the issue's own value —
- *  the one case the plan owes the reader an explanation for. */
+/** The band, but only when the parent MOVED it off the issue's own value —
+ *  lifting it or, since issue #4371, demoting it. Either way it is the one
+ *  case the plan owes the reader an explanation for; equal values explain
+ *  themselves. */
 const inheritedBand = (
     issue: QueueIssue,
     priority: Record<number, BoardPriority>
 ): BoardPriority | null => {
     const band = effectivePriority(issue, priority);
     if (band === null) return null;
-    return priorityRank(band) < priorityRank(priority[issue.number])
-        ? band
-        : null;
+    return band === (priority[issue.number] ?? null) ? null : band;
 };
 
 function hoursBetween(fromIso: string, toIso: string): number {
@@ -709,9 +736,9 @@ export function planBatch(
     }
 
     // ── Stage 1: order ──────────────────────────────────────────────────────
-    // Priority BAND first, then own priority, then bugs, then oldest LINEAGE,
-    // then the issue's own number so the order is total (a comparator with
-    // ties is not reproducible).
+    // Priority BAND first, then standalone-before-slice, then own priority,
+    // then bugs, then oldest LINEAGE, then the issue's own number so the order
+    // is total (a comparator with ties is not reproducible).
     //
     // Priority is the ZEROTH key, above `bug`, and that is the whole point: it
     // is the maintainer's live override, the one input whose criteria change
@@ -719,19 +746,29 @@ export function planBatch(
     // human looked at the board and said so. Every key below it is a default
     // for the issues nobody has ruled on, which is the vast majority.
     //
-    // The band is INHERITED from the parent PRD (`effectivePriority`, issue
-    // #3212): a P0 umbrella closes only when its last child does, so its
-    // children clear before the P1 band opens. Own priority is the key right
-    // below it, which is what "inside the epic, order by their own P" means —
-    // and it is a SECOND key, not a replacement, so a standalone P0 still
-    // leads the P0 band ahead of a P0 PRD's P1 slice.
+    // The band is the parent PRD's (`effectivePriority`, issue #3212, issue
+    // #4371): a P0 umbrella closes only when its last child does, so its
+    // children clear before the P1 band opens — and a child's own value never
+    // moves the band, because the umbrella is the ruling that gets maintained
+    // and a per-slice `Priority` is the one that rots.
+    //
+    // The three keys, in the order the maintainer enumerated them (issue
+    // #4371): no PRD + `P0` · PRD `P0` + `P0` · PRD `P0` + anything weaker ·
+    // `P1` with no PRD · PRD `P1` + … `bandIsInherited` is what separates the
+    // first two, and own priority is what orders the slices inside one
+    // umbrella's turn. `bug` sits below all three — it is the default for what
+    // nobody ruled on, and a ruling outranks a default.
     const band = (issue: QueueIssue): number =>
         priorityRank(effectivePriority(issue, port.priority));
+    const inherited = (issue: QueueIssue): number =>
+        bandIsInherited(issue, port.priority) ? 1 : 0;
     const own = (issue: QueueIssue): number =>
         priorityRank(port.priority[issue.number]);
     eligible.sort((a, b) => {
         const bandDelta = band(a) - band(b);
         if (bandDelta !== 0) return bandDelta;
+        const inheritedDelta = inherited(a) - inherited(b);
+        if (inheritedDelta !== 0) return inheritedDelta;
         const ownDelta = own(a) - own(b);
         if (ownDelta !== 0) return ownDelta;
         const bugA = hasLabel(a, "bug") ? 0 : 1;

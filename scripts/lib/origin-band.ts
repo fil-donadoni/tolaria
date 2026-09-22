@@ -2,11 +2,12 @@
 // `gaps:sync --band` is told, so a gap born of P0 work files under its
 // family's P0 umbrella instead of the umbrella its computed band names.
 //
-// The band is `effectivePriority` (`lib/queue-plan.ts`, issue #3212), the SAME
-// rule `queue:plan` orders the queue by: the stronger of the issue's own board
-// `Priority` and its parent's, never demoted. Reusing it is the point — a
-// second definition of "which band is this issue in" is how the partition and
-// the queue would come to disagree about what P0 work is.
+// The band is `effectivePriority` (`lib/queue-plan.ts`, issue #3212, issue
+// #4371), the SAME rule `queue:plan` orders the queue by: the parent's board
+// `Priority` when the parent carries one, else the issue's own — the parent
+// governs, demotions included. Reusing it is the point — a second definition
+// of "which band is this issue in" is how the partition and the queue would
+// come to disagree about what P0 work is.
 //
 // NON-GATING by contract, like every other post-merge step of `land`: an
 // unreadable board or parent is a `null` band plus a reason the caller prints,

@@ -95,11 +95,14 @@ the rendering of either for the rest of the session.
 
 - `/next-issue 1234` → that issue. Otherwise: `bun run queue:plan --cap 1
 --pretty` picks the top unclaimed `ready-for-agent` issue by priority BAND
-  (P0 → P1 → P2 → P3 → unprioritized), then own priority, then bugs, then oldest.
-  The band is INHERITED from the parent PRD and never demotes — a P0 umbrella's
+  (P0 → P1 → P2 → P3 → unprioritized), then standalone-before-slice, then own
+  priority, then bugs, then oldest.
+  The band is the parent PRD's whenever the PRD carries one — a P0 umbrella's
   slices all clear before the P1 band opens, because an umbrella closes only
-  when its last child does (issue #3212). A plan echoing `priorityBand` on an
-  issue is saying "this outran its own priority, and here is what lifted it".
+  when its last child does (issue #3212), and a slice's own `P0` does NOT lift
+  it out of a P1 umbrella's band (issue #4371). A plan echoing `priorityBand`
+  on an issue is saying "this did not compete on its own priority, and here is
+  the band it competed in" — lift or demotion alike.
 - **`queue:plan` refuses the pick in two cases, and each names its exit**
   (ADR 0136 §6-7). **Cap**: live claims are at `sessions.cap` in
   `tolaria.config.json` (3 — the measured knee, derivation in
