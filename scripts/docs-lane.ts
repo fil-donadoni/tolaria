@@ -132,6 +132,8 @@ export const DOC_GATE_TESTS_EXCLUDED: Record<string, string> = {
         "cites `.claude/rules/gre-development.md` in a header comment as the prose half of the rule it enforces; it scans test sources and reads no document",
     "scripts/__tests__/write-review-receipt.test.ts":
         "the `.claude/receipts/` paths are the RUNTIME receipt directory the writer targets, gitignored; it reads no repo document",
+    "scripts/__tests__/telemetry-latency.test.ts":
+        "the `.claude/` paths are synthetic changed-path fixtures fed to classifyLane()/renderPlan() to build a real lane receipt for parseLaneForcingPath to parse; the `.claude/telemetry` mention names the RUNTIME store; it reads no repo document",
     "scripts/__tests__/check-marker-liveness.test.ts":
         "the docs/adr and .md paths are synthetic examples fed to inScope()'s scope filter — the test asserts the filter EXCLUDES them (a real divergence marker is always a COMMENT in compiled source — `//` or `/** */` alike — never prose in a .md file); it reads no repo document",
 };
