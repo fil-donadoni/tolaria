@@ -685,6 +685,17 @@ as the run's own throwaway account, walks the runbook surfaces at the five ADR
 0101 viewports, runs the occlusion probe plus axe-core, and holds nine Floors
 at zero (`scripts/ui-gate/floors.ts`, ADR 0132).
 
+**What the lane WALKS is itself gated, offline** (issue #3420). `check:ui`'s
+coverage was asserted only between hand-written lists, so a new screen or
+dialog entered no list and reddened nothing. `scripts/lib/ui-census.ts`
+enumerates the app's routes and overlay components from the source tree and
+resolves each against what the lane measures — a walked surface's `mounts`
+claim or a live `/admin/design-system` specimen. An element covered by
+neither, and carrying no reviewed exemption or recorded debt row, reds
+`scripts/__tests__/ui-census.test.ts` inside `check:all`. It is a pure scan, so
+it costs the offline gate nothing a browser would. Rules:
+`docs/guides/browser-verification.md` § The coverage census.
+
 **It is deliberately NOT in `check:all` or `check:pr`.** Three reasons, in
 order of weight:
 
