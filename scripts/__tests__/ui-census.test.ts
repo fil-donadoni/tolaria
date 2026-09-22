@@ -15,6 +15,7 @@
 import { describe, it, expect } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import * as os from "node:os";
 import {
     scanCensusElements,
     scanSpecimenFiles,
@@ -333,6 +334,18 @@ describe("ui-census — the coverage rules themselves", () => {
         expect(row).toMatchObject({ status: "walked", by: "game-board" });
     });
 
+    it("a route that renders its own overlay yields BOTH rows — the route's coverage cannot hide the layer", () => {
+        const rows = resolveCensus({
+            ...base,
+            elements: [route, { ...overlay, file: route.file }],
+            surfaces: [{ id: "s", entries: [route.file], walked: true }],
+        });
+        expect(rows.map((r) => [r.kind, r.status])).toEqual([
+            ["route", "walked"],
+            ["overlay", "uncensused"],
+        ]);
+    });
+
     it("a route in a walked surface's entries is covered; an overlay in them is not", () => {
         const rows = resolveCensus({
             ...base,
@@ -374,6 +387,25 @@ describe("ui-census — the coverage rules themselves", () => {
             debt: { [overlay.file]: "owed a specimen (#4402)" },
         });
         expect(debt.status).toBe("debt");
+    });
+
+    it("the SCAN itself emits both rows for a route module that renders its own dialog", () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "ui-census-"));
+        try {
+            fs.mkdirSync(path.join(root, "src", "routes"), { recursive: true });
+            fs.writeFileSync(
+                path.join(root, "src", "routes", "x.route.tsx"),
+                "export default () => <GameDialog open />;\n"
+            );
+            expect(
+                scanCensusElements(root).map((e) => [e.kind, e.evidence])
+            ).toEqual([
+                ["route", "route module"],
+                ["overlay", "<GameDialog>"],
+            ]);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
     });
 
     it("an EXEMPT reason that is empty, or that says where rather than why, is refused", () => {

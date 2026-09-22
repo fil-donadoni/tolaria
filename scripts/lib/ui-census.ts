@@ -159,10 +159,13 @@ function rel(repoRoot: string, file: string): string {
 /**
  * Enumerate the censused UI elements of `src/`.
  *
- * A file can be both a route and an overlay host (a route that renders its own
- * dialog); it is reported ONCE, as the `route` it primarily is, because the
- * route entry is the stronger claim — a walked surface declares routes by
- * name, so a route is coverable without a new `mounts` line.
+ * A file that is BOTH a route and an overlay host — a route module rendering
+ * its own dialog — yields TWO rows, because a walked surface naming the route
+ * in `entries` photographs the screen and not the modal over it. Reporting
+ * only the route would let the route's coverage hide the layer, which is the
+ * exact fail-open this census exists to remove. No route module does this
+ * today (one component per file sends the dialog to its own file); the second
+ * row is what makes the first one to try it visible.
  */
 export function scanCensusElements(repoRoot: string): CensusElement[] {
     const files: string[] = [];
@@ -170,18 +173,16 @@ export function scanCensusElements(repoRoot: string): CensusElement[] {
     const out: CensusElement[] = [];
     for (const file of files.sort()) {
         const name = rel(repoRoot, file);
-        if (isRouteModulePath(name)) {
+        const isRoute = isRouteModulePath(name);
+        if (isRoute) {
             out.push({ file: name, kind: "route", evidence: "route module" });
-            continue;
         }
-        if (OVERLAY_PRIMITIVE_MODULES.has(name)) continue;
+        if (!isRoute && OVERLAY_PRIMITIVE_MODULES.has(name)) continue;
         const text = fs.readFileSync(file, "utf8");
         const tag = OVERLAY_TAG_RE.exec(text);
         if (tag) {
             out.push({ file: name, kind: "overlay", evidence: `<${tag[1]}>` });
-            continue;
-        }
-        if (ROLE_DIALOG_RE.test(text)) {
+        } else if (ROLE_DIALOG_RE.test(text)) {
             out.push({
                 file: name,
                 kind: "overlay",
