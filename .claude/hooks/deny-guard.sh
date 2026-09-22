@@ -448,7 +448,12 @@ fi
 # informational command is merely inconvenient until it earns a line below —
 # which is the failure direction actually wanted here. A bare
 # `scripts/gate.ts` invocation (bypassing `bun run` entirely) is always the
-# gate itself and stays unconditionally denied when piped.
+# gate itself and stays denied when piped — but only IN COMMAND POSITION
+# (issue #4377): the clause reads the head of each command in the segment,
+# because a gate only runs when the path is the thing being EXECUTED. A gate
+# script named as an ARGUMENT runs nothing, so `grep -n … scripts/gate-run.sh
+# | head -12` is an ordinary read and is allowed. The derivation, and what the
+# head is read past, are in `segment_reaches_gate` above.
 #
 # **Known tradeoff, taken deliberately — and mislocated in an earlier
 # revision of this comment.** This rule matches SEGMENTS, never parsed
