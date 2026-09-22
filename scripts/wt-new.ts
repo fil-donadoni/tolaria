@@ -15,29 +15,15 @@
 
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { basename, dirname, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
+import { issueWorktree } from "./lib/issue-worktree";
 
 function git(args: string[], cwd: string): string {
     const r = spawnSync("git", args, { encoding: "utf8", cwd });
     if (r.status !== 0)
         throw new Error(`git ${args.join(" ")} failed: ${r.stderr.trim()}`);
     return r.stdout.trim();
-}
-
-/** Branch and worktree names for an issue — pure, for the test. */
-export function issueWorktree(
-    primary: string,
-    issue: number,
-    kind: "feat" | "fix"
-): { branch: string; worktree: string } {
-    return {
-        branch: `${kind}/issue-${issue}`,
-        worktree: resolve(
-            dirname(primary),
-            `${basename(primary)}-issue-${issue}`
-        ),
-    };
 }
 
 function main(): void {
