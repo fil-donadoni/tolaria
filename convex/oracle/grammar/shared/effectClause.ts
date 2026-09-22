@@ -351,6 +351,25 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 613.1f/702.16a — "Choose a color. <mass subject> gain(s)
+           * protection from the chosen color until <duration>.": one
+           * `optionChoice` mode per CR 105.1 colour (`colorChoiceModes`, ADR
+           * 0045 "generalize, don't add" — the SAME five-mode builder
+           * `set-color-choice` uses), each granting `protection from
+           * <colour>` (Guard A via the "protection" registry row) to every
+           * member of the sweep.
+           *
+           * Folded onto the preceding `{ role: "choose-color" }` marker by
+           * `assembleSentences` — a card printing the grant with no "Choose a
+           * color." sentence before it has no antecedent for "the chosen
+           * color" and is refused there, not here.
+           */
+          readonly kind: "choose-color-grant-protection";
+          readonly subject: SubjectIR;
+          readonly duration: DurationIR;
+      }
+    | {
+          /**
            * CR 613.1e — layer 5: the subject's colour is SET to one the
            * controller picks as the effect resolves (CR 105.1's five — the
            * template never offers colourless), replacing every colour it had
@@ -777,7 +796,10 @@ export type RestrictionIR =
     /** CR 602.5 — "Activate only during your upkeep." */
     | { readonly kind: "phase"; readonly phase: Phase }
     /** CR 602.1 — "Any player may activate this ability." */
-    | { readonly kind: "any-player" };
+    | { readonly kind: "any-player" }
+    /** CR 113.6/602.5b — "Activate only if this card is in your graveyard."
+     *  (`ActivatedAbility.activateFromGraveyard`, Ashen Ghoul's shape.) */
+    | { readonly kind: "activate-from-graveyard" };
 
 /** A sentence that modifies the sentence before it rather than acting itself. */
 export type ModifierIR =
@@ -789,6 +811,14 @@ export type SentenceIR =
     | { readonly role: "effect"; readonly effect: EffectSentenceIR }
     | { readonly role: "restriction"; readonly restriction: RestrictionIR }
     | { readonly role: "modifier"; readonly modifier: ModifierIR }
+    /**
+     * CR 105.1 — "Choose a color.": a marker establishing the pick a LATER
+     * sentence of the same ability reads as "the chosen color"
+     * (`choose-color-grant-protection`). Diverted from `effects` by
+     * `assembleSentences`, mirroring the `library-look` window — it carries
+     * no effect of its own and is never lowered.
+     */
+    | { readonly role: "choose-color" }
     /**
      * CR 608.2c — "Create <token>, then <effect>": two effects in printed
      * order, flattened by `assembleSentences` into the same list the two
@@ -881,7 +911,39 @@ export function assembleSentences(
     const restrictions: RestrictionIR[] = [];
     // CR 608.2c — a library window waits for the sentence that routes it.
     let window: Extract<SentenceIR, { role: "library-look" }> | null = null;
+    // CR 105.1 — a "Choose a color." marker waits for the ONE sentence that
+    // reads its pick (`choose-color-grant-protection`); every other
+    // follower, including a second marker or the end of the list, has no
+    // antecedent to feed.
+    let awaitingColorChoice = false;
     for (const sentence of sentences) {
+        if (awaitingColorChoice) {
+            awaitingColorChoice = false;
+            if (
+                sentence.role !== "effect" ||
+                sentence.effect.kind !== "choose-color-grant-protection"
+            )
+                return {
+                    ok: false,
+                    reason: '"Choose a color." is not followed by an effect that reads the choice',
+                };
+            if (restrictions.length > 0)
+                return {
+                    ok: false,
+                    reason: "an effect sentence follows an activation restriction",
+                };
+            effects.push(sentence.effect);
+            continue;
+        }
+        if (sentence.role === "choose-color") {
+            if (restrictions.length > 0)
+                return {
+                    ok: false,
+                    reason: "an effect sentence follows an activation restriction",
+                };
+            awaitingColorChoice = true;
+            continue;
+        }
         if (window !== null) {
             if (sentence.role !== "library-route")
                 return {
@@ -1010,12 +1072,25 @@ export function assembleSentences(
             effects.push(...sentence.effects);
             continue;
         }
+        // "The chosen color" names no pick without a "Choose a color."
+        // sentence right before it; reaching this fold (rather than the
+        // `awaitingColorChoice` one above) means it never got one.
+        if (sentence.effect.kind === "choose-color-grant-protection")
+            return {
+                ok: false,
+                reason: '"… protection from the chosen color" follows no "Choose a color."',
+            };
         effects.push(sentence.effect);
     }
     if (window !== null)
         return {
             ok: false,
             reason: "a library look is not followed by where its cards go",
+        };
+    if (awaitingColorChoice)
+        return {
+            ok: false,
+            reason: '"Choose a color." is the last sentence and reads no effect',
         };
     if (effects.length === 0)
         return { ok: false, reason: `the ${opts.site} has no effect sentence` };
@@ -1628,7 +1703,20 @@ const RESTRICTIONS: ReadonlyMap<string, RestrictionIR> = new Map<
         { kind: "phase", phase: "UPKEEP" },
     ],
     ["any player may activate this ability", { kind: "any-player" }],
+    [
+        "activate only if this card is in your graveyard",
+        { kind: "activate-from-graveyard" },
+    ],
 ]);
+
+/**
+ * CR 613.1f — "<mass subject> gain protection from the chosen color until
+ * <duration>", the plural-verb reader for `choose-color-grant-protection`
+ * (Glory). The GRANT half a "Choose a color." marker's antecedent feeds; the
+ * marker itself is read where restrictions are, in `sentenceRule`.
+ */
+const MASS_GAIN_PROTECTION_CHOSEN_COLOR =
+    /^(.+) gain protection from the chosen color (until .+)$/;
 
 /**
  * CR 207.2c — the ability words, as that rule enumerates them.
@@ -1740,6 +1828,12 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
                 role: "modifier" as const,
                 modifier: { kind: "cant-be-regenerated" as const },
             });
+        // CR 105.1 — "Choose a color.", a marker (see the role's own doc
+        // comment); never printed lowercase (a trigger's effect clause reads
+        // it as an antecedent-carrying sentence too, but no corpus card
+        // prints it there, so only the sentence-initial casing is read).
+        if (span === "Choose a color")
+            return ok({ role: "choose-color" as const });
         const still = span.match(STILL_TYPES);
         if (still !== null) {
             const noun = descriptorRule.run(still[1]!, ctx);
@@ -2100,6 +2194,26 @@ function effectSentence(
             kind: "grant-ability" as const,
             subject: subject.value,
             keyword,
+            duration: duration.value,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── protection from a color chosen earlier in the SAME ability ─────────
+    //
+    // "Creatures you control gain protection from the chosen color until end
+    // of turn." (Glory) — the plural-verb ("gain", not "gains") twin of the
+    // grant-a-keyword branch above, narrowed to the one parameterised
+    // keyword and the one antecedent this fixture evidences ("the chosen
+    // color", never "that color" — a neighbour with no fixture, refused).
+    const chosenProtection = span.match(MASS_GAIN_PROTECTION_CHOSEN_COLOR);
+    if (chosenProtection !== null) {
+        const subject = groupSubject(chosenProtection[1]!, ctx);
+        if (!subject.ok) return subject;
+        const duration = durationRule.run(chosenProtection[2]!, ctx);
+        if (!duration.ok) return duration;
+        return ok({
+            kind: "choose-color-grant-protection" as const,
+            subject: subject.value,
             duration: duration.value,
         } satisfies EffectSentenceIR);
     }

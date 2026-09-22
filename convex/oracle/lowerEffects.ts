@@ -31,7 +31,11 @@ import type {
 } from "../cards/types";
 import { PERMANENT_TYPES } from "../cards/types";
 import type { PermanentFilter } from "../cards/filters";
-import { chooseColorEffects } from "../cards/abilities/chooseColor";
+import {
+    chooseColorEffects,
+    colorChoiceModes,
+} from "../cards/abilities/chooseColor";
+import { PROTECTION_QUALITY_NAMES } from "../cards/abilities";
 import { landTypeChangeEffects } from "../cards/abilities/chooseLandType";
 import type { KickedRefIR } from "./grammar/shared/condition";
 import { durationSpec } from "./grammar/shared/duration";
@@ -1892,6 +1896,46 @@ function lowerSentenceBody(
                     predicate: { left: left.value, op: "ge", right: 1 },
                     then: replacement.value,
                     else: base.value,
+                },
+            ]);
+        }
+        case "choose-color-grant-protection": {
+            // CR 613.1f — evidenced by exactly one corpus form (Glory): a
+            // plain controller-scoped sweep. A target-player sweep or an
+            // X-bounded one is a different selector shape (`sweepOps`'s two
+            // extra branches) with no fixture behind it here — refused
+            // rather than silently dropping the qualifier.
+            if (sentence.subject.kind !== "mass")
+                return unlowerable(
+                    "protection from the chosen color reads only a mass subject (no fixture covers a single object)"
+                );
+            if (
+                sentence.subject.targetPlayerControls === true ||
+                sentence.subject.manaValueAtMostX === true
+            )
+                return unlowerable(
+                    "protection from the chosen color reads only a plain controller-scoped sweep (no fixture covers a target-player or X-bounded one)"
+                );
+            const select = sentence.subject.select;
+            const duration = durationSpec(sentence.duration);
+            return lowered([
+                {
+                    op: "optionChoice",
+                    prompt: `Choose a color (${site.selfName}).`,
+                    modes: colorChoiceModes((color) => [
+                        {
+                            op: "forEach",
+                            select,
+                            effects: [
+                                {
+                                    op: "grantAbility",
+                                    target: { ref: "$each" },
+                                    ability: `protection from ${PROTECTION_QUALITY_NAMES[color]}`,
+                                    duration,
+                                },
+                            ],
+                        },
+                    ]),
                 },
             ]);
         }

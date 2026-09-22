@@ -45,6 +45,7 @@ import { readManaCost } from "./manaCost";
 import type { CompiledDefinition, OracleCard, ParsedTypeLine } from "./types";
 import type { LineParse, SlotIR } from "./grammar/ir";
 import type { EffectSentenceIR } from "./grammar/shared/effectClause";
+import { keywordVocabulary } from "./grammar/shared/keywordVocabulary";
 
 export type LowerResult =
     | {
@@ -148,6 +149,17 @@ function censusGrantedKeywords(
         let sentence = outer;
         while (sentence.kind === "optional" || sentence.kind === "kicked")
             sentence = sentence.effect;
+        // "Choose a color. … gain protection from the chosen color …" grants
+        // the SAME base keyword ("protection") as the parameterised
+        // `grant-ability` case below, just five times over — one per colour
+        // mode — so it is censused against the same registry row rather than
+        // against a `keyword` field it carries none of.
+        if (sentence.kind === "choose-color-grant-protection") {
+            const protection = keywordVocabulary().get("protection");
+            if (protection !== undefined && protection.status !== "implemented")
+                acc.plannedMechanics.push("protection");
+            continue;
+        }
         if (sentence.kind !== "grant-ability") continue;
         const { ability, status } = sentence.keyword;
         if (status !== "implemented") acc.plannedMechanics.push(ability);

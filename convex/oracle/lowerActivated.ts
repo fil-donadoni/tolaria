@@ -57,6 +57,9 @@ function applyRestrictions(
             case "any-player":
                 ability.activatableByAnyPlayer = true;
                 break;
+            case "activate-from-graveyard":
+                ability.activateFromGraveyard = true;
+                break;
             default: {
                 const never: never = restriction;
                 return `no lowering for restriction ${JSON.stringify(never)}`;
