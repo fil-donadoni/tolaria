@@ -10,42 +10,60 @@ import * as path from "path";
  * carried a literal 0x00 inside a string literal — `join("<NUL>")` written as a
  * raw control character instead of the `\u0000` escape. The runtime string was
  * correct, nothing failed, and no reviewer could see it. But `file(1)`
- * classified the 851-line auto-tap solver as `data`, and `grep`/`ripgrep` skip
- * binary files SILENTLY: no match, no warning. The module was invisible to
- * every text search in the repo.
+ * classified the 1219-line auto-tap solver as `data`, and `grep`/`ripgrep`
+ * skip binary files SILENTLY: no match, no warning. The module was invisible
+ * to every text search in the repo.
  *
  * It cost real work. The `/audit-tracker` pass on issue #1733 and a delegated
  * subagent census both concluded `getManaTapOptionRestriction` was dead code
- * with zero callers — `autoTap.ts:4` imports it and uses it. That conclusion
- * reached an issue body before someone read the file directly.
+ * with zero callers — `convex/gre/autoTap.ts:4` imports it and uses it. That
+ * conclusion reached an issue body before someone read the file directly.
  *
  * A wrong "not found" is more expensive than a missing file, because nothing
  * signals it: the search exits 0 and prints a shorter list. Any agent mapping a
  * subsystem, any grep-based guard and any human running `rg` is affected the
  * same way. That is not something a paragraph in a rules file can prevent —
  * the defect is invisible in the diff that introduces it.
+ *
+ * DENY-LIST, NOT ALLOW-LIST. The first draft enumerated the text extensions to
+ * scan and thereby did not cover `.mts` (one tracked script), `.svg`, `.awk`,
+ * `.jsonl`, `bun.lock` or the extensionless `.husky/` hooks — a hand-maintained
+ * list that silently stops covering each new file type, which is the shape of
+ * omission this guard exists to catch. Binary extensions are named instead, so
+ * anything new is scanned by default and a false positive is loud.
  */
 
 const ROOT = path.resolve(__dirname, "../..");
 
-/** Extensions whose files are text by contract — a control byte in one of them
- *  is a mistake, never payload. Binary assets (images, fonts, archives) are
- *  simply not listed. */
-const TEXT_EXTENSIONS = [
-    ".ts",
-    ".tsx",
-    ".js",
-    ".mjs",
-    ".cjs",
-    ".json",
-    ".md",
-    ".css",
-    ".html",
-    ".yml",
-    ".yaml",
-    ".sh",
-    ".txt",
-];
+/** The file whose raw NUL motivated this guard — pinned so the scan is proven
+ *  to reach the engine tree, and so this test carries a `convex/` literal in
+ *  CODE: `scripts/test-env-split.ts` classifies it into the node-engine
+ *  project by that literal, and a test that only mentioned the path in prose
+ *  would silently demote itself to node-tooling on a reword. */
+const ORIGIN_FILE = "convex/gre/autoTap.ts";
+
+/** Extensions whose bytes are payload. Everything else tracked is scanned.
+ *  Keep this list about FORMATS, never about individual files. */
+const BINARY_EXTENSIONS = new Set([
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".avif",
+    ".ico",
+    ".pdf",
+    ".woff",
+    ".woff2",
+    ".ttf",
+    ".otf",
+    ".eot",
+    ".gz",
+    ".zip",
+    ".mp3",
+    ".mp4",
+    ".wasm",
+]);
 
 /** C0 controls are forbidden except the three that legitimately occur in text:
  *  tab (0x09), newline (0x0a) and carriage return (0x0d). 0x00 is the one that
@@ -61,9 +79,10 @@ export interface ControlByteHit {
     line: number;
 }
 
-/** First forbidden control byte in `buf`, or null. Exported so the detector
- *  itself is testable — a scan that can never report anything would keep this
- *  guard green forever. */
+/** First forbidden control byte in `buf`, or null. Returns at the first hit, so
+ *  the line-counting rescan runs at most once per file. Exported so the
+ *  detector itself is testable — a scan that can never report anything would
+ *  keep this guard green forever. */
 export function findControlByte(buf: Buffer): ControlByteHit | null {
     for (let i = 0; i < buf.length; i++) {
         const byte = buf[i];
@@ -75,18 +94,31 @@ export function findControlByte(buf: Buffer): ControlByteHit | null {
     return null;
 }
 
-function trackedTextFiles(): string[] {
+interface Tracked {
+    /** Repo-relative path, decoded. */
+    rel: string;
+    /** …and its raw bytes, kept so a lossy decode can be REPORTED rather than
+     *  turning into a file that quietly does not exist and is skipped. */
+    raw: Buffer;
+}
+
+function trackedFiles(): Tracked[] {
     const out = execFileSync("git", ["ls-files", "-z"], {
         cwd: ROOT,
         encoding: "buffer",
         maxBuffer: 64 * 1024 * 1024,
-    })
-        .toString("utf8")
-        .split("\0")
-        .filter(Boolean);
-    return out.filter((rel) =>
-        TEXT_EXTENSIONS.includes(path.extname(rel).toLowerCase())
-    );
+    });
+    const entries: Tracked[] = [];
+    let start = 0;
+    for (let i = 0; i <= out.length; i++) {
+        if (i !== out.length && out[i] !== 0x00) continue;
+        if (i > start) {
+            const raw = out.subarray(start, i);
+            entries.push({ rel: raw.toString("utf8"), raw });
+        }
+        start = i + 1;
+    }
+    return entries;
 }
 
 describe("tracked text sources contain no binary-making control bytes", () => {
@@ -100,14 +132,36 @@ describe("tracked text sources contain no binary-making control bytes", () => {
     });
 
     it("no tracked text file carries one", () => {
-        const files = trackedTextFiles();
-        // A path filter that silently matched nothing would make this green.
-        expect(files.length).toBeGreaterThan(1000);
+        const tracked = trackedFiles();
+        // A selection that silently matched nothing would make this green.
+        expect(tracked.length).toBeGreaterThan(1000);
 
         const offenders: string[] = [];
-        for (const rel of files) {
+        const unreadable: string[] = [];
+        let scanned = 0;
+
+        for (const { rel, raw } of tracked) {
+            if (BINARY_EXTENSIONS.has(path.extname(rel).toLowerCase()))
+                continue;
+            if (!Buffer.from(rel, "utf8").equals(raw)) {
+                // A path git reported in bytes that do not round-trip through
+                // UTF-8 would otherwise resolve to a file that "does not
+                // exist" and be skipped without a word.
+                unreadable.push(`${JSON.stringify(rel)} (path is not UTF-8)`);
+                continue;
+            }
             const abs = path.join(ROOT, rel);
-            if (!fs.existsSync(abs)) continue; // submodule / sparse checkout
+            let stat: fs.Stats;
+            try {
+                stat = fs.lstatSync(abs);
+            } catch {
+                unreadable.push(`${rel} (tracked but not on disk)`);
+                continue;
+            }
+            // git tracks symlinks as links; the target is either tracked in
+            // its own right or outside the repo.
+            if (!stat.isFile()) continue;
+            scanned++;
             const hit = findControlByte(fs.readFileSync(abs));
             if (hit)
                 offenders.push(
@@ -116,6 +170,15 @@ describe("tracked text sources contain no binary-making control bytes", () => {
                         .padStart(2, "0")} at offset ${hit.offset}`
                 );
         }
+
+        // Every skip must be a DECLARED binary format or a symlink: a file that
+        // silently fell out of the scan is the failure mode of the scan.
+        expect(unreadable, "tracked files the scan could not read").toEqual([]);
+        expect(
+            tracked.some((t) => t.rel === ORIGIN_FILE),
+            `${ORIGIN_FILE} is not in the scanned set — the guard no longer reaches the file whose NUL motivated it`
+        ).toBe(true);
+        expect(scanned).toBeGreaterThan(1000);
 
         expect(
             offenders,
