@@ -275,9 +275,14 @@ const draftPackCardValidator = v.object({
     pickId: v.string(),
 });
 
+// `definitionId` (Card Prints, ADR 0140/issue #4117) is stored on every
+// `userDecks` card, and `humanDeckValidator` below serves a human seat's
+// submitted deck straight from that row — a returns validator that does not
+// name the field fails the query outright.
 const deckCardValidator = v.object({
     cardId: v.string(),
     cardName: v.string(),
+    definitionId: v.optional(v.string()),
 });
 
 // The five true colors a Auto-Built deck can be built in (CR 105.1) — never
