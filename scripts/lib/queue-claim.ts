@@ -74,8 +74,17 @@ export function claimDecision(input: ClaimInput): ClaimDecision {
 
 // ── The stale-claim rule, shared with the planner ───────────────────────────
 
-/** The shape both verbs read off `gh issue list --json number,updatedAt`. */
-export interface ClaimedIssue {
+/**
+ * The two fields the STALE rule needs off `gh issue list`.
+ *
+ * Deliberately NOT `loop-doctor.ts`'s exported `ClaimedIssue`, and named apart
+ * from it (issue #4384 review): that one carries `title` because the
+ * classifier prints it, this one is the narrowest shape `isStaleClaim` reads.
+ * Two same-named, differently-shaped exported types in files that now import
+ * from each other compile fine under structural typing and are a foot-gun for
+ * the next edit.
+ */
+export interface StaleRuleIssue {
     number: number;
     updatedAt: string;
 }
@@ -101,13 +110,13 @@ export interface ClaimedIssue {
  * never the reverse, which is the safe direction for a cap.
  */
 export function liveClaimSet(
-    claimed: ClaimedIssue[],
+    claimed: StaleRuleIssue[],
     issuesWithOpenPr: number[],
     released: number[],
     nowIso: string,
     staleClaimHours: number,
     isStale: (
-        issue: ClaimedIssue,
+        issue: StaleRuleIssue,
         issuesWithOpenPr: number[],
         nowIso: string,
         staleClaimHours: number

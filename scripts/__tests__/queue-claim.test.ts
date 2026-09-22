@@ -14,9 +14,11 @@ import {
 } from "../lib/queue-claim";
 import { capCensus, isStaleClaim } from "../lib/queue-plan";
 import {
+    claimVerdicts,
     classifyClaims,
     type ClaimVerdictState,
     type ProcessProbe,
+    type ShRunner,
 } from "../loop-doctor";
 
 /**
@@ -443,6 +445,68 @@ describe("queue:claim — the cap counts LIVE SESSIONS, not labels (issue #4384)
             live: [4400],
             recoverable: [4117, 4306],
         });
+    });
+});
+
+describe("queue:claim — a FAILED read may only make the cap stricter (issue #4384)", () => {
+    const rows = [
+        { number: 10, title: "a", updatedAt: "2026-09-22T11:00:00Z" },
+        { number: 20, title: "b", updatedAt: "2026-09-22T11:00:00Z" },
+    ];
+
+    it("a throwing `gh`/`git` yields NO verdicts — every claim then counts as live", () => {
+        // The trap this pins: `sh`, the runner `loop:doctor`'s own CLI
+        // defaults to, renders a non-zero exit as `""`. `JSON.parse("" ||
+        // "[]")` is an empty PR set and `"".split("\n")` an empty remote
+        // list — indistinguishable from "no open PRs, no pushed branches".
+        // With that default the `catch` inside `claimVerdicts` can never
+        // fire, and a healthy claim (branch pushed, PR open, session exited)
+        // falls through to dead-owner-with-local-commits and reads
+        // `recoverable` — excluding itself from the cap. A failed read would
+        // have LOOSENED the cap.
+        const throwing: ShRunner = (cmd, args) => {
+            throw new Error(
+                `${cmd} ${args[0]} failed: API rate limit exceeded`
+            );
+        };
+        const verdicts = claimVerdicts(
+            rows,
+            "origin/staging",
+            "/nonexistent",
+            Date.parse("2026-09-22T12:00:00Z"),
+            throwing
+        );
+        expect(verdicts.size).toBe(0);
+        expect(capCensus([10, 20], verdicts)).toEqual({
+            live: [10, 20],
+            recoverable: [],
+        });
+    });
+
+    it("output that is not JSON yields no verdicts either — a garbled read is not evidence", () => {
+        const garbage: ShRunner = () => "<html>502 Bad Gateway</html>";
+        expect(
+            claimVerdicts(
+                rows,
+                "origin/staging",
+                "/nonexistent",
+                Date.parse("2026-09-22T12:00:00Z"),
+                garbage
+            ).size
+        ).toBe(0);
+    });
+
+    it("no claims at all is not a read: it answers empty without touching the network", () => {
+        let calls = 0;
+        const counting: ShRunner = () => {
+            calls++;
+            return "[]";
+        };
+        expect(
+            claimVerdicts([], "origin/staging", "/nonexistent", 0, counting)
+                .size
+        ).toBe(0);
+        expect(calls).toBe(0);
     });
 });
 

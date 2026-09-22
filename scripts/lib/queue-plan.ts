@@ -1242,6 +1242,11 @@ export interface AdmissionInput {
     noCap: boolean;
     /** The release-health verdict, or `null` when no `RED` marker exists. */
     red: HealthMarker | null;
+    /** Claims `capCensus` kept out of `claims` (issue #4384) — the refusal
+     *  names them so it points at the branches to resume. Threaded through
+     *  here too, so the combined decision and `capRefusal` cannot disagree
+     *  about what a refusal SAYS if a caller ever reaches for this one. */
+    recoverable?: number[];
 }
 
 export type Admission =
@@ -1318,5 +1323,10 @@ export function capRefusal(
 export function admitPick(input: AdmissionInput): Admission {
     const red = redRefusal(input.red);
     if (!red.admitted) return red;
-    return capRefusal(input.claims, input.cap, input.noCap);
+    return capRefusal(
+        input.claims,
+        input.cap,
+        input.noCap,
+        input.recoverable ?? []
+    );
 }

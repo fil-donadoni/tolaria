@@ -711,21 +711,38 @@ export function readClaimOwners(
  * a worktree may have no journal — and a failure yields an EMPTY map, which
  * the census reads as "no evidence" and therefore as live. A broken probe can
  * only ever make the cap stricter, never let a session past it.
+ *
+ * `shChecked` IS THAT CONTRACT, and the default the CLI uses would break it.
+ * `sh` renders a non-zero exit as `""`, so `JSON.parse("" || "[]")` is an
+ * empty PR set and `"".split("\n")` an empty remote-branch list — indis-
+ * tinguishable from "no open PRs and no pushed branches". The `catch` below
+ * would never fire, and `classifyClaim` would form REAL verdicts from
+ * degraded data. That is not academic: a healthy claim whose session pushed
+ * its branch, opened a PR and then exited normally is `live` ONLY via the
+ * `hasOpenPr` / `hasRemoteBranch` checks. Lose both reads at once — one
+ * network outage reaches `gh` and `git ls-remote` alike — and it falls
+ * through to dead-owner-with-local-commits and classifies `recoverable`,
+ * which `capCensus` then excludes from the cap. A failed read would have made
+ * the cap LOOSER, the one direction this whole design forbids. Throwing is
+ * what turns that into the documented empty map.
  */
 export function claimVerdicts(
     issues: ClaimedIssue[],
     baseRef: string,
     root = process.env.CLAUDE_PROJECT_DIR ?? ".",
-    now: number = Date.now()
+    now: number = Date.now(),
+    /** Fail-CLOSED by default — see the paragraph above. The tests' seam. */
+    runner: ShRunner = shChecked
 ): Map<number, ClaimVerdictState> {
     if (issues.length === 0) return new Map();
     try {
         const classified = classifyClaims(issues, {
-            prBranches: fetchOpenPrBranches(),
-            branches: fetchBranchNames(),
+            prBranches: fetchOpenPrBranches(runner),
+            branches: fetchBranchNames(runner),
             owners: readClaimOwners(root),
             baseRef,
             now,
+            countRunner: runner,
         });
         return new Map(classified.map((c) => [c.issue, c.verdict.state]));
     } catch {
