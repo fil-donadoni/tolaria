@@ -446,6 +446,9 @@ describe("deny-guard — a gate may not be piped into a pager", () => {
             'grep -n -E "^export" scripts/gate.ts scripts/lib/gate-liveness.ts | head',
             "cat scripts/gate.ts | head -20",
             "wc -l scripts/gate.ts scripts/gate-run.sh | tail -1",
+            'sed -n "1,40p" scripts/gate-run.sh | head -20',
+            "git log --oneline -- scripts/gate.ts | head -5",
+            "time grep -n export scripts/gate.ts | head",
         ]) {
             const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
             expect(r.code, `expected ALLOW for: ${cmd}`).toBe(0);
@@ -461,6 +464,14 @@ describe("deny-guard — a gate may not be piped into a pager", () => {
             "./scripts/gate-run.sh check:lane | tail",
             "env TOLARIA_GATE_RUN_KEY=k bun scripts/gate.ts heavy | tail",
             "ls -1 | head -3; sh scripts/gate-run.sh check:lane | tail -5",
+            // The skipped-prefix list errs towards denying MORE: a word it
+            // skips can only expose a head further right, never hide one.
+            "time bun scripts/gate.ts heavy | tail",
+            "nohup sh scripts/gate-run.sh check:lane | tail",
+            "command sh scripts/gate-run.sh check:lane | tail",
+            "( bun scripts/gate.ts heavy ) | tail",
+            "echo `bun scripts/gate.ts heavy` | tail",
+            "ls | head -2 && bun scripts/gate.ts heavy | tail",
         ]) {
             const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
             expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);

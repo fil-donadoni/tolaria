@@ -310,14 +310,18 @@ segment_reaches_gate() {
     # clause below is untouched, and the fail-closed direction is kept: a
     # command head is still deny-by-default, so `bun scripts/gate.ts heavy …`
     # and `sh scripts/gate-run.sh … | tail` remain denied. Command boundaries
-    # are taken from `| ; & (` — the same segment-level approximation the rest
-    # of this file uses, erring towards MORE heads (a `$(…)` leftover `$`
-    # simply yields a head that matches nothing, while the substituted command
-    # inside it is still read).
+    # are taken from ``| ; & ( { ` `` — the same segment-level approximation
+    # the rest of this file uses, erring towards MORE heads (a `$(…)` leftover
+    # `$` simply yields a head that matches nothing, while the substituted
+    # command inside it is still read). The skipped-prefix list errs the same
+    # way: `time`, `nohup`, `command`, `nice`, `stdbuf` and `xargs` are there
+    # so `time bun scripts/gate.ts … | tail` does not read as the command
+    # `time`, and redirections are skipped so an `&`-split `2>&1` leaves no
+    # stray head. Skipping a word can only ever make the clause deny MORE.
     _grg_heads=$(printf '%s\n' "$_grg_seg" |
-        tr '|;&(' '\n\n\n\n' |
+        tr '|;&({`' '\n\n\n\n\n\n' |
         sed -E -e 's/^[[:space:]]*//' \
-            -e "s/^(([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*|bun|bunx|sh|bash|env|-[^[:space:]]*|['\"])[[:space:]]*)*//" \
+            -e "s/^(([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*|[0-9]*[<>][^[:space:]]*|[0-9]+|bun|bunx|sh|bash|zsh|env|time|nohup|command|nice|stdbuf|xargs|-[^[:space:]]*|['\"])[[:space:]]*)*//" \
             -e 's/[[:space:]].*$//')
     if printf '%s\n' "$_grg_heads" |
         grep -Eq '^\.?/?([^[:space:]]*/)?scripts/gate(-run\.sh|\.ts)$'; then
