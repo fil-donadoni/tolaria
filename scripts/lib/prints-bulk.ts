@@ -26,7 +26,10 @@ async function resolveDownloadUri(): Promise<string> {
     const res = await fetch(BULK_INDEX, { headers: HEADERS });
     if (!res.ok) throw new Error(`Scryfall bulk index ${res.status}`);
     const meta = (await res.json()) as Record<string, unknown>;
-    const uri = (meta.download_uri ?? meta.jsonl_download_uri ?? "") as string;
+    // Scryfall now serves `jsonl_download_uri` (gzipped JSONL) and has dropped
+    // `download_uri` from this bulk object (see `oracle-corpus.ts`'s longer
+    // note); the legacy key is kept as a fallback rather than assumed absent.
+    const uri = (meta.jsonl_download_uri ?? meta.download_uri ?? "") as string;
     if (!uri) throw new Error("Scryfall bulk index returned no download uri");
     return uri;
 }
