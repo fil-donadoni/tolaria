@@ -839,7 +839,7 @@ The Scryfall UUID of one specific printing of a card. Distinct from the **Card I
 _Avoid_: Edition ID, art ID
 
 **Rarity**:
-The printed rarity of a card — one of `common`, `uncommon`, `rare` (CR 206). A property of a **printing**, not of the underlying card: a home-set **Card Definition** carries its home-set rarity and each **Card Print** carries its own, so a card reprinted at a different rarity differs per edition. Backfilled across the catalogue from MTGJSON; the card generator emits it for every new card and refuses any value outside the three. Informational for **Basic** lands (they are gated by the `Basic` supertype, not rarity). Consumed by rarity-budgeted **Formats** (Alpha 40).
+The printed rarity of a card — one of `common`, `uncommon`, `rare`, `mythic` (CR 206). A property of a **printing**, not of the underlying card: a home-set **Card Definition** carries its home-set rarity and each **Card Print** carries its own, so a card reprinted at a different rarity differs per edition. Sourced from Scryfall (ADR 0140) — the card generator emits it for every new card and refuses any value outside the four. Informational for **Basic** lands (they are gated by the `Basic` supertype, not rarity). Consumed by rarity-budgeted **Formats** (Alpha 40).
 _Avoid_: Frequency, tier
 
 **Reprint**:
