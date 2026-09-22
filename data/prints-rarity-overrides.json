@@ -1,0 +1,20 @@
+{
+    "_comment": "ADR 0140 / issue #4116 — reviewed by scripts/lib/prints-rarity.ts. `rarityFallback` maps a Scryfall rarity outside the model's four (`special`, `bonus`) onto one of `common`/`uncommon`/`rare`/`mythic`; `printOverrides` corrects one specific printId's Rarity (equivalence disagreement with a hand-written record, or a Scryfall miscategorization), and wins over both `rarityFallback` and Scryfall's own value.",
+    "rarityFallback": {
+        "special": "rare",
+        "bonus": "mythic"
+    },
+    "printOverrides": {
+        "982115b2-e1e7-4b2f-8eb6-a1633477d4a8": "common",
+        "c9740842-7955-4cf9-8f76-a426858360b1": "common",
+        "fb537b5a-d725-420d-bc15-0d54ba23331c": "common",
+        "1373dea4-3565-4612-8505-ab8fba3ddb67": "common",
+        "2c3070f8-6dae-4f22-b186-e2a3a9647cc5": "common",
+        "17fe098c-c9b5-4bba-92b5-5720d6919073": "common",
+        "93dc9f02-11ad-4c4a-8199-9d20c23d31a7": "uncommon"
+    },
+    "_reviewNotes": [
+        "982115b2… / c9740842… (Goblin Chirurgeon b/c), fb537b5a… / 1373dea4… (Order of Leitbur b/c), 2c3070f8… / 17fe098c… (Spore Cloud b/c): Fallen Empires shipped before rarity symbols existed, and Scryfall records every FEM card as `common` regardless of its 1/2/3-per-sheet print run. The hand-written records used FEM's informal print-run scarcity tier (`uncommon`) instead of Scryfall's actual Rarity. Reviewed 2026-09-22 (issue #4116 --equivalence run): Scryfall's `common` is correct.",
+        "93dc9f02… (Ice Age, Sleight of Mind): the hand-written record says `common`, Scryfall says `uncommon`. No known print-run anomaly for this card — reviewed 2026-09-22 as a hand-written data-entry error. Scryfall's `uncommon` is correct."
+    ]
+}

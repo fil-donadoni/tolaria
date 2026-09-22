@@ -1337,4 +1337,46 @@ export default defineSchema({
             v.union(v.literal("computed"), v.literal("printed"))
         ),
     }).index("by_user", ["userId"]),
+
+    // Card Prints (ADR 0140, issue #4116): one row per Scryfall printing of a
+    // Card Definition, filled by `bun run prints:sync`. Replaces the 1,409
+    // hand-written `CardPrint` literals in `convex/cards/sets/**` — every
+    // printing Scryfall has, promos/Secret Lair/digital-only included,
+    // oversized cards excepted, becomes queryable without a deploy. There is
+    // no committed lockfile: this table IS the source of truth, and the sync
+    // is an idempotent, never-deleting upsert (a printing Scryfall stops
+    // listing keeps its row). Nothing reads this table yet — the deck entry
+    // migration, engine transport and selector are later slices of PRD #4115.
+    cardPrints: defineTable({
+        // Scryfall UUID of this printing. Never the same as `cardId` — the
+        // sync skips the printing whose id IS the Card Definition's id.
+        printId: v.string(),
+        // The `CardDefinition.id` (also a Scryfall UUID) whose mechanics this
+        // printing uses.
+        cardId: v.string(),
+        set: v.string(),
+        // Kept in sync with `Rarity` (`convex/cards/types.ts`) — CR 206's four
+        // modelled rarities. A Scryfall rarity outside these four ("special",
+        // "bonus") is remapped by `scripts/lib/prints-rarity.ts` before a row
+        // reaches this validator.
+        rarity: v.union(
+            v.literal("common"),
+            v.literal("uncommon"),
+            v.literal("rare"),
+            v.literal("mythic")
+        ),
+        digital: v.boolean(),
+        promo: v.boolean(),
+        // Scryfall `all_parts` token links for THIS printing (same-edition
+        // token when one was printed, else whichever Scryfall pairs it with —
+        // Scryfall itself resolves that fallback per printing).
+        tokenPrints: v.array(
+            v.object({
+                name: v.string(),
+                tokenPrintId: v.string(),
+            })
+        ),
+    })
+        .index("by_printId", ["printId"])
+        .index("by_cardId", ["cardId"]),
 });
