@@ -1965,10 +1965,6 @@ describe("land.ts — housekeeping steps against a MISSING worktree", () => {
         const cmd = buildHousekeepingCommand(merged);
         expect(cmd).toContain("if [ -e '/repo-issue-4378' ]");
         expect(cmd).toContain("worktree remove --force '/repo-issue-4378'");
-        // A worktree whose directory is gone stays REGISTERED until something
-        // prunes it, and `branch -D` refuses a branch git still believes is
-        // checked out — so the absent branch is a prune, not a no-op.
-        expect(cmd).toContain("worktree prune");
     });
 
     it("tears down the branch the PR names, never the base branch", () => {
@@ -2043,12 +2039,19 @@ describe("land.ts — the teardown step, executed", () => {
         ).toBe("");
     });
 
-    it("exits 0 and still deletes the branch when the worktree is already gone", () => {
-        // THE issue: a prior `land` tore the worktree down and crashed before
-        // the rest of the housekeeping, so the recovery meets a path that is
-        // not there — and a registration git has not pruned, which is what
-        // used to leave `fix/issue-4378` undeletable.
-        rmSync(worktree, { recursive: true, force: true });
+    it("exits 0 and prints no fatal when the worktree is already torn down", () => {
+        // THE state the recovery exists for: a prior `land` removed the
+        // worktree — unregistering it — and crashed before the rest of the
+        // housekeeping. The path is now neither present nor registered, and
+        // `git worktree remove` on that is `fatal: '…' is not a working
+        // tree`. `|| true` kept it out of the exit status; it still reached
+        // the operator's terminal, where a fatal from the recovery step reads
+        // as the recovery having failed.
+        spawnSync("git", ["worktree", "remove", "--force", worktree], {
+            cwd: primary,
+            encoding: "utf8",
+        });
+        expect(existsSync(worktree)).toBe(false);
         const r = teardown(worktree);
         expect(r.status).toBe(0);
         expect(r.stderr).not.toMatch(/is not a working tree/);

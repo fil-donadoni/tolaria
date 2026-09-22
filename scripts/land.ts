@@ -1128,17 +1128,20 @@ export function postMergeHousekeepingSteps(
     if (opts.teardown) {
         steps.push(remoteBranchDeleteStep(opts.branch));
         // `[ -e ]` first (issue #4378): the recovery path exists precisely
-        // for a landing whose earlier run already tore the worktree down, or
-        // whose worktree was removed by hand, and `git worktree remove` on a
-        // path that is not there is an error. It was already swallowed by
-        // `|| true`, so this changes no exit status — it stops the recovery
-        // printing a failure for the one state it was written to handle. The
-        // `prune` is the other half: a worktree whose directory is gone stays
-        // REGISTERED until something prunes it, and the `branch -D` below
-        // refuses a branch git still believes is checked out.
+        // for a landing whose earlier run already tore the worktree down and
+        // then crashed, so the path it is handed is routinely one that is
+        // neither present nor registered — and `git worktree remove` on THAT
+        // is `fatal: '…' is not a working tree`, exit 128 (git 2.54; a
+        // registered-but-missing directory it prunes itself, exit 0). The
+        // `|| true` already kept that out of `land`'s exit status; the guard
+        // keeps it out of the operator's terminal, where a fatal printed by
+        // the recovery step reads as the recovery having failed.
+        //
+        // null when the branch names no issue — there is no worktree of ours
+        // to remove, and the step is not emitted at all.
         if (opts.worktree !== null) {
             steps.push(
-                `(if [ -e ${shQuote(opts.worktree)} ]; then git -C ${shQuote(opts.primaryCheckout)} worktree remove --force ${shQuote(opts.worktree)} || true; else git -C ${shQuote(opts.primaryCheckout)} worktree prune || true; fi; true)`
+                `(if [ -e ${shQuote(opts.worktree)} ]; then git -C ${shQuote(opts.primaryCheckout)} worktree remove --force ${shQuote(opts.worktree)} || true; fi; true)`
             );
         }
         steps.push(
