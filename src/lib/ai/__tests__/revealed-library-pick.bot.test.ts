@@ -218,13 +218,13 @@ describe("Guided Passage — the BOT answers the CATEGORISED opponent-side pick"
         expect(p1.hand.map((c) => c.id).sort()).toEqual([...answer].sort());
         // One card per description, never two of one — the property the
         // buckets exist to enforce.
-        const byId = new Map([
-            ["lib0", "land"],
-            ["lib1", "land"],
-            ["lib2", "creature"],
-            ["lib3", "creature"],
-            ["lib4", "other"],
-        ] as const);
-        expect(new Set(answer.map((id) => byId.get(id))).size).toBe(3);
+        const bucket: Record<string, string> = {
+            lib0: "land",
+            lib1: "land",
+            lib2: "creature",
+            lib3: "creature",
+            lib4: "other",
+        };
+        expect(new Set(answer.map((id) => bucket[id])).size).toBe(3);
     });
 });
