@@ -296,7 +296,31 @@ segment_reaches_gate() {
     # check:lane`, contains no `bun run` token at all, so without this line
     # piping or backgrounding the gate DRIVER slipped through the very rules
     # it exists to make followable.
-    if printf '%s\n' "$_grg_seg" | grep -Eq 'scripts/gate(-run\.sh|\.ts)'; then
+    #
+    # **ANCHORED TO COMMAND POSITION (issue #4377).** This clause used to
+    # match `scripts/gate*` ANYWHERE in the segment, so a read-only grep of a
+    # gate file — `grep -n "tolaria.config.json" -A3 scripts/gate-run.sh |
+    # head -12` — was denied as "a gate piped into a pager", and the denial
+    # text sent the caller to `GATE_EXEMPT_SCRIPT_RE`, which is the wrong fix
+    # (the file is an ARGUMENT, not the command; no gate runs at all). A gate
+    # only runs when the path is the thing being EXECUTED, so that is what is
+    # matched: the head of each command in the segment — its first word after
+    # any leading env assignments, wrapper words (`bun`/`bunx`/`sh`/`bash`/
+    # `env`) and their flags — never a later argument. The `bun run <script>`
+    # clause below is untouched, and the fail-closed direction is kept: a
+    # command head is still deny-by-default, so `bun scripts/gate.ts heavy …`
+    # and `sh scripts/gate-run.sh … | tail` remain denied. Command boundaries
+    # are taken from `| ; & (` — the same segment-level approximation the rest
+    # of this file uses, erring towards MORE heads (a `$(…)` leftover `$`
+    # simply yields a head that matches nothing, while the substituted command
+    # inside it is still read).
+    _grg_heads=$(printf '%s\n' "$_grg_seg" |
+        tr '|;&(' '\n\n\n\n' |
+        sed -E -e 's/^[[:space:]]*//' \
+            -e "s/^(([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*|bun|bunx|sh|bash|env|-[^[:space:]]*|['\"])[[:space:]]*)*//" \
+            -e 's/[[:space:]].*$//')
+    if printf '%s\n' "$_grg_heads" |
+        grep -Eq '^\.?/?([^[:space:]]*/)?scripts/gate(-run\.sh|\.ts)$'; then
         return 0
     fi
 

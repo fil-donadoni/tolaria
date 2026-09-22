@@ -434,6 +434,39 @@ describe("deny-guard — a gate may not be piped into a pager", () => {
         );
     });
 
+    // The clause above used to match `scripts/gate*` ANYWHERE in the segment,
+    // so a read-only grep of a gate FILE read as "a gate piped into a pager"
+    // (issue #4377, reproduced twice on 2026-09-22). No gate runs in either
+    // command — the path is an argument — and the denial text sent the caller
+    // to `GATE_EXEMPT_SCRIPT_RE`, which cannot help: there is no script name
+    // to allowlist. The fix anchors the clause to COMMAND position.
+    it("allows a read-only grep whose ARGUMENT is a gate script, piped into a pager (#4377)", () => {
+        for (const cmd of [
+            'grep -n "tolaria.config.json" -A3 scripts/gate-run.sh | head -12',
+            'grep -n -E "^export" scripts/gate.ts scripts/lib/gate-liveness.ts | head',
+            "cat scripts/gate.ts | head -20",
+            "wc -l scripts/gate.ts scripts/gate-run.sh | tail -1",
+        ]) {
+            const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
+            expect(r.code, `expected ALLOW for: ${cmd}`).toBe(0);
+        }
+    });
+
+    it("still denies the gate script in COMMAND position, however it is wrapped (#4377)", () => {
+        // The fail-closed direction the anchoring must not lose: the head of a
+        // command is read past leading env assignments, wrapper words and
+        // their flags, so the gate is still recognised as the thing being RUN.
+        for (const cmd of [
+            "bun scripts/gate.ts heavy bunx vitest run | tail -20",
+            "./scripts/gate-run.sh check:lane | tail",
+            "env TOLARIA_GATE_RUN_KEY=k bun scripts/gate.ts heavy | tail",
+            "ls -1 | head -3; sh scripts/gate-run.sh check:lane | tail -5",
+        ]) {
+            const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
+            expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
+        }
+    });
+
     it("explains that the exit code becomes the pager's", () => {
         const r = runHook(
             DENY_GUARD,
