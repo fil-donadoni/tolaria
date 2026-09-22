@@ -79,6 +79,9 @@ export const EFFECT_CLAUSE = "effect clause";
 /** CR 115.3 — the head that marks an announcement as excluding an earlier one. */
 const ANOTHER_HEAD = "another target ";
 
+/** CR 120.3 — the exact damage-recipient union `subjectRule` reads whole. */
+const EACH_CREATURE_AND_EACH_PLAYER = "each creature and each player";
+
 /**
  * CR 107.3 — an effect's MAGNITUDE: a printed number, or the announced {X}.
  *
@@ -278,7 +281,18 @@ export type SubjectIR =
      * out over a sweep (destroy, tap, untap); every other verb keeps reading
      * `subjectRule` and so never sees one.
      */
-    | ({ readonly kind: "mass" } & MassSubjectIR);
+    | ({ readonly kind: "mass" } & MassSubjectIR)
+    /**
+     * CR 120.3 — the fixed two-set damage recipient union: every creature on
+     * the battlefield AND every player, read as ONE exact phrase rather than
+     * two `SubjectIR`s joined by a general "and" grammar (no such grammar
+     * exists — a coordinated subject is refused everywhere else this rule
+     * reads one). Read only by the two verbs the corpus prints it under
+     * (`deal-damage`, `prevent-next-damage`); their lowering fans out into a
+     * pair of `forEach` sweeps, one per set, because neither Op's `to` field
+     * names more than one recipient.
+     */
+    | { readonly kind: "each-creature-and-player" };
 
 /**
  * CR 118.12a — the price a counter's controller may be made to pay to keep
@@ -1143,6 +1157,12 @@ export const subjectRule: Rule<SubjectIR> = rule<SubjectIR>(
         const probe = uncapitalise(span);
         if (isSelfPhrase(probe)) return ok({ kind: "self" as const });
         if (probe === "that card") return ok({ kind: "that-card" as const });
+        // CR 120.3 — read as ONE exact phrase, not a general coordination of
+        // two subjects: the grammar has no "X and Y" combinator, and widening
+        // to one would read neighbours no fixture covers (e.g. "each
+        // opponent and each creature they control").
+        if (probe === EACH_CREATURE_AND_EACH_PLAYER)
+            return ok({ kind: "each-creature-and-player" as const });
         // CR 608.2h — the pronoun, in its two reachable spellings.
         //
         // `{it}` is the marker `objectPronounListRule` writes over the
@@ -2273,8 +2293,13 @@ function effectSentence(
         if (!to.ok) return to;
         // CR 115.4 — read for "any target" only, the one recipient the corpus
         // prints this shield under; every other recipient phrase is refused
-        // under its own reason so it stays its own Grammar Gap.
-        if (to.value.kind !== "target" || to.value.requirement.type !== "any")
+        // under its own reason so it stays its own Grammar Gap. CR 120.3's
+        // fixed two-set union is the one exception, read by its own kind
+        // rather than an announced target.
+        if (
+            to.value.kind !== "each-creature-and-player" &&
+            (to.value.kind !== "target" || to.value.requirement.type !== "any")
+        )
             return fail(
                 `a prevention shield is read for "any target" only, not "${preventNext[2]}" (CR 615.7)`,
                 span
