@@ -240,6 +240,10 @@ describe("queue lint — every finding is actionable (issue #2188)", () => {
             issue({ body: `## Parent\n\n#2180\n\n${WELL_FORMED}` }),
             issue({ labels: ["model:opus", "model:fable"] }),
             issue({ body: `⚠️ HITL\n\n${WELL_FORMED}` }),
+            issue({
+                blockedByNative: [501],
+                body: `${WELL_FORMED}\n## Blocked by\n\n- #500\n`,
+            }),
         ];
         const seen = new Set<string>();
         for (const p of provocations) {
@@ -254,6 +258,7 @@ describe("queue lint — every finding is actionable (issue #2188)", () => {
         // Every rule the module can emit must have been exercised above; a rule
         // added later with no test would drop out of this set.
         expect([...seen].sort()).toEqual([
+            "dependency-parity",
             "empty-body",
             "hitl-machine-checkable",
             "missing-parent-edge",
