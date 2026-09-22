@@ -282,8 +282,9 @@ Rationale, lane contents and measurements: `docs/agents/quality-gates.md`.
 **Session admission** is the tier above (ADR 0136 §6-7): `queue:plan` refuses
 a pick while live `in-progress` claims are at `sessions.cap` — 3, the measured
 PR/h knee, configuration not a literal, `--no-cap` the announced escape — or
-while a health `RED` marker stands. `land` only warns, so a session already
-mid-issue finishes.
+while a health `RED` marker stands; **the claim itself is `bun run queue:claim N`,
+one locked act** that re-reads the cap (issue #4375; a hand-typed label is
+denied). `land` only warns, so a session already mid-issue finishes.
 
 A queued heavy gate is not a hang: **`bun run gate:who`** names the holder;
 one that stops burning CPU is reclaimed (issue #2999).

@@ -723,4 +723,35 @@ replan after a claim collision (§1b), opt in explicitly:
     fi
 fi
 
+# 6. The claim is one locked act — `bun run queue:claim N` (issue #4375).
+#
+# `sessions.cap` used to be enforced by `queue:plan`'s READ of the live claims,
+# and the claim itself was typed by the session later (`gh issue edit N
+# --add-label in-progress`), with nothing between the read and the write:
+# `claim-ledger.sh` observes and never blocks, and this file had no rule on the
+# label. Two sessions in that window both passed the cap — the observed
+# `4/3 live claims` of 2026-09-22. `queue:claim` re-reads the live claims UNDER
+# a lock, refuses at the cap (or on a collision), writes the label and the
+# journal row, and releases. A hand-typed claim skips all of that, so it is
+# denied and pointed at the verb. The hatch exists for a repair — releasing or
+# re-labelling by hand — never for a pass.
+#
+# Match the INVOCATION shape — at the start of a segment or right after a `|`
+# (the splitter does not break on a pipe), an env-var prefix allowed — so a
+# commit message quoting this rule is not a claim. The label in every form
+# `gh` accepts: `--add-label in-progress`, `--add-label=in-progress`, quoted,
+# first of a comma list. A `--remove-label in-progress` is a release, not a
+# claim, and stays allowed.
+CLAIM_INVOKE='(^|\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*gh[[:space:]]+issue[[:space:]]+edit[[:space:]].*--add-label(=|[[:space:]]+)["'"'"']?in-progress["'"'"']?([[:space:],]|$)'
+if seg_has "$CLAIM_INVOKE" && ! seg_has 'TOLARIA_ALLOW_MANUAL_CLAIM=1' "$CLAIM_INVOKE"; then
+    deny "BLOCKED: hand-typed claim — the claim is one locked act (issue #4375).
+\`queue:plan\` counts the live claims and refuses a plan at \`sessions.cap\`,
+but a label typed later races that read: two sessions in the window both pass.
+\`queue:claim\` takes the claim lock, re-reads the live claims, refuses at the
+cap or on a collision, then writes the label AND the journal row:
+  bun run queue:claim <issue#>          # --no-cap plans past the cap deliberately
+Repairing a label by hand (a release is never denied):
+  TOLARIA_ALLOW_MANUAL_CLAIM=1 gh issue edit <issue#> --add-label in-progress"
+fi
+
 exit 0

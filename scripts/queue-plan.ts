@@ -73,7 +73,7 @@ import { claimLedgerPath } from "./loop-doctor";
 // functions).
 const REPO_ROOT = resolve(__dirname, "..");
 
-const DEFAULTS = {
+export const DEFAULTS = {
     cap: 4,
     // Deep enough to see the WHOLE queue, not a window of it.
     //
@@ -120,7 +120,9 @@ function arg(name: string, fallback: number): number {
 /** Issues with an open PR — the liveness signal that keeps a long-running claim
  *  from being swept. Derived from the head branch name, because that branch is
  *  the loop's atomic ownership claim (`feat/issue-N` / `fix/issue-N`). */
-function issuesWithOpenPr(): number[] {
+/** Exported for `queue:claim`: ONE definition of "which issues have a PR",
+ *  feeding the shared `isStaleClaim` from both verbs. */
+export function issuesWithOpenPr(): number[] {
     const prs = JSON.parse(
         gh([
             "pr",

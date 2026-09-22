@@ -489,6 +489,26 @@ function hoursBetween(fromIso: string, toIso: string): number {
 }
 
 /**
+ * A claim nobody is working: no open PR for the issue and no activity on it
+ * for longer than `staleClaimHours`. ONE definition, read by the planner
+ * (which defers such an issue and excludes it from `activeClaims`) and by
+ * `queue:claim` (which excludes it from the set the cap counts, issue #4375)
+ * — two spellings of "stale" would let the planner admit a pick the claim
+ * then refuses.
+ */
+export function isStaleClaim(
+    issue: { number: number; updatedAt: string },
+    issuesWithOpenPr: number[],
+    nowIso: string,
+    staleClaimHours: number
+): boolean {
+    return (
+        !issuesWithOpenPr.includes(issue.number) &&
+        hoursBetween(issue.updatedAt, nowIso) > staleClaimHours
+    );
+}
+
+/**
  * The repo root, as a normalized path. A `Target files` list of `- *` — the
  * "this touches everything" the intake skills document — normalizes to this and
  * collides with every path there is.
@@ -701,10 +721,12 @@ export function planBatch(
         }
 
         if (hasLabel(issue, "in-progress")) {
-            const stale =
-                !port.issuesWithOpenPr.includes(issue.number) &&
-                hoursBetween(issue.updatedAt, config.now) >
-                    config.staleClaimHours;
+            const stale = isStaleClaim(
+                issue,
+                port.issuesWithOpenPr,
+                config.now,
+                config.staleClaimHours
+            );
             if (stale) {
                 staleClaims.push(issue.number);
                 deferred.push({
