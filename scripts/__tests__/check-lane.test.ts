@@ -42,6 +42,14 @@ function ids(entries: { id: string }[]): string[] {
     return entries.map((e) => e.id);
 }
 
+/**
+ * The tree re-assertion (issue #4379) for a test that is not about it: a
+ * quiet tree never refuses, so it is a no-op. `runPlan` and `executePlan`
+ * take it as a REQUIRED parameter precisely so a caller cannot forget it,
+ * which is why this is spelled out rather than defaulted away.
+ */
+const noopAssert = (): string => "4f2a91c";
+
 describe("check-lane — path classification (issue #2740)", () => {
     it("classifies src/** as skin", () => {
         expect(classifyPath("src/components/board/Card.tsx")).toBe("skin");
@@ -1073,7 +1081,7 @@ describe("check-lane — execution (issue #2741)", () => {
                 plan.run.map((c) => [c.command, { ok: true, ms: 10 }])
             )
         );
-        const result = runPlan(plan, exec);
+        const result = runPlan(plan, exec, noopAssert);
 
         expect(result.ok).toBe(true);
         expect(calls).toEqual(plan.run.map((c) => c.command));
@@ -1107,7 +1115,7 @@ describe("check-lane — execution (issue #2741)", () => {
                 ])
             )
         );
-        const result = runPlan(plan, exec);
+        const result = runPlan(plan, exec, noopAssert);
 
         expect(result.ok).toBe(false);
         // exec was called for the first two checks only — the failing one
@@ -1129,7 +1137,8 @@ describe("check-lane — execution (issue #2741)", () => {
                 Object.fromEntries(
                     plan.run.map((c) => [c.command, { ok: true, ms: 1000 }])
                 )
-            ).exec
+            ).exec,
+            noopAssert
         );
         const out = renderReceipt(result, { start: "4f2a91c", end: "4f2a91c" });
         for (const o of result.outcomes) expect(out).toContain(o.id);
@@ -1149,7 +1158,8 @@ describe("check-lane — execution (issue #2741)", () => {
                         { ok: c.command !== failing, ms: 1 },
                     ])
                 )
-            ).exec
+            ).exec,
+            noopAssert
         );
         expect(
             renderReceipt(result, { start: "4f2a91c", end: "4f2a91c" })
@@ -1189,8 +1199,13 @@ describe("check-lane — execution (issue #2741)", () => {
             )
         );
         const lines: string[] = [];
-        const result = executePlan(plan, "4f2a91c", true, exec, (l) =>
-            lines.push(l)
+        const result = executePlan(
+            plan,
+            "4f2a91c",
+            true,
+            exec,
+            (l) => lines.push(l),
+            () => "4f2a91c"
         );
 
         expect(calls).toEqual(plan.run.map((c) => c.command));
@@ -1214,7 +1229,14 @@ describe("check-lane — execution (issue #2741)", () => {
             )
         );
         const lines: string[] = [];
-        executePlan(plan, "deadbee", false, exec, (l) => lines.push(l));
+        executePlan(
+            plan,
+            "deadbee",
+            false,
+            exec,
+            (l) => lines.push(l),
+            () => "deadbee"
+        );
 
         expect(lines).toHaveLength(2);
         expect(lines[0]).toBe(renderPlan(plan, "deadbee"));
@@ -1518,6 +1540,75 @@ describe("check-lane — the tree may not move under the run (issue #4379, findi
             )
         ).toThrow("tree moved");
         expect(lines).toEqual([]);
+    });
+
+    /**
+     * The re-assertion has to bracket EVERY check, not the run as a whole
+     * (round-1 review). An `engine` or `full` lane runs fourteen checks over
+     * minutes; a stash pushed and popped inside that span leaves HEAD,
+     * status and the stash list identical at both ends, so an assertion
+     * taken only after the last check sees nothing — while whichever checks
+     * ran in the middle read the moved tree. That is this file's own bug,
+     * relocated one level down.
+     *
+     * Proof-of-failure: deleted the `assertQuiet();` line from `runPlan`'s
+     * loop — this test went red (`calls` was `["check-1"]`, the assertion
+     * having fired only once, after the whole run). Reverted.
+     */
+    it("re-asserts before EVERY check, not once around the whole run", () => {
+        const plan: LanePlan = {
+            lane: "engine",
+            rationale: "3 files",
+            files: ["convex/gre/a.ts"],
+            run: [
+                { id: "check-1", command: "bun run a" },
+                { id: "check-2", command: "bun run b" },
+                { id: "check-3", command: "bun run c" },
+            ],
+            skip: [],
+        };
+        const calls: string[] = [];
+        let running = "";
+        const result = runPlan(
+            plan,
+            (command) => {
+                running = command;
+                return { ok: true, ms: 1 };
+            },
+            () => {
+                calls.push(running === "" ? "before-first" : running);
+                return "4f2a91c";
+            }
+        );
+        expect(result.ok).toBe(true);
+        // One assertion per check, each taken BEFORE that check ran: the
+        // list is the state of the run at each assertion, so it lags the
+        // command list by one.
+        expect(calls).toEqual(["before-first", "bun run a", "bun run b"]);
+    });
+
+    it("stops asserting once a check has failed — the run is over", () => {
+        const plan: LanePlan = {
+            lane: "engine",
+            rationale: "3 files",
+            files: ["convex/gre/a.ts"],
+            run: [
+                { id: "check-1", command: "bun run a" },
+                { id: "check-2", command: "bun run b" },
+            ],
+            skip: [],
+        };
+        let asserts = 0;
+        const result = runPlan(
+            plan,
+            () => ({ ok: false, ms: 1 }),
+            () => {
+                asserts += 1;
+                return "4f2a91c";
+            }
+        );
+        expect(result.ok).toBe(false);
+        expect(asserts).toBe(1);
     });
 
     it("carries the start and end sha in the human receipt", () => {

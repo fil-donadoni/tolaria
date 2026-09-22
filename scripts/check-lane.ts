@@ -766,10 +766,15 @@ export interface RunResult {
  * stops everything after it today. A check that never ran because an
  * earlier one failed is recorded `not-run` rather than silently missing
  * from the receipt, so every planned check is accounted for either way.
+ *
+ * `assertQuiet` is the tree re-assertion (issue #4379), called before each
+ * check that actually runs; it exits the process on a tree that moved.
+ * Required, not defaulted: see `executePlan`.
  */
 export function runPlan(
     plan: LanePlan,
-    exec: (command: string) => { ok: boolean; ms: number }
+    exec: (command: string) => { ok: boolean; ms: number },
+    assertQuiet: () => unknown
 ): RunResult {
     const outcomes: CheckOutcome[] = [];
     let ok = true;
@@ -779,6 +784,16 @@ export function runPlan(
             outcomes.push({ id: check.id, status: "not-run", ms: 0 });
             continue;
         }
+        // BEFORE EVERY CHECK, not once around the whole phase (round-1
+        // review of #4379). An `engine` or `full` lane runs fourteen checks
+        // over minutes; a stash that is pushed and popped inside that span
+        // leaves HEAD, status and the stash list identical at both ends,
+        // so a single assertion after the last check sees nothing — while
+        // whichever checks ran in the middle read the moved tree. That is
+        // the bug this file exists to close, relocated one level down. The
+        // assertion is three cheap git reads against a check that costs
+        // seconds at minimum.
+        assertQuiet();
         const result = exec(check.command);
         totalMs += result.ms;
         outcomes.push({
@@ -1036,20 +1051,29 @@ function shellRun(
  * `exec`, `log` and `endHeadOf` are injected so a test can drive this with a
  * hand-built plan and a fake shell, with no subprocess — same pattern as
  * `runPlan`'s injectable `exec`. `endHeadOf` is the tree re-assertion
- * (issue #4379): it runs after the last check and before the receipt, and
- * `main()` passes one that refuses a tree that moved under the run.
+ * (issue #4379): it runs before every check and again before the receipt,
+ * and `main()` passes one that refuses a tree that moved under the run.
+ *
+ * NONE OF THE THREE HAS A DEFAULT (round-1 review of #4379). `log` and
+ * `endHeadOf` used to default to `console.log` and `() => head`, and the
+ * second of those is a silent no-op: a future caller that forgot the
+ * argument would get the pre-#4379 behaviour back with nothing — not `tsc`,
+ * not a test — saying so. A required parameter is the signal.
  */
 export function executePlan(
     plan: LanePlan,
     head: string,
     json: boolean,
     exec: (command: string) => { ok: boolean; ms: number },
-    log: (line: string) => void = console.log,
-    endHeadOf: () => string = () => head
+    log: (line: string) => void,
+    endHeadOf: () => string
 ): RunResult {
     if (!json) log(renderPlan(plan, head));
 
-    const result = runPlan(plan, exec);
+    // `endHeadOf` goes down into the loop as well, so the tree is asserted
+    // before every check and not only around the phase (round-1 review of
+    // #4379).
+    const result = runPlan(plan, exec, endHeadOf);
 
     // BEFORE either rendering, never after (issue #4379): `endHeadOf` is
     // `main()`'s re-assertion, which exits on a tree that moved under the
