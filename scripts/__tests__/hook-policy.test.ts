@@ -434,6 +434,74 @@ describe("deny-guard — a gate may not be piped into a pager", () => {
         );
     });
 
+    // The clause above used to match `scripts/gate*` ANYWHERE in the segment,
+    // so a read-only grep of a gate FILE read as "a gate piped into a pager"
+    // (issue #4377, reproduced twice on 2026-09-22). No gate runs in either
+    // command — the path is an argument — and the denial text sent the caller
+    // to `GATE_EXEMPT_SCRIPT_RE`, which cannot help: there is no script name
+    // to allowlist. The fix anchors the clause to COMMAND position.
+    it("allows a read-only grep whose ARGUMENT is a gate script, piped into a pager (#4377)", () => {
+        for (const cmd of [
+            'grep -n "tolaria.config.json" -A3 scripts/gate-run.sh | head -12',
+            'grep -n -E "^export" scripts/gate.ts scripts/lib/gate-liveness.ts | head',
+            "cat scripts/gate.ts | head -20",
+            "wc -l scripts/gate.ts scripts/gate-run.sh | tail -1",
+            'sed -n "1,40p" scripts/gate-run.sh | head -20',
+            "git log --oneline -- scripts/gate.ts | head -5",
+            "time grep -n export scripts/gate.ts | head",
+            "diff scripts/gate.ts scripts/gate-run.sh | head",
+            "head -40 scripts/gate-run.sh | tail -5",
+            // Deleting redirections replaced a skip rule that also ate a bare
+            // digit run, mistruncating any command whose name starts with one.
+            "2to3 scripts/gate.ts | head",
+        ]) {
+            const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
+            expect(r.code, `expected ALLOW for: ${cmd}`).toBe(0);
+        }
+    });
+
+    it("still denies the gate script in COMMAND position, however it is wrapped (#4377)", () => {
+        // The fail-closed direction the anchoring must not lose: the head of a
+        // command is read past leading env assignments, wrapper words and
+        // their flags, so the gate is still recognised as the thing being RUN.
+        for (const cmd of [
+            "bun scripts/gate.ts heavy bunx vitest run | tail -20",
+            "./scripts/gate-run.sh check:lane | tail",
+            "env TOLARIA_GATE_RUN_KEY=k bun scripts/gate.ts heavy | tail",
+            "ls -1 | head -3; sh scripts/gate-run.sh check:lane | tail -5",
+            // The skipped-prefix list errs towards denying MORE: a word it
+            // skips can only expose a head further right, never hide one.
+            "time bun scripts/gate.ts heavy | tail",
+            "nohup sh scripts/gate-run.sh check:lane | tail",
+            "command sh scripts/gate-run.sh check:lane | tail",
+            "( bun scripts/gate.ts heavy ) | tail",
+            "echo `bun scripts/gate.ts heavy` | tail",
+            "ls | head -2 && bun scripts/gate.ts heavy | tail",
+            "{ bun scripts/gate.ts heavy | tail -5 ; }",
+            // Every one of the rest was ALLOWED by the first revision of the
+            // anchoring and caught in review — each genuinely RUNS the gate.
+            // A path-qualified wrapper is the same command as the bare one:
+            "/usr/bin/env sh scripts/gate-run.sh check:lane | tail",
+            "/bin/sh scripts/gate-run.sh check:lane | tail",
+            'eval "sh scripts/gate-run.sh check:lane" | tail',
+            "exec sh scripts/gate-run.sh check:lane | tail",
+            "sudo sh scripts/gate-run.sh check:lane | tail",
+            "source scripts/gate-run.sh check:lane | tail",
+            ". scripts/gate-run.sh check:lane | tail",
+            'sh -c "bun scripts/gate.ts heavy" | tail',
+            // `sh <file` with no space runs the script from stdin. The
+            // redirection is DELETED, not skipped as a token, so the glued
+            // path is still read as the head — a one-character bypass
+            // otherwise.
+            "sh <scripts/gate-run.sh check:lane | tail",
+            "sh < scripts/gate-run.sh | tail",
+            "bun scripts/gate.ts heavy 2>&1 | tail",
+        ]) {
+            const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
+            expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
+        }
+    });
+
     it("explains that the exit code becomes the pager's", () => {
         const r = runHook(
             DENY_GUARD,

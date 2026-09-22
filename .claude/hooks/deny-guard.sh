@@ -296,7 +296,62 @@ segment_reaches_gate() {
     # check:lane`, contains no `bun run` token at all, so without this line
     # piping or backgrounding the gate DRIVER slipped through the very rules
     # it exists to make followable.
-    if printf '%s\n' "$_grg_seg" | grep -Eq 'scripts/gate(-run\.sh|\.ts)'; then
+    #
+    # **ANCHORED TO COMMAND POSITION (issue #4377).** This clause used to
+    # match `scripts/gate*` ANYWHERE in the segment, so a read-only grep of a
+    # gate file — `grep -n "tolaria.config.json" -A3 scripts/gate-run.sh |
+    # head -12` — was denied as "a gate piped into a pager", and the denial
+    # text sent the caller to `GATE_EXEMPT_SCRIPT_RE`, which is the wrong fix
+    # (the file is an ARGUMENT, not the command; no gate runs at all). A gate
+    # only runs when the path is the thing being EXECUTED, so that is what is
+    # matched: the head of each command in the segment, never a later
+    # argument. The `bun run <script>` clause below is untouched.
+    #
+    # Anchoring is the whole risk here, so the head extraction is built to err
+    # towards finding MORE heads — every step below can only ever make this
+    # clause deny more, never less:
+    #
+    #   1. Redirections are DELETED first, not skipped as a token. Deleting
+    #      `2>&1` outright means the `&` split below leaves no stray `1` to
+    #      read as a command, and deleting the operator in `sh <scripts/gate-
+    #      run.sh` (no space — valid shell, `sh` runs the script from stdin)
+    #      exposes the path as the head. An earlier revision skipped a
+    #      redirection as one token, `[0-9]*[<>][^[:space:]]*`, which
+    #      swallowed that glued path and was a one-character bypass; it also
+    #      needed a bare `[0-9]+` alternative that mistruncated any command
+    #      whose name starts with a digit (`2to3` read as `to3`). Both are
+    #      gone (issue #4377 review).
+    #   2. Command boundaries are taken from ``| ; & ( { ` `` — the same
+    #      segment-level approximation the rest of this file uses. A `$(…)`
+    #      leftover `$` simply yields a head that matches nothing, while the
+    #      substituted command inside it is still read.
+    #   3. The head is read past leading quotes, env assignments, flags, and
+    #      wrapper words — `bun`/`bunx`/`sh`/`bash`/`zsh`/`env`/`time`/
+    #      `nohup`/`command`/`eval`/`exec`/`sudo`/`source`/`.`/`nice`/
+    #      `stdbuf`/`xargs` — each accepted PATH-QUALIFIED too, because
+    #      `/usr/bin/env sh scripts/gate-run.sh | tail` and `/bin/sh …` run
+    #      the gate exactly as the bare forms do and were both allowed before
+    #      the review caught it. Same for `eval "sh scripts/gate-run.sh" |
+    #      tail`, `exec …`, `sudo …`, `source …` and `. …`.
+    #
+    # So `bun scripts/gate.ts heavy …` and `sh scripts/gate-run.sh … | tail`
+    # remain denied, however they are wrapped.
+    #
+    # **What this does NOT reach, and never did:** a brace group whose `;`
+    # ends the segment before §3 looks at it — `{ sh scripts/gate-run.sh; } |
+    # tail` is allowed, as it was before this change, because the top-level
+    # splitter treats `;` as a segment boundary on purpose (`hook-policy.
+    # test.ts`: "`;` must not join a gate into a pager segment"). `{` is in
+    # the boundary set above for the shape that DOES reach here, `{ bun
+    # scripts/gate.ts heavy | tail -5 ; }`, where the pipe precedes the `;`.
+    _grg_heads=$(printf '%s\n' "$_grg_seg" |
+        sed -E 's/[0-9]*[<>]+&?[0-9-]*//g' |
+        tr '|;&({`' '\n\n\n\n\n\n' |
+        sed -E -e 's/^[[:space:]]*//' \
+            -e "s#^((['\"]|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+|(/?([^[:space:]/]+/)*)?(bun|bunx|sh|bash|zsh|env|time|nohup|command|eval|exec|sudo|source|nice|stdbuf|xargs|\.)[[:space:]]+|-[^[:space:]]*[[:space:]]+))*##" \
+            -e 's/[[:space:]].*$//')
+    if printf '%s\n' "$_grg_heads" |
+        grep -Eq '^\.?/?([^[:space:]]*/)?scripts/gate(-run\.sh|\.ts)$'; then
         return 0
     fi
 
@@ -424,7 +479,12 @@ fi
 # informational command is merely inconvenient until it earns a line below —
 # which is the failure direction actually wanted here. A bare
 # `scripts/gate.ts` invocation (bypassing `bun run` entirely) is always the
-# gate itself and stays unconditionally denied when piped.
+# gate itself and stays denied when piped — but only IN COMMAND POSITION
+# (issue #4377): the clause reads the head of each command in the segment,
+# because a gate only runs when the path is the thing being EXECUTED. A gate
+# script named as an ARGUMENT runs nothing, so `grep -n … scripts/gate-run.sh
+# | head -12` is an ordinary read and is allowed. The derivation, and what the
+# head is read past, are in `segment_reaches_gate` above.
 #
 # **Known tradeoff, taken deliberately — and mislocated in an earlier
 # revision of this comment.** This rule matches SEGMENTS, never parsed
