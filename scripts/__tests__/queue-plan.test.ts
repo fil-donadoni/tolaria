@@ -1576,22 +1576,37 @@ describe("queue planner — `--lineage <N>` scopes the batch to one umbrella (is
     });
 
     it("resolves the model per issue exactly as an unrestricted plan does", () => {
+        // #200 is out of lineage AND carries a different tier, so the two
+        // plans are not the same batch — the assertion is that every admitted
+        // entry is byte-identical to the one the unrestricted pass produced
+        // for it, which a filter bug would break in either direction.
         const issues = [
             issue(100, {
                 parent: 900,
                 labels: ["ready-for-agent", "model:opus"],
             }),
+            issue(200, {
+                parent: 901,
+                labels: ["ready-for-agent", "model:fable"],
+            }),
             issue(400, { parent: 900 }),
         ];
         const details = {
             100: { body: body({ targetFiles: ["src/a.ts"] }) },
+            200: { body: body({ targetFiles: ["src/b.ts"] }) },
             400: { body: body({ targetFiles: ["src/d.ts"] }) },
         };
         const scoped = planBatch(issues, LINEAGE, makePort(details));
         const whole = planBatch(issues, CONFIG, makePort(details));
 
+        expect(scoped.batch.map((b) => b.number)).toEqual([100, 400]);
         expect(scoped.batch.map((b) => b.model)).toEqual(["opus", "sonnet"]);
-        expect(scoped.batch).toEqual(whole.batch);
+        expect(whole.batch.map((b) => b.model)).toContain("fable");
+        for (const entry of scoped.batch) {
+            expect(entry).toEqual(
+                whole.batch.find((b) => b.number === entry.number)
+            );
+        }
     });
 
     it("combines with the batch cap", () => {

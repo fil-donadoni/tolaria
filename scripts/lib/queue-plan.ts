@@ -23,7 +23,12 @@
 //     cost scales with the batch, not the queue.
 //   * TOTAL — every issue in the snapshot lands in exactly one of `batch`,
 //     `deferred`, `skipped` or `staleClaims`. An issue the planner silently
-//     drops is an issue nobody knows is stuck.
+//     drops is an issue nobody knows is stuck. ONE carve-out, and it is
+//     explicit: a `--lineage` run (`PlanConfig.lineage`, issue #2327) is a
+//     plan over a DECLARED subset, so an eligible issue outside that lineage
+//     lands nowhere — it was never a candidate. The restriction that produced
+//     the subset is recorded on `PlanRecord.lineage`, which is what keeps the
+//     omission legible rather than silent.
 //
 // The orchestrator EXECUTES this plan; it does not re-derive it.
 
@@ -848,7 +853,7 @@ export function planBatch(
         eligible.push(issue);
     }
 
-    // ── Stage 1: lineage restriction (issue #2327) ──────────────────────────
+    // ── Lineage restriction (issue #2327) ───────────────────────────────────
     // Scope the candidate set to one umbrella's own children, and change
     // NOTHING else: the sort below, the dependency scan, the disjointness rule
     // and the model resolution all run over this set exactly as they run over
