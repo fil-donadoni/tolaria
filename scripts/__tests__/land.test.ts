@@ -1965,6 +1965,10 @@ describe("land.ts — housekeeping steps against a MISSING worktree", () => {
         const cmd = buildHousekeepingCommand(merged);
         expect(cmd).toContain("if [ -e '/repo-issue-4378' ]");
         expect(cmd).toContain("worktree remove --force '/repo-issue-4378'");
+        // The `else` half: a registered-but-missing worktree used to be
+        // pruned by the unconditional `worktree remove` itself, and guarding
+        // on `[ -e ]` alone would have taken that away (review round 1).
+        expect(cmd).toContain("worktree prune");
     });
 
     it("tears down the branch the PR names, never the base branch", () => {
@@ -2031,6 +2035,25 @@ describe("land.ts — the teardown step, executed", () => {
         const r = teardown(worktree);
         expect(r.status).toBe(0);
         expect(existsSync(worktree)).toBe(false);
+        expect(
+            spawnSync("git", ["branch", "--list", "fix/issue-4378"], {
+                cwd: primary,
+                encoding: "utf8",
+            }).stdout.trim()
+        ).toBe("");
+    });
+
+    it("still deletes the branch when the worktree directory was rm -rf'd", () => {
+        // The OTHER absent state, and the one the `[ -e ]` guard alone
+        // regressed (review round 1, finding 1): the directory is gone but
+        // git still has it REGISTERED, because nobody ran `worktree remove`.
+        // The unconditional removal used to self-prune that; skipping it
+        // leaves the stale `.git/worktrees/` entry, and `branch -D` then
+        // refuses a branch git believes is still checked out — silently,
+        // behind `|| true`. So the branch must still be gone afterwards.
+        rmSync(worktree, { recursive: true, force: true });
+        const r = teardown(worktree);
+        expect(r.status).toBe(0);
         expect(
             spawnSync("git", ["branch", "--list", "fix/issue-4378"], {
                 cwd: primary,
