@@ -24,6 +24,17 @@ export const DOC_GATE_TESTS = [
     // (`bun run cr:lint`, already in `check:docs:inner`, runs the same scan;
     // the test is what keeps the gate honest if that wiring changes).
     "scripts/__tests__/cr-citation-ledger.test.ts",
+    // ADR 0098's no-third-party-mirror sweep READS the instruction files that
+    // tell an agent where rules come from — `.claude/skills/{mtg-rules-check,
+    // new-card,new-set}/SKILL.md`, `.claude/rules/gre-development.md`,
+    // `CLAUDE.md` — and asserts the rules-check skill still points at the
+    // vendored document. Those are exactly the paths the docs lane carries
+    // since issue #4376, so the lane that merges a skill edit has to be the
+    // lane that re-runs this. (It ALSO guards `data/cr/`, which is why its row
+    // used to sit in `DOC_GATE_TESTS_EXCLUDED` — that reason covered half the
+    // file and stopped being enough the moment a `SKILL.md` stopped forcing
+    // the full gate.)
+    "scripts/__tests__/cr-source.test.ts",
     // Scans the SKILLS for two destructive data-regeneration recipes. A skill
     // step is prose the docs lane will happily carry on its own, and the
     // recipes got into the skills by being copied from a guard hint in the

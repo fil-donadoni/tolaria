@@ -141,9 +141,21 @@ describe("docs-lane — what the lane will carry", () => {
 });
 
 describe("docs-lane — the doc gate covers every guard that reads prose", () => {
-    /** Source mentions a repo documentation path in a way a guard would. */
+    /**
+     * Source mentions a repo documentation path in a way a guard would.
+     *
+     * `\.claude\/` is the WHOLE tree, not just `skills/` (issue #4376). The
+     * docs lane now carries `.claude/skills/**\/*.md` and `.claude/rules/*.md`,
+     * so the acceptance question became "does `check:docs` run every guard
+     * that reads anything under `.claude/`?" — and the honest way to ask it is
+     * the same sweep `git grep -l '\.claude/' scripts/__tests__` performs.
+     * Widening it this way pulled in twelve files that name a RUNTIME
+     * directory (`telemetry/`, `receipts/`, `~/.claude/projects`) or cite a
+     * rule file in a header comment; each is now a row in
+     * `DOC_GATE_TESTS_EXCLUDED` with the reason it guards no document.
+     */
     const READS_DOCS =
-        /"docs\/|docs\/adr|CONTEXT\.md|\.claude\/skills|\.md"|README\.md/;
+        /"docs\/|docs\/adr|CONTEXT\.md|\.claude\/|\.md"|README\.md/;
 
     it("classifies every doc-reading guard as covered or excluded-with-a-reason", () => {
         const unclassified: string[] = [];
@@ -163,6 +175,99 @@ describe("docs-lane — the doc gate covers every guard that reads prose", () =>
                 `Add each to DOC_GATE_TESTS (and to check:docs:inner in package.json), or to\n` +
                 `DOC_GATE_TESTS_EXCLUDED with the reason it does not guard repo prose:\n` +
                 unclassified.map((f) => `  ${f}`).join("\n")
+        ).toEqual([]);
+    });
+
+    /**
+     * Issue #4376's acceptance pin, stated as its own sweep rather than as a
+     * clause of the regex above: the docs lane carries `.claude/skills/**\/*.md`
+     * and `.claude/rules/*.md`, so every guard that reads ANYTHING under
+     * `.claude/` must either be a guard `check:docs` runs or carry a recorded
+     * reason why a prose edit cannot red it.
+     *
+     * The literal `".claude/"` is the same fixed string
+     * `git grep -l '\.claude/' scripts/__tests__` matches — done in-process
+     * because a `spawnSync` in a vitest worker cannot be interrupted by
+     * `testTimeout`, and this sweep has no need of git.
+     */
+    it("every guard that reads .claude/** is covered or excluded-with-a-reason (issue #4376)", () => {
+        const unclassified: string[] = [];
+        let swept = 0;
+        for (const file of fs.readdirSync(TESTS_DIR)) {
+            if (!file.endsWith(".test.ts")) continue;
+            const rel = path.posix.join("scripts", "__tests__", file);
+            if (rel.endsWith("docs-lane.test.ts")) continue; // this file
+            const src = fs.readFileSync(path.join(TESTS_DIR, file), "utf8");
+            if (!src.includes(".claude/")) continue;
+            swept++;
+            if (
+                !DOC_GATE_TESTS.includes(rel) &&
+                !(rel in DOC_GATE_TESTS_EXCLUDED)
+            )
+                unclassified.push(rel);
+        }
+        // The sweep must find something, or the assertion below is vacuous.
+        expect(
+            swept,
+            "no test mentions .claude/ — the sweep broke"
+        ).toBeGreaterThan(10);
+        expect(
+            unclassified,
+            `These guards read .claude/** but check:docs neither runs them nor records why not.\n` +
+                `The docs lane carries .claude/skills/**/*.md and .claude/rules/*.md (issue #4376),\n` +
+                `so add each to DOC_GATE_TESTS (and to check:docs:inner in package.json), or to\n` +
+                `DOC_GATE_TESTS_EXCLUDED with the reason a prose edit cannot red it:\n` +
+                unclassified.map((f) => `  ${f}`).join("\n")
+        ).toEqual([]);
+    });
+
+    /**
+     * The census's blind spot, closed (review of issue #4376). An exclusion row
+     * is a claim about the WHOLE test, written once; widening what the docs
+     * lane CARRIES can falsify a row nobody touched. That is exactly what
+     * happened here: `cr-source.test.ts` was excluded as "guards data/cr/, the
+     * vendored rules document — not repo prose", which was true of half the
+     * file. Its other half (ADR 0098's no-third-party-mirror sweep)
+     * `readFileSync`s `.claude/skills/<skill>/SKILL.md` and
+     * `.claude/rules/gre-development.md` — harmless while every `.claude/**`
+     * edit forced the full gate, a hole the moment a `SKILL.md` took the cheap
+     * lane. The census could not see it, because the row already existed.
+     *
+     * So: an excluded test that names a `.claude/{skills,rules}` path AS A
+     * WHOLE STRING, outside a comment, must say in its reason that the path is
+     * a fixture. A test that really reads one cannot honestly write that word,
+     * and has to earn a `DOC_GATE_TESTS` row instead. Comments are stripped
+     * first — a header citing a rule file is prose about the rule, not a use
+     * of it, and every rule-mechanising guard in this repo carries one.
+     */
+    it("an excluded test naming a .claude/{skills,rules} path calls it a fixture, or is covered (review of issue #4376)", () => {
+        const stripComments = (src: string) =>
+            src
+                .replace(/\/\*[\s\S]*?\*\//g, "")
+                .replace(/(^|[^:])\/\/[^\n]*/g, "$1");
+        /** A string literal that IS a path under .claude/skills or .claude/rules. */
+        // The quote characters are spelled \x22 / \x27 / \x60 rather than
+        // written literally: a backtick inside a regex literal is legal JS but
+        // trips esbuild's template-literal lexer in this file.
+        const WHOLE_STRING_PATH = new RegExp(
+            "([\\x22\\x27\\x60])(\\.claude/(?:skills|rules)/[^\\x22\\x27\\x60\\n]*?)\\1"
+        );
+        const offenders: string[] = [];
+        for (const [file, reason] of Object.entries(DOC_GATE_TESTS_EXCLUDED)) {
+            const src = stripComments(
+                fs.readFileSync(path.join(REPO_ROOT, file), "utf8")
+            );
+            if (!WHOLE_STRING_PATH.test(src)) continue;
+            if (/fixture|synthetic/i.test(reason)) continue;
+            offenders.push(`${file} — ${reason}`);
+        }
+        expect(
+            offenders,
+            `These tests name a .claude/skills or .claude/rules path in CODE, not in a comment,\n` +
+                `but their exclusion reason does not say it is a fixture. Since issue #4376 the docs\n` +
+                `lane carries those paths, so a test that READS one must move to DOC_GATE_TESTS (and\n` +
+                `check:docs:inner); one that only feeds it to a classifier must say so:\n` +
+                offenders.map((f) => `  ${f}`).join("\n")
         ).toEqual([]);
     });
 

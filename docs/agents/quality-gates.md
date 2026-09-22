@@ -107,8 +107,10 @@ inert → #2741 wiring/execution → #2743 batch homogeneity + this section) pic
 a lane from the diff — `skin` (`src/**`/`public/**`/`index.html` only),
 `engine` (`convex/**`, `scripts/**`, `data/**`; no `src/**` at all), `cards`
 (`convex/cards/sets/**` plus `data/**`, at least one card path; ADR 0136 §4),
-`docs` (prose only) or `full` (anything else, fail-closed) — and runs exactly that
-lane's checks. Prose beside code does not change the lane: the code decides
+`docs` (prose only — markdown under `docs/**`, a root-level or nested
+`CLAUDE.md`/`AGENTS.md`, and `.claude/skills/**/*.md` + `.claude/rules/*.md`;
+§ `.claude/**` is split, below) or `full` (anything else, fail-closed) — and
+runs exactly that lane's checks. Prose beside code does not change the lane: the code decides
 it and the plan ends with `node[docs]`, the `check:docs` test list (ADR 0136
 §3, below). It is the lane gate `land` pays once on the
 rebased tip (CLAUDE.md § Quality gates, ADR 0136 §1); `check:pr` is the fallback the classifier itself
@@ -259,6 +261,80 @@ both; 109 classify as `engine` after the change, against 34 before):
   receipt's skip reasons say "no changed **code** under X" for exactly this
   reason: a nested `CLAUDE.md` sits under the directory they name, and the
   truth test in `check-lane.test.ts` checks the claim against the code paths.
+
+### `.claude/**` is split: skills and rules are prose, hooks are programs (issue #4376)
+
+`^\.claude/` sat in `FULL_PATTERNS` whole. That was right while the tree held
+hooks and rule indexes: a hook or a nested rule file can change anything, so
+forcing the full gate is the fail-closed answer. Issues #4087/#4090 then moved
+every WORKFLOW SKILL in there — `/next-issue`, `/grammar-rule`, `/to-prd`,
+`/to-tickets`, … — and a one-line `SKILL.md` edit started paying `check:pr`
+verbatim (~440 s) instead of a lane (~190 s, or seconds for `check:docs`).
+Measured over the last 100 landings before the change: **23 of 100 landings
+were `full` by fallback, 9 of them on a `.claude/**` prose path.\*\*
+
+`classifyPath` now tests ONE carve-out ahead of `FULL_PATTERNS`
+(`CLAUDE_PROSE_PATTERNS`):
+
+| path                                                                   | lane   |
+| ---------------------------------------------------------------------- | ------ |
+| `.claude/skills/<skill>/**/*.md`                                       | `docs` |
+| `.claude/rules/*.md`                                                   | `docs` |
+| `.claude/hooks/**`, `.claude/settings*.json`                           | `full` |
+| a `*.ts` / `*.sh` / `*.json` under a skill                             | `full` |
+| `.claude/agents/*.md`, `.claude/CLAUDE.md`, `.claude/rules/<dir>/*.md` | `full` |
+
+**What makes it safe is not that the file is markdown** — it is that what a
+skill or a rule index can break is a CLOSED SET of guards, and every one of
+them is already in `DOC_GATE_TESTS`, which is exactly what the `docs` lane
+runs (and what `appendDocsGuards` appends to every code lane):
+`project-skills.test.ts` (drift to the user-level skills directory, and the
+frontmatter shape), `resident-context-budget.test.ts` (the resident byte
+budget over `.claude/rules/**`), `agents-md-drift.test.ts` (the generated
+`AGENTS.md` mirror), `bot-globs.test.ts` (`bot-development.md`'s `globs:`
+feeds `scripts/lib/bot-globs.ts`), `destructive-data-recipes.test.ts` (scans
+`.claude/skills/**/*.md`), `gate-rule-parity.test.ts` (the gate rule held in
+both `deny-guard.sh` and the `/next-issue` skill), `action-space.test.ts`,
+`cr-citation-ledger.test.ts` (a `CR` line in a skill owes a ledger entry) and
+`cr-source.test.ts` (ADR 0098's no-third-party-mirror sweep reads the
+instruction files themselves, and asserts the rules-check skill still points
+at the vendored document). `format:check`'s `**/*.{…,md}` glob already reaches
+these files, and `.claude/**` is not in `.prettierignore` apart from
+`settings.local.json`.
+
+**That set is pinned, not asserted.** `docs-lane.test.ts` sweeps every
+`scripts/__tests__/*.test.ts` whose source contains the fixed string
+`.claude/` — the same sweep `git grep -l '\.claude/' scripts/__tests__` does —
+and refuses any file that is neither in `DOC_GATE_TESTS` nor in
+`DOC_GATE_TESTS_EXCLUDED` with a recorded reason. Widening the sweep from
+`.claude/skills` to the whole tree pulled in twelve files that name a RUNTIME
+directory (`.claude/telemetry/`, `.claude/receipts/`, `~/.claude/projects`) or
+cite a rule file in a header comment; each carries its own row. No guard
+outside `scripts/__tests__` reads `.claude/**` — the mentions under `convex/`
+and `src/` are all CR-style citations in comments.
+
+**The census's own blind spot, and the second guard that closes it.** An
+exclusion row is a claim about the WHOLE test, written once — and widening
+what the lane CARRIES can falsify a row nobody touched. `cr-source.test.ts`
+was excluded as "guards `data/cr/`, the vendored rules document — not repo
+prose", which was true of half the file: its other half is ADR 0098's
+no-third-party-mirror sweep, which reads
+`.claude/skills/<skill>/SKILL.md` and `.claude/rules/gre-development.md` and
+asserts the rules-check skill still names the vendored document. Harmless
+while every `.claude/**` edit forced the full gate (`check:guards` runs the
+whole node projects); a hole the moment a `SKILL.md` took the cheap lane. It
+is now a `DOC_GATE_TESTS` row. The guard against the next one: an excluded
+test that names a `.claude/{skills,rules}` path AS A WHOLE STRING, outside a
+comment, must say in its reason that the path is a FIXTURE — a test that
+really reads one cannot honestly write that word, and has to earn a
+`DOC_GATE_TESTS` row instead. Comments are stripped first, because a header
+citing a rule file is prose about the rule, not a use of it, and every
+rule-mechanising guard in this repo carries one.
+
+**The other half does not move.** The carve-out is anchored to `.md` inside
+two named directories, for the same reason `DOCS_PATTERNS` is anchored to
+`.md` under `docs/`: a directory must never promote a non-prose file into the
+prose lane. A skill that ships a script is the sharp case — the script runs.
 
 ### Node partitions — `node-engine` / `node-tooling` (ADR 0136 §5, issue #3774)
 
@@ -1150,13 +1226,14 @@ Re-run the command over a later window to say whether that held. Note what the
 long tail, not the median issue — which is exactly why this is reported as a
 distribution and not as the mean the issue was first argued from.
 
-### ADR 0136's four KPI rows (issue #3777)
+### ADR 0136's KPI rows — four from issue #3777, a fifth from issue #4376
 
 ADR 0136 quoted four numbers that nothing re-derives on demand: PR throughput
 by concurrency (the cap's own justification), a per-reviewer-model finding
 rate, whether a red targeted test was the session's fault or an already-broken
-baseline, and how the gate-run lane split actually looks. `bun run
-telemetry:latency` now prints all four after the existing cohorts, from the
+baseline, and how the gate-run lane split actually looks. Issue #4376 added a
+fifth, the **lane fallback rate** (below). `bun run
+telemetry:latency` now prints all of them after the existing cohorts, from the
 same mirror, over the same `[from, to]` window (a PR's merge and a health
 verdict are facts about the base branch rather than about one session, so rows
 1 and 3 are not filtered through `SESSIONS_IN_WINDOW` the way `turns`/`spans`
@@ -1241,6 +1318,55 @@ real, from the handful of `land`/`check:lane` runs that ran under the updated
 script; the histogram fills in as ordinary landings replace the older
 directories (they are gitignored and machine-local, so this is a one-machine,
 one-time bootstrap gap, not a recurring one).
+
+### Row 5 — the lane fallback rate (issue #4376)
+
+```
+  lane fallback rate — landings that paid `full` for a path outside every lane rule
+  4 / 30 landings (13%) fell back
+  land 4391    dashboard/lib/actions.ts
+  land 4382    .claude/hooks/claim-ledger.sh
+  land 4380    .claude/hooks/deny-guard.sh
+  land 4370    package.json
+```
+
+**Why it is not a slice of the histogram.** `full` has two causes that cost the
+same and mean opposite things. A diff spanning `src/**` and `convex/**` is
+`full` BY DESIGN — ADR 0136 §3 deliberately refuses to narrow the mixed case.
+A diff stopped by a path outside every rule is `full` BY FALLBACK, and each one
+is a question: should that path have a lane? Nothing measured the second kind,
+which is how `.claude/**` went on charging `check:pr` for a one-line `SKILL.md`
+for as long as it did.
+
+**How it is read.** `check-lane.ts`'s own `full` rationale names the first
+unrecognised path (`N files, M outside every lane rule (first: <path>)`);
+`parseLaneForcingPath` takes it out of the same `lane:` line `parseLaneLine`
+reads, at ingest, into `gate_runs.lane_forced_by`. The MIXED rationale carries
+no such clause, so a null means "not a fallback", never "could not tell" — and
+the parser is anchored to the lane line, because a gate-run log is the whole
+gate's stdout and a bare `(first: …)` search reads a test's own failure message
+as a forcing path.
+
+Landings that paid NO lane are excluded from both sides: `land` writes no
+`check:lane` line when it skips the lane on an already-gated tip (ADR 0136 §2),
+and a skipped lane is not a `full` one.
+
+**The committed baseline — the 100 landings to 2026-09-22.** Reconstructed from
+each landing's merge commit rather than from the receipt's `first:` path alone,
+because that path is only the FIRST unrecognised one and a diff can have
+several:
+
+| classifier              | full by fallback | share |
+| ----------------------- | ---------------: | ----: |
+| before issue #4376      |           23/100 |   23% |
+| after (`.claude` split) |           14/100 |   14% |
+
+Eight PRs change lane: #4344, #4162, #4103, #4089, #4050, #4046, #4038 go
+`full` → `engine` (a `SKILL.md` riding with engine work), #3979 goes
+`full` → `docs`. What still falls back is `package.json` and a lockfile (a
+dependency change really can break anything), the hooks, `.gitattributes`, and
+`dashboard/**` — a top-level directory no lane rule names at all, which is a
+separate question this row now makes visible rather than answering.
 
 ## Budget share per issue — the measurement, and what it does to ADR 0110's target
 

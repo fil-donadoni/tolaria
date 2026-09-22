@@ -40,7 +40,11 @@ import {
     listSessions,
     listMessages,
 } from "./lib/opencode-telemetry.ts";
-import { parseLaneLine, parseHealthLogRed } from "./lib/telemetry-latency.ts";
+import {
+    parseLaneLine,
+    parseLaneForcingPath,
+    parseHealthLogRed,
+} from "./lib/telemetry-latency.ts";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
 const DB_PATH = join(PROJECT_DIR, ".claude/telemetry/telemetry.db");
@@ -1000,18 +1004,34 @@ function ingestGateRuns(db: Sqlite): number {
     );
     if (!existsSync(root)) return 0;
 
+    // A row is "done" when its `started` still matches AND `lane_forced_by`
+    // has been PARSED for it (issue #4376). Rows written before that column
+    // existed hold NULL, which on a `full` lane is exactly the ambiguity row 5
+    // must not inherit — "mixed, by design" and "never parsed" read alike — so
+    // they are re-read once.
+    //
+    // "Parsed, no forcing path" is stored as the EMPTY STRING, not NULL, and
+    // that is what makes the re-read TERMINATE. A genuinely MIXED `full`
+    // landing has no forcing path and never will, so keying the backfill on
+    // NULL alone would re-read its (large) log on every ingest for as long as
+    // the run dir survived. The sentinel dates the WRITER instead of the
+    // value: after one pass every row carries a path or the empty string, and
+    // no later ingest reads any of them again. The read side normalises `""`
+    // back to "no path", so the domain type stays `string | null`.
     const seenStarted = new Map(
         db
-            .query<{ run: string; started: number | null }, []>(
-                "SELECT run, started FROM gate_runs"
-            )
+            .query<
+                { run: string; started: number | null; forced: string | null },
+                []
+            >("SELECT run, started, lane_forced_by AS forced FROM gate_runs")
             .all()
+            .filter((r) => r.forced !== null)
             .map((r) => [r.run, r.started])
     );
     const put = db.prepare(
         `INSERT OR REPLACE INTO gate_runs
-         (run, cmd, head, base, lane, green, started, ingested)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+         (run, cmd, head, base, lane, lane_forced_by, green, started, ingested)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
     const now = Math.floor(Date.now() / 1000);
     let n = 0;
@@ -1044,6 +1064,11 @@ function ingestGateRuns(db: Sqlite): number {
             readOpt("head"),
             readOpt("base"),
             parseLaneLine(log),
+            // The FALLBACK half of a `full` lane (issue #4376): parsed from
+            // the same line, out of the same log, at the same moment — so a
+            // row can never carry a lane without the reason it was that lane.
+            // `""` = parsed, no forcing path (see the dedup note above).
+            parseLaneForcingPath(log) ?? "",
             existsSync(join(dir, "green")) ? 1 : 0,
             started,
             now

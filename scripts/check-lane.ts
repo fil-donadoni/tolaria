@@ -98,6 +98,14 @@ export type PathClass = Lane | "data";
  * one of these would already be `full` by the fail-closed default; listing
  * them explicitly, and matching them FIRST, means a future widening of the
  * skin/engine rules cannot quietly swallow one.
+ *
+ * `^\.claude/` STAYS HERE, and it is the broad rule: a hook is a program, a
+ * settings file reconfigures the harness, and a `.ts`/`.sh`/`.json` under a
+ * skill directory is a script the skill runs — any of them can change
+ * anything, so none of them is ever narrowed. The ONE carve-out is
+ * `CLAUDE_PROSE_PATTERNS` below, which `classifyPath` tests BEFORE this list;
+ * it is anchored to `.md` inside two named directories and can therefore
+ * promote nothing else out of `full`.
  */
 const FULL_PATTERNS: RegExp[] = [
     /^package\.json$/,
@@ -109,6 +117,49 @@ const FULL_PATTERNS: RegExp[] = [
     /(^|\/)eslint\.config\.[cm]?[jt]s$/,
     /(^|\/)\.prettier(rc|rc\..*|ignore)$/,
     /^\.claude\//,
+];
+
+/**
+ * The prose half of `.claude/**` (issue #4376) — the ONE carve-out ahead of
+ * `FULL_PATTERNS`.
+ *
+ * WHY. `^\.claude/` was written when that tree held hooks and rule indexes
+ * only, and "a hook can change anything" made forcing `full` the obviously
+ * right call. Issues #4087/#4090 then moved every WORKFLOW SKILL in there
+ * (`/next-issue`, `/grammar-rule`, `/to-prd`, …), so a one-line `SKILL.md`
+ * edit paid `check:pr` verbatim — ~440s against ~190s for a lane and seconds
+ * for `check:docs`. Measured on the last 30 landings before this change: 3
+ * paid `full` for a full-forcing path, 2 of them a `SKILL.md`.
+ *
+ * WHAT MAKES IT SAFE is not that the file is markdown — it is that what a
+ * skill or a rule index can break is a CLOSED SET of guards, and every one of
+ * them is already in `DOC_GATE_TESTS`, which is what the docs lane runs and
+ * what `appendDocsGuards` appends to every code lane:
+ * `project-skills.test.ts` (skill drift to the user-level directory and the
+ * frontmatter shape), `resident-context-budget.test.ts` (the resident byte
+ * budget over `.claude/rules/**`), `agents-md-drift.test.ts` (the generated
+ * `AGENTS.md` mirror of `.claude/rules/`), `bot-globs.test.ts`
+ * (`.claude/rules/bot-development.md`'s `globs:` feeds
+ * `scripts/lib/bot-globs.ts`), `destructive-data-recipes.test.ts` (scans
+ * `.claude/skills/**\/*.md`), `gate-rule-parity.test.ts` (the gate rule held
+ * in both `deny-guard.sh` and the `/next-issue` skill), `action-space.test.ts`
+ * and `cr-citation-ledger.test.ts` (a `CR` line in a skill owes a ledger
+ * entry). `format:check`'s glob already covers `**\/*.md`, so prettier reaches
+ * these too. `docs-lane.test.ts` is what keeps that set honest: its census
+ * refuses a new `scripts/__tests__` file that mentions `.claude/` and is
+ * neither in `DOC_GATE_TESTS` nor in `DOC_GATE_TESTS_EXCLUDED` with a reason.
+ *
+ * ANCHORED TO `.md` IN TWO NAMED DIRECTORIES, for the same reason
+ * `DOCS_PATTERNS` is: a directory must never promote a non-prose file into
+ * the prose lane. `.claude/skills/next-issue/lib/plan.ts`,
+ * `.claude/hooks/deny-guard.sh`, `.claude/settings.json` and `.claude/CLAUDE.md`
+ * all still reach `FULL_PATTERNS` — the first three because they are programs
+ * or configuration, the last because it is neither a skill nor a rule index
+ * and nothing enumerates what reads it.
+ */
+const CLAUDE_PROSE_PATTERNS: RegExp[] = [
+    /^\.claude\/skills\/(?:[^/]+\/)+[^/]+\.md$/,
+    /^\.claude\/rules\/[^/]+\.md$/,
 ];
 
 /**
@@ -169,9 +220,11 @@ const CARDS_PATTERNS: RegExp[] = [/^convex\/cards\/sets\//];
  * ANCHORED TO `.md` ON PURPOSE, for the same reason `SKIN_PATTERNS` is
  * anchored to a directory: `docs/` also holds images and stylesheets, and an
  * extension must never be what promotes a path out of `full`. `docs/img/a.png`
- * and `docs/guides/style.css` stay `full`. `.claude/**` and `.agents/**` stay
- * `full` too — `.claude/` is matched by `FULL_PATTERNS` FIRST, and `.agents/`
- * matches nothing, so neither can reach this list.
+ * and `docs/guides/style.css` stay `full`. `.agents/**` stays `full` too — it
+ * matches nothing, so it cannot reach this list. `.claude/**` is split: its
+ * skills' and rules' markdown is prose by `CLAUDE_PROSE_PATTERNS` above
+ * (issue #4376), everything else under it is matched by `FULL_PATTERNS`
+ * FIRST and never reaches here.
  *
  * WHY A LANE AND NOT A FALLBACK. `check:docs` is already the ratified
  * definition of what a prose diff owes — the whole `wt:docs` / `docs:ship`
@@ -210,6 +263,12 @@ const DOCS_PATTERNS: RegExp[] = [
  * degrades to the full gate rather than to a narrowed one.
  */
 export function classifyPath(path: string): PathClass {
+    // BEFORE `FULL_PATTERNS`, and the only thing that is: the prose half of
+    // `.claude/**` (issue #4376). Its two patterns are anchored to `.md`
+    // inside `skills/` and `rules/`, so ordering it first cannot widen
+    // anything else — every other path under `.claude/` falls to the very
+    // next line.
+    if (CLAUDE_PROSE_PATTERNS.some((re) => re.test(path))) return "docs";
     if (FULL_PATTERNS.some((re) => re.test(path))) return "full";
     if (DOCS_PATTERNS.some((re) => re.test(path))) return "docs";
     if (SKIN_PATTERNS.some((re) => re.test(path))) return "skin";
@@ -589,7 +648,7 @@ function codeLaneRationale(files: string[], where: string): string {
 }
 
 function docsRationale(files: string[]): string {
-    return `${files.length} file${files.length === 1 ? "" : "s"}, all prose — markdown under docs/** or a root-level .md`;
+    return `${files.length} file${files.length === 1 ? "" : "s"}, all prose — markdown under docs/**, .claude/{skills,rules}/** or a root-level .md`;
 }
 
 function fullRationale(files: string[]): string {

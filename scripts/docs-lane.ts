@@ -47,6 +47,16 @@ import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
  * is that the change CANNOT affect the engine, so anything that is not prose
  * has to leave through the ordinary branch + full-gate route. `.claude/**` is
  * split — a skill is a document, a hook is a program.
+ *
+ * `check-lane.ts`'s `classifyPath` makes the same split for the GATE lane
+ * (issue #4376): `.claude/skills/**\/*.md` and `.claude/rules/*.md` are
+ * `docs` there, every other path under `.claude/` is `full`. This predicate
+ * stays the broader of the two — it admits any `.md` at all, so `docs:ship`
+ * still carries a `.claude/agents/*.md` or a `.claude/CLAUDE.md` that
+ * `check:lane` would send to the full gate. That is safe in the same way and
+ * for the same reason: the census below is what proves every guard reading
+ * `.claude/**` is either run by `check:docs` or recorded as unreachable from
+ * prose.
  */
 export function isDocPath(p: string): boolean {
     if (p.endsWith(".md")) return true;
@@ -65,10 +75,15 @@ export { DOC_GATE_TESTS } from "./lib/doc-gate-tests";
  * fixtures that write a scratch `README.md`, scanners pointed at `data/`. Each
  * needs its reason recorded, so that adding a row here is a decision and not a
  * way to silence the census.
+ *
+ * The census counts `.claude/**` as documentation too (issue #4376), because
+ * the docs lane now carries `.claude/skills/**\/*.md` and `.claude/rules/*.md`.
+ * That pulled in a second family of mentions: tests that name a RUNTIME
+ * directory under `.claude/` (`telemetry/`, `receipts/`, `~/.claude/projects`)
+ * or cite a rule file in a header comment. Neither reads a document, and each
+ * says so below.
  */
 export const DOC_GATE_TESTS_EXCLUDED: Record<string, string> = {
-    "scripts/__tests__/cr-source.test.ts":
-        "guards data/cr/, the vendored rules document — not repo prose; cr:lint covers the citation side",
     "scripts/__tests__/hook-policy.test.ts":
         "writes a throwaway README.md into a temp git fixture; reads no repo document",
     "scripts/__tests__/cr-audit.test.ts":
@@ -91,6 +106,32 @@ export const DOC_GATE_TESTS_EXCLUDED: Record<string, string> = {
         "the `docs/adr-0116` it mentions is a BRANCH-NAME fixture for issueOfBranch() (a docs-lane branch names no issue); it reads no repo document",
     "scripts/__tests__/scenario-block.test.ts":
         "parses GitHub PR BODIES for the ADR 0044 preset-scenario block, which are not files in this repo — the ```json / ``` fences in its fixtures are PR-body shapes, not repo prose",
+    "scripts/__tests__/branches.test.ts":
+        "walks `.claude/hooks/**/*.sh` for an `origin/<branch>` literal — hooks are programs and stay in the `full` lane (check-lane.ts CLAUDE_PROSE_PATTERNS), so no prose diff this lane carries can red it; it reads no document",
+    "scripts/__tests__/health-fix.test.ts":
+        "the `.claude/telemetry/health/` path is the RUNTIME verdict directory health-main.ts writes, gitignored and machine-local; it reads no repo document",
+    "scripts/__tests__/identity-only-card-tests.test.ts":
+        "cites `.claude/rules/gre-development.md` in a header comment and in an assertion MESSAGE as the prose it mechanises; it scans convex/ card tests and reads no document",
+    "scripts/__tests__/live-activity.test.ts":
+        "the `~/.claude/projects` path is Claude Code's own transcript directory outside this repo; it reads no repo document",
+    "scripts/__tests__/loop-drain.test.ts":
+        "names `.claude/hooks/receipt-guard.sh` in a header comment as the hook it mirrors in-process — hooks stay `full`; it reads no document",
+    "scripts/__tests__/receipt.test.ts":
+        "the `.claude/receipts/` path is the RUNTIME review-receipt directory, gitignored and per-batch; it reads no repo document",
+    "scripts/__tests__/session-origin.test.ts":
+        "the `.claude/telemetry/sessions.jsonl` path is the RUNTIME session journal, gitignored; it reads no repo document",
+    "scripts/__tests__/telemetry-serve.test.ts":
+        "the `.claude/telemetry/` paths are the RUNTIME mirror the dashboard serves, gitignored; it reads no repo document",
+    "scripts/__tests__/train-order.test.ts":
+        "the `.claude/receipts/` path is the RUNTIME receipt directory a path-joining assertion names; it reads no repo document",
+    "scripts/__tests__/usage-window.test.ts":
+        "builds a scratch `~/.claude/projects` fixture outside this repo; it reads no repo document",
+    "scripts/__tests__/vacuous-alias-assertion.test.ts":
+        "cites `.claude/rules/gre-development.md` in a header comment as the prose half of the rule it enforces; it scans test sources and reads no document",
+    "scripts/__tests__/write-review-receipt.test.ts":
+        "the `.claude/receipts/` paths are the RUNTIME receipt directory the writer targets, gitignored; it reads no repo document",
+    "scripts/__tests__/telemetry-latency.test.ts":
+        "the `.claude/` paths are synthetic changed-path fixtures fed to classifyLane()/renderPlan() to build a real lane receipt for parseLaneForcingPath to parse; the `.claude/telemetry` mention names the RUNTIME store; it reads no repo document",
     "scripts/__tests__/check-marker-liveness.test.ts":
         "the docs/adr and .md paths are synthetic examples fed to inScope()'s scope filter — the test asserts the filter EXCLUDES them (a real divergence marker is always a COMMENT in compiled source — `//` or `/** */` alike — never prose in a .md file); it reads no repo document",
 };

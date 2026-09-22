@@ -254,9 +254,11 @@ Rationale, lane contents and measurements: `docs/agents/quality-gates.md`.
 - **`check:lane` is paid ONCE, by `land`, on the rebased tip** (ADR 0136;
   skipped when tip and base were already gated green). Lanes: `skin`
   (`src/**`) / `engine` (`convex/**`, `scripts/**`, `data/**`) / `cards` /
-  `docs` (prose, `check:docs`) / `full`; prose beside code adds `node[docs]`;
+  `docs` (prose, `check:docs` — including `.claude/skills/**/*.md` and
+  `.claude/rules/*.md`) / `full`; prose beside code adds `node[docs]`;
   anything unplaceable (`src/**` + `convex/**`, `package.json`, a lockfile,
-  `.claude/**`) is `check:pr` **verbatim**. **No lane scopes a project's
+  the rest of `.claude/**` — hooks, settings, a skill's scripts) is
+  `check:pr` **verbatim**. **No lane scopes a project's
   tests to the diff** — a project runs whole or not at all (ADR 0104).
 - **Never hand-pick a subset of `check:pr`.**
 - **`check:all` VERIFIES formatting**, it does not repair it — on drift run

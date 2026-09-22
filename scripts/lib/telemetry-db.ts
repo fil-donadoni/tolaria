@@ -181,6 +181,10 @@ CREATE TABLE IF NOT EXISTS gate_runs (
     head     TEXT,                      -- HEAD at gate start
     base     TEXT,                      -- origin/<base> tip at gate start
     lane     TEXT,                      -- parsed lane: line, NULL when the log had none
+    lane_forced_by TEXT,                -- on a full-lane FALLBACK receipt, the first
+                                        -- path outside every lane rule; "" when the log
+                                        -- was parsed and named none; NULL = never
+                                        -- parsed, i.e. pre-#4376 (see ingest dedup)
     green    INTEGER NOT NULL,          -- 1 iff the run dir's green marker was present
     started  INTEGER,                   -- epoch seconds, the run dir's started file
     ingested INTEGER NOT NULL
@@ -475,6 +479,7 @@ export function openDb(path: string): Database {
         "ALTER TABLE agent_runs ADD COLUMN harness TEXT NOT NULL DEFAULT 'claude-code'",
         "ALTER TABLE sessions ADD COLUMN harness TEXT NOT NULL DEFAULT 'claude-code'",
         "ALTER TABLE spans ADD COLUMN is_error INTEGER",
+        "ALTER TABLE gate_runs ADD COLUMN lane_forced_by TEXT",
     ]) {
         try {
             db.exec(ddl);
