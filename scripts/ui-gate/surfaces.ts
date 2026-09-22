@@ -181,6 +181,13 @@ export interface Surface {
      * one here would be a false green of exactly the kind the census exists to
      * remove. List a module only when the probe photographs it.
      *
+     * NO PER-VIEWPORT GRANULARITY. A claim says the probe photographs this
+     * module, not that it does so at all five viewports: `draft-pool-peek` is
+     * viewport-SPLIT by design (issue #2861) and its rail exists on two of the
+     * five. The census reads a claim as coverage either way — "measured
+     * somewhere" and "measured everywhere" are one status here, and a surface
+     * whose claim is partial says so in its own comment.
+     *
      * A surface declared in `UNWALKED_SURFACES` covers nothing whatever it
      * claims here; `ui-census.test.ts` also reds on an entry naming a module
      * that is not a censused overlay, so a renamed dialog cannot leave a

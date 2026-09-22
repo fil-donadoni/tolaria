@@ -20,6 +20,8 @@ import {
     scanCensusElements,
     scanSpecimenFiles,
     resolveCensus,
+    SPECIMEN_ROUTE,
+    SPECIMEN_SECTION_DIR,
     exemptionFault,
     debtFault,
     type CensusRow,
@@ -157,6 +159,14 @@ const DEBT: Record<string, string> = {
 };
 
 /** What to do about an uncensused element, in the terms of its own kind. */
+/**
+ * What `DEBT` held when the census shipped. Pinned, not a ceiling: paying debt
+ * down lowers it, and GROWING it is a two-line edit with a number going UP —
+ * which is what a reviewer can see. A row quietly added to a 55-row dictionary
+ * is not, and "frozen, shrink-only" was prose until this line.
+ */
+const DEBT_AT_LANDING = 55;
+
 function fix(row: CensusRow): string {
     if (row.kind === "route") {
         return "a screen with no measurement at any viewport. Add a surface to `scripts/ui-gate/surfaces.ts` declaring it in `entries`, or — if it is not a screen a user reaches — say why in EXEMPT";
@@ -201,6 +211,13 @@ describe("check:ui coverage census (issue #3420)", () => {
                 .map((f) => `${f} — EXEMPT entry matches nothing: remove it`)
                 .join("\n")
         ).toEqual([]);
+    });
+
+    it("DEBT has not grown — a NEW uncovered element may not be recorded as debt", () => {
+        expect(
+            Object.keys(DEBT).length,
+            "DEBT changed size. Shrinking it? Lower DEBT_AT_LANDING to match. Growing it? A new element does not belong here — give it a specimen or a `mounts` claim"
+        ).toBe(DEBT_AT_LANDING);
     });
 
     it("no DEBT entry is stale — a covered element must lose its row", () => {
@@ -407,6 +424,39 @@ describe("ui-census — the coverage rules themselves", () => {
             fs.rmSync(root, { recursive: true, force: true });
         }
     });
+
+    it.each(["~/", "@/"])(
+        "a specimen imported through the %s alias registers — both tsconfig aliases resolve",
+        (alias) => {
+            const root = fs.mkdtempSync(path.join(os.tmpdir(), "ui-census-"));
+            try {
+                fs.mkdirSync(
+                    path.join(root, "src", "routes", "design-system"),
+                    { recursive: true }
+                );
+                fs.mkdirSync(path.join(root, "src", "components"), {
+                    recursive: true,
+                });
+                fs.writeFileSync(
+                    path.join(root, SPECIMEN_ROUTE),
+                    'import { S } from "./design-system/sections-x";\n'
+                );
+                fs.writeFileSync(
+                    path.join(root, SPECIMEN_SECTION_DIR, "sections-x.tsx"),
+                    `import X from "${alias}components/x-dialog";\nexport const S = X;\n`
+                );
+                fs.writeFileSync(
+                    path.join(root, "src", "components", "x-dialog.tsx"),
+                    "export default () => <GameDialog open />;\n"
+                );
+                expect(
+                    scanSpecimenFiles(root).has("src/components/x-dialog.tsx")
+                ).toBe(true);
+            } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        }
+    );
 
     it("an EXEMPT reason that is empty, or that says where rather than why, is refused", () => {
         expect(exemptionFault("a.tsx", "   ")).toMatch(/empty EXEMPT reason/);

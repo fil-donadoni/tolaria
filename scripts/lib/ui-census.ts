@@ -105,6 +105,16 @@ export const OVERLAY_PRIMITIVE_MODULES = new Set([
     "src/components/ui/command.tsx",
 ]);
 
+/**
+ * The `src/` path aliases, as every `tsconfig*.json` in the repo declares them
+ * (`"~/*"` and `"@/*"` both map to `./src/*`). BOTH, from one table: `~/` is
+ * the prevailing convention and `@/` the minority one, so resolving only the
+ * one the census page happens to use today would make the next specimen wired
+ * up the ordinary way register as no specimen at all — and the guard would
+ * then tell its author to add the specimen that already exists.
+ */
+const SRC_ALIASES = ["~/", "@/"] as const;
+
 /** The census page whose direct imports are its live specimens. */
 export const SPECIMEN_ROUTE = "src/routes/design-system.route.tsx";
 /** Where that page's section modules live; their imports are specimens too. */
@@ -220,8 +230,9 @@ export function scanSpecimenFiles(repoRoot: string): Set<string> {
         for (const m of text.matchAll(IMPORT_RE)) {
             const spec = m[1];
             let base: string | null = null;
-            if (spec.startsWith("@/")) {
-                base = path.join(repoRoot, "src", spec.slice(2));
+            const alias = SRC_ALIASES.find((a) => spec.startsWith(a));
+            if (alias) {
+                base = path.join(repoRoot, "src", spec.slice(alias.length));
             } else if (spec.startsWith(".")) {
                 base = path.resolve(path.dirname(root), spec);
             }
