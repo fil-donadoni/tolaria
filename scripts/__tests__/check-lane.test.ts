@@ -168,9 +168,9 @@ describe("check-lane — path classification (issue #2740)", () => {
     });
 
     it("markdown outside docs/** and the repo root is NOT docs", () => {
-        // `.claude/**` is FULL_PATTERNS, matched before the docs list, and
-        // `.agents/**` matches nothing — neither can reach the prose lane.
-        expect(classifyPath(".claude/rules/gre-development.md")).toBe("full");
+        // `.agents/**` matches nothing, so it cannot reach the prose lane.
+        // (`.claude/rules/*.md` DOES, by its own carve-out — see the
+        // `.claude/**` block below, issue #4376.)
         expect(classifyPath(".agents/skills/x/SKILL.md")).toBe("full");
         // Nested markdown that belongs to code, not to prose.
         expect(classifyPath("convex/gre/README.md")).toBe("engine");
@@ -211,7 +211,8 @@ describe("check-lane — path classification (issue #2740)", () => {
         expect(classifyPath("src/claude.md")).toBe("skin");
         expect(classifyPath("src/CLAUDE.md.ts")).toBe("skin");
         expect(classifyPath("convex/gre/NOTES.md")).toBe("engine");
-        // `.claude/**` is FULL_PATTERNS, matched first — still full.
+        // `.claude/CLAUDE.md` is neither a skill nor a rule index, so the
+        // `.claude/**` carve-out does not reach it and FULL_PATTERNS does.
         expect(classifyPath(".claude/CLAUDE.md")).toBe("full");
     });
 
@@ -233,6 +234,102 @@ describe("check-lane — path classification (issue #2740)", () => {
         expect(
             classifyLane(["convex/CLAUDE.md", "src/lib/card-utils.ts"]).lane
         ).toBe("skin");
+    });
+});
+
+/**
+ * `.claude/**` is SPLIT (issue #4376): a skill and a rule index are prose, a
+ * hook and a settings file are programs.
+ *
+ * WHY THE SPLIT EXISTS. `^\.claude/` was in `FULL_PATTERNS` whole, written
+ * when that tree held hooks and rule indexes only. Issues #4087/#4090 moved
+ * every workflow skill in there, so a one-line `SKILL.md` edit paid
+ * `check:pr` verbatim (~440s) instead of `check:docs` (seconds). What a skill
+ * or a rule index can break is a closed set of guards, all of them already in
+ * `DOC_GATE_TESTS` — `docs-lane.test.ts`'s `.claude/` census is what keeps
+ * that true as guards get added.
+ *
+ * WHAT MUST NOT MOVE is the other half: the carve-out is anchored to `.md`
+ * inside two named directories, so a `.ts`/`.sh`/`.json` under a skill, a
+ * hook, a settings file or an agent definition still forces the full gate.
+ */
+describe("check-lane — `.claude/**` is split: prose is docs, programs are full (issue #4376)", () => {
+    it("a skill's markdown is prose, at any depth under its directory", () => {
+        expect(classifyPath(".claude/skills/next-issue/SKILL.md")).toBe("docs");
+        expect(
+            classifyPath(".claude/skills/new-card/references/forms.md")
+        ).toBe("docs");
+    });
+
+    it("a rule index is prose", () => {
+        expect(classifyPath(".claude/rules/gre-development.md")).toBe("docs");
+        expect(classifyPath(".claude/rules/bot-development.md")).toBe("docs");
+    });
+
+    /**
+     * The mirror-image hazard of the docs lane's own anchoring rule: a
+     * DIRECTORY must never promote a non-prose file into the prose lane. A
+     * skill that ships a script is the sharp case — the script runs.
+     */
+    it("a non-prose file under a skill stays full", () => {
+        expect(classifyPath(".claude/skills/next-issue/lib/plan.ts")).toBe(
+            "full"
+        );
+        expect(classifyPath(".claude/skills/new-set/bin/compile.sh")).toBe(
+            "full"
+        );
+        expect(classifyPath(".claude/skills/to-prd/fixtures/x.json")).toBe(
+            "full"
+        );
+    });
+
+    it("hooks, settings and anything else under .claude/ stay full", () => {
+        expect(classifyPath(".claude/hooks/deny-guard.sh")).toBe("full");
+        expect(classifyPath(".claude/hooks/lib/join-continued-lines.awk")).toBe(
+            "full"
+        );
+        expect(classifyPath(".claude/settings.json")).toBe("full");
+        expect(classifyPath(".claude/settings.local.json")).toBe("full");
+        // Neither a skill nor a rule index: nothing enumerates what reads
+        // these, so they keep the fail-closed default.
+        expect(classifyPath(".claude/CLAUDE.md")).toBe("full");
+        expect(classifyPath(".claude/agents/cavecrew-builder.md")).toBe("full");
+        expect(classifyPath(".claude/rules/nested/deeper.md")).toBe("full");
+    });
+
+    // The three acceptance cases of issue #4376, as lanes rather than paths.
+    it("one SKILL.md alone ⇒ docs, and the lane runs check:docs", () => {
+        const plan = classifyLane([".claude/skills/next-issue/SKILL.md"]);
+        expect(plan.lane).toBe("docs");
+        expect(plan.run.map((c) => c.id)).toEqual(["check:docs"]);
+    });
+
+    it("a SKILL.md plus a hook ⇒ full — the program decides", () => {
+        expect(
+            classifyLane([
+                ".claude/skills/next-issue/SKILL.md",
+                ".claude/hooks/deny-guard.sh",
+            ]).lane
+        ).toBe("full");
+    });
+
+    it("a rule index plus a src/** file ⇒ skin, with node[docs] appended", () => {
+        const plan = classifyLane([
+            ".claude/rules/frontend-components.md",
+            "src/components/Board.tsx",
+        ]);
+        expect(plan.lane).toBe("skin");
+        expect(plan.run.map((c) => c.id)).toContain("node[docs]");
+    });
+
+    /**
+     * The rationale is a positive claim about every path in the diff, and the
+     * truth test elsewhere in this file reads it back — so the docs lane's own
+     * sentence has to name where this prose actually lives.
+     */
+    it("the docs rationale names the .claude/ directories it now admits", () => {
+        const plan = classifyLane([".claude/rules/gre-development.md"]);
+        expect(plan.rationale).toMatch(/\.claude\/\{skills,rules\}/);
     });
 });
 
