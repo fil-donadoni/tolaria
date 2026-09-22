@@ -496,13 +496,28 @@ describe("foreground by default, --detach is the opt-in (issue #4389)", () => {
                 }
                 reject(e);
             };
+            let interrupted = false;
             const waitForStart = setInterval(() => {
                 if (!seen.includes("started")) return;
                 clearInterval(waitForStart);
+                interrupted = true;
                 process.kill(-pgid, "SIGINT");
             }, 50);
+            // Two distinct failures wear the same timeout, and naming which
+            // one fired is the difference between a diagnosable red and a
+            // shrug: a driver put back into its own session still PRINTS, so
+            // the run starts fine and then never ends — the interrupt reaches
+            // neither it nor, through it, the pipeline the handoff is
+            // blocking on.
             const guard = setTimeout(
-                () => fail(new Error(`stub never started: ${seen}`)),
+                () =>
+                    fail(
+                        new Error(
+                            interrupted
+                                ? `handoff still alive 10s after SIGINT — the signal did not reach the run:\n${seen}`
+                                : `stub never started:\n${seen}`
+                        )
+                    ),
                 10_000
             );
             child.on("exit", () => {
