@@ -23,7 +23,7 @@ before relitigating a rule.
 ## Project Overview
 
 Tolaria is an MTG (Magic: The Gathering) gameplay engine for study and
-experimentation. Focus: rules correctness and real-time reactivity between two
+experimentation: rules correctness and real-time reactivity between two
 clients. Not commercial — an extensible engine with a working subset of cards.
 
 Stack, toolchain, commands and the file map are NOT here — read on demand from
@@ -40,8 +40,8 @@ Client React (P1) ──┐
 Client React (P2) ──┘
 ```
 
-Gameplay domain is architecturally separated from surrounding features
-(matchmaking, profiles, collections).
+The gameplay domain is separated from the surrounding features (matchmaking,
+profiles, collections).
 
 ### Game Rules Engine (GRE)
 
@@ -79,8 +79,8 @@ clients cannot spoof identity.
   Detail: `docs/PROJECT.md` § Data model.
 
 User decks in `userDecks` (indexed by `userId`); preset decks in
-`convex/deckPresets.ts` (served via `api.decks.list`). State saved **only at
-stable points** (waiting for human input).
+`convex/deckPresets.ts` (`api.decks.list`). State saved **only at stable
+points** (waiting for human input).
 
 ### Action flow
 
@@ -96,7 +96,7 @@ stable points** (waiting for human input).
 
 Stack resolves one item at a time, top-down; after each resolution priority
 restarts from the active player; both must pass consecutively to proceed.
-Priority timeout 30s via `ctx.scheduler.runAfter` with seq-based cancellation.
+Priority timeout 30s via `ctx.scheduler.runAfter`, seq-based cancellation.
 Phases: BEGINNING (untap/upkeep/draw) → PRECOMBAT_MAIN → COMBAT (5 substeps) →
 POSTCOMBAT_MAIN → ENDING. Untap and cleanup are automatic (no priority).
 
@@ -125,15 +125,13 @@ system (`convex/gre/layers.ts`, CR 611/613). Replacement effects shipped
 (`gre/replacements.ts`).
 
 **Effect Script DSL** (ADR 0045/0046): ordered `EffectOp[]` (`dealDamage`,
-`draw`, `destroy`, `choice`, …) + four frozen structural constructs (`bind`,
-`ref`, `if`, `forEach`), interpreted by `convex/gre/effects/interpreter.ts` at
-every effect site. The **Mechanics Registry**
-(`convex/cards/mechanicsRegistry.ts`) is the single authority on keyword and
-Op names (CI-enforced) — an uncensused mechanic is stop-and-open-an-issue,
-never an invented name. Testing is per-Op, not per-card: a DSL card reusing
-exercised Ops needs no hand-written test (static sweep + generated smoke test
-cover it); a card introducing a new Op earns that Op its permanent test.
-`resolve()` needs an explicit justification
+`draw`, `destroy`, `choice`, …) + four frozen constructs (`bind`, `ref`, `if`,
+`forEach`), interpreted by `convex/gre/effects/interpreter.ts`. The
+**Mechanics Registry** (`convex/cards/mechanicsRegistry.ts`) is the single
+authority on keyword and Op names (CI-enforced) — an uncensused mechanic is
+stop-and-open-an-issue, never an invented name. Testing is per-Op: a DSL card
+on exercised Ops needs no hand-written test (sweep + generated smoke test); a
+new Op earns its permanent test. `resolve()` needs an explicit justification
 (`.claude/rules/gre-development.md` § DSL-first authoring).
 
 Key types: `convex/cards/types.ts` (`CardDefinition`, `ActivatedAbility`,
@@ -161,24 +159,19 @@ decisions or genuine CR ambiguity affecting behavior.
 
 **Enforced by `.claude/hooks/spawn-guard.sh`**:
 
-- Every `Agent` spawn MUST pass an explicit `model` (except `fork`).
-  **`model: sonnet` for all read-only/mechanical delegation** (locate, map,
-  survey, research); the session tier only for genuinely hard implementation
-  or reasoning.
+- Every `Agent` spawn MUST pass an explicit `model` (except `fork`):
+  **`model: sonnet` for read-only/mechanical delegation** (locate, map,
+  survey, research); the session tier only for genuinely hard work.
 - Every `description` MUST be role-prefixed — `implement` / `review` /
-  `fixup` / `investigate` / `research` / `verify` / `migrate` / `audit` —
-  it is what attributes tokens to a role in the scorecard.
-- Cavecrew agents are the caveman **plugin's**: spawn as
-  `caveman:cavecrew-investigator` / `-builder` / `-reviewer`, always with
-  `model: sonnet` (they pin no model of their own).
+  `fixup` / `investigate` / `research` / `verify` / `migrate` / `audit`.
+- Cavecrew agents: `caveman:cavecrew-investigator` / `-builder` /
+  `-reviewer`, always `model: sonnet`.
 
 ### Shell commands
 
-**A multi-token command is a shell ARRAY, never a quoted string.** Quoting
-suppresses the word-splitting the expansion needs, so `CMD="tool --a 1"` +
-`"$CMD" x` runs a file named `tool --a 1` — `No such file or directory`, bash
-and zsh alike. Write `CMD=(tool --a 1)` + `"${CMD[@]}"`, or spell the command
-out; a wrapper (`/usr/bin/time`, `env`, `xargs`) is no exception.
+**A multi-token command is a shell ARRAY, never a quoted string.**
+`CMD="tool --a 1"` + `"$CMD"` runs a file named `tool --a 1`. Write
+`CMD=(tool --a 1)` + `"${CMD[@]}"`; a wrapper (`env`, `xargs`) is no exception.
 
 ## Browser verification
 
@@ -195,25 +188,23 @@ labelled `ready-for-agent`; **`/next-issue` drains that queue one issue per
 session** (ADR 0110 — single-session pipeline). Pick intake by where work
 comes FROM:
 
-| Skill                | Trigger                         | Does                                                                         |
-| -------------------- | ------------------------------- | ---------------------------------------------------------------------------- |
-| `/next-issue`        | Draining the queue              | ONE issue end-to-end: pick → worktree → implement → one routed review → land |
-| `/new-card`          | One new card                    | Compile state decides: artefacts (`ready`) / mechanic / rule / hand tail     |
-| `/new-set`           | Whole set rollout               | Compile-first scope, ranked Grammar Gap tickets, residue queue, umbrella PRD |
-| `/new-qa-issue`      | Observed bug/enhancement        | Explores, drafts one agent-readable issue, posts after confirmation          |
-| `/audit-tracker <N>` | Stale roll-up issue             | Re-verifies gaps vs HEAD, slices survivors, retires the tracker              |
-| `/mtg-rules-check`   | Before any game mechanic        | CR text + implementation status                                              |
-| `/gre-test`          | Adding/modifying GRE logic      | Generates vitest tests per project patterns                                  |
-| `/new-op`            | Card needs a missing DSL verb   | Walks all eight Op sites (+ emitting Grammar Rule) + permanent test          |
-| `/grammar-rule`      | One Grammar Gap                 | Rule + golden fixture per form → recompile → `ready` delta → graduation      |
-| `/bot-slice`         | Any play-Bot / draft-Bot change | Maps the AI subsystem, walks seams, enforces verification doctrine           |
+| Skill                | Trigger                         | Does                                                                     |
+| -------------------- | ------------------------------- | ------------------------------------------------------------------------ |
+| `/next-issue`        | Draining the queue              | ONE issue end-to-end: pick → worktree → implement → review → land        |
+| `/new-card`          | One new card                    | Compile state decides: artefacts (`ready`) / mechanic / rule / hand tail |
+| `/new-set`           | Whole set rollout               | Compile-first scope, ranked Grammar Gap tickets, residue, umbrella PRD   |
+| `/new-qa-issue`      | Observed bug/enhancement        | Explores, drafts one agent-readable issue, posts after confirmation      |
+| `/audit-tracker <N>` | Stale roll-up issue             | Re-verifies gaps vs HEAD, slices survivors, retires the tracker          |
+| `/mtg-rules-check`   | Before any game mechanic        | CR text + implementation status                                          |
+| `/gre-test`          | Adding/modifying GRE logic      | Generates vitest tests per project patterns                              |
+| `/new-op`            | Card needs a missing DSL verb   | Walks all eight Op sites (+ emitting Grammar Rule) + permanent test      |
+| `/grammar-rule`      | One Grammar Gap                 | Rule + golden fixture per form → recompile → `ready` delta → graduation  |
+| `/bot-slice`         | Any play-Bot / draft-Bot change | Maps the AI subsystem, walks seams, enforces verification doctrine       |
 
 **Workflow skills are versioned in this repo** (`.claude/skills/…`), changed
-via branch + PR + gate like any source file
-(`scripts/__tests__/project-skills.test.ts` guards against drift to the
+via branch + PR + gate (`project-skills.test.ts` guards against drift to the
 user-level directory). A rule that CAN be enforced mechanically belongs in a
-script the gate runs (`scripts/queue-plan.ts`, `scripts/gate.ts`, hooks) —
-prose is the fallback for judgment, not the home of invariants.
+script the gate runs — prose is for judgment, not the home of invariants.
 
 ### Development cycle
 
@@ -228,20 +219,21 @@ prose is the fallback for judgment, not the home of invariants.
    seam walk — a test there = an unexercised Op (`/new-op`). Else: `resolve()`
    cards and new Ops owe tests at ALL layers (GRE unit, game.ts integration,
    frontend utils, wire format; every feature crossing GRE → game.ts → UI
-   needs one full-path integration test); DSL cards on exercised Ops owe none
-   (per-Op regime: sweep + smoke test). **Frontend wiring is not optional**
-   (`.claude/rules/gre-development.md` § Frontend wiring analysis — walk the
-   reducers; SURFACE tests run through one). **Every guarding test must be
-   proven to fail** (break the subject, watch red, revert, say what you broke
-   — § Proof-of-failure).
+   needs one full-path integration test); DSL cards on exercised Ops owe none.
+   **Frontend wiring is not optional** (`.claude/rules/gre-development.md`
+   § Frontend wiring analysis — walk the reducers). **Every guarding test must
+   be proven to fail** (break the subject, watch red, revert, say what you
+   broke — § Proof-of-failure).
 
 6. **Validate** — targeted runs + the review round; no pre-PR gate, the lane
    is paid once by `land` (ADR 0136 §1)
 7. **Preset scenario** — for any new card/gameplay feature (ADR 0044, DB is
-   the source of truth #770/#1455): a ```json `{ "label", "spec": { "cards" } }`fence under a`## Preset scenario` heading. **`land`refuses without one** on
-a`convex/{cards/sets,gre}/\*\*`diff and seeds it post-merge; a refactor owes
-nothing — say so there.`owner`is`"me"`/`"opp"`, never anything else (it
-silently loads as `"me"`). Sweep: `bun run seed:backlog`.
+   the source of truth #770/#1455): a `json` fence
+   `{ "label", "spec": { "cards" } }` under a `## Preset scenario` heading.
+   **`land` refuses without one** on a `convex/{cards/sets,gre}/**` diff and
+   seeds it post-merge; a refactor owes nothing — say so there. `owner` is
+   `"me"`/`"opp"`, never anything else (it silently loads as `"me"`). Sweep:
+   `bun run seed:backlog`.
 8. **Bot reachability** — a new card/mechanic must be one the Bot can PLAY: no
    freeze, no silent ignore. Three seams per
    `.claude/rules/gre-development.md` § Bot reachability; declare the outcome
@@ -253,23 +245,20 @@ silently loads as `"me"`). Sweep: `bun run seed:backlog`.
 
 Rationale, lane contents and measurements: `docs/agents/quality-gates.md`.
 
-| When      | Run                                                                                                                         |
-| --------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Iterating | targeted only — `bunx vitest run <path>`. Formatting is automatic.                                                          |
-| Pre-PR    | `bunx vitest run <paths touched>` + review — **no lane gate** (ADR 0136)                                                    |
-| Merge     | `bun run land <PR#>` — rebase, **`check:lane`**, merge into the base branch, all under the machine mutex (ADR 0136)         |
-| Release   | **`bun run release`** — full gate (`check:all` + 3 suites) on the base tip, then fast-forward the release branch (ADR 0116) |
+| When      | Run                                                                                                     |
+| --------- | ------------------------------------------------------------------------------------------------------- |
+| Iterating | targeted only — `bunx vitest run <path>`. Formatting is automatic.                                      |
+| Pre-PR    | `bunx vitest run <paths touched>` + review — **no lane gate** (ADR 0136)                                |
+| Merge     | `bun run land <PR#>` — rebase, **`check:lane`**, merge into the base branch, under the mutex (ADR 0136) |
+| Release   | **`bun run release`** — full gate on the base tip, then fast-forward the release branch (ADR 0116)      |
 
 - **`check:lane` is paid ONCE, by `land`, on the rebased tip** (ADR 0136;
-  skipped when that tip and base were already gated green). It classifies the
-  diff into `skin` (`src/**` only) / `engine` (`convex/**`, `scripts/**`,
-  `data/**`) / `cards` / `docs` (prose only, `check:docs` verbatim) / `full`,
-  and runs exactly that lane's checks. Prose beside code keeps the code's lane
-  plus `node[docs]`. Anything it cannot place — `src/**` mixed with
-  `convex/**`, `package.json`, a lockfile, `.claude/**` — degrades to
-  `check:pr` **verbatim**, so the fallback cannot rot. **No lane ever scopes a
-  project's tests to the diff**: the diff decides whether a project runs at
-  all, never a slice of it (ADR 0104).
+  skipped when tip and base were already gated green). Lanes: `skin`
+  (`src/**`) / `engine` (`convex/**`, `scripts/**`, `data/**`) / `cards` /
+  `docs` (prose, `check:docs`) / `full`; prose beside code adds `node[docs]`;
+  anything unplaceable (`src/**` + `convex/**`, `package.json`, a lockfile,
+  `.claude/**`) is `check:pr` **verbatim**. **No lane scopes a project's
+  tests to the diff** — a project runs whole or not at all (ADR 0104).
 - **Never hand-pick a subset of `check:pr`.**
 - **`check:all` VERIFIES formatting**, it does not repair it — on drift run
   `bun run format` and re-run (#1807).
@@ -280,10 +269,9 @@ Rationale, lane contents and measurements: `docs/agents/quality-gates.md`.
 - **Cover `src/` changes with targeted runs** — the dom project is outside the
   light gate.
 - **There is no CI: the local gates are the only gates.** The full offline
-  gate runs **per batch** — `health:main` on the current base tip, detached by
-  `land` at the 5th landing since the last GREEN or 2 h after the first
-  un-healthed one, yielding to a queued `land` (ADR 0136 §6) — and again at
-  release (`bun run release`, ADR 0116; by hand: `bun run health`).
+  gate runs **per batch** (`health:main`, detached by `land` at the 5th
+  landing since GREEN or 2 h after the first un-healthed one, ADR 0136 §6)
+  and at release (`bun run release`, ADR 0116; by hand: `bun run health`).
 
 **CPU admission control** (`scripts/gate.ts`) — sessions share this machine:
 
@@ -298,54 +286,48 @@ PR/h knee, configuration not a literal, `--no-cap` the announced escape — or
 while a health `RED` marker stands. `land` only warns, so a session already
 mid-issue finishes.
 
-A queued heavy gate is not a hang: **`bun run gate:who`** names the holder and
-its CPU; one that stops burning CPU is reclaimed (issue #2999).
+A queued heavy gate is not a hang: **`bun run gate:who`** names the holder;
+one that stops burning CPU is reclaimed (issue #2999).
 **The full gate is blocked inside an issue worktree**
 (`feat/issue-N`/`fix/issue-N` → exit 1); `TOLARIA_ALLOW_FULL_SUITE=1` is the
 escape hatch `land` alone uses.
 
 **Worktree isolation — the shared checkout is read-only.** Every file you
-author goes in a worktree, **including one line of markdown** (markdown is
-gated too, so an unfinished ADR there reds `check:all` for every other session
-on this machine). Enforced by `deny-guard.sh` § 0; gitignored paths stay
-writable; per-session hatch `TOLARIA_ALLOW_MAIN_EDIT=1 claude`. Docs-only
-lane — `bun run wt:docs <slug>` → write → `bun run docs:ship` (`check:docs`:
-seconds, no lock). Anything else: its own worktree. Rationale and
-measurements: `docs/agents/quality-gates.md` § Worktree isolation.
+author goes in a worktree, **including one line of markdown** (an unfinished
+ADR there reds `check:all` for every other session). Enforced by
+`deny-guard.sh` § 0; gitignored paths stay writable; hatch
+`TOLARIA_ALLOW_MAIN_EDIT=1 claude`. Docs-only: `bun run wt:docs <slug>` →
+write → `bun run docs:ship` (seconds, no lock). Anything else: its own
+worktree (`docs/agents/quality-gates.md` § Worktree isolation).
 
 **Branches are configuration** (ADR 0116): `tolaria.config.json` names the
-**base** branch (PRs target it, `land` merges into it) and the **release**
-branch (production). Only `lib/branches.ts`, `deny-guard.sh`, `gate-run.sh`
-read it; an `origin/<name>` literal elsewhere reds `branches.test.ts`.
+**base** (PRs target it, `land` merges into it) and **release** (production)
+branches; only `lib/branches.ts`, `deny-guard.sh`, `gate-run.sh` read it, and
+an `origin/<name>` literal elsewhere reds `branches.test.ts`.
 
-**Merging goes through `bun run land <PR#>`, from anywhere** (#2537). The gate
-mutex serialises gating; `land` extends it across rebase → `check:lane` →
-push → merge, so the tree that lands is the tree that was gated. No health
-per landing — `land` only appends the tip and detaches the batch decision. It
-refuses a PR whose base is not the base branch. Worktrees come from `bun run wt:new <N>`
-(branches from `origin/<base>`). `deny-guard.sh` § 1 denies a
-hand-typed `gh pr merge` in every directory; if only the MERGE failed, retry
-`bun scripts/pr-merge.ts <PR#>` (a second `land` re-pays the gate), **then
-re-run `land`**: on a MERGED PR it runs only the housekeeping `pr-merge` skips
-(#4159). Per-command hatch: `TOLARIA_ALLOW_MANUAL_MERGE=1`. A `skin`-lane PR owes
-a byte-exact `check:ui` receipt only if its diff can reach the DOM — a
-test-only `src/**` diff is exempt (ADR 0110 §4).
+**Merging goes through `bun run land <PR#>`, from the PR's own branch**
+(#2537 — any directory checked out on it; the base and release branches are
+refused). `land` holds the gate mutex across rebase → `check:lane` → push →
+merge, so the tree that lands is the tree that was gated; it refuses a PR
+whose base is not the base branch. Worktrees: `bun run wt:new <N>`.
+`deny-guard.sh` § 1 denies a hand-typed `gh pr merge` (hatch:
+`TOLARIA_ALLOW_MANUAL_MERGE=1`); if only the MERGE failed, retry
+`bun scripts/pr-merge.ts <PR#>`, **then re-run `land`** — on a MERGED PR it
+runs only the housekeeping (#4159). A `skin`-lane PR owes a byte-exact
+`check:ui` receipt only if its diff can reach the DOM (ADR 0110 §4).
 
-**Fresh worktrees need `bun run worktree:init`** — the tell for a missing
-bootstrap is `216 files failed, 0 tests failed` (import errors, not a red
-baseline).
+**Fresh worktrees need `bun run worktree:init`** — `216 files failed, 0 tests
+failed` is a missing bootstrap, not a red baseline.
 
 **Green-at-release (ADR 0116): the release branch only moves to a
-health-proven base tip.** `land` proves the lane, the batch health proves the
-rest between releases, `release` re-proves it on the exact tip. Either leaves a
-durable `RED` marker on failure (`bun run health:status`): fix-forward FIRST
-(`bun run health:fix`) — never stack work on a red tip, never silence a test,
-"not my test" is not an exemption.
+health-proven base tip.** A failed health or release leaves a durable `RED`
+marker (`bun run health:status`): fix-forward FIRST (`bun run health:fix`) —
+never stack work on a red tip, never silence a test, "not my test" is not an
+exemption.
 
-**`check:ui` is a gate, and it stays outside `check:all`** — the full gate is
-offline by contract, this lane needs a live deployment and a browser — so
-nothing fails on its absence: the PR receipt is the whole enforcement
-(`.claude/rules/chrome-debug.md`).
+**`check:ui` is a gate outside `check:all`** (the full gate is offline; this
+lane needs a deployment and a browser): the PR receipt is the whole
+enforcement (`.claude/rules/chrome-debug.md`).
 
 ## Rules Implementation Process
 
@@ -354,27 +336,19 @@ uncovered details (edge cases, interactions, timing) and decide implement-now
 vs defer together.
 
 **The CR is vendored, and it is the only source** (ADR 0098):
-`data/cr/comprehensive-rules.txt` + `data/cr/VERSION.json`, sliced by
-`bun run cr 605.1a` / `bun run cr grep "<keyword>"` — offline, exact, no
-fetch. Third-party mirrors are removed; an ad-hoc `curl` of a remembered
-rules URL is the habit this replaced.
+`data/cr/comprehensive-rules.txt`, sliced by `bun run cr 605.1a` /
+`bun run cr grep "<keyword>"` — offline, exact, never a fetched mirror.
 
-**Never cite a rule number you have not printed.** `bun run cr:lint` (in
-`check:guards`) reds on an id that resolves to nothing and on a
-`CR 701.N`/`702.N` line naming a keyword other than its section title (the
-701 block renumbers every few revisions).
+**Never cite a rule number you have not printed.** `bun run cr:lint`
+(`check:guards`) reds on an id that resolves to nothing and on a
+`CR 701.N`/`702.N` line naming a keyword other than its section title.
 
 **Every `CR` line you add or edit owes a ledger entry** (ADR 0133): `cr:lint`
-reds on one missing from `data/cr/citations-ledger.json`, prints the rule
-under the line and names the fix — read it, then
-`bun run cr:ledger confirm <file>:<line>`, ONE line per call. A wrong id is
-fixed on its line, then confirmed. A wrapped citation is read whole (#2514);
-`<line>` is the id's line.
-
-`bun run cr:check` says whether a newer document exists, `bun run cr:sync`
-takes it; `cr:check` is deliberately outside `check:all` — the gate is offline
-by contract. Derivation and the correction-pass numbers:
-`docs/agents/gre-guards.md` § CR citation linting.
+reds on one missing from `data/cr/citations-ledger.json` and names the fix —
+read the rule it prints, then `bun run cr:ledger confirm <file>:<line>`, ONE
+line per call, `<line>` = the id's line, a wrapped citation read whole (#2514).
+`cr:check` / `cr:sync` track a newer document, outside `check:all` (offline by
+contract). Derivation: `docs/agents/gre-guards.md` § CR citation linting.
 
 ## Implemented engine capabilities
 
@@ -388,8 +362,7 @@ Once deferred, since **shipped** — do not treat as out of scope:
 - **Effect Script DSL** + Mechanics Registry (ADR 0045/0046) — the mandatory
   authoring default
 
-When a card needs a capability that genuinely isn't built, flag it explicitly
-— most mechanics are supported.
+A capability that genuinely isn't built: flag it explicitly — most are.
 
 ## Out of Scope
 
@@ -397,14 +370,14 @@ When a card needs a capability that genuinely isn't built, flag it explicitly
 
 ## Agent skills
 
-- **Guides**: `docs/guides/` answers "how do I RUN this?" (land and release, …) —
-  index at `docs/guides/README.md`. Read on demand, never resident.
-- **Issue tracker**: GitHub Issues, `gh` CLI. See `docs/agents/issue-tracker.md`.
-  In agent output and generated artifacts (terminal, commits, receipts)
-  **qualify every reference: `issue #NNN` / `PR #NNN`.**
+- **Guides**: `docs/guides/` answers "how do I RUN this?" — index at
+  `docs/guides/README.md`. Read on demand, never resident.
+- **Issue tracker**: GitHub Issues, `gh` CLI (`docs/agents/issue-tracker.md`).
+  In agent output and generated artifacts **qualify every reference:
+  `issue #NNN` / `PR #NNN`.**
 - **Findings drawer**: `docs/findings/` = what a subagent noticed but was not
   asked to fix — draft, never an issue (the loop drains the queue, never
-  fills it). Read via `bun run findings`; format in `docs/findings/README.md`.
+  fills it). `bun run findings`; format in `docs/findings/README.md`.
 - **Triage labels**: five canonical roles + model-routing labels. See
   `docs/agents/triage-labels.md`.
 - **Domain docs**: `CONTEXT.md` + `docs/adr/`. ADRs are not auto-loaded —
