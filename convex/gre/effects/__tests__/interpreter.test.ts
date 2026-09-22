@@ -34964,3 +34964,449 @@ describe("Effect Script value: count narrowed by picks (CR 608.2h / 701.9a, issu
         expect(state.players[0].life).toBe(20);
     });
 });
+
+// --- choice.categories: CATEGORISED SELECTION OVER A WHOLE LIBRARY -----------
+// (CR 701.23a search / CR 701.20a reveal, issue #3808)
+//
+// The domain neither `revealAndCategorize` (a top-N window) nor
+// `chooseCategorized` (an already-visible hand/battlefield) can reach. Two
+// shipped shapes, one rule: Gaea's Balance SEARCHES its own library for a land
+// card of each basic land type, and Guided Passage REVEALS the whole library
+// so an OPPONENT names three cards out of it. Both are the INJECTIVE rule —
+// the picks leave the library, so one card can never answer two descriptions.
+const CL_PLAINS_ID = "test-effects-cl-plains";
+registerTokenDefinition({
+    id: CL_PLAINS_ID,
+    name: CL_PLAINS_ID,
+    rarity: "common",
+    manaCost: {},
+    types: ["Land"],
+    subtypes: ["Plains"],
+});
+const CL_FOREST_ID = "test-effects-cl-forest";
+registerTokenDefinition({
+    id: CL_FOREST_ID,
+    name: CL_FOREST_ID,
+    rarity: "common",
+    manaCost: {},
+    types: ["Land"],
+    subtypes: ["Forest"],
+});
+// A Plains/Forest dual — one card answering TWO basic-land-type categories.
+const CL_DUAL_ID = "test-effects-cl-dual";
+registerTokenDefinition({
+    id: CL_DUAL_ID,
+    name: CL_DUAL_ID,
+    rarity: "common",
+    manaCost: {},
+    types: ["Land"],
+    subtypes: ["Plains", "Forest"],
+});
+
+describe("choice.categories over a library (CR 701.23a / 701.20a, issue #3808)", () => {
+    /** Gaea's Balance's category list, trimmed to the two types in play. */
+    const BASIC_TYPE_CATEGORIES = [
+        {
+            label: "Plains",
+            filter: { type: "Land" as const, subtype: "Plains" },
+        },
+        {
+            label: "Forest",
+            filter: { type: "Land" as const, subtype: "Forest" },
+        },
+    ];
+
+    const searchOp = (extra: Record<string, unknown> = {}): EffectOp =>
+        ({
+            op: "choice",
+            kind: "search-library",
+            player: "controller",
+            zone: "library",
+            categories: BASIC_TYPE_CATEGORIES,
+            count: { min: 0, max: 5 },
+            prompt: "Search your library for a land card of each basic land type.",
+            bind: "$found",
+            ...extra,
+        }) as EffectOp;
+
+    /** The full Gaea's Balance body: find, put onto the battlefield, shuffle. */
+    const balanceBody = (): EffectOp[] => [
+        searchOp(),
+        {
+            op: "moveZone",
+            cards: { ref: "$found" },
+            player: "controller",
+            from: "library",
+            to: "battlefield",
+        } as EffectOp,
+        {
+            op: "libraryLook",
+            action: "shuffle",
+            player: "controller",
+        } as EffectOp,
+    ];
+
+    const libOf = (owner: string, cards: [string, string][]) =>
+        cards.map(([cid, defId]) =>
+            makeInstance(defId, {
+                id: cid,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "library",
+            })
+        );
+
+    const boardWith = (cards: [string, string][], owner = "p1") =>
+        makeState({
+            players: [
+                makePlayer("p1", {
+                    library: owner === "p1" ? libOf("p1", cards) : [],
+                }),
+                makePlayer("p2", {
+                    library: owner === "p2" ? libOf("p2", cards) : [],
+                }),
+            ],
+        });
+
+    const submitPicks = (state: GameState, picks: string[]) => {
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: picks,
+        });
+    };
+
+    it("CR 701.23a — the search suspends carrying the resolved categories, and stays a genuine search", () => {
+        const id = registerScript("test-cl-search-suspend", balanceBody());
+        const state = boardWith([
+            ["plains", CL_PLAINS_ID],
+            ["forest", CL_FOREST_ID],
+            ["bear", BEAR_ID],
+        ]);
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull();
+
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("search-library");
+        // CR 701.23a — a genuine whole-library look, so LIBRARY_SEARCHED
+        // watchers (Aven Mindcensor, Archive Trap) see it.
+        expect(head.isSearch).toBe(true);
+        expect(head.categories).toEqual([
+            { label: "Plains", cardIds: ["plains"] },
+            { label: "Forest", cardIds: ["forest"] },
+        ]);
+        // The creature answers no category, so it is looked at but never
+        // pickable: the allow-list is exactly the union of the categories.
+        expect(head.candidateIds).toEqual(["plains", "forest"]);
+        // CR 701.23b — every category is a "you may", so the floor is 0.
+        expect(head.count).toEqual({ min: 0, max: 2 });
+    });
+
+    it("CR 608.2b — count clamps to the MAXIMUM MATCHING, not the candidate count", () => {
+        const id = registerScript("test-cl-search-clamp", balanceBody());
+        // Three Forests answer the Forest category once between them.
+        const state = boardWith([
+            ["f1", CL_FOREST_ID],
+            ["f2", CL_FOREST_ID],
+            ["f3", CL_FOREST_ID],
+        ]);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+
+        const head = state.pendingChoices![0];
+        expect(head.candidateIds).toEqual(["f1", "f2", "f3"]);
+        expect(head.count).toEqual({ min: 0, max: 1 });
+    });
+
+    it("a dual land seats in ONE category and still leaves the other answerable", () => {
+        const id = registerScript("test-cl-search-dual", balanceBody());
+        const state = boardWith([
+            ["dual", CL_DUAL_ID],
+            ["forest", CL_FOREST_ID],
+        ]);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+
+        const head = state.pendingChoices![0];
+        expect(head.categories).toEqual([
+            { label: "Plains", cardIds: ["dual"] },
+            { label: "Forest", cardIds: ["dual", "forest"] },
+        ]);
+        // dual→Plains, forest→Forest is a matching of size 2.
+        expect(head.count).toEqual({ min: 0, max: 2 });
+    });
+
+    it("Gaea's Balance: the found cards go onto the battlefield and the library is shuffled", () => {
+        const id = registerScript("test-cl-search-apply", balanceBody());
+        const state = boardWith([
+            ["plains", CL_PLAINS_ID],
+            ["forest", CL_FOREST_ID],
+            ["bear", BEAR_ID],
+        ]);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        submitPicks(state, ["plains", "forest"]);
+
+        const p1 = state.players[0];
+        expect(p1.battlefield.map((c) => c.id).sort()).toEqual([
+            "forest",
+            "plains",
+        ]);
+        expect(p1.library.map((c) => c.id)).toEqual(["bear"]);
+
+        // Wire format: the two found lands are real permanents on the
+        // projected battlefield — the projection strips fat fields, so this
+        // is the assertion a GRE-only test cannot make.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            projected.players[0].battlefield.map((c) => c.id).sort()
+        ).toEqual(["forest", "plains"]);
+        // CR 701.23e — nothing was revealed, so the library keeps no public
+        // knowledge of what was passed over.
+        expect(projected.players[0].library.known).toEqual([]);
+    });
+
+    it("CR 701.23b — failing to find is legal and still shuffles", () => {
+        const id = registerScript("test-cl-search-fail-to-find", balanceBody());
+        const state = boardWith([
+            ["plains", CL_PLAINS_ID],
+            ["forest", CL_FOREST_ID],
+        ]);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        submitPicks(state, []);
+
+        expect(state.players[0].battlefield).toHaveLength(0);
+        expect(state.players[0].library).toHaveLength(2);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+    });
+
+    it("the submit validator rejects two cards seated in the same category", () => {
+        const id = registerScript("test-cl-search-illegal", balanceBody());
+        const state = boardWith([
+            ["f1", CL_FOREST_ID],
+            ["f2", CL_FOREST_ID],
+            ["plains", CL_PLAINS_ID],
+        ]);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(() => submitPicks(state, ["f1", "f2"])).toThrow(
+            /different category/
+        );
+        // plains→Plains, f1→Forest is legal and the same submit path takes it.
+        submitPicks(state, ["plains", "f1"]);
+        expect(state.players[0].battlefield.map((c) => c.id).sort()).toEqual([
+            "f1",
+            "plains",
+        ]);
+    });
+
+    it("a card answering no category is refused even though it is in the library", () => {
+        const id = registerScript(
+            "test-cl-search-uncategorised",
+            balanceBody()
+        );
+        const state = boardWith([
+            ["plains", CL_PLAINS_ID],
+            ["bear", BEAR_ID],
+        ]);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(() => submitPicks(state, ["bear"])).toThrow(/eligible/);
+    });
+});
+
+describe("reveal { zone: 'library' } + a foreign categorised pick (CR 701.20a, issue #3808)", () => {
+    /** Guided Passage's three descriptions. */
+    const PASSAGE_CATEGORIES = [
+        { label: "Creature card", filter: { type: "Creature" as const } },
+        { label: "Land card", filter: { type: "Land" as const } },
+        {
+            label: "Noncreature, nonland card",
+            filter: { excludeType: ["Creature", "Land"] as const },
+        },
+    ];
+
+    const passageBody = (): EffectOp[] => [
+        {
+            op: "reveal",
+            player: "controller",
+            zone: "library",
+            bind: "$revealed",
+        } as EffectOp,
+        {
+            op: "choice",
+            kind: "choose-library-card",
+            player: "opponent",
+            zoneOwnerId: "controller",
+            zone: "library",
+            candidates: [{ ref: "$revealed" }],
+            categories: PASSAGE_CATEGORIES,
+            count: 3,
+            prompt: "Choose a creature card, a land card, and a noncreature, nonland card.",
+            bind: "$chosen",
+        } as EffectOp,
+        {
+            op: "moveZone",
+            cards: { ref: "$chosen" },
+            player: "controller",
+            from: "library",
+            to: "hand",
+        } as EffectOp,
+        {
+            op: "libraryLook",
+            action: "shuffle",
+            player: "controller",
+        } as EffectOp,
+    ];
+
+    const boardWith = (cards: [string, string][]) =>
+        makeState({
+            players: [
+                makePlayer("p1", {
+                    library: cards.map(([cid, defId]) =>
+                        makeInstance(defId, {
+                            id: cid,
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        })
+                    ),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+
+    const submitPicks = (state: GameState, picks: string[]) => {
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: picks,
+        });
+    };
+
+    const fullLibrary = (): [string, string][] => [
+        ["bear", BEAR_ID],
+        ["land", CL_FOREST_ID],
+        ["inst", NC_INSTANT_ID],
+        ["bear2", BEAR_ID],
+    ];
+
+    it("CR 701.20a — the reveal makes the WHOLE library public to every player", () => {
+        const id = registerScript("test-cl-passage-reveal", passageBody());
+        const state = boardWith(fullLibrary());
+        pushSpell(state, id, "p1");
+        expect(resolveTopOfStack(state)).toBeNull();
+
+        // Every library card is stamped known to BOTH players, which is what
+        // the wire projection reads — no new channel, no per-kind gate.
+        for (const card of state.players[0].library) {
+            expect([...(card.knownTo ?? [])].sort()).toEqual(["p1", "p2"]);
+        }
+        const asOwner = projectPublicState(state, 1, "p1");
+        const asOpponent = projectPublicState(state, 1, "p2");
+        expect(asOwner.players[0].library.known).toHaveLength(4);
+        expect(asOpponent.players[0].library.known).toHaveLength(4);
+        expect(
+            asOpponent.players[0].library.known.map((k) => k.card.id)
+        ).toEqual(["bear", "land", "inst", "bear2"]);
+        expect(asOpponent.players[0].library.known.map((k) => k.index)).toEqual(
+            [0, 1, 2, 3]
+        );
+    });
+
+    it("the pick is the OPPONENT's, over the controller's library, and is not a search", () => {
+        const id = registerScript("test-cl-passage-head", passageBody());
+        const state = boardWith(fullLibrary());
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("choose-library-card");
+        expect(head.playerId).toBe("p2");
+        expect(head.zoneOwnerId).toBe("p1");
+        // CR 701.23a never happened: nobody searched, so no LIBRARY_SEARCHED.
+        expect(head.isSearch).toBeUndefined();
+        expect(head.categories).toEqual([
+            { label: "Creature card", cardIds: ["bear", "bear2"] },
+            { label: "Land card", cardIds: ["land"] },
+            { label: "Noncreature, nonland card", cardIds: ["inst"] },
+        ]);
+        // Mandatory: three descriptions, three answerable, exactly three.
+        expect(head.count).toBe(3);
+    });
+
+    it("Guided Passage: the chosen cards reach the controller's hand and the rest is re-hidden", () => {
+        const id = registerScript("test-cl-passage-apply", passageBody());
+        const state = boardWith(fullLibrary());
+        // A hand card that was NEVER revealed — the control that proves the
+        // hand exposure below comes from the reveal and not from the
+        // projection handing over every card.
+        state.players[0].hand.push(
+            makeInstance(BEAR_ID, {
+                id: "held",
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            })
+        );
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        submitPicks(state, ["bear", "land", "inst"]);
+
+        const p1 = state.players[0];
+        expect(p1.hand.map((c) => c.id).sort()).toEqual([
+            "bear",
+            "held",
+            "inst",
+            "land",
+        ]);
+        expect(p1.library.map((c) => c.id)).toEqual(["bear2"]);
+        // CR 701.20d — the shuffle wiped the knowledge of what stayed behind;
+        // the cards that reached the hand keep it (they were revealed).
+        expect(p1.library[0].knownTo ?? []).toEqual([]);
+        const projected = projectPublicState(state, 1, "p2");
+        expect(projected.players[0].library.known).toEqual([]);
+        // The revealed cards are public in the HAND — the opponent sees what
+        // they handed over, and only that: `held`, in the hand before the
+        // reveal and never shown, is still nulled for them. Without the
+        // discriminator this assertion would pass on a projection that leaked
+        // every hand card.
+        const opponentHand = projected.players[0].hand;
+        expect(opponentHand.filter((c) => c === null)).toHaveLength(1);
+        expect(
+            opponentHand
+                .filter((c): c is NonNullable<typeof c> => c !== null)
+                .map((c) => c.id)
+                .sort()
+        ).toEqual(["bear", "inst", "land"]);
+    });
+
+    it("CR 608.2b — an unanswerable description lowers the count instead of stalling", () => {
+        const id = registerScript("test-cl-passage-noland", passageBody());
+        const state = boardWith([
+            ["bear", BEAR_ID],
+            ["inst", NC_INSTANT_ID],
+        ]);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+
+        const head = state.pendingChoices![0];
+        expect(head.categories![1]).toEqual({
+            label: "Land card",
+            cardIds: [],
+        });
+        expect(head.count).toBe(2);
+        submitPicks(state, ["bear", "inst"]);
+        expect(state.players[0].hand.map((c) => c.id).sort()).toEqual([
+            "bear",
+            "inst",
+        ]);
+    });
+});
