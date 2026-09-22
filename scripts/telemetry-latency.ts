@@ -314,7 +314,9 @@ const fallback = laneFallbackRate(
         .map((g) => ({
             cmd: g.cmd,
             lane: g.lane,
-            forcedBy: g.laneForcedBy,
+            // `""` is the ingest's "parsed, no forcing path" sentinel; NULL is
+            // "never parsed". Both mean no fallback here.
+            forcedBy: g.laneForcedBy || null,
         }))
 );
 

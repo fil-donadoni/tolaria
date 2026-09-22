@@ -221,6 +221,56 @@ describe("docs-lane — the doc gate covers every guard that reads prose", () =>
         ).toEqual([]);
     });
 
+    /**
+     * The census's blind spot, closed (review of issue #4376). An exclusion row
+     * is a claim about the WHOLE test, written once; widening what the docs
+     * lane CARRIES can falsify a row nobody touched. That is exactly what
+     * happened here: `cr-source.test.ts` was excluded as "guards data/cr/, the
+     * vendored rules document — not repo prose", which was true of half the
+     * file. Its other half (ADR 0098's no-third-party-mirror sweep)
+     * `readFileSync`s `.claude/skills/<skill>/SKILL.md` and
+     * `.claude/rules/gre-development.md` — harmless while every `.claude/**`
+     * edit forced the full gate, a hole the moment a `SKILL.md` took the cheap
+     * lane. The census could not see it, because the row already existed.
+     *
+     * So: an excluded test that names a `.claude/{skills,rules}` path AS A
+     * WHOLE STRING, outside a comment, must say in its reason that the path is
+     * a fixture. A test that really reads one cannot honestly write that word,
+     * and has to earn a `DOC_GATE_TESTS` row instead. Comments are stripped
+     * first — a header citing a rule file is prose about the rule, not a use
+     * of it, and every rule-mechanising guard in this repo carries one.
+     */
+    it("an excluded test naming a .claude/{skills,rules} path calls it a fixture, or is covered (review of issue #4376)", () => {
+        const stripComments = (src: string) =>
+            src
+                .replace(/\/\*[\s\S]*?\*\//g, "")
+                .replace(/(^|[^:])\/\/[^\n]*/g, "$1");
+        /** A string literal that IS a path under .claude/skills or .claude/rules. */
+        // The quote characters are spelled \x22 / \x27 / \x60 rather than
+        // written literally: a backtick inside a regex literal is legal JS but
+        // trips esbuild's template-literal lexer in this file.
+        const WHOLE_STRING_PATH = new RegExp(
+            "([\\x22\\x27\\x60])(\\.claude/(?:skills|rules)/[^\\x22\\x27\\x60\\n]*?)\\1"
+        );
+        const offenders: string[] = [];
+        for (const [file, reason] of Object.entries(DOC_GATE_TESTS_EXCLUDED)) {
+            const src = stripComments(
+                fs.readFileSync(path.join(REPO_ROOT, file), "utf8")
+            );
+            if (!WHOLE_STRING_PATH.test(src)) continue;
+            if (/fixture|synthetic/i.test(reason)) continue;
+            offenders.push(`${file} — ${reason}`);
+        }
+        expect(
+            offenders,
+            `These tests name a .claude/skills or .claude/rules path in CODE, not in a comment,\n` +
+                `but their exclusion reason does not say it is a fixture. Since issue #4376 the docs\n` +
+                `lane carries those paths, so a test that READS one must move to DOC_GATE_TESTS (and\n` +
+                `check:docs:inner); one that only feeds it to a classifier must say so:\n` +
+                offenders.map((f) => `  ${f}`).join("\n")
+        ).toEqual([]);
+    });
+
     it("every exclusion carries a reason", () => {
         for (const [file, reason] of Object.entries(DOC_GATE_TESTS_EXCLUDED)) {
             expect(

@@ -89,9 +89,13 @@ is not, because each of them then debugs a failure that is not theirs.
    `check:oracle`, `cr:lint`) are in every non-docs lane. Prose in a mixed
    diff no longer forces `full`: the code decides the lane and the docs
    lane's test list (`check:docs`'s node files, seconds) is appended to it.
-   **`.claude/**`is split** (issue #4376):`.claude/skills/\*_/_.md`and`.claude/rules/\*.md`are`docs`, because what a skill or a rule index can
-break is the closed set of guards `check:docs`already runs, pinned by`docs-lane.test.ts`'s `.claude/`census; hooks, settings and any non-prose
-file under a skill stay`full`, because a program can change anything.
+   **The `.claude/` tree is split** (issue #4376): a skill's markdown
+   (`.claude/skills/<skill>/…md`) and a rule index (`.claude/rules/…md`)
+   classify as `docs`, because what either can break is the closed set of
+   guards `check:docs` already runs, pinned by the `.claude/` census in
+   `docs-lane.test.ts`; hooks, settings and any non-prose file under a skill
+   stay `full`, because a program can change anything.
+
 4. **A `cards` lane**, for a diff entirely under `convex/cards/sets/**` plus
    `data/**`: `tsc -b convex`, `check:index`, `check:stubs`, `check:oracle`,
    `cr:lint`, `convex/cards/__tests__` (node) with its three bot censuses
