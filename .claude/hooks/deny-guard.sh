@@ -304,24 +304,51 @@ segment_reaches_gate() {
     # text sent the caller to `GATE_EXEMPT_SCRIPT_RE`, which is the wrong fix
     # (the file is an ARGUMENT, not the command; no gate runs at all). A gate
     # only runs when the path is the thing being EXECUTED, so that is what is
-    # matched: the head of each command in the segment — its first word after
-    # any leading env assignments, wrapper words (`bun`/`bunx`/`sh`/`bash`/
-    # `env`) and their flags — never a later argument. The `bun run <script>`
-    # clause below is untouched, and the fail-closed direction is kept: a
-    # command head is still deny-by-default, so `bun scripts/gate.ts heavy …`
-    # and `sh scripts/gate-run.sh … | tail` remain denied. Command boundaries
-    # are taken from ``| ; & ( { ` `` — the same segment-level approximation
-    # the rest of this file uses, erring towards MORE heads (a `$(…)` leftover
-    # `$` simply yields a head that matches nothing, while the substituted
-    # command inside it is still read). The skipped-prefix list errs the same
-    # way: `time`, `nohup`, `command`, `nice`, `stdbuf` and `xargs` are there
-    # so `time bun scripts/gate.ts … | tail` does not read as the command
-    # `time`, and redirections are skipped so an `&`-split `2>&1` leaves no
-    # stray head. Skipping a word can only ever make the clause deny MORE.
+    # matched: the head of each command in the segment, never a later
+    # argument. The `bun run <script>` clause below is untouched.
+    #
+    # Anchoring is the whole risk here, so the head extraction is built to err
+    # towards finding MORE heads — every step below can only ever make this
+    # clause deny more, never less:
+    #
+    #   1. Redirections are DELETED first, not skipped as a token. Deleting
+    #      `2>&1` outright means the `&` split below leaves no stray `1` to
+    #      read as a command, and deleting the operator in `sh <scripts/gate-
+    #      run.sh` (no space — valid shell, `sh` runs the script from stdin)
+    #      exposes the path as the head. An earlier revision skipped a
+    #      redirection as one token, `[0-9]*[<>][^[:space:]]*`, which
+    #      swallowed that glued path and was a one-character bypass; it also
+    #      needed a bare `[0-9]+` alternative that mistruncated any command
+    #      whose name starts with a digit (`2to3` read as `to3`). Both are
+    #      gone (issue #4377 review).
+    #   2. Command boundaries are taken from ``| ; & ( { ` `` — the same
+    #      segment-level approximation the rest of this file uses. A `$(…)`
+    #      leftover `$` simply yields a head that matches nothing, while the
+    #      substituted command inside it is still read.
+    #   3. The head is read past leading quotes, env assignments, flags, and
+    #      wrapper words — `bun`/`bunx`/`sh`/`bash`/`zsh`/`env`/`time`/
+    #      `nohup`/`command`/`eval`/`exec`/`sudo`/`source`/`.`/`nice`/
+    #      `stdbuf`/`xargs` — each accepted PATH-QUALIFIED too, because
+    #      `/usr/bin/env sh scripts/gate-run.sh | tail` and `/bin/sh …` run
+    #      the gate exactly as the bare forms do and were both allowed before
+    #      the review caught it. Same for `eval "sh scripts/gate-run.sh" |
+    #      tail`, `exec …`, `sudo …`, `source …` and `. …`.
+    #
+    # So `bun scripts/gate.ts heavy …` and `sh scripts/gate-run.sh … | tail`
+    # remain denied, however they are wrapped.
+    #
+    # **What this does NOT reach, and never did:** a brace group whose `;`
+    # ends the segment before §3 looks at it — `{ sh scripts/gate-run.sh; } |
+    # tail` is allowed, as it was before this change, because the top-level
+    # splitter treats `;` as a segment boundary on purpose (`hook-policy.
+    # test.ts`: "`;` must not join a gate into a pager segment"). `{` is in
+    # the boundary set above for the shape that DOES reach here, `{ bun
+    # scripts/gate.ts heavy | tail -5 ; }`, where the pipe precedes the `;`.
     _grg_heads=$(printf '%s\n' "$_grg_seg" |
+        sed -E 's/[0-9]*[<>]+&?[0-9-]*//g' |
         tr '|;&({`' '\n\n\n\n\n\n' |
         sed -E -e 's/^[[:space:]]*//' \
-            -e "s/^(([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*|[0-9]*[<>][^[:space:]]*|[0-9]+|bun|bunx|sh|bash|zsh|env|time|nohup|command|nice|stdbuf|xargs|-[^[:space:]]*|['\"])[[:space:]]*)*//" \
+            -e "s#^((['\"]|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+|(/?([^[:space:]/]+/)*)?(bun|bunx|sh|bash|zsh|env|time|nohup|command|eval|exec|sudo|source|nice|stdbuf|xargs|\.)[[:space:]]+|-[^[:space:]]*[[:space:]]+))*##" \
             -e 's/[[:space:]].*$//')
     if printf '%s\n' "$_grg_heads" |
         grep -Eq '^\.?/?([^[:space:]]*/)?scripts/gate(-run\.sh|\.ts)$'; then

@@ -449,6 +449,11 @@ describe("deny-guard — a gate may not be piped into a pager", () => {
             'sed -n "1,40p" scripts/gate-run.sh | head -20',
             "git log --oneline -- scripts/gate.ts | head -5",
             "time grep -n export scripts/gate.ts | head",
+            "diff scripts/gate.ts scripts/gate-run.sh | head",
+            "head -40 scripts/gate-run.sh | tail -5",
+            // Deleting redirections replaced a skip rule that also ate a bare
+            // digit run, mistruncating any command whose name starts with one.
+            "2to3 scripts/gate.ts | head",
         ]) {
             const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
             expect(r.code, `expected ALLOW for: ${cmd}`).toBe(0);
@@ -472,6 +477,25 @@ describe("deny-guard — a gate may not be piped into a pager", () => {
             "( bun scripts/gate.ts heavy ) | tail",
             "echo `bun scripts/gate.ts heavy` | tail",
             "ls | head -2 && bun scripts/gate.ts heavy | tail",
+            "{ bun scripts/gate.ts heavy | tail -5 ; }",
+            // Every one of the rest was ALLOWED by the first revision of the
+            // anchoring and caught in review — each genuinely RUNS the gate.
+            // A path-qualified wrapper is the same command as the bare one:
+            "/usr/bin/env sh scripts/gate-run.sh check:lane | tail",
+            "/bin/sh scripts/gate-run.sh check:lane | tail",
+            'eval "sh scripts/gate-run.sh check:lane" | tail',
+            "exec sh scripts/gate-run.sh check:lane | tail",
+            "sudo sh scripts/gate-run.sh check:lane | tail",
+            "source scripts/gate-run.sh check:lane | tail",
+            ". scripts/gate-run.sh check:lane | tail",
+            'sh -c "bun scripts/gate.ts heavy" | tail',
+            // `sh <file` with no space runs the script from stdin. The
+            // redirection is DELETED, not skipped as a token, so the glued
+            // path is still read as the head — a one-character bypass
+            // otherwise.
+            "sh <scripts/gate-run.sh check:lane | tail",
+            "sh < scripts/gate-run.sh | tail",
+            "bun scripts/gate.ts heavy 2>&1 | tail",
         ]) {
             const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
             expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
