@@ -6,11 +6,19 @@
 # one batch and exits, so a human had to type the driver command every time.
 # This script closes that gap from both ends:
 #
-#   1. `--start` / `--resume` — a human types ONE command and walks away. The
-#      driver is detached from this terminal (new session via setsid, SIGHUP
-#      immune, optionally under `caffeinate` so the Mac does not sleep through
-#      the run), so it keeps going after the shell, the SSH connection, or the
-#      Claude Code session that launched it is gone.
+#   1. `--start` / `--resume` — a human types ONE command. The driver runs in
+#      the FOREGROUND (issue #4389): merged stdout+stderr stream to this
+#      terminal, every line timestamped by this script's own pipeline and
+#      tee'd into the same log a detached run writes, and Ctrl-C reaches the
+#      `claude` pass in flight because the driver stays in the caller's
+#      process group. ADR 0109 made a human `--start` the only way a run
+#      begins, so the operator is AT the keyboard: watching the run must not
+#      cost a second shell and a `tail -f`.
+#   1b. `--detach` is the opt-in that restores the old shape — new session via
+#      `perl POSIX::setsid()`, SIGHUP-immune under `nohup` — for a run that
+#      must outlive the shell, the SSH connection or the Claude Code session
+#      that started it. `caffeinate` holds the Mac awake on BOTH paths: an
+#      overnight FOREGROUND run sleeps through the night otherwise.
 #   2. `--from-pass` — DEAD SWITCH (ADR 0109). It used to detach the driver
 #      at the end of a `/process-gh-issues` pass whenever an `afk.conf` was
 #      present. In practice a weeks-old conf turned a single interactive pass
@@ -74,13 +82,15 @@ ARG_MAX_ERRORS=""
 ARG_START_DELAY=""
 NO_CAFFEINATE=0
 DRY_RUN=0
+DETACH=0
 
 usage() {
     cat <<'EOF'
 loop-handoff — start / stop / inspect the detached AFK driver.
 
-  bun run loop:afk                     arm (if needed) + start a detached driver
-  bun run loop:afk --resume            same, but clears the stop-file first
+  bun run loop:afk                     arm (if needed) + run the driver in THIS terminal
+  bun run loop:afk --detach            same, but detached — survives this shell
+  bun run loop:afk --resume            same as --start, but clears the stop-file first
   bun run loop:afk --stop              ask the running driver to stop after the current pass
   bun run loop:afk --status            armed? driver alive? stop-file? last log lines
   bun run loop:afk --arm               write the conf (defaults for --start) without starting anything
@@ -105,7 +115,12 @@ Options (recorded in .claude/telemetry/afk.conf on --arm / --start):
   --max-consecutive-errors <n> crashes tolerated in a row before stopping (default 3)
   --start-delay <secs>         grace before the first pass (default 45)
   --no-caffeinate              do not hold the machine awake for the run
-  --dry-run                    print the driver command instead of detaching it
+  --detach                     run the driver in its own session instead of in
+                               this terminal. Ctrl-C then no longer reaches it
+                               (use --stop); output goes only to
+                               .claude/telemetry/loop-afk.log. Both paths
+                               timestamp every line and write that same log.
+  --dry-run                    print the driver command instead of running it
 EOF
 }
 
@@ -149,6 +164,10 @@ while [ $# -gt 0 ]; do
             ;;
         --no-caffeinate)
             NO_CAFFEINATE=1
+            shift
+            ;;
+        --detach)
+            DETACH=1
             shift
             ;;
         --dry-run)
@@ -232,14 +251,125 @@ write_conf() {
     mv "$CONF_FILE.tmp" "$CONF_FILE"
 }
 
-# Build the driver argv and detach it into its own session. Three layers, all
-# optional-but-defaulted:
-#   perl setsid  — new session, so the driver survives the death of the shell,
-#                  terminal or Claude Code process that launched it, and is
-#                  never killed by a process-group signal aimed at that parent
-#   caffeinate   — the Mac must stay awake, or an overnight run stops the
-#                  moment the display sleeps
-#   nohup        — SIGHUP immunity even where setsid is unavailable
+# ── per-line timestamps (issue #4389). The stamper runs OUTSIDE the driver,
+# in this script's own pipeline, and that placement is the whole design:
+#
+#   · the per-pass logs stay RAW by construction. loop-drain.sh tees each pass
+#     into .claude/telemetry/loop-drain/pass-N-EPOCH.log and then greps that
+#     file for RATE_LIMIT_PATTERNS (loop-drain.sh:832); a stamp applied inside
+#     the driver would prefix the very lines those patterns must match.
+#   · both sinks see the SAME bytes. One filter feeds one `tee`, so the
+#     terminal, `--status` and anything tailing loop-afk.log agree line for
+#     line, and a detached run produces the same format as a foreground one.
+#   · the `2>&1` merge happens BEFORE the filter, because loop-drain.sh writes
+#     most of its progress to stderr — merging after would leave half the
+#     stream unstamped and interleaved.
+#
+# `perl` was already a dependency of the detach path (POSIX::setsid). With no
+# perl on PATH we stream UNSTAMPED rather than refuse to run: an unstamped log
+# beats no run at all.
+STAMP_PROG='BEGIN { $| = 1; require POSIX } print POSIX::strftime("%Y-%m-%d %H:%M:%S ", localtime), $_'
+
+stamp_stream() {
+    if command -v perl >/dev/null 2>&1; then
+        perl -ne "$STAMP_PROG"
+    else
+        cat
+    fi
+}
+
+# The detached path runs the SAME driver|stamper pipeline, but INSIDE the new
+# session, so the stamper is detached alongside the driver: a stamper left
+# behind in the caller's session would take the SIGHUP the driver is protected
+# from, and the driver would then die of SIGPIPE writing into it. `$1` is the
+# perl program, passed as an ARGUMENT precisely so this string needs no nested
+# quoting; the caller redirects the whole inner shell into the log.
+DETACH_PIPELINE='_prog=$1; shift; if command -v perl >/dev/null 2>&1; then "$@" 2>&1 | perl -ne "$_prog"; else "$@" 2>&1; fi'
+
+# The session-detaching wrapper, named once so the --dry-run line and the real
+# spawn can never print different things — the old inline form was printed by
+# one and executed by the other, which is exactly how the two drift.
+# Single-quoted, so the perl program is one opaque word: the shell expands
+# this variable once and never re-scans the result, which is why `@ARGV` and a
+# `$`-carrying perl program would both be safe here. It is nonetheless written
+# without `$` because the --dry-run line prints it UNQUOTED, and a reader
+# copying that line into a terminal would have the shell eat it.
+SETSID_PERL='use POSIX (); POSIX::setsid(); exec @ARGV; die "loop-handoff: exec failed\n";'
+
+# What an operator reads immediately before the run begins. A function rather
+# than inline echoes because on the FOREGROUND path it runs inside the stamped
+# pipeline — so every line the caller sees carries a timestamp — while the
+# dry-run and --detach paths print it directly.
+announce_start() {
+    echo "loop-handoff: AFK run armed with CLAUDE_ARGS=$(conf_get CLAUDE_ARGS)"
+    # Branch on an empty PROMPT exactly as --status does. This line is the
+    # last thing an operator reads before walking away, so `claude -p ""` —
+    # which is what an unbranched echo prints now that the conf's default is
+    # empty — would announce a pass that does nothing, forever, when the
+    # driver actually resolves an issue and a tier per pass.
+    _start_prompt=$(conf_get PROMPT)
+    if [ -n "$_start_prompt" ]; then
+        echo "loop-handoff: every pass will run: claude -p \"$_start_prompt\""
+    else
+        echo "loop-handoff: every pass will run: /next-issue on the issue and tier the driver resolves for it (unscoped)"
+    fi
+    case "$(conf_get CLAUDE_ARGS)" in
+        *--dangerously-skip-permissions*)
+            echo "loop-handoff: WARNING — this run answers every permission prompt automatically." >&2
+            echo "loop-handoff: it will edit files, push branches and merge PRs with nobody watching." >&2
+            echo "loop-handoff: stop it with 'bun run loop:afk --stop'." >&2
+            ;;
+    esac
+}
+
+# Run the driver IN THIS PROCESS and block until it exits. Everything the run
+# prints — this script's own announcement included — goes through one
+# `2>&1 | stamp | tee` pipeline, so the terminal and $DETACH_LOG receive
+# identical, timestamped bytes.
+#
+# No setsid and no nohup here, deliberately: the driver must stay in the
+# caller's process group or Ctrl-C never reaches the `claude` pass in flight,
+# which is the whole point of the foreground default. SIGINT therefore ends
+# the run and writes NO stop-file — `--resume` is the answer to a stop-file,
+# not to an interrupted foreground run — while the driver's own
+# `trap cleanup_pid_file EXIT INT TERM` keeps the pid file honest.
+#
+# The exit code travels through a file because POSIX sh has no PIPESTATUS:
+# `$?` after the pipeline is `tee`'s, which is 0 even when the driver crashed.
+# `if`/`else` around the call rather than a bare invocation, because `set -e`
+# is in effect inside the pipeline's subshell and would kill it before the
+# code was ever written.
+run_foreground() {
+    _rc_file="$TELEMETRY_DIR/loop-afk.rc.$$"
+    rm -f "$_rc_file"
+    trap 'rm -f "$_rc_file"; exit 130' INT
+    trap 'rm -f "$_rc_file"; exit 143' TERM
+    echo "--- $(date '+%Y-%m-%d %H:%M:%S') loop-handoff running driver in the foreground ---" >>"$DETACH_LOG"
+    {
+        announce_start
+        if "$@"; then
+            echo 0 >"$_rc_file"
+        else
+            echo "$?" >"$_rc_file"
+        fi
+    } 2>&1 | stamp_stream | tee -a "$DETACH_LOG"
+    trap - INT
+    trap - TERM
+    _rc=$(cat "$_rc_file" 2>/dev/null || echo "")
+    rm -f "$_rc_file"
+    is_uint "$_rc" || _rc=1
+    return "$_rc"
+}
+
+# Build the driver argv and run it — in this terminal by default, in its own
+# session under --detach. The optional-but-defaulted layers:
+#   caffeinate   — BOTH paths. The Mac must stay awake, or an overnight run
+#                  stops the moment the display sleeps.
+#   perl setsid  — --detach ONLY. A new session is exactly what makes Ctrl-C
+#                  unable to reach the driver, so it is the opt-in, never the
+#                  default.
+#   nohup        — --detach ONLY. SIGHUP immunity even where setsid is
+#                  unavailable.
 launch_driver() {
     _claude_args=$(conf_get CLAUDE_ARGS)
     _prompt=$(conf_get PROMPT)
@@ -265,15 +395,38 @@ launch_driver() {
     if [ "$NO_CAFFEINATE" -eq 0 ] && command -v caffeinate >/dev/null 2>&1; then
         set -- caffeinate -i -s "$@"
     fi
-    if command -v perl >/dev/null 2>&1; then
-        set -- perl -e 'use POSIX (); POSIX::setsid(); exec @ARGV or die "exec: $!\n";' -- "$@"
+
+    if [ "$DETACH" -eq 0 ]; then
+        if [ "$DRY_RUN" -eq 1 ]; then
+            announce_start
+            echo "loop-handoff: [dry-run] would run in the foreground: $*"
+            return 0
+        fi
+        run_foreground "$@"
+        return $?
     fi
 
+    # --detach: setsid wraps the `sh -c` that runs driver|stamper, so BOTH
+    # members of the pipeline land in the new session (see DETACH_PIPELINE).
     if [ "$DRY_RUN" -eq 1 ]; then
-        echo "loop-handoff: [dry-run] would detach: $*"
+        announce_start
+        # The `sh -c` carrying the stamping pipeline is elided from this line
+        # on purpose: it is transport, and printing it buries the driver flags
+        # the operator typed --dry-run to check.
+        if command -v perl >/dev/null 2>&1; then
+            echo "loop-handoff: [dry-run] would detach: perl -e $SETSID_PERL -- $*"
+        else
+            echo "loop-handoff: [dry-run] would detach: $*"
+        fi
         return 0
     fi
 
+    set -- sh -c "$DETACH_PIPELINE" sh "$STAMP_PROG" "$@"
+    if command -v perl >/dev/null 2>&1; then
+        set -- perl -e "$SETSID_PERL" -- "$@"
+    fi
+
+    announce_start
     echo "--- $(date '+%Y-%m-%d %H:%M:%S') loop-handoff detaching driver ---" >>"$DETACH_LOG"
     nohup "$@" >>"$DETACH_LOG" 2>&1 </dev/null &
     echo "loop-handoff: driver detached (wrapper pid $!) — output: $DETACH_LOG"
@@ -375,25 +528,9 @@ case "$MODE" in
             exit 1
         fi
         write_conf
-        echo "loop-handoff: AFK run armed with CLAUDE_ARGS=$(conf_get CLAUDE_ARGS)"
-        # Branch on an empty PROMPT exactly as --status does. This line is the
-        # last thing an operator reads before walking away, so "claude -p \"\""
-        # — which is what an unbranched echo prints now that the conf's default
-        # is empty — would announce a pass that does nothing, forever, when the
-        # driver actually resolves an issue and a tier per pass.
-        _start_prompt=$(conf_get PROMPT)
-        if [ -n "$_start_prompt" ]; then
-            echo "loop-handoff: every pass will run: claude -p \"$_start_prompt\""
-        else
-            echo "loop-handoff: every pass will run: /next-issue on the issue and tier the driver resolves for it (unscoped)"
-        fi
-        case "$(conf_get CLAUDE_ARGS)" in
-            *--dangerously-skip-permissions*)
-                echo "loop-handoff: WARNING — this run answers every permission prompt automatically." >&2
-                echo "loop-handoff: it will edit files, push branches and merge PRs with nobody watching." >&2
-                echo "loop-handoff: stop it with 'bun run loop:afk --stop'." >&2
-                ;;
-        esac
+        # The announcement is launch_driver's now (announce_start): on the
+        # foreground path it has to be printed INSIDE the stamped pipeline, or
+        # the caller's first lines would be the only unstamped ones.
         launch_driver
         ;;
 

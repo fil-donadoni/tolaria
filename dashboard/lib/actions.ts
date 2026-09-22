@@ -46,7 +46,7 @@ export const ACTION_LABEL: Record<ActionId, string> = {
 const ACTION_EFFECT: Record<RemedyAction, string> = {
     "driver.stop": "Ask the running driver to stop after its current pass.",
     "driver.resume":
-        "Arm the loop if needed, clear any stop-file, and start a detached driver.",
+        "Arm the loop if needed, clear any stop-file, and start a detached driver (the dashboard has no terminal to stream a foreground run to).",
 };
 
 /** The sentence a confirmation states before anything is sent (AC: "naming

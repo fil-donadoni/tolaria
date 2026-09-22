@@ -675,10 +675,17 @@ export const DRIVER_COMMANDS = {
         "scripts/loop-handoff.sh",
         "--stop",
     ],
+    // `--detach` is NOT optional here (issue #4389). `loop-handoff.sh` runs
+    // the driver in the FOREGROUND by default, and this argv is awaited
+    // through `execFileAsync` — a foreground resume would hold the HTTP
+    // action open for the whole unattended run, so the dashboard button
+    // would hang until the queue drained. The dashboard is precisely the
+    // caller with no terminal to stream to.
     resumeDriver: (): OperationArgv => [
         "sh",
         "scripts/loop-handoff.sh",
         "--resume",
+        "--detach",
     ],
     releaseClaim: (issue: number): OperationArgv => [
         "gh",

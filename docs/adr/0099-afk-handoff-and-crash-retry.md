@@ -1,8 +1,10 @@
-# A finished pass hands off to a detached driver, and a crash is retried
+# A finished pass hands the loop off to a driver, and a crash is retried
 
 ## Status
 
-accepted
+accepted (the `--from-pass` autostart is superseded by ADR 0109; the
+unconditional detach is amended by issue #4389 — the foreground is now the
+default and `--detach` the opt-in)
 
 ## Context
 
@@ -45,11 +47,43 @@ it works from both ends:
 --from-pass` (SKILL.md §4, last step), so the machine keeps going even if the
   driver itself died.
 
-**The driver is detached into its own session.** `perl`'s `POSIX::setsid()`,
-plus `nohup`, plus `caffeinate -i -s` (opt out with `--no-caffeinate`): the run
-outlives the shell, terminal and Claude Code process that started it, is not
-killed by a process-group signal aimed at that parent, and the machine stays
-awake for it.
+**The driver runs in the FOREGROUND; `--detach` is the opt-in** (amended by
+issue #4389 — the original decision detached unconditionally). ADR 0109 made a
+human `--start` the only way a run begins, so the common caller is an operator
+AT the keyboard, and an unconditional `setsid` cost them three things: no live
+output (watching the run meant `tail -f` in a second shell), no way to place a
+crash in time (only one banner was ever stamped, and every line after it came
+unstamped straight from the driver), and no Ctrl-C (a new session is precisely
+what a terminal interrupt cannot reach).
+
+So `--start` / `--resume` now block in the caller's process group until the
+driver exits, with merged stdout+stderr streaming to the terminal. `--detach`
+restores the original shape verbatim — `perl`'s `POSIX::setsid()` plus `nohup`
+— for a run that must outlive the shell, the SSH connection or the Claude Code
+session that started it. `caffeinate -i -s` (opt out with `--no-caffeinate`)
+stays on BOTH paths: an overnight foreground run sleeps through the night
+otherwise.
+
+**Every line is timestamped, on both sinks, by a filter OUTSIDE the driver.**
+The handoff pipes the run through `perl`'s `strftime` and `tee`s it into
+`.claude/telemetry/loop-afk.log`, so the terminal and the file are byte-
+identical and a `--detach` log reads in the same format as a foreground one.
+Three properties make that placement the decision rather than an
+implementation detail: the `2>&1` merge happens BEFORE the filter, because the
+driver writes most of its progress to stderr; the per-pass logs
+(`.claude/telemetry/loop-drain/pass-N-EPOCH.log`) stay RAW by construction,
+which matters because the driver greps them for the rate-limit patterns; and
+with no `perl` on PATH the stream is passed through UNSTAMPED rather than
+refused — an unstamped log beats no run at all.
+
+**SIGINT ends a foreground run and writes no stop-file.** `--resume` is the
+answer to a stop-file, not to an interrupted run, and the driver's own
+`trap cleanup_pid_file EXIT INT TERM` keeps the pid file honest either way.
+
+**The dashboard's `driver.resume` passes `--detach`.** That action is awaited
+through `execFileAsync`, so a foreground resume would hold the HTTP request
+open for the entire unattended run — and the dashboard is exactly the caller
+with no terminal to stream to.
 
 **Arming is a separate, durable, revocable human act.** The end-of-pass handoff
 no-ops unless `.claude/telemetry/afk.conf` exists. That file records the
@@ -91,10 +125,12 @@ policies, which is why 0097 split the reasons in the first place.
 
 ## Consequences
 
-- One command (`bun run loop:afk`) starts an unattended run that survives the
-  session that started it; `bun run loop:afk --status` / `--stop` are the
-  supervision surface. `bun run loop:drain` stays the foreground driver for a
-  terminal a human is watching.
+- One command (`bun run loop:afk`) runs the loop in the terminal that typed
+  it, with a timestamped line-by-line log on screen and in
+  `.claude/telemetry/loop-afk.log`, stoppable with Ctrl-C.
+  `bun run loop:afk --detach` is the unattended run that survives the session
+  that started it; `--status` / `--stop` remain the supervision surface for
+  it. `bun run loop:drain` is still the raw driver, one layer below both.
 - The end-of-pass handoff makes the loop self-sustaining: even if the driver
   process is killed, the next pass that completes on an armed checkout starts a
   new one.
@@ -109,6 +145,17 @@ policies, which is why 0097 split the reasons in the first place.
 - The stop-file remains the kill switch and is still never cleared
   automatically — `bun run loop:afk --resume` is the explicit way to clear it
   and start again.
+- **`--detach` gained a second long-lived process, and with it a SIGPIPE
+  surface it did not have.** The old shape `exec`'d the driver and left nothing
+  else alive; the stamper is now a sibling inside the same detached session for
+  the whole run, so if it is killed independently — an OOM reap, or a stray
+  `pkill perl`, newly ambiguous because `perl` now serves both `setsid` and the
+  stamping — the driver takes SIGPIPE on its next write and dies by default
+  disposition, with the log simply stopping. Accepted rather than papered over:
+  suppressing SIGPIPE in the driver would trade a visible stop for an
+  unattended run writing into a closed pipe for hours. The symptom to look for
+  is a log that stops mid-pass while `--status` still reports a live pid;
+  revisit if it is ever observed.
 
 ## What would change the answer
 
@@ -132,6 +179,13 @@ a detached, auto-approving, hours-long run. The marker file is what separates
 **Let the pass itself loop instead of handing off.** Rejected, and this is ADR
 0097's core point restated: the context reset between batches IS the
 cost-containment mechanism, and the deny-guard enforces it.
+
+**Keep detaching, and make watching cheaper (a `--follow` that tails the log).**
+Rejected: it leaves the operator's Ctrl-C inert, which was a third of the
+complaint, and it makes the log the only channel — a run whose output is
+readable only through a file the caller must find is the thing being fixed.
+Tailing stays available, and now reads the same stamped bytes the foreground
+caller sees.
 
 **`launchd` / a cron job instead of a detached process.** Rejected as heavier
 than the problem: a `launchd` plist is machine state outside the repo, needs

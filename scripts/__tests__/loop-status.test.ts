@@ -1250,7 +1250,7 @@ describe("loop-status — deriveLoopVerdict remedyAction (#2636)", () => {
             })
         );
         expect(v.state).toBe("STALLED");
-        expect(v.remedy).toContain("starts a detached driver");
+        expect(v.remedy).toContain("runs a driver in this terminal");
         expect(v.remedyAction).toBe("driver.resume");
     });
 
@@ -1398,7 +1398,9 @@ describe("loop-status — renderVerdictLines (#2624)", () => {
         const text = renderLoopStatusText(status);
         expect(text.startsWith("LOOP: STALLED\n")).toBe(true);
         expect(text).toContain("The loop is armed but no driver is running");
-        expect(text).toContain("→ `bun run loop:afk` starts a detached driver");
+        expect(text).toContain(
+            "→ `bun run loop:afk` runs a driver in this terminal — add `--detach` to background it"
+        );
     });
 
     it("lists each finding under the band", () => {

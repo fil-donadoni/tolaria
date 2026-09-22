@@ -1076,7 +1076,10 @@ describe("telemetry-serve — the real driver operations' argv (#2628)", () => {
     it("spawns the three commands verbatim, with no shell in between", async () => {
         expect(await spawnedArgv()).toEqual([
             ["sh", "scripts/loop-handoff.sh", "--stop"],
-            ["sh", "scripts/loop-handoff.sh", "--resume"],
+            // `--detach` is load-bearing (issue #4389): the handoff runs the
+            // driver in the foreground by default, and this argv is awaited,
+            // so without the flag the HTTP action hangs for the whole run.
+            ["sh", "scripts/loop-handoff.sh", "--resume", "--detach"],
             [
                 "gh",
                 "issue",
