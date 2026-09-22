@@ -78,7 +78,7 @@ describe("queue:claim — the decision (issue #4375)", () => {
     });
 });
 
-describe("queue:claim — the live set is the planner's (issue #4375)", () => {
+describe("queue:claim — the live set: the planner's stale rule over every in-progress issue (issue #4375)", () => {
     const now = "2026-09-22T12:00:00Z";
     const fresh = "2026-09-22T11:00:00Z";
     const old = "2026-09-20T11:00:00Z"; // 49 h before `now`
