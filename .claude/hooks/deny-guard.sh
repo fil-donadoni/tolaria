@@ -354,14 +354,14 @@ segment_reaches_gate() {
 # ─────────────────────────────────────────────────────────────────────────────
 MERGE_INVOKE='(^|[;&|[:space:]])gh[[:space:]]+pr[[:space:]]+merge([[:space:]]|$)'
 if seg_has "$MERGE_INVOKE" && ! seg_has 'TOLARIA_ALLOW_MANUAL_MERGE=1' "$MERGE_INVOKE"; then
-    deny "BLOCKED: \`gh pr merge\` — merging goes through \`land\`, from anywhere.
+    deny "BLOCKED: \`gh pr merge\` — merging goes through \`land\`, from the PR's own branch.
 
 \`scripts/gate.ts\` locks GATING machine-wide; \`bun run land <PR#>\` extends that
 lock across rebase → gate → push → merge, so the tree that lands is the tree
 that was gated. A merge typed by hand takes no lock: \`main\` moves under whoever
 is mid-gate, and their verified tree is no longer the one landing.
 
-  bun run land <PR#>        # from that PR's own worktree
+  bun run land <PR#>        # from any directory checked out on the PR's branch
 
 If \`land\` already gated and pushed and only the MERGE failed, retry just the
 merge — it never re-runs the suite:

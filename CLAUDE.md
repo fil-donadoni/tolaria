@@ -321,7 +321,8 @@ measurements: `docs/agents/quality-gates.md` § Worktree isolation.
 branch (production). Only `lib/branches.ts`, `deny-guard.sh`, `gate-run.sh`
 read it; an `origin/<name>` literal elsewhere reds `branches.test.ts`.
 
-**Merging goes through `bun run land <PR#>`, from anywhere** (#2537). The gate
+**Merging goes through `bun run land <PR#>`, from the PR's own branch** (#2537 —
+any directory checked out on it; `land` refuses the base and release branches). The gate
 mutex serialises gating; `land` extends it across rebase → `check:lane` →
 push → merge, so the tree that lands is the tree that was gated. No health
 per landing — `land` only appends the tip and detaches the batch decision. It

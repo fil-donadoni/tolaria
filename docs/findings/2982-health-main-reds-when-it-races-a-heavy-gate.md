@@ -1,9 +1,14 @@
 ---
 title: health:main leaves a false RED marker when it races another session's heavy gate — the liveness test it fails is the one that measures CPU
 discoveredBy: 2982
-status: draft
+status: triaged
+issue: 3792
 confidence: high
 ---
+
+> Resolved by issue #3792 (2026-09-17): the CPU-sampling liveness cases moved to
+> `scripts/__tests__/gate.perf.test.ts` (`test:perf`, never gated), so no gated
+> suite samples a real subtree any more. Kept as the record of the failure mode.
 
 **What is wrong.** `bun run health:main` left `RED @ 5f008081 — failed at test`
 on 2026-09-02, on a tip that is not broken. The single failing test was

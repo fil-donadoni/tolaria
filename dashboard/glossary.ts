@@ -318,7 +318,7 @@ export const GLOSSARY = {
     },
     pri: {
         label: "priority",
-        tip: "The issue's Priority field on the project board — P0, P1, P2, P3. The queue sorts on the BAND first (the stronger of this and the parent PRD's), then on this. An em dash means the board has no priority set.",
+        tip: "The issue's Priority field on the project board — P0, P1, P2, P3. The queue sorts on the BAND first — the parent PRD's Priority when the PRD carries one, else this — then standalone-before-slice, then on this (issue #4371). An em dash means the board has no priority set.",
     },
     queue: {
         label: "queue depth",
@@ -573,19 +573,19 @@ export const GLOSSARY = {
     // Queue stat boxes
     "queue.P0": {
         label: "P0",
-        tip: "Unclaimed ready-for-agent issues in the P0 BAND — their own Priority is P0, or their parent PRD's is. Picked before anything else.",
+        tip: "Unclaimed ready-for-agent issues in the P0 BAND — their parent PRD's Priority is P0, or they have no prioritised parent and their own is. Picked before anything else.",
     },
     "queue.P1": {
         label: "P1",
-        tip: "Unclaimed ready-for-agent issues in the P1 band — the stronger of their own Priority and their parent PRD's is P1.",
+        tip: "Unclaimed ready-for-agent issues in the P1 band — their parent PRD's Priority is P1, or they have no prioritised parent and their own is.",
     },
     "queue.P2": {
         label: "P2",
-        tip: "Unclaimed ready-for-agent issues in the P2 band — the stronger of their own Priority and their parent PRD's is P2.",
+        tip: "Unclaimed ready-for-agent issues in the P2 band — their parent PRD's Priority is P2, or they have no prioritised parent and their own is.",
     },
     "queue.P3": {
         label: "P3",
-        tip: "Unclaimed ready-for-agent issues in the P3 band — the stronger of their own Priority and their parent PRD's is P3. Deliberately last, which is NOT the same as no priority set.",
+        tip: "Unclaimed ready-for-agent issues in the P3 band — their parent PRD's Priority is P3, or they have no prioritised parent and their own is. Deliberately last, which is NOT the same as no priority set.",
     },
     "queue.unprioritized": {
         label: "no priority",

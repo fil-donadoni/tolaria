@@ -278,6 +278,43 @@ issues that lend a band by inheritance, then `backlog:triage --write`; the
 residue (240 issues on 2026-09-20) is ruled by `## Band` lines in batches
 (issue #4202), in parallel, and blocks nothing — the default fills the rest.
 
+### The umbrella governs the band — Amendment II (issue #4371, PRD #4373)
+
+Band inheritance (issue #3212) took the STRONGER of a child's own board
+`Priority` and its umbrella's, never demoting. **Amended**: the umbrella's
+value governs whenever the umbrella carries one, demotions included; a child
+with no prioritised umbrella competes on its own. `effectivePriority` is the
+one definition — `queue:plan`, the dashboard's depth line and `land`'s origin
+band all read it — and there is no second derivation to disagree with it.
+
+Why. The umbrella is the ruling the owner maintains: one row, re-read every
+time the plan changes. A child's own value is set per slice, usually at
+filing time, and rots there; under "stronger wins" every such slip became a
+board-wide override nobody ruled on again. Measured on the live queue the day
+it shipped (2026-09-22): 291 of 451 `ready-for-agent` issues sat under a
+prioritised umbrella and had their own value made inert; 8 changed band, all
+demotions — five hand-marked `P0` under a `P1` PRD, the exact shape that
+filed the issue — 0 lifted; the first 81 queue positions did not move.
+
+Consequences for the rules above. **A `## Band` line governs on a residue
+issue with no prioritised umbrella** (§ The write rule and the default, door
+three): on a slice it orders the slice INSIDE the umbrella's turn and moves
+the band not at all — the sentence "a `## Band` line present → it is the
+truth, always" is true of what `backlog:triage --write` writes, and of the
+queue band only where no umbrella rules. The umbrella's own value "follows
+its Target and the children inherit it" now reads literally: they inherit it
+whatever their own row says. A new key sits between the band and own
+priority: **standalone before slice** — inside one band an issue with no
+umbrella leads the children of an umbrella that landed in the same band,
+because `P0` on a lone issue points at that issue and nothing else. The
+order the owner enumerated: no umbrella + `P0` · umbrella `P0` + `P0` ·
+umbrella `P0` + weaker · `P1` with no umbrella · umbrella `P1` + … , with
+`bug` below all three priority keys. `P0` stays hand-set and unwritten by
+any script; a hand-set `P0` on the umbrella is how a family is put first.
+
+Not changed: one level of inheritance; `P3` strictly above unprioritised
+(issue #4051); the residue's causes; the labels default.
+
 ### Format Tiers
 
 What a player is told about a format is derived from the Target registry,

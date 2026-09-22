@@ -958,6 +958,30 @@ _Avoid_: Launch, release (that is the branch operation), go-live, v1 alone (the 
 Anything the tooling computed to be missing and files as an issue — never a person's observation. Six kinds, one filer (`gaps:sync`), one allowlist, a stable key each: **Grammar Gap** (a missing **Grammar Rule**); Mechanic Gap (a keyword the **Mechanics Registry** lists as planned, holding compiled cards in `quarantine`); Scenario Gap (a form the generated smoke scenario cannot exercise); Bot Gap (a compiled card the Bot ignores); **Hand Tail** (a card below the floor); Migration (hand-written cards a landed rule now compiles, clustered by that rule). Every kind is ranked per **Target List**; an issue closes through its PR, never because the gap disappeared.
 _Avoid_: Bug (a Gap is an absence, not a defect), TODO, backlog item, finding (that is the drawer for what a person noticed and was not asked to fix)
 
+**Priority Band**:
+The rung of the board's `Priority` axis an issue competes in when the queue picks work — `P0`, `P1`, `P2`, `P3`, or none — and the zeroth key of that pick. A **Slice** competes in its **Umbrella**'s band whenever the umbrella carries one, its own value ordering it only inside the umbrella's turn; a standalone issue competes in its own. Not the combat **Band** of CR 702.22, which shares the word and nothing else.
+_Avoid_: Band alone (ambiguous with the combat term), priority (the field; the band is what the field means for the pick), tier (that is **Format Tier**)
+
+**Umbrella**:
+A PRD whose open children are the work it names — a bounded, ordered slice of the backlog — and whose board `Priority`, hand-set by the owner, is the **Priority Band** every open child competes in. Named after its **Target List** or its purpose, never after a band letter, so a band shift re-parents nothing. Closes when its last child does.
+_Avoid_: Epic, tracker (a roll-up issue that enumerates gaps, retired by audit), parent alone (the edge; the umbrella is what the edge points at)
+
+**Slice**:
+An atomic work issue with a native parent **Umbrella**. One PR, one landing; it inherits the umbrella's **Priority Band** and its place in the queue's lineage, and is detached from the umbrella once it closes.
+_Avoid_: Sub-issue (the platform's word for the edge), child alone, task, ticket (any issue)
+
+**Residue**:
+An open issue the band rule can place in no **Priority Band** — nothing it names, unlocks or blocks lends one — left unprioritised and listed for the owner, by cause: undeclared (no cards at all) or off-road (cards named, none in a Target that lends a band). Never folded into `P3`: "the rule abstained" and "the owner ruled later" must not read the same.
+_Avoid_: Backlog (everything open), unprioritised alone (the board value; residue is why it is empty), leftovers
+
+**Origin Band**:
+The **Priority Band** of the work a landing closes — the landed issue's band, read by the same rule the queue picks by — handed to the gap filer so a gap born of that work files under its family's umbrella of that band rather than the band its Target computes. Only `P0` acts; every other value leaves the computed band in charge.
+_Avoid_: Source band, landing priority, inherited band (the child's band; the origin is the landing's)
+
+**Hand Ruling**:
+An owner's statement about one issue's band that no rule computed: a `## Band` line in the body (`P1`–`P3`, the truth for what the triage writes) or a hand-set `P0` on the board (never written or cleared by a script). On a standalone issue it is the **Priority Band**; on a **Slice** it orders the slice inside its umbrella's turn and moves the band not at all — an umbrella's ruling is the one the owner maintains.
+_Avoid_: Override (it does not override an umbrella), fiat (the retired name of the source), manual priority
+
 **Bot Finding**:
 One card the play **Bot** is known to have trouble with, as the admin dashboard lists it — the per-card citizen a **Bot Gap** class is not. Keyed `(oracle id, source)`: a card may carry both a measured finding and a human-reported one, and they never overwrite each other. Its measured fields belong to the measurement artifact and are rewritten by every sweep; its human fields (note, reproducer, linked issue) are never touched by one; its state is DERIVED from the two, never declared — no "mark as resolved" button. A finding from any source other than the sweep is admissible only with a **Reproducer**: without one there is no defect, only an anecdote, and it waits in triage outside every count.
 _Avoid_: Bot bug, bot issue (that is the GitHub record), Bot Gap (that is the class, one issue per key), finding (the drawer sense)
