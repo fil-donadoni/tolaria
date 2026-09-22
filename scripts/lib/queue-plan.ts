@@ -23,7 +23,12 @@
 //     cost scales with the batch, not the queue.
 //   * TOTAL — every issue in the snapshot lands in exactly one of `batch`,
 //     `deferred`, `skipped` or `staleClaims`. An issue the planner silently
-//     drops is an issue nobody knows is stuck.
+//     drops is an issue nobody knows is stuck. ONE carve-out, and it is
+//     explicit: a `--lineage` run (`PlanConfig.lineage`, issue #2327) is a
+//     plan over a DECLARED subset, so an eligible issue outside that lineage
+//     lands nowhere — it was never a candidate. The restriction that produced
+//     the subset is recorded on `PlanRecord.lineage`, which is what keeps the
+//     omission legible rather than silent.
 //
 // The orchestrator EXECUTES this plan; it does not re-derive it.
 
@@ -294,6 +299,36 @@ export interface PlanConfig {
      * perfectly good issues in front of whoever triages malformed ones.
      */
     excludeHitl?: boolean;
+    /**
+     * Restrict the candidate set to the open sub-issues of ONE umbrella
+     * (issue #2327).
+     *
+     * A maintainer request like "finish PRD #N" was not expressible, so the
+     * batch got assembled BY HAND — which discards, in one move, the resolved
+     * model tier, the dependency scan, the disjointness walk and the lineage
+     * sort, and leaves a set of model-derived decisions no later run can
+     * reconstruct. Expressing the scope as a config field keeps every one of
+     * those rules: the restriction is applied to the ELIGIBLE set, and
+     * everything downstream — sort, dependency resolution, disjointness,
+     * lane homogeneity, model resolution — runs unchanged over it.
+     *
+     * The edge read is the NATIVE sub-issue one (`QueueIssue.parent`), never a
+     * prose `Split out of #N` line: the list call already carries it, so the
+     * restriction costs no round-trip and cannot disagree with the sort key
+     * `effectivePriority` uses.
+     *
+     * Applied AFTER Stage 1, deliberately: `activeClaims` and `staleClaims`
+     * are whole-queue facts the session cap is computed from, and filtering
+     * before they are collected would let a lineage-scoped plan admit past the
+     * cap because it could not see the claims in other lineages.
+     *
+     * Out-of-lineage candidates are absent from the plan, not `deferred`: a
+     * deferral means "considered this pass, not admitted", and a restricted
+     * plan did not consider them at all. What was restricted is recorded on
+     * the durable artefact (`PlanRecord.lineage`), which is where
+     * reproducibility lives.
+     */
+    lineage?: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -448,6 +483,14 @@ export interface PlanRecord {
      *  is the queue's default order, not the board's, and a later reader
      *  must not mistake it for a prioritised plan. */
     noPriority: boolean;
+    /** The umbrella `--lineage <N>` scoped this plan to, or `null` for an
+     *  unrestricted pass (issue #2327). On the RECORD and not on `BatchPlan`
+     *  deliberately: stdout's schema is what `/next-issue` and `loop-drain`
+     *  parse and it stays byte-identical, while the durable artefact is where
+     *  "which candidate set produced this batch" has to be legible — without
+     *  it a scoped plan is indistinguishable, after the fact, from a whole-queue
+     *  one that happened to return the same issues. */
+    lineage: number | null;
     plan: BatchPlan;
 }
 
@@ -463,9 +506,10 @@ export function buildPlanRecord(
     plan: BatchPlan,
     session: string,
     now: string,
-    noPriority: boolean
+    noPriority: boolean,
+    lineage: number | null = null
 ): PlanRecord {
-    return { version: 1, session, ts: now, noPriority, plan };
+    return { version: 1, session, ts: now, noPriority, lineage, plan };
 }
 
 /**
@@ -809,6 +853,19 @@ export function planBatch(
         eligible.push(issue);
     }
 
+    // ── Lineage restriction (issue #2327) ───────────────────────────────────
+    // Scope the candidate set to one umbrella's own children, and change
+    // NOTHING else: the sort below, the dependency scan, the disjointness rule
+    // and the model resolution all run over this set exactly as they run over
+    // the whole queue. See `PlanConfig.lineage` for why it lands here and not
+    // before the claim classification above.
+    const candidates =
+        config.lineage == null
+            ? eligible
+            : eligible.filter(
+                  (issue) => issue.parent?.number === config.lineage
+              );
+
     // ── Stage 1: order ──────────────────────────────────────────────────────
     // Priority BAND first, then standalone-before-slice, then own priority,
     // then bugs, then oldest LINEAGE, then the issue's own number so the order
@@ -838,7 +895,7 @@ export function planBatch(
         bandIsInherited(issue, port.priority) ? 1 : 0;
     const own = (issue: QueueIssue): number =>
         priorityRank(port.priority[issue.number]);
-    eligible.sort((a, b) => {
+    candidates.sort((a, b) => {
         const bandDelta = band(a) - band(b);
         if (bandDelta !== 0) return bandDelta;
         const inheritedDelta = inherited(a) - inherited(b);
@@ -857,7 +914,7 @@ export function planBatch(
     /** Set once a solo issue is admitted: nothing else may join it. */
     let closed = false;
 
-    for (const issue of eligible) {
+    for (const issue of candidates) {
         if (batch.length >= config.batchCap) {
             deferred.push({
                 number: issue.number,
@@ -1251,7 +1308,18 @@ export interface AdmissionInput {
 
 export type Admission =
     | { admitted: true }
-    | { admitted: false; refusal: "cap" | "red"; message: string };
+    | {
+          admitted: false;
+          refusal:
+              | "cap"
+              | "red"
+              /** `--lineage <N>` named an issue that is not an umbrella. */
+              | "lineage-not-umbrella"
+              /** `--lineage <N>` named an umbrella with no open children in
+               *  the queue. */
+              | "lineage-empty";
+          message: string;
+      };
 
 /**
  * The RED refusal, on its own: it needs no queue and no network, so the
@@ -1306,6 +1374,55 @@ export function capRefusal(
             `  Per-session yield halves past the knee (PR/h by active sessions: 0.59 at 1, 1.44 at 3, 1.19 at 4).\n` +
             `  Wait for one to land, or re-run with --no-cap to plan past it deliberately.`,
     };
+}
+
+/**
+ * The `--lineage <N>` refusal (issue #2327): may a plan be scoped to this
+ * umbrella at all?
+ *
+ * Two failures, and each NAMES which one it was — a scoped request that
+ * quietly widened back to the whole queue is the failure mode the flag exists
+ * to remove, so neither case returns a plan. `detail` is the target's own
+ * Stage-2 record (one extra round-trip, paid once per run); `children` is the
+ * set of queue rows whose native parent edge points at it.
+ *
+ *   * NOT AN UMBRELLA — no `prd` label. The flag means "finish PRD #N", and
+ *     an issue that is not a PRD has no children to finish; reading its edges
+ *     would silently plan an empty batch instead of saying the target was
+ *     wrong.
+ *   * NO OPEN CHILDREN — it is an umbrella, but nothing in the `ready-for-agent`
+ *     queue is parented to it. Note the scope: a child that exists but is
+ *     claimed, assigned or unlabelled is NOT this case — it is in `children`,
+ *     and the plan that comes back is a legitimately empty one, exactly as an
+ *     unrestricted pass over a fully-claimed queue would be.
+ */
+export function lineageRefusal(
+    target: number,
+    detail: IssueDetail,
+    children: number[]
+): Admission {
+    if (!detail.labels.includes("prd")) {
+        return {
+            admitted: false,
+            refusal: "lineage-not-umbrella",
+            message:
+                `--lineage #${target} is not an umbrella — it carries no \`prd\` label.\n` +
+                `  The flag scopes a batch to ONE umbrella's open children; a work item has none.\n` +
+                `  Pass the PRD's number, or drop --lineage to plan the whole queue.`,
+        };
+    }
+    if (children.length === 0) {
+        return {
+            admitted: false,
+            refusal: "lineage-empty",
+            message:
+                `--lineage #${target} is an umbrella with no open \`ready-for-agent\` children.\n` +
+                `  Nothing is parented to it in the queue this run read, so there is nothing to plan.\n` +
+                `  Check the sub-issue edges (\`gh issue edit <child> --parent ${target}\`) — a prose\n` +
+                `  "Split out of #${target}" line is not one — or close the umbrella if its work is done.`,
+        };
+    }
+    return { admitted: true };
 }
 
 /**

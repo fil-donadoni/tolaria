@@ -103,6 +103,12 @@ the rendering of either for the rest of the session.
   it out of a P1 umbrella's band (issue #4371). A plan echoing `priorityBand`
   on an issue is saying "this did not compete on its own priority, and here is
   the band it competed in" — lift or demotion alike.
+- **"finish PRD #N" is `--lineage <N>`, never a hand-picked batch** (issue
+  #2327): it restricts the candidate set to that umbrella's open sub-issues,
+  read from the native edges, and runs the pipeline unchanged over them — same
+  sort, same dependency scan, same disjointness, same model resolution. A
+  target that is not an umbrella, or one with no open children, exits non-zero
+  naming which of the two it was; nothing falls back to the whole queue.
 - **`queue:plan` refuses the pick in two cases, and each names its exit**
   (ADR 0136 §6-7). **Cap**: live claims are at `sessions.cap` in
   `tolaria.config.json` (3 — the measured knee, derivation in
