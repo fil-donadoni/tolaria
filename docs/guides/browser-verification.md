@@ -292,6 +292,62 @@ scenario into a game it created itself. On a fresh per-run account the only
 game that can exist is one this run dealt, so an active game making a board
 surface UNWALKED now points at the run itself, never at another session.
 
+## The coverage census — a new screen or dialog must enter the lane (issue #3420)
+
+The lane walks a hand-written list of surfaces. Nothing connected that list to
+the app's real UI inventory, so **adding a screen or a modal added no coverage
+and reddened nothing**: the gate stayed green while the new element was
+measured at no viewport. Observed on the resolve-time Cast/Decline prompt — it
+gained a card image, `check:ui` was green, and the regression class the lane
+exists to catch (a clipped or occluded element at a small viewport) was
+unobservable by construction.
+
+`scripts/lib/ui-census.ts` is the third input the surface list never had. It is
+a pure source scan in the `raw-card-display-scan.ts` mould, so its guard
+(`scripts/__tests__/ui-census.test.ts`) runs **offline inside `check:all`** —
+no browser, no deployment, no network.
+
+**Two censused kinds.** A `route` is a `src/routes/**/*.route.tsx` module: a
+screen a user can stand on. An `overlay` is a component that paints a layer of
+its own — `GameDialog`, a shadcn `DialogContent`/`SheetContent`, `ActionSheet`,
+`BottomSheet`, `AnchoredPicker`, `CommandDialog`, or a literal `role="dialog"`.
+Overlays are censused because their layout is a function of the VIEWPORT rather
+than of the page that opened them.
+
+**A recorded boundary, not a silence.** `Popover`, `Tooltip` and `ContextMenu`
+are outside the census: they are anchored to a trigger and sized by their
+content, so their risk class is hit-testing, which the Floors already measure
+through the trigger on its own surface. Widen the census by adding the
+primitive to `OVERLAY_PRIMITIVES` and paying the debt the scan then reports —
+never by reading that list as exhaustive.
+
+**Covered means MEASURED, never reachable in principle.** Four ways to be
+covered, and the import closure of a walked route is not one of them: the game
+route imports every board dialog, and taking that as coverage would report the
+whole board censused while the lane photographs one screen.
+
+| Status     | What it means                                                                                     |
+| ---------- | ------------------------------------------------------------------------------------------------- |
+| `walked`   | a WALKED surface names the file in `mounts` — it is on screen when the probe fires                |
+| `specimen` | `/admin/design-system` mounts it live, measured at all five viewports with no game                |
+| `exempt`   | reviewed: it paints no layout of its own. The reason must say WHY, never where                    |
+| `debt`     | reviewed: it DOES owe a measurement and has none, recorded against the issue that owns closing it |
+
+Anything else is `uncensused` and reds the guard.
+
+**A surface declared in `UNWALKED_SURFACES` covers nothing.** An element whose
+only home is an unwalked surface is uncovered and the census says so — declared
+debt must not launder itself into coverage.
+
+**"It lives on the board" is not an exemption**, it is a routing instruction:
+that page already mounts a live modal specimen at all five viewports without a
+live game. A locational reason is refused mechanically (`exemptionFault`).
+
+**Neither list may absorb a NEW element.** `DEBT` is frozen at the shape HEAD
+honestly had when the census shipped (issue #4402 owns paying it down); it may
+shrink, never grow. A stale row in either list — the element is covered now, or
+the file is gone — reds, the same rule the retired budget file carried.
+
 ## The tool: chrome-devtools-mcp, not the Claude extension
 
 Use the `mcp__plugin_chrome-devtools-mcp_chrome-devtools__*` tools. They speak

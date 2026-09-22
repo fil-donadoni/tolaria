@@ -168,6 +168,32 @@ export interface Surface {
      * carries an `ASSERTION_DEBT` row naming the slice that gives it some.
      */
     asserts?: readonly NamedAssertion[];
+    /**
+     * The overlay component modules that are ON SCREEN when the probe measures
+     * this surface (issue #3420) — repo-relative, the file that renders the
+     * layer. This is the surface's coverage CLAIM, and the UI census
+     * (`scripts/lib/ui-census.ts`) reads it as the only way a walked surface
+     * covers a dialog.
+     *
+     * MEASURED, never merely reachable. The game route imports every board
+     * dialog and the walks click THROUGH several of them (the pregame dialog
+     * is dismissed before any measurement) — neither is coverage, and listing
+     * one here would be a false green of exactly the kind the census exists to
+     * remove. List a module only when the probe photographs it.
+     *
+     * NO PER-VIEWPORT GRANULARITY. A claim says the probe photographs this
+     * module, not that it does so at all five viewports: `draft-pool-peek` is
+     * viewport-SPLIT by design (issue #2861) and its rail exists on two of the
+     * five. The census reads a claim as coverage either way — "measured
+     * somewhere" and "measured everywhere" are one status here, and a surface
+     * whose claim is partial says so in its own comment.
+     *
+     * A surface declared in `UNWALKED_SURFACES` covers nothing whatever it
+     * claims here; `ui-census.test.ts` also reds on an entry naming a module
+     * that is not a censused overlay, so a renamed dialog cannot leave a
+     * surface claiming coverage of a file that no longer exists.
+     */
+    mounts?: readonly string[];
     walk(page: Page, ctx: WalkContext): Promise<void>;
     /**
      * Runs AFTER the probe/axe/screenshot for this surface+viewport pass, on
@@ -1686,6 +1712,9 @@ export const SURFACES: readonly Surface[] = [
     },
     {
         id: "lobby-vs-ai",
+        // The dialog is still open at measurement — the walk ends on it
+        // (issue #3420).
+        mounts: ["src/components/lobby/vs-ai-setup-dialog.tsx"],
         entries: ["src/routes/lobby.route.tsx"],
         label: "vs-AI setup dialog (/ \u2192 Play vs Bot \u2192 primary)",
         // The dialog's own controls — the selector that makes it the RIGHT
@@ -2780,6 +2809,11 @@ export const SURFACES: readonly Surface[] = [
         // Fixture, not a declared position — see `draft-pick` above for why a
         // `ScenarioSpec` cannot describe a draft (ADR 0132 §4, issue #3652).
         id: "draft-pool-peek",
+        // The Pool's `DeckZonePeek` rail, mounted on the two phone viewports
+        // this row is viewport-SPLIT across (issue #2861) — the desktop
+        // bucket measures the card menu instead, and the rail's own layout is
+        // photographed where it exists (issue #3420).
+        mounts: ["src/components/deckbuilder/deck-zone-peek.tsx"],
         settleTargets: [DRAFT_PEEK_PANEL],
         entries: [
             "src/routes/limited-events.route.tsx",
@@ -2985,6 +3019,9 @@ export const SURFACES: readonly Surface[] = [
         // rule skips a disabled control, and `contrast` fails closed on a
         // subtree it could not judge.
         id: "game-zone-pile",
+        // `CardsPile` renders the open pile dialog this row measures
+        // (issue #3420).
+        mounts: ["src/components/board/cards-pile.tsx"],
         needsGame: true,
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
         label: "Zone pile — viewer's graveyard open, Flashback CTA",
@@ -3167,6 +3204,8 @@ export const SURFACES: readonly Surface[] = [
         // names the numbers, which reads as the regression it is rather than
         // as a fixture nobody built.
         id: "game-debug-sheet",
+        // The sheet is open at measurement (issue #3420).
+        mounts: ["src/components/debug/debug-sheet.tsx"],
         needsGame: true,
         settleTargets: [DEBUG_SHEET, BOARD_AREA],
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
@@ -3532,6 +3571,9 @@ export const SURFACES: readonly Surface[] = [
         // Seven candidates, five of them eligible under the spell's own
         // filter, so the grid has something to scroll at phone width.
         id: "game-choice-prompt",
+        // The modal picker IS `CardsPile` under `forceOpen` (issue #3420) —
+        // same module as `game-zone-pile`, a different state of it.
+        mounts: ["src/components/board/cards-pile.tsx"],
         needsGame: true,
         settleTargets: [CHOICE_PICKER],
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
@@ -3652,6 +3694,8 @@ export const SURFACES: readonly Surface[] = [
         // it ENDS the solo game it loaded its scenario into: that last row
         // refuses to start a vs-AI game over the lane's own standing solo game.
         id: "game-manage-yields",
+        // The yields box is open over the board at measurement (issue #3420).
+        mounts: ["src/components/board/manage-yields-dialog.tsx"],
         needsGame: true,
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
         label: "Manage yields box — one yield held",
@@ -3734,6 +3778,8 @@ export const SURFACES: readonly Surface[] = [
         // the board rows means the solo game they need is still standing while
         // they need it.
         id: "game-debug-sheet-ai",
+        // The sheet is open at measurement, on its AI trace tab (issue #3420).
+        mounts: ["src/components/debug/debug-sheet.tsx"],
         needsGame: true,
         settleTargets: [DEBUG_SHEET],
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
