@@ -357,7 +357,9 @@ build` ("run `/grammar-rule <key>`" — the rule, one golden fixture per
 - **Native edges, always.** Every ticket is a native SUB-ISSUE of the umbrella
   in the pass that creates it — `gh issue edit <child> --parent <umbrella>` —
   and every `## Blocked by` ref is ALSO wired natively
-  (`gh issue edit <n> --add-blocked-by <m>`), then read back for parity. The
+  (`gh issue edit <n> --add-blocked-by <m>`), then read back for parity with
+  `bun run queue:lint <tickets…>` — its `dependency-parity` finding names each
+  side's missing refs and the one-line fix (issue #3794). The
   planner sorts by `parent.number ?? number` off its cheap Stage-1 list call,
   so an edgeless ticket sorts on its own number and the set's later slices land
   at the BACK of the queue while its earlier ones starve. Verify rather than

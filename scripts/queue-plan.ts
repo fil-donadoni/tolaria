@@ -43,7 +43,7 @@ import {
     writeFileSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { gh } from "./lib/gh";
+import { gh, issueBlockedBy } from "./lib/gh";
 import {
     fetchBoardPriority as fetchBoardPriorityShared,
     NO_PRIORITY_WARNING,
@@ -668,9 +668,21 @@ function main(): void {
 
     const detailCache = new Map<number, IssueDetail>();
 
+    const blockedByCache = new Map<number, number[]>();
+
     const port: QueuePort = {
         issuesWithOpenPr: issuesWithOpenPr(),
         priority: fetchBoardPriority(),
+        // The native dependency graph, one issue at a time (issue #3794).
+        // Cached like `issueDetail` for the same reason: a candidate deferred
+        // on one pass of the planner must not pay the round-trip twice.
+        nativeBlockedBy(number: number): number[] {
+            const cached = blockedByCache.get(number);
+            if (cached) return cached;
+            const edges = issueBlockedBy(number);
+            blockedByCache.set(number, edges);
+            return edges;
+        },
         issueDetail(number: number): IssueDetail {
             const cached = detailCache.get(number);
             if (cached) return cached;

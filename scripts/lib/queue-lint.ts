@@ -28,6 +28,18 @@ export interface LintableIssue {
     labels: string[];
     /** The native GitHub sub-issue edge, or null. */
     parentNumber: number | null;
+    /**
+     * The native GitHub blocked-by edges — the dependency GRAPH, which is a
+     * different store from the `## Blocked by` prose in the body (issue
+     * #3794).
+     *
+     * `null` means UNREAD, not empty, and the two must never collapse: a
+     * caller that has not paid the REST round-trip knows nothing about the
+     * edges, while `[]` is the positive statement "GitHub says there are
+     * none". Read as empty, an unread set would report every body dependency
+     * in the queue as a missing native edge.
+     */
+    blockedByNative: number[] | null;
     body: string;
 }
 
@@ -164,6 +176,52 @@ function section(body: string, name: RegExp): string[] {
     const rest = lines.slice(start + 1);
     const end = rest.findIndex((l) => HEADING.test(l));
     return end === -1 ? rest : rest.slice(0, end);
+}
+
+const DEPENDENCY_KEYWORDS =
+    /(blocked by|depends on|depend on|requires|after)\s*:?\s*#(\d+)/gi;
+
+/**
+ * Read every issue this one declares a dependency on IN ITS BODY.
+ *
+ * Two shapes, because tickets use both: the prose keyword form ("depends on
+ * #999") and the template's `## Blocked by` section, whose refs sit on their
+ * own list lines with no keyword anywhere near them. Reading only the keyword
+ * form would miss every ticket this project's own intake skill emits.
+ *
+ * A `## Parent` reference is deliberately NOT a dependency — an umbrella is
+ * context for its slice, not a blocker.
+ *
+ * It lives HERE, beside the `dependency-parity` rule, rather than in the
+ * planner it was written for (issue #3794). Parity compares this set against
+ * the native blocked-by edges, and the comparison is worthless unless the body
+ * half of it is computed by the planner's OWN reader: the ad-hoc read-back the
+ * three intake skills carried matched `## Blocked by` and ignored the inline
+ * keyword form, so it reported parity on bodies the planner read as blocked.
+ * `./queue-plan` re-exports it, so nothing that imported it from there moved.
+ */
+export function parseDependencies(body: string, self: number): number[] {
+    const found = new Set<number>();
+
+    for (const match of body.matchAll(DEPENDENCY_KEYWORDS)) {
+        found.add(Number(match[2]));
+    }
+
+    const lines = body.split("\n");
+    const start = lines.findIndex((l) => /^#{1,6}\s+blocked by/i.test(l));
+    if (start !== -1) {
+        for (const line of lines.slice(start + 1)) {
+            if (HEADING.test(line)) break;
+            const trimmed = line.trim();
+            if (trimmed === "") continue;
+            if (!/^[-*]\s+/.test(trimmed)) break;
+            for (const m of trimmed.matchAll(/#(\d+)/g))
+                found.add(Number(m[1]));
+        }
+    }
+
+    found.delete(self);
+    return [...found].sort((a, b) => a - b);
 }
 
 const ACCEPTANCE = /acceptance criteria/i;
@@ -353,6 +411,53 @@ export function lintIssue(
                 ? `gh issue edit ${issue.number} --parent ${referenced}   # then read it back: the API no-ops silently under rapid fire`
                 : `gh issue edit ${issue.number} --parent <umbrella>`,
         });
+    }
+
+    // A dependency has TWO stores and TWO consumers, and when they drift each
+    // side fails silently (issue #3794). The board and its "blocked" icon read
+    // the native edge; the planner reads the body. A body-only edge shows as
+    // ready work on the board — PRD #3772 shipped nine slices with every
+    // dependency as prose and not one native edge — and a native-only edge is
+    // invisible to the planner, which is the more expensive half: it picks the
+    // issue and the session bounces off an unmerged prerequisite.
+    //
+    // `null` is UNREAD and produces nothing: a caller that did not pay the REST
+    // round-trip has no evidence of disagreement, and inventing one would flag
+    // the whole queue.
+    if (issue.blockedByNative !== null) {
+        const inBody = parseDependencies(body, issue.number);
+        const native = [...new Set(issue.blockedByNative)]
+            .filter((n) => n !== issue.number)
+            .sort((a, b) => a - b);
+        const missingEdge = inBody.filter((n) => !native.includes(n));
+        const missingProse = native.filter((n) => !inBody.includes(n));
+        if (missingEdge.length > 0 || missingProse.length > 0) {
+            const half = (label: string, refs: number[]) =>
+                refs.length > 0
+                    ? `${label}: ${refs.map((n) => `#${n}`).join(", ")}`
+                    : null;
+            const fixes = [
+                missingEdge.length > 0
+                    ? `gh issue edit ${issue.number} --add-blocked-by ${missingEdge.join(",")}   # then read it back: the exit code lies in both directions when an edge already exists`
+                    : null,
+                missingProse.length > 0
+                    ? `add under a \`## Blocked by\` heading: ${missingProse.map((n) => `\`- #${n}\``).join(" ")}`
+                    : null,
+            ].filter((f): f is string => f !== null);
+            findings.push({
+                rule: "dependency-parity",
+                severity: "advisory",
+                message: `the body's dependencies and the native blocked-by edges disagree — ${[
+                    half("no native edge for", missingEdge),
+                    half("not stated in the body", missingProse),
+                ]
+                    .filter((h): h is string => h !== null)
+                    .join(
+                        "; "
+                    )}. The board reads the edges and the planner reads the body, so whichever side is missing fails silently (a ref to a PR cannot carry a native edge — reword it if that is what this is)`,
+                fix: fixes.join("   AND   "),
+            });
+        }
     }
 
     const modelLabels = labels.filter((l) => l.startsWith("model:"));

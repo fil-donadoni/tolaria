@@ -14,7 +14,7 @@
 // Exits 1 when any BLOCKING finding is present, 0 otherwise — so an intake
 // skill can gate on it without parsing anything.
 
-import { gh } from "./lib/gh";
+import { gh, issueBlockedBy } from "./lib/gh";
 import {
     lintIssue,
     isBlocking,
@@ -76,6 +76,11 @@ for (const n of numbers) {
         title: raw.title,
         labels: raw.labels.map((l) => l.name),
         parentNumber: raw.parent?.number ?? null,
+        // The native dependency graph — a second round-trip per issue, and the
+        // only way to see it: `gh issue view --json` carries no such field
+        // (issue #3794). Intake is where this is worth paying for, because the
+        // author who can fix a missing edge in one command is still in context.
+        blockedByNative: issueBlockedBy(n),
         body: raw.body ?? "",
     };
     results.push({ issue, findings: lintIssue(issue, { cardNames }) });

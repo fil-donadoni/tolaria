@@ -176,15 +176,25 @@ function body(opts: {
 }
 
 /** A port backed by in-memory maps, counting round-trips — the planner's call
- *  count is part of its contract (two-stage selection). */
+ *  count is part of its contract (two-stage selection).
+ *
+ *  `nativeCalls` is counted separately from `calls` on purpose (issue #3794):
+ *  the native blocked-by read is its own REST round-trip with no bulk form, so
+ *  folding it into the `issueDetail` tally would hide a regression in either
+ *  one behind the other's number. */
 function makePort(
-    details: Record<number, Partial<IssueDetail> & { body?: string }>,
+    details: Record<
+        number,
+        Partial<IssueDetail> & { body?: string; nativeBlockedBy?: number[] }
+    >,
     openPr: number[] = [],
     priority: Record<number, BoardPriority> = {}
-): QueuePort & { calls: number[] } {
+): QueuePort & { calls: number[]; nativeCalls: number[] } {
     const calls: number[] = [];
+    const nativeCalls: number[] = [];
     return {
         calls,
+        nativeCalls,
         issuesWithOpenPr: openPr,
         priority,
         issueDetail(number: number): IssueDetail {
@@ -197,6 +207,10 @@ function makePort(
                 labels: d.labels ?? ["enhancement", "ready-for-agent"],
                 body: d.body ?? "",
             };
+        },
+        nativeBlockedBy(number: number): number[] {
+            nativeCalls.push(number);
+            return details[number]?.nativeBlockedBy ?? [];
         },
     };
 }
@@ -1023,6 +1037,81 @@ describe("queue planner — dependencies (issue #2181)", () => {
         };
         const plan = planBatch(issues, CONFIG, makePort(details));
         expect(numbers(plan)).toEqual([100]);
+    });
+
+    it("defers on a NATIVE-only edge to an open issue (issue #3794)", () => {
+        // The regression this closes: the dependency lived only in GitHub's
+        // dependency graph, the planner read only the body, so it admitted the
+        // issue and the session bounced off an unmerged prerequisite.
+        const issues = [issue(100, {}), issue(200, {})];
+        const details = {
+            100: {
+                body: body({ targetFiles: ["src/a.ts"] }),
+                nativeBlockedBy: [999],
+            },
+            200: { body: body({ targetFiles: ["src/b.ts"] }) },
+            999: { state: "OPEN" as const, body: "" },
+        };
+        const port = makePort(details);
+        const plan = planBatch(issues, CONFIG, port);
+
+        expect(numbers(plan)).toEqual([200]);
+        expect(plan.deferred).toContainEqual(
+            expect.objectContaining({
+                number: 100,
+                reason: "blocked by #999",
+                conflictsWith: 999,
+            })
+        );
+    });
+
+    it("admits on a native-only edge whose blocker is CLOSED", () => {
+        const issues = [issue(100, {})];
+        const details = {
+            100: {
+                body: body({ targetFiles: ["src/a.ts"] }),
+                nativeBlockedBy: [999],
+            },
+            999: { state: "CLOSED" as const, body: "" },
+        };
+        expect(numbers(planBatch(issues, CONFIG, makePort(details)))).toEqual([
+            100,
+        ]);
+    });
+
+    it("ignores a native self-edge — it would starve the issue forever", () => {
+        const issues = [issue(100, {})];
+        const details = {
+            100: {
+                body: body({ targetFiles: ["src/a.ts"] }),
+                nativeBlockedBy: [100],
+            },
+        };
+        expect(numbers(planBatch(issues, CONFIG, makePort(details)))).toEqual([
+            100,
+        ]);
+    });
+
+    it("costs exactly ONE native read per Stage-2 candidate, and none for a blocker or a parent", () => {
+        // The call-count contract (issue #3794). The native edge set has no
+        // bulk form, so a planner that read it for every blocker it resolves —
+        // or twice per candidate, once for the lint and once for the
+        // dependency check — would multiply the queue's most expensive
+        // per-candidate cost.
+        const issues = [issue(100, { parent: 50 }), issue(200, {})];
+        const details = {
+            50: { state: "OPEN" as const, body: "" },
+            100: {
+                body: body({ targetFiles: ["src/a.ts"] }),
+                nativeBlockedBy: [999],
+            },
+            200: { body: body({ targetFiles: ["src/b.ts"] }) },
+            999: { state: "OPEN" as const, body: "" },
+        };
+        const port = makePort(details);
+        planBatch(issues, CONFIG, port);
+
+        expect(port.nativeCalls).toEqual([100, 200]);
     });
 
     it("never puts an issue and its blocker in the same batch", () => {

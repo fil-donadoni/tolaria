@@ -123,3 +123,37 @@ export function subIssueCount(
     }
     return total;
 }
+
+/**
+ * The NATIVE blocked-by edges of an issue — the dependency graph the board and
+ * the "blocked" icon read, which is a different store from the `## Blocked by`
+ * prose the planner parses out of the body (issue #3794).
+ *
+ * Paginated, and that is not a detail: `gh api` pages at 30, so past that a
+ * freshly written edge falls off page one and a read-back reads as "the write
+ * failed". `gaps:sync` learned that the hard way and this is its reader,
+ * lifted here when the queue lint became the second consumer.
+ *
+ * Returns the numbers as GitHub reports them — unsorted, undeduplicated,
+ * self-refs included. Every caller has its own opinion about those; the reader
+ * has none.
+ */
+export function issueBlockedBy(
+    issue: number,
+    ghClient: (args: string[]) => string = gh
+): number[] {
+    // One number per line, every page: `--slurp` is refused beside `--jq`, and
+    // the concatenated per-page output of a scalar filter is the shape `gh`
+    // does give across pages.
+    return ghClient([
+        "api",
+        "--paginate",
+        `repos/{owner}/{repo}/issues/${issue}/dependencies/blocked_by`,
+        "--jq",
+        ".[].number",
+    ])
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line !== "")
+        .map(Number);
+}

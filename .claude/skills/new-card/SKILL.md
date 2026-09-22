@@ -383,4 +383,4 @@ Coverage state (`oracle:report --targets`): <before> → <after>.
 - [ ] Hand-written: id = earliest paper printing; registry consulted; `resolve()` justified; reprints uncommented; token/emblem art wired
 - [ ] Frontend wiring and Bot seams walked, both declared in the PR
 - [ ] `check:index` · `catalogue:check` · `check:oracle` · `cr:lint` green; no generated file hand-edited
-- [ ] Any issue this skill opens carries `## Target files` and its native parent/blocked-by edge (a body line alone is not the sort key)
+- [ ] Any issue this skill opens carries `## Target files` and its native parent/blocked-by edge (a body line alone is not the sort key) — read back with `bun run queue:lint <issue>`, which reports both the missing edge and the missing body line (issue #3794)
