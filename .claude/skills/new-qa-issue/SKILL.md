@@ -272,19 +272,19 @@ direction. **Parity read-back is the done-condition**, over the new issue and
 every issue whose edges this step touched:
 
 ```sh
-for n in <issues…>; do
-  nat=$(gh api repos/{owner}/{repo}/issues/$n/dependencies/blocked_by --jq '[.[].number]|sort|join(",")')
-  body=$(gh issue view $n --json body --jq .body | python3 -c 'import sys,re
-t=sys.stdin.read(); m=re.search(r"^#+\s*blocked by\s*$(.*?)(?=^#+\s|\Z)",t,re.I|re.M|re.S)
-print(",".join(sorted(set(re.findall(r"#(\d+)",m.group(1))))) if m else "")')
-  [ "$nat" = "$body" ] && echo "ok  #$n [$nat]" || echo "DRIFT #$n native=[$nat] body=[$body]"
-done
+bun run queue:lint <issues…>
 ```
 
-Fix every `DRIFT` line before reporting the issue created. When the new issue
-joins a `prd` umbrella, run the same loop over the umbrella's other open
-children: a sibling carrying prose-only edges is part of the graph this issue
-was just published into.
+Its `dependency-parity` finding names each side's missing refs and the exact
+one-line fix (issue #3794). Fix every one before reporting the issue created.
+When the new issue joins a `prd` umbrella, pass the umbrella's other open
+children in the same call: a sibling carrying prose-only edges is part of the
+graph this issue was just published into.
+
+**Never hand-roll this read-back.** The shell loop that used to live here
+matched the `## Blocked by` section only, so it reported parity on a body whose
+inline `depends on #N` the planner already read as a blocker; `queue:lint`
+compares against the planner's OWN parser.
 
 ### Step 8c — Apply the Step 6b Priority to the board
 

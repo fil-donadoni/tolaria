@@ -80,16 +80,12 @@ Rules:
 - **Parity read-back is the done-condition**, for every ticket published in this pass (and every pre-existing ticket you added an edge to):
 
     ```sh
-    for n in <tickets…>; do
-      nat=$(gh api repos/{owner}/{repo}/issues/$n/dependencies/blocked_by --jq '[.[].number]|sort|join(",")')
-      body=$(gh issue view $n --json body --jq .body | python3 -c 'import sys,re
-    t=sys.stdin.read(); m=re.search(r"^#+\s*blocked by\s*$(.*?)(?=^#+\s|\Z)",t,re.I|re.M|re.S)
-    print(",".join(sorted(set(re.findall(r"#(\d+)",m.group(1))))) if m else "")')
-      [ "$nat" = "$body" ] && echo "ok  #$n [$nat]" || echo "DRIFT #$n native=[$nat] body=[$body]"
-    done
+    bun run queue:lint <tickets…>
     ```
 
-    Any `DRIFT` line is fixed before reporting the tickets as published. The same parity pass applies whenever this skill touches an existing umbrella whose earlier children carry prose-only dependencies — fix them in the same pass, they are part of the graph you are publishing into.
+    Its `dependency-parity` finding names each side's missing refs and the exact one-line fix (issue #3794). Fix every one before reporting the tickets as published. The same parity pass applies whenever this skill touches an existing umbrella whose earlier children carry prose-only dependencies — pass them in the same call, they are part of the graph you are publishing into.
+
+    **Never hand-roll this read-back.** The shell loop that used to stand here matched the `## Blocked by` section only, so it reported parity on a body whose inline `depends on #N` the planner already read as a blocker; `queue:lint` compares against the planner's OWN parser.
 
 **Wire every ticket to its parent umbrella (GitHub tracker) — `gh issue edit <ticket> --parent <umbrella>`.** When the tickets were cut from an existing issue (a PRD, a tracker, a spec umbrella), the **native sub-issue edge is mandatory, not decorative**. `/process-gh-issues` sorts its queue by `parent.number ?? number` — oldest _lineage_ first — and reads `parent` from its cheap Stage-1 list call. A ticket with no parent edge sorts on its own number, so children cut today from a PRD opened months ago land at the **back** of the queue and their umbrella never converges. (The key is the parent's _number_, not its `createdAt` — the list payload's `parent` object carries no date.) The prose `Parent: #N` line in the template below is for humans; it is not the sort key and parsing it would force a body fetch for the whole queue.
 
