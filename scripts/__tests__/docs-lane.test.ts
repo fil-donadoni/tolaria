@@ -230,6 +230,37 @@ describe("docs-lane — the landing runs under the merge lock (#2537)", () => {
         );
     });
 
+    it("unsets GITHUB_TOKEN as the very first thing the locked shell does (issue #2579)", () => {
+        // `NET_ENV` strips the bug-report PAT from the env docs-lane.ts hands
+        // to `spawnSync("bun", [GATE, …])`, but that child is
+        // `bun scripts/gate.ts`, which re-reads `.env.local` from its own cwd
+        // and spreads `{...process.env}` onto the `sh -c` child — so the push
+        // and the merge below saw the PAT again and 403'd AFTER the doc gate
+        // had already run inside the lock. `land.ts` had fixed exactly this
+        // (review round 3, B1); this lane shipped without it.
+        expect(cmd.split(" && ")[0]).toBe("unset GITHUB_TOKEN");
+        expect(cmd.indexOf("unset GITHUB_TOKEN")).toBeLessThan(
+            cmd.indexOf("git push --force-with-lease")
+        );
+    });
+
+    it("the unset actually clears a re-injected GITHUB_TOKEN for anything the locked shell runs, not just a string position (issue #2579)", () => {
+        // A position assertion passes on a step that does not clear anything.
+        // Take the EXACT first step `buildShipMergeCommand` produces and run
+        // it through a real shell with GITHUB_TOKEN seeded as the `.env.local`
+        // re-injection would leave it.
+        const firstStep = cmd.split(" && ")[0];
+        const r = spawnSync(
+            "sh",
+            ["-c", `${firstStep} && echo "TOKEN=[$GITHUB_TOKEN]"`],
+            {
+                encoding: "utf8",
+                env: { ...process.env, GITHUB_TOKEN: "github_pat_leaked" },
+            }
+        );
+        expect(r.stdout).toContain("TOKEN=[]");
+    });
+
     it("keeps the lane cheap — the heavy suite is still not part of it", () => {
         expect(cmd).not.toMatch(/bun run (test|test:app|test:bot|check:all)\b/);
     });
