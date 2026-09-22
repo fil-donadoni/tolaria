@@ -845,6 +845,11 @@
             "issue": 4343
         },
         {
+            "kind": "hand-tail",
+            "key": "Zombie Boa",
+            "issue": 4388
+        },
+        {
             "kind": "mechanic",
             "key": "planned-mechanic › keyword \"assist\" is not implemented in the Mechanics Registry",
             "issue": 4005
@@ -1103,6 +1108,11 @@
             "kind": "scenario",
             "key": "smoke-scenario › Op \"discard\" consumes a choice binding, a hand filter, or discards the whole hand — covered by the card's own suspension/resume or per-card test",
             "issue": 4172
+        },
+        {
+            "kind": "scenario",
+            "key": "smoke-scenario › Op \"grantAbility\" targets $source/$each — covered by the card's own per-card test",
+            "issue": 4387
         },
         {
             "kind": "scenario",
