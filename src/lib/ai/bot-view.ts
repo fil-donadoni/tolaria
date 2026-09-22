@@ -769,9 +769,16 @@ function buildOwedChoice(
         // shape, `gre/categorizedPick.ts`'s bipartite legality) — both route
         // through the SAME `chooseResolution` branch (`brain.ts`). Undefined
         // for an ordinary dig / any other kind.
+        // issue #3808 adds the two LIBRARY kinds that can carry the same
+        // buckets — `search-library` (CR 701.23a, Gaea's Balance) and
+        // `choose-library-card` (CR 701.20a, Guided Passage's opponent
+        // picking out of the revealed library). Both are the INJECTIVE rule
+        // (the picks leave the library), so neither needs `categoryRule`.
         categories:
             head.kind === "look-distribute" ||
-            head.kind === "choose-categorized"
+            head.kind === "choose-categorized" ||
+            head.kind === "search-library" ||
+            head.kind === "choose-library-card"
                 ? head.categories
                 : undefined,
         // issue #1945 — the two extra signals a `choose-categorized` pick

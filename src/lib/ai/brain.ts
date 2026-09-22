@@ -867,12 +867,85 @@ function asEntersDiscardAnswer(
  *  will accept (the candidate set is already zone/filter/allow-list filtered in
  *  `buildBotView`). Quality is explicitly deferred to the evaluation work —
  *  these are minimal legal actions, not the best ones. */
+/** The shared greedy answer to a CATEGORISED pick (issue #1364 / #1945 /
+ *  #3808) — one policy for every kind that carries `categories`, because the
+ *  LEGALITY is one rule and a second copy of the walk would drift from it.
+ *
+ *  `ordered` is the candidate pool already sorted by the polarity the caller
+ *  wants (BEST first when being picked is a gain — an Atraxa keep, a Gaea's
+ *  Balance find; WORST first when it is a loss — a Planar Overlay bounce, the
+ *  card Guided Passage's opponent is forced to hand over). Each addition is
+ *  tested through `canAddCategorizedPick`, the SAME bipartite check the server
+ *  validates the submission with, so an over-picked or mis-seated set — two
+ *  Forests answering one "Forest" category — is never submitted and the bot
+ *  never freezes on the rejection.
+ *
+ *  It reaches the MAXIMUM matching whenever `max` allows: the matchable sets
+ *  of a bipartite graph form a transversal matroid, so a matchable set smaller
+ *  than the maximum always admits some further member, and a walk over the
+ *  whole pool cannot stop short. That is what lets a mandatory pick
+ *  (`min === max === the matching`) be answered greedily at all.
+ *
+ *  `minimalCover` is the one shape that stops EARLY instead: the losing
+ *  polarity under `categoryRule: "cover"` (Planar Overlay), where the server
+ *  demands every non-empty category be answered and the chooser wants the
+ *  smallest set that does it. Each pick taken must answer a still-unanswered
+ *  category, which also keeps the set matchable by construction. */
+function categorizedGreedyPicks(
+    cats: NonNullable<OwedChoice["categories"]>,
+    ordered: readonly { id: string }[],
+    max: number,
+    minimalCover: boolean
+): string[] {
+    const picks: string[] = [];
+    const answered = new Set<number>();
+    const stillOwed = () =>
+        cats.some((c, i) => c.cardIds.length > 0 && !answered.has(i));
+    for (const candidate of ordered) {
+        if (picks.length >= max) break;
+        if (minimalCover) {
+            if (!stillOwed()) break;
+            const answersSomethingNew = cats.some(
+                (c, i) => !answered.has(i) && c.cardIds.includes(candidate.id)
+            );
+            if (!answersSomethingNew) continue;
+        }
+        if (!canAddCategorizedPick(cats, picks, candidate.id)) continue;
+        picks.push(candidate.id);
+        cats.forEach((c, i) => {
+            if (c.cardIds.includes(candidate.id)) answered.add(i);
+        });
+    }
+    return picks;
+}
+
 export function chooseResolution(choice: OwedChoice): string[] {
     const { kind, candidates, min, max } = choice;
     switch (kind) {
         // Keep / fetch the best `min` (non-lands first): the chooser retains
         // these and the rest are sacrificed / discarded / left behind.
+        // CR 701.23a (issue #3808) — a CATEGORISED search ("a land card of
+        // each basic land type", Gaea's Balance) is the searcher's own, so
+        // the value order is BEST first, and the count is `max`, not `min`:
+        // CR 701.23b makes every category a "you may", so `min` is 0 and a
+        // `slice(0, min)` would fail to find anything at all while the
+        // library held four basics. The greedy walk is safe under the
+        // injective rule — a matchable set smaller than the maximum always
+        // admits another member (the transversal matroid's augmentation
+        // property), so it lands on exactly `max` whenever the pool allows.
         case "search-library":
+            if (choice.categories) {
+                return categorizedGreedyPicks(
+                    choice.categories,
+                    bestFirst(candidates),
+                    max,
+                    false
+                );
+            }
+            return bestFirst(candidates)
+                .slice(0, min)
+                .map((c) => c.id);
+
         case "keep-permanents":
         case "keep-hand":
             return bestFirst(candidates)
@@ -1073,33 +1146,13 @@ export function chooseResolution(choice: OwedChoice): string[] {
                     .slice(0, max)
                     .map((c) => c.id);
             }
-            const cats = choice.categories;
             const losing = choice.pickPolarity === "picked-removed";
-            const minimalCover = losing && choice.categoryRule === "cover";
-            const ordered = losing
-                ? worstFirst(candidates)
-                : bestFirst(candidates);
-            const picks: string[] = [];
-            const answered = new Set<number>();
-            const stillOwed = () =>
-                cats.some((c, i) => c.cardIds.length > 0 && !answered.has(i));
-            for (const candidate of ordered) {
-                if (picks.length >= max) break;
-                if (minimalCover) {
-                    if (!stillOwed()) break;
-                    const answersSomethingNew = cats.some(
-                        (c, i) =>
-                            !answered.has(i) && c.cardIds.includes(candidate.id)
-                    );
-                    if (!answersSomethingNew) continue;
-                }
-                if (!canAddCategorizedPick(cats, picks, candidate.id)) continue;
-                picks.push(candidate.id);
-                cats.forEach((c, i) => {
-                    if (c.cardIds.includes(candidate.id)) answered.add(i);
-                });
-            }
-            return picks;
+            return categorizedGreedyPicks(
+                choice.categories,
+                losing ? worstFirst(candidates) : bestFirst(candidates),
+                max,
+                losing && choice.categoryRule === "cover"
+            );
         }
 
         // Aladdin's Lamp (CR 614): look at the top X, keep the single best
@@ -1136,6 +1189,22 @@ export function chooseResolution(choice: OwedChoice): string[] {
         // `candidateIds` order, i.e. in the order the SEARCHER listed them, so
         // a bare `slice` would let the caster choose their own gift.
         case "choose-library-card":
+            // CR 701.20a (issue #3808) — Guided Passage's shape: the bot is
+            // the opponent naming a creature card, a land card and a
+            // noncreature nonland card out of the revealed library. Same
+            // adversarial `worstFirst` as the uncategorised pick, but a bare
+            // `slice` would hand over three lands, which answers one
+            // category three times and is rejected server-side. The pick is
+            // MANDATORY, so it takes `max` (= the maximum matching, which
+            // the engine already clamped `min` to).
+            if (choice.categories) {
+                return categorizedGreedyPicks(
+                    choice.categories,
+                    worstFirst(candidates),
+                    max,
+                    false
+                );
+            }
             return worstFirst(candidates)
                 .slice(0, min)
                 .map((c) => c.id);

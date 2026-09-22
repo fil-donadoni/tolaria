@@ -134,7 +134,11 @@ export function buildCastCostSelection(
     if (additionalCosts?.sacrificeFilter) {
         specs.push({
             filter: additionalCosts.sacrificeFilter,
-            count: 1,
+            // CR 601.2f / 118.8 (issue #3808) — "sacrifice five lands"
+            // (Gaea's Balance). `SacrificeRequirement.count` has carried the
+            // counted form since the board-wide statics (Drought); the cost
+            // just stopped hard-coding 1.
+            count: additionalCosts.sacrificeFilterCount ?? 1,
             snapshot: true,
         });
     }
