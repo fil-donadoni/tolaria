@@ -838,6 +838,50 @@ export function issueOfBranch(branch: string): number | null {
 }
 
 /**
+ * What this landing is ABOUT: the branch every housekeeping step takes, and
+ * the worktree the teardown removes (issue #4378).
+ *
+ * Both used to be read off `cwd` — the current HEAD and the current
+ * directory. On the full path that is right by construction: `refusalReason`
+ * refuses unless the current branch IS the PR's head branch, and `land` is
+ * run from the issue worktree. On the HOUSEKEEPING path (issue #4159) it is
+ * wrong twice over, because that path exists for a PR whose worktree is
+ * already gone and is therefore invoked from the primary checkout:
+ *
+ *  - the branch would be the BASE branch, so `releaseClaimStep` and
+ *    `umbrellaDetachStep` would find no issue in it and silently return null,
+ *    and the ref cleanup would ask git to delete `staging` — locally and on
+ *    the remote;
+ *  - the worktree would be the PRIMARY CHECKOUT, so the teardown would ask
+ *    git to remove the main working tree (refused, swallowed by `|| true`)
+ *    and leave the real worktree, if any, standing.
+ *
+ * So both come from the PR's own `headRefName`, and the worktree from the
+ * same `issueWorktree()` rule `wt:new` created it with. A null worktree means
+ * the branch names no issue — a docs-lane or hand-made branch has no worktree
+ * of ours to remove.
+ */
+export function landingTarget(
+    primaryCheckout: string,
+    currentBranch: string,
+    prHeadRefName: string | null
+): { branch: string; worktree: string | null } {
+    const branch = prHeadRefName ?? currentBranch;
+    const issue = issueOfBranch(branch);
+    return {
+        branch,
+        worktree:
+            issue === null
+                ? null
+                : issueWorktree(
+                      primaryCheckout,
+                      issue,
+                      branch.startsWith("fix/") ? "fix" : "feat"
+                  ).worktree,
+    };
+}
+
+/**
  * The origin band `gaps:sync --band` is told for `branch` (issue #4158): the
  * band of the issue the branch names, by the rule `queue:plan` orders by. A
  * branch naming no issue, or a band that cannot be read, is a null band and a
@@ -1317,6 +1361,16 @@ function main(): void {
     // serialise against another session's `land`.
     const mode = landMode(prState);
 
+    // The branch every step below is ABOUT, and the worktree the teardown
+    // removes — from the PR's head ref, never from `cwd` (issue #4378). See
+    // `landingTarget` for what reading either off `cwd` does to the recovery
+    // path.
+    const { branch: landingBranch, worktree: landingWorktree } = landingTarget(
+        primary,
+        branch,
+        prHeadRefName
+    );
+
     // Read BEFORE the lock and the merge, while the issue is still open and the
     // board still shows it; non-gating — an unreadable band is a warning and a
     // `gaps:sync` that keeps its computed band (issue #4158).
@@ -1327,27 +1381,6 @@ function main(): void {
     // elsewhere — so keying this on `merge` alone would hand the recovery path
     // a null band and file its gaps under a different umbrella than the
     // landing path would have.
-    // The branch every housekeeping step is ABOUT is the PR's, not `cwd`'s
-    // (issue #4378). They are the same branch on the full path — the head /
-    // current mismatch is a refusal there — and they are routinely different
-    // on the recovery path, which is invoked from the primary checkout
-    // sitting on the base branch. `prHeadRefName` is non-null here: a null
-    // `prState` is "PR not found", refused above.
-    const landingBranch = prHeadRefName ?? branch;
-    // Likewise the worktree to tear down: NOT `cwd`, but the path `wt:new`
-    // would have created for the issue this branch names. `null` when the
-    // branch names no issue (a docs-lane branch, a hand-made one) — there is
-    // no worktree of ours to remove in that case.
-    const landingIssue = issueOfBranch(landingBranch);
-    const landingWorktree =
-        landingIssue === null
-            ? null
-            : issueWorktree(
-                  primary,
-                  landingIssue,
-                  landingBranch.startsWith("fix/") ? "fix" : "feat"
-              ).worktree;
-
     const origin: OriginBand =
         mode === "housekeeping" || merge
             ? originBandForBranch(landingBranch)

@@ -8,6 +8,7 @@ import {
     existsSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
+import { issueWorktree } from "../lib/issue-worktree";
 import { join, resolve } from "node:path";
 import {
     refusalReason,
@@ -20,6 +21,7 @@ import {
     remoteBranchDeleteStep,
     primaryBranchFastForwardStep,
     issueOfBranch,
+    landingTarget,
     releaseClaimStep,
     umbrellaDetachStep,
     recordLandingStep,
@@ -200,12 +202,34 @@ describe("land.ts — refusal matrix", () => {
             expect(refusalReason({ ...merged, dirty: true })).toMatch(/dirty/);
         });
 
-        it("still refuses from the base branch and on a head-branch mismatch", () => {
-            expect(refusalReason({ ...merged, branch: BASE_BRANCH })).toMatch(
+        // Issue #4378 — this was the inverse assertion, and it is the bug:
+        // the recovery exists for a PR whose worktree is GONE (a prior run
+        // tore it down before crashing), so the only checkout left to invoke
+        // it from is the primary, on the base branch. Refusing there made
+        // #4159's recovery unreachable in exactly the case it was written
+        // for, silently: the claim release, `gaps:sync --band`, the umbrella
+        // detach and the health cadence never ran.
+        it("no longer refuses from the base branch, nor on a head-branch mismatch", () => {
+            expect(
+                refusalReason({ ...merged, branch: BASE_BRANCH })
+            ).toBeNull();
+            expect(
+                refusalReason({ ...merged, branch: RELEASE_BRANCH })
+            ).toBeNull();
+            expect(
+                refusalReason({ ...merged, prHeadRefName: "someone-else" })
+            ).toBeNull();
+        });
+
+        it("keeps both branch-identity refusals while the PR is OPEN", () => {
+            expect(refusalReason({ ...clean, branch: BASE_BRANCH })).toMatch(
+                /land runs from the PR's own branch/
+            );
+            expect(refusalReason({ ...clean, branch: RELEASE_BRANCH })).toMatch(
                 /land runs from the PR's own branch/
             );
             expect(
-                refusalReason({ ...merged, prHeadRefName: "someone-else" })
+                refusalReason({ ...clean, prHeadRefName: "someone-else" })
             ).toMatch(/head branch/);
         });
 
@@ -454,7 +478,7 @@ describe("land.ts — the locked command", () => {
         const cmd = buildLockedCommand(base);
         expect(cmd).toContain(remoteBranchDeleteStep("fix/issue-2517"));
         expect(cmd).toContain(
-            "(git -C '/repo' worktree remove --force '/repo-issue-2517' || true)"
+            "if [ -e '/repo-issue-2517' ]; then git -C '/repo' worktree remove --force '/repo-issue-2517' || true;"
         );
         expect(cmd).toContain(
             "(git -C '/repo' branch -D 'fix/issue-2517' || true)"
@@ -1858,5 +1882,181 @@ describe("land.ts — a cards-lane landing is treated like engine (ADR 0136 §4,
                 owesScenario(CARD_DIFF)
             )
         ).not.toBeNull();
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// Issue #4378 — the housekeeping RECOVERY, reachable from the primary.
+//
+// #4159 gave `land` a housekeeping mode for a PR that merged outside it. Two
+// facts made that mode unreachable in the case it exists for — a PR whose
+// worktree is already gone: `refusalReason` refused from the base branch (so
+// only the PR's own checkout could invoke it, and that checkout is what is
+// missing), and the teardown removed `cwd` unconditionally (so a recovery run
+// from the primary would ask git to remove the primary). Both decisions are
+// pure functions, tested here; the teardown step is additionally EXECUTED
+// against a real git fixture, because "does not fail on a missing path" is a
+// claim about shell, not about a string.
+// ─────────────────────────────────────────────────────────────────────────
+describe("land.ts — landingTarget (the branch and worktree a landing is about)", () => {
+    it("takes the PR's head branch, not the branch the caller stands on", () => {
+        expect(landingTarget("/repo", BASE_BRANCH, "fix/issue-4378")).toEqual({
+            branch: "fix/issue-4378",
+            worktree: resolve("/repo-issue-4378"),
+        });
+    });
+
+    it("derives the worktree by the same rule wt:new creates it with", () => {
+        // ONE definition, imported by both (AC 3): if `wt:new` ever renames
+        // the directory, this assertion moves with it and `land` follows.
+        const { worktree } = issueWorktree("/repo", 4378, "fix");
+        expect(
+            landingTarget("/repo", BASE_BRANCH, "fix/issue-4378").worktree
+        ).toBe(worktree);
+        expect(issueWorktree("/repo", 4378, "feat").worktree).toBe(worktree);
+    });
+
+    it("is a no-op on the full path, where the two branches are the same", () => {
+        expect(
+            landingTarget("/repo", "feat/issue-99", "feat/issue-99")
+        ).toEqual({
+            branch: "feat/issue-99",
+            worktree: resolve("/repo-issue-99"),
+        });
+    });
+
+    it("falls back to the current branch when the PR head is unknown", () => {
+        expect(landingTarget("/repo", "fix/issue-7", null).branch).toBe(
+            "fix/issue-7"
+        );
+    });
+
+    it("has no worktree for a branch that names no issue", () => {
+        expect(
+            landingTarget("/repo", "docs/adr-0116", "docs/adr-0116")
+        ).toEqual({ branch: "docs/adr-0116", worktree: null });
+    });
+});
+
+describe("land.ts — housekeeping steps against a MISSING worktree", () => {
+    const merged: HousekeepingOptions = {
+        branch: "fix/issue-4378",
+        pr: 4378,
+        primaryCheckout: "/repo",
+        worktree: "/repo-issue-4378",
+        teardown: true,
+    };
+
+    it("runs every housekeeping step even when the worktree is gone", () => {
+        // The recovery's whole point: the step LIST does not shrink because
+        // the directory is missing. `worktree: null` is the extreme case —
+        // a branch naming no issue — and even there everything but the
+        // worktree removal is still in the command.
+        const cmd = buildHousekeepingCommand({ ...merged, worktree: null });
+        expect(cmd).toContain("health-cadence.ts' record");
+        expect(cmd).toContain("gaps-sync.ts");
+        expect(cmd).toContain("--remove-label in-progress");
+        expect(cmd).toContain("umbrella-detach.ts");
+        expect(cmd).toContain("health-cadence.ts' spawn");
+        expect(cmd).not.toContain("worktree remove");
+    });
+
+    it("guards the worktree removal on the path existing", () => {
+        const cmd = buildHousekeepingCommand(merged);
+        expect(cmd).toContain("if [ -e '/repo-issue-4378' ]");
+        expect(cmd).toContain("worktree remove --force '/repo-issue-4378'");
+        // A worktree whose directory is gone stays REGISTERED until something
+        // prunes it, and `branch -D` refuses a branch git still believes is
+        // checked out — so the absent branch is a prune, not a no-op.
+        expect(cmd).toContain("worktree prune");
+    });
+
+    it("tears down the branch the PR names, never the base branch", () => {
+        // The failure this replaces is not cosmetic: with `cwd`'s HEAD as the
+        // branch, a recovery run from the primary asked git to delete
+        // `staging` — `git push origin --delete staging` and `git branch -D
+        // staging`, both swallowed by `|| true`.
+        const cmd = buildHousekeepingCommand(merged);
+        expect(cmd).toContain("--delete 'fix/issue-4378'");
+        expect(cmd).toContain("branch -D 'fix/issue-4378'");
+        expect(cmd).not.toContain(`--delete '${BASE_BRANCH}'`);
+        expect(cmd).not.toContain(`branch -D '${BASE_BRANCH}'`);
+    });
+});
+
+describe("land.ts — the teardown step, executed", () => {
+    let primary: string;
+    let worktree: string;
+
+    beforeEach(() => {
+        const root = mkdtempSync(join(tmpdir(), "tolaria-land-teardown-"));
+        primary = join(root, "repo");
+        worktree = join(root, "repo-issue-4378");
+        mkdirSync(primary);
+        const git = (...args: string[]) =>
+            spawnSync("git", args, { cwd: primary, encoding: "utf8" });
+        git("init", "-q", "-b", BASE_BRANCH);
+        writeFileSync(join(primary, "f"), "x");
+        git("add", "-A");
+        git(
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-qm",
+            "init"
+        );
+        git("worktree", "add", "-q", worktree, "-b", "fix/issue-4378");
+    });
+
+    afterEach(() => {
+        rmSync(resolve(primary, ".."), { recursive: true, force: true });
+    });
+
+    /** The teardown pair — worktree removal + branch delete — as a shell. */
+    const teardown = (wt: string | null) => {
+        const steps = postMergeHousekeepingSteps({
+            branch: "fix/issue-4378",
+            pr: 4378,
+            primaryCheckout: primary,
+            worktree: wt,
+            teardown: true,
+        }).filter(
+            (s) => s.includes("worktree remove") || s.includes("branch -D")
+        );
+        return spawnSync("sh", ["-c", steps.join(" && ")], {
+            cwd: primary,
+            encoding: "utf8",
+        });
+    };
+
+    it("removes the worktree and its branch when the worktree is there", () => {
+        const r = teardown(worktree);
+        expect(r.status).toBe(0);
+        expect(existsSync(worktree)).toBe(false);
+        expect(
+            spawnSync("git", ["branch", "--list", "fix/issue-4378"], {
+                cwd: primary,
+                encoding: "utf8",
+            }).stdout.trim()
+        ).toBe("");
+    });
+
+    it("exits 0 and still deletes the branch when the worktree is already gone", () => {
+        // THE issue: a prior `land` tore the worktree down and crashed before
+        // the rest of the housekeeping, so the recovery meets a path that is
+        // not there — and a registration git has not pruned, which is what
+        // used to leave `fix/issue-4378` undeletable.
+        rmSync(worktree, { recursive: true, force: true });
+        const r = teardown(worktree);
+        expect(r.status).toBe(0);
+        expect(r.stderr).not.toMatch(/is not a working tree/);
+        expect(
+            spawnSync("git", ["branch", "--list", "fix/issue-4378"], {
+                cwd: primary,
+                encoding: "utf8",
+            }).stdout.trim()
+        ).toBe("");
     });
 });
