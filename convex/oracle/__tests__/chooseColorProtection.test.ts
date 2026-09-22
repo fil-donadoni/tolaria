@@ -35,6 +35,12 @@ function activatedEffects(line: string): EffectOp[] {
         restrictions: parsed.value.restrictions,
     });
     if (!lowered.ok) throw new Error(`${line}: ${lowered.reason}`);
+    // `ActivatedAbility.effects` is optional — an ability lowered to a
+    // `resolve()` shape carries none. Every line this file reads is an Effect
+    // Script, so an absent one is a lowering regression, not a branch to type
+    // around.
+    if (!lowered.ability.effects)
+        throw new Error(`${line}: lowered to an ability with no Effect Script`);
     return lowered.ability.effects;
 }
 
@@ -48,7 +54,7 @@ describe("Choose a color. → protection grant (CR 105.1, 613.1f)", () => {
             {
                 op: "optionChoice",
                 prompt: "Choose a color (Test Card).",
-                modes: ["W", "U", "B", "R", "G"].map((color, i) => ({
+                modes: (["W", "U", "B", "R", "G"] as const).map((color, i) => ({
                     id: color,
                     label: ["White", "Blue", "Black", "Red", "Green"][i],
                     color,
