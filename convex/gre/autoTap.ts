@@ -908,7 +908,7 @@ export function remainingFlexibility(
 /** Lexicographic key of a plan's tapped cardIds (sorted), for the deterministic
  *  tertiary tie-break (ADR 0034 tie-break #3). */
 function planLexKey(plan: AutoTapPlan): string {
-    return [...plan.map((s) => s.cardId)].sort().join(" ");
+    return [...plan.map((s) => s.cardId)].sort().join("\u0000");
 }
 
 /** Static score of the position a candidate plan leaves behind, higher = better
