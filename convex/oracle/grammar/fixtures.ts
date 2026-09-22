@@ -2880,4 +2880,142 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 120.3 — "<self> deals N damage to each creature and each player":
+    // the fixed two-set damage recipient union lowers to a PAIR of `forEach`
+    // sweeps (one over battlefield creatures, one over players), because
+    // `dealDamage.to` names one recipient and the sentence names two disjoint
+    // sets. Exhibits the "$each object ref" and "$each player ref" forms the
+    // canned smoke scenario cannot build, so this fixture is the evidence the
+    // pair is emitted the way the hand-written Pestilence writes it
+    // (`sets/lea/black.ts`).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "ef220824-fab4-4d8e-9ba4-65ff5ba1db66",
+            name: "Thrashing Wumpus",
+            manaCost: "{3}{B}{B}",
+            typeLine: "Creature — Beast",
+            oracleText:
+                "{B}: This creature deals 1 damage to each creature and each player.",
+            power: "3",
+            toughness: "3",
+            layout: "normal",
+        },
+        expected: {
+            name: "Thrashing Wumpus",
+            types: ["Creature"],
+            subtypes: ["Beast"],
+            manaCost: { X: 3, B: 2 },
+            power: 3,
+            toughness: 3,
+            oracleText:
+                "{B}: This creature deals 1 damage to each creature and each player.",
+            activatedAbilities: [
+                {
+                    id: "thrashing-wumpus-ability",
+                    oracleText:
+                        "{B}: This creature deals 1 damage to each creature and each player.",
+                    cost: { mana: { B: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                filter: { type: "Creature" },
+                            },
+                            effects: [
+                                {
+                                    op: "dealDamage",
+                                    amount: 1,
+                                    to: { ref: "$each" },
+                                },
+                            ],
+                        },
+                        {
+                            op: "forEach",
+                            select: { set: "players" },
+                            effects: [
+                                {
+                                    op: "dealDamage",
+                                    amount: 1,
+                                    to: { player: { ref: "$each" } },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 120.3 + CR 615.7 — the same two-set union under "prevent the next N
+    // damage that would be dealt to <recipient> this turn": `preventDamage`'s
+    // `to` mirrors `dealDamage`'s, so the same fan-out applies, this time
+    // exhibiting the "preventDamage acts on $each" card-dependent form.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "ed854708-5a65-4293-bebc-d7c639407ba5",
+            name: "Kitsune Palliator",
+            manaCost: "{2}{W}",
+            typeLine: "Creature — Fox Cleric",
+            oracleText:
+                "{T}: Prevent the next 1 damage that would be dealt to each creature and each player this turn.",
+            power: "0",
+            toughness: "2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Kitsune Palliator",
+            types: ["Creature"],
+            subtypes: ["Fox", "Cleric"],
+            manaCost: { X: 2, W: 1 },
+            power: 0,
+            toughness: 2,
+            oracleText:
+                "{T}: Prevent the next 1 damage that would be dealt to each creature and each player this turn.",
+            activatedAbilities: [
+                {
+                    id: "kitsune-palliator-ability",
+                    oracleText:
+                        "{T}: Prevent the next 1 damage that would be dealt to each creature and each player this turn.",
+                    cost: { tap: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                filter: { type: "Creature" },
+                            },
+                            effects: [
+                                {
+                                    op: "preventDamage",
+                                    mode: "next-n",
+                                    to: { ref: "$each" },
+                                    amount: 1,
+                                    duration: { phase: "end-of-turn" },
+                                },
+                            ],
+                        },
+                        {
+                            op: "forEach",
+                            select: { set: "players" },
+                            effects: [
+                                {
+                                    op: "preventDamage",
+                                    mode: "next-n",
+                                    to: { player: { ref: "$each" } },
+                                    amount: 1,
+                                    duration: { phase: "end-of-turn" },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);

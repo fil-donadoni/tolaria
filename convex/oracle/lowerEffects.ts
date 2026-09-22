@@ -429,6 +429,35 @@ function sweepOps(
 }
 
 /**
+ * CR 120.3 — "… to each creature and each player": a fixed two-set recipient
+ * union, fanned out into the same pair of sweeps the hand-written cards write
+ * (Pestilence) — one `forEach` over the battlefield's creatures, one over the
+ * players — because the damage-family Ops this reads for (`dealDamage`,
+ * `preventDamage`) name ONE recipient in `to`, never two disjoint sets.
+ */
+function eachCreatureAndPlayerOps(
+    toCreature: (target: EffectObjectSelector) => EffectOp,
+    toPlayer: (player: EffectPlayerRef) => EffectOp
+): EffectOp[] {
+    return [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                filter: { type: "Creature" },
+            },
+            effects: [toCreature({ ref: "$each" })],
+        },
+        {
+            op: "forEach",
+            select: { set: "players" },
+            effects: [toPlayer({ ref: "$each" })],
+        },
+    ];
+}
+
+/**
  * CR 701.8 — does this spell body destroy every land in play, unconditionally?
  *
  * The hand-written catalogue marks such a spell `destroysAllLands` (Armageddon)
@@ -960,6 +989,14 @@ function selectorsFor(
     // only the verbs that fan out (`sweepOps`) read one.
     if (subject.kind === "mass")
         return unlowerable("a sweep is not a single object (CR 110.1)");
+    // CR 120.3 — the same two-set union, and the same reason: it names TWO
+    // disjoint recipients, so there is no ONE slot to point at. Only
+    // `deal-damage` and `prevent-next-damage` read it, and their own lowering
+    // branches on the kind before reaching this helper.
+    if (subject.kind === "each-creature-and-player")
+        return unlowerable(
+            "each creature and each player is two recipient sets, not one object (CR 120.3)"
+        );
     if (subject.requirement.type === "player")
         return unlowerable("a player is not an object (CR 109.1)");
     // CR 112.1 / CR 110.1 — a SPELL is a card on the STACK; a permanent is a
@@ -1359,8 +1396,6 @@ function lowerSentenceBody(
                 return unlowerable(
                     '"it deals damage" names a dealer that is not this ability\'s source (CR 120.1)'
                 );
-            const to = damageTarget(sentence.to, slots, site);
-            if (!to.ok) return to;
             // CR 202.3 — the magnitude may be the mana value of the object an
             // earlier sentence acted on, which only the walk can resolve
             // (Orim's Thunder, issue #4221).
@@ -1373,6 +1408,26 @@ function lowerSentenceBody(
                       )
                     : lowerAmount(sentence.amount, site);
             if (!amount.ok) return amount;
+            // CR 120.3 — "to each creature and each player" names two
+            // disjoint recipient sets; `dealDamage.to` names one, so this
+            // fans out into a pair of sweeps instead of a single Op.
+            if (sentence.to.kind === "each-creature-and-player")
+                return lowered(
+                    eachCreatureAndPlayerOps(
+                        (target) => ({
+                            op: "dealDamage",
+                            amount: amount.value,
+                            to: target,
+                        }),
+                        (player) => ({
+                            op: "dealDamage",
+                            amount: amount.value,
+                            to: { player },
+                        })
+                    )
+                );
+            const to = damageTarget(sentence.to, slots, site);
+            if (!to.ok) return to;
             return lowered([
                 { op: "dealDamage", amount: amount.value, to: to.value },
             ]);
@@ -1415,6 +1470,26 @@ function lowerSentenceBody(
         // so the same selector (and its "damage" reach, which admits "any
         // target") names it.
         case "prevent-next-damage": {
+            // CR 120.3 — the same two-set fan-out `deal-damage` reads.
+            if (sentence.to.kind === "each-creature-and-player")
+                return lowered(
+                    eachCreatureAndPlayerOps(
+                        (target) => ({
+                            op: "preventDamage",
+                            mode: "next-n",
+                            to: target,
+                            amount: sentence.amount,
+                            duration: durationSpec(sentence.duration),
+                        }),
+                        (player) => ({
+                            op: "preventDamage",
+                            mode: "next-n",
+                            to: { player },
+                            amount: sentence.amount,
+                            duration: durationSpec(sentence.duration),
+                        })
+                    )
+                );
             const to = damageTarget(sentence.to, slots, site);
             if (!to.ok) return to;
             return lowered([
