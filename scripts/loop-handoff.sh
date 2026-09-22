@@ -2,8 +2,9 @@
 # scripts/loop-handoff.sh — the AFK entry point (`bun run loop:afk`).
 #
 # `scripts/loop-drain.sh` (ADR 0097) can already run pass after pass
-# unattended, but nothing ever STARTED it: `/process-gh-issues` runs exactly
-# one batch and exits, so a human had to type the driver command every time.
+# unattended, but nothing ever STARTED it: a pass — `/next-issue` today, the
+# retired `/process-gh-issues` when this was written — runs exactly one unit of
+# work and exits, so a human had to type the driver command every time.
 # This script closes that gap from both ends:
 #
 #   1. `--start` / `--resume` — a human types ONE command. The driver runs in
@@ -63,8 +64,9 @@ DEFAULT_CLAUDE_ARGS="--dangerously-skip-permissions"
 # resolution for every run started through this script.
 #
 # `--prompt` therefore means exactly one thing: SCOPE this run
-# (`/process-gh-issues figli di 2405` = only PRD #2405's children, or any
-# other skill). It is recorded in the conf, and printed by --status, precisely
+# (`/next-issue 3131` = that one issue, instead of letting the driver's
+# pre-flight pick the head of the queue). It is recorded in the conf, and
+# printed by --status, precisely
 # because an armed run that LOOKS unscoped but isn't (or vice versa) is a trap
 # for whoever reads the file the next morning.
 DEFAULT_PROMPT=""
@@ -104,7 +106,7 @@ Options (recorded in .claude/telemetry/afk.conf on --arm / --start):
                                one tier resolved per pass). Setting it turns
                                that pre-flight OFF: you own the whole
                                invocation, e.g.
-                               --prompt "/process-gh-issues figli di 2405"
+                               --prompt "/next-issue 3131"
   --budget <n> --max-pct <n>   local-proxy token budget guard (see ADR 0097).
                               --budget is what THIS RUN may spend, counted
                               from its launch over its own passes only

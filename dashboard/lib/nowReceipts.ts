@@ -12,7 +12,7 @@ import type { ReceiptsSummary } from "./nowPayload";
  * `collision` rows print individually, capped server-side.
  */
 
-/** Role → the order its stat box appears in. `missing` is the receipt guard's
+/** Role → the order its stat box appears in. `missing` was the receipt guard's
  *  own marker role (`MissingReceipt`, lib/receipt.ts) and is spelled out as
  *  "missing session markers" — the literal "missing missing: 389" is the
  *  wording this replaced (#2632). */

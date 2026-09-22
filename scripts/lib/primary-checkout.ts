@@ -2,7 +2,8 @@
 // resolver (issue #2519).
 //
 // Five call sites duplicated this exact test before this file existed:
-// `loop-scorecard.ts`, `land.ts`, `docs-lane.ts`, `worktree-gc.ts` (inlined,
+// `loop-scorecard.ts` (retired by issue #3131), `land.ts`, `docs-lane.ts`,
+// `worktree-gc.ts` (inlined,
 // not even a function) and `bootstrap-worktree.ts` (an outlier: it returns
 // `null` when we already ARE the primary, because its caller needs to know
 // "there is nothing to bootstrap FROM" rather than a usable path — a
@@ -16,7 +17,8 @@
 // needed the SAME resolution, and a second production caller finally made
 // deduping the two worth doing). The other three — `loop-scorecard.ts`,
 // `docs-lane.ts`, `worktree-gc.ts` — plus the deliberately-different
-// `bootstrap-worktree.ts`, stay untouched; #2656 folds in exactly one.
+// `bootstrap-worktree.ts`, stayed untouched; #2656 folded in exactly one, and
+// issue #3131 retired `loop-scorecard.ts` outright.
 //
 // The test itself: in the primary checkout, `git rev-parse --git-common-dir`
 // prints the RELATIVE path `.git`. In a linked worktree it prints an

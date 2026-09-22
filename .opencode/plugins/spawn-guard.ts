@@ -77,7 +77,7 @@ export const SpawnGuard = async () => {
                         "Start it with one of: implement, review, fixup, investigate, " +
                         "research, verify, migrate, audit — then the rest of the sentence " +
                         "as you like. Without a role, the spawn's tokens land in the " +
-                        "scorecard's `unclassified` bucket."
+                        "telemetry's `unclassified` bucket."
                 );
             }
 

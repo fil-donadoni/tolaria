@@ -39131,7 +39131,6 @@
         {"id":"702.33","line":"describe(\"Vodalian Serpent (attack restriction + kicked counters; CR 508.1c / 702.33)\", () => {","sites":1,"status":"baseline"},
         {"id":"702.33","line":"describe(\"additionalCostPaidCondition (CR 702.33 / 603.4 per-Kicker check-time gate, issue #2015)\", () => {","sites":1,"status":"baseline"},
         {"id":"702.33","line":"describe(\"compiled kicker — Kicker line + kicker-counted entry rider reach the engine (CR 702.33, issue #3826)\", () => {","sites":1,"status":"confirmed","ruleHash":"9acd847a13fdeab2"},
-        {"id":"702.33","line":"expect(classifyRole(at(\"research CR 702.33\"))).toBe(\"support\");","sites":1,"status":"baseline"},
         {"id":"702.33","line":"it(\"consequence 1: the kicked target-requirement swap does not fire (CR 601.2b / 702.33)\", () => {","sites":1,"status":"baseline"},
         {"id":"702.33","line":"it(\"declining both casts unkicked (CR 702.33 — the kicker is optional)\", () => {","sites":1,"status":"baseline"},
         {"id":"702.33","line":"it(\"rejects paying a single kicker more than once (CR 702.33 vs 702.33e)\", () => {","sites":1,"status":"baseline"},

@@ -1943,8 +1943,6 @@ describe("hooks are wired into settings.json", () => {
             expect(fs.existsSync(full)).toBe(true);
             expect(fs.statSync(full).mode & 0o111).toBeGreaterThan(0);
         }
-
-        expect(settings.hooks.SubagentStop).toBeDefined();
     });
 
     it("wires each hook to the EVENT it is written for", () => {
@@ -1961,7 +1959,6 @@ describe("hooks are wired into settings.json", () => {
             "claim-ledger.sh": "PreToolUse",
             "claim-sweep.sh": "SessionEnd",
             "deny-guard.sh": "PreToolUse",
-            "receipt-guard.sh": "SubagentStop",
             "session-origin.sh": "SessionStart",
             "spawn-guard.sh": "PreToolUse",
             "timing-log.sh": "PreToolUse", // also PostToolUse; asserted below

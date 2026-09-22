@@ -3,7 +3,7 @@
 # declared, never inherited or guessed.
 #
 # Both rules replace a paragraph that demonstrably did not hold, and both are
-# now MEASURED rather than asserted (`bun run loop:scorecard`):
+# now MEASURED rather than asserted (agent telemetry — `bun run telemetry:dash`):
 #
 #   * CLAUDE.md has said "Never omit the `model` parameter" for months. Over the
 #     last 30 days of telemetry, **243 of 1,979 Agent spawns (12%) passed no
@@ -91,11 +91,11 @@ implement* | review* | fixup* | investigate* | research* | verify* | migrate* | 
 Start it with one of: implement, review, fixup, investigate, research, verify,
 migrate, audit — then the rest of the sentence as you like:
 
-  \"implement #2187 — loop scorecard\"
+  \"implement #2187 — agent telemetry\"
   \"investigate where pendingChoices is projected\"
   \"review PR #2211\"
 
-Without a role, the spawn's tokens land in the scorecard's \`unclassified\`
+Without a role, the spawn's tokens land in the telemetry's \`unclassified\`
 bucket (measured at 55% of all agent tokens), and no later report can recover
 what the spawn was for."
     ;;

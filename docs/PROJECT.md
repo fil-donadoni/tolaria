@@ -1226,8 +1226,8 @@ scripts/
 ├── gate.ts                 admission control CPU
 ├── bootstrap-worktree.ts   `bun run worktree:init`
 ├── check-card-index.ts check-stub-coverage.ts
-├── queue-plan.ts queue-lint.ts train-order.ts   il loop (PRD #2180)
-├── loop-scorecard.ts       metriche del loop da telemetria + receipt
+├── queue-plan.ts queue-claim.ts queue-lint.ts   la coda (ADR 0110/0136)
+├── loop-drain.sh loop-handoff.sh loop-doctor.ts loop-status.ts   il driver AFK di /next-issue
 ├── generate-print-set.mts  set di sole ristampe (3ed, 4ed)
 └── list-to-cards.mjs       importer worklist (ADR 0041)
 

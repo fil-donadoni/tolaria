@@ -397,10 +397,12 @@ const SUPPORT_ROLES = new Set([
 ]);
 
 /**
- * Role bucketing. Mirrors `classifyRole` in scripts/lib/scorecard.ts, kept
- * separate because that one collapses everything non-Agent to `orchestrator`
- * and folds five distinct roles into `support` — useful for the loop scorecard,
- * too lossy for a dashboard meant to be split by role.
+ * Role bucketing. It once mirrored `classifyRole` in scripts/lib/scorecard.ts,
+ * kept separate because that one collapsed everything non-Agent to
+ * `orchestrator` and folded five distinct roles into `support` — useful for the
+ * loop scorecard, too lossy for a dashboard meant to be split by role. The
+ * scorecard was retired with the fan-out loop (issue #3131); this is now the
+ * only role bucketing there is.
  */
 export function classifyRole(tool: string | null, desc: string | null): string {
     if (tool !== "Agent" && tool !== "Task") return "orchestrator";
