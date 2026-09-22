@@ -1297,6 +1297,7 @@ describe("land.ts — the lane is skipped on a (tip, base) already gated green (
             command: "check:lane\n",
             head: `${"a".repeat(40)}\n`,
             base: `${"b".repeat(40)}\n`,
+            endHead: `${"a".repeat(40)}\n`,
             green: true,
         };
         expect(greenLaneRunOf(ok)).toEqual({
@@ -1310,6 +1311,47 @@ describe("land.ts — the lane is skipped on a (tip, base) already gated green (
         ).toBeNull();
         expect(greenLaneRunOf({ ...ok, base: "" })).toBeNull();
         expect(greenLaneRunOf({ ...ok, head: "a'; rm -rf / #" })).toBeNull();
+    });
+
+    /**
+     * A green lane record whose START and END sha differ describes a tree
+     * nobody ever had: a `lint-staged` stash or a concurrent commit moved
+     * it under the gate (issue #4379, finding 2727). ADR 0136 §2 buys the
+     * lane SKIP with exactly one property — that the recorded pair names
+     * the tree that is landing — so such a record is refused, which costs a
+     * re-gate and nothing else. A record with no `end-head` at all is
+     * refused for the same reason: both writers (`laneStep` and
+     * `gate-run.sh`) write it, so an absent one is not an older record to
+     * be trusted, it is a record nobody vouched for.
+     *
+     * Proof-of-failure: deleted the `if (endHead !== head) return null;`
+     * line from `greenLaneRunOf` — both assertions below went red (the
+     * mismatched and the absent record each returned a run). Reverted.
+     */
+    it("refuses a green lane record whose start and end sha differ", () => {
+        const ok = {
+            command: "check:lane\n",
+            head: `${"a".repeat(40)}\n`,
+            base: `${"b".repeat(40)}\n`,
+            endHead: `${"a".repeat(40)}\n`,
+            green: true,
+        };
+        expect(greenLaneRunOf(ok)).not.toBeNull();
+        expect(
+            greenLaneRunOf({ ...ok, endHead: `${"c".repeat(40)}\n` })
+        ).toBeNull();
+        expect(greenLaneRunOf({ ...ok, endHead: null })).toBeNull();
+        expect(greenLaneRunOf({ ...ok, endHead: "" })).toBeNull();
+    });
+
+    it("laneStep re-derives the end sha AFTER the lane, never reusing LANE_TIP", () => {
+        const step = laneStep([], "/runs/land-lane-4379");
+        expect(step).toContain(
+            `printf '%s\n' "$(git rev-parse HEAD)" >'/runs/land-lane-4379'/end-head`
+        );
+        expect(step.indexOf("bun run check:lane")).toBeLessThan(
+            step.indexOf("end-head")
+        );
     });
 
     it("reads gate-run.sh's root the way the script computes it", () => {

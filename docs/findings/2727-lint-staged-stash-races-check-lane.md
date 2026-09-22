@@ -1,7 +1,8 @@
 ---
 title: A pre-commit lint-staged stash can make check:lane classify (and gate) a tree that is not on disk
 discoveredBy: 2727
-status: draft
+status: triaged
+issue: 4379
 confidence: medium
 ---
 
@@ -39,3 +40,11 @@ reading, or simply re-check cleanliness after classification — but if that is
 the whole fix it is a line on an existing gate-hardening ticket rather than a
 ticket of its own. The alternative reading is that this is really "agents
 should not chain commit and gate", which is a prompt fix, not a code fix.
+
+**Triaged (issue #4379).** It got the code fix, not the prompt fix: the
+alternative reading above — "agents should not chain commit and gate" — is a
+rule no script enforces, and this repo puts an invariant in a script whenever
+it can. `check:lane` now snapshots `HEAD`, `git status --porcelain` and the
+stash stack at start and re-asserts all three after classification and again
+before the receipt; its receipt carries the start and end SHA; `land` refuses
+a green lane record whose two differ.

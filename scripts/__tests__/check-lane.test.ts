@@ -12,7 +12,10 @@ import {
     renderClassification,
     parseArgs,
     shellStdio,
+    treeMoved,
+    hasLintStagedStash,
     type LanePlan,
+    type TreeSnapshot,
     type RunResult,
 } from "../check-lane";
 import { DOC_GATE_TESTS } from "../lib/doc-gate-tests";
@@ -1128,7 +1131,7 @@ describe("check-lane — execution (issue #2741)", () => {
                 )
             ).exec
         );
-        const out = renderReceipt(result);
+        const out = renderReceipt(result, { start: "4f2a91c", end: "4f2a91c" });
         for (const o of result.outcomes) expect(out).toContain(o.id);
         expect(out).toMatch(/^PASS/m);
         expect(out).toContain(`${(result.totalMs / 1000).toFixed(1)}s`);
@@ -1148,7 +1151,9 @@ describe("check-lane — execution (issue #2741)", () => {
                 )
             ).exec
         );
-        expect(renderReceipt(result)).toMatch(/^FAIL/m);
+        expect(
+            renderReceipt(result, { start: "4f2a91c", end: "4f2a91c" })
+        ).toMatch(/^FAIL/m);
     });
 
     /**
@@ -1383,5 +1388,194 @@ describe("check-lane — --json stdout isolation (#2748 review, finding 2)", () 
 
     it("leaves the child's stdout inherited outside json mode, so the human receipt still streams check output live", () => {
         expect(shellStdio(false)).toEqual(["inherit", "inherit", "inherit"]);
+    });
+});
+
+describe("check-lane — the tree may not move under the run (issue #4379, finding 2727)", () => {
+    /**
+     * The dirty-tree refusal in `main()` covers ONE instant: the tree being
+     * dirty when the run starts. husky's `lint-staged` rewrites the tree on
+     * every commit — it stashes the working state (`lint-staged automatic
+     * backup`), runs prettier, restores it — so a `git commit && bun run
+     * check:lane` chain, the shape every AFK session types, can have the
+     * lane classify and gate files while the stash is still applied.
+     * Observed (finding 2727): a `skin` diff fell back to `check:pr` because
+     * the lane saw a diff it could not place, and a ratchet test failed with
+     * a count matching a partially-restored tree.
+     *
+     * `treeMoved` is that DECISION, pure and tested directly — repo
+     * convention for this file; the two `snapshotTree` calls around it are
+     * git plumbing and stay untested.
+     */
+    const quiet: TreeSnapshot = {
+        head: "4f2a91c",
+        status: "",
+        stash: "",
+    };
+
+    it("passes a tree that did not move", () => {
+        expect(treeMoved(quiet, { ...quiet })).toBeNull();
+    });
+
+    it("refuses a HEAD that moved, naming both shas", () => {
+        const moved = treeMoved(quiet, { ...quiet, head: "deadbee" });
+        expect(moved).toContain("the tree moved under the lane");
+        expect(moved).toContain("4f2a91c → deadbee");
+    });
+
+    it("refuses a working tree that went dirty under the run, naming the first change", () => {
+        const moved = treeMoved(quiet, {
+            ...quiet,
+            status: " M src/app.tsx\n M src/lib/theme.ts\n",
+        });
+        expect(moved).toContain("the tree moved under the lane");
+        expect(moved).toContain("src/app.tsx");
+        expect(moved).not.toContain("theme.ts");
+    });
+
+    /**
+     * A racing `lint-staged` PUSHES its backup and then DROPS it, so the
+     * stack differs between two snapshots — the observed failure, where the
+     * lint-staged banner appeared inside the lane's own log. Both directions
+     * count: the entry may land after the start snapshot or vanish before
+     * the end one, depending on where the run falls inside the commit.
+     */
+    it("refuses a lint-staged stash that was DROPPED under the run", () => {
+        const moved = treeMoved(
+            { ...quiet, stash: "lint-staged automatic backup" },
+            quiet
+        );
+        expect(moved).toContain("lint-staged automatic backup");
+        expect(moved).toContain("pushed or dropped under the run");
+    });
+
+    it("refuses a lint-staged stash that was PUSHED under the run", () => {
+        const moved = treeMoved(quiet, {
+            ...quiet,
+            stash: "lint-staged automatic backup",
+        });
+        expect(moved).toContain("lint-staged automatic backup");
+    });
+
+    /**
+     * The stash stack is shared by every worktree, and a `lint-staged` that
+     * dies between its stash and its restore leaves the entry behind for
+     * good — one dated 2026-09-17 was on this repo's stack when the guard
+     * was first run. Refusing on PRESENCE, which is what issue #4379 asked
+     * for, would therefore have refused every `check:lane` (and every
+     * `land`) on the machine until a human dropped it. A stale entry changes
+     * nothing and is applied to nothing, so it is inert here.
+     */
+    it("passes a stale lint-staged entry that was already on the stack and did not move", () => {
+        const stale = { ...quiet, stash: "lint-staged automatic backup" };
+        expect(treeMoved(stale, { ...stale })).toBeNull();
+    });
+
+    it("refuses any other change to the stash stack, without naming lint-staged", () => {
+        const moved = treeMoved(quiet, {
+            ...quiet,
+            stash: "On staging: someone else's wip",
+        });
+        expect(moved).toContain("the stash stack changed under the run");
+        expect(moved).not.toContain("lint-staged automatic backup");
+    });
+
+    it("recognises the lint-staged entry with and without the stash@{N} prefix, and nothing else", () => {
+        expect(hasLintStagedStash("lint-staged automatic backup")).toBe(true);
+        expect(
+            hasLintStagedStash("stash@{0}: lint-staged automatic backup")
+        ).toBe(true);
+        expect(
+            hasLintStagedStash("stash@{0}: On staging: wip\nstash@{1}: WIP")
+        ).toBe(false);
+        expect(hasLintStagedStash("")).toBe(false);
+    });
+
+    /**
+     * The behavioural half: `executePlan` must re-assert BEFORE it renders.
+     * `main()` injects `assertQuiet`, which exits the process on a moved
+     * tree; if the receipt were printed first, the reader would already have
+     * been told this tree was gated.
+     *
+     * Proof-of-failure: deleted `const endHead = endHeadOf();` from
+     * `executePlan` (rendering `head` for both) — this test went red
+     * (`lines` was non-empty, the receipt had been printed). Reverted.
+     */
+    it("re-asserts the tree after the last check and before the receipt", () => {
+        const plan = classifyLane(["src/app.tsx"]);
+        const lines: string[] = [];
+        const exec = (): { ok: boolean; ms: number } => ({ ok: true, ms: 1 });
+        expect(() =>
+            executePlan(
+                plan,
+                "4f2a91c",
+                true,
+                exec,
+                (l) => lines.push(l),
+                () => {
+                    throw new Error("tree moved");
+                }
+            )
+        ).toThrow("tree moved");
+        expect(lines).toEqual([]);
+    });
+
+    it("carries the start and end sha in the human receipt", () => {
+        const plan = classifyLane(["src/app.tsx"]);
+        const lines: string[] = [];
+        executePlan(
+            plan,
+            "4f2a91c",
+            false,
+            () => ({ ok: true, ms: 1 }),
+            (l) => lines.push(l),
+            () => "4f2a91c"
+        );
+        expect(lines.join("\n")).toContain("tree:  4f2a91c → 4f2a91c");
+    });
+
+    it("carries the end sha in the json form", () => {
+        const plan = classifyLane(["src/app.tsx"]);
+        const lines: string[] = [];
+        executePlan(
+            plan,
+            "4f2a91c",
+            true,
+            () => ({ ok: true, ms: 1 }),
+            (l) => lines.push(l),
+            () => "4f2a91c"
+        );
+        const parsed = JSON.parse(lines.join("\n")) as {
+            head: string;
+            endHead: string;
+        };
+        expect(parsed.head).toBe("4f2a91c");
+        expect(parsed.endHead).toBe("4f2a91c");
+    });
+
+    /**
+     * The structural half: the re-assertion has to be IN `main()`, between
+     * the classification and anything that prints or runs, and it has to be
+     * the function `executePlan` gets as its end-of-run hook. Every pure
+     * test above stays green if `main()` simply never calls `assertQuiet` —
+     * which is the whole bug, one level up.
+     *
+     * Proof-of-failure: deleted the `assertQuiet();` call that follows
+     * `classifyLane` in `main()` — this test went red (no re-assertion
+     * between the classification and the `planOnly` branch). Reverted.
+     */
+    it("main() re-asserts between classification and any output, and hands assertQuiet to executePlan", () => {
+        const src = readFileSync(
+            resolve(ROOT, "scripts/check-lane.ts"),
+            "utf8"
+        );
+        const classify = src.indexOf("const plan = classifyLane(");
+        const planOnly = src.indexOf("if (planOnly) {");
+        const exec = src.indexOf("const result = executePlan(");
+        expect(classify).toBeGreaterThan(-1);
+        expect(planOnly).toBeGreaterThan(classify);
+        expect(exec).toBeGreaterThan(planOnly);
+        expect(src.slice(classify, planOnly)).toContain("assertQuiet();");
+        expect(src.slice(exec)).toContain("assertQuiet");
     });
 });
