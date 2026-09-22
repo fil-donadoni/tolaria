@@ -102,6 +102,9 @@ function issue(
         title?: string;
         labels?: string[];
         parent?: number | null;
+        /** The parent's lifecycle — OPEN unless a case is about an orphan or a
+         *  dead umbrella's band (issue #4105). */
+        parentState?: "OPEN" | "CLOSED";
         assignees?: string[];
         updatedAt?: string;
     } = {}
@@ -123,7 +126,7 @@ function issue(
                 : {
                       id: `I_${opts.parent}`,
                       number: opts.parent,
-                      state: "OPEN",
+                      state: opts.parentState ?? "OPEN",
                       title: `parent ${opts.parent}`,
                       url: `https://example.invalid/${opts.parent}`,
                   },
@@ -189,6 +192,7 @@ function makePort(
             if (!d) throw new Error(`no fixture detail for #${number}`);
             return {
                 state: d.state ?? "OPEN",
+                stateReason: d.stateReason ?? null,
                 labels: d.labels ?? ["enhancement", "ready-for-agent"],
                 body: d.body ?? "",
             };
@@ -335,7 +339,10 @@ describe("priority axis — the rank table and its sentinel (issue #4051)", () =
 });
 
 describe("priority axis — the parent PRD governs the band (issue #3212, issue #4051, issue #4371)", () => {
-    const P3_CHILD = { number: 20, parent: { number: 100 } };
+    const P3_CHILD = {
+        number: 20,
+        parent: { number: 100, state: "OPEN" as const },
+    };
 
     /**
      * The band, AND that every value the case names is a RANKED one.
@@ -392,6 +399,149 @@ describe("priority axis — the parent PRD governs the band (issue #3212, issue 
         expect(
             bandIsInherited({ number: 20, parent: null }, { 20: "P1" })
         ).toBe(false);
+    });
+
+    // ── A CLOSED parent governs nothing (issue #4105) ───────────────────────
+    //
+    // `gh issue list --json parent` returns the parent whether it is open or
+    // closed, and the board map keeps carrying a closed umbrella's value. So
+    // an orphan under a dead P0 epic went on competing in the P0 band — and
+    // since issue #4371 made the parent GOVERN, its own value could no longer
+    // outrank the corpse.
+    const DEAD_PARENT = {
+        number: 20,
+        parent: { number: 100, state: "CLOSED" as const },
+    };
+
+    it("degrades the band to the child's own value when the parent is CLOSED", () => {
+        expect(effectivePriority(DEAD_PARENT, { 100: "P0", 20: "P3" })).toBe(
+            "P3"
+        );
+    });
+
+    it("does not LIFT a child into a closed parent's band", () => {
+        // The symmetric half: with no value of its own, a child of a dead P0
+        // umbrella is unprioritized, not P0.
+        expect(effectivePriority(DEAD_PARENT, { 100: "P0" })).toBe(null);
+        expect(
+            priorityRank(effectivePriority(DEAD_PARENT, { 100: "P0" }))
+        ).toBe(UNPRIORITIZED);
+    });
+
+    it("does not DEMOTE a child into a closed parent's weaker band", () => {
+        // Demotion is the live-umbrella rule (issue #4371) and it must not
+        // survive the umbrella: a P0 child of a closed P3 tracker competes as
+        // a P0.
+        expect(effectivePriority(DEAD_PARENT, { 100: "P3", 20: "P0" })).toBe(
+            "P0"
+        );
+    });
+
+    it("reports a closed parent's band as NOT inherited — the child competes as a standalone", () => {
+        expect(bandIsInherited(DEAD_PARENT, { 100: "P0", 20: "P3" })).toBe(
+            false
+        );
+    });
+});
+
+describe("queue planner — orphaned sub-issues (issue #4105)", () => {
+    /**
+     * An open child of a parent closed as `not planned` is ABANDONED work.
+     *
+     * The shape used to be ambiguous — `/audit-tracker` wired every survivor
+     * slice to its tracker and then closed the tracker as `not planned`, so
+     * "open child under a NOT_PLANNED parent" meant either a live slice or
+     * dead work, and nothing could tell them apart. Phase 7 now keeps a
+     * tracker with live children OPEN as a retired umbrella, which is what
+     * makes this refusal safe.
+     *
+     * The case that paid for it: issue #3016 was `ready-for-agent`, on the
+     * board, and obsolete — a session picked it, read it, and closed it
+     * instead of implementing it.
+     */
+    const ORPHAN_BODY = body({ targetFiles: ["scripts/a.ts"] });
+
+    it("refuses an issue whose parent is closed as `not planned`, naming the parent", () => {
+        const plan = planBatch(
+            [issue(200, { parent: 100, parentState: "CLOSED" })],
+            CONFIG,
+            makePort({
+                200: { body: ORPHAN_BODY },
+                100: { state: "CLOSED", stateReason: "NOT_PLANNED" },
+            })
+        );
+        expect(numbers(plan)).toEqual([]);
+        expect(plan.skipped).toContainEqual(
+            expect.objectContaining({ number: 200, action: "close-orphan" })
+        );
+        expect(plan.skipped[0].reason).toContain("#100");
+    });
+
+    it("admits an issue whose parent closed as COMPLETED — a discharged umbrella is not abandonment", () => {
+        // The direction that must never flip: closing a child because its
+        // umbrella was marked done destroys live work over a mis-picked close
+        // reason. `NOT_PLANNED` is the only reason a human picks to DROP work.
+        const plan = planBatch(
+            [issue(200, { parent: 100, parentState: "CLOSED" })],
+            CONFIG,
+            makePort({
+                200: { body: ORPHAN_BODY },
+                100: { state: "CLOSED", stateReason: "COMPLETED" },
+            })
+        );
+        expect(numbers(plan)).toEqual([200]);
+    });
+
+    it("admits an issue under an OPEN parent without paying a round-trip to look at it", () => {
+        // The Stage-1 list already says the parent is OPEN, and an open parent
+        // can never be abandoned. Resolving it anyway would add one detail
+        // fetch per candidate to every pass — two-stage selection's whole
+        // point is that the queue's cost is the batch's, not the queue's.
+        const port = makePort({ 200: { body: ORPHAN_BODY } });
+        const plan = planBatch([issue(200, { parent: 100 })], CONFIG, port);
+        expect(numbers(plan)).toEqual([200]);
+        expect(port.calls).not.toContain(100);
+    });
+
+    it("skips the orphan and keeps planning — the next candidate is admitted", () => {
+        // A refusal that aborted the pass would let one abandoned issue at the
+        // head of the queue wedge the loop shut.
+        const plan = planBatch(
+            [
+                issue(200, { parent: 100, parentState: "CLOSED" }),
+                issue(201, {}),
+            ],
+            CONFIG,
+            makePort({
+                200: { body: ORPHAN_BODY },
+                201: { body: body({ targetFiles: ["scripts/b.ts"] }) },
+                100: { state: "CLOSED", stateReason: "NOT_PLANNED" },
+            })
+        );
+        expect(numbers(plan)).toEqual([201]);
+        expect(plan.skipped).toContainEqual(
+            expect.objectContaining({ number: 200, action: "close-orphan" })
+        );
+    });
+
+    it("never fetches an orphan's own body — the refusal comes before the spec read", () => {
+        // The refusal is decided on lineage alone, so it costs the parent
+        // resolution and nothing else. A whole abandoned epic at the head of
+        // the queue must not make every pass pay a body fetch per dead child.
+        const port = makePort({
+            200: { body: ORPHAN_BODY },
+            201: { body: ORPHAN_BODY },
+            100: { state: "CLOSED", stateReason: "NOT_PLANNED" },
+        });
+        const plan = planBatch(
+            [200, 201].map((n) =>
+                issue(n, { parent: 100, parentState: "CLOSED" })
+            ),
+            CONFIG,
+            port
+        );
+        expect(plan.skipped.map((sk) => sk.number)).toEqual([200, 201]);
+        expect(port.calls).toEqual([100, 100]);
     });
 });
 

@@ -48,6 +48,7 @@
         "health:cadence": "bun scripts/health-cadence.ts",
         "health:fix": "bun scripts/health-fix.ts",
         "health:status": "bun scripts/health-main.ts --status",
+        "issues:orphans": "bun scripts/issues-orphans.ts",
         "ladder": "bun scripts/ladder.ts",
         "smoke:tier1": "bun scripts/tier1-smoke.ts",
         "land": "bun scripts/land.ts",

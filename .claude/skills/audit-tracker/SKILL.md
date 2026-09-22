@@ -192,8 +192,9 @@ the whole queue.
 
 The same edge closes the loop at the other end: `subIssuesSummary` is what lets
 a session close an umbrella once its last child lands. That matters
-here even when Phase 7 retires the tracker — a tracker kept open as a live PRD
-(the "not retired" case) is exactly the thing that otherwise rots.
+here even when Phase 7 retires the tracker — a retired tracker with survivors
+STAYS OPEN as a retired umbrella (Phase 7 step 6, issue #4105) and closes as
+`completed` on that same summary, so the edge is what eventually discharges it.
 
 **Only wire `--parent` when the tracker is a genuine umbrella** — it carries the
 `prd` label, or it is being retired and holds no implementation work of its own.
@@ -254,24 +255,51 @@ convex/cards/__tests__/divergenceMarkers.test.ts` (every marker paragraph must
     on `main` as pre-existing, with the culprit commit — never absorb it
     silently, never claim green you didn't see.
 5.  **Open the PR**, listing the tracker → slice mapping as a table.
-6.  **Close the tracker** with a comment carrying: the audited commit, the
-    shipped list (with what closed each), the mapping table, and every
-    `wrong-premise` correction. Close as `not planned` with a "superseded by
-    #a/#b/#c" reason — the work isn't done, it moved.
+6.  **Retire the tracker — and it stays OPEN if it still has live children.**
+    Two shapes, and the difference is load-bearing (issue #4105):
+    - **Survivors exist** — one or more slices cut in Phase 6 are still open
+      under it. The tracker **stays OPEN** as the lineage anchor: retitle it
+      `[retired umbrella] <old title>`, add the `prd` label and strip any
+      queue label (`ready-for-agent` / `needs-triage`), and rewrite the body
+      to a pointer at the audit comment. `prd` is what makes the queue planner
+      treat it as a spec rather than a work item, so an open tracker costs the
+      queue nothing. It closes as **`completed`** when its last child lands,
+      through the same `subIssuesSummary` path any umbrella uses.
+    - **No survivors** — every gap was `shipped` or `wrong-premise`. Close as
+      `not planned` with a "superseded by #a/#b/#c" reason, exactly as before:
+      there is nothing left to anchor.
+
+    Either way, the retiring comment carries: the audited commit, the shipped
+    list (with what closed each), the mapping table, and every
+    `wrong-premise` correction.
+
+    **Why the tracker stays open.** GitHub has no cascade — closing a parent
+    leaves every native sub-issue open and still parented. While this step
+    closed a tracker as `not planned` with live slices under it, "open child
+    of a `NOT_PLANNED` parent" meant two opposite things: a live survivor
+    (this skill) or work somebody abandoned. Nothing could tell them apart, so
+    a cascade close would have killed live slices and no cascade left dead
+    work in the queue — issue #3016 sat there `ready-for-agent`, on the board
+    and obsolete, until a session picked it and read it instead of
+    implementing it. Keeping the tracker open makes the signal unambiguous:
+    after this, an open child of a `NOT_PLANNED` parent means ABANDONED and
+    nothing else, which is what lets `queue:plan` refuse it as an orphan and
+    `bun run issues:orphans` sweep them.
 
 ## Failure modes this skill exists to prevent
 
-| Failure                                                              | Guard                                                                                                                       |
-| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Trusting the newest housekeeping comment                             | Phase 2 re-verifies every gap, including the ones a comment calls closed                                                    |
-| Re-ticketing a gap that shipped                                      | anchors required for a `shipped` verdict — name the capability AND its consumer                                             |
-| Building a primitive that already exists                             | Phase 3 re-derives from Oracle + CR, not the tracker's prose                                                                |
-| Duplicate issue under a different name                               | Phase 4 searches by mechanism, not by card/keyword name                                                                     |
-| Dangling `tracked-by:` at a closed issue                             | Phase 7 order: re-point, then close — and step 2 resolves the state of EVERY issue a marker cites, not just the audited one |
-| A live marker missed because prettier wrapped it across two lines    | Phase 1 — never grep the literal `tracked-by: #$1`; a missed marker reads as a shipped gap                                  |
-| Slices sort to the back of the queue and the audited lineage starves | Phase 6 — `gh issue edit <slice> --parent <tracker>` on every slice; the queue planner sorts by `parent.number`             |
-| The same gap left parked under three other trackers                  | Phase 7 step 2 — grep by the gap's own words and converge every stub on the new issue                                       |
-| A stub comment that keeps re-blocking readers                        | Phase 7 step 3 corrects the prose in the same PR — including the file-level "Shipped / Still blocked" roll-up header        |
+| Failure                                                              | Guard                                                                                                                                                                                                           |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Trusting the newest housekeeping comment                             | Phase 2 re-verifies every gap, including the ones a comment calls closed                                                                                                                                        |
+| Re-ticketing a gap that shipped                                      | anchors required for a `shipped` verdict — name the capability AND its consumer                                                                                                                                 |
+| Building a primitive that already exists                             | Phase 3 re-derives from Oracle + CR, not the tracker's prose                                                                                                                                                    |
+| Duplicate issue under a different name                               | Phase 4 searches by mechanism, not by card/keyword name                                                                                                                                                         |
+| Dangling `tracked-by:` at a closed issue                             | Phase 7 order: re-point, then close — and step 2 resolves the state of EVERY issue a marker cites, not just the audited one                                                                                     |
+| A live marker missed because prettier wrapped it across two lines    | Phase 1 — never grep the literal `tracked-by: #$1`; a missed marker reads as a shipped gap                                                                                                                      |
+| Slices sort to the back of the queue and the audited lineage starves | Phase 6 — `gh issue edit <slice> --parent <tracker>` on every slice; the queue planner sorts by `parent.number`                                                                                                 |
+| The same gap left parked under three other trackers                  | Phase 7 step 2 — grep by the gap's own words and converge every stub on the new issue                                                                                                                           |
+| A stub comment that keeps re-blocking readers                        | Phase 7 step 3 corrects the prose in the same PR — including the file-level "Shipped / Still blocked" roll-up header                                                                                            |
+| An abandoned PRD's children left live in the queue                   | Phase 7 step 6 — a tracker with survivors stays OPEN, so an open child of a `NOT_PLANNED` parent means abandoned and nothing else; `queue:plan` refuses it and `bun run issues:orphans` sweeps it (issue #4105) |
 
 ## Reference
 

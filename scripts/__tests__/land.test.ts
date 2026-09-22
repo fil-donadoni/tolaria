@@ -594,8 +594,16 @@ describe("land.ts — the locked command", () => {
 
     it("originBandForBranch: the band of the issue the branch names, by queue:plan's own rule (issue #4158)", () => {
         const board = { 4099: "P0", 4200: "P2", 4300: "P3" } as const;
-        const deps = (parents: Record<number, number | null>) => ({
-            readParent: (n: number) => parents[n] ?? null,
+        const deps = (
+            parents: Record<number, number | null>,
+            parentState: "OPEN" | "CLOSED" = "OPEN"
+        ) => ({
+            readParent: (n: number) => {
+                const parent = parents[n];
+                return parent == null
+                    ? null
+                    : { number: parent, state: parentState };
+            },
             readBoard: () => ({ ...board }),
         });
         // Own priority.
@@ -618,6 +626,15 @@ describe("land.ts — the locked command", () => {
         expect(
             originBandForBranch("fix/issue-4099", deps({ 4099: 4300 })).band
         ).toBe("P3");
+        // A CLOSED umbrella governs nothing (issue #4105): the band degrades
+        // to the issue's own value, so a landing under a dead P0 epic does not
+        // file its gaps into that epic's band.
+        expect(
+            originBandForBranch(
+                "fix/issue-4200",
+                deps({ 4200: 4099 }, "CLOSED")
+            ).band
+        ).toBe("P2");
     });
 
     it("originBandForBranch: never throws — a branch naming no issue, an unprioritised issue and an unreadable board are a null band plus a reason (issue #4158)", () => {

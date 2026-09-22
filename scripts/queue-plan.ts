@@ -651,11 +651,26 @@ function main(): void {
                     "view",
                     String(number),
                     "--json",
-                    "state,labels,body",
+                    // `stateReason` is the orphan refusal's one input (issue
+                    // #4105) and the ONE field the cheap Stage-1 list cannot
+                    // carry: the list's `parent` object has the parent's
+                    // number, title and `state`, but never why it closed.
+                    "state,stateReason,labels,body",
                 ])
-            ) as { state: string; labels: { name: string }[]; body: string };
+            ) as {
+                state: string;
+                stateReason: string | null;
+                labels: { name: string }[];
+                body: string;
+            };
             const detail: IssueDetail = {
                 state: raw.state === "CLOSED" ? "CLOSED" : "OPEN",
+                stateReason:
+                    raw.stateReason === "NOT_PLANNED" ||
+                    raw.stateReason === "COMPLETED" ||
+                    raw.stateReason === "REOPENED"
+                        ? raw.stateReason
+                        : null,
                 labels: raw.labels.map((l) => l.name),
                 body: raw.body ?? "",
             };
