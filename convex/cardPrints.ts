@@ -32,20 +32,25 @@ export const cardPrintRowValidator = v.object({
     tokenPrints: v.array(tokenPrintValidator),
 });
 
+export interface CardPrintRowFields {
+    cardId: string;
+    set: string;
+    rarity: string;
+    digital: boolean;
+    promo: boolean;
+    tokenPrints: { name: string; tokenPrintId: string }[];
+}
+
 /** True when `row` carries exactly the values already stored on `existing` —
  *  order-sensitive on `tokenPrints`, which is fine: both sides are produced
  *  by the same deterministic transform (`scripts/lib/prints-transform.ts`),
- *  reading the same `all_parts` array in the same order every sync. */
-function unchanged(
+ *  reading the same `all_parts` array in the same order every sync. Exported
+ *  so this project's no-convex-test-harness pattern (see
+ *  `convex/__tests__/banlistSync.test.ts`'s header) can unit-test the pure
+ *  core directly rather than only through `upsertBatch`'s handler. */
+export function unchanged(
     existing: Doc<"cardPrints">,
-    row: {
-        cardId: string;
-        set: string;
-        rarity: string;
-        digital: boolean;
-        promo: boolean;
-        tokenPrints: { name: string; tokenPrintId: string }[];
-    }
+    row: CardPrintRowFields
 ): boolean {
     return (
         existing.cardId === row.cardId &&

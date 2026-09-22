@@ -141,10 +141,18 @@ function runWrite(rows: readonly CardPrintRow[]): void {
             ],
             { cwd, encoding: "utf8", timeout: 120_000 }
         );
-        if (result.status !== 0) {
-            const out = `${result.stderr ?? ""}${result.stdout ?? ""}`;
+        if (result.error || result.status !== 0) {
+            // `result.error` is a spawn-level failure (ENOENT, ETIMEDOUT on
+            // the 120s cap) with no stdout/stderr to parse — prefer its own
+            // message over `convexRunErrorMessage`'s generic fallback, same
+            // as `scripts/lib/seed-preset-run.ts`'s `seedPreset`.
+            const message = result.error
+                ? result.error.message
+                : convexRunErrorMessage(
+                      `${result.stderr ?? ""}${result.stdout ?? ""}`
+                  );
             throw new Error(
-                `prints-sync: batch at offset ${i} failed — ${convexRunErrorMessage(out)}`
+                `prints-sync: batch at offset ${i} failed — ${message}`
             );
         }
         const parsed = JSON.parse((result.stdout ?? "").trim()) as {
