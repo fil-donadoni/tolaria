@@ -161,7 +161,7 @@ afterAll(() => {
     fs.rmSync(tmp, { recursive: true, force: true });
 });
 
-describe("deny-guard — merging goes through land, from anywhere (#2537)", () => {
+describe("deny-guard — merging goes through land, from the PR's own branch (#2537)", () => {
     it("denies `gh pr merge` from an issue worktree", () => {
         const r = runHook(
             DENY_GUARD,

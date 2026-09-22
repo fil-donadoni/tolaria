@@ -284,9 +284,10 @@ upsert-by-slug and idempotent, so running it on a slice that completed
 nothing costs one line of output. Not a gate:`presetDecks` is
   deployment-local, so no deployment means nothing owed.
 - **`land` files the computed Gap issues under the BAND of the issue you
-  closed** (issue #4158). It reads that band before the merge — the stronger
-  of the issue's own board `Priority` and its parent umbrella's, the rule
-  `queue:plan` orders by — and passes it to `gaps:sync --band`; under a P0
+  closed** (issue #4158). It reads that band before the merge — the parent
+  umbrella's board `Priority` when the umbrella carries one, else the issue's
+  own: the rule `queue:plan` orders by (issue #4371), demotions included — and
+  passes it to `gaps:sync --band`; under a P0
   umbrella every Bot / Op / mechanic gap the landing creates goes into the
   family's **P0** umbrella instead of the band its Target computes. Nothing
   to do by hand. If `land` prints `gaps:sync gets no --band (…)` the band

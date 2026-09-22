@@ -3,8 +3,9 @@
 // A band umbrella (`BAND_UMBRELLAS`, `KIND_FALLBACK` in `lib/gap-issues.ts`) is
 // "a bounded, ordered slice of the backlog" (issue #4056): it should list the
 // OPEN work of its band. A child that landed and closed only clutters it, and
-// the umbrella's board `Priority` is inherited by every child (issue #3212), so
-// a closed child is a row that no longer means anything. Until this step the
+// the umbrella's board `Priority` governs every open child's queue band (issue
+// #3212, demotions included since issue #4371), so a closed child is a row
+// that no longer means anything. Until this step the
 // closed children were removed by hand.
 //
 // The rule is a fact about the edge, not about the branch: the parent must be

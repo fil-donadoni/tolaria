@@ -12,9 +12,14 @@
  * untouched and computed no further. An issue whose body carries a `## Band`
  * line (`P2 — <reason>`, ADR 0143 / issue #4230) takes THAT band, always —
  * `user-decision`, a hand ruling, the truth and not one more candidate; a
- * `## Band: P3` under a `P1` parent is `P3`. Every other open issue takes the
- * STRONGEST band of three sources (a fourth, `labels`, fires only when these
- * three yield nothing — see below):
+ * `## Band: P3` under a `P1` parent is WRITTEN as `P3`. What that value then
+ * DOES is the queue's business, not this rule's (issue #4371): `queue:plan`
+ * bands an issue by its parent's board value whenever the parent carries one,
+ * so on a slice the written value orders it INSIDE its umbrella's turn and
+ * nothing else — the ruling governs on a standalone issue, and on a child of
+ * an unprioritised umbrella. Every other open issue takes the STRONGEST band
+ * of three sources (a fourth, `labels`, fires only when these three yield
+ * nothing — see below):
  *
  * | Source                                  | P1                       | P2            | P3                  |
  * | --------------------------------------- | ------------------------ | ------------- | ------------------- |
@@ -51,9 +56,11 @@
  * The two neighbours differ in what else they read from the board, on purpose:
  *
  *   - a PARENT is also read by its board value — that IS band inheritance
- *     (`effectivePriority` in `queue-plan.ts` reads the parent's board value),
- *     and an umbrella's band is hand-set by the owner (decision 7: one PRD per
- *     band), with no cards of its own to seed it;
+ *     (`effectivePriority` in `queue-plan.ts` reads the parent's board value,
+ *     and since issue #4371 lets it GOVERN the child's queue band, so the
+ *     value this source writes onto the child is a mirror the queue never
+ *     consults), and an umbrella's band is hand-set by the owner (decision 7:
+ *     one PRD per band), with no cards of its own to seed it;
  *   - a BLOCKED issue is read by its seed plus a hand-set `P0` only. Reading
  *     its whole board value would let a band this script wrote on the last run
  *     travel one more hop on the next one — a fixpoint spread over runs.

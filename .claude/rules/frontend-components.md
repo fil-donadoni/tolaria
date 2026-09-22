@@ -1,7 +1,7 @@
 # Frontend Component Rules — resident index
 
-**This file is the index; the full text is `src/CLAUDE.md`**, which the harness
-loads on demand the first time a session reads a file under `src/`.
+**This file is the index; the full text is `src/CLAUDE.md`**, loaded on demand
+the first time a session reads a file under `src/`.
 
 - **ONE component per file** — no exceptions. Extract visual state computation
   into named functions or dedicated files.
