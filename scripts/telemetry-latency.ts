@@ -187,9 +187,20 @@ const prMetaRows = db
     )
     .all() as Array<{ pr: number; mergedAt: string }>;
 
+// `lane_forced_by` is newer than the store (issue #4376) and this connection
+// is READ-ONLY, so it cannot run the widening `openDb` does at ingest: a
+// database that has not been ingested since is missing the column, and
+// naming it unconditionally turns the whole report into a SQLite error. The
+// column reads as NULL until the next `telemetry:ingest`, which is exactly
+// what a pre-#4376 gate-run row means anyway — no fallback path recorded.
+const hasLaneForcedBy = (
+    db.query("PRAGMA table_info(gate_runs)").all() as Array<{ name: string }>
+).some((c) => c.name === "lane_forced_by");
 const gateRunRows = db
     .query(
-        "SELECT cmd, base, lane, lane_forced_by AS laneForcedBy, green, started FROM gate_runs"
+        `SELECT cmd, base, lane, ${
+            hasLaneForcedBy ? "lane_forced_by" : "NULL"
+        } AS laneForcedBy, green, started FROM gate_runs`
     )
     .all() as Array<{
     cmd: string;

@@ -1004,12 +1004,28 @@ function ingestGateRuns(db: Sqlite): number {
     );
     if (!existsSync(root)) return 0;
 
+    // A row is "done" when its `started` still matches AND it carries the
+    // `lane_forced_by` the current parser would write. The second half is a
+    // one-time backfill for issue #4376: rows ingested before that column
+    // existed hold NULL, and a `full` lane with no forcing path is exactly
+    // the ambiguity row 5 must not inherit ("mixed" and "not parsed yet" read
+    // alike). Only a `full` row is ever re-read, and the run dirs prune after
+    // TOLARIA_GATE_RUN_KEEP_DAYS, so this stops on its own.
     const seenStarted = new Map(
         db
-            .query<{ run: string; started: number | null }, []>(
-                "SELECT run, started FROM gate_runs"
+            .query<
+                {
+                    run: string;
+                    started: number | null;
+                    lane: string | null;
+                    forced: string | null;
+                },
+                []
+            >(
+                "SELECT run, started, lane, lane_forced_by AS forced FROM gate_runs"
             )
             .all()
+            .filter((r) => r.lane !== "full" || r.forced !== null)
             .map((r) => [r.run, r.started])
     );
     const put = db.prepare(
