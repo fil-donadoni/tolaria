@@ -41,6 +41,11 @@ export interface ClaimInput {
     /** `--no-cap`: the announced escape from the cap refusal ONLY — it never
      *  lets a session claim an issue another session holds. */
     noCap: boolean;
+    /** Claims `capCensus` kept OUT of `live` because the liveness classifier
+     *  proved them recoverable (issue #4384) — named in the refusal so it
+     *  points at the branches to resume. Not part of the decision: they are
+     *  already absent from `live`. */
+    recoverable?: number[];
 }
 
 /**
@@ -59,13 +64,27 @@ export function claimDecision(input: ClaimInput): ClaimDecision {
                 `(\`/next-issue\` §2; a claim with no branch and no PR is released by \`loop:doctor\`, not by hand).`,
         };
     }
-    return capRefusal(input.live, input.cap, input.noCap);
+    return capRefusal(
+        input.live,
+        input.cap,
+        input.noCap,
+        input.recoverable ?? []
+    );
 }
 
 // ── The stale-claim rule, shared with the planner ───────────────────────────
 
-/** The shape both verbs read off `gh issue list --json number,updatedAt`. */
-export interface ClaimedIssue {
+/**
+ * The two fields the STALE rule needs off `gh issue list`.
+ *
+ * Deliberately NOT `loop-doctor.ts`'s exported `ClaimedIssue`, and named apart
+ * from it (issue #4384 review): that one carries `title` because the
+ * classifier prints it, this one is the narrowest shape `isStaleClaim` reads.
+ * Two same-named, differently-shaped exported types in files that now import
+ * from each other compile fine under structural typing and are a foot-gun for
+ * the next edit.
+ */
+export interface StaleRuleIssue {
     number: number;
     updatedAt: string;
 }
@@ -78,6 +97,11 @@ export interface ClaimedIssue {
  * nobody is doing; counting it here would let three abandoned labels refuse
  * every claim with no session running.
  *
+ * This set is what the cap's CENSUS then splits (`capCensus`, issue #4384):
+ * the stale rule here is about the ISSUE's silence, the census is about the
+ * owning PROCESS, and a claim whose pass is provably dead with committed work
+ * on its branch keeps its label without holding a slot.
+ *
  * The set is a SUPERSET of the planner's `activeClaims`, deliberately: the
  * planner reads only its `ready-for-agent` snapshot and skips a `prd` row,
  * while a live session is a live session whether or not its issue still
@@ -86,13 +110,13 @@ export interface ClaimedIssue {
  * never the reverse, which is the safe direction for a cap.
  */
 export function liveClaimSet(
-    claimed: ClaimedIssue[],
+    claimed: StaleRuleIssue[],
     issuesWithOpenPr: number[],
     released: number[],
     nowIso: string,
     staleClaimHours: number,
     isStale: (
-        issue: ClaimedIssue,
+        issue: StaleRuleIssue,
         issuesWithOpenPr: number[],
         nowIso: string,
         staleClaimHours: number

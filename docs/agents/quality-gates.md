@@ -849,6 +849,36 @@ through `scripts/lib/branches.ts`, the same reader the branch names go through,
 so the number is configuration and never a literal in the planner. The refusal
 names the claimed issues; `--no-cap` is the announced escape.
 
+**The cap counts live SESSIONS, by evidence — not labels (issue #4384).** Both
+verbs put the reconciled claims through `loop-doctor.ts`'s classifier,
+imported (`claimVerdicts` → `capCensus`), never a second opinion: the same
+one-definition discipline `loop-drain.test.ts` already enforces for staleness.
+A claim the classifier reads as **`recoverable`** — the owning process is
+provably gone AND its local branch holds unpushed commits — **holds its label
+without holding a slot**: it burns no CPU, and CPU contention is the entire
+thing the cap measures. The label is not touched by the admission path;
+dropping it stays `loop:doctor --release`'s call alone, because releasing it
+would orphan the dead pass's commits (issue #3698). **Every other reading
+counts, including no reading at all** — `live`, `suspect`, `orphan`, and an
+issue the probe could not answer for: uncertainty never authorises more
+concurrency, the same asymmetry `ClaimFacts.ownerAlive` documents at the other
+end of the pipeline. The refusal breaks the count down —
+`5 claimed, 3 live, 2 recoverable (not counted): #50, #60` — and names
+`bun run loop:doctor` plus the branches to resume, so the exit is the real one
+rather than `--no-cap`.
+
+Before that, the cap was a count of `in-progress` labels minus an open PR minus
+24 hours of silence, with no process-liveness evidence anywhere in the path.
+Measured 2026-09-22: two `loop-drain` passes died mid-issue, three claims stood
+(#4117, #4306, #4307), `ps` showed **zero** owning processes, the driver's own
+sweep printed `2 RECOVERABLE — a dead pass left committed work behind` — and
+the next claim was refused at `3/3 live claims` with **no concurrent session
+running at all**. The classifier had the evidence; the cap had never asked for
+it. The verdict is gathered fail-SAFE: every read behind it (`git ls-remote`,
+`gh pr list`, the claim journal) can fail, and a failure yields no verdicts,
+which counts every claim as live — a broken probe can only make the cap
+stricter.
+
 "Live claims" is the set of open `in-progress` issues the planner did not
 already classify as STALE, reconciled against the claim journal
 (`.claude/telemetry/claims.jsonl`, written by `.claude/hooks/claim-ledger.sh`).

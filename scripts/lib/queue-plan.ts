@@ -34,6 +34,9 @@ import {
     type IssueState,
     type StateReason,
 } from "./orphans";
+// Type-only: the liveness verdict is the CLASSIFIER's, never re-spelled here
+// (issue #4384). The gathering of it is I/O and stays in `loop-doctor.ts`.
+import type { ClaimVerdictState } from "../loop-doctor";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Input — the shape `gh issue list --json number,title,labels,parent,assignees,updatedAt`
@@ -1187,6 +1190,49 @@ export function releasedClaims(ledgerText: string): number[] {
     return [...released].sort((a, b) => a - b);
 }
 
+/**
+ * The cap's census: split the reconciled claims into the ones that COUNT and
+ * the ones the liveness classifier proved recoverable (issue #4384).
+ *
+ * A `recoverable` claim is one `loop:doctor` has positively identified as
+ * owned by NO running process, whose local branch still holds committed work.
+ * It burns no CPU, and CPU contention is the entire thing the cap measures —
+ * so it holds its LABEL (releasing it would orphan the WIP, and that call
+ * stays `loop:doctor --release`'s alone) without holding a SLOT. Before this
+ * split, three such corpses refused every claim for 24 hours with zero
+ * sessions running.
+ *
+ * EVERY OTHER READING COUNTS, including no reading at all. `live`, `suspect`
+ * and `orphan` count; an issue the classifier has no verdict for — the probe
+ * failed, `git ls-remote` could not reach the network, the journal is missing
+ * — counts too. That asymmetry is the same one `ClaimFacts.ownerAlive`
+ * documents at the other end: uncertainty never authorises more concurrency.
+ * `orphan` counts deliberately as well — it is `loop:doctor --release`'s to
+ * drop, and the 24-hour stale rule already removes the abandoned ones before
+ * they reach here.
+ *
+ * Both lists sorted, so a refusal message is reproducible.
+ */
+export function capCensus(
+    claims: number[],
+    verdicts: Map<number, ClaimVerdictState>
+): CapCensus {
+    const live: number[] = [];
+    const recoverable: number[] = [];
+    for (const n of [...new Set(claims)].sort((a, b) => a - b)) {
+        if (verdicts.get(n) === "recoverable") recoverable.push(n);
+        else live.push(n);
+    }
+    return { live, recoverable };
+}
+
+export interface CapCensus {
+    /** Claims counting against `sessions.cap`. */
+    live: number[];
+    /** Claims proved recoverable — the label stands, the slot does not. */
+    recoverable: number[];
+}
+
 export interface AdmissionInput {
     /** Live claims, already reconciled — see `liveClaims`. */
     claims: number[];
@@ -1196,6 +1242,11 @@ export interface AdmissionInput {
     noCap: boolean;
     /** The release-health verdict, or `null` when no `RED` marker exists. */
     red: HealthMarker | null;
+    /** Claims `capCensus` kept out of `claims` (issue #4384) — the refusal
+     *  names them so it points at the branches to resume. Threaded through
+     *  here too, so the combined decision and `capRefusal` cannot disagree
+     *  about what a refusal SAYS if a caller ever reaches for this one. */
+    recoverable?: number[];
 }
 
 export type Admission =
@@ -1231,9 +1282,19 @@ export function redRefusal(red: HealthMarker | null): Admission {
 export function capRefusal(
     claims: number[],
     cap: number,
-    noCap: boolean
+    noCap: boolean,
+    /** Claims excluded from the count by `capCensus` — named in the message so
+     *  the refusal points at the branches to resume, not only at `--no-cap`
+     *  (issue #4384). */
+    recoverable: number[] = []
 ): Admission {
     if (noCap || claims.length < cap) return { admitted: true };
+    const breakdown =
+        recoverable.length === 0
+            ? ""
+            : `  ${claims.length + recoverable.length} claimed, ${claims.length} live, ${recoverable.length} recoverable (not counted): ` +
+              `${recoverable.map((n) => `#${n}`).join(", ")} — a dead pass left committed work on branch *issue-N.\n` +
+              `  \`bun run loop:doctor\` names them; resume or salvage those branches (the label is not released by hand).\n`;
     return {
         admitted: false,
         refusal: "cap",
@@ -1241,6 +1302,7 @@ export function capRefusal(
             `session cap reached — ${claims.length}/${cap} live claims: ${claims
                 .map((n) => `#${n}`)
                 .join(", ")}.\n` +
+            breakdown +
             `  Per-session yield halves past the knee (PR/h by active sessions: 0.59 at 1, 1.44 at 3, 1.19 at 4).\n` +
             `  Wait for one to land, or re-run with --no-cap to plan past it deliberately.`,
     };
@@ -1261,5 +1323,10 @@ export function capRefusal(
 export function admitPick(input: AdmissionInput): Admission {
     const red = redRefusal(input.red);
     if (!red.admitted) return red;
-    return capRefusal(input.claims, input.cap, input.noCap);
+    return capRefusal(
+        input.claims,
+        input.cap,
+        input.noCap,
+        input.recoverable ?? []
+    );
 }

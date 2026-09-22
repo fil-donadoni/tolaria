@@ -133,8 +133,14 @@ describe("tolaria.config.json — the session cap (ADR 0136 §7, issue #3775)", 
             join(REPO_ROOT, "scripts/queue-plan.ts"),
             "utf8"
         );
+        // The clause is "`sessionCap` comes FROM `lib/branches`", not "it is
+        // the only symbol on that import line": the wrapper legitimately took
+        // `ORIGIN_BASE` from the same module (issue #4384), and the old
+        // anchored spelling reds on that while the number it guards is
+        // untouched. What still fails is the thing worth failing on —
+        // `sessionCap` imported from anywhere else, or not imported at all.
         expect(wrapper).toMatch(
-            /import\s*\{\s*sessionCap\s*\}\s*from\s*"\.\/lib\/branches"/
+            /import\s*\{[^}]*\bsessionCap\b[^}]*\}\s*from\s*"\.\/lib\/branches"/
         );
         expect(wrapper).toMatch(/sessionCap\(\)/);
         for (const file of [

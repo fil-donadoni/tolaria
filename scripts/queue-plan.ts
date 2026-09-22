@@ -49,6 +49,7 @@ import {
     VALID_PRIORITIES,
 } from "./lib/board-priority";
 import {
+    capCensus,
     capRefusal,
     buildPlanRecord,
     liveClaims,
@@ -63,9 +64,9 @@ import {
     type QueueIssue,
     type QueuePort,
 } from "./lib/queue-plan";
-import { sessionCap } from "./lib/branches";
+import { ORIGIN_BASE, sessionCap } from "./lib/branches";
 import { primaryCheckout } from "./lib/primary-checkout";
-import { claimLedgerPath } from "./loop-doctor";
+import { claimLedgerPath, claimVerdicts } from "./loop-doctor";
 
 // Computed the same way scripts/__tests__/land.test.ts computes it (from a
 // FILE's own directory, not from `import.meta.dir`, which is bun-only and
@@ -699,10 +700,35 @@ function main(): void {
     // let three abandoned labels wedge the queue shut with no session running
     // at all. Re-deriving that set here would be the same decision spelled a
     // second way, which is exactly what this wrapper is not for.
+    const reconciled = liveClaims(
+        plan.activeClaims,
+        releasedClaimsOnThisMachine()
+    );
+    // …and then asks the LIVENESS classifier which of those claims still has a
+    // process behind it (issue #4384). `loop:doctor`'s verdict, imported — the
+    // cap measures active sessions, and a claim it proved `recoverable` (owner
+    // gone, committed work on a local branch) burns no CPU. The label stays:
+    // releasing it is `loop:doctor --release`'s call alone. An issue with no
+    // verdict counts as live — uncertainty never authorises more concurrency.
+    const census = capCensus(
+        reconciled,
+        claimVerdicts(
+            issues
+                .filter((i) => reconciled.includes(i.number))
+                .map((i) => ({
+                    number: i.number,
+                    title: i.title,
+                    updatedAt: i.updatedAt,
+                })),
+            ORIGIN_BASE,
+            process.env.CLAUDE_PROJECT_DIR ?? primaryCheckout()
+        )
+    );
     const admission = capRefusal(
-        liveClaims(plan.activeClaims, releasedClaimsOnThisMachine()),
+        census.live,
         sessionCap(),
-        process.argv.includes("--no-cap")
+        process.argv.includes("--no-cap"),
+        census.recoverable
     );
     // Refuse BEFORE the artefact is written and before anything reaches
     // stdout: no plan was handed out, so no plan record should claim one was,
