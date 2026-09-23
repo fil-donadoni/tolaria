@@ -49032,6 +49032,14 @@
         "source": "compiled"
     },
     {
+        "name": "Suppress",
+        "scryfallId": "642eefde-8727-44ff-9e04-373abfcd0679",
+        "oracleId": "b39651ad-1c05-45f8-b036-536c4d7324c0",
+        "firstSet": "apc",
+        "firstPrintId": "642eefde-8727-44ff-9e04-373abfcd0679",
+        "firstPrintSet": "apc"
+    },
+    {
         "name": "Surgical Skullbomb",
         "scryfallId": "98c2b2af-739f-413c-8c36-da6f78df0acb",
         "oracleId": "6d364283-617a-4661-865d-abd9c304b2f9",

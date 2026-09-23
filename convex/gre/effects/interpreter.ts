@@ -7462,7 +7462,7 @@ function resolveCaptureListSource(
     // `bound` (issue #3812): the ids an EARLIER Op's picks/list binding holds
     // (the validator pins the family), frozen verbatim — "those cards" a
     // whole-zone `moveZone`'s `bindAll` exiled. An unbound ref (the zone was
-    // empty) freezes nothing, so the body's reader skips (CR 608.2b).
+    // empty) freezes nothing, so the body's reader skips (CR 609.3).
     if (select.set === "bound")
         return [...(readBinding(ctx, select.ref) ?? [])];
     const targetId = ctx.targets[select.of.target]?.id;
