@@ -764,10 +764,18 @@ export function applyTransientDamageRedirections(
                 // `residualOut` for the caller to deal to the original one.
                 const moved = Math.min(current.amount, sh.remaining);
                 const residual = current.amount - moved;
-                if (residual > 0 && residualOut !== undefined) {
-                    // A LIST, not one slot: a second shield keyed on this
-                    // shield's DESTINATION can split the moved half again, and
-                    // the two remainders land on different recipients.
+                if (residual > 0) {
+                    // Fail CLOSED rather than silently losing the remainder: a
+                    // caller that does not pass the accumulator is a damage
+                    // path that would deal `moved` and drop `residual`, with
+                    // no error and no type complaint. A LIST, not one slot,
+                    // because a second shield keyed on this shield's
+                    // DESTINATION can split the moved half again and the two
+                    // remainders land on different recipients.
+                    if (residualOut === undefined)
+                        throw new Error(
+                            "applyTransientDamageRedirections: a recipient-keyed redirect split the event but the caller passed no `residualOut` — the remainder has nowhere to go (CR 614.9)"
+                        );
                     residualOut.residuals.push({
                         target: current.target,
                         amount: residual,

@@ -28,9 +28,11 @@ import { crawWurm } from "../../cards/sets/lea/green";
 import { lightningBolt } from "../../cards/sets/lea/red";
 import { divineLight } from "../../cards/sets/apc/white";
 import { captainsManeuver } from "../../cards/sets/apc/multicolor";
+import { lashknifeBarrier } from "../../cards/sets/pls/white";
 import { projectPublicState } from "../../gameProjections";
 import {
     dealDamageFromPermanentToPlayer,
+    resolveFight,
     resolveTopOfStack,
     type GameState,
 } from "../state";
@@ -152,7 +154,18 @@ describe("CR 615.1a — prevent all damage dealt to creatures a player controls"
         expect(permanentOf(state, "theirs")).toBeDefined();
     });
 
-    it("prevents damage from a permanent source (the non-stack sink)", () => {
+    it("prevents damage from a PERMANENT source too (the fight sink)", () => {
+        const state = twoBoards();
+        castDivineLight(state, "p1");
+        resolveFight(state, "mine", "theirs");
+        // Craw Wurm is 6/4 both ways: unshielded, BOTH die. p1's shield keeps
+        // its own Wurm undamaged and alive while the opponent's still dies.
+        expect(permanentOf(state, "mine")?.damageMarked).toBeUndefined();
+        expect(permanentOf(state, "mine")).toBeDefined();
+        expect(permanentOf(state, "theirs")).toBeUndefined();
+    });
+
+    it("CR 109.4 — a controller-scoped shield never covers the PLAYER, only their permanents", () => {
         const state = twoBoards();
         castDivineLight(state, "p2");
         dealDamageFromPermanentToPlayer(
@@ -162,7 +175,9 @@ describe("CR 615.1a — prevent all damage dealt to creatures a player controls"
             "p2",
             2
         );
-        // The shield names creatures, so the PLAYER still takes it.
+        // Only objects on the stack or the battlefield have a controller, so
+        // the `controllerId` arm fails closed on a player recipient — which is
+        // what keeps "creatures you control" off its controller's face.
         expect(state.players[1].life).toBe(18);
     });
 
@@ -347,6 +362,79 @@ describe("CR 614.9 — the next N damage dealt to one recipient is dealt to anot
         // on its NEW recipient then ate it. Nobody takes the damage.
         expect(state.players[0].life).toBe(20);
         expect(permanentOf(state, "theirs")?.damageMarked).toBeUndefined();
+    });
+
+    it("CR 614.5 — a split remainder does NOT re-run the continuous replacement layer", () => {
+        const state = twoBoards();
+        // Lashknife Barrier: "If a source would deal damage to a creature you
+        // control, it deals that much damage minus 1 to that creature
+        // instead." A CR 614 continuous replacement, and it gets ONE
+        // opportunity per event — including the modified events that replace
+        // it, which is exactly what a split remainder is.
+        state.players[1].battlefield.push(
+            makeInstance(lashknifeBarrier.id, {
+                id: "barrier",
+                controllerId: "p2",
+                ownerId: "p2",
+            })
+        );
+        castManeuver(
+            state,
+            "p2",
+            2,
+            { type: "permanent", id: "theirs" },
+            { type: "player", id: "p1" }
+        );
+        state.combat = {
+            attackerIds: ["mine"],
+            confirmed: true,
+            blockersConfirmed: true,
+            blockerAssignments: { theirs: ["mine"] },
+            blockedAttackerIds: ["mine"],
+        };
+        applyAllCombatDamage(state, { mine: { theirs: 6 } });
+        // 6 → Lashknife once → 5; the shield moves 2 to p1 and 3 stay on the
+        // blocker. Reducing the remainder a SECOND time would mark 2 and lose
+        // a point of damage outright.
+        expect(state.players[0].life).toBe(18);
+        expect(permanentOf(state, "theirs")?.damageMarked).toBe(3);
+    });
+
+    it("splits an event from a PERMANENT source to a player (the painland sink)", () => {
+        const state = twoBoards();
+        castManeuver(
+            state,
+            "p2",
+            2,
+            { type: "player", id: "p2" },
+            { type: "permanent", id: "theirs" }
+        );
+        dealDamageFromPermanentToPlayer(
+            state,
+            permanentOf(state, "mine")!,
+            "p1",
+            "p2",
+            3
+        );
+        expect(permanentOf(state, "theirs")?.damageMarked).toBe(2);
+        expect(state.players[1].life).toBe(19);
+    });
+
+    it("splits a FIGHT half, and the remainder's lethality is still reported", () => {
+        const state = twoBoards();
+        castManeuver(
+            state,
+            "p1",
+            2,
+            { type: "permanent", id: "mine" },
+            { type: "player", id: "p2" }
+        );
+        resolveFight(state, "theirs", "mine");
+        // Craw Wurm is 6/4. Of the 6 aimed at "mine", 2 go to p2 and 4 stay —
+        // still lethal, so the fight destroys it rather than leaving it for
+        // the SBA pass; "theirs" takes its own 6 and dies with it.
+        expect(state.players[1].life).toBe(18);
+        expect(permanentOf(state, "mine")).toBeUndefined();
     });
 
     it("CR 514.2 — the shield expires at CLEANUP", () => {

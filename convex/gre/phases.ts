@@ -1284,7 +1284,9 @@ export function applyAllCombatDamage(
     function applyOneCombatDamage(
         source: CardInstanceState,
         rawTarget: { type: "player" | "permanent"; id: string },
-        rawAmount: number
+        rawAmount: number,
+        /** CR 614.5 (issue #3810) — see `runDamageReplacement`. */
+        replacementsSpent: boolean = false
     ): void {
         if (rawAmount <= 0) return;
         // CR 615.12 — source-side unpreventable combat damage (Questing Beast:
@@ -1356,7 +1358,8 @@ export function applyAllCombatDamage(
             rawAmount,
             true,
             unpreventable,
-            unredirectable
+            unredirectable,
+            replacementsSpent
         );
         if (!repl) return;
         // CR 614.9 (issue #3810) — a recipient-keyed redirect whose points
@@ -1377,7 +1380,9 @@ export function applyAllCombatDamage(
             applyOneCombatDamage(
                 source,
                 { type: rest.target.type, id: rest.target.id },
-                rest.amount
+                rest.amount,
+                // CR 614.5 — the CR 614 layer is spent on this event.
+                true
             );
         }
         const finalTarget = repl.target;

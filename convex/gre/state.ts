@@ -6475,12 +6475,16 @@ export function recipientPreventionShieldApplies(
             if (!card || !card.types.includes(match.cardType)) continue;
         }
         if (match.controllerId !== undefined) {
-            if (target.type === "player") {
-                if (target.id !== match.controllerId) continue;
-            } else {
-                const card = liveTarget();
-                if (!card || card.controllerId !== match.controllerId) continue;
-            }
+            // CR 109.4 — only a PERMANENT has a controller. A player is never
+            // matched by this arm, so a `{ controller }`-only shield is a
+            // shield on that player's permanents and not on the player: the
+            // fail-CLOSED reading, and the one both doc comments state. A card
+            // that shields the PLAYER needs its own arm, not this one
+            // widened, or "prevent all damage dealt to creatures you control"
+            // would start shielding its controller's face.
+            if (target.type !== "permanent") continue;
+            const card = liveTarget();
+            if (!card || card.controllerId !== match.controllerId) continue;
         }
         return true;
     }
@@ -10603,7 +10607,16 @@ export function runDamageReplacement(
     amount: number,
     isCombat: boolean,
     unpreventable: boolean = false,
-    unredirectable: boolean = false
+    unredirectable: boolean = false,
+    /** CR 614.5 (issue #3810) — "A replacement effect doesn't invoke itself
+     *  repeatedly; it gets only one opportunity to affect an event or any
+     *  modified events that may replace that event." A SPLIT remainder IS such
+     *  a modified event, so the whole CR 614 layer — the continuous
+     *  replacements AND the transient shields — is skipped for it: both have
+     *  already had their opportunity on the event this remainder came out of.
+     *  Everything from CR 615 down still runs, because the remainder lands on
+     *  a recipient the primary half's prevention checks never saw. */
+    replacementsSpent: boolean = false
 ): {
     target: TargetSelection;
     amount: number;
@@ -10634,6 +10647,23 @@ export function runDamageReplacement(
     // prevention, CR 614.9), and skipping it under `unredirectable` would stop
     // Divine Presence's clamp, which is neither.
     const locks = { unpreventable, unredirectable };
+    // CR 614.5 — a split remainder skips the whole CR 614 layer (see
+    // `replacementsSpent`). Without this, `applyReplacementsLoop`'s per-call
+    // `used` set would let a continuous replacement apply a SECOND time to one
+    // event: Lashknife Barrier reduced the primary half by 1 and would reduce
+    // the remainder by 1 again, losing a point of damage outright.
+    if (replacementsSpent) {
+        if (
+            recipientPreventionShieldApplies(
+                state,
+                target,
+                isCombat,
+                unpreventable
+            )
+        )
+            return null;
+        return { target, amount };
+    }
     const continuous = applyDamageReplacements(
         state,
         {
@@ -10759,7 +10789,9 @@ export function dealDamageFromPermanentToPlayer(
     playerId: string,
     amount: number,
     unpreventableArg: boolean = false,
-    unredirectable: boolean = false
+    unredirectable: boolean = false,
+    /** CR 614.5 (issue #3810) — see `runDamageReplacement`. */
+    replacementsSpent: boolean = false
 ): void {
     if (amount <= 0) return;
     // CR 615.12 (issue #3303) — the GAME-scoped "damage can't be prevented this
@@ -10777,7 +10809,8 @@ export function dealDamageFromPermanentToPlayer(
         amount,
         false,
         unpreventable,
-        unredirectable
+        unredirectable,
+        replacementsSpent
     );
     if (replaced === null) return;
     // CR 614.9 (issue #3810) — remainders split off by a recipient-keyed
@@ -10791,7 +10824,9 @@ export function dealDamageFromPermanentToPlayer(
                 rest.target.id,
                 rest.amount,
                 unpreventableArg,
-                unredirectable
+                unredirectable,
+                // CR 614.5 — the CR 614 layer is spent on this event.
+                true
             );
         } else {
             markDamageFromPermanentSource(
@@ -10801,7 +10836,8 @@ export function dealDamageFromPermanentToPlayer(
                 rest.target.id,
                 rest.amount,
                 unpreventable,
-                unredirectable
+                unredirectable,
+                true
             );
         }
     }
@@ -10926,7 +10962,9 @@ function markDamageFromPermanentSource(
     targetId: string,
     amount: number,
     forcedUnpreventable: boolean = false,
-    forcedUnredirectable: boolean = false
+    forcedUnredirectable: boolean = false,
+    /** CR 614.5 (issue #3810) — see `runDamageReplacement`. */
+    replacementsSpent: boolean = false
 ): string | null {
     if (amount <= 0) return null;
     // CR 615.12 / 614.9 (issue #2231) — Whippoorwill's target-bound lock. ORed
@@ -10950,14 +10988,17 @@ function markDamageFromPermanentSource(
         amount,
         false,
         unpreventable,
-        unredirectable
+        unredirectable,
+        replacementsSpent
     );
     if (replaced === null) return null;
     // CR 614.9 (issue #3810) — remainders split off by a recipient-keyed
     // redirect, dealt as their own events from the same permanent source. A
-    // remainder that turns out to be lethal is reported alongside the primary
-    // one, because this function's whole contract is "tell the caller what now
-    // has lethal damage" (CR 701.14 — a fight destroys both halves at once).
+    // remainder that turns out to be lethal is reported when the PRIMARY half
+    // is not itself lethal: the contract is one id, so when both halves kill
+    // something the caller destroys the primary's and the other creature dies
+    // at the next SBA pass instead of simultaneously (CR 701.14, CR 704.5g).
+    // Reachable only with a redirect shield up during a fight.
     let residualLethal: string | null = null;
     for (const rest of replaced.residuals ?? []) {
         if (rest.target.type === "permanent") {
@@ -10968,7 +11009,9 @@ function markDamageFromPermanentSource(
                 rest.target.id,
                 rest.amount,
                 forcedUnpreventable,
-                forcedUnredirectable
+                forcedUnredirectable,
+                // CR 614.5 — the CR 614 layer is spent on this event.
+                true
             );
             if (lethal !== null) residualLethal = lethal;
         } else {
@@ -10979,7 +11022,8 @@ function markDamageFromPermanentSource(
                 rest.target.id,
                 rest.amount,
                 forcedUnpreventable,
-                forcedUnredirectable
+                forcedUnredirectable,
+                true
             );
         }
     }
@@ -16596,7 +16640,8 @@ export function buildSpellContext(
             target: TargetSelection,
             amount: number,
             unpreventableArg = false,
-            unredirectableArg = false
+            unredirectableArg = false,
+            replacementsSpent = false
         ) {
             // CR 614 replacement effects run BEFORE CR 615 prevention. May
             // rewrite target (Simulacrum / Veteran Bodyguard / Personal
@@ -16633,7 +16678,8 @@ export function buildSpellContext(
                 amount,
                 false,
                 unpreventable,
-                unredirectable
+                unredirectable,
+                replacementsSpent
             );
             if (replaced === null) return;
             // CR 614.9 (issue #3810) — a recipient-keyed redirect whose points
@@ -16647,7 +16693,10 @@ export function buildSpellContext(
                     rest.target,
                     rest.amount,
                     unpreventableArg,
-                    unredirectableArg
+                    unredirectableArg,
+                    // CR 614.5 — the remainder is a modified event of the one
+                    // the CR 614 layer already acted on.
+                    true
                 );
             }
             target = replaced.target;

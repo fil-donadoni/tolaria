@@ -3694,8 +3694,10 @@ export interface SourceDamagePreventionShield {
  *
  *  `match` is therefore a DYNAMIC characteristic filter re-read at the moment
  *  damage would be dealt (CR 615.6), never a resolution-time id list:
- *   - `controllerId` — only permanents that player controls RIGHT NOW match,
- *     so a creature gained mid-turn is covered and one given away is not.
+ *   - `controllerId` — only PERMANENTS that player controls RIGHT NOW match,
+ *     so a creature gained mid-turn is covered and one given away is not. Never
+ *     the player themself: CR 109.4 gives a controller only to objects on the
+ *     stack or the battlefield, so this arm fails closed on a player recipient.
  *   - `cardType` — additionally require that live card type (CR 205.2, layer
  *     4), so "creatures you control" leaves the player themself unshielded.
  *
@@ -3707,7 +3709,11 @@ export interface RecipientDamagePreventionShield {
     /** Dynamic characteristic match on the RECIPIENT, evaluated at damage
      *  time. At least one arm must be set. */
     match: {
-        /** Only permanents this player controls match (CR 109.4). */
+        /** Only PERMANENTS this player controls match (CR 109.4 — a player
+         *  has no controller, so this arm never matches one). A shield on the
+         *  PLAYER is a different clause and would need its own arm; widening
+         *  this one would make "damage dealt to creatures you control" shield
+         *  its controller's face too. */
         controllerId?: string;
         /** Additionally require this live card type on the recipient. */
         cardType?: CardType;
@@ -3927,7 +3933,13 @@ export interface SpellContext {
         target: TargetSelection,
         amount: number,
         unpreventable?: boolean,
-        unredirectable?: boolean
+        unredirectable?: boolean,
+        /** CR 614.5 (issue #3810) — internal: this event's CR 614 layer has
+         *  already had its one opportunity, because this call is the SPLIT
+         *  remainder of an event a recipient-keyed redirection shield moved
+         *  part of. Never set by a card; the damage sinks pass it to
+         *  themselves when they deal a remainder. */
+        replacementsSpent?: boolean
     ) => void;
     /** CR 615.12 / 614.9 (issue #2231) — flags a permanent so that damage which
      *  would be dealt TO it this turn can't be prevented and can't be dealt
