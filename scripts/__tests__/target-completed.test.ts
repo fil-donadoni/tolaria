@@ -487,20 +487,37 @@ describe("oracle:report --targets <id> prints the `completed:` verdict", () => {
         writeFileSync(path, JSON.stringify(body));
         return path;
     };
+    /** A minimal, well-formed Findings artifact — `header` unread by this
+     *  reader, so it is never asserted on here. */
+    const findings = (rows: readonly Record<string, unknown>[]): unknown => ({
+        generator: "test fixture",
+        header: { sha: "0".repeat(40), botHash: "sha256:x", measuredAt: "" },
+        targets: ["vintage-cube"],
+        findings: rows,
+    });
 
-    it("without a Bot-play report the Target is `no`, bot-play named as unproved", () => {
+    it("reads the committed report by default — no `--bot-reach` needed (issue #4406)", () => {
         const { code, out } = report("--targets", "vintage-cube");
         expect(code).toBe(0);
-        expect(out).toMatch(/completed: no — .*bot-play/);
-        expect(out).toContain("red: bot-play — no Bot-play report supplied");
-        expect(out).toContain("target-bot-reach.ts --target vintage-cube");
+        // The real committed artifact measures `vintage-cube` (ADR 0141 §4),
+        // so the third clause is never reported as unproved for want of one.
+        expect(out).not.toContain("no Bot-play report supplied");
+        expect(out).toMatch(/completed: (yes|no)/);
     }, 180_000);
 
     it("with a report that has verdicts for no card of the Target, every card is unmeasured", () => {
-        const path = reportFile({
-            report: [],
-            perCard: { "vintage-cube": [] },
-        });
+        // A row IS associated with `vintage-cube`, but names no real card of
+        // it — every actual card of the Target stays unmeasured.
+        const path = reportFile(
+            findings([
+                {
+                    oracleId: "zzz",
+                    name: "Not A Real Card",
+                    outcome: "ignored",
+                    targets: ["vintage-cube"],
+                },
+            ])
+        );
         const { code, out } = report(
             "--targets",
             "vintage-cube",
@@ -512,7 +529,7 @@ describe("oracle:report --targets <id> prints the `completed:` verdict", () => {
     }, 180_000);
 
     it("a report with no verdicts for the named Target says so", () => {
-        const path = reportFile({ report: [], perCard: {} });
+        const path = reportFile(findings([]));
         const { out } = report(
             "--targets",
             "vintage-cube",
@@ -522,8 +539,10 @@ describe("oracle:report --targets <id> prints the `completed:` verdict", () => {
         expect(out).toContain("carries no verdicts for Target `vintage-cube`");
     }, 180_000);
 
-    it("a Target whose verdicts are not a list is reported missing, not thrown on", () => {
-        const path = reportFile({ perCard: { "vintage-cube": { nope: 1 } } });
+    it("a row with no `targets` array groups into no Target, reported missing, not thrown on", () => {
+        const path = reportFile(
+            findings([{ oracleId: "x", name: "Weird Row", outcome: "ignored" }])
+        );
         const { code, out } = report(
             "--targets",
             "vintage-cube",
@@ -534,7 +553,7 @@ describe("oracle:report --targets <id> prints the `completed:` verdict", () => {
         expect(out).toContain("carries no verdicts for Target `vintage-cube`");
     }, 180_000);
 
-    it("fails closed on a file that is not a target-bot-reach report", () => {
+    it("fails closed on a file that is not a Bot Reach Findings report", () => {
         const path = reportFile({ nope: true });
         const { code, out } = report(
             "--targets",
@@ -543,6 +562,6 @@ describe("oracle:report --targets <id> prints the `completed:` verdict", () => {
             path
         );
         expect(code).toBe(1);
-        expect(out).toContain("has no `perCard`");
+        expect(out).toContain("has no `findings`");
     }, 180_000);
 });

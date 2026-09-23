@@ -54,7 +54,7 @@ import {
     type KindInputs,
 } from "../lib/gap-kinds";
 import { parseOriginBand, staleClaims } from "../gaps-sync";
-import { botGapKey } from "../lib/oracle-bot-reach";
+import { botGapKey, type BotGapVerdict } from "../lib/oracle-bot-reach";
 import type { CardRow, FragmentRow, Lockfile } from "../lib/oracle-lockfile";
 import {
     claimId,
@@ -607,6 +607,45 @@ describe("the bot kind — one issue per Bot Gap key, scoped to the ranked Targe
             },
         ]);
         expect(edges.get(issue)).toEqual([4200]);
+    });
+
+    it("a class found ONLY on a hand-written card (issue #4406) — no lockfile `botReach` at all — is filed too", () => {
+        // `b-7` never compiled `ready` and carries no `botReach`: the
+        // lockfile's own sweep never played it. The Findings report is the
+        // ONLY source that measured it — the definition it actually ships.
+        const handWrittenOnly: CardRow = {
+            oracleId: "b-7",
+            name: "Hand-Written Aura",
+            state: "unparsed",
+            poolIn: ["premodern"],
+        };
+        const key = "never-chosen › Enchantment › choice";
+        const botFindings = new Map<string, BotGapVerdict>([
+            ["b-7", { outcome: "ignored", gap: key }],
+        ]);
+        const withHandWritten = {
+            ...lock,
+            cards: [...lock.cards, handWrittenOnly],
+        };
+        const withoutMerge = buildBotGapFilings(inputs(withHandWritten));
+        expect(withoutMerge.map((f) => f.key)).not.toContain(key);
+
+        const withMerge = buildBotGapFilings(
+            inputs(withHandWritten, { botFindings })
+        );
+        const filing = withMerge.find((f) => f.key === key);
+        expect(filing).toBeDefined();
+        expect(filing!.body(1)).toContain("Hand-Written Aura");
+        // Every OTHER key, filed off the lockfile alone, is unaffected.
+        expect(withMerge.map((f) => f.key)).toEqual(
+            expect.arrayContaining([NEVER_CHOSEN, UNMODELLED])
+        );
+        // Idempotent, like every other kind: a second run against the
+        // tracker it wrote to creates and edits nothing.
+        const { second } = syncTwice(withMerge);
+        expect(second.actions.map((a) => a.action)).toEqual(
+            withMerge.map(() => "noop")
+        );
     });
 });
 

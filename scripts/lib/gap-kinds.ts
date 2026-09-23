@@ -31,6 +31,7 @@ import {
     type GapFiling,
 } from "./gap-issues";
 import { gapOf } from "./grammar-gaps";
+import type { BotGapVerdict } from "./oracle-bot-reach";
 import type { CardRow, Lockfile } from "./oracle-lockfile";
 import {
     claimId,
@@ -170,6 +171,14 @@ export interface KindInputs {
     readonly leverage: ReadonlyMap<string, number>;
     /** Oracle ids already carrying a well-formed `hand-tail:` marker. */
     readonly handTail: ReadonlySet<string>;
+    /**
+     * The Bot Reach Findings report merged over the lockfile (issue #4406,
+     * `mergeBotVerdicts`) — oracle id → the verdict for the card's SHIPPED
+     * definition. Absent exactly when no report was read (`gaps:sync` always
+     * reads the committed one; a test that does not care about hand-written
+     * Bot Gaps omits it and falls back to the lockfile's own `botReach`).
+     */
+    readonly botFindings?: ReadonlyMap<string, BotGapVerdict>;
 }
 
 /** A filing before its rank is known — the rank needs the whole kind. */
@@ -649,14 +658,35 @@ export function botCauseOf(key: string): string {
 }
 
 /**
- * A card's Bot Gap key, when it carries one — `botGap` is present iff the
- * sweep's verdict is not `played`, and the pair is re-checked here rather
- * than trusted: a `played` row with a stale key would file a gap for a card
- * the Bot plays.
+ * A card's merged Bot verdict — the Findings report's, when `botFindings`
+ * carries one for it, else the lockfile row's own `botReach`/`botGap`
+ * (`mergeBotVerdicts`'s rule, restated over one row at a time so a caller with
+ * no report to hand still gets the lockfile's answer for free).
  */
-function botGapOf(row: CardRow): string | undefined {
-    return row.botReach !== undefined && row.botReach !== "played"
-        ? row.botGap
+function mergedBotVerdict(
+    row: CardRow,
+    findings?: ReadonlyMap<string, BotGapVerdict>
+): BotGapVerdict | undefined {
+    const found = findings?.get(row.oracleId);
+    if (found !== undefined) return found;
+    return row.botReach === undefined
+        ? undefined
+        : { outcome: row.botReach, gap: row.botGap };
+}
+
+/**
+ * A card's Bot Gap key, when it carries one — present iff the merged verdict
+ * is not `played`, and the pair is re-checked here rather than trusted: a
+ * `played` verdict with a stale key would file a gap for a card the Bot
+ * plays.
+ */
+function botGapOf(
+    row: CardRow,
+    findings?: ReadonlyMap<string, BotGapVerdict>
+): string | undefined {
+    const verdict = mergedBotVerdict(row, findings);
+    return verdict !== undefined && verdict.outcome !== "played"
+        ? verdict.gap
         : undefined;
 }
 
@@ -669,11 +699,12 @@ function botGapOf(row: CardRow): string | undefined {
  */
 export function inScopeBotGapKeys(
     cards: readonly CardRow[],
-    ranked: ReadonlySet<string>
+    ranked: ReadonlySet<string>,
+    findings?: ReadonlyMap<string, BotGapVerdict>
 ): string[] {
     const keys = new Set<string>();
     for (const row of cards) {
-        const key = botGapOf(row);
+        const key = botGapOf(row, findings);
         if (key !== undefined && ranked.has(row.oracleId)) keys.add(key);
     }
     return [...keys].sort();
@@ -694,7 +725,9 @@ export function inScopeBotGapKeys(
 export function buildBotGapFilings(inputs: KindInputs): GapFiling[] {
     const byKey = new Map<string, { ids: Set<string>; frozen: boolean }>();
     for (const row of inputs.lock.cards) {
-        const key = botGapOf(row);
+        const verdict = mergedBotVerdict(row, inputs.botFindings);
+        if (verdict === undefined || verdict.outcome === "played") continue;
+        const key = verdict.gap;
         if (key === undefined) continue;
         let entry = byKey.get(key);
         if (entry === undefined) {
@@ -702,7 +735,7 @@ export function buildBotGapFilings(inputs: KindInputs): GapFiling[] {
             byKey.set(key, entry);
         }
         entry.ids.add(row.oracleId);
-        if (row.botReach === "frozen") entry.frozen = true;
+        if (verdict.outcome === "frozen") entry.frozen = true;
     }
 
     const nameOf = new Map(

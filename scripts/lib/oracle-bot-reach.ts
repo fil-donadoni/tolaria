@@ -687,3 +687,82 @@ export function serializeFindings(artifact: FindingsArtifact): string {
 export function parseFindings(text: string): FindingsArtifact {
     return JSON.parse(text) as FindingsArtifact;
 }
+
+// ── Merge with the lockfile (issue #4406) ─────────────────────────────────
+
+/**
+ * A card's Bot verdict as `gaps:sync` and the `bot-play` gate clause consume
+ * it — never `outcome: "unplayable"` (nothing to key, nothing to gate on).
+ */
+export interface BotGapVerdict {
+    readonly outcome: BotReachOutcome;
+    readonly gap?: string;
+}
+
+/**
+ * Oracle id → the merged Bot verdict, one card at a time: the Findings
+ * report's verdict for the card when it measured one — the definition that
+ * actually SHIPS, hand-written when the catalogue carries it — else the
+ * lockfile's own compiled-sweep verdict. The report wins on precedence
+ * because the lockfile only ever played the compiled SHADOW of a hand-written
+ * card, never the definition a player actually casts.
+ *
+ * `stale`: oracle ids the report measured but could not be trusted, sorted.
+ * A report is stale for EVERY row when its own Bot hash disagrees with
+ * {@link currentBotHash} — the Bot moved since `bot:reach` last ran. This is
+ * deliberately NOT compared against the lockfile's OWN header `botHash`: that
+ * field is refreshed only the next time `oracle:compile` REPLAYS a card
+ * (`playingBotReach`'s own doc: "a stale Bot verdict is not drift"), so it can
+ * sit behind the Bot's actual source for arbitrarily long between full
+ * compiler runs — comparing the two committed artifacts' headers to each
+ * other would call the Findings report stale on every Bot-touching commit
+ * until the NEXT `oracle:compile`, though `bot:reach` itself ran fresher.
+ * {@link currentBotHash} is `botHash(ROOT)` computed FRESH at the call site —
+ * cheap, pure, offline — so a report this run's `bot:reach` just wrote reads
+ * back as current even when the lockfile's own header has not caught up.
+ *
+ * A single `compiled` row is stale on its own when its def hash no longer
+ * matches the lockfile's current row for that card (`oracle:compile` moved
+ * since `bot:reach` last ran, without the Bot moving too — this check IS
+ * against the lockfile, correctly: `row.definition` is exactly what the
+ * compiler currently produces, with no separate cadence to disagree with). A
+ * hand-written row's def hash cannot be re-derived offline — computing it
+ * needs the engine and the catalogue, which this reader never imports — so it
+ * is trusted while the Bot hash agrees; the bound closes exactly the way
+ * `oracle-bot-reach.ts`'s own `definitionHash` documents its `resolve()`-body
+ * bound. A stale row falls back to the lockfile's own verdict, same as one
+ * the report never measured.
+ */
+export function mergeBotVerdicts(
+    findings: FindingsArtifact | null,
+    lockCards: readonly CardRow[],
+    currentBotHash: string
+): {
+    readonly merged: ReadonlyMap<string, BotGapVerdict>;
+    readonly stale: readonly string[];
+} {
+    const merged = new Map<string, BotGapVerdict>();
+    const stale: string[] = [];
+    const globallyStale =
+        findings !== null && findings.header.botHash !== currentBotHash;
+    const reportByOracleId = new Map(
+        (findings?.findings ?? []).map((row) => [row.oracleId, row] as const)
+    );
+    for (const row of lockCards) {
+        const report = reportByOracleId.get(row.oracleId);
+        let used: BotGapVerdict | undefined;
+        if (report !== undefined && report.outcome !== "unplayable") {
+            const rowStale =
+                globallyStale ||
+                (report.source === "compiled" &&
+                    (row.definition === undefined ||
+                        report.defHash !== definitionHash(row.definition)));
+            if (rowStale) stale.push(row.oracleId);
+            else used = { outcome: report.outcome, gap: report.gap };
+        }
+        if (used === undefined && row.botReach !== undefined)
+            used = { outcome: row.botReach, gap: row.botGap };
+        if (used !== undefined) merged.set(row.oracleId, used);
+    }
+    return { merged, stale: stale.sort() };
+}
