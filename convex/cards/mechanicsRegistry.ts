@@ -3702,10 +3702,20 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  has no controller at all (CR 108.4).
  *  `EffectCountSpec.zone: "hand"` (issue #2006, CR 402) is likewise NOT an Op
  *  and NOT a new grammar member — it is a REFINEMENT of the existing `count`
- *  value, the exact twin of the already-shipped `library` zone member (#783):
- *  a hidden zone (CR 402.2) whose SIZE is public information, therefore a pure
- *  CARDINALITY read with `filter`/`countTypes` rejected by the validator. It
- *  earns no EFFECT_OP_REGISTRY row.
+ *  value, the twin of the already-shipped `library` zone member (#783): a
+ *  hidden zone (CR 402.3) whose SIZE is public information, therefore a pure
+ *  CARDINALITY read. It earns no EFFECT_OP_REGISTRY row. Issue #2150 lifted
+ *  ONE of its two restrictions: a `filter` is now legal on `zone: "hand"`
+ *  (still refused on `library`), because CR 701.20a's `reveal { player, zone:
+ *  "hand" }` makes the whole hand public within the same script and "the
+ *  number of cards of that color revealed this way" (Darigaaz, the Igniter)
+ *  counts exactly that public set — read through the same `matchesCardFilter`
+ *  over `getHandCards` that the `discard { player, filter }` hand sweep
+ *  (#2713, Cabal Therapy) already uses. Pairing the count with the reveal is
+ *  the card author's obligation: the grammar has no "only after a reveal"
+ *  predicate. `countTypes` stays rejected on both hidden zones (Delirium is
+ *  an ability word with no CR entry of its own, CR 207.2c, and is a
+ *  graveyard reading).
  *  `EffectCountSpec.picks` (issue #3807) is the same class again: a REFINEMENT
  *  of the existing `count` value, not an Op and not a new grammar member. It
  *  narrows the counted set to a picks-family binding an earlier Op captured —

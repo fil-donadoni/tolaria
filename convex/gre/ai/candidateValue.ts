@@ -474,10 +474,12 @@ function countZoneCardsFor(
         // validator rejects a `filter` there), so the pile size IS the count.
         case "library":
             return player.library;
-        // CR 402 (issue #2006) — the hand is the library's twin here: hidden
-        // zone, public SIZE, validator rejects a `filter`, so the pile size IS
-        // the count. Dark Suspicions' "the number of cards in that player's
-        // hand".
+        // CR 402.3 (issue #2006) — the hand is the library's twin here for the
+        // UNFILTERED read: hidden zone, public SIZE, so the pile size IS the
+        // count. Dark Suspicions' "the number of cards in that player's hand".
+        // A FILTERED hand count (issue #2150) never reaches this switch — the
+        // caller takes its own exit above, which is why the pile size stays
+        // the whole answer here.
         //
         // What this reads is the pile's CARDINALITY, not real identities, and
         // that distinction is the whole reason it leaks nothing. Server-side
@@ -486,7 +488,7 @@ function countZoneCardsFor(
         // non-viewer's hand is a run of opaque placeholders padded to the wire
         // length by `projectedToGameState` (`src/lib/ai/state-adapter.ts`).
         // Both give the same COUNT — which is exactly what a hand-size read is
-        // entitled to (CR 402.2) and all it may ever use. That padding is load-
+        // entitled to (CR 402.3) and all it may ever use. That padding is load-
         // bearing: before it existed the adapter dropped the nulled hand
         // entirely and every client-side hand-size read returned 0.
         case "hand":
@@ -577,6 +579,36 @@ function resolveCountSpecAgainstBoard(
         ? (resolveFixedPlayerRef(state, perspectivePlayerId, spec.controller) ??
           perspectivePlayerId)
         : perspectivePlayerId;
+    // CR 402.3 / 701.20a (issue #2150) — a FILTERED hand count reads the set
+    // the card itself made public with a `reveal` DURING its own resolution
+    // ("the number of cards of that color revealed this way", Darigaaz, the
+    // Igniter). Before the card is cast that reveal has not happened, so for
+    // ANOTHER player's hand there is nothing honest to read here, and the two
+    // ways of answering anyway are both wrong:
+    //   - `matchesCountFilter` does not evaluate `color` at all (it fails OPEN
+    //     on that dimension), so a colour-filtered hand count would price at
+    //     the WHOLE HAND SIZE — five cards of damage for a clause that deals
+    //     one, the exact over-read this reader's `never` default exists to
+    //     stop on the zone axis;
+    //   - the type/subtype dimensions it DOES read would answer from the real
+    //     hand server-side and from the opaque wire placeholders a client-side
+    //     Brain run holds (`projectedToGameState`, ADR 0074) — one read, two
+    //     answers, and the server's is information the bot has not been shown.
+    // So it falls back to the representative magnitude, for exactly the reason
+    // `picks` above does: the set it counts exists only mid-resolution.
+    //
+    // The perspective player's OWN hand is exempt: CR 402.3 lets a player look
+    // at their own hand at any time, and `projectedToGameState` hands the
+    // viewer their real cards, so that read is both honest and identical on
+    // both sides of the authority boundary. The UNFILTERED hand count is
+    // untouched either way — a cardinality every player may count.
+    if (
+        spec.zone === "hand" &&
+        spec.filter !== undefined &&
+        pid !== perspectivePlayerId
+    ) {
+        return times * CF_ASSUMED_COUNT_FALLBACK;
+    }
     return times * countSpecForPlayer(state, pid, spec);
 }
 

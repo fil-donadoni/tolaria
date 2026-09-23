@@ -5478,33 +5478,246 @@ describe('validateEffectScript — count zone:"hand" + difference (issue #2006)'
         ).toBeGreaterThan(0);
     });
 
-    it("rejects a `filter`/`countTypes` on a hand count — a cardinality read has nothing to filter (CR 402.2)", () => {
+    // CR 402.3 / 701.20a (issue #2150) — the hand count's `filter` restriction
+    // is lifted, but only OVER A REVEALED HAND: a `reveal { player, zone:
+    // "hand" }` earlier in the same list makes it public, and "the number of
+    // cards of that color revealed this way" (Darigaaz, the Igniter) counts
+    // exactly that set. The shape check says the FIELD is legal; the ordered
+    // pass says the READ is honest.
+    const revealOpponentHand = {
+        op: "reveal",
+        player: "opponent",
+        zone: "hand",
+    } as unknown as EffectOp;
+
+    it("accepts a `filter` on a REVEALED hand count, standalone and inside a difference operand (issue #2150)", () => {
         expect(
             validateEffectScript(
                 host({
-                    effects: loseLife(handCount({ filter: { type: "Land" } })),
+                    effects: [
+                        revealOpponentHand,
+                        ...loseLife(handCount({ filter: { color: "B" } })),
+                    ],
+                })
+            )
+        ).toEqual([]);
+        // The operand slot runs the same checks, so accepting it there is not
+        // a second decision — it is the same one, asserted where the old
+        // rejection was also asserted.
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        revealOpponentHand,
+                        ...loseLife({
+                            difference: {
+                                from: handCount({ filter: { type: "Land" } }),
+                                minus: 1,
+                            },
+                        }),
+                    ],
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("rejects a filtered hand count with NO reveal, one revealing the WRONG hand, or one that comes after (CR 402.3)", () => {
+        // No reveal at all — the read would turn a hidden zone into a public
+        // number with nothing having been shown.
+        expect(
+            validateEffectScript(
+                host({
+                    effects: loseLife(handCount({ filter: { color: "B" } })),
                 })
             ).length
         ).toBeGreaterThan(0);
+        // A reveal of the CONTROLLER's hand makes nothing public about the
+        // opponent's — `reveal` scans the named player's zones only.
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            op: "reveal",
+                            player: "controller",
+                            zone: "hand",
+                        } as unknown as EffectOp,
+                        ...loseLife(handCount({ filter: { color: "B" } })),
+                    ],
+                })
+            ).length
+        ).toBeGreaterThan(0);
+        // ORDER is the rule: a reveal AFTER the count has not happened yet
+        // when the count reads (CR 608.2c — instructions in the order
+        // written).
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        ...loseLife(handCount({ filter: { color: "B" } })),
+                        revealOpponentHand,
+                    ],
+                })
+            ).length
+        ).toBeGreaterThan(0);
+        // An UNFILTERED hand count is untouched — its size is public.
+        expect(
+            validateEffectScript(host({ effects: loseLife(handCount()) }))
+        ).toEqual([]);
+    });
+
+    it("a reveal in a nested body does not license a filtered count OUTSIDE it, or vice versa (fails closed)", () => {
+        // A `forEach` body, not an `if` — an `if` needs a predicate, and a
+        // predicate naming an undeclared binding produces an error of its
+        // OWN, which would make this whole assertion pass for the wrong
+        // reason. Both halves below are scripts whose ONLY defect is the one
+        // under test.
+        const nest = (effects: EffectOp[]) =>
+            ({
+                op: "forEach",
+                select: { set: "players" },
+                effects,
+            }) as unknown as EffectOp;
+
+        // The body may not run, so nothing it reveals can be relied on — the
+        // same list scoping `revealedBindings` uses for the
+        // `choose-library-card` invariant.
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        nest([revealOpponentHand]),
+                        ...loseLife(handCount({ filter: { color: "B" } })),
+                    ],
+                })
+            ).length
+        ).toBeGreaterThan(0);
+        // And the mirror: a reveal in the OUTER list does NOT reach into a
+        // nested body, which starts with an empty set.
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        revealOpponentHand,
+                        nest(loseLife(handCount({ filter: { color: "B" } }))),
+                    ],
+                })
+            ).length
+        ).toBeGreaterThan(0);
+        // Control: the SAME nesting with the reveal inside the same body as
+        // the count is legal, which is what proves the two rejections above
+        // are about scope and not about `forEach`.
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        nest([
+                            revealOpponentHand,
+                            ...loseLife(handCount({ filter: { color: "B" } })),
+                        ]),
+                    ],
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("refuses the two BATTLEFIELD-only filter booleans off the battlefield (CR 111.7 / 400.7)", () => {
+        // `matchesCardFilter` — the matcher every non-battlefield count branch
+        // falls back to — evaluates neither `isToken` nor `enteredThisTurn`,
+        // so admitting them on a hidden zone would match EVERY card: a whole
+        // hand counted instead of 0. The fail-OPEN class, newly reachable now
+        // that a hand filter is legal.
+        for (const zone of ["hand", "graveyard"] as const) {
+            for (const filter of [
+                { isToken: true },
+                { enteredThisTurn: true },
+            ]) {
+                expect(
+                    validateEffectScript(
+                        host({
+                            effects: [
+                                revealOpponentHand,
+                                ...loseLife({
+                                    count: {
+                                        zone,
+                                        controller: "opponent",
+                                        filter,
+                                    },
+                                }),
+                            ],
+                        })
+                    ).length
+                ).toBeGreaterThan(0);
+            }
+        }
+        // Both stay legal on the battlefield, where they are honest.
+        expect(
+            validateEffectScript(
+                host({
+                    effects: loseLife({
+                        count: {
+                            zone: "battlefield",
+                            controller: "opponent",
+                            filter: { isToken: true },
+                        },
+                    }),
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("rejects a filtered hand count under an all-players scope — no reveal can make that set public", () => {
+        for (const scope of [
+            { acrossAllPlayers: true },
+            { smallestAcrossPlayers: true },
+        ]) {
+            expect(
+                validateEffectScript(
+                    host({
+                        effects: [
+                            revealOpponentHand,
+                            ...loseLife({
+                                count: {
+                                    zone: "hand",
+                                    filter: { color: "B" },
+                                    ...scope,
+                                },
+                            }),
+                        ],
+                    })
+                ).length
+            ).toBeGreaterThan(0);
+        }
+    });
+
+    it("still rejects `countTypes` on a hand count, and a `filter` on a LIBRARY count (issue #2150)", () => {
+        // Delirium (CR 207.2c — an ability word, no CR entry of its own) is a graveyard reading; no card counts card
+        // types in a hand, so the composition stays unshipped rather than
+        // untested.
         expect(
             validateEffectScript(
                 host({ effects: loseLife(handCount({ countTypes: true })) })
             ).length
         ).toBeGreaterThan(0);
-        // Nested inside a difference operand too — the operand runs the same
-        // `isCountValue` check, so the rejection cannot be sidestepped there.
+        // CR 401.2 — the library is hidden and NOTHING in a script makes it
+        // public card-by-card, so its count stays cardinality-only. This is
+        // the half of the old restriction that did not move.
+        const libraryCount = (extra: Record<string, unknown> = {}) => ({
+            count: { zone: "library", controller: "opponent", ...extra },
+        });
         expect(
-            validateEffectScript(
-                host({
-                    effects: loseLife({
-                        difference: {
-                            from: handCount({ filter: { type: "Land" } }),
-                            minus: 1,
-                        },
-                    }),
-                })
-            ).length
-        ).toBeGreaterThan(0);
+            validateEffectScript(host({ effects: loseLife(libraryCount()) }))
+        ).toEqual([]);
+        for (const extra of [
+            { filter: { type: "Land" } },
+            { countTypes: true },
+        ]) {
+            expect(
+                validateEffectScript(
+                    host({ effects: loseLife(libraryCount(extra)) })
+                ).length
+            ).toBeGreaterThan(0);
+        }
     });
 
     it("rejects a malformed difference shape (missing operand, extra key)", () => {

@@ -10134,6 +10134,14 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Crosis, the Purger",
+        "scryfallId": "e5f336d8-12a4-482d-8ffd-c205858c72ba",
+        "oracleId": "f1ae1dcd-76cd-4714-9df2-1ab0ebd2ca41",
+        "firstSet": "inv",
+        "firstPrintId": "e5f336d8-12a4-482d-8ffd-c205858c72ba",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Crosis's Attendant",
         "scryfallId": "45edc18c-2046-4d0e-92fe-a6cf4aaf1c6f",
         "oracleId": "6223b1c0-bfe0-490c-b2d4-28537b05f571",
@@ -10790,6 +10798,14 @@
         "firstPrintSet": "vis",
         "rarity": "uncommon",
         "source": "compiled"
+    },
+    {
+        "name": "Darigaaz, the Igniter",
+        "scryfallId": "54dcf5e3-4303-41a3-b54c-24a9d462ce07",
+        "oracleId": "6cbafa7b-4448-4ad4-b4f2-0ab6e7c95b0b",
+        "firstSet": "inv",
+        "firstPrintId": "54dcf5e3-4303-41a3-b54c-24a9d462ce07",
+        "firstPrintSet": "inv"
     },
     {
         "name": "Darigaaz's Attendant",

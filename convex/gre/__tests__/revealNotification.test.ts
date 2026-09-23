@@ -356,6 +356,21 @@ describe("CR 701.20a — census: every shipped `reveal` Op notifies (issue #3425
         const item = pushSpell(state, GRIZZLY_BEARS, "p1", [
             { type: "player", id: "p2" },
         ]);
+        // ADR 0049 event-field registry (issue #2150) — a reveal Op may name
+        // its player through a TRIGGER EVENT field rather than a binding or a
+        // target slot: Crosis / Darigaaz reveal `$event.damagedPlayer`'s hand.
+        // Without a `triggerEvent` on the item that ref resolves to nothing,
+        // the Op skips (CR 101.3) and the census reads the skip as a card
+        // that fails to notify. Seeding the event here keeps the census about
+        // what it is about — whether the executor notifies — instead of about
+        // which player families the fixture happens to cover.
+        item.triggerEvent = {
+            type: "DAMAGE_DEALT",
+            sourceInstanceId: item.id,
+            isCombat: true,
+            amount: 2,
+            target: { type: "player", id: "p2" },
+        } as never;
         const ctx = buildSpellContext(state, item);
         // Seed every binding family a shipped reveal Op reads: the four picks
         // names its `cards` shape uses, and `$each` in the one forEach-scoped

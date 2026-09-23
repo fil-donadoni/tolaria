@@ -239,6 +239,95 @@ describe("context-aware count grounding threads every EffectCountSpec zone/scope
             }).amount
         ).toBe(3);
     });
+
+    // issue #2150 — the hand count grew a `filter` (CR 402.3 / 701.20a: the
+    // card reveals the hand mid-resolution, so "the number of cards of that
+    // color revealed this way" counts a PUBLIC set). Before the card is cast
+    // the hand is still hidden, and this reader has no honest answer: its
+    // `matchesCountFilter` does not evaluate `color` at all, so a colour
+    // filter would fall through and price at the WHOLE HAND SIZE — Darigaaz,
+    // the Igniter against a five-card hand reading as five damage for a clause
+    // that deals one. Same shape as `picks` above, same fallback.
+    it("CR 402.3 — a FILTERED hand count does not read the hidden hand's size", () => {
+        const hand = (owner: string, n: number) =>
+            Array.from({ length: n }, (_, i) =>
+                makeInstance(BEAR_ID, {
+                    id: `${owner}-hand-${i}`,
+                    controllerId: owner,
+                    ownerId: owner,
+                    zone: "hand",
+                })
+            );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: hand("p2", 5) }),
+            ],
+        });
+        const grounding = contextAwareGroundingForChoice(state, "p1");
+        // The UNFILTERED read is a cardinality every player may make and is
+        // untouched (CR 402.3, issue #2006 — Dark Suspicions).
+        expect(
+            grounding.value({
+                count: { zone: "hand", controller: "opponent" },
+            }).amount
+        ).toBe(5);
+        // The filtered read falls back to the representative magnitude —
+        // never the hand size, and never 0 (#1520: a context-aware zero would
+        // price the clause below the context-free floor it refines).
+        expect(
+            grounding.value({
+                count: {
+                    zone: "hand",
+                    controller: "opponent",
+                    filter: { color: "B" },
+                },
+            }).amount
+        ).toBe(1);
+        // A type filter takes the same exit: the dimension `matchesCountFilter`
+        // DOES read would answer from the real hand server-side and from the
+        // opaque wire placeholders a client-side Brain holds (ADR 0074).
+        expect(
+            grounding.value({
+                count: {
+                    zone: "hand",
+                    controller: "opponent",
+                    filter: { type: "Creature" },
+                },
+            }).amount
+        ).toBe(1);
+        // The printed literal still scales it, as it does for `picks`.
+        expect(
+            grounding.value({
+                count: {
+                    zone: "hand",
+                    controller: "opponent",
+                    filter: { color: "B" },
+                    times: 3,
+                },
+            }).amount
+        ).toBe(3);
+        // The perspective player's OWN hand is exempt — CR 402.3 lets a
+        // player look at their own hand at any time, and the client-side
+        // rehydration hands the viewer their real cards, so the read is
+        // honest and identical on both sides of the authority boundary. Two
+        // of p1's three cards are creatures.
+        const ownState = makeState({
+            players: [
+                makePlayer("p1", { hand: hand("p1", 3) }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(
+            contextAwareGroundingForChoice(ownState, "p1").value({
+                count: {
+                    zone: "hand",
+                    controller: "controller",
+                    filter: { type: "Creature" },
+                },
+            }).amount
+        ).toBe(3);
+    });
 });
 
 // `scaled` (issue #2366) — a fixed multiplier times a terminal (literal,

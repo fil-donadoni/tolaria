@@ -1652,15 +1652,16 @@ export const tsaboTavoc: CardDefinition = {
 // Void — {3}{B}{R} Sorcery. "Choose a number. Destroy all artifacts and
 // creatures with mana value equal to that number. Then target player
 // reveals their hand and discards all nonland cards with mana value equal
-// to the number." tracked-by: #2150 (the hand-zone sweep) — the one
-// capability still missing. The numeric nomination is no longer a blocker:
-// the `chooseNumber` Op shipped (issue #1421, PR #3572) with a numeric bind
-// the battlefield sweep can read (`manaValueEquals: { ref }`). The
-// hand-discard half needs a filtered, UNCHOSEN bulk discard: `forEach`'s
-// selector union has no "hand" member and `discard` only ever consumes a
-// `choice` Op's player-picked cards. Note the moveZone hand→graveyard sweep
-// is NOT a workaround — it bypasses `discardToGraveyard`, so CR 614
-// replacements, `CARD_DISCARDED` and madness would all silently not fire.
+// to the number." tracked-by: #4411 — a REF-valued `EffectCardFilter
+// .manaValueEquals`. Two of this card's three blockers are gone: the numeric
+// nomination shipped as the `chooseNumber` Op (issue #1421, PR #3572), and
+// the filtered UNCHOSEN bulk hand discard is `discard { player, filter }`
+// (issue #2713), which funnels through `discardToGraveyard` and so fires CR
+// 614 replacements, `CARD_DISCARDED` and madness (the reason a `moveZone`
+// hand→graveyard sweep was never a workaround). What is still missing is the
+// bridge between them: `manaValueEquals` accepts `number | EffectXValue`, so
+// neither the battlefield sweep nor the hand sweep can read the number
+// `chooseNumber` bound. One field widening, no new Op.
 
 // ─────────────────────────────────────────────────────────────────────────
 // Free tranche — RG (issue #1078, parent PRD #1063)
@@ -2658,9 +2659,10 @@ const STERLING_GROVE_AFFECTS_OTHER_ENCHANTMENTS: StaticKeywordGrant["applies"] =
 // (#1069/#1073); not re-declared here (ADR 0043 one-definition-per-card, ADR
 // 0014). Coalition Victory and Ordered Migration (the Domain cluster's own
 // two gold cards, issue #1066) are already active above this section — not
-// duplicated. Two of the five dragons (Crosis, Darigaaz) and one Apprentice
-// (Nightscape) hit genuine capability gaps and are deferred (tracked-by: #2785) at the end of
-// this file.
+// duplicated. All five dragons are now active: Crosis and Darigaaz shipped
+// with the filtered hand count (issue #2150), joining Dromar/Rith/Treva. One
+// Apprentice (Nightscape) still hits a genuine capability gap and is deferred
+// (tracked-by: #2785) at the end of this file.
 // ─────────────────────────────────────────────────────────────────────────
 
 // The five WUBRG "choose a color, then return every creature of that color
@@ -2674,7 +2676,14 @@ const STERLING_GROVE_AFFECTS_OTHER_ENCHANTMENTS: StaticKeywordGrant["applies"] =
 // `forEach` by `type`) and every player's battlefield (omitted `controller`
 // — the same "all permanents" sweep default Upheaval itself uses) — no new
 // construct combination, so no new interpreter test is owed here.
-const DROMAR_COLOR_WORDS: Record<Color, string> = {
+// CR 105.1's five colours as English words, for the per-mode labels the three
+// "choose a color, then <do something to that colour>" dragons of this cycle
+// build off `colorChoiceModes` (Dromar bounces, Crosis discards, Darigaaz
+// burns). Shared rather than re-declared per card (`.claude/rules/
+// gre-development.md` § Primitive reuse — extract on the second consumer);
+// `colorless` is present because `Color` carries `C`, never because a mode
+// offers it (CR 105.1 — a "choose a color" effect never offers colorless).
+const COLOR_WORDS: Record<Color, string> = {
     W: "white",
     U: "blue",
     B: "black",
@@ -2694,7 +2703,7 @@ const DROMAR_BOUNCE_COLOR_MODES = colorChoiceModes((color) => [
     },
 ]).map((mode) => ({
     ...mode,
-    label: `Return all ${DROMAR_COLOR_WORDS[mode.color!]} creatures to their owners' hands`,
+    label: `Return all ${COLOR_WORDS[mode.color!]} creatures to their owners' hands`,
 }));
 
 // Dromar, the Banisher — {3}{W}{U}{B} Legendary Creature — Dragon, 6/6.
@@ -2938,6 +2947,193 @@ export const treva: CardDefinition = {
                             player: "controller",
                             prompt: "Choose a color — gain 1 life for each permanent of that color (Treva, the Renewer)",
                             modes: TREVA_LIFEGAIN_COLOR_MODES,
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+};
+
+// The five WUBRG "that player reveals their hand and discards all cards of
+// that color" modes Crosis's triggered ability offers (CR 700.2 modal colour
+// pick). Two Ops per mode, both already shipped: CR 701.20a's whole-hand
+// `reveal` makes the sweep public BEFORE it happens (so both clients see the
+// same set the discard matched), then the UNCHOSEN filter-matched bulk
+// `discard` (issue #2713, Cabal Therapy's "discards all cards with that
+// name") narrows the hand by colour. The discard funnels through
+// `SpellContext.discardCard` → `discardToGraveyard`, so CR 614 discard
+// replacements (Library of Leng), the `CARD_DISCARDED` event and madness
+// (CR 702.35a) all fire per card — the reason a `moveZone` hand→graveyard
+// sweep is NOT a substitute for this shape.
+const CROSIS_DISCARD_COLOR_MODES = colorChoiceModes((color) => [
+    {
+        op: "reveal",
+        player: { ref: "$event.damagedPlayer" },
+        zone: "hand",
+    },
+    {
+        op: "discard",
+        player: { ref: "$event.damagedPlayer" },
+        filter: { color },
+    },
+]).map((mode) => ({
+    ...mode,
+    label: `Reveal their hand and discard all ${COLOR_WORDS[mode.color!]} cards`,
+}));
+
+// Crosis, the Purger — {3}{U}{B}{R} Legendary Creature — Dragon, 6/6.
+// "Flying. Whenever Crosis deals combat damage to a player, you may pay
+// {2}{B}. If you do, choose a color, then that player reveals their hand and
+// discards all cards of that color." (CR 702.9b flying; CR 510.4/603.2
+// combat-damage trigger — unlike Dromar/Rith/Treva the effect IS about the
+// damaged player, so the firing `DAMAGE_DEALT` event's `damagedPlayer` field
+// is read directly as a player ref, exactly as Blazing Specter reads it in
+// this same file; CR 118.12 "[a player] may [do something]. If [that player]
+// [does], [effect]" — the cost is paid AS THE ABILITY RESOLVES, which is
+// what `mayPay` + `if { binding }` is; CR 700.2 modal colour pick;
+// CR 701.20a reveal; CR 701.9 discard.) Same
+// smoke-skip note as Dromar (this file) — a script carrying `mayPay` is
+// skipped by the generated canned-scenario test, so the per-card tests cover
+// the accept and decline paths by hand.
+//
+// hand-tail: "you may pay {2}{B}. If you do, choose a color, then that player reveals their hand and discards all cards of that color." (#2150)
+export const crosis: CardDefinition = {
+    id: "e5f336d8-12a4-482d-8ffd-c205858c72ba",
+    rarity: "rare",
+    name: "Crosis, the Purger",
+    oracleText:
+        "Flying\nWhenever Crosis deals combat damage to a player, you may pay {2}{B}. If you do, choose a color, then that player reveals their hand and discards all cards of that color.",
+    manaCost: { X: 3, U: 1, B: 1, R: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Dragon"],
+    power: 6,
+    toughness: 6,
+    staticAbilities: ["flying"],
+    triggeredAbilities: [
+        {
+            id: "crosis-damage-discard",
+            oracleText:
+                "Whenever Crosis deals combat damage to a player, you may pay {2}{B}. If you do, choose a color, then that player reveals their hand and discards all cards of that color.",
+            event: "DAMAGE_DEALT",
+            matches: (event, self) =>
+                event.type === "DAMAGE_DEALT" &&
+                event.sourceInstanceId === self.id &&
+                event.isCombat === true &&
+                event.target.type === "player",
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
+                    cost: { X: 2, B: 1 },
+                    prompt: "Pay {2}{B} to have Crosis purge a color (Crosis, the Purger)?",
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$paid" },
+                    then: [
+                        {
+                            op: "optionChoice",
+                            player: "controller",
+                            prompt: "Choose a color — that player reveals their hand and discards all cards of that color (Crosis, the Purger)",
+                            modes: CROSIS_DISCARD_COLOR_MODES,
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+};
+
+// The five WUBRG "that player reveals their hand and Darigaaz deals damage to
+// the player equal to the number of cards of that color revealed this way"
+// modes Darigaaz's triggered ability offers (CR 700.2 modal colour pick). The
+// CR 701.20a whole-hand `reveal` is what makes the count honest: the hand is
+// hidden (CR 402.3), and "revealed this way" names exactly the set the reveal
+// just made public, so the filtered hand `count` (issue #2150) reads a public
+// set rather than peeking. The damage is `dealDamage` with no `source`
+// override — the resolving ability's own source is Darigaaz, which is what
+// "Darigaaz deals damage" means (CR 113.7a — an ability that causes its
+// SOURCE to do something, read as last known information if Darigaaz has
+// since left the battlefield). Note the card chooses a
+// COLOUR, never a number: the amount is DERIVED by counting, so nothing here
+// touches `chooseNumber`.
+const DARIGAAZ_BURN_COLOR_MODES = colorChoiceModes((color) => [
+    {
+        op: "reveal",
+        player: { ref: "$event.damagedPlayer" },
+        zone: "hand",
+    },
+    {
+        op: "dealDamage",
+        amount: {
+            count: {
+                zone: "hand",
+                controller: { ref: "$event.damagedPlayer" },
+                filter: { color },
+            },
+        },
+        to: { player: { ref: "$event.damagedPlayer" } },
+    },
+]).map((mode) => ({
+    ...mode,
+    label: `Reveal their hand and deal damage equal to their ${COLOR_WORDS[mode.color!]} cards`,
+}));
+
+// Darigaaz, the Igniter — {3}{B}{R}{G} Legendary Creature — Dragon, 6/6.
+// "Flying. Whenever Darigaaz deals combat damage to a player, you may pay
+// {2}{R}. If you do, choose a color, then that player reveals their hand and
+// Darigaaz deals damage to the player equal to the number of cards of that
+// color revealed this way." (CR 702.9b flying; CR 510.4/603.2 combat-damage
+// trigger with the `damagedPlayer` event ref, as Crosis above; CR 118.12's
+// resolution-time optional cost (`mayPay` + `if { binding }`); CR 700.2
+// modal colour pick; CR 701.20a reveal; CR 120.3a damage to a player.) Same smoke-skip note as
+// Dromar (this file).
+//
+// hand-tail: "you may pay {2}{R}. If you do, choose a color, then that player reveals their hand and Darigaaz deals damage to the player equal to the number of cards of that color revealed this way." (#2150)
+export const darigaaz: CardDefinition = {
+    id: "54dcf5e3-4303-41a3-b54c-24a9d462ce07",
+    rarity: "rare",
+    name: "Darigaaz, the Igniter",
+    oracleText:
+        "Flying\nWhenever Darigaaz deals combat damage to a player, you may pay {2}{R}. If you do, choose a color, then that player reveals their hand and Darigaaz deals damage to the player equal to the number of cards of that color revealed this way.",
+    manaCost: { X: 3, B: 1, R: 1, G: 1 },
+    types: ["Creature"],
+    supertypes: ["Legendary"],
+    subtypes: ["Dragon"],
+    power: 6,
+    toughness: 6,
+    staticAbilities: ["flying"],
+    triggeredAbilities: [
+        {
+            id: "darigaaz-damage-burn",
+            oracleText:
+                "Whenever Darigaaz deals combat damage to a player, you may pay {2}{R}. If you do, choose a color, then that player reveals their hand and Darigaaz deals damage to the player equal to the number of cards of that color revealed this way.",
+            event: "DAMAGE_DEALT",
+            matches: (event, self) =>
+                event.type === "DAMAGE_DEALT" &&
+                event.sourceInstanceId === self.id &&
+                event.isCombat === true &&
+                event.target.type === "player",
+            effects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
+                    cost: { X: 2, R: 1 },
+                    prompt: "Pay {2}{R} to have Darigaaz burn a color (Darigaaz, the Igniter)?",
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { binding: "$paid" },
+                    then: [
+                        {
+                            op: "optionChoice",
+                            player: "controller",
+                            prompt: "Choose a color — that player reveals their hand and Darigaaz deals damage equal to the number of cards of that color (Darigaaz, the Igniter)",
+                            modes: DARIGAAZ_BURN_COLOR_MODES,
                         },
                     ],
                 },
@@ -3384,35 +3580,6 @@ export const thunderscapeMaster: CardDefinition = {
 // ─────────────────────────────────────────────────────────────────────────
 // Deferred (engine capability gaps) — 3-colour + WUBRG (issue #1080)
 // ─────────────────────────────────────────────────────────────────────────
-
-// Crosis, the Purger — {3}{U}{B}{R} Legendary Creature — Dragon, 6/6.
-// "Flying. Whenever Crosis deals combat damage to a player, you may pay
-// {2}{B}. If you do, choose a color, then that player reveals their hand
-// and discards all cards of that color." tracked-by: #2150 — the hand-zone
-// filter-matched access gap (`forEach`'s selector union has no "hand" member,
-// and `discard` only consumes a `choice` Op's picks, so an UNCHOSEN
-// filter-matched bulk discard has no shape). #2150 ships this card as its
-// discard-half consumer. The flying body, the trigger gate, `mayPay` and the
-// colour-choice modal are all free; only the mandatory hand-side bulk discard
-// blocks it. Correction to the note this replaced: `EffectCountSpec.zone`
-// DOES admit `"hand"` (issue #2006, Dark Suspicions) — what it rejects is a
-// `filter` on a hand count, which is Darigaaz's blocker just below, not this
-// card's.
-
-// Darigaaz, the Igniter — {3}{B}{R}{G} Legendary Creature — Dragon, 6/6.
-// "Flying. Whenever Darigaaz deals combat damage to a player, you may pay
-// {2}{R}. If you do, choose a color, then that player reveals their hand
-// and Darigaaz deals damage to the player equal to the number of cards of
-// that color revealed this way." tracked-by: #2150 — the same hand-zone
-// access gap as Crosis above, seen from the COUNT side rather than the
-// discard side. "The number of cards of that color revealed this way" needs a
-// filter-matched hand count: `EffectCountSpec.zone` does admit `"hand"`
-// (issue #2006), but the validator rejects `filter`/`countTypes` there, so a
-// hand count is cardinality-only. `reveal`'s player/zone shape carries no
-// `bind` either, so there is no snapshot to count off of. Note this card
-// chooses a COLOUR, not a number — it never touches #1421's `chooseNumber`;
-// the number is derived by counting. #2150 ships it as its count-half
-// consumer.
 
 // Nightscape Apprentice — {B} Creature — Zombie Wizard, 1/1. "{U}, {T}: Put
 // target creature you control on top of its owner's library. {R}, {T}:

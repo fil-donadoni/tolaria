@@ -1118,6 +1118,60 @@ function isEffectTokenSpec(value: unknown): boolean {
     return true;
 }
 
+/** Every FILTERED hand `count` reachable from ONE Op entry's own values
+ *  (issue #2150) — the reads whose honesty depends on a preceding CR 701.20a
+ *  reveal, which only the ordered pass can see.
+ *
+ *  Walks the entry generically (so a count nested in a `difference` operand, a
+ *  `scaled` value or a divide total is found wherever it hides) but STOPS at
+ *  the keys that hold a nested Op LIST or an independently-scoped script:
+ *  each of those is re-entered by its own `checkOpListRefs` call with a fresh
+ *  `revealedHands`, and walking them here would credit them with a reveal that
+ *  sits outside their scope — the same list scoping `revealedBindings` uses.
+ *  Unfiltered hand counts are not returned: their cardinality is public
+ *  information (CR 402.3) and they need no reveal. */
+const NESTED_SCRIPT_KEYS = new Set([
+    "then",
+    "else",
+    "effects",
+    "modes",
+    "win",
+    "loss",
+    "chosenEffect",
+    "otherEffect",
+    "token",
+]);
+
+function filteredHandCounts(
+    entry: Record<string, unknown>
+): { controller?: unknown }[] {
+    const found: { controller?: unknown }[] = [];
+    const walk = (value: unknown): void => {
+        if (Array.isArray(value)) {
+            for (const v of value) walk(v);
+            return;
+        }
+        if (typeof value !== "object" || value === null) return;
+        const o = value as Record<string, unknown>;
+        const spec = o.count;
+        if (typeof spec === "object" && spec !== null && !Array.isArray(spec)) {
+            const c = spec as Record<string, unknown>;
+            if (c.zone === "hand" && "filter" in c) {
+                found.push({ controller: c.controller });
+            }
+        }
+        for (const [k, v] of Object.entries(o)) {
+            if (NESTED_SCRIPT_KEYS.has(k)) continue;
+            walk(v);
+        }
+    };
+    for (const [k, v] of Object.entries(entry)) {
+        if (NESTED_SCRIPT_KEYS.has(k)) continue;
+        walk(v);
+    }
+    return found;
+}
+
 /** `{ count: { zone, controller | acrossAllPlayers, filter? } }` — SHAPE of the
  *  count construct (ADR 0045). Exactly one player scope: a `controller` player
  *  ref (shape-checked here; any ref inside it is property-checked by the ordered
@@ -1149,14 +1203,22 @@ function isCountValue(value: unknown): boolean {
     ) {
         return false;
     }
-    // CR 401 / 402 (issues #783, #2006) — a `library` or `hand` count is a pure
-    // cardinality read: the zone is hidden (CR 401.2 / 402.2) so there is
-    // nothing a filter could honestly match, and `countTypes` is a
-    // graveyard-only Delirium reading.
-    if (
-        (s.zone === "library" || s.zone === "hand") &&
-        ("filter" in s || "countTypes" in s)
-    ) {
+    // CR 401 (issue #783) — a `library` count is a pure cardinality read: the
+    // zone is hidden (CR 401.2) and no Op makes it public card-by-card, so
+    // there is nothing a filter could honestly match.
+    if (s.zone === "library" && "filter" in s) return false;
+    // CR 402.3 / 701.20a (issue #2150) — a `hand` count DOES admit a filter.
+    // The hand is hidden (CR 402.3), but a `reveal { player, zone: "hand" }`
+    // earlier in the same script makes it public, and "the number of cards of
+    // that color revealed this way" (Darigaaz, the Igniter) counts exactly that
+    // public set. Ordering is the card author's obligation — the grammar has no
+    // "only after a reveal" predicate, and the alternative (refusing the shape)
+    // is what kept the clause unshippable.
+    //
+    // `countTypes` stays refused on BOTH hidden zones: Delirium (CR 207.2c — an ability word, no CR entry of its own) is a
+    // graveyard reading and no card counts card types in a hand or library, so
+    // it would ship untested.
+    if ((s.zone === "library" || s.zone === "hand") && "countTypes" in s) {
         return false;
     }
     // CR 608.2h (issue #3807) — `picks` narrows the counted set to a
@@ -1198,12 +1260,13 @@ function isCountValue(value: unknown): boolean {
     // `hasAbility` / `isAttacking` (issue #1097) are honest only on the
     // "battlefield" branch — `countZoneForPlayer` (`gre/effects/interpreter.ts`)
     // reads them via the LIVE `toPermanentFilter`/`requireAbility`/`isAttacking`
-    // path there, but falls back to `matchesCardFilter` for the "graveyard"
-    // branch, which has no ability or combat-role data for a hidden-zone card
-    // at all.
+    // path there, but falls back to `matchesCardFilter` for the "graveyard" and
+    // (issue #2150) "hand" branches, which have no ability or combat-role data
+    // for a hidden-zone card at all.
     // `manaCostEquals` (issue #1898 finding 3) is the INVERSE gate: honest
-    // for the "graveyard" branch (`matchesCardFilter` via `getGraveyardCards`)
-    // but not "battlefield" (`toPermanentFilter` has no mapping for it).
+    // for the "graveyard"/"hand" branches (`matchesCardFilter` via
+    // `getGraveyardCards`/`getHandCards`, both of which carry the printed
+    // `cost`) but not "battlefield" (`toPermanentFilter` has no mapping for it).
     if (
         "filter" in s &&
         !isCardFilter(s.filter, {
@@ -1222,6 +1285,22 @@ function isCountValue(value: unknown): boolean {
         })
     ) {
         return false;
+    }
+    // `isToken` (CR 111.1) and `enteredThisTurn` (CR 400.7) are BATTLEFIELD
+    // facts, and `isCardFilter` admits both on every zone because they are
+    // plain booleans with no shape to gate on. `matchesCardFilter` — the
+    // matcher every non-battlefield branch of `countZoneForPlayer` falls back
+    // to — evaluates NEITHER, so on a hidden zone they would validate and then
+    // match EVERY card: `{ zone: "hand", filter: { isToken: true } }` counting
+    // a whole hand instead of 0. That is the fail-OPEN class this construct's
+    // `never` default already guards on the zone axis, and issue #2150 made it
+    // newly reachable by admitting a hand filter, so the count refuses them
+    // off the battlefield rather than answering wrongly. (A card in hand is
+    // never a token — CR 111.7 — and never entered, so the honest answers are
+    // constants nobody needs a filter for.)
+    if (s.zone !== "battlefield" && "filter" in s) {
+        const f = s.filter as Record<string, unknown>;
+        if ("isToken" in f || "enteredThisTurn" in f) return false;
     }
     return true;
 }
@@ -6821,6 +6900,19 @@ function checkOpListRefs(
     // not an instance id, and is family-indistinguishable) can never be a
     // candidate source. Same list scoping as `revealedBindings` above.
     const publicZoneBindings = new Map<string, string>();
+    // CR 402.3 / 701.20a (issue #2150) — whose HAND this list has already
+    // revealed, serialized exactly as `revealedBindings` serializes a reveal's
+    // player ref. A filtered hand `count` reads characteristics of cards in a
+    // zone CR 402.3 forbids the counting player from looking at, so it is
+    // legal only over a hand a PRECEDING `reveal { player, zone: "hand" }` in
+    // this same list made public — Darigaaz, the Igniter's "that player
+    // reveals their hand and Darigaaz deals damage … equal to the number of
+    // cards of that color revealed this way". Same list scoping as the two
+    // maps above and for the same reason: a reveal inside an `if`/`forEach`
+    // body may not have run, so a nested scope starts empty and fails closed.
+    // The UNFILTERED hand count needs nothing — its cardinality is public
+    // information every player may count (CR 402.3).
+    const revealedHands = new Set<string>();
     effects.forEach((raw, i) => {
         if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
             return;
@@ -7234,6 +7326,38 @@ function checkOpListRefs(
             );
         }
 
+        // CR 402.3 / 701.20a (issue #2150) — a FILTERED hand count is legal
+        // only over a hand a PRECEDING `reveal { player, zone: "hand" }` in
+        // this same list made public. Checked BEFORE this entry's own reveal
+        // registration below, so "preceding" is literal: an Op cannot satisfy
+        // the rule with its own reveal. The shape check in `isCountValue`
+        // says the FIELD is legal; this says the READ is honest, which is
+        // the half a shape checker structurally cannot see (it is handed one
+        // value, never the list around it). Every count position is walked,
+        // nested values included (`difference`, `scaled`, `divide`), because
+        // the leak does not care which operand slot it hides in; the nested
+        // Op-list keys are NOT walked here — each is re-entered by its own
+        // `checkOpListRefs` call with a fresh, empty `revealedHands`.
+        for (const spec of filteredHandCounts(entry)) {
+            if (spec.controller === undefined) {
+                // An all-players scope (`acrossAllPlayers` /
+                // `smallestAcrossPlayers`) names no single hand, and `reveal`
+                // takes exactly one `player`, so no script can make the set
+                // this would read public. Refused rather than shipped
+                // unreadable — no printed card asks for it.
+                errors.push(
+                    `${at}: a count { zone: "hand", filter } needs a "controller" — the all-players scopes name no single hand, and only a preceding reveal { player, zone: "hand" } (CR 701.20a) can make one public`
+                );
+                continue;
+            }
+            const owner = JSON.stringify(spec.controller);
+            if (!revealedHands.has(owner)) {
+                errors.push(
+                    `${at}: a count { zone: "hand", filter } reads characteristics of cards in a hidden zone (CR 402.3) — a preceding reveal { player: ${owner}, zone: "hand" } in this same list is what makes them public (CR 701.20a). An UNFILTERED hand count needs no reveal: its size is public.`
+                );
+            }
+        }
+
         // CR 701.20a (issue #3205) — record what THIS list has revealed, and
         // enforce that a `choose-library-card` pick names only revealed sets.
         // Runs AFTER the bind registration above so `declared` already carries
@@ -7259,6 +7383,12 @@ function checkOpListRefs(
                     entry.bind,
                     JSON.stringify(entry.player ?? null)
                 );
+            }
+            // issue #2150 — the whole-HAND reveal makes that player's hand
+            // public (CR 701.20a), which is what a filtered hand `count` in a
+            // LATER Op of this same list is allowed to read.
+            if (entry.zone === "hand") {
+                revealedHands.add(JSON.stringify(entry.player ?? null));
             }
         }
         if (entry.op === "choice" && entry.kind === "choose-library-card") {
