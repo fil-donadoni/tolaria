@@ -12287,8 +12287,8 @@ export interface DiscardReplacementEvent {
  *  - `"effect"` — CR 609.1: an effect of a resolving spell or ability, or of a
  *    static/replacement effect (Mox Diamond's "discard a land card instead"),
  *    made the player discard. `controllerId` is the controller of that spell or
- *    ability (CR 109.5) — the player Dodecapod's "an opponent controls" is
- *    measured against.
+ *    ability (CR 112.2 / 113.8) — the player Dodecapod's "an opponent
+ *    controls" is measured against.
  *  - `"cost"` — CR 118: the player discarded to PAY a cost — an activation
  *    cost (Cycling, Survival of the Fittest), an additional or alternative
  *    cost, or a CR 118.12 "unless"/"may … if you do" cost paid while an
@@ -12691,7 +12691,7 @@ export interface ReplacementApplyContext {
     ) => boolean;
     /** CR 614.1a / 400.7 (issue #3814) — puts a hand card onto the battlefield
      *  under `playerId`'s control through the shared non-cast entry path (ETB
-     *  replacements, CR 611.2 grants, the ETB notification), with `counters`
+     *  replacements, continuous-effect grants, the ETB notification), with `counters`
      *  put on it AS it enters (CR 122.6 — so a counter-placed replacement sees
      *  them). Returns whether it is on the battlefield now (false when it was
      *  no longer in hand, or an entry replacement sent it elsewhere). Used by
