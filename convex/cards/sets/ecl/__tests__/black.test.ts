@@ -127,7 +127,10 @@ describe("Moonshadow (CR 702.111 menace; CR 122.1 counters; CR 603.2 graveyard-f
     it("removes a -1/-1 counter when the controller discards a permanent card from hand", () => {
         const { state, shadow } = setup();
         shadow.counters = { "-1/-1": 6 };
-        discardToGraveyard(state, "p1", "hand-permanent");
+        discardToGraveyard(state, "p1", "hand-permanent", {
+            kind: "effect",
+            controllerId: "p1",
+        });
         processPendingActionTriggers(state);
         resolveTopOfStack(state);
         const live = state.players[0].battlefield.find(
@@ -231,7 +234,10 @@ describe("Iron-Shield Elf (CR 702.12 indestructible grant + CR 701.26 tap, disca
         discardedCardId: string
     ): void {
         expect(
-            discardToGraveyard(state, source.controllerId, discardedCardId)
+            discardToGraveyard(state, source.controllerId, discardedCardId, {
+                kind: "effect",
+                controllerId: source.controllerId,
+            })
         ).toBe(true);
         const stackItem: StackItem = {
             ...structuredClone(source),

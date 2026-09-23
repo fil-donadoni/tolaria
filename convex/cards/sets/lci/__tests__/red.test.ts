@@ -330,8 +330,14 @@ describe("Inti, Seneschal of the Sun — one-or-more discard batching (CR 603.2c
         // Two discards in one action (a Bog Down, or the cleanup-step
         // hand-size discard): both CARD_DISCARDED events land in the same
         // batch BEFORE the trigger scan drains them.
-        discardToGraveyard(state, "p1", "hand-1");
-        discardToGraveyard(state, "p1", "hand-2");
+        discardToGraveyard(state, "p1", "hand-1", {
+            kind: "effect",
+            controllerId: "p1",
+        });
+        discardToGraveyard(state, "p1", "hand-2", {
+            kind: "effect",
+            controllerId: "p1",
+        });
         processPendingActionTriggers(state);
 
         // "One or more cards" collapses the batch into ONE firing (CR 603.2c)

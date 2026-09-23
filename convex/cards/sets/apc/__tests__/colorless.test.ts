@@ -19,11 +19,14 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import {
+    discardToGraveyard,
+    payDiscardAtRandomCost,
     removePermanentTo,
     resolveTopOfStack,
     type CardInstanceState,
     type GameState,
 } from "../../../../gre/state";
+import { advancePhase, finalizeCleanupDiscard } from "../../../../gre/phases";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 import {
@@ -324,5 +327,146 @@ describe("Brass Herald — the chosen creature type parameterises the ETB reveal
         expect(pt("their-elf")).toEqual([1, 1]);
         // Herald is a Golem, not a Goblin — no self-buff.
         expect(pt(herald.id)).toEqual([2, 2]);
+    });
+});
+
+// Dodecapod (issue #3814) — a discard replacement scoped by the discard's
+// ORIGIN (CR 614.1a / 701.9): only an effect of a spell or ability an OPPONENT
+// controls puts it onto the battlefield. The four other origins — your own
+// effect, a cost, the CR 514.1 cleanup discard — reach the graveyard.
+const DODECAPOD = getDefinition("ded8b992-a1c2-4e43-ad0a-ea3995a3c8b8");
+/** Mind Twist — {X}{B}: target player discards X cards at random. */
+const MIND_TWIST = getDefinition("eee9e106-a248-49d2-b8c8-6bbcd56ce739");
+/** Library of Leng — "If an effect causes you to discard a card … you may put
+ *  it on top of your library instead" (LEA). */
+const LIBRARY_OF_LENG_ID = "2340edcb-8cd5-4ccd-99e2-b9a29f72c495";
+/** Mind Rot — {2}{B}: target player discards two cards (THEIR choice). */
+const MIND_ROT = getDefinition("b91d355d-8409-4f0b-87ce-7590a8b9ebc0");
+
+/** p1 holds Dodecapod (`pod`) plus `extra` Grizzly Bears. */
+function podBoard(extra = 0, overrides: Partial<GameState> = {}): GameState {
+    const hand = [
+        makeInstance(DODECAPOD.id, {
+            id: "pod",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        }),
+        ...Array.from({ length: extra }, (_, i) =>
+            makeInstance(MONO_CREATURE.id, {
+                id: `bear${i}`,
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "hand",
+            })
+        ),
+    ];
+    return makeState({
+        players: [makePlayer("p1", { hand }), makePlayer("p2")],
+        ...overrides,
+    });
+}
+
+function mindTwistP1(state: GameState, caster: "p1" | "p2", x: number): void {
+    pushSpell(state, MIND_TWIST.id, caster, [{ type: "player", id: "p1" }]);
+    state.stack[state.stack.length - 1].chosenX = x;
+    resolveTopOfStack(state);
+}
+
+const zoneOfPod = (state: GameState) => {
+    const p1 = state.players[0];
+    if (p1.battlefield.some((c) => c.id === "pod")) return "battlefield";
+    if (p1.graveyard.some((c) => c.id === "pod")) return "graveyard";
+    if (p1.hand.some((c) => c.id === "pod")) return "hand";
+    return "elsewhere";
+};
+
+describe("Dodecapod — CR 614.1a discard replacement scoped by what caused the discard", () => {
+    it("an OPPONENT's spell makes you discard it → onto the battlefield with two +1/+1 counters, and it was still discarded (CR 701.9c)", () => {
+        const state = podBoard();
+        mindTwistP1(state, "p2", 1);
+        expect(zoneOfPod(state)).toBe("battlefield");
+        const pod = state.players[0].battlefield.find((c) => c.id === "pod")!;
+        expect(pod.controllerId).toBe("p1");
+        expect(pod.counters?.["+1/+1"]).toBe(2);
+        // Wire format — the counters and the 5/5 body reach the client.
+        const view = projectPublicState(state, 1, "p2");
+        const seen = view.players[0].battlefield.find((c) => c.id === "pod")!;
+        expect(seen.counters?.["+1/+1"]).toBe(2);
+        expect(getEffectivePower(view, seen)).toBe(5);
+        expect(getEffectiveToughness(view, seen)).toBe(5);
+    });
+
+    it("the replaced discard is still a discard: the chokepoint reports it and CARD_DISCARDED fires (ruling: 'you've still discarded it')", () => {
+        const state = podBoard();
+        expect(
+            discardToGraveyard(state, "p1", "pod", {
+                kind: "effect",
+                controllerId: "p2",
+            })
+        ).toBe(true);
+        expect(zoneOfPod(state)).toBe("battlefield");
+        expect(
+            (state.pendingEvents ?? []).filter(
+                (e) =>
+                    e.type === "CARD_DISCARDED" &&
+                    "cardInstanceId" in e &&
+                    e.cardInstanceId === "pod"
+            )
+        ).toHaveLength(1);
+    });
+
+    it("an opponent's spell that lets YOU choose the discard applies too (ruling: 'causes you to choose a card to discard')", () => {
+        const state = podBoard(2);
+        pushSpell(state, MIND_ROT.id, "p2", [{ type: "player", id: "p1" }]);
+        resolveTopOfStack(state);
+        const head = state.pendingChoices![0];
+        expect(head.playerId).toBe("p1");
+        applyPendingChoiceSubmit(state, {
+            playerId: "p1",
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["pod", "bear0"],
+        });
+        expect(zoneOfPod(state)).toBe("battlefield");
+        expect(state.players[0].graveyard.map((c) => c.id)).toEqual(["bear0"]);
+    });
+
+    it("with Library of Leng also applying, the card's own replacement wins (CR 616.1 — the affected player's pick)", () => {
+        const state = podBoard();
+        state.players[0].battlefield.push(
+            makeInstance(LIBRARY_OF_LENG_ID, {
+                id: "leng",
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        mindTwistP1(state, "p2", 1);
+        expect(zoneOfPod(state)).toBe("battlefield");
+    });
+
+    it("YOUR OWN spell makes you discard it → graveyard", () => {
+        const state = podBoard();
+        mindTwistP1(state, "p1", 1);
+        expect(zoneOfPod(state)).toBe("graveyard");
+    });
+
+    it("discarded to pay a COST (CR 118) → graveyard", () => {
+        const state = podBoard();
+        payDiscardAtRandomCost(state, "p1", 1);
+        expect(zoneOfPod(state)).toBe("graveyard");
+    });
+
+    it("the CLEANUP hand-size discard (CR 514.1, no spell or ability) → graveyard", () => {
+        const state = podBoard(7, {
+            phase: "END_STEP",
+            turn: 1,
+            activePlayerId: "p1",
+        });
+        advancePhase(state);
+        expect(state.pendingChoices![0].count).toBe(1);
+        finalizeCleanupDiscard(state, ["pod"]);
+        expect(zoneOfPod(state)).toBe("graveyard");
     });
 });

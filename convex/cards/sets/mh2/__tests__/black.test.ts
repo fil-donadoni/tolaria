@@ -98,7 +98,10 @@ describe("Dauthi Voidwalker (CR 601.3 / 702.28, issue #1156)", () => {
                     makePlayer("p2", { hand: [oppCard] }),
                 ],
             });
-            const ok = discardToGraveyard(state, "p2", "victim1");
+            const ok = discardToGraveyard(state, "p2", "victim1", {
+                kind: "effect",
+                controllerId: "p2",
+            });
             expect(ok).toBe(true);
             const p2 = getPlayer(state, "p2");
             expect(p2.graveyard.some((c) => c.id === "victim1")).toBe(false);
@@ -129,7 +132,10 @@ describe("Dauthi Voidwalker (CR 601.3 / 702.28, issue #1156)", () => {
                     makePlayer("p2"),
                 ],
             });
-            discardToGraveyard(state, "p1", "own1");
+            discardToGraveyard(state, "p1", "own1", {
+                kind: "effect",
+                controllerId: "p1",
+            });
             const p1 = getPlayer(state, "p1");
             expect(p1.graveyard.some((c) => c.id === "own1")).toBe(true);
             expect(p1.exile.some((c) => c.id === "own1")).toBe(false);

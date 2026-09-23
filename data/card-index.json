@@ -13030,6 +13030,14 @@
         "source": "compiled"
     },
     {
+        "name": "Dodecapod",
+        "scryfallId": "ded8b992-a1c2-4e43-ad0a-ea3995a3c8b8",
+        "oracleId": "2c189e3b-90d3-49b4-bebe-a4f14c8a275b",
+        "firstSet": "apc",
+        "firstPrintId": "ded8b992-a1c2-4e43-ad0a-ea3995a3c8b8",
+        "firstPrintSet": "apc"
+    },
+    {
         "name": "Dominaria's Judgment",
         "scryfallId": "9703d090-b415-48e2-8158-dd8fc57ecc50",
         "oracleId": "41998d4d-ca01-4a9c-8bd6-399e4c3e25b1",

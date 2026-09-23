@@ -17,6 +17,8 @@ import { getDefinition } from "../../../index";
 
 const grimMonolith = getDefinition("9ddc9fe1-17c8-4e1d-aeb8-c4214e881280");
 const memoryJar = getDefinition("a15d33d6-7213-4482-a1be-ac0a73644af6");
+/** Dodecapod (APC) — the opponent-caused discard replacement (issue #3814). */
+const DODECAPOD_ID = "ded8b992-a1c2-4e43-ad0a-ea3995a3c8b8";
 
 /** Drives the incoming player's UNTAP step by advancing from END_STEP:
  *  CLEANUP auto-resolves, turn flips, UNTAP auto-resolves, state settles in
@@ -228,6 +230,23 @@ describe("Memory Jar ({T}, Sacrifice: each player exiles hand face down + draws 
         ]);
         expect(state.players[0].exile).toHaveLength(0);
         expect(state.players[1].exile).toHaveLength(0);
+    });
+
+    it("the end-step discard is a DISCARD caused by the Jar's controller (CR 701.9a, issue #3814): the opponent's Dodecapod enters instead", () => {
+        const { state, jar } = setup();
+        activate(state, jar);
+        // p2 drew seven; one of them is Dodecapod.
+        const drawn = state.players[1].hand[0];
+        drawn.card = { ...drawn.card, id: DODECAPOD_ID };
+        fireDelayedTriggers(state, "next-end-step");
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield.map((c) => c.id)).toEqual([
+            drawn.id,
+        ]);
+        expect(state.players[1].battlefield[0].counters?.["+1/+1"]).toBe(2);
+        expect(state.players[1].graveyard).toHaveLength(6);
+        // p1's own discards are caused by p1 — nothing to replace.
+        expect(state.players[0].graveyard).toHaveLength(7);
     });
 
     // Review round 2, issue #1721 — the generic public→hidden knowledge gate

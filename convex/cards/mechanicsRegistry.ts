@@ -200,6 +200,7 @@ const KEYWORD_ACTIONS: MechanicRow[] = [
         cr: "701.9",
         status: "implemented",
         binding: "SpellContext.discardCard / discardAtRandom",
+        note: "Every discard runs through `discardToGraveyard` (gre/state.ts), which carries its cause on the CR 614 discard replacement event as `DiscardOrigin` (issue #3814): an effect and its controller, a cost payment, or the CR 514.1 turn-based action. Replacements scope on it — Library of Leng (an effect), Dodecapod (an opponent-controlled spell or ability, found in hand via `appliesFromAnyZone`). A replaced discard is still a discard (CR 701.9c): CARD_DISCARDED fires either way.",
     },
     // 701.10 Double
     {

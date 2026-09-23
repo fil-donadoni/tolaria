@@ -938,6 +938,10 @@ export const libraryOfLeng: CardDefinition = {
             appliesTo: (event, self, state) => {
                 if (event.kind !== "discard") return false;
                 if (event.playerId !== self.controllerId) return false;
+                // "If an EFFECT causes you to discard" (CR 609.1, issue
+                // #3814) — a cost payment (CR 118: cycling, Survival of the
+                // Fittest) and the CR 514.1 cleanup discard are not effects.
+                if (event.origin.kind !== "effect") return false;
                 const player = state.players.find(
                     (p) => p.id === event.playerId
                 );

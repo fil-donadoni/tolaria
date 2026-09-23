@@ -6034,6 +6034,7 @@ export function finalizeTargetSelection(
                 state,
                 player.id,
                 card.id,
+                { kind: "cost" },
                 ability.cost.cyclingCost ? "cycling" : undefined
             );
         }

@@ -60,11 +60,12 @@ import {
     getPlayer,
     moveCard,
     putHandCardOnTopOfLibrary,
+    putHandCardOntoBattlefield,
 } from "./state";
 
 /** Finds a card instance ANYWHERE in the game — every zone of every player,
  *  plus the stack — by its instance id. Used only by the self-referential
- *  graveyard-bound lookup below: unlike the battlefield scan `collectReplacements`
+ *  graveyard-bound / discard lookup below: unlike the battlefield scan `collectReplacements`
  *  otherwise runs, this looks up exactly ONE known instance (never a wide
  *  scan), so it cannot leak a replacement onto a different copy of the same
  *  card. */
@@ -86,6 +87,15 @@ function findCardInstanceAnywhere(
     }
     return state.stack.find((s) => s.id === instanceId);
 }
+
+/** The event kinds whose `collectReplacements` also runs the self-only lookup
+ *  honouring `ReplacementEffect.appliesFromAnyZone` — the kinds whose event
+ *  names ONE specific card that may be off the battlefield. `"graveyard-bound"`
+ *  (issue #2106 — Blightsteel Colossus, anywhere) and `"discard"` (issue #3814
+ *  — Dodecapod, in hand). The single authority both the lookup and the
+ *  catalogue guard (`appliesFromAnyZone.catalogue.test.ts`) read. */
+export const SELF_LOOKUP_EVENT_KINDS: ReadonlySet<ReplacementEventKind> =
+    new Set(["graveyard-bound", "discard"]);
 
 function collectReplacements(
     state: GameState,
@@ -130,10 +140,16 @@ function collectReplacements(
     // of the same card elsewhere is never touched. Skipped when the card is
     // ALREADY on a battlefield — the loop above already found it there,
     // and re-adding it here would be a harmless but pointless duplicate.
+    //
+    // The same self-only lookup serves `"discard"` (issue #3814): a discarded
+    // card is by definition in its owner's HAND (CR 701.9a), so "If a spell or
+    // ability an opponent controls causes you to discard this card … instead"
+    // (Dodecapod) can only ever be found here, never by the battlefield scan.
     if (
-        kind === "graveyard-bound" &&
         event &&
-        event.kind === "graveyard-bound" &&
+        (event.kind === "graveyard-bound" || event.kind === "discard") &&
+        event.kind === kind &&
+        SELF_LOOKUP_EVENT_KINDS.has(kind) &&
         !battlefieldSourceIds.has(event.cardInstanceId)
     ) {
         const self = findCardInstanceAnywhere(state, event.cardInstanceId);
@@ -141,11 +157,18 @@ function collectReplacements(
             const cardId = (self.card as { id?: string }).id;
             const def = cardId ? tryGetDefinition(cardId) : undefined;
             const effects = def?.replacementEffects ?? [];
-            for (const r of effects) {
-                if (r.eventKind === kind && r.appliesFromAnyZone) {
-                    out.push({ source: self, effect: r });
-                }
-            }
+            const selfEntries = effects
+                .filter((r) => r.eventKind === kind && r.appliesFromAnyZone)
+                .map((r) => ({ source: self, effect: r }));
+            // CR 616.1 — the affected player chooses which replacement to
+            // apply; that choice is not modelled (deterministic order, see the
+            // header). For a discard, the discarded card's OWN replacement
+            // (Dodecapod: onto the battlefield) goes ahead of a battlefield
+            // source (Library of Leng: library top) — the default a player
+            // would pick, and otherwise the card's clause could never win
+            // (issue #3814). A graveyard-bound self effect keeps last place.
+            if (kind === "discard") out.unshift(...selfEntries);
+            else out.push(...selfEntries);
         }
     }
 
@@ -315,6 +338,13 @@ function buildApplyCtx(
                 state,
                 getPlayer(state, playerId),
                 cardInstanceId
+            ),
+        putHandCardOntoBattlefield: (playerId, cardInstanceId, counters) =>
+            putHandCardOntoBattlefield(
+                state,
+                playerId,
+                cardInstanceId,
+                counters
             ),
         revealHandCard: () => {
             // CR 701.20 reveal: publicly note the card's identity. Currently a

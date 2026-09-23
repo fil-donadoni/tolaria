@@ -77,7 +77,12 @@ describe("Blightsteel Colossus (CR 702.19 trample, 702.90 infect, 702.12b indest
             players: [makePlayer("p1", { hand: [colossus] }), makePlayer("p2")],
         });
 
-        expect(discardToGraveyard(state, "p1", "colossus")).toBe(true);
+        expect(
+            discardToGraveyard(state, "p1", "colossus", {
+                kind: "effect",
+                controllerId: "p1",
+            })
+        ).toBe(true);
 
         const p1 = state.players[0];
         expect(p1.hand.some((c) => c.id === "colossus")).toBe(false);

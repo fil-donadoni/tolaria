@@ -126,7 +126,12 @@ describe("Worldspine Wurm (CR 702.19 trample, CR 603.2 dies-trigger, CR 400.7/70
             ],
         });
 
-        expect(discardToGraveyard(state, "p1", "wurm")).toBe(true);
+        expect(
+            discardToGraveyard(state, "p1", "wurm", {
+                kind: "effect",
+                controllerId: "p1",
+            })
+        ).toBe(true);
         processPendingActionTriggers(state);
         drainStack(state);
 

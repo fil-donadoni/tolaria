@@ -335,7 +335,8 @@ export function applyAdditionalCostLegForSearch(
         eligible.map((c) => c.id)
     );
     if (!picks) return;
-    for (const c of picks) discardToGraveyard(state, playerId, c.id);
+    for (const c of picks)
+        discardToGraveyard(state, playerId, c.id, { kind: "cost" });
 }
 
 /** CR 702.33a / 601.2f (issue #2081) — pay a `cast-spell` move's paid Kickers'
@@ -593,7 +594,8 @@ export function applyRetraceCastForSearch(
             handLeg,
             eligible.map((c) => c.id)
         );
-        for (const c of picks ?? []) discardToGraveyard(state, playerId, c.id);
+        for (const c of picks ?? [])
+            discardToGraveyard(state, playerId, c.id, { kind: "cost" });
     }
     return "graveyard";
 }
@@ -733,6 +735,7 @@ export function applyActivationCostsForSearch(
                 state,
                 handOwner.id,
                 move.cardInstanceId,
+                { kind: "cost" },
                 handAbility.cost.cyclingCost ? "cycling" : undefined
             );
         }
@@ -995,7 +998,7 @@ export function applyActivationCostsForSearch(
     }
     // CR 118.3 — the discard leg (Survival of the Fittest, Iron-Shield Elf).
     for (const id of picks.discardIds ?? []) {
-        discardToGraveyard(state, owner.id, id);
+        discardToGraveyard(state, owner.id, id, { kind: "cost" });
     }
     return true;
 }
