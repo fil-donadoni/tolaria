@@ -5566,19 +5566,27 @@ describe('validateEffectScript — count zone:"hand" + difference (issue #2006)'
         ).toEqual([]);
     });
 
-    it("a reveal inside a branch body does not license a filtered count OUTSIDE it (fails closed)", () => {
-        // The `if` branch may not run, so nothing it reveals can be relied on
-        // — the same list scoping `revealedBindings` uses for the
+    it("a reveal in a nested body does not license a filtered count OUTSIDE it, or vice versa (fails closed)", () => {
+        // A `forEach` body, not an `if` — an `if` needs a predicate, and a
+        // predicate naming an undeclared binding produces an error of its
+        // OWN, which would make this whole assertion pass for the wrong
+        // reason. Both halves below are scripts whose ONLY defect is the one
+        // under test.
+        const nest = (effects: EffectOp[]) =>
+            ({
+                op: "forEach",
+                select: { set: "players" },
+                effects,
+            }) as unknown as EffectOp;
+
+        // The body may not run, so nothing it reveals can be relied on — the
+        // same list scoping `revealedBindings` uses for the
         // `choose-library-card` invariant.
         expect(
             validateEffectScript(
                 host({
                     effects: [
-                        {
-                            op: "if",
-                            predicate: { binding: "$nope" },
-                            then: [revealOpponentHand],
-                        } as unknown as EffectOp,
+                        nest([revealOpponentHand]),
                         ...loseLife(handCount({ filter: { color: "B" } })),
                     ],
                 })
@@ -5591,17 +5599,26 @@ describe('validateEffectScript — count zone:"hand" + difference (issue #2006)'
                 host({
                     effects: [
                         revealOpponentHand,
-                        {
-                            op: "if",
-                            predicate: { binding: "$nope" },
-                            then: loseLife(
-                                handCount({ filter: { color: "B" } })
-                            ),
-                        } as unknown as EffectOp,
+                        nest(loseLife(handCount({ filter: { color: "B" } }))),
                     ],
                 })
             ).length
         ).toBeGreaterThan(0);
+        // Control: the SAME nesting with the reveal inside the same body as
+        // the count is legal, which is what proves the two rejections above
+        // are about scope and not about `forEach`.
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        nest([
+                            revealOpponentHand,
+                            ...loseLife(handCount({ filter: { color: "B" } })),
+                        ]),
+                    ],
+                })
+            )
+        ).toEqual([]);
     });
 
     it("refuses the two BATTLEFIELD-only filter booleans off the battlefield (CR 111.7 / 400.7)", () => {
