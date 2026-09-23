@@ -178,7 +178,7 @@ describe("production — coloured mana becomes white for the controller only (CR
         );
     });
 
-    it("a ritual's SpellContext.addMana is replaced too: Dark Ritual adds {W}{W}{W}", () => {
+    it("a ritual's addMana Op (SpellContext.addManaTo) is replaced too: Dark Ritual adds {W}{W}{W}", () => {
         const state = afterFalseDawn();
         pushSpell(state, darkRitual.id, "p1");
         resolveTopOfStack(state);
