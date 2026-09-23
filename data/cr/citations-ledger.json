@@ -42701,6 +42701,7 @@
         {"id":"705.2","line":"// nothing and draws nothing. CR 705.2 — the caster calls each flip and wins it","sites":1,"status":"confirmed","ruleHash":"592cc8edc3121e15"},
         {"id":"705.2","line":"// random-reveal acknowledgement (CR 705.2, ADR 0023)","sites":1,"status":"baseline"},
         {"id":"705.2","line":"// sacrifice cost; CR 705.2 coin flip via the suspending `requestCoinFlip`;","sites":1,"status":"baseline"},
+        {"id":"705.2","line":"// series, and the stop is a JOINT result with no call (CR 705.2: nobody","sites":1,"status":"confirmed","ruleHash":"592cc8edc3121e15"},
         {"id":"705.2","line":"// the controller (CR 705.2 / ADR 0023, the suspending reveal flip).","sites":1,"status":"baseline"},
         {"id":"705.2","line":"A **Random Reveal** with two faces (CR 705.2), defaulting to WIN / LOSE relative to the flipping **Player**. The drawn bit is generated once and read back on replay — never re-rolled. Used by Bottle of Suleiman, Mijae Djinn, Ydwen Efreet.","sites":1,"status":"baseline"},
         {"id":"705.2","line":"Three ARN cards flip a coin (CR 705.2): **Bottle of Suleiman** (activated","sites":1,"status":"baseline"},

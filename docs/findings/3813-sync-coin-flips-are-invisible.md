@@ -1,7 +1,8 @@
 ---
 title: Synchronous coin flips show neither player the results
 discoveredBy: 3813
-status: draft
+status: triaged
+issue: 4433
 confidence: high
 ---
 
