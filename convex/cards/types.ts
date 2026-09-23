@@ -17466,6 +17466,16 @@ export type EffectOp =
      *  cards of that type" and "all creatures of that type that player
      *  controls").
      *
+     *  CR 205.3e is what the shape has to honour — "that player must choose
+     *  one, and only one, EXISTING subtype, and the subtype must be for the
+     *  appropriate card type" — and it is honoured structurally rather than by
+     *  a post-hoc check: the options ARE CR 205.3m's table (gate-verified
+     *  against the vendored document by `scripts/__tests__/oracle-subtypes.test.ts`),
+     *  `count: 1` on the Pending Choice is the "one, and only one", and
+     *  `applyPendingChoiceSubmit` validates the submitted id against the
+     *  entry's own `options`, so a client cannot submit a string that is not
+     *  a creature type.
+     *
      *  Named for the MECHANIC and for the CR wording, not for a generic
      *  `chooseSubtype { family }` (issue #1917): card #1 names it, and the
      *  generic SHAPE waits for card #2 to show the axis of variation — a land

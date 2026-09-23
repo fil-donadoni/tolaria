@@ -415,17 +415,6 @@ function resolveFixedPlayerRef(
     return undefined;
 }
 
-/** Minimal card-filter match for a live board/graveyard count (issue #1433
- *  review finding 2) — type / excludeType / subtype ANDed, mirroring
- *  `EffectCardFilter`'s AND-of-fields / OR-within-field semantics
- *  (`interpreter.ts`'s `matchesCardFilter`). Deliberately narrower than the
- *  interpreter's full matcher: `name` (needs a `nameCard` binding),
- *  `manaValueAtMost`/`manaValueEquals` with a DYNAMIC `{ X: true }` (needs a
- *  chosen X), and `hasCounter` on a hand/library-adjacent shape are not
- *  resolvable pre-cast either way — this is a best-effort ORDERING read for
- *  the choice-node prior, never a legality check, so failing a dimension it
- *  can't evaluate closed (no match) is an acceptable, documented narrowing
- *  rather than a silent wrong answer. */
 /** Does this filter carry the DYNAMIC `{ ref }` subtype (issue #3721)? Such a
  *  filter is unreadable before the card resolves, and both board readers below
  *  take their representative-magnitude exit on it rather than pricing it at
@@ -440,6 +429,17 @@ function hasDynamicSubtype(filter: EffectCardFilter | undefined): boolean {
     return (filter.any ?? []).some(hasDynamicSubtype);
 }
 
+/** Minimal card-filter match for a live board/graveyard count (issue #1433
+ *  review finding 2) — type / excludeType / subtype ANDed, mirroring
+ *  `EffectCardFilter`'s AND-of-fields / OR-within-field semantics
+ *  (`interpreter.ts`'s `matchesCardFilter`). Deliberately narrower than the
+ *  interpreter's full matcher: `name` (needs a `nameCard` binding),
+ *  `manaValueAtMost`/`manaValueEquals` with a DYNAMIC `{ X: true }` (needs a
+ *  chosen X), and `hasCounter` on a hand/library-adjacent shape are not
+ *  resolvable pre-cast either way — this is a best-effort ORDERING read for
+ *  the choice-node prior, never a legality check, so failing a dimension it
+ *  can't evaluate closed (no match) is an acceptable, documented narrowing
+ *  rather than a silent wrong answer. */
 function matchesCountFilter(
     card: { types: readonly string[]; subtypes: readonly string[] },
     filter: EffectCardFilter | undefined

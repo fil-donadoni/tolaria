@@ -2143,7 +2143,7 @@ describe("Op: chooseCreatureType + the subtype ref it binds (CR 205.3m, issue #3
             },
             effects: [{ op: "destroy", target: { ref: "$each" } }],
         },
-    ] as unknown as EffectOp[];
+    ];
 
     function setup(effects: EffectOp[] = SWEEP) {
         const id = registerScript(
@@ -2211,8 +2211,10 @@ describe("Op: chooseCreatureType + the subtype ref it binds (CR 205.3m, issue #3
     });
 
     it("the ref FAILS CLOSED when the binding was never captured", () => {
-        // The choosing Op is inside an `if` branch that does not run, so
-        // `$type` is never written. The sweep must then match NOTHING — the
+        // The sweep reads `$unbound`, a binding no Op in this script writes —
+        // the runtime shape of a choosing Op that was skipped (CR 101.3),
+        // since the validator refuses an undeclared ref outright. The sweep
+        // must then match NOTHING — the
         // fail-open reading (an absent subtype constraint) destroys every
         // creature the target controls, which is the whole reason this field's
         // ref form resolves to the empty list rather than to `undefined`.
@@ -2233,7 +2235,7 @@ describe("Op: chooseCreatureType + the subtype ref it binds (CR 205.3m, issue #3
                 },
                 effects: [{ op: "destroy", target: { ref: "$each" } }],
             },
-        ] as unknown as EffectOp[]);
+        ]);
         answer(state, "Goblin");
         expect(state.players[1].battlefield).toHaveLength(2);
     });
@@ -2266,7 +2268,7 @@ describe("Op: chooseCreatureType + the subtype ref it binds (CR 205.3m, issue #3
                     },
                 },
             },
-        ] as unknown as EffectOp[]);
+        ]);
         const state = makeState({
             players: [
                 makePlayer("p1"),

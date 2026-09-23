@@ -778,6 +778,15 @@ function finish(
     if (state.player !== undefined) out.player = state.player;
     if (state.anyTarget === true) out.anyTarget = true;
     if (state.types !== undefined) out.types = state.types;
+    // issue #3721 — the exclusion `setChosenType` checks is ONE-directional by
+    // construction: qualifiers are peeled from the tail BEFORE the nouns are
+    // read, so `state.subtypes` is still empty when it runs and "Goblin
+    // creature you control of that type" slipped through carrying both. The
+    // two say different things about the same axis and the lowering would
+    // silently keep one, so the exclusion is asserted HERE, where both halves
+    // are finally known.
+    if (state.subtypes.length > 0 && state.chosenType === true)
+        return fail("a chosen type beside a printed one", span);
     if (state.subtypes.length > 0) out.subtypes = state.subtypes;
     if (state.chosenType === true) out.chosenType = true;
     if (state.supertypes.length > 0) out.supertypes = state.supertypes;
@@ -862,6 +871,22 @@ export function targetRequirementFromDescriptor(
         return fail(
             "a target descriptor's number must match its count",
             "plural"
+        );
+    // CR 205.3m (issue #3721) — a `chosenType` descriptor ("of the chosen
+    // type") has no `TargetRequirement` spelling: that type carries only
+    // LITERAL subtypes, so copying the known fields and returning would drop
+    // the constraint and announce "target creature you control" where the card
+    // prints "target creature you control OF THE CHOSEN TYPE" — a target the
+    // spell may not legally pick. Refused, which is the fail-CLOSED answer the
+    // sibling converters get from their residue guards and this one has none
+    // of. Reachable today: Kindred Boon's "{1}{W}: Put a divinity counter on
+    // target creature you control of the chosen type" and Dawn-Blessed
+    // Pennant's graveyard return both reach here, and neither ships only
+    // because another clause still gaps them.
+    if (descriptor.chosenType === true)
+        return fail(
+            "a chosen creature type is not expressible as a target requirement (CR 205.3m)",
+            "chosenType"
         );
     if (descriptor.anyTarget === true) return ok({ type: "any", count });
     if (descriptor.player !== undefined) {

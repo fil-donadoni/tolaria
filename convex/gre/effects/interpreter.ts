@@ -1213,6 +1213,16 @@ function asFilterArray<T>(value: T | T[] | undefined): T[] | undefined {
  *  unresolvable dynamic ceiling uses; the fail-OPEN alternative (returning
  *  `undefined`, i.e. no constraint) would make Mind Extraction discard the
  *  target player's ENTIRE hand when it should discard nothing. */
+function resolveFilterColors(
+    ctx: SpellContext,
+    value: EffectCardFilter["color"]
+): Color[] | undefined {
+    if (value === undefined) return undefined;
+    if (typeof value === "string") return [value];
+    if (Array.isArray(value)) return value;
+    return ctx.getAdditionalSacrificeColors() ?? [];
+}
+
 /** Resolves an `EffectCardFilter.subtype` to the literal list the matchers
  *  compare against (issue #3721). A literal string or array passes through; a
  *  bare `{ ref: "$binding" }` names a `chooseCreatureType` Op's chosen-type
@@ -1234,16 +1244,6 @@ function resolveFilterSubtypes(
     if (Array.isArray(value)) return value;
     const stored = readBinding(ctx, value.ref);
     return stored === undefined || stored.length === 0 ? [] : [stored[0]];
-}
-
-function resolveFilterColors(
-    ctx: SpellContext,
-    value: EffectCardFilter["color"]
-): Color[] | undefined {
-    if (value === undefined) return undefined;
-    if (typeof value === "string") return [value];
-    if (Array.isArray(value)) return value;
-    return ctx.getAdditionalSacrificeColors() ?? [];
 }
 
 /** Matches a hidden-zone card's registry-read characteristics (library /

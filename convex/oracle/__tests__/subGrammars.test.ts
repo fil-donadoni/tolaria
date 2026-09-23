@@ -22,6 +22,7 @@ import {
     descriptorRuleWith,
     permanentFilterFromDescriptor,
     targetFilterRule,
+    targetRequirementFromDescriptor,
 } from "../grammar/shared/targetFilter";
 import { zoneRefRule } from "../grammar/shared/zoneRef";
 import { parseContext } from "./fixtures";
@@ -536,5 +537,59 @@ describe("activation cost sub-grammar (CR 602.1a, CR 118.1)", () => {
         expect(isSelfPhrase("{self}")).toBe(true);
         expect(isSelfPhrase("that creature")).toBe(false);
         expect(isSelfPhrase("enchanted creature")).toBe(false);
+    });
+});
+
+// CR 205.3m (issue #3721) — "of that type" / "of the chosen type": the subtype
+// a `Choose a creature type.` sentence earlier in the same line picked. The
+// tests below are about the two ways this marker could be LOST, both of which
+// are silent: dropped at a converter with no residue guard, and overwritten by
+// a printed subtype the peel order let in beside it.
+describe("chosen-type descriptor (CR 205.3m, issue #3721)", () => {
+    it("reads the marker, in both printed spellings, without a subtype", () => {
+        for (const span of [
+            "permanent you control of that type",
+            "creature you control of the chosen type",
+        ]) {
+            const d = accept<Record<string, unknown>>(descriptorRule, span);
+            expect(d.chosenType).toBe(true);
+            expect(d.subtypes).toBeUndefined();
+            expect(d.controller).toBe("you");
+        }
+    });
+
+    it("REFUSES a chosen type beside a printed one, in either word order", () => {
+        // The qualifier is peeled from the TAIL before the nouns are read, so
+        // the guard inside the qualifier cannot see a subtype that has not been
+        // parsed yet — which is how this span used to come back carrying BOTH,
+        // with the lowering keeping only one. Refused where both halves are
+        // finally known.
+        expect(
+            refuses(descriptorRule, "Goblin creature you control of that type")
+        ).toBe(true);
+        expect(
+            refuses(descriptorRule, "Goblin you control of the chosen type")
+        ).toBe(true);
+    });
+
+    it("REFUSES to become a TargetRequirement — that type has no ref-form subtype", () => {
+        // The fail-open this closes: the converter copied the fields it knows
+        // and returned, so "target creature you control of the chosen type"
+        // announced "target creature you control" and the spell could pick a
+        // creature of the wrong type. Reachable in the corpus (Kindred Boon,
+        // Dawn-Blessed Pennant), so refusing is the only honest answer until
+        // `TargetRequirement` carries the ref form itself.
+        const d = accept<Parameters<typeof targetRequirementFromDescriptor>[0]>(
+            descriptorRule,
+            "creature you control of the chosen type"
+        );
+        expect(d.chosenType).toBe(true);
+        expect(targetRequirementFromDescriptor(d).ok).toBe(false);
+        // The same descriptor WITHOUT the marker still converts, so the
+        // refusal is about the marker and not about the noun.
+        const plain = accept<
+            Parameters<typeof targetRequirementFromDescriptor>[0]
+        >(descriptorRule, "creature you control");
+        expect(targetRequirementFromDescriptor(plain).ok).toBe(true);
     });
 });
