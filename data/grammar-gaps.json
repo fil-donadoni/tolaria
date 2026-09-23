@@ -711,6 +711,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Brass Herald",
+            "issue": 4446
+        },
+        {
+            "kind": "hand-tail",
             "key": "Captain's Maneuver",
             "issue": 4325
         },
