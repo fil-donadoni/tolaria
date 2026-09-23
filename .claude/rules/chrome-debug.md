@@ -17,7 +17,10 @@ say so in one line and move on.
 walks the runbook surfaces at all five viewports (ADR 0101), probes and runs
 axe; nine Floors at zero (ADR 0132). **Its output IS the receipt —
 paste it byte-exact** (#2760); `bun run land` re-derives its verdict block and
-refuses a mismatch or a non-`PASS` line. A no-flag run walks the diff's surfaces and
+refuses a mismatch or a non-`PASS` line. **The block no longer fits a PR body**
+(GitHub caps it at 65,536 characters and the block grows with the surface
+table): paste the three lines under `receipt digest` instead — banner,
+`verdict-sha256:`, coverage — which `land` accepts on the same terms (#4419). A no-flag run walks the diff's surfaces and
 prints `SCOPED` (ADR 0131), re-derived by `land`; `RECEIPT` covers any diff;
 never `DIAGNOSTIC`; never reflow a row.
 
