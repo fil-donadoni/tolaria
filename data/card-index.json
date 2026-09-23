@@ -52714,6 +52714,14 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Tsabo's Decree",
+        "scryfallId": "0c1a0ebd-1add-49e6-b5e6-5b26abb1de88",
+        "oracleId": "4e0de4d9-7a30-4a2b-94ba-8239baad2a0a",
+        "firstSet": "inv",
+        "firstPrintId": "0c1a0ebd-1add-49e6-b5e6-5b26abb1de88",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Tsabo's Web",
         "scryfallId": "0dee69f8-cceb-41b9-a0ee-6b2ac9f4bad9",
         "oracleId": "96a4e515-2b4e-4c2d-aa1a-963597484723",
