@@ -56,7 +56,18 @@ export type { GameSnapshot };
 // neither forge a state nor harvest someone else's.
 
 const REPO = "fil-donadoni/tolaria";
-const TRIAGE_LABEL = "needs-triage";
+/**
+ * `user-report` — provenance, a fact that never changes; `needs-triage` —
+ * state, the owner has not read it yet (`queue:plan` never picks it while it
+ * stands). Both stamped on every filed issue: without `user-report`, ADR
+ * 0143's `labels` default never sees a player's report as anything stronger
+ * than `bug`/`enhancement`, so it lands in the residue instead of the
+ * critical (`P1`) track (issue #4409). GitHub's create-issue endpoint
+ * auto-creates a label from this list if the repo doesn't have it yet, so
+ * there is no separate label-creation call and no failure mode a missing
+ * label could open.
+ */
+export const REPORT_LABELS = ["user-report", "needs-triage"] as const;
 const DESCRIPTION_MAX = 8000;
 
 export type IssueInput = {
@@ -160,6 +171,20 @@ export function buildIssuePayload(input: IssueInput): {
     bodyLines.push("", "_Filed from the in-app bug-report button._");
 
     return { title, body: bodyLines.join("\n") };
+}
+
+/**
+ * The full request body `submitBugReport` POSTs to GitHub's create-an-issue
+ * endpoint — `buildIssuePayload`'s title/body plus `REPORT_LABELS`. A pure
+ * wrapper only so the payload the mutation actually sends is testable
+ * without a network call (issue #4409).
+ */
+export function buildIssueRequest(input: IssueInput): {
+    title: string;
+    body: string;
+    labels: readonly string[];
+} {
+    return { ...buildIssuePayload(input), labels: REPORT_LABELS };
 }
 
 /**
@@ -596,7 +621,7 @@ export const submitBugReport = action({
             }
         );
 
-        const { title, body } = buildIssuePayload({
+        const issueRequest = buildIssueRequest({
             name: args.name,
             description: args.description,
             route: diagnostics.route,
@@ -615,7 +640,7 @@ export const submitBugReport = action({
                 "User-Agent": "tolaria-bug-report",
                 "X-GitHub-Api-Version": "2022-11-28",
             },
-            body: JSON.stringify({ title, body, labels: [TRIAGE_LABEL] }),
+            body: JSON.stringify(issueRequest),
         });
 
         if (!res.ok) {
