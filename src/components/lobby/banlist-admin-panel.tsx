@@ -2,6 +2,7 @@ import { useCurrentUser } from "~/hooks/useCurrentUser";
 import { canEditPresets } from "~/lib/adminGating";
 import { type BanlistFormatId } from "@convex/formats";
 import { Panel, PanelHeader, PanelBody } from "~/components/ui/panel";
+import SurfaceReadyMarker from "~/components/ui/surface-ready-marker";
 import BanlistFormatSyncRow from "./banlist-format-sync-row";
 
 // The two Formats a DB-backed official banlist exists for (PRD #1138), keyed by
@@ -27,6 +28,9 @@ export default function BanlistAdminPanel() {
 
     return (
         <Panel>
+            {/* `canEditPresets` is false while `useCurrentUser` is still loading,
+                so this branch IS the loaded one (`settle.ts`). */}
+            <SurfaceReadyMarker />
             <PanelHeader
                 title="Banlist Sync"
                 subtitle="Admin only — pull official banned/restricted lists from Scryfall"

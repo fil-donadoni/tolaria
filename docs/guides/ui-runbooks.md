@@ -348,9 +348,9 @@ frame. It stays a STATIC sibling of `/limited/$eventId` for route precedence
 worth walking to prove the redirect actually fires, just not as a distinct
 visual surface.
 
-There is no `/settings` route, and the admin surfaces live under `/admin/*`
-behind `AdminRouteGate` (a non-admin gets the 404 page, indistinguishable from
-an unknown path).
+`/settings` and the admin surfaces have their own section below — the admin
+ones live under `/admin/*` behind `AdminRouteGate` (a non-admin gets the 404
+page, indistinguishable from an unknown path).
 
 ## Design system census and the GameDialog demo (2026-08-19)
 
@@ -372,6 +372,44 @@ To reach a real dialog without touching a live game: open
 the ActionSheet). Every in-game dialog is a `GameDialog`, so this is the Panel
 frame under measurement. With the dialog open, 10-12 controls behind the scrim
 measure as occluded — that is what a modal is, not a defect.
+
+## The rest of /admin, and /settings (2026-09-23)
+
+The eight screens the coverage census (issue #3420) recorded as measured at no
+viewport, walked since issue #4418. Each is one navigation with no click
+sequence in front of it — they are pages reached by URL:
+
+| Route                 | Screen                                                                                                                |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `/admin`              | Admin index — one card per admin page, off `ADMIN_NAV` (`src/lib/adminNav.ts`), the same list the header menu renders |
+| `/admin/scenarios`    | Scenario library (ADR 0044) — the saved-setup list, its filter, `New scenario`, `Clean up ephemeral`                  |
+| `/admin/banlists`     | Banlist sync — one row per banlist Format, each with `View cards` and `Sync from Scryfall`                            |
+| `/admin/pick-ratings` | Pick Ratings editor — the Rating Scope radiogroup over a searchable card list                                         |
+| `/admin/testers`      | Tester roles — every account, and the control that grants or revokes the role                                         |
+| `/admin/bug-reports`  | Bug report evidence — the report list beside the selected report's detail, read-only                                  |
+| `/admin/draft-lab`    | Draft Lab — Synthetic/Replay tabs, pack source, seed, `Start draft`                                                   |
+| `/settings`           | Settings — Density, Motion, Phase stops, Card preview default                                                         |
+
+**Assert the PAGE's `h1`, never `main`.** Every `/admin/*` page renders inside
+`AdminLayoutRoute`, whose gate answers a non-admin with the 404 screen — and
+the 404 screen renders its own `main`, so a `main`-only check measures the
+not-found page and reports green. That failure was measured while writing the
+`design-system` walk and is the same shape here.
+
+**`/settings` is NOT under the admin gate** — it is a general-user route
+(`src/router.tsx`), so it is the one screen in this group a non-admin reaches.
+
+**None of these walks writes anything.** `Sync from Scryfall`, `Grant tester`,
+`Clean up ephemeral` and `Start draft` are all left unpressed: the lane is
+non-destructive by construction (`scripts/ui-gate/surfaces.ts`), and a draft
+started in the browser would put a moving screen under the probe.
+
+**Two promises are addressed by seam rather than by name**, because the
+obvious locator would have been a promise about the deployment instead of
+about the screen: `[data-admin-nav="<route>"]` for an index card (whose
+accessible name is its title AND its description) and `[data-tester-row]` for
+an account row (whose button reads `Grant tester` or `Revoke tester` depending
+on the flag the lane's own account carries).
 
 ## The seeded Limited fixture the lane walks (2026-08-26)
 

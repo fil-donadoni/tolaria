@@ -42,7 +42,10 @@ export default function TesterRoleRow({ row }: { row: UserRoleRow }) {
     }
 
     return (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-sm border border-border-subtle/40 p-3">
+        <div
+            data-tester-row=""
+            className="flex flex-wrap items-center justify-between gap-3 rounded-sm border border-border-subtle/40 p-3"
+        >
             <div className="flex min-w-0 flex-col gap-0.5">
                 <p className="truncate text-sm font-semibold text-text">
                     {row.nickname}

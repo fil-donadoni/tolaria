@@ -1,6 +1,7 @@
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Panel, PanelHeader, PanelBody } from "@/components/ui/panel";
+import SurfaceReadyMarker from "@/components/ui/surface-ready-marker";
 import TesterRoleRow from "./tester-role-row";
 
 /**
@@ -23,6 +24,7 @@ export default function TestersAdminPanel() {
 
     return (
         <Panel>
+            {rows !== undefined && <SurfaceReadyMarker />}
             <PanelHeader
                 title="Accounts"
                 subtitle={

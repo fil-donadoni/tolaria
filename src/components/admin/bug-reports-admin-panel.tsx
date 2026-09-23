@@ -13,6 +13,7 @@ import { api } from "@convex/_generated/api";
 import type { FunctionReturnType } from "convex/server";
 import type { Id } from "@convex/_generated/dataModel";
 import { Panel, PanelHeader, PanelBody } from "@/components/ui/panel";
+import SurfaceReadyMarker from "@/components/ui/surface-ready-marker";
 import BugReportListRow from "./bug-report-list-row";
 import BugReportDetail from "./bug-report-detail";
 
@@ -28,6 +29,7 @@ export default function BugReportsAdminPanel() {
 
     return (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            {reports !== undefined && <SurfaceReadyMarker />}
             <Panel>
                 <PanelHeader
                     title="Reports"
