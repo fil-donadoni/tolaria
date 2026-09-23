@@ -6302,6 +6302,14 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Brass Herald",
+        "scryfallId": "89bd60a7-2ba4-4fce-bf74-2ea9b8fd4dbe",
+        "oracleId": "ea9b2e3d-2de4-4cde-b233-6d0ba5797c20",
+        "firstSet": "apc",
+        "firstPrintId": "89bd60a7-2ba4-4fce-bf74-2ea9b8fd4dbe",
+        "firstPrintSet": "apc"
+    },
+    {
         "name": "Brass Man",
         "scryfallId": "1a364362-e42b-415c-9d95-b6ec7139f5e7",
         "oracleId": "64f56228-7874-4465-ba58-1049083ea02f",
@@ -53540,6 +53548,14 @@
         "source": "compiled"
     },
     {
+        "name": "Unnatural Selection",
+        "scryfallId": "c575e2cb-3990-4c73-b81c-e16311ec6bbb",
+        "oracleId": "0be10525-09dc-4970-b495-2db7d4d3c3e7",
+        "firstSet": "apc",
+        "firstPrintId": "c575e2cb-3990-4c73-b81c-e16311ec6bbb",
+        "firstPrintSet": "apc"
+    },
+    {
         "name": "Unnatural Speed",
         "scryfallId": "a542b1f4-82f8-471a-b0a6-7ead9167da27",
         "oracleId": "fa46ced5-b701-4aa3-b4a1-36fb15b80696",
@@ -58266,6 +58282,14 @@
         "firstPrintSet": "roe",
         "rarity": "common",
         "source": "compiled"
+    },
+    {
+        "name": "Zombie Boa",
+        "scryfallId": "1fb8c277-3154-47c9-835f-327cac297a5e",
+        "oracleId": "c4949d62-c2f9-4425-a77e-444824955ecc",
+        "firstSet": "apc",
+        "firstPrintId": "1fb8c277-3154-47c9-835f-327cac297a5e",
+        "firstPrintSet": "apc"
     },
     {
         "name": "Zombie Goliath",
