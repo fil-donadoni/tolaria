@@ -249,7 +249,9 @@ function castHerald(state: GameState, chosen: string): CardInstanceState {
         (c) => c.card.id === BRASS_HERALD.id
     )!;
     expect(herald.chosenSubtypes).toEqual([chosen]);
-    expect(state.stack.at(-1)?.triggeredAbilityId).toBe("brass-herald-reveal");
+    expect(state.stack[state.stack.length - 1]?.triggeredAbilityId).toBe(
+        "brass-herald-reveal"
+    );
     return herald;
 }
 

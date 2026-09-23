@@ -29,6 +29,7 @@ import {
     pushSpell,
 } from "../../../__tests__/setup";
 import {
+    removePermanentTo,
     resolveTopOfStack,
     type CardInstanceState,
     type GameState,
@@ -41,6 +42,8 @@ import {
 } from "../../../../gre/phases";
 import { projectPublicState } from "../../../../gameProjections";
 import { compactState, expandState } from "../../../../gre/serialize";
+import { collectTriggers } from "../../../../gre/triggers";
+import type { GameEvent } from "../../../types";
 import { activateAbility } from "../../../../game";
 import {
     gameStateSeed,
@@ -354,6 +357,43 @@ describe("Zombie Boa — choose a color; whenever it becomes blocked by a creatu
         expect(onBattlefield(state, "g2")).toBe(false);
     });
 
+    it("a colourless blocker matches no colour — fail closed (CR 105.2c)", () => {
+        const state = boaBoard();
+        state.players[1].battlefield.push(
+            makeInstance(COLORLESS_CREATURE.id, {
+                id: "thopter",
+                controllerId: "p2",
+                ownerId: "p2",
+            })
+        );
+        activateBoa(state, "G");
+        block(state, ["boa"], { thopter: "boa" });
+        expect(boaTriggers(state)).toHaveLength(0);
+    });
+
+    it("CR 400.7 — a Boa that left and came back is a new object: the old watch is gone", () => {
+        const state = boaBoard();
+        activateBoa(state, "G");
+        expect(state.delayedTriggers ?? []).toHaveLength(1);
+        // Flicker: it leaves (PERMANENT_LEFT) and returns under the same id.
+        const boa = state.players[0].battlefield.find((c) => c.id === "boa")!;
+        removePermanentTo(state, "boa", "exile");
+        collectTriggers(state, [
+            {
+                type: "PERMANENT_LEFT",
+                instanceId: "boa",
+                toZone: "exile",
+            } as GameEvent,
+        ]);
+        state.players[0].exile = state.players[0].exile.filter(
+            (c) => c.id !== "boa"
+        );
+        state.players[0].battlefield.push({ ...boa, zone: "battlefield" });
+        block(state, ["boa"], { g1: "boa" });
+        expect(boaTriggers(state)).toHaveLength(0);
+        expect(onBattlefield(state, "g1")).toBe(true);
+    });
+
     it("watches only Zombie Boa — a green creature blocking ANOTHER attacker is untouched", () => {
         const state = boaBoard();
         activateBoa(state, "G");
@@ -407,7 +447,9 @@ describe("Zombie Boa — choose a color; whenever it becomes blocked by a creatu
         const legal = boaBoard();
         legal.players[0].manaPool = { ...mana };
         const after = await activate(legal);
-        expect(after.stack.at(-1)?.abilityId).toBe("zombie-boa-watch");
+        expect(after.stack[after.stack.length - 1]?.abilityId).toBe(
+            "zombie-boa-watch"
+        );
         // A non-empty stack is not sorcery timing (CR 307.1 / 602.5d).
         const busy = boaBoard();
         busy.players[0].manaPool = { ...mana };

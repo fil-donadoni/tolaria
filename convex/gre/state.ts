@@ -946,6 +946,10 @@ export type CardInstanceState = {
         /** CR 613.7 (PRD #2064 S4) — the layer timestamp of the SET. See
          *  `indefiniteSubtypeSet.seq`. */
         seq?: number;
+        /** CR 205.1a (issue #3809) — `"creature"` when the set replaces only
+         *  the creature types ("becomes that [creature] type", Unnatural
+         *  Selection). Absent = the pre-existing replace. */
+        family?: "creature";
     };
     /** CR 400.7 / 611.2a (issue #1746) — provenance for an INDEFINITE subtype
      *  REPLACEMENT (`SpellContext.setSubtypes` — Figure of Destiny's "becomes a
@@ -17526,7 +17530,8 @@ export function buildSpellContext(
         setSubtypesUntil(
             target: TargetSelection,
             subtypes: string[],
-            duration: DurationSpec
+            duration: DurationSpec,
+            family?: "creature"
         ): void {
             if (target.type !== "permanent") return;
             const found = findOnBattlefield(state, target.id);
@@ -17556,6 +17561,7 @@ export function buildSpellContext(
                     state
                 ),
                 seq: allocStaticTimestamp(state),
+                ...(family ? { family } : {}),
             };
             syncLayers2to5(state);
         },

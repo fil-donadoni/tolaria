@@ -103,11 +103,11 @@ export const whirlpoolWarrior: CardDefinition = {
 // replacement list. The target is announced on activation (CR 602.2b) and the
 // type is chosen on resolution, in Oracle order.
 //
-// "Becomes that type" SETS the creature type (CR 205.1a): the new type
-// replaces the creature's existing CREATURE types only, so a land creature
-// keeps its land types and an artifact creature its artifact types
-// (`applyCreatureTypeReplacement`, layer 4), and it reverts at end of turn
-// (CR 611.2, `setSubtypesUntil`).
+// "Becomes that type" SETS the creature type (CR 205.1a): `family:
+// "creature"` makes the new type replace the creature's existing CREATURE
+// types only, so a land creature keeps its land types and an artifact
+// creature its artifact types (`applyCreatureTypeReplacement`, layer 4), and
+// it reverts at end of turn (CR 611.2, `setSubtypesUntil`).
 //
 // compiler-gap: {1}: Choose a creature type other than Wall. Target creature becomes that type until end of turn. (#2693)
 export const unnaturalSelection: CardDefinition = {
@@ -138,6 +138,7 @@ export const unnaturalSelection: CardDefinition = {
                     op: "setSubtype",
                     target: { target: 0 },
                     subtypes: { ref: "$type" },
+                    family: "creature",
                     duration: { phase: "end-of-turn" },
                 },
             ],

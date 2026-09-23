@@ -4003,7 +4003,14 @@ export const OP_EXECUTORS: {
         // subtype is. An unresolved choice resolves EMPTY and the Op is
         // skipped (CR 101.3): "becomes no creature type" is not what any
         // printed "becomes that type" means.
-        const subtypes = resolveFilterSubtypes(ctx, op.subtypes) ?? [];
+        // A declared creature family keeps only real creature types (CR
+        // 205.3m): a ref naming the wrong binding family (a `choice` of
+        // instance ids) must never write an id into the subtype line.
+        const resolved = resolveFilterSubtypes(ctx, op.subtypes) ?? [];
+        const subtypes =
+            op.family === "creature"
+                ? resolved.filter((s) => CREATURE_SUBTYPES.has(s))
+                : resolved;
         if (!Array.isArray(op.subtypes) && subtypes.length === 0) return;
         // CR 611.2b (issue #1746) — an omitted `duration` REPLACES the subtypes
         // INDEFINITELY ("this creature becomes a Kithkin Spirit", Figure of
@@ -4012,7 +4019,7 @@ export const OP_EXECUTORS: {
         if (op.duration === undefined) {
             ctx.setSubtypes(target, subtypes);
         } else {
-            ctx.setSubtypesUntil(target, subtypes, op.duration);
+            ctx.setSubtypesUntil(target, subtypes, op.duration, op.family);
         }
     },
     // CR 208.2 / 611.1 (issue #1317) — turn a permanent into a creature with

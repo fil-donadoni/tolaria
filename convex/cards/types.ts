@@ -4226,7 +4226,10 @@ export interface SpellContext {
     setSubtypesUntil: (
         target: TargetSelection,
         subtypes: string[],
-        duration: DurationSpec
+        duration: DurationSpec,
+        /** CR 205.1a (issue #3809) — `"creature"`: replace only the creature
+         *  types. Omitted = the pre-existing replace. */
+        family?: "creature"
     ) => void;
     /** Adds or removes a supertype on a target permanent indefinitely
      *  (CR 205.4a). `present: false` removes the supertype, `present: true`
@@ -7479,7 +7482,12 @@ export type DelayedTriggerTiming =
      *  confirmed). The firing event is threaded onto the stack item, so the
      *  body reads the blocker as `$event.blockerId` ("destroy that
      *  creature"). Purged unfired-or-not at CLEANUP (the "this turn" bound,
-     *  CR 514.2). Rejects `targetPlayer`. */
+     *  CR 514.2), and dropped when the watched creature leaves the
+     *  battlefield (CR 400.7 — its return is a new object). Rejects
+     *  `targetPlayer`. Fires on DECLARED blocks only: the engine has no
+     *  "an effect causes a creature to block" / "put onto the battlefield
+     *  blocking" path yet (the other two CR 509.3d cases), so no shipped card
+     *  can reach them. */
     | "becomes-blocked-by"
     /** CR 720.2 (Forth Eorlingas!, issue #1199) — a REPEATING, this-turn-
      *  bounded, combat-damage watch: "Whenever one or more creatures you
@@ -15887,6 +15895,16 @@ export type EffectOp =
            *  subtype and the Op is SKIPPED (CR 101.3 — an impossible
            *  instruction), never applied as "becomes no type". */
           subtypes: string[] | EffectRef;
+          /** CR 205.1a (issue #3809) — the subtype FAMILY replaced: with
+           *  `"creature"` only the target's CREATURE types are replaced and
+           *  every other subtype (a land creature's land type, an artifact
+           *  creature's artifact type) survives — "becomes that [creature]
+           *  type" (Unnatural Selection). Declared, never inferred from the
+           *  list: a creature-type list WITHOUT it keeps the wholesale replace
+           *  Oko's Elk depends on (ADR 0087 § Amendment). Requires `duration`
+           *  and is REQUIRED for a `{ ref }` list; with it, a resolved value
+           *  that is not a creature type (CR 205.3m) is dropped. */
+          family?: "creature";
           /** CR 611.2 — when the replacement reverts. OMITTED is INDEFINITE
            *  (CR 611.2b, issue #1746): the permanent simply IS the new subtype
            *  line until it leaves the battlefield — "this creature becomes a

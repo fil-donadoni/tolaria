@@ -419,9 +419,8 @@ export function applyLandTypeReplacement(
  *  replaced by `newCreatureTypes`; every other subtype — a land type on a land
  *  creature (Dryad Arbor's Forest), an artifact type (Equipment) — survives.
  *
- *  Callers gate on the SET's family: only a set made entirely of creature
- *  types takes this branch (Unnatural Selection's "becomes that type",
- *  Figure of Destiny's "becomes a Kithkin Spirit"). */
+ *  Callers gate on the set's DECLARED family (`family: "creature"`, Unnatural
+ *  Selection's "becomes that type") — never on what the set contains. */
 export function applyCreatureTypeReplacement(
     currentSubtypes: readonly string[],
     newCreatureTypes: readonly string[]

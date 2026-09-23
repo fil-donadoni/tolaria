@@ -4786,7 +4786,25 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             subtypes: (v) =>
                 isBareRef(v) || isSourceChosenSubtypeRef(v) || isStringArray(v),
         },
+        check: (entry) => {
+            const errors: string[] = [];
+            // issue #3809 — the family is carried by the timed ledger row
+            // only; the indefinite `setSubtypes` path has no family slot.
+            if ("family" in entry && !("duration" in entry)) {
+                errors.push('field "family" requires "duration"');
+            }
+            // A chosen type is a CREATURE type (CR 205.3m): a `{ ref }` list
+            // must declare the family so the runtime keeps only real
+            // creature types and replaces only that family (CR 205.1a).
+            if (!Array.isArray(entry.subtypes) && entry.family !== "creature") {
+                errors.push(
+                    'a { ref } "subtypes" requires family: "creature" (CR 205.1a)'
+                );
+            }
+            return errors;
+        },
         optional: {
+            family: (v) => v === "creature",
             // CR 611.2b (issue #1746) — omitted REPLACES the subtypes
             // INDEFINITELY (Figure of Destiny's staged respec).
             duration: isDurationSpec,

@@ -799,6 +799,21 @@ export function collectTriggers(
     // reaches the stack. Repeating like `this-turn-creature-blocks`: stays
     // queued after firing, purged at CLEANUP (phases.ts). The event rides
     // onto the StackItem so the body reads `$event.blockerId`.
+    // CR 400.7 — the watch refers to the OBJECT it was created for. Instance
+    // ids survive zone changes, so a watched creature that left the
+    // battlefield in this batch drops its watch here: a flickered Zombie Boa
+    // is a new object its old activation must not reach.
+    if (state.delayedTriggers?.length && recentlyLeft.size > 0) {
+        const kept = state.delayedTriggers.filter(
+            (t) =>
+                !(
+                    t.timing === "becomes-blocked-by" &&
+                    t.watchInstanceId !== undefined &&
+                    recentlyLeft.has(t.watchInstanceId)
+                )
+        );
+        state.delayedTriggers = kept.length > 0 ? kept : undefined;
+    }
     if (state.delayedTriggers?.length) {
         const blockWatchers = state.delayedTriggers.filter(
             (t) =>

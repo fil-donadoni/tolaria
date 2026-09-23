@@ -7796,6 +7796,7 @@ describe("chosen type / colour as an effect parameter (CR 205.3m / 607.2d / 509.
                     op: "setSubtype",
                     target: { target: 0 },
                     subtypes: { ref: "$source.chosenSubtype" },
+                    family: "creature",
                     duration: { phase: "end-of-turn" },
                 },
             ])
@@ -7823,10 +7824,32 @@ describe("chosen type / colour as an effect parameter (CR 205.3m / 607.2d / 509.
             op: "setSubtype",
             target: { target: 0 },
             subtypes: { ref: "$type" },
+            family: "creature",
             duration: { phase: "end-of-turn" },
         };
         expect(run([choose({ exclude: ["Wall"] }), set])).toEqual([]);
         expect(run([set]).length).toBeGreaterThan(0);
+    });
+
+    it('CR 205.1a — a { ref } list must declare family "creature", and the family needs a duration', () => {
+        const { family: _f, ...noFamily } = {
+            op: "setSubtype",
+            target: { target: 0 },
+            subtypes: { ref: "$type" },
+            family: "creature",
+            duration: { phase: "end-of-turn" },
+        };
+        expect(run([choose(), noFamily]).length).toBeGreaterThan(0);
+        expect(
+            run([
+                {
+                    op: "setSubtype",
+                    target: { target: 0 },
+                    subtypes: ["Elf"],
+                    family: "creature",
+                },
+            ]).length
+        ).toBeGreaterThan(0);
     });
 
     it("CR 509.3d — `becomes-blocked-by` requires `watch`, reads `$event`, and alone accepts `blockerColors`", () => {

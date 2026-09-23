@@ -329,7 +329,7 @@ describe("Unnatural Selection — full path through game.ts (issue #3809)", () =
             );
         }
         const onStack = first.state();
-        expect(onStack.stack.at(-1)?.abilityId).toBe(
+        expect(onStack.stack[onStack.stack.length - 1]?.abilityId).toBe(
             "unnatural-selection-retype"
         );
         // Both players pass: the ability resolves up to its type choice.
