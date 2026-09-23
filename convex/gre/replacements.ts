@@ -157,11 +157,18 @@ function collectReplacements(
             const cardId = (self.card as { id?: string }).id;
             const def = cardId ? tryGetDefinition(cardId) : undefined;
             const effects = def?.replacementEffects ?? [];
-            for (const r of effects) {
-                if (r.eventKind === kind && r.appliesFromAnyZone) {
-                    out.push({ source: self, effect: r });
-                }
-            }
+            const selfEntries = effects
+                .filter((r) => r.eventKind === kind && r.appliesFromAnyZone)
+                .map((r) => ({ source: self, effect: r }));
+            // CR 616.1 — the affected player chooses which replacement to
+            // apply; that choice is not modelled (deterministic order, see the
+            // header). For a discard, the discarded card's OWN replacement
+            // (Dodecapod: onto the battlefield) goes ahead of a battlefield
+            // source (Library of Leng: library top) — the default a player
+            // would pick, and otherwise the card's clause could never win
+            // (issue #3814). A graveyard-bound self effect keeps last place.
+            if (kind === "discard") out.unshift(...selfEntries);
+            else out.push(...selfEntries);
         }
     }
 

@@ -178,8 +178,14 @@ export const memoryJar: CardDefinition = {
                 // Oracle order: discard the (drawn) hand FIRST, then return
                 // the exiled cards — a player who exiled nothing and drew
                 // nothing (empty library) simply discards an empty hand.
+                // CR 701.9a — each card goes through the discard chokepoint
+                // (issue #3814), so discard replacements (Library of Leng,
+                // an opponent's Dodecapod) and "whenever you discard"
+                // triggers see it; the cause is this ability's controller.
                 for (const pid of ctx.allPlayerIds) {
-                    ctx.moveZone(pid, "hand", "graveyard");
+                    for (const id of ctx.getHandIds(pid)) {
+                        ctx.discardCard(pid, id);
+                    }
                 }
                 for (const pid of ctx.allPlayerIds) {
                     const raw = payload[`exiled:${pid}`];

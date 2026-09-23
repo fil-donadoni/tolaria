@@ -337,6 +337,9 @@ describe("Brass Herald — the chosen creature type parameterises the ETB reveal
 const DODECAPOD = getDefinition("ded8b992-a1c2-4e43-ad0a-ea3995a3c8b8");
 /** Mind Twist — {X}{B}: target player discards X cards at random. */
 const MIND_TWIST = getDefinition("eee9e106-a248-49d2-b8c8-6bbcd56ce739");
+/** Library of Leng — "If an effect causes you to discard a card … you may put
+ *  it on top of your library instead" (LEA). */
+const LIBRARY_OF_LENG_ID = "2340edcb-8cd5-4ccd-99e2-b9a29f72c495";
 /** Mind Rot — {2}{B}: target player discards two cards (THEIR choice). */
 const MIND_ROT = getDefinition("b91d355d-8409-4f0b-87ce-7590a8b9ebc0");
 
@@ -428,6 +431,19 @@ describe("Dodecapod — CR 614.1a discard replacement scoped by what caused the 
         });
         expect(zoneOfPod(state)).toBe("battlefield");
         expect(state.players[0].graveyard.map((c) => c.id)).toEqual(["bear0"]);
+    });
+
+    it("with Library of Leng also applying, the card's own replacement wins (CR 616.1 — the affected player's pick)", () => {
+        const state = podBoard();
+        state.players[0].battlefield.push(
+            makeInstance(LIBRARY_OF_LENG_ID, {
+                id: "leng",
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        mindTwistP1(state, "p2", 1);
+        expect(zoneOfPod(state)).toBe("battlefield");
     });
 
     it("YOUR OWN spell makes you discard it → graveyard", () => {

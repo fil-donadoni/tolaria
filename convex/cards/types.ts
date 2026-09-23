@@ -12695,7 +12695,14 @@ export interface ReplacementApplyContext {
      *  put on it AS it enters (CR 122.6 — so a counter-placed replacement sees
      *  them). Returns whether it is on the battlefield now (false when it was
      *  no longer in hand, or an entry replacement sent it elsewhere). Used by
-     *  Dodecapod's discard replacement. */
+     *  Dodecapod's discard replacement.
+     *
+     *  Two limits, neither reachable by a shipped caller (review, issue
+     *  #3814): a card that parks on "as it enters" choices (CR 614.12a) enters
+     *  later WITHOUT `counters`, and a modal DFC whose front face is not a
+     *  permanent stays in hand (CR 712.14b) while a caller returning
+     *  `consumed` still reports the discard. A second caller of either shape
+     *  threads the counters through the park / declines on `false` first. */
     putHandCardOntoBattlefield: (
         playerId: string,
         cardInstanceId: string,
