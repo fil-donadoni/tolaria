@@ -383,14 +383,21 @@ export function serializeLockfile(lock: Lockfile): string {
     return lines.join("\n") + "\n";
 }
 
-function rowsOf(rows: readonly unknown[]): string[] {
+/**
+ * One row per line, indented and comma-separated — the shape that keeps a
+ * 38,000-row array diffable. Exported because the Bot Reach Findings artifact
+ * (`lib/oracle-bot-reach.ts`, ADR 0141 §4) is serialized the same way, and a
+ * second copy of the formatting is a second file's bytes to keep in step.
+ */
+export function rowsOf(rows: readonly unknown[]): string[] {
     return rows.map(
         (row, i) =>
             `        ${JSON.stringify(row)}${i === rows.length - 1 ? "" : ","}`
     );
 }
 
-function indentBlock(text: string, spaces: number): string {
+/** Re-indent a `JSON.stringify(x, null, 4)` block that starts mid-line. */
+export function indentBlock(text: string, spaces: number): string {
     const pad = " ".repeat(spaces);
     return text
         .split("\n")

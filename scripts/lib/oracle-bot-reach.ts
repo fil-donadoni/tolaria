@@ -30,14 +30,20 @@
 
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type {
     BotReachCause,
     BotReachOutcome,
     BotReachVerdict,
 } from "../../convex/gre/ai/botReach";
 import type { CompiledDefinition } from "../../convex/oracle/types";
-import type { BotGapRow, CardRow, Lockfile } from "./oracle-lockfile";
+import {
+    indentBlock,
+    rowsOf,
+    type BotGapRow,
+    type CardRow,
+    type Lockfile,
+} from "./oracle-lockfile";
 
 /**
  * The sources whose edit can change a Bot-play verdict — what the Bot hash
@@ -219,9 +225,17 @@ const CAST_SHAPE_CAUSES: ReadonlySet<string> = new Set([
     "never-chosen",
 ]);
 
-export function botGapKey(
+/**
+ * The FORM half of a Bot Gap key — the cast shape for the causes a missing
+ * move is keyed by, the verdict's own form otherwise. `undefined` exactly
+ * when the verdict carries no gap.
+ *
+ * Split out of {@link botGapKey} so a consumer that records the form on its
+ * own row (the Bot Reach Findings artifact) reads it from HERE rather than
+ * re-deriving the override rule — one authority for what a key is made of.
+ */
+export function botGapForm(
     verdict: BotReachVerdict,
-    opsUsed: readonly string[],
     /** The card's cast shape, recomputed from the definition — a cached
      *  verdict's own `form` is whatever the shape looked like when it was
      *  played, so a cast-shape key is derived here and never read back from
@@ -230,10 +244,18 @@ export function botGapKey(
 ): string | undefined {
     if (verdict.outcome === "played" || verdict.cause === undefined)
         return undefined;
-    const form =
-        castShape !== undefined && CAST_SHAPE_CAUSES.has(verdict.cause)
-            ? castShape
-            : (verdict.form ?? "");
+    return castShape !== undefined && CAST_SHAPE_CAUSES.has(verdict.cause)
+        ? castShape
+        : (verdict.form ?? "");
+}
+
+export function botGapKey(
+    verdict: BotReachVerdict,
+    opsUsed: readonly string[],
+    castShape?: string
+): string | undefined {
+    const form = botGapForm(verdict, castShape);
+    if (form === undefined || verdict.cause === undefined) return undefined;
     const parts: string[] = [verdict.cause, form];
     if (verdict.cause === "never-chosen")
         parts.push(opsUsed.length > 0 ? opsUsed.join("+") : "(no Ops)");
@@ -291,4 +313,377 @@ export function rankBotGaps(rows: readonly CardRow[]): BotGapRow[] {
                 b.cards - a.cards ||
                 (a.key < b.key ? -1 : a.key > b.key ? 1 : 0)
         );
+}
+
+// ── Bot Reach Findings (ADR 0141 § 4, issue #4175) ────────────────────────
+
+/**
+ * The measurement artifact — `data/bot-reach-findings.json`, one row per card
+ * of the measured Target Lists plus a header naming the commit, the Bot and
+ * the moment the verdicts were produced.
+ *
+ * It is the lockfile's Bot side applied to a different scope. The lockfile
+ * sweeps the cards the COMPILER produced; this sweeps the cards a TARGET
+ * names, whichever definition ships for them — so the 1,712 hand-written
+ * cards the lockfile never plays are measured here. Same reuse rule (a
+ * verdict survives while the definition AND the Bot hash are unchanged), same
+ * keying helpers ({@link botGapKey} / {@link botGapForm}), and the committed
+ * file IS the cache.
+ */
+
+/** Which definition a Target card ships with — the one that gets played. */
+export type ShippedSource = "hand-written" | "compiled";
+
+/**
+ * Who owes the fix a non-`played` row names, so no consumer re-derives the
+ * distinction from a cause string.
+ *
+ * `bot` — the Bot's own enumeration or valuation refused a card the position
+ * offered; `harness` — a bound of THIS sweep, whose own docs on
+ * {@link BotReachCause} say so in as many words ("a limit of THIS sweep's
+ * position, never a claim about the Bot"). A session must never spend itself
+ * "fixing the Bot" for a card the generated position could not pose.
+ */
+export type BotReachBlame = "bot" | "harness";
+
+/** Exhaustive by construction: a new cause reds `tsc` here. */
+const BLAME_BY_CAUSE: Record<BotReachCause, BotReachBlame> = {
+    "no-legal-move": "bot",
+    "never-chosen": "bot",
+    // The follow-through owed an input and no move the Bot enumerated
+    // answered it — the Bot freezing the game, which ADR 0047 forbids.
+    "unanswerable-input": "bot",
+    "position-unmodelled": "harness",
+    "no-progress": "harness",
+    "harness-error": "harness",
+};
+
+export function blameFor(cause: BotReachCause): BotReachBlame {
+    return BLAME_BY_CAUSE[cause];
+}
+
+/**
+ * The provenance of the verdicts below it. Rewritten only when a card was
+ * actually REPLAYED: a run that reused every verdict measured nothing, so it
+ * has no new sha, no new Bot and no new moment to record — which is also what
+ * makes a second run on an unchanged tree byte-identical to the first.
+ */
+export interface FindingsHeader {
+    /** `git rev-parse HEAD` at the run that produced the verdicts. */
+    readonly sha: string;
+    /** {@link botHash} — the second half of the cache key. */
+    readonly botHash: string;
+    /** ISO 8601, UTC. */
+    readonly measuredAt: string;
+}
+
+/** What a card's definition is keyed by — both halves must match to reuse. */
+export interface MeasuredDefinition {
+    /** Absent exactly when the card ships no definition at all. */
+    readonly source?: ShippedSource;
+    /** {@link definitionHash}; absent with {@link MeasuredDefinition.source}. */
+    readonly defHash?: string;
+}
+
+/** `unplayable`: the card ships no definition, so nothing was played. */
+export type FindingOutcome = BotReachOutcome | "unplayable";
+
+/** The measured half of a row — the only part {@link findingsCache} reuses. */
+export interface MeasuredVerdict extends MeasuredDefinition {
+    readonly outcome: FindingOutcome;
+    readonly cause?: BotReachCause;
+    /** The verdict's own form, NOT the derived one — the cast-shape override
+     *  is re-applied from the definition on every build. */
+    readonly form?: string;
+}
+
+export interface FindingRow extends MeasuredVerdict {
+    readonly oracleId: string;
+    readonly name: string;
+    /** The measured Targets this card belongs to, sorted. */
+    readonly targets: readonly string[];
+    /** {@link botGapKey} — absent iff the card was `played` or `unplayable`. */
+    readonly gap?: string;
+    readonly blame?: BotReachBlame;
+}
+
+export interface FindingsArtifact {
+    readonly generator: string;
+    readonly header: FindingsHeader;
+    /** The Target ids the run measured, sorted — the artifact's SCOPE, always
+     *  recomputed, never carried like the header. */
+    readonly targets: readonly string[];
+    readonly findings: readonly FindingRow[];
+}
+
+export const FINDINGS_GENERATOR =
+    "generated by `bun run bot:reach` — never hand-edited " +
+    "(see docs/adr/0141-bot-findings-measured-artifact-derived-state.md)";
+
+export const FINDINGS_PATH = "data/bot-reach-findings.json";
+
+/** Where a run may write its measurement — and, when it may not, why not. */
+export interface FindingsOutput {
+    /** Absolute path to write; absent exactly when {@link refusal} is set. */
+    readonly path?: string;
+    readonly refusal?: string;
+}
+
+/**
+ * The committed artifact records a fixed SCOPE, and a run narrowed by
+ * `--target` measured a subset of it: writing that subset would silently drop
+ * every card outside the narrowed Targets, because the run builds its rows
+ * from what it measured and never merges them into the previous file.
+ *
+ * So a narrowed run may write somewhere else, and NOWHERE else is not a
+ * synonym for "wherever `--findings` says": the path is compared against the
+ * committed one, because `--findings data/bot-reach-findings.json` is the
+ * committed artifact by another spelling (review of PR #4410, finding 1).
+ */
+export function findingsOutputPath(
+    root: string,
+    cwd: string,
+    /** The `--target` values; empty means the run measured the full scope. */
+    narrowed: readonly string[],
+    findingsArg?: string
+): FindingsOutput {
+    const committed = resolve(root, FINDINGS_PATH);
+    const named =
+        findingsArg !== undefined ? resolve(cwd, findingsArg) : undefined;
+    if (narrowed.length === 0) return { path: named ?? committed };
+    const scope = narrowed.join(", ");
+    if (named === undefined)
+        return {
+            refusal:
+                `--target narrowed the run to ${scope}, a SUBSET of the ` +
+                `committed scope — pass \`--findings <path>\` to write the ` +
+                `measurement somewhere else.`,
+        };
+    if (named === committed)
+        return {
+            refusal:
+                `--target narrowed the run to ${scope}, a SUBSET of the ` +
+                `committed scope, and \`--findings\` names the committed ` +
+                `artifact (${FINDINGS_PATH}) — writing it would DROP every ` +
+                `card outside that scope. Name another path.`,
+        };
+    return { path: named };
+}
+
+/** Where a run READS its cache from — always safe, so `--findings` wins and
+ *  the committed artifact is the default. */
+export function findingsCachePath(
+    root: string,
+    cwd: string,
+    findingsArg?: string
+): string {
+    return findingsArg !== undefined
+        ? resolve(cwd, findingsArg)
+        : resolve(root, FINDINGS_PATH);
+}
+
+/**
+ * sha256 of the definition that was played.
+ *
+ * Function bodies are folded in: a hand-written card may carry `resolve()`,
+ * which `JSON.stringify` drops, and a protocol card whose `resolve()` changed
+ * is a card whose verdict may have changed too. The compiled half is pure
+ * data, so this costs it nothing.
+ *
+ * **The bound.** `Function.prototype.toString()` returns the function's own
+ * source and nothing it CALLS, so editing a module-level helper a `resolve()`
+ * invokes changes the card's behaviour without changing this hash, and the
+ * card's verdict is carried forward unswept. Hashing the card's source FILE
+ * instead would replay every card in it whenever any one card is added, which
+ * is the 265 s sweep back on every catalogue edit. So this is a documented
+ * bound, exactly like the one {@link BOT_SOURCE_FILES} carries for the engine:
+ * it is closed by the next edit to a hashed Bot source, or by `--replay`.
+ */
+export function definitionHash(definition: unknown): string {
+    const text =
+        JSON.stringify(definition, (_key, value: unknown) =>
+            typeof value === "function" ? value.toString() : value
+        ) ?? "";
+    return `sha256:${createHash("sha256").update(text).digest("hex")}`;
+}
+
+/** Every outcome a row may carry — a row outside this vocabulary was written
+ *  by a tree this one is not, so it is a cache MISS (the lockfile applies the
+ *  same rule to its causes, review of PR #4057 finding 9). Typed like
+ *  `BOT_REACH_CAUSES`, so a member that is not an outcome reds `tsc`. */
+const FINDING_OUTCOMES: ReadonlySet<string> = new Set([
+    "played",
+    "ignored",
+    "frozen",
+    "unplayable",
+] satisfies FindingOutcome[]);
+
+/** The committed verdict of a row whose definition is unchanged. */
+function reusableVerdict(
+    row: FindingRow | undefined,
+    definition: MeasuredDefinition
+): MeasuredVerdict | undefined {
+    if (row === undefined) return undefined;
+    if (row.source !== definition.source || row.defHash !== definition.defHash)
+        return undefined;
+    if (!FINDING_OUTCOMES.has(row.outcome)) return undefined;
+    const played = row.outcome === "played" || row.outcome === "unplayable";
+    if (played) {
+        if (row.cause !== undefined) return undefined;
+    } else if (row.cause === undefined || !BOT_REACH_CAUSES.has(row.cause)) {
+        return undefined;
+    }
+    return {
+        ...definition,
+        outcome: row.outcome,
+        ...(row.cause !== undefined ? { cause: row.cause } : {}),
+        ...(row.form !== undefined ? { form: row.form } : {}),
+    };
+}
+
+export interface FindingsCache {
+    /** How many cards this run actually played. */
+    readonly replayed: () => number;
+    verdictFor(
+        oracleId: string,
+        definition: MeasuredDefinition,
+        play: () => MeasuredVerdict
+    ): MeasuredVerdict;
+}
+
+/**
+ * Reuse a verdict while the definition AND the Bot are unchanged, play the
+ * card otherwise. `replay` ignores the cache — {@link playingBotReach}'s rule,
+ * over the findings artifact instead of the lockfile.
+ */
+export function findingsCache(
+    previous: FindingsArtifact | null,
+    currentBotHash: string,
+    options: { replay?: boolean; onPlay?: (oracleId: string) => void } = {}
+): FindingsCache {
+    const rows = new Map<string, FindingRow>(
+        !options.replay && previous?.header.botHash === currentBotHash
+            ? previous.findings.map((row) => [row.oracleId, row] as const)
+            : []
+    );
+    let replayed = 0;
+    return {
+        replayed: () => replayed,
+        verdictFor(oracleId, definition, play) {
+            const hit = reusableVerdict(rows.get(oracleId), definition);
+            if (hit !== undefined) return hit;
+            replayed += 1;
+            options.onPlay?.(oracleId);
+            return play();
+        },
+    };
+}
+
+/**
+ * A measured verdict as the keying helpers take it — the ONE narrowing from
+ * `unplayable`, so no caller writes a second one. A card that was never played
+ * degrades to `played`, which carries no form and no gap: there is nothing to
+ * key.
+ */
+export function botVerdictOf(verdict: MeasuredVerdict): BotReachVerdict {
+    return verdict.outcome === "unplayable"
+        ? { outcome: "played" }
+        : {
+              outcome: verdict.outcome,
+              ...(verdict.cause !== undefined ? { cause: verdict.cause } : {}),
+              ...(verdict.form !== undefined ? { form: verdict.form } : {}),
+          };
+}
+
+/**
+ * One row, with its Bot Gap key, its derived form and its blame computed from
+ * the verdict — never read back from the previous row, exactly as
+ * `buildLockfile` recomputes `botGap` on every run.
+ */
+export function findingRow(
+    card: {
+        readonly oracleId: string;
+        readonly name: string;
+        readonly targets: readonly string[];
+    },
+    verdict: MeasuredVerdict,
+    opsUsed: readonly string[],
+    castShape?: string
+): FindingRow {
+    const played = botVerdictOf(verdict);
+    const form = botGapForm(played, castShape);
+    const gap = botGapKey(played, opsUsed, castShape);
+    const blame =
+        gap !== undefined && verdict.cause !== undefined
+            ? blameFor(verdict.cause)
+            : undefined;
+    return {
+        oracleId: card.oracleId,
+        name: card.name,
+        targets: [...card.targets].sort(),
+        ...(verdict.source !== undefined ? { source: verdict.source } : {}),
+        outcome: verdict.outcome,
+        ...(verdict.cause !== undefined ? { cause: verdict.cause } : {}),
+        ...(form !== undefined ? { form } : {}),
+        ...(gap !== undefined ? { gap } : {}),
+        ...(blame !== undefined ? { blame } : {}),
+        ...(verdict.defHash !== undefined ? { defHash: verdict.defHash } : {}),
+    };
+}
+
+/**
+ * The header the run records. A run that replayed NOTHING produced no new
+ * measurement, so it keeps the one it reused — which is what makes two runs
+ * on an unchanged tree byte-identical.
+ */
+export function findingsHeader(
+    previous: FindingsArtifact | null,
+    current: FindingsHeader,
+    replayed: number
+): FindingsHeader {
+    return replayed === 0 && previous?.header.botHash === current.botHash
+        ? previous.header
+        : current;
+}
+
+/** Deterministic: rows sorted by oracle id, one per line. */
+export function buildFindings(
+    header: FindingsHeader,
+    targets: readonly string[],
+    findings: readonly FindingRow[]
+): FindingsArtifact {
+    return {
+        generator: FINDINGS_GENERATOR,
+        header,
+        targets: [...targets].sort(),
+        findings: [...findings].sort((a, b) =>
+            a.oracleId < b.oracleId ? -1 : a.oracleId > b.oracleId ? 1 : 0
+        ),
+    };
+}
+
+/**
+ * Deterministic serializer — `serializeLockfile`'s shape, same reasons: one
+ * row per line, so a card changing verdict is a single changed line in review.
+ * It shares that file's formatting helpers rather than copying them; this
+ * module is already inside `compilerHash`'s `DRIVER_FILES`, so a change here
+ * restamps the lockfile either way.
+ */
+export function serializeFindings(artifact: FindingsArtifact): string {
+    return (
+        [
+            "{",
+            `    "generator": ${JSON.stringify(artifact.generator)},`,
+            `    "header": ${indentBlock(JSON.stringify(artifact.header, null, 4), 4)},`,
+            `    "targets": ${JSON.stringify(artifact.targets)},`,
+            `    "findings": [`,
+            ...rowsOf(artifact.findings),
+            `    ]`,
+            "}",
+        ].join("\n") + "\n"
+    );
+}
+
+export function parseFindings(text: string): FindingsArtifact {
+    return JSON.parse(text) as FindingsArtifact;
 }

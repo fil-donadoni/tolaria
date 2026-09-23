@@ -80,3 +80,11 @@ data/catalogue/
 # never reproduce the committed bytes — same rationale as the ledgers above.
 data/cr/citations-ledger.json
 
+
+# The Bot Reach findings artifact (issue #4175, ADR 0141 §4). Same rationale as
+# the ledgers above: `bun run bot:reach` writes it with a deterministic
+# serializer that puts ONE FINDING PER LINE, so a card changing verdict is a
+# single changed line in review and the file IS the sweep's verdict cache.
+# Prettier explodes each row across ten lines (measured: 816 -> 6,407), and the
+# command's own output would then never reproduce the committed bytes.
+data/bot-reach-findings.json
