@@ -2461,6 +2461,18 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 `Op "coinFlipSync" draws a random bit (CR 705) — covered by the Op's interpreter tests`
             );
             return;
+        case "coinFlipSeries":
+            // CR 705 (issue #3813, ADR 0144) — a series of RANDOM bits from the
+            // seeded PRNG; the number of flips, and so every count it binds,
+            // differs across seeds, so a canned run has no fixed outcome to
+            // assert. Explicit skip, the `coinFlipSync` reasoning — the series
+            // and its bindings are covered by the Op's own interpreter tests.
+            skipBecause(
+                req,
+                "randomness",
+                `Op "coinFlipSeries" draws random bits (CR 705) — covered by the Op's interpreter tests`
+            );
+            return;
         case "winGame":
             // CR 104.2a (issue #1066) — sets `state.gameOver` directly. The
             // canned generator's post-resolution assertions (board/life
@@ -4132,6 +4144,12 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // guard; the flip and both branches are covered by the Op's own
     // interpreter tests (per-Op regime).
     coinFlipSync() {
+        return null;
+    },
+    // `coinFlipSeries` (CR 705, issue #3813) — never reached: `analyseOp`
+    // skips every script with one (random bits, no fixed seed). Kept for the
+    // 1:1 coverage guard; covered by the Op's own interpreter tests.
+    coinFlipSeries() {
         return null;
     },
     // `createToken` (CR 111 / 701.7, issue #847) — a deterministic

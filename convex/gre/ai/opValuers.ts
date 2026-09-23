@@ -685,6 +685,16 @@ const chooseNumber: Valuer<"chooseNumber"> = () => {
     return ZERO_OP_VALUE;
 };
 
+const coinFlipSeries: Valuer<"coinFlipSeries"> = () => {
+    // CR 705 (issue #3813, ADR 0144) — the series only BINDS counts: it spends
+    // no resource, moves no object and changes no life total. Its whole
+    // consequence is the sibling Op that reads the binding back (a `draw`
+    // scaled by `$flips` under an `if`), which carries its own valuer and is
+    // walked in the same script — the `chooseNumber` reasoning. An explicit
+    // ZERO entry, not the `?? ZERO_OP_VALUE` fallback a FORGOTTEN Op gets.
+    return ZERO_OP_VALUE;
+};
+
 const sacrifice: Valuer<"sacrifice"> = (op, ctx, scope) => {
     if (op.permanents) {
         // Issue #3292 — a picks-set sacrifice signs by WHO CHOSE the picks,
@@ -2012,6 +2022,7 @@ export const OP_VALUERS: {
     mayPay,
     payVariableMana,
     chooseNumber,
+    coinFlipSeries,
     sacrifice,
     moveZone,
     createToken,
@@ -2467,6 +2478,11 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // recipient and a sign, but it belongs to the Op that reads the binding,
     // which carries its own row.
     chooseNumber: "neutral",
+    // CR 705 (issue #3813) — flipping coins hands the flipper nothing and
+    // takes nothing from them: no card, life, object or resource moves. The
+    // counts it binds have a recipient and a sign only through the Op that
+    // reads them, which carries its own row.
+    coinFlipSeries: "neutral",
     // CR 701.20a — binds the chosen NAME; the material is whatever later Op
     // reads the binding back, which is why `bind` is a required field.
     nameCard: "neutral",

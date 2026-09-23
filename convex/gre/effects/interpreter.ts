@@ -975,9 +975,8 @@ function resolveValue(
     // 107.1b — see `EffectScaledValue`'s doc comment), so unlike `difference`
     // there is no sign concern here.
     if ("scaled" in value) {
-        return (
-            resolveScaledOperand(ctx, value.scaled.value) * value.scaled.times
-        );
+        const base = resolveScaledOperand(ctx, value.scaled.value);
+        return base === undefined ? undefined : base * value.scaled.times;
     }
     // divide (issue #2385) — a terminal divided by a fixed positive-integer
     // divisor, rounded per the mandatory `rounding` field (CR 107.1a). The
@@ -1027,9 +1026,13 @@ function resolveDifferenceOperand(
 function resolveScaledOperand(
     ctx: SpellContext,
     operand: EffectScaledOperand
-): number {
+): number | undefined {
     if (typeof operand === "number") return operand;
     if ("X" in operand) return ctx.getX();
+    // issue #3813 (ADR 0144) — a bare NUMERIC-binding ref ("two cards for
+    // each flip"). An uncaptured binding stays `undefined`, so the reading Op
+    // skips (CR 608.2b) rather than multiplying a missing count into 0.
+    if ("ref" in operand) return readNumberBinding(ctx, operand.ref);
     return countSet(ctx, operand.count);
 }
 
@@ -2756,6 +2759,12 @@ function copyOptionsFromExcept(
         ...(except.imagePrintId ? { imagePrintId: except.imagePrintId } : {}),
     };
 }
+
+/** An engineering bound, not a rule: a `coinFlipSeries` with no `count` ends
+ *  at the first lost flip, which a fair coin reaches with probability 1 — but
+ *  a flip whose result an effect fixes (CR 705.3) could win forever, and one
+ *  mutation must not spin. 2^-1000 is far below any real chance. */
+const UNCAPPED_FLIP_SERIES_LIMIT = 1000;
 
 /** One executor per Op, keyed by Op name. Each executor is a thin adapter
  *  from the declarative Op shape onto exactly one SpellContext primitive —
@@ -6310,6 +6319,44 @@ export const OP_EXECUTORS: {
         }
         const branch = won ? op.win.effects : op.loss.effects;
         return runOpList(ctx, branch, cursor);
+    },
+    // coinFlipSeries — CR 705.1–705.2 (issue #3813, ADR 0144): a bounded
+    // SERIES of flips whose results are bound as numbers. The loop is this
+    // Op's own, never grammar (ADR 0045's constructs stay frozen). Each bit is
+    // the SAME `SpellContext.flipCoin` seeded-PRNG draw `coinFlipSync` makes.
+    // The series ends after `count` flips or — with `untilLoss` — at the first
+    // lost flip, whichever comes first (CR 705.2: the flipper wins a flip
+    // whose call matches). A `count` that cannot be resolved flips nothing
+    // and binds zeros, like one that resolves to 0.
+    //
+    // A LEAF, not a construct: it carries no nested Op list, so it is not in
+    // runOpList's re-descend exception, and a re-walk after a later Op
+    // suspends SKIPS it by position — it never flips again (the engine runs
+    // each instruction once; CR 608.2c orders them), and its bindings are read back
+    // from the persisted `collectedChoices` `noteChoice` wrote. That is why
+    // it needs none of `coinFlipSync`'s memoization: that Op re-runs on every
+    // re-walk because it re-descends into a branch, and this one never does.
+    coinFlipSeries(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player ?? "controller");
+        if (playerId === undefined) return; // CR 608.2b — flipper gone, skip
+        const cap =
+            op.count === undefined
+                ? UNCAPPED_FLIP_SERIES_LIMIT
+                : Math.max(0, Math.trunc(resolveValue(ctx, op.count) ?? 0));
+        let flips = 0;
+        let wins = 0;
+        while (flips < cap) {
+            const won = ctx.flipCoin();
+            flips += 1;
+            if (won) wins += 1;
+            else if (op.untilLoss) break;
+        }
+        if (op.bindFlips !== undefined)
+            ctx.noteChoice(op.bindFlips, writeTaggedNumber(flips));
+        if (op.bindWins !== undefined)
+            ctx.noteChoice(op.bindWins, writeTaggedNumber(wins));
+        if (op.bindLosses !== undefined)
+            ctx.noteChoice(op.bindLosses, writeTaggedNumber(flips - wins));
     },
     // CR 701.21 (issue #807) — sacrifice the permanents a `choice` Op picked.
     // Routes through `SpellContext.sacrifice`: the controller puts each pick

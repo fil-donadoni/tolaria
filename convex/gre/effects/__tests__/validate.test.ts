@@ -7257,7 +7257,7 @@ describe("validateEffectScript — chooseNumber bounds (CR 107.1c, issue #1421)"
         );
         expect(errors).toHaveLength(1);
         expect(errors[0]).toMatch(
-            /only a chooseNumber \/ payVariableMana Op's bind or a whole-zone moveZone's bindCount is a number binding/
+            /only a chooseNumber \/ payVariableMana Op's bind, a whole-zone moveZone's bindCount or a coinFlipSeries count is a number binding/
         );
     });
 });

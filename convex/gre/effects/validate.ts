@@ -1671,7 +1671,15 @@ function isDifferenceValue(value: unknown): boolean {
  *  TERMINAL, never `isEffectValue` — non-recursive, matching
  *  `EffectScaledOperand` (`cards/types.ts`). */
 function isScaledOperand(value: unknown): boolean {
-    return isPositiveInt(value) || isCountValue(value) || isXValue(value);
+    return (
+        isPositiveInt(value) ||
+        isCountValue(value) ||
+        isXValue(value) ||
+        // issue #3813 (ADR 0144) — a bare NUMERIC-binding ref ("two cards for
+        // each flip" = 2 × `$flips`); its family is checked by the ordered ref
+        // pass like every other bare numeric ref.
+        isBareRef(value)
+    );
 }
 
 /** `{ scaled: { value, times } }` — SHAPE of the multiplication value
@@ -4740,6 +4748,41 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         },
         optional: { player: isPlayerRef },
     },
+    // CR 705.1–705.2 (issue #3813, ADR 0144) — a bounded coin-flip SERIES
+    // whose results are bound as numbers. No nested body: the loop is the
+    // Op's own, never grammar. A series with neither bound would never end
+    // (no `count`, no stop) and one nothing reads back is a no-op, so both
+    // are rejected here rather than behaving silently at runtime.
+    coinFlipSeries: {
+        required: {},
+        optional: {
+            player: isPlayerRef,
+            count: isNominationBound,
+            untilLoss: (v: unknown) => v === true,
+            bindFlips: isBindingName,
+            bindWins: isBindingName,
+            bindLosses: isBindingName,
+        },
+        check: (entry) => {
+            const errors: string[] = [];
+            if (entry.count === undefined && entry.untilLoss !== true)
+                errors.push(
+                    'needs "count" or "untilLoss" — a series with neither has no end (ADR 0144)'
+                );
+            const names = [
+                entry.bindFlips,
+                entry.bindWins,
+                entry.bindLosses,
+            ].filter((n): n is string => typeof n === "string");
+            if (names.length === 0)
+                errors.push(
+                    'needs at least one of "bindFlips" / "bindWins" / "bindLosses" — a series nothing reads back is a no-op (ADR 0144)'
+                );
+            if (new Set(names).size !== names.length)
+                errors.push("binds the same name twice");
+            return errors;
+        },
+    },
     // CR 611.2a / 613.1f (issue #843) — grant a keyword static ability to a
     // permanent for a limited duration (layer 6). `ability` is the free-form
     // keyword granted; `target` is an object selector (announced slot,
@@ -6916,13 +6959,13 @@ function checkRefUse(
         const family = declared.get(use.ref);
         if (family === undefined) {
             errors.push(
-                `${at}: ref "${use.ref}" references undefined binding "${use.ref}" — no earlier Op binds it (a bare numeric ref reads a chooseNumber / payVariableMana Op's bind or a whole-zone moveZone's bindCount)`
+                `${at}: ref "${use.ref}" references undefined binding "${use.ref}" — no earlier Op binds it (a bare numeric ref reads a chooseNumber / payVariableMana Op's bind, a whole-zone moveZone's bindCount or a coinFlipSeries count)`
             );
             return;
         }
         if (family !== "number") {
             errors.push(
-                `${at}: ref "${use.ref}" names a ${family} binding in a bare numeric position — only a chooseNumber / payVariableMana Op's bind or a whole-zone moveZone's bindCount is a number binding; power/toughness/manaValue refs read a snapshot with a property path`
+                `${at}: ref "${use.ref}" names a ${family} binding in a bare numeric position — only a chooseNumber / payVariableMana Op's bind, a whole-zone moveZone's bindCount or a coinFlipSeries count is a number binding; power/toughness/manaValue refs read a snapshot with a property path`
             );
         }
         return;
@@ -7898,6 +7941,28 @@ function checkOpListRefs(
                 );
             } else {
                 declared.set(entry.bindAll, "picks");
+            }
+        }
+
+        // `coinFlipSeries` (issue #3813, ADR 0144) declares up to three
+        // NUMBER bindings — the series' flips / wins / losses — each read back
+        // by a bare ref in a numeric value position. Own fields for the reason
+        // `bindCount` is one: `bindingKindOf` answers per Op, not per field.
+        if (entry.op === "coinFlipSeries") {
+            for (const field of ["bindFlips", "bindWins", "bindLosses"]) {
+                const name = entry[field];
+                if (typeof name !== "string") continue;
+                if (name === "$each") {
+                    errors.push(
+                        `${at}: ${field} "$each" is reserved — only the forEach construct binds it (issue #807)`
+                    );
+                } else if (declared.has(name)) {
+                    errors.push(
+                        `${at}: ${field} "${name}" re-declares an existing binding — binding names must be unique within a script`
+                    );
+                } else {
+                    declared.set(name, "number");
+                }
             }
         }
 

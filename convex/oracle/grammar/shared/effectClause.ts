@@ -74,6 +74,11 @@ import {
 import { zoneRefRule, type ZoneRefIR } from "./zoneRef";
 import { BASIC_LAND_SUBTYPE_ORDER, CREATURE_SUBTYPES } from "./subtypes";
 import { readThenChain } from "./thenChain";
+import {
+    foldCoinFlipSeries,
+    readCoinFlipSentence,
+    type CoinFlipMarker,
+} from "./coinFlipSeries";
 import { createTokenRule, type CreateTokenIR } from "./tokenSpec";
 
 export const EFFECT_CLAUSE = "effect clause";
@@ -550,6 +555,20 @@ export type EffectSentenceIR =
           readonly player: PlayerRefIR;
           readonly count: AmountIR;
       }
+    /**
+     * CR 705.2 (issue #3813, ADR 0144) — "Choose a number. Flip a coin that
+     * many times or until you lose a flip, whichever comes first. If you win
+     * all the flips, draw <perFlip> cards for each flip." Folded from three
+     * marker sentences by `assembleSentences` (`coinFlipSeries.ts`); never
+     * read from one sentence.
+     */
+    | {
+          readonly kind: "coin-flip-series";
+          /** Who draws the payoff (the only payoff form read is a draw). */
+          readonly player: PlayerRefIR;
+          /** Cards drawn for each flip made. */
+          readonly perFlip: number;
+      }
     | {
           readonly kind: "destroy";
           readonly subject: SubjectIR;
@@ -876,6 +895,19 @@ export type SentenceIR =
      */
     | { readonly role: "choose-color" }
     /**
+     * CR 107.1c / CR 705.2 — the three sentences of a coin-flip series
+     * (`coinFlipSeries.ts`): each names an antecedent only the next one
+     * reads, so none is an effect alone. Folded into one `coin-flip-series`
+     * effect by `assembleSentences`.
+     */
+    | { readonly role: "choose-number" }
+    | { readonly role: "coin-flip-series" }
+    | {
+          readonly role: "coin-flip-payoff";
+          readonly draw: Extract<EffectSentenceIR, { kind: "draw" }>;
+          readonly perFlip: number;
+      }
+    /**
      * CR 608.2c — "Create <token>, then <effect>": two effects in printed
      * order, flattened by `assembleSentences` into the same list the two
      * full-stop sentences would give (`thenChain.ts`).
@@ -972,7 +1004,47 @@ export function assembleSentences(
     // follower, including a second marker or the end of the list, has no
     // antecedent to feed.
     let awaitingColorChoice = false;
+    // CR 705.2 — the coin-flip series' three markers, gathered while they are
+    // consecutive and folded into one effect when the run ends.
+    let coinFlip: CoinFlipMarker[] = [];
+    const flushCoinFlip = (): string | null => {
+        if (coinFlip.length === 0) return null;
+        const folded = foldCoinFlipSeries(coinFlip);
+        coinFlip = [];
+        if (typeof folded === "string") return folded;
+        effects.push(folded);
+        return null;
+    };
     for (const sentence of sentences) {
+        if (
+            sentence.role === "choose-number" ||
+            sentence.role === "coin-flip-series" ||
+            sentence.role === "coin-flip-payoff"
+        ) {
+            if (restrictions.length > 0)
+                return {
+                    ok: false,
+                    reason: "an effect sentence follows an activation restriction",
+                };
+            // A pending library window or "Choose a color." waits for the
+            // sentence that FOLLOWS it; folding the series first would
+            // silently reorder the effects.
+            if (window !== null)
+                return {
+                    ok: false,
+                    reason: "a library look is not followed by where its cards go",
+                };
+            if (awaitingColorChoice)
+                return {
+                    ok: false,
+                    reason: '"Choose a color." is not followed by an effect that reads the choice',
+                };
+            coinFlip.push(sentence);
+            continue;
+        }
+        const coinFlipRefused = flushCoinFlip();
+        if (coinFlipRefused !== null)
+            return { ok: false, reason: coinFlipRefused };
         if (awaitingColorChoice) {
             awaitingColorChoice = false;
             if (
@@ -1138,6 +1210,8 @@ export function assembleSentences(
             };
         effects.push(sentence.effect);
     }
+    const coinFlipRefused = flushCoinFlip();
+    if (coinFlipRefused !== null) return { ok: false, reason: coinFlipRefused };
     if (window !== null)
         return {
             ok: false,
@@ -1939,6 +2013,11 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
                 },
             });
         }
+
+        const coinFlip = readCoinFlipSentence(span, (clause) =>
+            effectSentence(clause, ctx)
+        );
+        if (coinFlip !== null) return coinFlip;
 
         if (INSTEAD.test(span)) return insteadRule.run(span, ctx);
 
