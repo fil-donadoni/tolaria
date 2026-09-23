@@ -245,6 +245,16 @@ const SPECIMENS: BoardDialogSpecimen[] = [
                         oracleText:
                             "{2}{R}, {T}: This creature deals 1 damage to any target.",
                     },
+                    // A row with NO mana symbols in it, on purpose:
+                    // `formatOracleText` renders `{T}` / `{R}` as images with
+                    // no alt text, so a row that is all symbols has an
+                    // accessible name of `: Add .` — nothing a promise can
+                    // address. This one is what `dlg-activatable-ability`
+                    // names.
+                    {
+                        id: "a3",
+                        oracleText: "Sacrifice this creature: Draw a card.",
+                    },
                 ]}
                 onActivate={close}
                 sheetOpen
@@ -346,7 +356,10 @@ const SPECIMENS: BoardDialogSpecimen[] = [
         file: "board/exile-cost-dialog.tsx",
         render: () => (
             <ExileCostDialog
-                choice={{ count: 1 }}
+                // `owner: "you"` skips the graveyard chooser step: with two
+                // eligible graveyards the dialog asks WHICH first, and the
+                // picker this row exists to measure is the step after it.
+                choice={{ count: 1, owner: "you" }}
                 allPlayers={PLAYERS}
                 gameId={GAME_ID}
                 playerId={ME}

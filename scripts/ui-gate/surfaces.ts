@@ -1510,6 +1510,11 @@ async function ensureVsAiBoard(page: Page, ctx: WalkContext): Promise<void> {
 /** The pregame gate's own dialog (`pregame-dialog.tsx`): the coin toss, and
  *  the play/draw choice the toss winner owes (CR 103.2-103.4). */
 const PREGAME_GATE = '[role=dialog]:has-text("Coin toss")';
+/** The same layer as PLAIN CSS. `settle.ts` hands its targets to
+ *  `querySelectorAll` in the page, which does not know Playwright's
+ *  `:has-text()` engine and throws `not a valid selector` — measured, and it
+ *  reported the surface UNWALKED. Only one dialog is up at the gate. */
+const PREGAME_GATE_BOX = "[role=dialog]";
 
 /**
  * Reach a game STOPPED at its pregame gate (issue #4419).
@@ -1567,7 +1572,7 @@ async function ensurePregameGate(page: Page, ctx: WalkContext): Promise<void> {
             "reached /game with no pregame gate on screen — the game in progress is already past its coin toss, and rewinding it is not something a walk may do. Finish or concede it, then re-run"
         );
     }
-    await settle(page, [PREGAME_GATE]);
+    await settle(page, [PREGAME_GATE_BOX]);
 }
 
 /**
@@ -1606,6 +1611,8 @@ interface BoardDialogSpecimen {
     layer: string;
     layerAssert: NamedAssertion;
     entry: NamedAssertion;
+    /** A third promise, where the layer owes one beyond its action. */
+    extra?: NamedAssertion;
 }
 
 const BOARD_DIALOG_SPECIMENS: readonly BoardDialogSpecimen[] = [
@@ -1702,10 +1709,13 @@ const BOARD_DIALOG_SPECIMENS: readonly BoardDialogSpecimen[] = [
             locator: { role: "dialog", name: "Convoke" },
             check: "visible",
         },
+        // `Tap 1/2`, not `0/2`: the tapper opens with the minimum already
+        // picked, so this plate is the one confirm in the family that is
+        // ENABLED at rest.
         entry: {
-            label: "confirm: Tap 0/2",
-            locator: { role: "button", name: "Tap 0/2" },
-            check: "visible",
+            label: "confirm: Tap 1/2",
+            locator: { role: "button", name: "Tap 1/2" },
+            check: "reachable",
         },
     },
     {
@@ -1802,9 +1812,12 @@ const BOARD_DIALOG_SPECIMENS: readonly BoardDialogSpecimen[] = [
             locator: { selector: '[data-slot="dialog-content"]' },
             check: "visible",
         },
-        // Each row is a pip image plus a colour name, so its accessible name
-        // is `R Red` — markup, not a promise a user could find by name.
         entry: {
+            label: "choice row: Red",
+            locator: { role: "button", name: "Red" },
+            check: "reachable",
+        },
+        extra: {
             label: "picker contrast",
             locator: { selector: '[data-slot="dialog-content"]' },
             check: "contrast",
@@ -1908,7 +1921,9 @@ function boardDialogSurface(spec: BoardDialogSpecimen): Surface {
             "src/routes/design-system.route.tsx",
         ],
         label: `Board dialog — ${spec.label} (/admin/design-system § 16)`,
-        asserts: [spec.layerAssert, spec.entry],
+        asserts: spec.extra
+            ? [spec.layerAssert, spec.entry, spec.extra]
+            : [spec.layerAssert, spec.entry],
         mounts: [`src/components/${spec.module}`],
         settleTargets: [spec.layer],
         async walk(page, ctx) {
@@ -1925,6 +1940,14 @@ function boardDialogSurface(spec: BoardDialogSpecimen): Surface {
             }
             await opener.scrollIntoViewIfNeeded({ timeout: STEP_TIMEOUT });
             await opener.click({ timeout: STEP_TIMEOUT });
+            // Park the pointer OFF the layer before measuring. The dialog
+            // mounts centred, i.e. under the cursor the click left behind,
+            // and a card tile under the pointer opens the hover CARD PREVIEW
+            // over the dialog — measured: `dlg-discard-cost` and
+            // `dlg-cast-exile-cost` broke `cardsSquare` at 390x844x3 on the
+            // preview's art crop, which is a different surface's element and
+            // a different surface's row.
+            await page.mouse.move(2, 2);
             if (!(await visible(page, spec.layer, STEP_TIMEOUT))) {
                 throw new Unreachable(
                     `the "${spec.slug}" specimen opened no \`${spec.layer}\` layer within 8s — an import that renders nothing is not a specimen`
@@ -3746,7 +3769,7 @@ export const SURFACES: readonly Surface[] = [
         // pregame, and every row below it leaves one past it.
         id: "game-pregame",
         needsGame: true,
-        settleTargets: [PREGAME_GATE],
+        settleTargets: [PREGAME_GATE_BOX],
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
         label: "Pregame gate — coin toss + play/draw (CR 103.2-103.4)",
         asserts: [
