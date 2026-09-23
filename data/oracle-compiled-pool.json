@@ -17585,6 +17585,44 @@
         "setCode": "otj"
     },
     {
+        "name": "Carom",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "The next 1 damage that would be dealt to target creature this turn is dealt to another target creature instead.\nDraw a card.",
+        "effects": [
+            {
+                "op": "redirectDamage",
+                "from": {
+                    "target": 0
+                },
+                "to": {
+                    "target": 1
+                },
+                "amount": 1,
+                "duration": {
+                    "phase": "end-of-turn"
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 2
+        },
+        "id": "184e0964-1e04-49f9-bb76-0a6e682c52f5",
+        "rarity": "common",
+        "setCode": "dis"
+    },
+    {
         "name": "Cloud Manta",
         "types": [
             "Creature"

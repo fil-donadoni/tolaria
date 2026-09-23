@@ -7266,6 +7266,14 @@
         "source": "compiled"
     },
     {
+        "name": "Captain's Maneuver",
+        "scryfallId": "fb50813c-72df-49e7-bac5-e6e247649241",
+        "oracleId": "a8b93d4d-bb67-4063-ac6d-7775be1b1f10",
+        "firstSet": "apc",
+        "firstPrintId": "fb50813c-72df-49e7-bac5-e6e247649241",
+        "firstPrintSet": "apc"
+    },
+    {
         "name": "Captivating Cave",
         "scryfallId": "1d1a645e-85c7-4044-b817-6e24744d245e",
         "oracleId": "4c77767a-8133-43bc-b7a5-09a73259d354",
@@ -7388,6 +7396,16 @@
         "firstSet": "drk",
         "firstPrintId": "6a615650-4da3-4efc-aa5e-c1f2c4f79478",
         "firstPrintSet": "drk"
+    },
+    {
+        "name": "Carom",
+        "scryfallId": "184e0964-1e04-49f9-bb76-0a6e682c52f5",
+        "oracleId": "05775dea-d7f0-4e0b-af4d-ba8d320dc4c0",
+        "firstSet": "dis",
+        "firstPrintId": "184e0964-1e04-49f9-bb76-0a6e682c52f5",
+        "firstPrintSet": "dis",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Carrion Ants",
@@ -12932,6 +12950,14 @@
         "firstSet": "leg",
         "firstPrintId": "9eae0ba1-1383-4505-b4e7-4f17dd8f20c5",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Divine Light",
+        "scryfallId": "8f596ce1-b754-4e34-98e3-e1ddda2fd9b0",
+        "oracleId": "924bf3bb-9f06-4a2c-a17f-3fe11551bcf2",
+        "firstSet": "apc",
+        "firstPrintId": "8f596ce1-b754-4e34-98e3-e1ddda2fd9b0",
+        "firstPrintSet": "apc"
     },
     {
         "name": "Divine Offering",
