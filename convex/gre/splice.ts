@@ -259,6 +259,10 @@ const BINDING_DECLARATION_FIELDS = [
     "bindSource",
     "bindAll",
     "bindCount",
+    // `coinFlipSeries`'s three NUMBER bindings (issue #3813).
+    "bindFlips",
+    "bindWins",
+    "bindLosses",
     "resultBind",
     "chosenBind",
     "otherBind",

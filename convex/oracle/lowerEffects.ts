@@ -2039,6 +2039,50 @@ function lowerSentenceBody(
                 },
             ]);
         }
+        case "coin-flip-series": {
+            // CR 107.1c + CR 705.2 (issue #3813, ADR 0144) — the nomination,
+            // the series bounded by it and stopped at the first loss, and the
+            // payoff gated on no flip lost ("if you win all the flips") and
+            // scaled by the flips made. A literal comparand is a positive
+            // integer in the value grammar, so "no losses" is `< 1`.
+            const player = playerRef(sentence.player, slots, site);
+            if (!player.ok) return player;
+            const perFlip: EffectValue =
+                sentence.perFlip === 1
+                    ? { ref: "$flips" }
+                    : {
+                          scaled: {
+                              value: { ref: "$flips" },
+                              times: sentence.perFlip,
+                          },
+                      };
+            return lowered([
+                {
+                    op: "chooseNumber",
+                    player: "controller",
+                    prompt: "Choose a number.",
+                    bind: "$n",
+                },
+                {
+                    op: "coinFlipSeries",
+                    count: { ref: "$n" },
+                    untilLoss: true,
+                    bindFlips: "$flips",
+                    bindLosses: "$losses",
+                },
+                {
+                    op: "if",
+                    predicate: {
+                        left: { ref: "$losses" },
+                        op: "lt",
+                        right: 1,
+                    },
+                    then: [
+                        { op: "draw", player: player.value, count: perFlip },
+                    ],
+                },
+            ]);
+        }
         case "choose-color-grant-protection": {
             // CR 613.1f — evidenced by exactly one corpus form (Glory): a
             // plain controller-scoped sweep. A target-player sweep or an

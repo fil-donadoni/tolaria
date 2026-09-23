@@ -47350,6 +47350,14 @@
         "source": "compiled"
     },
     {
+        "name": "Squee's Revenge",
+        "scryfallId": "2b391ee3-c1cd-47bc-9540-977cbc32913e",
+        "oracleId": "3c9f3f26-339e-459e-9847-4e33aafb6f9b",
+        "firstSet": "apc",
+        "firstPrintId": "2b391ee3-c1cd-47bc-9540-977cbc32913e",
+        "firstPrintSet": "apc"
+    },
+    {
         "name": "Squeeze",
         "scryfallId": "bbe63220-992b-459c-81ca-d4e2de273ce1",
         "oracleId": "e18d8326-c3c3-43c2-ac13-6861c0ef3888",

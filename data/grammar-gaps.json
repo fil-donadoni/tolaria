@@ -58,11 +58,6 @@
             "issue": 3895
         },
         {
-            "key": "(op) › chooseNumber",
-            "op": "chooseNumber",
-            "issue": 3896
-        },
-        {
             "key": "(op) › coinFlip",
             "op": "coinFlip",
             "issue": 3897

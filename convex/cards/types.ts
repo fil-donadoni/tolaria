@@ -13826,8 +13826,19 @@ export interface EffectDifferenceValue {
  *  the difference member's own frozen scope, not an oversight to fix here.
  *  Still a TERMINAL, never a full `EffectValue`: an expression tree is
  *  unrepresentable in the type system, exactly as `EffectDifferenceOperand`
- *  documents. */
-export type EffectScaledOperand = number | EffectCount | EffectXValue;
+ *  documents.
+ *
+ *  `EffectRef` (issue #3813, ADR 0144) — a bare NUMERIC-binding ref
+ *  (`{ ref: "$flips" }`): "draw two cards for each flip" is `2 × $flips`,
+ *  where the operand is a count a preceding Op bound (`coinFlipSeries`,
+ *  `chooseNumber`). Still a terminal — a binding holds one integer, never an
+ *  expression — so the depth-1 discipline below is unchanged. Only a bare
+ *  ref is meaningful here; the validator rejects a dotted property ref. */
+export type EffectScaledOperand =
+    | number
+    | EffectCount
+    | EffectXValue
+    | EffectRef;
 
 /** scaled — a fixed positive-integer multiplier times a terminal value (issue
  *  #2366), the value grammar's multiplication counterpart to `difference`'s
@@ -13867,7 +13878,8 @@ export type EffectScaledOperand = number | EffectCount | EffectXValue;
  *
  *  CR 107.1b: unlike `difference`, no sign clamp is needed here — every
  *  `EffectScaledOperand` case is non-negative by construction (a positive-int
- *  literal, a `count`'s cardinality, or CR 107.3's non-negative chosen X) and
+ *  literal, a `count`'s cardinality, CR 107.3's non-negative chosen X, or a
+ *  numeric binding every writer of which is non-negative) and
  *  `times` is a positive int, so the product is always non-negative. */
 export interface EffectScaledValue {
     scaled: {
@@ -17482,6 +17494,51 @@ export type EffectOp =
           win: EffectCoinFlipBranch;
           loss: EffectCoinFlipBranch;
           player?: EffectPlayerRef;
+      }
+    /** CR 705.1–705.2 (issue #3813, ADR 0144) — flip a SERIES of coins and
+     *  bind its results as numbers: "flip a coin that many times or until you
+     *  lose a flip" (Squee's Revenge), "flip a coin until you lose a flip"
+     *  (Crazed Firecat), "flip X coins" (Rabid Sheep). The bounded loop lives
+     *  INSIDE this Op, never in the grammar: ADR 0045's four structural
+     *  constructs stay frozen, and the payoff is written with them (`if` over
+     *  a comparison on the bound counts, a value that reads them).
+     *
+     *  A thin declarative skin over the single `SpellContext.flipCoin`
+     *  primitive (the same seeded-PRNG bit `coinFlipSync` draws), one execution
+     *  path (ADR 0045). The series stops after `count` flips, or at the first
+     *  LOST flip when `untilLoss` is set, whichever comes first; at least one
+     *  of the two is required (the validator rejects neither), and without a
+     *  `count` the series is bounded only by the first loss (it ends with
+     *  probability 1). A LEAF, not a construct: a re-walk after a later
+     *  suspension skips it by position, so it never flips again (the engine
+     *  runs each instruction once; CR 608.2c orders them) and its bindings are read
+     *  back from the persisted answer store.
+     *  A `count` that resolves below 1, or cannot be resolved, flips nothing
+     *  and binds zeros. Skipped when the flipper cannot be resolved
+     *  (CR 608.2b) — its bindings are then uncaptured and their readers skip.
+     *
+     *  What it deliberately does NOT do (ADR 0144): run a body per flip (no
+     *  printed card applies its payoff mid-series); let the flipper stop
+     *  voluntarily (Fiery Gambit — a suspension per flip); flip without a
+     *  call (CR 705.2 "comes up heads", Ral Zarek); suspend on a reveal
+     *  overlay (the `coinFlip` ADR 0023 UX). */
+    | {
+          op: "coinFlipSeries";
+          /** The flipping player (CR 705.2); the resolving `"controller"` by
+           *  default. */
+          player?: EffectPlayerRef;
+          /** Maximum number of flips, resolved at execution time. */
+          count?: EffectValue;
+          /** CR 705.2 — stop at the first flip the flipper LOSES. */
+          untilLoss?: true;
+          /** NUMERIC binding names for the series' results; at least one of
+           *  the three is required (a series nothing reads back is a no-op).
+           *  Their own fields, like `moveZone.bindCount` / `mill.bindAll`:
+           *  one Op, three numbers. `bindFlips` is the number of flips made;
+           *  `bindWins` / `bindLosses` split it (CR 705.2). */
+          bindFlips?: string;
+          bindWins?: string;
+          bindLosses?: string;
       }
     /** CR 701.20a — reveal `player`'s hand to every player (issue #920, #682).
      *  A thin declarative skin over `SpellContext.markKnownToAll` (ADR 0026):

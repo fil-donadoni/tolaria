@@ -281,3 +281,48 @@ export const captainsManeuver: CardDefinition = {
         },
     ],
 };
+
+// Squee's Revenge — a bounded coin-flip SERIES (issue #3813, ADR 0144).
+// CR 107.1c — "Choose a number": any non-negative number is legal; zero flips
+// nothing and draws nothing. CR 705.2 — the caster calls each flip and wins it
+// when the call matches; `coinFlipSeries` stops after the chosen number of
+// flips or at the first lost one, whichever comes first, and binds how many
+// were made and how many were lost. "If you win all the flips" is zero losses
+// (`lt 1`: a literal comparand is a positive integer)
+// — so choosing 0 is a vacuous win of nothing — and "two cards for each flip"
+// is twice the flips made.
+export const squeesRevenge: CardDefinition = {
+    id: "2b391ee3-c1cd-47bc-9540-977cbc32913e", // APC 123
+    rarity: "uncommon",
+    name: "Squee's Revenge",
+    oracleText:
+        "Choose a number. Flip a coin that many times or until you lose a flip, whichever comes first. If you win all the flips, draw two cards for each flip.",
+    manaCost: { X: 1, U: 1, R: 1 },
+    types: ["Sorcery"],
+    effects: [
+        {
+            op: "chooseNumber",
+            player: "controller",
+            prompt: "Choose a number.",
+            bind: "$n",
+        },
+        {
+            op: "coinFlipSeries",
+            count: { ref: "$n" },
+            untilLoss: true,
+            bindFlips: "$flips",
+            bindLosses: "$losses",
+        },
+        {
+            op: "if",
+            predicate: { left: { ref: "$losses" }, op: "lt", right: 1 },
+            then: [
+                {
+                    op: "draw",
+                    player: "controller",
+                    count: { scaled: { value: { ref: "$flips" }, times: 2 } },
+                },
+            ],
+        },
+    ],
+};

@@ -3110,4 +3110,66 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 107.1c + CR 705.2 (issue #3813, ADR 0144) — "Choose a number. Flip
+    // a coin that many times or until you lose a flip, whichever comes first.
+    // If you win all the flips, draw two cards for each flip." Exhibits the
+    // coin-flip series form: its flips are random bits the canned smoke
+    // scenario cannot fix, so this fixture is the evidence that the series,
+    // its "no flip lost" gate and its per-flip draw are the ones the
+    // hand-written catalogue writes (Squee's Revenge also round-trips,
+    // Guard C).
+    {
+        rule: "coin-flip-series",
+        card: {
+            oracleId: "3c9f3f26-339e-459e-9847-4e33aafb6f9b",
+            name: "Squee's Revenge",
+            manaCost: "{1}{U}{R}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Choose a number. Flip a coin that many times or until you lose a flip, whichever comes first. If you win all the flips, draw two cards for each flip.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Squee's Revenge",
+            types: ["Sorcery"],
+            manaCost: { X: 1, U: 1, R: 1 },
+            oracleText:
+                "Choose a number. Flip a coin that many times or until you lose a flip, whichever comes first. If you win all the flips, draw two cards for each flip.",
+            effects: [
+                {
+                    op: "chooseNumber",
+                    player: "controller",
+                    prompt: "Choose a number.",
+                    bind: "$n",
+                },
+                {
+                    op: "coinFlipSeries",
+                    count: { ref: "$n" },
+                    untilLoss: true,
+                    bindFlips: "$flips",
+                    bindLosses: "$losses",
+                },
+                {
+                    op: "if",
+                    predicate: {
+                        left: { ref: "$losses" },
+                        op: "lt",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "draw",
+                            player: "controller",
+                            count: {
+                                scaled: {
+                                    value: { ref: "$flips" },
+                                    times: 2,
+                                },
+                            },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);

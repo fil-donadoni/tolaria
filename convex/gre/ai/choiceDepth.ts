@@ -109,6 +109,8 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     becomeMonarch: false,
     captureBinding: false,
     coinFlipSync: false,
+    // CR 705 (issue #3813) — draws its bits inline and binds counts; no input.
+    coinFlipSeries: false,
     counter: false,
     counters: false,
     // CR 716.2a (issue #3234) — writes a field and emits an event; it asks the

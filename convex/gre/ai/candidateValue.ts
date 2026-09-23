@@ -862,6 +862,10 @@ function resolveScaledOperandAgainstBoard(
 ): number {
     if (typeof operand === "number") return operand;
     if ("X" in operand) return CF_ASSUMED_X_FALLBACK;
+    // issue #3813 — a bound numeric ref (`$flips`) has no value before the
+    // Op that binds it runs: the same representative floor every other
+    // dynamic ref read takes in `resolveValueAgainstBoard`.
+    if ("ref" in operand) return CF_ASSUMED_REF_FALLBACK;
     return resolveCountSpecAgainstBoard(
         state,
         perspectivePlayerId,
