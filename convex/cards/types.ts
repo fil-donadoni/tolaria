@@ -6939,7 +6939,9 @@ export interface SpellContext {
         ownerId: string,
         cardInstanceId: string,
         from: "library" | "hand" | "graveyard",
-        knowerId: string,
+        /** The one player allowed to look (CR 406.3), or `null` when the
+         *  instruction lets NO player examine it (Suppress, issue #3812). */
+        knowerId: string | null,
         /** WHICH mechanic hid it (issue #2904 review) — REQUIRED since issue
          *  #3001, whose whole point is that a new call site cannot inherit
          *  opponent-hiding by omitting an argument. One legal value: the
@@ -7386,6 +7388,14 @@ export interface SpellContext {
  *  Op's inline-body path (ADR 0048). */
 export type DelayedTriggerTiming =
     | "next-end-step"
+    /** CR 603.7 / 513.1 (issue #3812) — "at the beginning of the end step of
+     *  THAT PLAYER'S NEXT TURN" (Suppress). PLAYER-scoped like
+     *  `next-draw-step` (requires `targetPlayer`), and additionally TURN-scoped:
+     *  it fires only at an end step of a turn that BEGAN after the trigger was
+     *  created (`DelayedTriggerInstance.scheduledOnTurn`). Not merely the next
+     *  end step that player is active in — a sorcery aimed at its own caster
+     *  must skip the current turn's end step, whose turn is not "next". */
+    | "player-next-turn-end-step"
     | "next-end-of-combat"
     | "next-draw-step"
     | "next-main-phase"
@@ -14187,11 +14197,22 @@ export interface EffectCoinFlipBranch {
  *  (freeze-at-cast, ADR 0049): combat state is live-only, so a fire-time scan
  *  would return empty once the target itself died. The selector vocabulary may
  *  grow like the Op vocabulary — one member + validator/interpreter arm per
- *  set — without reopening ADR 0045. */
-export type EffectListSelector = {
-    set: "combatPartners";
-    of: EffectTargetRef;
-};
+ *  set — without reopening ADR 0045.
+ *
+ *  `{ set: "bound", ref: "$x" }` (issue #3812) freezes an EARLIER Op's picks
+ *  or list binding — the ids it already holds at scheduling time, verbatim —
+ *  so a delayed body can act on "those cards" (Suppress: the hand a whole-zone
+ *  `moveZone`'s `bindAll` exiled face down, returned at a later end step). The
+ *  same `{ set: "bound", ref }` spelling a `forEach` uses to iterate a list:
+ *  one name for one storage shape. A bare `{ ref }` capture cannot carry it —
+ *  at run time a picks array and a snapshot triple are both `string[]`, and
+ *  only the validator knows the family. */
+export type EffectListSelector =
+    | {
+          set: "combatPartners";
+          of: EffectTargetRef;
+      }
+    | { set: "bound"; ref: string };
 
 /** One captured value of a `delayedTrigger` Op (ADR 0048): what crosses the
  *  scheduling-time → fire-time boundary. A SINGLE-VALUE source resolves to ONE
@@ -15505,13 +15526,27 @@ export type EffectOp =
      *  rather than `bind` for the reason `mill.bindAll` is one — two binding
      *  families on one Op, and `bindingKindOf` answers per Op (this one is a
      *  number, `bind` is a snapshot). Whole-zone shape ONLY: the other shapes
-     *  move a chosen or filtered subset and bind the cards themselves. */
+     *  move a chosen or filtered subset and bind the cards themselves.
+     *
+     *  `faceDown` (issue #3812) — CR 406.3 "exiles all cards from their hand
+     *  FACE DOWN" (Suppress): valid only with `from: "hand"` and
+     *  `to: "exile"` (validator-enforced — a library/graveyard sweep would
+     *  need one batched CARDS_EXILED, issue #1558). Each card goes
+     *  through `SpellContext.exileFaceDown` with NO knower — the oracle grants
+     *  no look, and CR 406.3 says a card exiled face down "can't be examined by
+     *  any player except when instructions allow it", its owner included.
+     *  `bindAll` (issue #3812) names a PICKS binding holding every card the
+     *  move took, for a later Op in this script or a `delayedTrigger`'s
+     *  `{ select: { set: "bound" } }` list capture ("returns THOSE cards");
+     *  left uncaptured when the zone was empty, exactly like `mill.bindAll`. */
     | {
           op: "moveZone";
           player: EffectPlayerRef;
           from: MovableZone;
           to: MovableZone;
           bindCount?: string;
+          faceDown?: boolean;
+          bindAll?: string;
       }
     /** CR 400.7 (issue #1104) — the FOURTH `moveZone` shape: a FILTER-DRIVEN
      *  bulk sweep across one or more zones, no player choice at all. Every
@@ -18150,8 +18185,9 @@ export type EffectOp =
           /** What crosses from scheduling time to fire time, keyed by the
            *  binding name the body reads it back under. */
           capture?: Record<string, EffectCaptureSource>;
-          /** REQUIRED for the player-scoped timings (CR 504/505); rejected
-           *  for the global-boundary timings. Resolved at scheduling time. */
+          /** REQUIRED for the player-scoped timings (CR 504/505, and
+           *  `player-next-turn-end-step`); rejected for the global-boundary
+           *  timings. Resolved at scheduling time. */
           targetPlayer?: EffectPlayerRef;
           /** REQUIRED for every INSTANCE-SCOPED timing: both leave-watches
            *  (`leaves-battlefield` and its indefinite twin

@@ -1974,10 +1974,13 @@ export function fireDelayedTriggers(
         // A `next-draw-step` / `next-main-phase` instance fires only on its
         // target player's draw step / main phase (CR 504 / CR 505); the
         // global-boundary timings ignore `targetPlayerId`.
+        // `scheduledOnTurn` (issue #3812, CR 603.7) additionally holds a
+        // "that player's NEXT turn" instance past the turn it was created on.
         const matches =
             t.timing === timing &&
             (t.targetPlayerId === undefined ||
-                t.targetPlayerId === state.activePlayerId);
+                t.targetPlayerId === state.activePlayerId) &&
+            (t.scheduledOnTurn === undefined || state.turn > t.scheduledOnTurn);
         (matches ? firing : remaining).push(t);
     }
     state.delayedTriggers = remaining.length > 0 ? remaining : undefined;
@@ -2313,6 +2316,10 @@ function performPhaseEntry(state: GameState): void {
         }
         case "END_STEP": {
             fireDelayedTriggers(state, "next-end-step");
+            // CR 603.7 / 513.1 (issue #3812) — "at the beginning of the end
+            // step of that player's next turn": gated to that player's turn
+            // and to a turn after the one the trigger was created on.
+            fireDelayedTriggers(state, "player-next-turn-end-step");
             // CR 725.2 (issue #1199) — "At the beginning of the monarch's end
             // step, that player draws a card". This is one of the two inherent
             // monarch triggered abilities (no source, controlled by the game /

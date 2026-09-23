@@ -90,11 +90,17 @@ export function isFaceDownProducer(value: unknown): value is FaceDownProducer {
  *  first sentence leaves the card face up and examinable by any player — it
  *  reaches exile through the ordinary zone-mover, which stamps nothing.
  *
- *  Deliberately NOT `faceDownBy` (issue #3413): `moveCard` keeps that marker
+ *  Not `faceDownBy` in general (issue #3413): `moveCard` keeps that marker
  *  alive across a move INTO exile while it deletes `knownTo`, so a card that
  *  was a face-down PERMANENT and is now a perfectly public exiled card still
  *  carries it. Reading it here would refuse disclosure for cards everyone can
- *  see. `faceDown` is likewise not it — an exile instance never carries that
+ *  see. The ONE producer that is read is `"face-down-exile"`, which only
+ *  `exileFaceDownCard` stamps and `moveCard` / `removeFromZone` clear on the
+ *  way out of exile (a direct battlefield return may leave it behind, which
+ *  fails CLOSED — hidden, never leaked): it is how a
+ *  face-down exile NO player may look at (Suppress, issue #3812 — CR 406.3
+ *  "can't be examined by any player") is told apart from a public card, since
+ *  it carries no `knownTo` grant at all. `faceDown` is likewise not it — an exile instance never carries that
  *  flag in raw state; `projectExileCard` adds it ON THE WIRE.
  *
  *  Extracted at the third copy (issue #3413): the wire gate
@@ -103,8 +109,11 @@ export function isFaceDownProducer(value: unknown): value is FaceDownProducer {
  *  the ONE way the face-down leak reopens is those three drifting apart. */
 export function isFaceDownExile(card: {
     knownTo?: readonly string[];
+    faceDownBy?: FaceDownProducer;
 }): boolean {
-    return (card.knownTo?.length ?? 0) > 0;
+    return (
+        (card.knownTo?.length ?? 0) > 0 || card.faceDownBy === "face-down-exile"
+    );
 }
 
 /** Turns a permanent face down in place (CR 708.2). No-op if already face

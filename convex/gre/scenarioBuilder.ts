@@ -95,7 +95,7 @@ import {
     refreshOffBattlefieldCharacteristics,
 } from "./zoneCharacteristics";
 import { resolveEntersWithCounters } from "../cards/entersWith";
-import { turnFaceDown } from "./faceDown";
+import { turnFaceDown, isFaceDownExile } from "./faceDown";
 import { finalizeMulligan } from "./mulligan";
 import { computeExpectedInput } from "./expectedInput";
 import { buildActivatedAbilityStackItem } from "./activationCommit";
@@ -3077,7 +3077,10 @@ function lowerCard(
                 );
             }
         }
-        if (card.knownTo?.includes(player.id)) {
+        // issue #3812 — a knower-less face-down exile (CR 406.3) stays face
+        // down too; the spec re-lowers it with the owner as knower, which
+        // still hides it from the opponent.
+        if (card.knownTo?.includes(player.id) || isFaceDownExile(card)) {
             entry.faceDownExile = true;
         }
     }

@@ -194,18 +194,18 @@ describe("Memory Jar ({T}, Sacrifice: each player exiles hand face down + draws 
         expect(state.delayedTriggers![0].timing).toBe("next-end-step");
     });
 
-    it("the exiled cards are face down (hidden from the opponent, visible to the owner) in the wire projection", () => {
+    it("the exiled cards are face down and hidden from BOTH players in the wire projection (CR 406.3, issue #3812)", () => {
         const { state, jar } = setup();
         activate(state, jar);
-        // p2 (the opponent) must NOT see p1's exiled cards' real identity —
-        // the projection substitutes a face-down sentinel, not the real id.
-        const asP2 = projectPublicState(state, 1, "p2");
-        const p1ExiledFromP2 = asP2.players[0].exile.find((c) => c.id === "h1");
-        expect(p1ExiledFromP2?.card?.id).not.toEqual(grimMonolith.id);
-        // p1 (the owner) CAN see their own exiled cards.
-        const asP1 = projectPublicState(state, 1, "p1");
-        const p1ExiledFromP1 = asP1.players[0].exile.find((c) => c.id === "h1");
-        expect(p1ExiledFromP1?.card).toEqual({ id: grimMonolith.id });
+        // CR 406.3 — a card exiled face down "can't be examined by any player
+        // except when instructions allow it", and Memory Jar's never do: the
+        // owner sees the face-down sentinel exactly like the opponent.
+        for (const viewer of ["p1", "p2"]) {
+            const view = projectPublicState(state, 1, viewer);
+            const h1 = view.players[0].exile.find((c) => c.id === "h1");
+            expect(h1?.card?.id).not.toEqual(grimMonolith.id);
+            expect(h1?.faceDown).toBe(true);
+        }
     });
 
     it("at the next end step, each player discards their (drawn) hand and returns the exiled cards to hand", () => {

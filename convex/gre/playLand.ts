@@ -16,6 +16,7 @@
 // scan + SBA pass, but NOT the caller's surrounding concerns (game.ts owns
 // validation / seq / persistence; applyMove owns its search framing).
 
+import { isFaceDownExile } from "./faceDown";
 import type {
     CardInstanceState,
     GameState,
@@ -346,7 +347,9 @@ export function applyPlayLandFromExile(
  *  list. Used to decide whether a land-entry prompt may name the card, since
  *  `pendingChoices` reach both viewers unredacted (issue #1980). */
 function isHiddenInExile(card: CardInstanceState): boolean {
-    return (card.knownTo?.length ?? 0) > 0;
+    // The shared predicate (issue #3812 — a knower-less face-down exile has
+    // no `knownTo` at all).
+    return isFaceDownExile(card);
 }
 
 /** CR 305.1-analog — the play-from-exile permission is consumed the moment the card

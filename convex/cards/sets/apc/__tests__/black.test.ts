@@ -21,7 +21,7 @@
 //
 // Resolved through the REGISTRY SEAM by id, never by name.
 import { describe, expect, it } from "vitest";
-import { getDefinition } from "../../../index";
+import { FACE_DOWN_CARD_ID, getDefinition } from "../../../index";
 import {
     makeInstance,
     makePlayer,
@@ -37,6 +37,7 @@ import {
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import {
+    advancePhase,
     emitBlockersConfirmedEvents,
     finalizeCleanup,
 } from "../../../../gre/phases";
@@ -44,7 +45,7 @@ import { projectPublicState } from "../../../../gameProjections";
 import { compactState, expandState } from "../../../../gre/serialize";
 import { collectTriggers } from "../../../../gre/triggers";
 import type { GameEvent } from "../../../types";
-import { activateAbility } from "../../../../game";
+import { activateAbility, passPriority } from "../../../../game";
 import {
     gameStateSeed,
     makeMutationCtx,
@@ -57,6 +58,7 @@ const GAME_ID = "game-1" as Id<"games">;
 
 const DEAD_RINGERS = getDefinition("9b78028c-3ebd-432d-b628-e1fa284f08f3");
 const MIND_EXTRACTION = getDefinition("7d77ddcc-e66b-4036-8a55-ec42953918d1");
+const SUPPRESS = getDefinition("642eefde-8727-44ff-9e04-373abfcd0679");
 
 /** Angus Mackenzie — {G}{W}{U}, nonblack and multicoloured. */
 const GOLD_CREATURE = getDefinition("57264bd9-94f6-4d4d-baff-2b2900585635");
@@ -466,5 +468,214 @@ describe("Zombie Boa — choose a color; whenever it becomes blocked by a creatu
             targets: [],
         });
         await expect(activate(busy)).rejects.toThrow(/sorcery/i);
+    });
+});
+
+describe("Suppress — target player exiles their hand face down; it returns at the end step of THAT player's NEXT turn (CR 406.3 / 603.7, issue #3812)", () => {
+    const HAND = ["h1", "h2", "h3"];
+
+    /** p1 active in turn 1's main phase with Suppress on the stack aimed at
+     *  `target`; both players hold three cards and a library to draw from. */
+    function suppressBoard(target: "p1" | "p2", handOf = HAND): GameState {
+        const hand = (owner: string) =>
+            handOf.map((id, i) =>
+                makeInstance(
+                    [GREEN_CREATURE, RED_CARD, BLACK_CARD][i % 3]!.id,
+                    {
+                        id: `${owner}-${id}`,
+                        ownerId: owner,
+                        controllerId: owner,
+                        zone: "hand",
+                    }
+                )
+            );
+        const library = (owner: string) =>
+            Array.from({ length: 6 }, (_, i) =>
+                makeInstance(GREEN_CREATURE.id, {
+                    id: `${owner}-lib${i}`,
+                    ownerId: owner,
+                    controllerId: owner,
+                    zone: "library",
+                })
+            );
+        const state = makeState({
+            players: [
+                makePlayer("p1", { hand: hand("p1"), library: library("p1") }),
+                makePlayer("p2", { hand: hand("p2"), library: library("p2") }),
+            ],
+        });
+        pushSpell(state, SUPPRESS.id, "p1", [{ type: "player", id: target }]);
+        return state;
+    }
+
+    const exiledIds = (state: GameState, pid: string) =>
+        state.players.find((p) => p.id === pid)!.exile.map((c) => c.id);
+    const handIds = (state: GameState, pid: string) =>
+        state.players.find((p) => p.id === pid)!.hand.map((c) => c.id);
+
+    /** Resolve whatever is on the stack, else step the turn structure, until
+     *  `stop` holds. */
+    function runUntil(state: GameState, stop: (s: GameState) => boolean) {
+        for (let i = 0; i < 80; i++) {
+            if (stop(state)) return;
+            if (state.stack.length > 0) resolveTopOfStack(state);
+            else advancePhase(state);
+        }
+        throw new Error("runUntil: condition never reached");
+    }
+    const atEndStep = (turn: number) => (s: GameState) =>
+        s.turn === turn && s.phase === "END_STEP";
+
+    it("exiles the target's WHOLE hand face down — hidden from BOTH viewers on the wire", () => {
+        const state = suppressBoard("p2");
+        resolveTopOfStack(state);
+        const opp = HAND.map((id) => `p2-${id}`);
+        expect(handIds(state, "p2")).toEqual([]);
+        expect(exiledIds(state, "p2")).toEqual(opp);
+        // The caster's own hand is untouched.
+        expect(handIds(state, "p1")).toHaveLength(3);
+        // CR 406.3 — no player may examine them: no `knownTo` grant at all.
+        for (const c of state.players[1].exile) {
+            expect(c.faceDownBy).toBe("face-down-exile");
+            expect(c.knownTo).toBeUndefined();
+        }
+        // Wire format — the owner AND the opponent both see face-down cards
+        // with no identity.
+        for (const viewer of ["p1", "p2"]) {
+            const view = projectPublicState(state, 1, viewer);
+            const pile = view.players[1].exile;
+            expect(pile).toHaveLength(3);
+            for (const c of pile) {
+                expect(c.card.id).toBe(FACE_DOWN_CARD_ID);
+                expect(c.faceDown).toBe(true);
+            }
+        }
+    });
+
+    it("returns those cards at the end step of THAT player's next turn — not at the caster's end step", () => {
+        const state = suppressBoard("p2");
+        resolveTopOfStack(state);
+        runUntil(state, atEndStep(1));
+        // Turn 1 is the caster's: nothing fires.
+        expect(state.stack).toHaveLength(0);
+        expect(exiledIds(state, "p2")).toHaveLength(3);
+        runUntil(state, atEndStep(2));
+        expect(state.activePlayerId).toBe("p2");
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state);
+        for (const id of HAND) {
+            expect(handIds(state, "p2")).toContain(`p2-${id}`);
+        }
+        expect(exiledIds(state, "p2")).toEqual([]);
+        expect(state.delayedTriggers ?? []).toHaveLength(0);
+        // The returned cards were never revealed: the caster learns nothing.
+        for (const c of state.players[1].hand) {
+            expect(c.knownTo ?? []).not.toContain("p1");
+        }
+    });
+
+    it("targeting yourself skips THIS turn's end step: it returns on your NEXT turn (turn 3)", () => {
+        const state = suppressBoard("p1");
+        resolveTopOfStack(state);
+        expect(exiledIds(state, "p1")).toHaveLength(3);
+        runUntil(state, atEndStep(1));
+        expect(state.stack).toHaveLength(0);
+        runUntil(state, atEndStep(2));
+        expect(state.stack).toHaveLength(0);
+        runUntil(state, atEndStep(3));
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state);
+        for (const id of HAND)
+            expect(handIds(state, "p1")).toContain(`p1-${id}`);
+    });
+
+    it("CR 603.7c — a card no longer in exile when the trigger resolves is not returned", () => {
+        const state = suppressBoard("p2");
+        resolveTopOfStack(state);
+        const opp = state.players[1];
+        const [gone] = opp.exile.splice(0, 1);
+        opp.graveyard.push({ ...gone!, zone: "graveyard" });
+        runUntil(state, atEndStep(2));
+        resolveTopOfStack(state);
+        expect(handIds(state, "p2")).not.toContain(gone!.id);
+        expect(opp.graveyard.map((c) => c.id)).toContain(gone!.id);
+        expect(handIds(state, "p2")).toHaveLength(2 + 1); // two returned + turn 2 draw
+    });
+
+    it("an empty hand exiles nothing; the trigger still fires and returns nothing", () => {
+        const state = suppressBoard("p2", []);
+        resolveTopOfStack(state);
+        expect(state.delayedTriggers).toHaveLength(1);
+        runUntil(state, atEndStep(2));
+        expect(state.stack).toHaveLength(1);
+        resolveTopOfStack(state);
+        expect(state.delayedTriggers ?? []).toHaveLength(0);
+    });
+
+    it("the turn gate and the frozen card list survive the persisted snapshot (serialize round-trip)", () => {
+        const live = suppressBoard("p2");
+        resolveTopOfStack(live);
+        const state = expandState(compactState(live));
+        const [t] = state.delayedTriggers ?? [];
+        expect(t?.timing).toBe("player-next-turn-end-step");
+        expect(t?.targetPlayerId).toBe("p2");
+        expect(t?.scheduledOnTurn).toBe(1);
+        expect(t?.payload.exiled).toEqual(HAND.map((id) => `p2-${id}`));
+        expect(state.players[1].exile[0]?.faceDownBy).toBe("face-down-exile");
+    });
+
+    it("full path: resolves and returns through game.ts passPriority, and the client view follows", async () => {
+        const pass = (ctx: Parameters<typeof runMutation>[1], pid: string) =>
+            runMutation<{ gameId: Id<"games">; playerId: string }, void>(
+                passPriority as unknown as Handler<never, void>,
+                ctx,
+                { gameId: GAME_ID, playerId: pid }
+            );
+        const harness = makeMutationCtx("p1", [
+            gameStateSeed(suppressBoard("p2")),
+        ]);
+        const step = async () => {
+            const live = harness.state();
+            const pid = live.priorityPlayerId;
+            const authed = makeMutationCtx(pid, [gameStateSeed(live, 99)]);
+            await pass(authed.ctx, pid);
+            harness.doc("gs-1").state = authed.doc("gs-1").state;
+        };
+        // Both players pass: Suppress resolves.
+        for (let i = 0; i < 4 && harness.state().stack.length > 0; i++) {
+            await step();
+        }
+        const exiled = harness.state();
+        expect(exiled.players[1].hand).toHaveLength(0);
+        const oppView = projectPublicState(exiled, 1, "p2");
+        expect(oppView.players[1].exile.map((c) => c.card.id)).toEqual([
+            FACE_DOWN_CARD_ID,
+            FACE_DOWN_CARD_ID,
+            FACE_DOWN_CARD_ID,
+        ]);
+        // The intervening turn structure is exercised by the GRE tests above
+        // (declaring attackers is its own mutation); jump the PERSISTED state
+        // to p2's turn-2 postcombat main, then let game.ts carry it into the
+        // end step, fire the trigger and resolve it.
+        const jumped = harness.state();
+        jumped.turn = 2;
+        jumped.activePlayerId = "p2";
+        jumped.priorityPlayerId = "p2";
+        jumped.passCount = 0;
+        jumped.phase = "POSTCOMBAT_MAIN";
+        harness.doc("gs-1").state = gameStateSeed(jumped).state;
+        for (let i = 0; i < 12; i++) {
+            if (harness.state().players[1].exile.length === 0) break;
+            await step();
+        }
+        const back = harness.state();
+        expect(back.turn).toBe(2);
+        expect(back.players[1].exile).toHaveLength(0);
+        const ownerView = projectPublicState(back, 1, "p2");
+        for (const id of HAND) {
+            expect(ownerView.players[1].hand.map((c) => c?.id)).toContain(
+                `p2-${id}`
+            );
+        }
     });
 });

@@ -2902,6 +2902,11 @@ export type DelayedTriggerInstance = {
      *  match check honors `targetPlayerId` whenever present, regardless of
      *  timing). */
     targetPlayerId?: string;
+    /** CR 603.7 (issue #3812) — the turn the trigger was CREATED on, set only
+     *  for `player-next-turn-end-step`: "that player's NEXT turn" is a turn
+     *  that begins after this one, so `fireDelayedTriggers` refuses to fire
+     *  it while `state.turn` still equals this value. */
+    scheduledOnTurn?: number;
     /** For the `leaves-battlefield` timing (CR 603.7a / 603.10): the specific
      *  instance whose `PERMANENT_LEFT` event fires this delayed trigger ("when
      *  THAT creature leaves the battlefield this turn, …"). Undefined for every
@@ -20337,6 +20342,9 @@ export function buildSpellContext(
                 timing,
                 payload,
                 ...(targetPlayerId ? { targetPlayerId } : {}),
+                ...(timing === "player-next-turn-end-step"
+                    ? { scheduledOnTurn: state.turn }
+                    : {}),
                 ...(watchInstanceId ? { watchInstanceId } : {}),
                 ...(blockerColors ? { blockerColors: [...blockerColors] } : {}),
                 ...(inline
@@ -22547,7 +22555,7 @@ export function buildSpellContext(
             ownerId: string,
             cardInstanceId: string,
             from: "library" | "hand" | "graveyard",
-            knowerId: string,
+            knowerId: string | null,
             producer: Extract<FaceDownProducer, "face-down-exile">
         ): void {
             const player = getPlayer(state, ownerId);
@@ -24690,10 +24698,17 @@ function moveCardWithGraveyardReplacement(
     to: Exclude<Zone, "stack">
 ): CardInstanceState {
     if (to !== "graveyard") {
+        // Read BEFORE the move: `moveCard` clears `faceDownBy` on the way out
+        // of exile, and a face-down exile no player may look at (issue #3812)
+        // carries nothing else — read after, it would pass for a public card
+        // and its identity would be granted to every player below.
+        const leavingFaceDownExile =
+            from === "exile" &&
+            player.exile.some(
+                (c) => c.id === cardInstanceId && isFaceDownExile(c)
+            );
         const moved = moveCard(player, cardInstanceId, from, to);
         if (PUBLIC_ZONES.has(from) && !PUBLIC_ZONES.has(to)) {
-            const leavingFaceDownExile =
-                from === "exile" && isFaceDownExile(moved);
             if (!leavingFaceDownExile) {
                 grantKnowledgeToAll(state, player.id, [moved.id]);
             }
@@ -24778,7 +24793,11 @@ export function exileFaceDownCard(
     player: PlayerState,
     cardInstanceId: string,
     from: Exclude<Zone, "stack" | "battlefield">,
-    knowerId: string,
+    /** CR 406.3 — the player the instruction lets look at it, or `null` when
+     *  it lets NO player examine it (Suppress, issue #3812): then no
+     *  `knownTo` is stamped and `faceDownBy` alone marks the card face down
+     *  (`isFaceDownExile`). */
+    knowerId: string | null,
     /** WHICH mechanic hid it (issue #2904) — REQUIRED since issue #3001, so a
      *  new call site cannot silently inherit opponent-hiding by omission. The
      *  only face-down producer that names a CARD IN EXILE rather than a
@@ -24800,7 +24819,8 @@ export function exileFaceDownCard(
     // graveyard face down" card to discover it silently.
     if (from === "graveyard") noteGraveyardDeparture(player);
     // The whole point of a face-down exile: knowledge is granted, not stripped.
-    card.knownTo = [knowerId];
+    if (knowerId === null) delete card.knownTo;
+    else card.knownTo = [knowerId];
     // issue #2904 — the DISPLAY census: which mechanic hid this card, so the
     // client can render a face-down face for BOTH viewers (the knower included
     // — CR 406.3 entitles them to LOOK, which the preview's second face is,

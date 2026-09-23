@@ -103,10 +103,11 @@ export const grimMonolith: CardDefinition = {
 // (1) [CLOSED by #1279] a WHOLE-ZONE "exile every hand card" now HAS an Op —
 // `moveZone`'s bulk whole-zone shape (no target/cards, issue #1279) moves an
 // entire hand with no selection — but that alone doesn't unblock this card:
-// this is a FACE-DOWN exile (`exileFaceDown`, ADR 0026), which the whole-zone
-// shape doesn't do (it's a plain CR 400.7 move, no face-down marker); (2)
-// `exileFaceDown` is a per-card imperative primitive with no Op skin; (3)
-// most importantly, the `delayedTrigger` Op's `capture` map resolves ONCE at
+// this is a FACE-DOWN exile — [CLOSED by #3812] the whole-zone shape now
+// takes `faceDown` + `bindAll`, and a `{ select: { set: "bound" } }` capture
+// freezes the exiled ids (Suppress, apc/black.ts); (2) [CLOSED by #3812, same
+// skin]; (3) STILL OPEN, and the reason this stays `resolve()`: the
+// `delayedTrigger` Op's `capture` map resolves ONCE at
 // scheduling (a flat map), but this card needs a DIFFERENT list of exiled ids
 // PER PLAYER, re-associated with that same player at fire time — the
 // list-valued capture grammar (issue #866) has no per-`forEach`-member
@@ -118,10 +119,10 @@ export const grimMonolith: CardDefinition = {
 // `gre/state.ts`'s `resolveTopOfStack`), so a per-player id list is carried as
 // one joined string under a per-player key (`exiled:<playerId>`), the same
 // "note a value for the resume" idiom Jester's Mask uses
-// (`convex/cards/sets/ice/colorless.ts`). `exileFaceDown`'s `knowerId` is the
-// card's own owner — a player may always look at their own face-down cards
-// (morph precedent), matching the "you may look at it for as long as it
-// remains exiled" spirit of a self-owned face-down zone.
+// (`convex/cards/sets/ice/colorless.ts`). `exileFaceDown` gets NO knower
+// (issue #3812): CR 406.3 — a card exiled face down "can't be examined by any
+// player except when instructions allow it", and this one's never do, so not
+// even its owner may look until it comes back.
 const MEMORY_JAR_RETURN_TRIGGER_ID = "memory-jar-return";
 
 export const memoryJar: CardDefinition = {
@@ -145,14 +146,13 @@ export const memoryJar: CardDefinition = {
                     const handIds = ctx.getHandIds(pid);
                     for (const id of handIds) {
                         // Oracle: "exiles all cards from their hand FACE
-                        // DOWN" (CR 406.3) — genuinely face down, so it is
-                        // hidden from its owner's own pile tile too; they may
-                        // LOOK, which is the preview's second face (#2904).
+                        // DOWN" (CR 406.3) — genuinely face down, and no
+                        // instruction lets anyone look: no knower (#3812).
                         ctx.exileFaceDown(
                             pid,
                             id,
                             "hand",
-                            pid,
+                            null,
                             "face-down-exile"
                         );
                     }
