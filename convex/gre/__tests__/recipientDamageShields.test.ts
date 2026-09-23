@@ -165,20 +165,21 @@ describe("CR 615.1a — prevent all damage dealt to creatures a player controls"
         expect(permanentOf(state, "theirs")).toBeUndefined();
     });
 
-    it("CR 109.4 — a controller-scoped shield never covers the PLAYER, only their permanents", () => {
+    it("CR 109.4 — a controller-only shield covers that player's PERMANENTS and never the player", () => {
         const state = twoBoards();
-        castDivineLight(state, "p2");
-        dealDamageFromPermanentToPlayer(
-            state,
-            permanentOf(state, "mine")!,
-            "p1",
-            "p2",
-            2
-        );
-        // Only objects on the stack or the battlefield have a controller, so
-        // the `controllerId` arm fails closed on a player recipient — which is
-        // what keeps "creatures you control" off its controller's face.
-        expect(state.players[1].life).toBe(18);
+        // Hand-built rather than cast: no printed card asks for a shield with
+        // no `cardType` arm, and this is exactly the shape the next one would
+        // reach for ("prevent all damage that would be dealt to you"). Only
+        // objects on the stack or the battlefield have a controller, so the
+        // arm must fail CLOSED on a player — otherwise "creatures you control"
+        // would start shielding its controller's face the day the arm is used
+        // on its own.
+        state.recipientPreventionShields = [{ match: { controllerId: "p2" } }];
+        castBolt(state, "p1", { type: "player", id: "p2" });
+        expect(state.players[1].life).toBe(17);
+        // The same shield DOES cover that player's permanents.
+        castBolt(state, "p1", { type: "permanent", id: "theirs" });
+        expect(permanentOf(state, "theirs")?.damageMarked).toBeUndefined();
     });
 
     it("CR 514.2 — the shield expires at CLEANUP", () => {
