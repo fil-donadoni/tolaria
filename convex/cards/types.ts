@@ -3683,6 +3683,45 @@ export interface SourceDamagePreventionShield {
     assignsNone?: boolean;
 }
 
+/** CR 615.1a (issue #3810) — a RECIPIENT-scoped damage-prevention shield: it
+ *  prevents damage that would be dealt TO every object the filter matches, from
+ *  ANY source. The mirror of {@link SourceDamagePreventionShield}, and the
+ *  shape "prevent all damage that would be dealt this turn to creatures you
+ *  control" (Divine Light) needs: the other recipient-keyed lists on
+ *  `GameState` bind ONE recipient by id at resolution
+ *  (`targetPreventionShields`, `playerDamagePrevention`), which cannot cover a
+ *  creature that comes under that player's control LATER in the turn.
+ *
+ *  `match` is therefore a DYNAMIC characteristic filter re-read at the moment
+ *  damage would be dealt (CR 615.6), never a resolution-time id list:
+ *   - `controllerId` — only PERMANENTS that player controls RIGHT NOW match,
+ *     so a creature gained mid-turn is covered and one given away is not. Never
+ *     the player themself: CR 109.4 gives a controller only to objects on the
+ *     stack or the battlefield, so this arm fails closed on a player recipient.
+ *   - `cardType` — additionally require that live card type (CR 205.2, layer
+ *     4), so "creatures you control" leaves the player themself unshielded.
+ *
+ *  An empty `match` shields every damageable object on the board and is
+ *  refused by the validator rather than silently built. `combatOnly` narrows
+ *  the shield to COMBAT damage (CR 510); omitted means all damage, combat or
+ *  not. Turn-scoped: unconsumed entries expire at CLEANUP (CR 514.2). */
+export interface RecipientDamagePreventionShield {
+    /** Dynamic characteristic match on the RECIPIENT, evaluated at damage
+     *  time. At least one arm must be set. */
+    match: {
+        /** Only PERMANENTS this player controls match (CR 109.4 — a player
+         *  has no controller, so this arm never matches one). A shield on the
+         *  PLAYER is a different clause and would need its own arm; widening
+         *  this one would make "damage dealt to creatures you control" shield
+         *  its controller's face too. */
+        controllerId?: string;
+        /** Additionally require this live card type on the recipient. */
+        cardType?: CardType;
+    };
+    /** true → only combat damage is prevented (CR 510). */
+    combatOnly?: boolean;
+}
+
 // --- Spell resolution context ---
 
 export interface SpellContext {
@@ -3894,7 +3933,13 @@ export interface SpellContext {
         target: TargetSelection,
         amount: number,
         unpreventable?: boolean,
-        unredirectable?: boolean
+        unredirectable?: boolean,
+        /** CR 614.5 (issue #3810) — internal: this event's CR 614 layer has
+         *  already had its one opportunity, because this call is the SPLIT
+         *  remainder of an event a recipient-keyed redirection shield moved
+         *  part of. Never set by a card; the damage sinks pass it to
+         *  themselves when they deal a remainder. */
+        replacementsSpent?: boolean
     ) => void;
     /** CR 615.12 / 614.9 (issue #2231) — flags a permanent so that damage which
      *  would be dealt TO it this turn can't be prevented and can't be dealt
@@ -5436,6 +5481,31 @@ export interface SpellContext {
      *  the CR 510.1c spelling of the same list. Turn-scoped: an unconsumed
      *  shield expires at CLEANUP (CR 514.2). */
     preventAllDamageFromSources: (shield: SourceDamagePreventionShield) => void;
+    /** Registers a RECIPIENT-scoped prevention shield (CR 615.1a, issue
+     *  #3810): all damage — or all COMBAT damage when `combatOnly` is set —
+     *  that would be dealt this turn TO an object matching the filter is
+     *  prevented, from ANY source. The recipient-side mirror of
+     *  `preventAllDamageFromSources`; the match arm is re-read from the live
+     *  board on every damage event, so a creature that comes under the named
+     *  player's control later in the turn is shielded too (CR 615.6). Turn-
+     *  scoped: an unconsumed shield expires at CLEANUP (CR 514.2). */
+    preventAllDamageToMatching: (
+        shield: RecipientDamagePreventionShield
+    ) => void;
+    /** Registers a RECIPIENT-keyed redirection shield (CR 614.9, issue
+     *  #3810): the next `amount` damage that would be dealt to `from` this
+     *  turn is dealt to `to` instead. A points budget, not a charge count — a
+     *  damage event larger than the budget is SPLIT, the budget redirected and
+     *  the remainder still dealt to `from`. Does nothing (and spends nothing)
+     *  when `to` is no longer on the battlefield or is no longer a damageable
+     *  permanent at the moment the damage would be redirected, per CR 614.9.
+     *  No-op on a non-positive amount. */
+    redirectNextNDamage: (
+        from: TargetSelection,
+        to: TargetSelection,
+        amount: number,
+        duration: DurationSpec
+    ) => void;
     /** Redirects all combat damage that unblocked creatures would deal to
      *  `playerId` this turn onto the permanent `toPermanentId` instead (CR
      *  614.6 — Kjeldoran Royal Guard). Turn-scoped; idempotent; cleared at
@@ -16701,6 +16771,34 @@ export type EffectOp =
           match: { colors?: Color[]; cardType?: CardType };
           combatOnly?: boolean;
       }
+    /** `"all-to-matching"` (CR 615.1a, issue #3810) → the RECIPIENT-side
+     *  mirror of `"all-from-matching"`: prevent all damage that would be dealt
+     *  this turn TO every object matching `match`, from ANY source. Divine
+     *  Light: "Prevent all damage that would be dealt this turn to creatures
+     *  you control" → `{ match: { controller: "controller", cardType:
+     *  "Creature" } }`.
+     *
+     *  `match.controller` is an `EffectPlayerRef` resolved ONCE, as the effect
+     *  is applied (CR 608.2 — "you" is the resolving controller), and stored
+     *  as a player id; the MEMBERSHIP it selects is re-read from the live
+     *  board on every damage event (CR 615.6), which is what covers a creature
+     *  that comes under that player's control later in the turn. `cardType`
+     *  narrows to a live card type (layer 4), so "creatures you control"
+     *  leaves the player themself unshielded. At least one arm must be set —
+     *  a board-wide shield is refused by the validator, not silently built.
+     *  `combatOnly` narrows to combat damage (CR 510), as on the source side.
+     *
+     *  Skins the single SpellContext primitive `preventAllDamageToMatching`,
+     *  one execution path (ADR 0045). Deliberately NOT the same list as the
+     *  recipient-BOUND shields (`"next-n"` binds one id and absorbs a printed
+     *  size): this mode binds no id at all and absorbs without limit for the
+     *  turn. */
+    | {
+          op: "preventDamage";
+          mode: "all-to-matching";
+          match: { controller?: EffectPlayerRef; cardType?: CardType };
+          combatOnly?: boolean;
+      }
     /** `"next-n-divided"` (CR 615.1 / 601.2d / 120.4, issue #1955) → the
      *  DIVIDED sibling of `"next-n"`: install a prevent-the-next-N shield on
      *  EACH announced target, with the per-target split chosen at ANNOUNCEMENT
@@ -16716,6 +16814,41 @@ export type EffectOp =
           op: "preventDamage";
           mode: "next-n-divided";
           total: number | "X" | "X+1";
+          duration: DurationSpec;
+      }
+    /** CR 614.9 (issue #3810) — a RECIPIENT-keyed redirection shield: "the
+     *  next N damage that would be dealt to <from> this turn is dealt to <to>
+     *  instead" (Captain's Maneuver). A thin declarative skin over the single
+     *  SpellContext primitive `redirectNextNDamage`, one execution path
+     *  (ADR 0045).
+     *
+     *  The verb is REDIRECTION, not prevention, and the two are different
+     *  rules: this Op is suppressed by `unredirectable` (Lava Burst's second
+     *  clause, Whippoorwill's target lock) and untouched by `unpreventable`
+     *  (kicked Urza's Rage, Stomp) — which is exactly why it is its own Op
+     *  rather than a seventh `preventDamage` mode.
+     *
+     *  `amount` is a POINTS BUDGET, not a charge count (CR 615.7's vocabulary
+     *  on the prevention side): a damage event larger than what is left is
+     *  SPLIT — the remaining budget is redirected to `to` and the rest is
+     *  still dealt to `from`, as two events. A shield with budget left
+     *  survives to the next event and expires at `duration` (CR 514.2).
+     *
+     *  Both ends are recipient selectors spanning players and permanents (the
+     *  `dealDamage.to` vocabulary): an announced target slot, `$source`, a
+     *  `forEach` `$each`, or a relative player via `{ player: … }`. CR 614.9 —
+     *  when `to` is no longer on the battlefield, or no longer a damageable
+     *  permanent, at the moment the damage would be redirected, "the effect
+     *  does nothing": the damage lands on `from` unchanged and the budget is
+     *  NOT spent. A `from` that has left the battlefield produces no damage
+     *  event at all, so nothing is redirected either (Captain's Maneuver's own
+     *  ruling). Skipped when either end cannot be resolved at all, and on a
+     *  non-positive `amount` (CR 608.2b). */
+    | {
+          op: "redirectDamage";
+          from: EffectObjectSelector | { player: EffectPlayerRef };
+          to: EffectObjectSelector | { player: EffectPlayerRef };
+          amount: EffectValue;
           duration: DurationSpec;
       }
     /** CR 701.19 (issue #846) — stack a regeneration shield on a permanent. A

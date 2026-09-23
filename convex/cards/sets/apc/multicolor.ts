@@ -240,3 +240,44 @@ export const lifeDeath: CardDefinition = defineSplitCard({
         },
     ],
 });
+
+// Captain's Maneuver — {X}{R}{W} Instant. "The next X damage that would be
+// dealt to target creature, planeswalker, or player this turn is dealt to
+// another target creature, planeswalker, or player instead." (CR 614.9.)
+//
+// A REDIRECTION, not a prevention (CR 614.9 vs CR 615.1a): nothing is erased,
+// the recipient is rewritten — which is why it is the `redirectDamage` Op
+// rather than a seventh `preventDamage` mode, and why an unpreventable burn
+// spell still gets moved while an unredirectable one does not.
+//
+// X is a POINTS budget: a damage event bigger than what is left splits, the
+// budget landing on the second target and the remainder still on the first.
+//
+// CR 601.2c — the printed form is two instances of the word "target", the
+// second marked "another". It is announced as ONE group of count 2 (the Magma
+// Burst / Falling Timber precedent in this block) and leans on the engine's
+// within-group distinctness, because `excludePriorTargets` merges earlier
+// picks into `excludeInstanceIds` and so keeps only PERMANENT picks — on a
+// recipient group spanning players the word would compile and not be honoured.
+// CR 115.4 — "creature, planeswalker, or player" is the pre-errata spelling of
+// "any target"; battles postdate every card that prints it, so the two denote
+// the same set and the card announces the same `type: "any"` requirement.
+export const captainsManeuver: CardDefinition = {
+    id: "fb50813c-72df-49e7-bac5-e6e247649241", // APC 92
+    rarity: "uncommon",
+    name: "Captain's Maneuver",
+    oracleText:
+        "The next X damage that would be dealt to target creature, planeswalker, or player this turn is dealt to another target creature, planeswalker, or player instead.",
+    manaCost: { X: "X", W: 1, R: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "any", count: 2 },
+    effects: [
+        {
+            op: "redirectDamage",
+            from: { target: 0 },
+            to: { target: 1 },
+            amount: { X: true },
+            duration: { phase: "end-of-turn" },
+        },
+    ],
+};

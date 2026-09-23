@@ -33,6 +33,42 @@ export interface GoldenFixture {
 // Frozen: `fixtureForms` caches by array identity, so the registry may never
 // change in place.
 export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
+    // CR 614.9 (issue #3810) — "The next N damage that would be dealt to
+    // <recipient> this turn is dealt to <other recipient> instead". Exhibits
+    // the "budget is the announced {X}" form: the canned smoke scenario cannot
+    // pick a value for {X}, so this fixture is the evidence that the shield
+    // the grammar emits is the one the hand-written catalogue writes (Captain's
+    // Maneuver also round-trips, Guard C). It is also the ONE corpus card that
+    // prints CR 115.4's pre-errata spelling of "any target" on both ends.
+    {
+        rule: "redirect-next-damage",
+        card: {
+            oracleId: "a8b93d4d-bb67-4063-ac6d-7775be1b1f10",
+            name: "Captain's Maneuver",
+            manaCost: "{X}{R}{W}",
+            typeLine: "Instant",
+            oracleText:
+                "The next X damage that would be dealt to target creature, planeswalker, or player this turn is dealt to another target creature, planeswalker, or player instead.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Captain's Maneuver",
+            types: ["Instant"],
+            manaCost: { X: "X", W: 1, R: 1 },
+            oracleText:
+                "The next X damage that would be dealt to target creature, planeswalker, or player this turn is dealt to another target creature, planeswalker, or player instead.",
+            effects: [
+                {
+                    op: "redirectDamage",
+                    from: { target: 0 },
+                    to: { target: 1 },
+                    amount: { X: true },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+            targetRequirement: { type: "any", count: 2 },
+        },
+    },
     // CR 702.33d — "If this spell was kicked, <effect>" gates the effect on
     // the spell's kicker tally. Exhibits the "reads the spell's kicker count"
     // form: the canned smoke scenario casts unkicked, so this fixture is the

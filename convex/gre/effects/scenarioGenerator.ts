@@ -2135,6 +2135,21 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 `Op "shuffleSelfIntoLibrary" shuffles the resolving spell into a library (seeded-PRNG randomization) — covered by the Op's interpreter tests`
             );
             return;
+        case "redirectDamage":
+            // CR 614.9 (issue #3810) — a redirection shield sits DORMANT until
+            // a later damage event tests it, exactly as `preventDamage`'s
+            // shields do: the canned scenario only resolves the spell and
+            // never subsequently deals damage, so the shield has no
+            // same-resolution outcome the generator can assert. Explicit skip;
+            // registration, the points-budget split and CR 614.9's dead
+            // destination are covered by the Op's own interpreter tests
+            // (per-Op regime).
+            skipBecause(
+                req,
+                "dormant-shield",
+                `Op "redirectDamage" registers a dormant shield (no same-resolution damage event) — covered by the Op's interpreter tests`
+            );
+            return;
         case "preventDamage":
             // CR 615 (issue #845) — a prevention shield sits DORMANT until a
             // later damage event tests it; the canned scenario only resolves
@@ -3810,6 +3825,12 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // assert). Kept for the 1:1 coverage guard; shield registration and
     // consumption are covered by the Op's own interpreter tests.
     preventDamage() {
+        return null;
+    },
+    // `redirectDamage` (CR 614.9, issue #3810) — never reached: `analyseOp`
+    // skips every script carrying one, for the same dormant-shield reason.
+    // Kept for the 1:1 coverage guard.
+    redirectDamage() {
         return null;
     },
     // `regenerate` (CR 701.19a, issue #846) — the shield's REGISTRATION is

@@ -504,6 +504,25 @@ export type EffectSentenceIR =
           readonly duration: DurationIR;
       }
     | {
+          /**
+           * CR 614.9 — "The next N damage that would be dealt to <recipient>
+           * this turn is dealt to <other recipient> instead."
+           *
+           * A REDIRECTION, not a prevention: nothing is erased, the recipient
+           * is rewritten. `amount` is the printed budget — a number or the
+           * announced {X}, which is the only reason it is an `AmountIR` here
+           * where the prevention shield beside it takes a bare number.
+           * `from` and `to` are read by the one subject rule, and the
+           * lowering refuses every pair the engine cannot announce as one
+           * distinct-targets group.
+           */
+          readonly kind: "redirect-next-damage";
+          readonly amount: AmountIR;
+          readonly from: SubjectIR;
+          readonly to: SubjectIR;
+          readonly duration: DurationIR;
+      }
+    | {
           readonly kind: "draw";
           readonly player: PlayerRefIR;
           readonly count: AmountIR;
@@ -1704,6 +1723,16 @@ const SUPPRESS_DAMAGE_PREVENTION = "Damage can't be prevented this turn";
 const PREVENT_NEXT_DAMAGE =
     /^Prevent the next (\d+) damage that would be dealt to (.+?) (this turn)$/;
 
+/**
+ * CR 614.9 — the redirection shield's printed form. The budget is the printed
+ * DIGITS or the announced {X} (Captain's Maneuver is the corpus's only {X}
+ * spelling); "that much" and a spelled number are refused, not read. Both
+ * recipients run up to their own delimiter, and the trailing duration is read
+ * by the duration rule itself.
+ */
+const REDIRECT_NEXT_DAMAGE =
+    /^The next (\d+|X) damage that would be dealt to (.+?) (this turn) is dealt to (.+?) instead$/;
+
 const KEYWORDS = keywordVocabulary();
 
 /** Exact restriction sentences (CR 602.5). Both templatings are printed. */
@@ -2309,6 +2338,27 @@ function effectSentence(
         return ok({
             kind: "prevent-next-damage" as const,
             amount: Number(preventNext[1]),
+            to: to.value,
+            duration: duration.value,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── redirect the next N damage (CR 614.9) ──────────────────────────────
+    const redirectNext = span.match(REDIRECT_NEXT_DAMAGE);
+    if (redirectNext !== null) {
+        const amount = readAmount(redirectNext[1]!);
+        if (amount === null)
+            return fail(`"${redirectNext[1]}" is not a damage amount`, span);
+        const from = subjectRule.run(redirectNext[2]!, ctx);
+        if (!from.ok) return from;
+        const to = subjectRule.run(redirectNext[4]!, ctx);
+        if (!to.ok) return to;
+        const duration = durationRule.run(redirectNext[3]!, ctx);
+        if (!duration.ok) return duration;
+        return ok({
+            kind: "redirect-next-damage" as const,
+            amount,
+            from: from.value,
             to: to.value,
             duration: duration.value,
         } satisfies EffectSentenceIR);

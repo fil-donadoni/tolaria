@@ -45,6 +45,7 @@ import {
     type SpellCastEvent,
     type BecameTargetEvent,
     type BecameTargetSourceKind,
+    type RecipientDamagePreventionShield,
     type SourceDamagePreventionShield,
     type SpellContext,
     type SpellStackDestination,
@@ -295,6 +296,7 @@ import {
     applyTapReplacements,
     applyTokenCreatedReplacements,
     applyTransientDamageRedirections,
+    type TransientRedirectionResidual,
     describeDamageSource,
     enterBattlefieldDestinationFor,
     getApplicableDrawReplacements,
@@ -5575,6 +5577,24 @@ export type GameState = {
      *  pre-application funnel every damage sink calls — so a new damage path
      *  cannot silently miss it. Cleared at CLEANUP (CR 514.2). */
     sourcePreventionShields?: SourceDamagePreventionShield[];
+    /** CR 615.1a (issue #3810) — RECIPIENT-scoped damage-prevention shields:
+     *  each entry prevents damage that would be dealt TO every object its
+     *  filter matches, from ANY source (Divine Light, "prevent all damage that
+     *  would be dealt this turn to creatures you control").
+     *
+     *  The mirror of `sourcePreventionShields`, and source-agnostic in exactly
+     *  the way that list is recipient-agnostic. What separates it from the two
+     *  OTHER recipient-keyed lists is that it binds no id: `targetPrevention-
+     *  Shields` and `playerDamagePrevention` lock one recipient at resolution,
+     *  so neither can cover a creature that comes under the shielded player's
+     *  control later in the turn. The filter here is re-read from the LIVE
+     *  board on every damage event (CR 615.6), which is the whole point.
+     *
+     *  Consumed at ONE place — `runDamageReplacement`, on the FINAL recipient
+     *  after every CR 614 replacement has run, so a redirect onto a shielded
+     *  creature is prevented and a redirect OFF one is not. Cleared at
+     *  CLEANUP (CR 514.2). */
+    recipientPreventionShields?: RecipientDamagePreventionShield[];
     /** CR 601.3 / 514.2 — players under a turn-scoped "can't cast spells this
      *  turn" restriction (Xantid Swarm's attack trigger locks the defending
      *  player; Abeyance narrows it to instant/sorcery only via `cardTypes`).
@@ -6076,6 +6096,31 @@ export type DamageRedirection =
           duration: Duration;
       }
     | {
+          /** CR 614.9 (issue #3810) — "the next N damage that would be dealt
+           *  to <from> this turn is dealt to <to> instead" (Captain's
+           *  Maneuver). RECIPIENT-keyed and source-agnostic, which is what
+           *  separates it from `from-source-to-permanent-redirect` (Jade
+           *  Monolith shields ONE permanent against ONE chosen source and
+           *  spends a CHARGE per matched event). */
+          kind: "next-n-to-recipient-redirect";
+          /** The shielded RECIPIENT — a player or a permanent. */
+          from:
+              | { type: "player"; id: string }
+              | { type: "permanent"; id: string };
+          /** Where the redirected damage lands. Re-validated at redirection
+           *  time: CR 614.9's "the effect does nothing" when a permanent
+           *  destination has left the battlefield or stopped being
+           *  damageable. */
+          redirectTo:
+              | { type: "player"; id: string }
+              | { type: "permanent"; id: string };
+          /** Remaining DAMAGE POINTS, not charges. An event larger than this
+           *  is split: `remaining` points are redirected and the rest is
+           *  still dealt to `from`. */
+          remaining: number;
+          duration: Duration;
+      }
+    | {
           /** Eye for an Eye (CR 614): the next time the chosen source would
            *  deal damage to `playerId`, that damage to the player proceeds
            *  unchanged AND an equal amount is dealt to the source's
@@ -6367,6 +6412,102 @@ export function addSourcePreventionShield(
     if (duplicate) return;
     list.push(shield);
     state.sourcePreventionShields = list;
+}
+
+/** The minimal state shape {@link recipientPreventionShieldApplies} reads —
+ *  structural rather than `GameState` for the same reason its source-side twin
+ *  is (the client Brain only ever sees the wire projection, and a
+ *  `GameState`-only signature is how a shield ends up honoured server-side and
+ *  invisible to the bot). */
+export interface RecipientPreventionStateView {
+    recipientPreventionShields?: RecipientDamagePreventionShield[];
+    players: ReadonlyArray<{ battlefield: ReadonlyArray<PermanentView> }>;
+}
+
+/** CR 615.1a (issue #3810) — true when a RECIPIENT-scoped prevention shield on
+ *  `state` covers a damage event landing on `target`. Source-agnostic by
+ *  construction: the source is deliberately not a parameter, because "prevent
+ *  all damage that would be dealt to creatures you control" prevents it from a
+ *  burn spell, a blocker and a planeswalker ability alike.
+ *
+ *  `isCombat` gates the `combatOnly` entries (CR 510). `unpreventable`
+ *  (CR 615.12) skips every entry — unlike the source-side list, this one
+ *  carries no CR 510.1c assignment restrictions to spare.
+ *
+ *  Every arm is re-read from the LIVE board on each call (CR 615.6): the
+ *  controller comes from the instance's current `controllerId`, so a creature
+ *  that changes hands mid-turn moves in or out of the shield, and card types
+ *  from its live `types` (layer 4), so a creature animated into a land stops
+ *  being covered by a `cardType: "Creature"` shield. A PLAYER recipient
+ *  matches only a shield with no `cardType` arm — a player has no card type,
+ *  and "creatures you control" must leave its controller unshielded. */
+export function recipientPreventionShieldApplies(
+    state: RecipientPreventionStateView,
+    target: Pick<TargetSelection, "type" | "id">,
+    isCombat: boolean,
+    unpreventable: boolean = false
+): boolean {
+    if (unpreventable) return false;
+    const shields = state.recipientPreventionShields;
+    if (!shields || shields.length === 0) return false;
+    let live: PermanentView | undefined;
+    let liveLoaded = false;
+    const liveTarget = (): PermanentView | undefined => {
+        if (!liveLoaded) {
+            if (target.type === "permanent") {
+                for (const player of state.players) {
+                    live = player.battlefield.find((c) => c.id === target.id);
+                    if (live) break;
+                }
+            }
+            liveLoaded = true;
+        }
+        return live;
+    };
+    for (const shield of shields) {
+        // CR 510 — a combat-only shield ignores non-combat damage entirely.
+        if (shield.combatOnly && !isCombat) continue;
+        const match = shield.match;
+        if (match.cardType !== undefined) {
+            // A player has no card type, so a typed shield never covers one.
+            if (target.type !== "permanent") continue;
+            const card = liveTarget();
+            if (!card || !card.types.includes(match.cardType)) continue;
+        }
+        if (match.controllerId !== undefined) {
+            // CR 109.4 — only a PERMANENT has a controller. A player is never
+            // matched by this arm, so a `{ controller }`-only shield is a
+            // shield on that player's permanents and not on the player: the
+            // fail-CLOSED reading, and the one both doc comments state. A card
+            // that shields the PLAYER needs its own arm, not this one
+            // widened, or "prevent all damage dealt to creatures you control"
+            // would start shielding its controller's face.
+            if (target.type !== "permanent") continue;
+            const card = liveTarget();
+            if (!card || card.controllerId !== match.controllerId) continue;
+        }
+        return true;
+    }
+    return false;
+}
+
+/** Registers a RECIPIENT-scoped prevention shield (CR 615.1a), de-duplicating
+ *  the "same filter shielded twice this turn" case so the list does not grow
+ *  without bound — the shield absorbs without limit, so a second identical
+ *  entry could never change an outcome. */
+export function addRecipientPreventionShield(
+    state: GameState,
+    shield: RecipientDamagePreventionShield
+): void {
+    const list = state.recipientPreventionShields ?? [];
+    const duplicate = list.some(
+        (s) =>
+            JSON.stringify(s.match) === JSON.stringify(shield.match) &&
+            (s.combatOnly ?? false) === (shield.combatOnly ?? false)
+    );
+    if (duplicate) return;
+    list.push(shield);
+    state.recipientPreventionShields = list;
 }
 
 /** Reduces an incoming damage amount by any matching `targetPreventionShields`
@@ -10466,8 +10607,27 @@ export function runDamageReplacement(
     amount: number,
     isCombat: boolean,
     unpreventable: boolean = false,
-    unredirectable: boolean = false
-): { target: TargetSelection; amount: number } | null {
+    unredirectable: boolean = false,
+    /** CR 614.5 (issue #3810) — "A replacement effect doesn't invoke itself
+     *  repeatedly; it gets only one opportunity to affect an event or any
+     *  modified events that may replace that event." A SPLIT remainder IS such
+     *  a modified event, so the whole CR 614 layer — the continuous
+     *  replacements AND the transient shields — is skipped for it: both have
+     *  already had their opportunity on the event this remainder came out of.
+     *  Everything from CR 615 down still runs, because the remainder lands on
+     *  a recipient the primary half's prevention checks never saw. */
+    replacementsSpent: boolean = false
+): {
+    target: TargetSelection;
+    amount: number;
+    /** CR 614.9 (issue #3810) — un-redirected remainders of a SPLIT event, to
+     *  be dealt by the caller as their own damage events after the primary
+     *  one. Absent for every event nothing split, which is all of them until a
+     *  recipient-keyed redirect shield with a points budget is up. `amount: 0`
+     *  on the primary means the primary half was fully prevented/consumed and
+     *  only the remainders survive. */
+    residuals?: { target: TargetSelection; amount: number }[];
+} | null {
     if (
         sourcePreventionShieldApplies(
             state,
@@ -10487,6 +10647,23 @@ export function runDamageReplacement(
     // prevention, CR 614.9), and skipping it under `unredirectable` would stop
     // Divine Presence's clamp, which is neither.
     const locks = { unpreventable, unredirectable };
+    // CR 614.5 — a split remainder skips the whole CR 614 layer (see
+    // `replacementsSpent`). Without this, `applyReplacementsLoop`'s per-call
+    // `used` set would let a continuous replacement apply a SECOND time to one
+    // event: Lashknife Barrier reduced the primary half by 1 and would reduce
+    // the remainder by 1 again, losing a point of damage outright.
+    if (replacementsSpent) {
+        if (
+            recipientPreventionShieldApplies(
+                state,
+                target,
+                isCombat,
+                unpreventable
+            )
+        )
+            return null;
+        return { target, amount };
+    }
     const continuous = applyDamageReplacements(
         state,
         {
@@ -10504,13 +10681,45 @@ export function runDamageReplacement(
         locks
     );
     if (continuous === null) return null;
+    const split: TransientRedirectionResidual = { residuals: [] };
     const transient = applyTransientDamageRedirections(
         state,
         continuous,
-        locks
+        locks,
+        split
     );
-    if (transient === null) return null;
-    return { target: transient.target, amount: transient.amount };
+    // CR 614.9 (issue #3810) — a recipient-keyed redirect with a points budget
+    // smaller than the event splits it. The remainder still goes to the
+    // ORIGINAL recipient and is handed back for the sink to deal as its own
+    // event; it must NOT be dropped here, or a 5-damage bolt against a
+    // budget-3 Captain's Maneuver would lose 2 damage outright.
+    const residuals = split.residuals.length > 0 ? split.residuals : undefined;
+    if (transient === null)
+        return residuals === undefined
+            ? null
+            : { target: continuous.target, amount: 0, residuals };
+    // CR 615.1a (issue #3810) — the RECIPIENT-scoped shields, read against the
+    // FINAL recipient: every CR 614 replacement has run, so a redirect ONTO a
+    // shielded creature is prevented and a redirect OFF one is not, which is
+    // the CR 614-before-CR 615 order this funnel's header describes. The
+    // source-scoped gate above is the mirror, and sits before CR 614 for the
+    // documented CR 616.1 reason (#2054); this one has no such excuse to make.
+    if (
+        recipientPreventionShieldApplies(
+            state,
+            transient.target,
+            isCombat,
+            unpreventable
+        )
+    )
+        return residuals === undefined
+            ? null
+            : { target: transient.target, amount: 0, residuals };
+    return {
+        target: transient.target,
+        amount: transient.amount,
+        ...(residuals === undefined ? {} : { residuals }),
+    };
 }
 
 /** CR 615.12 / 614.9 (issue #2231) — does the TARGET of a would-be damage event
@@ -10580,7 +10789,9 @@ export function dealDamageFromPermanentToPlayer(
     playerId: string,
     amount: number,
     unpreventableArg: boolean = false,
-    unredirectable: boolean = false
+    unredirectable: boolean = false,
+    /** CR 614.5 (issue #3810) — see `runDamageReplacement`. */
+    replacementsSpent: boolean = false
 ): void {
     if (amount <= 0) return;
     // CR 615.12 (issue #3303) — the GAME-scoped "damage can't be prevented this
@@ -10598,9 +10809,38 @@ export function dealDamageFromPermanentToPlayer(
         amount,
         false,
         unpreventable,
-        unredirectable
+        unredirectable,
+        replacementsSpent
     );
     if (replaced === null) return;
+    // CR 614.9 (issue #3810) — remainders split off by a recipient-keyed
+    // redirect, each dealt as its own event from the same permanent source.
+    for (const rest of replaced.residuals ?? []) {
+        if (rest.target.type === "player") {
+            dealDamageFromPermanentToPlayer(
+                state,
+                source,
+                sourceControllerId,
+                rest.target.id,
+                rest.amount,
+                unpreventableArg,
+                unredirectable,
+                // CR 614.5 — the CR 614 layer is spent on this event.
+                true
+            );
+        } else {
+            markDamageFromPermanentSource(
+                state,
+                source,
+                sourceControllerId,
+                rest.target.id,
+                rest.amount,
+                unpreventable,
+                unredirectable,
+                true
+            );
+        }
+    }
     const finalTarget = replaced.target;
     const finalAmount = replaced.amount;
     if (finalAmount <= 0) return;
@@ -10722,7 +10962,9 @@ function markDamageFromPermanentSource(
     targetId: string,
     amount: number,
     forcedUnpreventable: boolean = false,
-    forcedUnredirectable: boolean = false
+    forcedUnredirectable: boolean = false,
+    /** CR 614.5 (issue #3810) — see `runDamageReplacement`. */
+    replacementsSpent: boolean = false
 ): string | null {
     if (amount <= 0) return null;
     // CR 615.12 / 614.9 (issue #2231) — Whippoorwill's target-bound lock. ORed
@@ -10746,12 +10988,48 @@ function markDamageFromPermanentSource(
         amount,
         false,
         unpreventable,
-        unredirectable
+        unredirectable,
+        replacementsSpent
     );
     if (replaced === null) return null;
+    // CR 614.9 (issue #3810) — remainders split off by a recipient-keyed
+    // redirect, dealt as their own events from the same permanent source. A
+    // remainder that turns out to be lethal is reported when the PRIMARY half
+    // is not itself lethal: the contract is one id, so when both halves kill
+    // something the caller destroys the primary's and the other creature dies
+    // at the next SBA pass instead of simultaneously (CR 701.14, CR 704.5g).
+    // Reachable only with a redirect shield up during a fight.
+    let residualLethal: string | null = null;
+    for (const rest of replaced.residuals ?? []) {
+        if (rest.target.type === "permanent") {
+            const lethal = markDamageFromPermanentSource(
+                state,
+                source,
+                sourceControllerId,
+                rest.target.id,
+                rest.amount,
+                forcedUnpreventable,
+                forcedUnredirectable,
+                // CR 614.5 — the CR 614 layer is spent on this event.
+                true
+            );
+            if (lethal !== null) residualLethal = lethal;
+        } else {
+            dealDamageFromPermanentToPlayer(
+                state,
+                source,
+                sourceControllerId,
+                rest.target.id,
+                rest.amount,
+                forcedUnpreventable,
+                forcedUnredirectable,
+                true
+            );
+        }
+    }
     const finalTarget = replaced.target;
     const finalAmount = replaced.amount;
-    if (finalAmount <= 0) return null;
+    if (finalAmount <= 0) return residualLethal;
     if (finalTarget.type !== "permanent") {
         // A replacement redirected the damage to a player (e.g. Personal
         // Incarnation). Apply it through the same player-damage shaping the
@@ -10763,7 +11041,7 @@ function markDamageFromPermanentSource(
             !unpreventable &&
             consumePreventionIfAny(state, source.id, finalTarget.id)
         )
-            return null;
+            return residualLethal;
         let reduced = unpreventable
             ? finalAmount
             : applyPlayerDamagePrevention(
@@ -10773,11 +11051,11 @@ function markDamageFromPermanentSource(
                   desc.staticAbilities,
                   finalAmount
               );
-        if (reduced <= 0) return null;
+        if (reduced <= 0) return residualLethal;
         reduced = unpreventable
             ? reduced
             : applyTargetPrevention(state, "player", finalTarget.id, reduced);
-        if (reduced <= 0) return null;
+        if (reduced <= 0) return residualLethal;
         // CR 702.90b — infect turns the redirected player damage into poison
         // counters (issue #1565: this sink used to lose the infect leg outright).
         if (
@@ -10818,11 +11096,11 @@ function markDamageFromPermanentSource(
             desc.staticAbilities,
             reduced
         );
-        return null;
+        return residualLethal;
     }
     const found = findOnBattlefield(state, finalTarget.id);
-    if (!found) return null;
-    if (!isDamageablePermanent(found.card)) return null;
+    if (!found) return residualLethal;
+    if (!isDamageablePermanent(found.card)) return residualLethal;
     // CR 702.16e: damage from a source with the named quality to a permanent
     // with protection is prevented.
     // The source is an explicit BATTLEFIELD PERMANENT (a fight combatant, a
@@ -10832,7 +11110,7 @@ function markDamageFromPermanentSource(
     // leg is bypassed; can't-be-blocked / can't-be-targeted / can't-be-attached
     // (CR 702.16b–d) are enforced elsewhere and untouched.
     if (!unpreventable && isProtectedFromSource(found.card, source, false))
-        return null;
+        return residualLethal;
     const reduced = unpreventable
         ? finalAmount
         : applyTargetPrevention(
@@ -10841,7 +11119,7 @@ function markDamageFromPermanentSource(
               finalTarget.id,
               finalAmount
           );
-    if (reduced <= 0) return null;
+    if (reduced <= 0) return residualLethal;
     // CR 120.3 / 704.5i — damage dealt to a planeswalker removes that many
     // loyalty counters instead of being marked (a planeswalker has no
     // toughness). The 0-loyalty death is a separate SBA (`checkZeroLoyaltySBA`),
@@ -10892,14 +11170,14 @@ function markDamageFromPermanentSource(
         desc.staticAbilities,
         reduced
     );
-    if (pw) return null;
+    if (pw) return residualLethal;
     // CR 702.2b — deathtouch: nonzero damage from a deathtouch source marks the
     // creature for destruction as an SBA (CR 704.5h).
     markDeathtouchDamage(found.card, desc.staticAbilities, reduced);
     return (found.card.damageMarked ?? 0) >=
         getEffectiveToughness(state, found.card)
         ? finalTarget.id
-        : null;
+        : residualLethal;
 }
 
 /** Generic Fight primitive (CR 701.14-style mutual damage). Two creatures
@@ -16362,7 +16640,8 @@ export function buildSpellContext(
             target: TargetSelection,
             amount: number,
             unpreventableArg = false,
-            unredirectableArg = false
+            unredirectableArg = false,
+            replacementsSpent = false
         ) {
             // CR 614 replacement effects run BEFORE CR 615 prevention. May
             // rewrite target (Simulacrum / Veteran Bodyguard / Personal
@@ -16399,11 +16678,30 @@ export function buildSpellContext(
                 amount,
                 false,
                 unpreventable,
-                unredirectable
+                unredirectable,
+                replacementsSpent
             );
             if (replaced === null) return;
+            // CR 614.9 (issue #3810) — a recipient-keyed redirect whose points
+            // budget was smaller than this event split it: deal every
+            // remainder as its own damage event from the same source, so it
+            // gets the whole CR 615 → CR 702.16e → application pipeline the
+            // redirected half below gets. The splitting shield was decremented
+            // by the moved points before it returned, so this terminates.
+            for (const rest of replaced.residuals ?? []) {
+                buildSpellContext(state, item).dealDamage(
+                    rest.target,
+                    rest.amount,
+                    unpreventableArg,
+                    unredirectableArg,
+                    // CR 614.5 — the remainder is a modified event of the one
+                    // the CR 614 layer already acted on.
+                    true
+                );
+            }
             target = replaced.target;
             amount = replaced.amount;
+            if (amount <= 0) return;
             if (target.type === "player") {
                 // CR 615.1: a prevention effect replaces the would-be damage
                 // with nothing. Matched against the current stack item's id
@@ -20220,6 +20518,46 @@ export function buildSpellContext(
             // match arms are validated by the Effect Script schema, so no
             // shape normalization is needed here.
             addSourcePreventionShield(state, shield);
+        },
+
+        preventAllDamageToMatching(
+            shield: RecipientDamagePreventionShield
+        ): void {
+            // CR 615.1a — register a recipient-scoped prevention shield: all
+            // damage (or all COMBAT damage, per `combatOnly`) that would be
+            // dealt this turn to an object the filter matches is prevented,
+            // from any source. The single primitive behind the `preventDamage`
+            // Op's `"all-to-matching"` mode; the match arms are validated by
+            // the Effect Script schema, so no shape normalization here.
+            addRecipientPreventionShield(state, shield);
+        },
+
+        redirectNextNDamage(
+            from: TargetSelection,
+            to: TargetSelection,
+            amount: number,
+            duration: DurationSpec
+        ): void {
+            // CR 614.9 — "the next N damage that would be dealt to <from> this
+            // turn is dealt to <to> instead". CR 608.2b: the effect does as
+            // much as it can, so a non-positive N and a non-damageable end
+            // simply register nothing. Both ends are recipients (CR 115.4), so
+            // only the two damageable `TargetSelection` types are admitted —
+            // a "spell"/"graveyard-card" selection reaching here would be a
+            // card announcing the wrong requirement, not a shield to build.
+            if (amount <= 0) return;
+            if (from.type !== "permanent" && from.type !== "player") return;
+            if (to.type !== "permanent" && to.type !== "player") return;
+            state.damageRedirections = [
+                ...(state.damageRedirections ?? []),
+                {
+                    kind: "next-n-to-recipient-redirect",
+                    from: { type: from.type, id: from.id },
+                    redirectTo: { type: to.type, id: to.id },
+                    remaining: amount,
+                    duration: resolveDuration(duration, item.castById, state),
+                },
+            ];
         },
 
         redirectUnblockedCombatDamage(

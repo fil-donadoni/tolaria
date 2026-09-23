@@ -620,12 +620,25 @@ export const DESCRIPTOR_READERS: DescriptorReaders = {
  *
  * Over an INJECTED reader pair — see `DescriptorReaders`.
  */
+/**
+ * CR 115.4 — the pre-2018 spelling of "any target", printed whole as a list.
+ *
+ * It is read as the SAME descriptor rather than as a three-way type union for
+ * two reasons: "player" cannot appear in an or-list at all (`readNoun` refuses
+ * it, which is why this phrase reaches no reading), and the printed list is
+ * exhaustive for every card that prints it — battles postdate the errata that
+ * replaced the phrase, so the two spellings denote the same set on the whole
+ * corpus. A card printing the legacy list therefore announces exactly the
+ * `type: "any"` requirement a modern one does.
+ */
+const LEGACY_ANY_TARGET = "creature, planeswalker, or player";
+
 export function descriptorRuleWith(
     readers: DescriptorReaders
 ): Rule<DescriptorIR> {
     return rule(DESCRIPTOR, (span) => {
         if (span.length === 0) return fail("empty descriptor", span);
-        if (span === "any target") {
+        if (span === "any target" || span === LEGACY_ANY_TARGET) {
             return ok({ anyTarget: true as const });
         }
         const withQualifiers = emptyState();

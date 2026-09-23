@@ -1502,6 +1502,55 @@ function lowerSentenceBody(
                 },
             ]);
         }
+        case "redirect-next-damage": {
+            // CR 614.9 / 601.2c — the printed form is TWO instances of the
+            // word "target", the second marked "another". The engine announces
+            // that as ONE group of count 2 and relies on its own within-group
+            // distinctness (CR 601.2c, issue #1951) rather than on
+            // `excludePriorTargets`, which merges earlier picks into
+            // `excludeInstanceIds` and so keeps only PERMANENT picks — on a
+            // recipient group spanning players it would compile and then not
+            // be honoured. Fail closed on anything else: both ends must be
+            // announced targets with the SAME requirement, and the second must
+            // carry the printed "another", or the group would let one recipient
+            // be chosen twice and the shield would redirect damage to itself.
+            const { from, to } = sentence;
+            if (from.kind !== "target" || to.kind !== "target")
+                return unlowerable(
+                    "a redirection shield names two announced targets (CR 614.9)"
+                );
+            if (to.another !== true)
+                return unlowerable(
+                    'a redirection shield\'s destination is "another target" (CR 115.3)'
+                );
+            if (
+                JSON.stringify(from.requirement) !==
+                JSON.stringify(to.requirement)
+            )
+                return unlowerable(
+                    "a redirection shield's two recipients are announced as one group, so they must be the same requirement (CR 601.2c)"
+                );
+            if (from.requirement.count !== 1)
+                return unlowerable(
+                    "a redirection shield reads a single recipient on each end (CR 614.9)"
+                );
+            const amount = lowerAmount(sentence.amount, site);
+            if (!amount.ok) return amount;
+            const first = slots.allocate({
+                ...from.requirement,
+                count: 2,
+            });
+            if (!first.ok) return first;
+            return lowered([
+                {
+                    op: "redirectDamage",
+                    from: { target: first.value },
+                    to: { target: first.value + 1 },
+                    amount: amount.value,
+                    duration: durationSpec(sentence.duration),
+                },
+            ]);
+        }
         case "draw": {
             const player = playerRef(sentence.player, slots, site);
             if (!player.ok) return player;

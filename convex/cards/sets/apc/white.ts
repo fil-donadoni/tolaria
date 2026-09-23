@@ -99,3 +99,38 @@ export const coalitionFlag: CardDefinition = {
         },
     ],
 };
+
+// Divine Light — {W} Sorcery. "Prevent all damage that would be dealt this
+// turn to creatures you control." (CR 615.1a.)
+//
+// The RECIPIENT side of prevention, and the reason it needed a new shield
+// shape: every recipient-keyed list the engine already had binds one id at
+// resolution, and this clause has no id to bind — "creatures you control" is a
+// membership, re-read whenever damage would be dealt, so a creature that comes
+// under this player's control later in the turn is shielded too (CR 615.6).
+// That is the `preventDamage` mode "all-to-matching" (issue #3810): the mirror
+// of "all-from-matching", with `controller` resolved ONCE here (CR 608.2 —
+// "you" is the resolving controller) and only its membership left live.
+//
+// `cardType: "Creature"` is what keeps the controller themself unshielded: a
+// player has no card type, so a typed shield never covers one.
+//
+// The Oracle line is a Grammar Gap worth two corpus cards, below the hand-tail
+// floor, so the card is written by hand rather than paid for with a rule.
+// hand-tail: "Prevent all damage that would be dealt this turn to creatures you control." (#3810)
+export const divineLight: CardDefinition = {
+    id: "8f596ce1-b754-4e34-98e3-e1ddda2fd9b0", // APC 8
+    rarity: "common",
+    name: "Divine Light",
+    oracleText:
+        "Prevent all damage that would be dealt this turn to creatures you control.",
+    manaCost: { W: 1 },
+    types: ["Sorcery"],
+    effects: [
+        {
+            op: "preventDamage",
+            mode: "all-to-matching",
+            match: { controller: "controller", cardType: "Creature" },
+        },
+    ],
+};
