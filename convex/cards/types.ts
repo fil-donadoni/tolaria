@@ -5896,6 +5896,27 @@ export interface SpellContext {
         playerId: string,
         breadth: ManaSubstitutionBreadth
     ) => void;
+    /** CR 609.4b / 514.2 (issue #3811) — grants `playerId` an UNTIL-END-OF-TURN,
+     *  player-wide "you may spend `from` mana as though it were mana of any
+     *  type/color" permission (False Dawn: "Until end of turn, you may spend
+     *  white mana as though it were mana of any color"). Appends to
+     *  `state.manaSubstitutionGrantsThisTurn`; `getManaSubstitutions` returns
+     *  its `{from,to}` pairs to EVERY payment of that player — spell, ability
+     *  or special action alike, since the Oracle names no cost. Never consumed;
+     *  cleared at CLEANUP (CR 514.2). */
+    grantManaSubstitution: (
+        playerId: string,
+        from: Color,
+        breadth: ManaSubstitutionBreadth
+    ) => void;
+    /** CR 614.1a / 106.3 / 514.2 (issue #3811) — installs an UNTIL-END-OF-TURN
+     *  replacement on `playerId`'s mana production: "spells and abilities you
+     *  control that would add colored mana instead add that much `color` mana"
+     *  (False Dawn). Recorded in `state.manaProductionColorThisTurn` and applied
+     *  by `replaceProducedManaColor` at every site mana enters a pool from a
+     *  spell or ability that player controls. Colourless mana is untouched.
+     *  Cleared at CLEANUP (CR 514.2). */
+    replaceManaProductionColor: (playerId: string, color: Color) => void;
     /** CR 305.1-analog / 601 (issue #1149, ADR 0093) — grants `playerId` the
      *  TURN-SCOPED form of the graveyard play permission record (Yawgmoth's
      *  Will: "Until end of turn, you may play lands and cast spells from your
@@ -14766,6 +14787,51 @@ export type EffectOp =
           op: "grantSpellManaSubstitution";
           player: EffectPlayerRef;
           breadth: ManaSubstitutionBreadth;
+      }
+    /** CR 609.4b / 514.2 (issue #3811 — False Dawn: "Until end of turn, you
+     *  may spend white mana as though it were mana of any color") — grant
+     *  `player` an UNTIL-END-OF-TURN permission to spend `from` mana as though
+     *  it were mana of any type/color (`breadth`). A thin declarative skin over
+     *  `SpellContext.grantManaSubstitution`, one execution path (ADR 0045): the
+     *  grant becomes a new SOURCE of `getManaSubstitutions`, so every payment
+     *  consumer that already honours a `{from,to}` substitution inherits it.
+     *
+     *  Distinct from `grantSpellManaSubstitution` on two axes, which is why it
+     *  is a sibling and not a flag on it: SCOPE — every cost the player pays,
+     *  not "that spell's mana cost" — and LIFETIME — the whole turn, never
+     *  consumed by a payment. `from` narrows the pairs to one printed colour
+     *  ("white mana"), which the one-shot grant never needed. Per CR 609.4b the
+     *  cost itself and the mana actually spent are unchanged. Cleared at
+     *  CLEANUP (CR 514.2). Skipped when the player is gone (CR 608.2b). */
+    | {
+          op: "grantManaSubstitution";
+          player: EffectPlayerRef;
+          from: Color;
+          breadth: ManaSubstitutionBreadth;
+      }
+    /** CR 614.1a / 106.3 / 514.2 (issue #3811 — False Dawn: "Until end of turn,
+     *  spells and abilities you control that would add colored mana instead add
+     *  that much white mana") — install an UNTIL-END-OF-TURN replacement on the
+     *  mana `player`'s spells and abilities PRODUCE: every coloured mana they
+     *  would add is added as that much `color` mana instead; colourless mana is
+     *  not coloured (CR 105.1 / 106.1b) and passes through. A thin skin over
+     *  `SpellContext.replaceManaProductionColor`.
+     *
+     *  Keyed on the CONTROLLER of the producing spell or ability, not on whose
+     *  pool receives the mana (the Oracle's "spells and abilities you
+     *  control"). Applied by the one helper `replaceProducedManaColor`
+     *  (`gre/constants.ts`) at every production site: the tap funnel
+     *  `applyLandManaReplacement` (lands and mana abilities of permanents) and
+     *  the `SpellContext` mana writers (`addMana` / `addManaTo` /
+     *  `addRestrictedMana` / `addNotedMana` — rituals, triggered mana
+     *  abilities, Mana Battery replays). The latest grant wins when two name
+     *  different colours (CR 616.1 lets the affected player order them; no
+     *  printed card installs two). Does NOT change mana already in a pool.
+     *  Cleared at CLEANUP (CR 514.2). Skipped when the player is gone. */
+    | {
+          op: "replaceManaProductionColor";
+          player: EffectPlayerRef;
+          color: Color;
       }
     /** CR 305.1-analog / 601 (issue #1149) — grant `player` a turn-scoped,
      *  player-wide permission to play lands and/or cast spells from their OWN

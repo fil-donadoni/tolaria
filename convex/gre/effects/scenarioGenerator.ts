@@ -1298,6 +1298,20 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // state.spellManaSubstitutionGrants (asserted below).
             analysePlayer(op.player, req, false);
             return;
+        case "grantManaSubstitution":
+            // CR 609.4b / 514.2 (issue #3811, False Dawn) — a per-player
+            // until-end-of-turn "spend `from` mana as though any color" grant;
+            // the deterministic outcome is the entry landing in
+            // state.manaSubstitutionGrantsThisTurn (asserted below).
+            analysePlayer(op.player, req, false);
+            return;
+        case "replaceManaProductionColor":
+            // CR 614.1a / 514.2 (issue #3811, False Dawn) — a per-player
+            // until-end-of-turn production-colour replacement; the
+            // deterministic outcome is the colour landing in
+            // state.manaProductionColorThisTurn (asserted below).
+            analysePlayer(op.player, req, false);
+            return;
         case "restrictActivation":
             // CR 602.1 / 605.1a (issue #1124) — a turn-scoped ability-activation
             // lock on a player; the deterministic outcome is the player id
@@ -3148,6 +3162,44 @@ const OP_ASSERTORS: Record<string, Assertor> = {
                     ok: after === before + 1 && holds,
                     detail: `grants=${after} (was ${before}), holds ${op.breadth}=${holds}`,
                 };
+            },
+        };
+    },
+    // `grantManaSubstitution` (CR 609.4b, issue #3811, False Dawn) — a
+    // deterministic same-resolution state change: a `{ from, breadth }` entry
+    // lands under the named player's key in state.manaSubstitutionGrantsThisTurn.
+    grantManaSubstitution(rawOp, _scenario, pre) {
+        const op = rawOp as Extract<EffectOp, { op: "grantManaSubstitution" }>;
+        const pid = assertionPlayerId(op.player);
+        const before = pre.manaSubstitutionGrantsThisTurn?.[pid]?.length ?? 0;
+        return {
+            label: `grantManaSubstitution lets player ${pid} spend ${op.from} as ${op.breadth} this turn`,
+            check: (post) => {
+                const grants = post.manaSubstitutionGrantsThisTurn?.[pid] ?? [];
+                const holds = grants.some(
+                    (g) => g.from === op.from && g.breadth === op.breadth
+                );
+                return {
+                    ok: grants.length === before + 1 && holds,
+                    detail: `grants=${grants.length} (was ${before}), holds ${op.from}/${op.breadth}=${holds}`,
+                };
+            },
+        };
+    },
+    // `replaceManaProductionColor` (CR 614.1a, issue #3811, False Dawn) — a
+    // deterministic same-resolution state change: the colour lands under the
+    // named player's key in state.manaProductionColorThisTurn.
+    replaceManaProductionColor(rawOp, _scenario, _pre) {
+        const op = rawOp as Extract<
+            EffectOp,
+            { op: "replaceManaProductionColor" }
+        >;
+        const pid = assertionPlayerId(op.player);
+        return {
+            label: `replaceManaProductionColor makes player ${pid}'s coloured mana ${op.color} this turn`,
+            check: (post) => {
+                const color = post.manaProductionColorThisTurn?.[pid];
+                return { ok: color === op.color, detail: `color=${color}` };
             },
         };
     },

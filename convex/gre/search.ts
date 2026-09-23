@@ -106,6 +106,7 @@ import {
     manaTapCounterCost,
     manaValue,
     mayBeSacrificedForMana,
+    replaceProducedManaColor,
 } from "./constants";
 // CR 701.43a — the single exert authority, shared with the mutation path so the
 // search prices the missed untap step the payment really spends (issue #3359).
@@ -1646,7 +1647,10 @@ export function applyMoveInSearch(
                 // pool. Mirrors the mutation's minimal `addMana`-only context.
                 template.effect?.({
                     addMana: (amount) => {
-                        for (const [color, count] of Object.entries(amount)) {
+                        // CR 614.1a (issue #3811) — mirrors the mutation.
+                        for (const [color, count] of Object.entries(
+                            replaceProducedManaColor(state, player.id, amount)
+                        )) {
                             if (
                                 color !== "X" &&
                                 typeof count === "number" &&

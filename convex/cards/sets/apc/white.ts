@@ -134,3 +134,38 @@ export const divineLight: CardDefinition = {
         },
     ],
 };
+
+// False Dawn — {1}{W} Sorcery (issue #3811). "Until end of turn, spells and
+// abilities you control that would add colored mana instead add that much
+// white mana. Until end of turn, you may spend white mana as though it were
+// mana of any color. / Draw a card."
+//
+// Two until-end-of-turn effects, both cleared at CLEANUP (CR 514.2):
+//
+//  - CR 614.1a — a replacement on PRODUCTION, keyed on the controller of the
+//    spell or ability that makes the mana (`replaceManaProductionColor`):
+//    every land, mana ability, ritual or triggered mana ability of this
+//    player's adds white instead of its colour; colourless stays colourless.
+//  - CR 609.4b — a permission on SPENDING (`grantManaSubstitution`): white
+//    may pay any coloured pip of any cost this player pays, which is what
+//    keeps the first effect from locking its own caster out of their colours.
+//    The cost and the mana spent are unchanged by it.
+export const falseDawn: CardDefinition = {
+    id: "1695e0ba-005a-4652-aea7-e1d1f9ff5d66", // APC 10
+    rarity: "rare",
+    name: "False Dawn",
+    oracleText:
+        "Until end of turn, spells and abilities you control that would add colored mana instead add that much white mana. Until end of turn, you may spend white mana as though it were mana of any color.\nDraw a card.",
+    manaCost: { X: 1, W: 1 },
+    types: ["Sorcery"],
+    effects: [
+        { op: "replaceManaProductionColor", player: "controller", color: "W" },
+        {
+            op: "grantManaSubstitution",
+            player: "controller",
+            from: "W",
+            breadth: "any-color",
+        },
+        { op: "draw", player: "controller", count: 1 },
+    ],
+};

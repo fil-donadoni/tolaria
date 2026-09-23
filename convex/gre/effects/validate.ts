@@ -3741,6 +3741,30 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             breadth: (v: unknown) => v === "any-color" || v === "any-type",
         },
     },
+    // CR 609.4b / 514.2 (issue #3811, False Dawn) — an until-end-of-turn,
+    // every-cost permission to spend `from` mana as though it were mana of any
+    // type/color. `from` is one of the six mana types (CR 106.1b); `breadth`
+    // is REQUIRED for the same reason as the one-shot sibling above.
+    grantManaSubstitution: {
+        required: {
+            player: isPlayerRef,
+            from: (v: unknown) =>
+                typeof v === "string" &&
+                ["W", "U", "B", "R", "G", "C"].includes(v),
+            breadth: (v: unknown) => v === "any-color" || v === "any-type",
+        },
+    },
+    // CR 614.1a / 514.2 (issue #3811, False Dawn) — the until-end-of-turn
+    // production-colour replacement. `color` is one of the FIVE colours (CR
+    // 105.1): the effect turns coloured mana into coloured mana, and
+    // "colorless" is not a colour a printed replacement of this shape names.
+    replaceManaProductionColor: {
+        required: {
+            player: isPlayerRef,
+            color: (v: unknown) =>
+                typeof v === "string" && ["W", "U", "B", "R", "G"].includes(v),
+        },
+    },
     // CR 601.2f / 514.2 (issue #3340, Urza, Planeswalker's +2) — install a
     // FLOATING turn-scoped cost reduction on the spells `player` casts this
     // turn. `amount` is REQUIRED and must carry at least one positive pip: a

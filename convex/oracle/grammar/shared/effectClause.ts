@@ -26,6 +26,7 @@
  */
 
 import type {
+    Color,
     EffectCardFilter,
     EffectChoiceSuperlative,
     TargetRequirement,
@@ -62,6 +63,7 @@ import {
     type MassSubjectIR,
 } from "./massSubject";
 import {
+    COLOR_WORDS,
     descriptorRule,
     dividedTargetsRule,
     opensTargetPhrase,
@@ -317,6 +319,20 @@ export type EffectSentenceIR =
      *  controller (no printed card lets another player choose) and the legal
      *  space is always CR 205.3m's whole table. */
     | { readonly kind: "choose-creature-type" }
+    /** CR 614.1a / 106.3 (issue #3811) — "Until end of turn, spells and
+     *  abilities you control that would add colored mana instead add that
+     *  much <colour> mana." The replacement is always the resolving
+     *  controller's and always until end of turn: those words are part of the
+     *  anchored form, not parameters. */
+    | { readonly kind: "replace-mana-production-color"; readonly color: Color }
+    /** CR 609.4b (issue #3811) — "Until end of turn, you may spend <colour>
+     *  mana as though it were mana of any color|type." The grantee is always
+     *  the resolving controller ("you"). */
+    | {
+          readonly kind: "grant-mana-substitution";
+          readonly from: Color;
+          readonly breadth: "any-color" | "any-type";
+      }
     | {
           readonly kind: "pump";
           readonly subject: SubjectIR;
@@ -1584,6 +1600,13 @@ const LIFE = /^(.+) (gain|gains|lose|loses) (\S+|that much) life$/;
 /** CR 205.3m — "Choose a creature type." The whole sentence; see the branch
  *  in `effectSentence` for why it is anchored at both ends. */
 const CHOOSE_CREATURE_TYPE = /^Choose a creature type$/;
+/** CR 614.1a (issue #3811) — the production-colour replacement, whole. */
+const REPLACE_MANA_PRODUCTION_COLOR =
+    /^Until end of turn, spells and abilities you control that would add colored mana instead add that much (white|blue|black|red|green) mana$/;
+/** CR 609.4b (issue #3811) — the until-end-of-turn spend permission, whole.
+ *  "colorless" is a mana type (CR 106.1b), so it may be the spent side. */
+const GRANT_MANA_SUBSTITUTION =
+    /^Until end of turn, you may spend (white|blue|black|red|green|colorless) mana as though it were mana of any (color|type)$/;
 const LIFE_FOR_EACH = /^(.+) (gain|gains|lose|loses) (\S+) life (for each .+)$/;
 /** CR 119.3 + CR 202.3 + CR 208.1 — "You lose life equal to its mana value"
  *  (or "that card's", or "that permanent's" — Feed the Swarm), and "You gain
@@ -2178,6 +2201,38 @@ function effectSentence(
     // restriction this rule does not read and must not silently drop.
     if (CHOOSE_CREATURE_TYPE.test(span)) {
         return ok({ kind: "choose-creature-type" as const });
+    }
+
+    // ── mana colour rules (CR 614.1a / 609.4b, issue #3811) ────────────────
+    // Both anchored at both ends, for the reason the rule above gives: a
+    // scope clause appended to either ("… to cast creature spells") narrows
+    // the effect, and reading the head alone would silently widen it.
+    const production = span.match(REPLACE_MANA_PRODUCTION_COLOR);
+    if (production !== null) {
+        const color = COLOR_WORDS.get(production[1]!);
+        if (color !== undefined) {
+            return ok({
+                kind: "replace-mana-production-color" as const,
+                color,
+            });
+        }
+    }
+    const substitution = span.match(GRANT_MANA_SUBSTITUTION);
+    if (substitution !== null) {
+        const from =
+            substitution[1] === "colorless"
+                ? ("C" as const)
+                : COLOR_WORDS.get(substitution[1]!);
+        if (from !== undefined) {
+            return ok({
+                kind: "grant-mana-substitution" as const,
+                from,
+                breadth:
+                    substitution[2] === "type"
+                        ? ("any-type" as const)
+                        : ("any-color" as const),
+            });
+        }
     }
 
     // ── pump (CR 613.4c, layer 7c) ─────────────────────────────────────────

@@ -3008,6 +3008,12 @@ const TURN_SCOPED_GLOBAL_FLAGS = [
     // survive END_OF_COMBAT: the player may still be holding it for a spell
     // they mean to cast in the postcombat main phase.
     "spellManaSubstitutionGrants",
+    // CR 609.4b / 614.1a / 514.2 (issue #3811) — False Dawn's two "until end
+    // of turn" effects: the spend-as-any-colour permission and the
+    // production-colour replacement. Both must still apply to mana made and
+    // spent in the POSTCOMBAT main phase.
+    "manaSubstitutionGrantsThisTurn",
+    "manaProductionColorThisTurn",
     // CR 614 / 514.2 (issue #1145) — Yawgmoth's Will's graveyard-bound
     // redirect is a "this turn" replacement.
     "graveyardBoundRedirectThisTurn",

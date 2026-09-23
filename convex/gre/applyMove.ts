@@ -110,6 +110,7 @@ import {
     manaTapCounterCost,
     manaValue,
     mayBeSacrificedForMana,
+    replaceProducedManaColor,
 } from "./constants";
 import {
     activationSacrificePayment,
@@ -1753,7 +1754,10 @@ export function applyMoveForSearch(
             if (!template.useStack) {
                 template.effect?.({
                     addMana: (amount) => {
-                        for (const [color, count] of Object.entries(amount)) {
+                        // CR 614.1a (issue #3811) — mirrors the mutation.
+                        for (const [color, count] of Object.entries(
+                            replaceProducedManaColor(next, player.id, amount)
+                        )) {
                             if (
                                 color !== "X" &&
                                 typeof count === "number" &&

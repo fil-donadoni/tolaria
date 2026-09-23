@@ -125,6 +125,7 @@ function toContribution(cost: {
         | string
         | Partial<Record<Color, number>>
         | Array<[Color, Color]>
+        | Color[]
         | undefined;
 }): ManaContribution {
     const out: ManaContribution = {};

@@ -2226,6 +2226,37 @@ function getContinuousLandManaOverride(
     return null;
 }
 
+/** CR 614.1a / 106.3 (issue #3811) — the until-end-of-turn replacement on
+ *  the mana `controllerId`'s spells and abilities PRODUCE (False Dawn: "spells
+ *  and abilities you control that would add colored mana instead add that much
+ *  white mana"). Every coloured unit becomes that much of the replacement
+ *  colour; colourless is not coloured (CR 105.1) and passes through; the
+ *  non-mana keys a `ManaCost` may carry are dropped, as every pool writer
+ *  already ignores them. Returns `produced` itself when no replacement is live.
+ *
+ *  The ONE helper every production site calls — the tap funnel
+ *  `applyLandManaReplacement` below and the `SpellContext` mana writers — so a
+ *  new site that forgets it is the only way to miss it. Keyed on the
+ *  CONTROLLER of the producing spell or ability, never on the receiving pool. */
+export function replaceProducedManaColor(
+    state: Pick<GameState, "manaProductionColorThisTurn">,
+    controllerId: string,
+    produced: ManaCost
+): ManaCost {
+    const color = state.manaProductionColorThisTurn?.[controllerId];
+    if (color === undefined) return produced;
+    let colored = 0;
+    const result: ManaCost = {};
+    for (const c of MANA_COLORS) {
+        const n = produced[c] ?? 0;
+        if (n <= 0) continue;
+        if (c === "C") result.C = n;
+        else colored += n;
+    }
+    if (colored > 0) result[color] = (result[color] ?? 0) + colored;
+    return result;
+}
+
 /** Applies the active land-mana colour substitutions (CR 614) to the mana a
  *  source is about to add to a pool. Three families compose, in order:
  *
@@ -2297,7 +2328,10 @@ export function applyLandManaReplacement(
             result = { ...result, U: (result.U ?? 0) + highTides };
         }
     }
-    return result;
+    // (4) CR 614.1a (issue #3811) — the controller's until-end-of-turn
+    // production-colour replacement (False Dawn). Not land-only: every source
+    // tapped through this funnel is an ability its controller controls.
+    return replaceProducedManaColor(state, controllerId, result);
 }
 
 /** Spend restriction (CR 106.6) carried by a card's fixed tap mana ability, or

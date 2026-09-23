@@ -414,6 +414,7 @@ import {
     DAMAGEABLE_PERMANENT_TYPES,
     MANA_COLORS,
     applyLandManaReplacement,
+    replaceProducedManaColor,
     declaresAsEntersMode,
     hybridCostKey,
     getActivatedManaAbility,
@@ -5141,7 +5142,13 @@ export const summonCompanion = mutation({
         for (const src of player.battlefield) {
             if (tappedIds.has(src.id)) src.isTapped = true;
         }
-        const produced = manaFromPlan(sources, plan);
+        // CR 614.1a (issue #3811) — the auto-tap deposit is a production site
+        // too: the controller's production-colour replacement applies.
+        const produced = replaceProducedManaColor(
+            state,
+            player.id,
+            manaFromPlan(sources, plan)
+        );
         for (const color of MANA_COLORS) {
             const v2 = produced[color];
             if (v2) player.manaPool[color] = (player.manaPool[color] ?? 0) + v2;
@@ -5262,7 +5269,11 @@ export function applyTurnPermanentFaceUp(
     for (const src of player.battlefield) {
         if (tappedIds.has(src.id)) src.isTapped = true;
     }
-    const produced = manaFromPlan(sources, plan);
+    const produced = replaceProducedManaColor(
+        state,
+        player.id,
+        manaFromPlan(sources, plan)
+    );
     for (const color of MANA_COLORS) {
         const amount = produced[color];
         if (amount) {
@@ -12139,10 +12150,14 @@ function chargeManaCostOrThrow(
     for (const src of payer.battlefield) {
         if (tappedIds.has(src.id)) src.isTapped = true;
     }
-    const produced = manaFromPlan(sources, plan);
+    const produced = replaceProducedManaColor(
+        state,
+        payer.id,
+        manaFromPlan(sources, plan)
+    );
     for (const color of Object.keys(produced)) {
         const v = produced[color as keyof typeof produced];
-        if (v) {
+        if (typeof v === "number" && v > 0) {
             payer.manaPool[color] = (payer.manaPool[color] ?? 0) + v;
         }
     }
@@ -15034,7 +15049,9 @@ export function resolveNonTapManaChoice(
         throw new Error("Invalid mana choice");
     }
     recordActivation(state, card, abilityId, false);
-    for (const [color, amount] of Object.entries(chosen)) {
+    for (const [color, amount] of Object.entries(
+        replaceProducedManaColor(state, player.id, chosen)
+    )) {
         if (color !== "X" && typeof amount === "number" && amount > 0) {
             player.manaPool[color] = (player.manaPool[color] ?? 0) + amount;
         }
@@ -15461,7 +15478,9 @@ export const activatePlayerAbility = mutation({
             }
             ability.effect?.({
                 addMana: (amount) => {
-                    for (const [color, count] of Object.entries(amount)) {
+                    for (const [color, count] of Object.entries(
+                        replaceProducedManaColor(state, player.id, amount)
+                    )) {
                         if (
                             color !== "X" &&
                             typeof count === "number" &&

@@ -3040,6 +3040,22 @@ export const OP_EXECUTORS: {
         if (playerId === undefined) return;
         ctx.grantSpellManaSubstitution(playerId, op.breadth);
     },
+    // CR 609.4b / 514.2 (issue #3811, False Dawn) — until-end-of-turn,
+    // every-cost "spend `from` mana as though it were mana of any color".
+    // Skipped when the player is gone (CR 608.2b).
+    grantManaSubstitution(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return;
+        ctx.grantManaSubstitution(playerId, op.from, op.breadth);
+    },
+    // CR 614.1a / 514.2 (issue #3811, False Dawn) — until-end-of-turn
+    // replacement on the coloured mana `player`'s spells and abilities
+    // produce. Skipped when the player is gone (CR 608.2b).
+    replaceManaProductionColor(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return;
+        ctx.replaceManaProductionColor(playerId, op.color);
+    },
     // CR 601.3 (issue #1149, ADR 0093) — grant the turn-scoped form of the
     // graveyard play permission record (Yawgmoth's Will), sourced by the
     // resolving object. `actions` defaults to BOTH playing lands and casting
