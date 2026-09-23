@@ -3644,7 +3644,10 @@ describe("Glasses of Urza (reveal hand, CR 401.4)", () => {
         expect(state.players[1].hand[0].knownTo).toEqual(["p1"]);
 
         // p2 discards one card at random (e.g. Hymn to Tourach style).
-        discardCardsAtRandom(state, "p2", 1);
+        discardCardsAtRandom(state, "p2", 1, {
+            kind: "effect",
+            controllerId: "p2",
+        });
 
         // The remaining hand card is STILL known to p1 — the random discard of
         // the other (publicly revealed into the graveyard) introduced no

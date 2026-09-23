@@ -84,8 +84,14 @@ describe("graveyard order (CR 404.3 — an ordered zone; top = last element)", (
             ],
         });
 
-        discardToGraveyard(state, "p1", "discarded-first");
-        discardToGraveyard(state, "p1", "discarded-second");
+        discardToGraveyard(state, "p1", "discarded-first", {
+            kind: "effect",
+            controllerId: "p1",
+        });
+        discardToGraveyard(state, "p1", "discarded-second", {
+            kind: "effect",
+            controllerId: "p1",
+        });
 
         expect(pileOf(state)).toEqual(["discarded-first", "discarded-second"]);
     });
@@ -157,7 +163,10 @@ describe("graveyard order (CR 404.3 — an ordered zone; top = last element)", (
 
         // Discard first (moveCard funnel), then the creature dies
         // (removePermanentTo funnel). The creature must end up on TOP.
-        discardToGraveyard(state, "p1", "the-discard");
+        discardToGraveyard(state, "p1", "the-discard", {
+            kind: "effect",
+            controllerId: "p1",
+        });
         removePermanentTo(state, "the-creature", "graveyard", "destroy");
 
         expect(pileOf(state)).toEqual(["the-discard", "the-creature"]);

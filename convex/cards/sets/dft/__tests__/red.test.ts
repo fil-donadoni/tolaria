@@ -48,7 +48,10 @@ describe("Marauding Mako (CR 701.9 discard trigger, CR 702.29 Cycling)", () => {
         });
 
         // CR 701.9 — discard a card (routes through the shared choke point).
-        discardCardsAtRandom(state, "p1", 1);
+        discardCardsAtRandom(state, "p1", 1, {
+            kind: "effect",
+            controllerId: "p1",
+        });
         const triggers = collectTriggers(state, state.pendingEvents ?? []);
         const trig = triggers.find(
             (t) => t.triggeredAbilityId === DISCARD_TRIGGER

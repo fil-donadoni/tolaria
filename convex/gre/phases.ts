@@ -2562,7 +2562,10 @@ export function finalizeCleanupDiscard(
             if (idx === -1) continue;
             // CR 614 discard replacement (Library of Leng) runs inside
             // discardToGraveyard; a real discard emits CARD_DISCARDED (CR 701.9).
-            discardToGraveyard(state, player.id, cardInstanceId);
+            // CR 514.1 — a turn-based action, not an effect (issue #3814).
+            discardToGraveyard(state, player.id, cardInstanceId, {
+                kind: "turn-based-action",
+            });
         }
     });
     // ADR 0026 (revised): the cleanup discard (CR 514.1) does NOT clear a

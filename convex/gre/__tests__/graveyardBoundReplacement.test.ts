@@ -243,7 +243,10 @@ describe("graveyard-bound replacement (CR 614, issue #1145)", () => {
                 makePlayer("p2"),
             ],
         });
-        const moved = discardToGraveyard(state, "p1", "c1");
+        const moved = discardToGraveyard(state, "p1", "c1", {
+            kind: "effect",
+            controllerId: "p1",
+        });
         expect(moved).toBe(true);
         const p1 = state.players[0];
         expect(p1.graveyard).toHaveLength(0);
@@ -265,7 +268,10 @@ describe("graveyard-bound replacement (CR 614, issue #1145)", () => {
                 makePlayer("p2", { hand }),
             ],
         });
-        discardToGraveyard(state, "p2", "c1");
+        discardToGraveyard(state, "p2", "c1", {
+            kind: "effect",
+            controllerId: "p2",
+        });
         expect(state.players[1].graveyard).toHaveLength(1);
         expect(state.players[1].exile).toHaveLength(0);
     });
@@ -495,7 +501,10 @@ describe("graveyard-bound self-referential replacement — applies from any zone
         const state = makeState({
             players: [makePlayer("p1", { hand }), makePlayer("p2")],
         });
-        const moved = discardToGraveyard(state, "p1", "self1");
+        const moved = discardToGraveyard(state, "p1", "self1", {
+            kind: "effect",
+            controllerId: "p1",
+        });
         expect(moved).toBe(true);
         const p1 = state.players[0];
         expect(p1.library.some((c) => c.id === "self1")).toBe(true);
@@ -649,7 +658,10 @@ describe("graveyard-bound turn-scoped redirect grant (CR 614/514.2, Yawgmoth's W
         expect(state.graveyardBoundRedirectThisTurn).toEqual([
             { ownerId: "p1" },
         ]);
-        discardToGraveyard(state, "p1", "c1");
+        discardToGraveyard(state, "p1", "c1", {
+            kind: "effect",
+            controllerId: "p1",
+        });
         expect(state.players[0].graveyard).toHaveLength(0);
         expect(state.players[0].exile.some((c) => c.id === "c1")).toBe(true);
     });
@@ -662,7 +674,10 @@ describe("graveyard-bound turn-scoped redirect grant (CR 614/514.2, Yawgmoth's W
         const stackItem = pushSpell(state, P1_SORCERY_ID, "p1");
         const ctx = buildSpellContext(state, stackItem);
         ctx.armGraveyardRedirectThisTurn("p1");
-        discardToGraveyard(state, "p2", "c1");
+        discardToGraveyard(state, "p2", "c1", {
+            kind: "effect",
+            controllerId: "p2",
+        });
         expect(state.players[1].graveyard).toHaveLength(1);
         expect(state.players[1].exile).toHaveLength(0);
     });
@@ -672,7 +687,10 @@ describe("graveyard-bound turn-scoped redirect grant (CR 614/514.2, Yawgmoth's W
         const state = makeState({
             players: [makePlayer("p1", { hand }), makePlayer("p2")],
         });
-        discardToGraveyard(state, "p1", "c1");
+        discardToGraveyard(state, "p1", "c1", {
+            kind: "effect",
+            controllerId: "p1",
+        });
         expect(state.players[0].graveyard).toHaveLength(1);
         expect(state.players[0].exile).toHaveLength(0);
     });

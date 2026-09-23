@@ -1980,7 +1980,10 @@ describe("Necropotence (CR 504/614 skip-draw + CR 701.9 discard→exile)", () =>
         });
         // CR 701.9 — discard the card (any discard path; random is the simplest
         // engine driver and flows through the same discardToGraveyard choke).
-        discardCardsAtRandom(state, "p1", 1);
+        discardCardsAtRandom(state, "p1", 1, {
+            kind: "effect",
+            controllerId: "p1",
+        });
 
         // The card landed in the graveyard and a CARD_DISCARDED event fired.
         expect(state.players[0].graveyard.map((c) => c.id)).toEqual([
@@ -2028,7 +2031,10 @@ describe("Necropotence (CR 504/614 skip-draw + CR 701.9 discard→exile)", () =>
                 }),
             ],
         });
-        discardCardsAtRandom(state, "p2", 1);
+        discardCardsAtRandom(state, "p2", 1, {
+            kind: "effect",
+            controllerId: "p2",
+        });
         const events = state.pendingEvents ?? [];
         const triggers = collectTriggers(state, events);
         expect(

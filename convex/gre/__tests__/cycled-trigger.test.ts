@@ -396,7 +396,10 @@ describe("CR 702.29d — one event, so a cycled card triggers each ability once"
         const state = makeState({
             players: [makePlayer("p1", { hand: [mako] }), makePlayer("p2")],
         });
-        discardToGraveyard(state, "p1", "mako");
+        discardToGraveyard(state, "p1", "mako", {
+            kind: "effect",
+            controllerId: "p1",
+        });
         const triggers = collectTriggers(state, state.pendingEvents ?? []);
         expect(triggers).toHaveLength(0);
     });
@@ -416,7 +419,10 @@ describe("CR 702.29c — an ordinary discard is NOT a cycling discard", () => {
 
     it("choke-point default: an effect-driven discard leaves `cause` unset", () => {
         const state = boardWith(CYCLER_ID);
-        discardToGraveyard(state, "p1", "src");
+        discardToGraveyard(state, "p1", "src", {
+            kind: "effect",
+            controllerId: "p1",
+        });
         const [event] = (state.pendingEvents ?? []).filter(
             (e) => e.type === "CARD_DISCARDED"
         );
@@ -429,7 +435,10 @@ describe("CR 702.29c — an ordinary discard is NOT a cycling discard", () => {
 
     it("a random discard does not fire it (CR 701.9a — Rag Man / Coral Helm)", () => {
         const state = boardWith(CYCLER_ID);
-        discardCardsAtRandom(state, "p1", 1);
+        discardCardsAtRandom(state, "p1", 1, {
+            kind: "effect",
+            controllerId: "p1",
+        });
         expect(
             getPlayer(state, "p1").graveyard.some((c) => c.id === "src")
         ).toBe(true);
@@ -521,7 +530,7 @@ describe("serialization round-trip (CR 702.29c signal)", () => {
 
         // And a discard event carrying the cause.
         const cycled = boardWith(CYCLER_ID);
-        discardToGraveyard(cycled, "p1", "src", "cycling");
+        discardToGraveyard(cycled, "p1", "src", { kind: "cost" }, "cycling");
         state.pendingEvents = cycled.pendingEvents;
 
         const round: GameState = expandState(compactState(state));

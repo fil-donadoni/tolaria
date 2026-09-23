@@ -121,10 +121,20 @@ describe("Compost (CR 603.6c graveyard-from-anywhere trigger, CR 400.3 owner's g
         });
         const state = compostBoard([specter, bears]);
 
-        expect(discardToGraveyard(state, "p2", "bears")).toBe(true);
+        expect(
+            discardToGraveyard(state, "p2", "bears", {
+                kind: "effect",
+                controllerId: "p2",
+            })
+        ).toBe(true);
         expect(compostTriggers(state)).toHaveLength(0);
 
-        expect(discardToGraveyard(state, "p2", "specter")).toBe(true);
+        expect(
+            discardToGraveyard(state, "p2", "specter", {
+                kind: "effect",
+                controllerId: "p2",
+            })
+        ).toBe(true);
         expect(compostTriggers(state)).toHaveLength(1);
     });
 

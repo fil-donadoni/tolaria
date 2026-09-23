@@ -140,6 +140,59 @@ export const brassHerald: CardDefinition = {
     ],
 };
 
+// Dodecapod — {4} 3/3 Artifact Creature — Golem (issue #3814). "If a spell or
+// ability an opponent controls causes you to discard this card, put it onto
+// the battlefield with two +1/+1 counters on it instead of putting it into your
+// graveyard."
+//
+// A CR 614.1a discard replacement read off the card while it is still in its
+// owner's HAND — the only zone a discard ever takes a card from (CR 701.9a) —
+// so it is `appliesFromAnyZone` and matches only its own instance. Its scope
+// is the discard's `origin` (`DiscardOrigin`): an EFFECT (CR 609.1) whose
+// controller is not the discarding player. Discarding it to pay a cost (CR 118,
+// CR 118.12's "unless" payments included), to the cleanup hand-size rule
+// (CR 514.1), or to your own spell never applies. The counters are put on it
+// AS it enters (CR 122.6), through the shared entry path. It is still a
+// discard (CR 701.9c; the card's ruling "you've still discarded it"), so
+// "whenever you discard" triggers fire.
+//
+// hand-tail: If a spell or ability an opponent controls causes you to discard this card, put it onto the battlefield with two +1/+1 counters on it instead of putting it into your graveyard. (#4327)
+export const dodecapod: CardDefinition = {
+    id: "ded8b992-a1c2-4e43-ad0a-ea3995a3c8b8", // APC 134
+    name: "Dodecapod",
+    rarity: "uncommon",
+    oracleText:
+        "If a spell or ability an opponent controls causes you to discard this card, put it onto the battlefield with two +1/+1 counters on it instead of putting it into your graveyard.",
+    manaCost: { X: 4 },
+    types: ["Artifact", "Creature"],
+    subtypes: ["Golem"],
+    power: 3,
+    toughness: 3,
+    replacementEffects: [
+        {
+            id: "dodecapod-discard",
+            oracleText:
+                "If a spell or ability an opponent controls causes you to discard this card, put it onto the battlefield with two +1/+1 counters on it instead of putting it into your graveyard.",
+            eventKind: "discard",
+            appliesFromAnyZone: true,
+            appliesTo: (event, self) =>
+                event.kind === "discard" &&
+                event.cardInstanceId === self.id &&
+                event.origin.kind === "effect" &&
+                event.origin.controllerId !== event.playerId,
+            replace: (event, ctx) => {
+                if (event.kind !== "discard") return { kind: "consumed" };
+                ctx.putHandCardOntoBattlefield(
+                    event.playerId,
+                    event.cardInstanceId,
+                    { "+1/+1": 2 }
+                );
+                return { kind: "consumed" };
+            },
+        },
+    ],
+};
+
 // Emblazoned Golem — {2} Artifact Creature — Golem, 1/2 (issue #3811). "Kicker
 // {X} / Spend only colored mana on X. No more than one mana of each color may
 // be spent this way. / If this creature was kicked, it enters with X +1/+1

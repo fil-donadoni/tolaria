@@ -1057,6 +1057,7 @@ export function tryAutoCommitPendingActivation(
                 state,
                 playerId,
                 card.id,
+                { kind: "cost" },
                 pa.cyclingCost ? "cycling" : undefined
             )
         ) {
@@ -1105,7 +1106,7 @@ export function tryAutoCommitPendingActivation(
             return null;
         }
         for (const id of pa.discardFilterChoice.pickedCardIds) {
-            discardToGraveyard(state, playerId, id);
+            discardToGraveyard(state, playerId, id, { kind: "cost" });
         }
     }
     // CR 602.1 / 118.5 / 701.21a — execute the player-chosen filtered
@@ -1422,7 +1423,7 @@ export function payAlternativeCostHandChoice(
         if (choice.action === "exile") {
             moveCard(player, id, "hand", "exile");
         } else {
-            discardToGraveyard(state, playerId, id);
+            discardToGraveyard(state, playerId, id, { kind: "cost" });
         }
     }
     return true;
@@ -2991,6 +2992,7 @@ export function activateAbilityOnState(
             state,
             player.id,
             card.id,
+            { kind: "cost" },
             ability.cost.cyclingCost ? "cycling" : undefined
         );
     }

@@ -56,7 +56,10 @@ function discardAndFireMadnessTrigger(
     playerId: string,
     cardId: string
 ) {
-    discardToGraveyard(state, playerId, cardId);
+    discardToGraveyard(state, playerId, cardId, {
+        kind: "effect",
+        controllerId: playerId,
+    });
     // The engine drains CARD_DISCARDED and scans triggers after every game
     // action; replicate that here (the discard above happened outside a
     // resolution).
@@ -75,7 +78,12 @@ describe("Madness capability (CR 702.35)", () => {
             const p1 = makePlayer("p1", { hand: [card] });
             const state = makeState({ players: [p1, makePlayer("p2")] });
 
-            expect(discardToGraveyard(state, "p1", card.id)).toBe(true);
+            expect(
+                discardToGraveyard(state, "p1", card.id, {
+                    kind: "effect",
+                    controllerId: "p1",
+                })
+            ).toBe(true);
 
             const player = getPlayer(state, "p1");
             expect(player.hand.some((c) => c.id === card.id)).toBe(false);
@@ -102,7 +110,12 @@ describe("Madness capability (CR 702.35)", () => {
             const p1 = makePlayer("p1", { hand: [bear] });
             const state = makeState({ players: [p1, makePlayer("p2")] });
 
-            expect(discardToGraveyard(state, "p1", bear.id)).toBe(true);
+            expect(
+                discardToGraveyard(state, "p1", bear.id, {
+                    kind: "effect",
+                    controllerId: "p1",
+                })
+            ).toBe(true);
             const player = getPlayer(state, "p1");
             expect(player.graveyard.some((c) => c.id === bear.id)).toBe(true);
             expect(player.exile.some((c) => c.id === bear.id)).toBe(false);
@@ -119,7 +132,10 @@ describe("Madness capability (CR 702.35)", () => {
             const p1 = makePlayer("p1", { hand: [card] });
             const state = makeState({ players: [p1, makePlayer("p2")] });
 
-            discardToGraveyard(state, "p1", card.id);
+            discardToGraveyard(state, "p1", card.id, {
+                kind: "effect",
+                controllerId: "p1",
+            });
             processPendingActionTriggers(state);
 
             expect(state.stack).toHaveLength(1);
@@ -394,7 +410,10 @@ describe("Madness capability (CR 702.35)", () => {
             });
             const p1 = makePlayer("p1", { hand: [card] });
             const state = makeState({ players: [p1, makePlayer("p2")] });
-            discardToGraveyard(state, "p1", card.id);
+            discardToGraveyard(state, "p1", card.id, {
+                kind: "effect",
+                controllerId: "p1",
+            });
 
             const round = expandState(compactState(state));
             const exiled = getPlayer(round, "p1").exile.find(

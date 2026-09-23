@@ -20,6 +20,7 @@ import {
     type DelayedTriggerInlineBody,
     type DelayedTriggerTiming,
     type DiscardCause,
+    type DiscardOrigin,
     type DrawReplacementEvent,
     type DrawReplacementOutcome,
     type DrawStepPlan,
@@ -14512,7 +14513,16 @@ function stageReanimatedOnBattlefield(
     /** ADR 0100 D5 — set by the as-enters finalize when RE-ENTERING this tail
      *  after the permanent's choices were answered, so the CR 614 chokepoint
      *  below does not park it a second time. */
-    entryOpts?: { asEntersResolved?: boolean; enteredFromGraveyard?: boolean }
+    entryOpts?: {
+        asEntersResolved?: boolean;
+        enteredFromGraveyard?: boolean;
+        /** CR 122.6 / 614.1a (issue #3814) — counters the EFFECT putting this
+         *  object onto the battlefield gives it as it enters ("put it onto the
+         *  battlefield with two +1/+1 counters on it" — Dodecapod). Placed
+         *  beside the card's own entry counters, through the same applier, so
+         *  counter-placed replacements and COUNTER_ADDED see them. */
+        entryCounters?: Readonly<Record<string, number>>;
+    }
 ): boolean {
     // Worms of the Earth (CR 614) — "Lands can't enter the battlefield." A land
     // moved here from graveyard/exile/library (reanimation, library tutor) is
@@ -14683,6 +14693,25 @@ function stageReanimatedOnBattlefield(
         { manaSpentToCast: {} },
         state
     );
+    // CR 122.6 (issue #3814) — the putting effect's own counters. They come
+    // from the effect, not from an ability of the entering permanent, so the
+    // CR 613.1f ability-loss probe must not strip them (`fromCreatingEffect`,
+    // the token-spec precedent).
+    if (entryOpts?.entryCounters) {
+        applyEntersWithCounters(
+            card,
+            {
+                entersWith: {
+                    counters: Object.entries(entryOpts.entryCounters).map(
+                        ([type, count]) => ({ type, count })
+                    ),
+                },
+            },
+            { manaSpentToCast: {} },
+            state,
+            { fromCreatingEffect: true }
+        );
+    }
     // CR 306.5b (issue #2380) — a planeswalker enters with its printed starting
     // loyalty however it enters, not only when it resolves off the stack: a
     // reanimated / tutored-onto-the-battlefield planeswalker, and the ORI
@@ -14784,6 +14813,34 @@ function putReanimatedOnBattlefield(
         })
     ) {
         finishReanimatedEntry(state, card, enteredFromGraveyard);
+        return true;
+    }
+    return false;
+}
+
+/** CR 614.1a / 400.7 (issue #3814) — a discard replacement's "put it onto the
+ *  battlefield [with N counters on it] instead of putting it into your
+ *  graveyard" (Dodecapod): splices the card out of `playerId`'s hand and puts
+ *  it onto that player's battlefield through the shared non-cast entry path,
+ *  with `counters` given to it AS it enters (CR 122.6). Returns whether it is
+ *  on the battlefield now — false when it had already left the hand, or when
+ *  an entry replacement (Containment Priest) sent it elsewhere. */
+export function putHandCardOntoBattlefield(
+    state: GameState,
+    playerId: string,
+    cardInstanceId: string,
+    counters?: Readonly<Record<string, number>>
+): boolean {
+    const player = getPlayer(state, playerId);
+    const idx = player.hand.findIndex((c) => c.id === cardInstanceId);
+    if (idx === -1) return false;
+    const [card] = player.hand.splice(idx, 1);
+    if (
+        stageReanimatedOnBattlefield(state, card, playerId, {
+            entryCounters: counters,
+        })
+    ) {
+        finishReanimatedEntry(state, card);
         return true;
     }
     return false;
@@ -15567,7 +15624,12 @@ function applyAsEntersAnswer(
                 // CR 701.9 — routed through the single discard chokepoint so
                 // discard replacements (Library of Leng) and CARD_DISCARDED
                 // triggers (Necropotence) see it like every other discard.
-                discardToGraveyard(state, entry.controllerId, discardId);
+                // CR 609.1 — the discard IS the permanent's own replacement
+                // effect, controlled by the entering permanent's controller.
+                discardToGraveyard(state, entry.controllerId, discardId, {
+                    kind: "effect",
+                    controllerId: entry.controllerId,
+                });
                 return {};
             }
             // CR 614.1a — declined: the "instead" is never applied, so the
@@ -19004,7 +19066,15 @@ export function buildSpellContext(
             amount: number,
             requireType?: CardType
         ): string[] {
-            return discardCardsAtRandom(state, playerId, amount, requireType);
+            // CR 609.1 — an effect of the resolving spell or ability, whose
+            // controller is the item's (issue #3814).
+            return discardCardsAtRandom(
+                state,
+                playerId,
+                amount,
+                { kind: "effect", controllerId: item.castById },
+                requireType
+            );
         },
         addMana(cost: CardManaCost): void {
             const player = getPlayer(state, item.castById);
@@ -22107,7 +22177,15 @@ export function buildSpellContext(
             // CR 614 — Library of Leng's discard replacement intercepts inside
             // discardToGraveyard; on a real discard it emits CARD_DISCARDED
             // (CR 701.9) so "whenever you discard" triggers fire (Necropotence).
-            if (!discardToGraveyard(state, playerId, cardInstanceId)) return;
+            // CR 609.1 (issue #3814) — an effect of the resolving item, so its
+            // controller is the discard's cause.
+            if (
+                !discardToGraveyard(state, playerId, cardInstanceId, {
+                    kind: "effect",
+                    controllerId: item.castById,
+                })
+            )
+                return;
             // ADR 0026 (revised): a discard does NOT clear a non-owner knower's
             // knowledge of the REMAINING hand. Knowledge is tracked per card
             // INSTANCE, and the discarded card goes to the public graveyard —
@@ -25172,17 +25250,27 @@ export function payDiscardLastDrawn(
     if (!id || !player.hand.some((c) => c.id === id)) {
         throw new Error("No card drawn this turn left to discard");
     }
-    discardToGraveyard(state, player.id, id);
+    discardToGraveyard(state, player.id, id, { kind: "cost" });
     player.lastDrawnCardId = undefined;
 }
 
 /** Single choke point for discarding one card hand → graveyard (CR 701.9).
- *  Runs the CR 614 discard replacement layer (Library of Leng) first; if a
- *  replacement consumed the event, the card was routed elsewhere and this
- *  returns false WITHOUT emitting CARD_DISCARDED (the card was not discarded to
- *  a graveyard). Otherwise it moves the card to the graveyard and emits
- *  CARD_DISCARDED so "whenever you discard a card" triggers (Necropotence) fire
- *  off EVERY discard path. Knowledge clearing (ADR 0026) stays at the call
+ *  Runs the CR 614 discard replacement layer (Library of Leng, Dodecapod)
+ *  first; if a replacement consumed the event, the replacement already moved
+ *  the card elsewhere (library top, battlefield). The card was STILL discarded
+ *  — CR 701.9c speaks of "a card [that] is discarded, but an effect causes it
+ *  to be put into [another zone] instead", and Dodecapod's own ruling says
+ *  "you've still discarded it" — so CARD_DISCARDED fires on that path too and
+ *  this returns true (issue #3814; it used to return false silently).
+ *  Otherwise it moves the card to the graveyard and emits CARD_DISCARDED so
+ *  "whenever you discard a card" triggers (Necropotence) fire off EVERY
+ *  discard path.
+ *
+ *  `origin` (REQUIRED, issue #3814) is what made the player discard — an
+ *  effect and its controller, a cost payment, or the CR 514.1 turn-based
+ *  action — carried on the discard replacement event so a replacement can
+ *  scope on it (`DiscardOrigin`). Required rather than defaulted so a new
+ *  producer cannot silently look like any of the three. Knowledge clearing (ADR 0026) stays at the call
  *  sites because the conservative scope differs per path (owner-chosen vs
  *  random vs cleanup). No-op (returns false) if the card is no longer in hand.
  *
@@ -25201,18 +25289,32 @@ export function discardToGraveyard(
     state: GameState,
     playerId: string,
     cardInstanceId: string,
+    origin: DiscardOrigin,
     cause?: DiscardCause
 ): boolean {
     const player = getPlayer(state, playerId);
     const handCard = player.hand.find((c) => c.id === cardInstanceId);
     if (!handCard) return false;
-    // CR 614 — discard replacements (Library of Leng) intercept here.
+    // CR 614 — discard replacements (Library of Leng, Dodecapod) intercept
+    // here, scoped by what caused the discard (issue #3814).
     const repl = applyDiscardReplacements(state, {
         kind: "discard",
         playerId,
         cardInstanceId,
+        origin,
     });
-    if (repl === null) return false; // replacement routed the card elsewhere
+    if (repl === null) {
+        // CR 701.9c / 614.1a — the replacement routed the card elsewhere, but
+        // the card WAS discarded: "whenever you discard" triggers still see it.
+        emitCardDiscarded(
+            state,
+            playerId,
+            cardInstanceId,
+            (handCard.card as { id?: string }).id,
+            cause
+        );
+        return true;
+    }
     // CR 614 (issue #1145) — the card HAS been discarded (CARD_DISCARDED still
     // fires below), but a graveyard-bound replacement (Yawgmoth's Will /
     // Dauthi Voidwalker) can redirect where it actually lands.
@@ -25287,6 +25389,9 @@ export function discardCardsAtRandom(
     state: GameState,
     playerId: string,
     amount: number,
+    /** What made the player discard (issue #3814) — an effect for
+     *  `SpellContext.discardAtRandom`, a cost for `payDiscardAtRandomCost`. */
+    origin: DiscardOrigin,
     requireType?: CardType
 ): string[] {
     const player = getPlayer(state, playerId);
@@ -25316,7 +25421,7 @@ export function discardCardsAtRandom(
         // CR 614 — Library of Leng's "may put it on top of library instead"
         // intercepts each discard inside discardToGraveyard; on a real discard
         // it emits CARD_DISCARDED (CR 701.8 — Necropotence).
-        discardToGraveyard(state, playerId, cardId);
+        discardToGraveyard(state, playerId, cardId, origin);
         discardedIds.push(cardId);
     }
     // ADR 0026 (revised): a random discard does NOT clear knowledge of the
@@ -25335,7 +25440,8 @@ export function payDiscardAtRandomCost(
     playerId: string,
     count: number
 ): void {
-    discardCardsAtRandom(state, playerId, count);
+    // CR 118 — a cost payment, not an effect (issue #3814).
+    discardCardsAtRandom(state, playerId, count, { kind: "cost" });
 }
 
 /** Active "spend X as though Y" mana-substitution rules for one player.
@@ -28079,7 +28185,9 @@ export function payMayPayCost(
                 // one today; the alternative-cost path owns Force of Will &c.).
                 moveCard(player, c.id, "hand", "exile");
             } else {
-                discardToGraveyard(state, playerId, c.id);
+                // CR 118.12 — the "unless"/"if you do" payment is a COST the
+                // payer chose, not an effect making them discard (issue #3814).
+                discardToGraveyard(state, playerId, c.id, { kind: "cost" });
             }
         }
     }

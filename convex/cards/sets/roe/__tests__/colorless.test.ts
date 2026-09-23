@@ -182,7 +182,12 @@ describe("Emrakul, the Aeons Torn — put into a graveyard from anywhere (CR 400
     it("discarded from hand: fires with no battlefield presence at all (CR 701.9)", () => {
         const { state } = setup("hand");
 
-        expect(discardToGraveyard(state, "p1", "emrakul")).toBe(true);
+        expect(
+            discardToGraveyard(state, "p1", "emrakul", {
+                kind: "effect",
+                controllerId: "p1",
+            })
+        ).toBe(true);
         processPendingActionTriggers(state);
         drainStack(state);
 

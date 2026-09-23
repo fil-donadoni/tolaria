@@ -474,7 +474,10 @@ describe("Dwarven Armorer — discard for a counter (CR 122.1 / 602.1 / 118.3)",
         targets: StackItem["targets"]
     ): void {
         expect(
-            discardToGraveyard(state, source.controllerId, discardedCardId)
+            discardToGraveyard(state, source.controllerId, discardedCardId, {
+                kind: "effect",
+                controllerId: source.controllerId,
+            })
         ).toBe(true);
         state.stack.push({
             ...structuredClone(source),

@@ -277,7 +277,15 @@ function applyDiscard(
             `seat "${seat}" holds ${matches.length} copies of "${step.card}" in hand — ambiguous.`
         );
     }
-    if (!discardToGraveyard(state, playerId, matches[0].id)) {
+    // A scenario step standing in for "an effect you control made you
+    // discard" (issue #3814) — the neutral origin: it arms Library of Leng and
+    // no opponent-caused replacement.
+    if (
+        !discardToGraveyard(state, playerId, matches[0].id, {
+            kind: "effect",
+            controllerId: playerId,
+        })
+    ) {
         throw fail(`the engine refused to discard "${step.card}".`);
     }
     // The engine drains the discard event and scans triggers after every game

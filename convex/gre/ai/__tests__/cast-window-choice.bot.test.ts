@@ -54,7 +54,10 @@ function openMadnessWindow(
     playerId: string,
     cardId: string
 ): void {
-    discardToGraveyard(state, playerId, cardId);
+    discardToGraveyard(state, playerId, cardId, {
+        kind: "effect",
+        controllerId: playerId,
+    });
     processPendingActionTriggers(state);
     resolveTopOfStack(state);
 }
