@@ -117,6 +117,11 @@ const RULES_VOCABULARY_NAMES: ReadonlyArray<{
         vocabulary:
             "plain English verb — `recallCapturedBinding` recalls a binding, not the card",
     },
+    {
+        card: "Suppress",
+        vocabulary:
+            'plain English verb — `abilitiesSuppressedBy` / `suppressDamagePrevention` predate the card (issue #3812) and name ability removal and "can\'t be prevented", not it',
+    },
 ];
 
 /** Per-(surface, identifier, card) exemption for an identifier that IS named
