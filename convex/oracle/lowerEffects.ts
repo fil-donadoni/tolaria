@@ -212,6 +212,16 @@ function lowerAmount(
  * tapped state, "on the battlefield") is refused rather than dropped, because
  * a dropped clause counts permanents the card does not mean.
  */
+/** CR 205.3m (issue #3721) — the ONE binding name the compiler uses for a
+ *  chosen creature type. The `Choose a creature type.` sentence writes it and
+ *  every `chosenType` descriptor in the same line reads it; they are separate
+ *  rules in separate modules, so a shared constant is what keeps them in step.
+ *  A per-line generated name would buy nothing: a line prints the instruction
+ *  at most once (a second "Choose a creature type." would re-bind the same
+ *  name, which `validateEffectScript` rejects as a duplicate bind — the
+ *  correct answer, since no printed card does it). */
+const CHOSEN_TYPE_BINDING = "$chosenType";
+
 function lowerCountedSet(
     set: CountedSetIR,
     slots: TargetSlots,
@@ -232,6 +242,12 @@ function lowerCountedSet(
         if (key === "types") filter.type = [...(value as CardType[])];
         else if (key === "subtypes" && (value as string[]).length === 1)
             filter.subtype = (value as string[])[0]!;
+        // CR 205.3m (issue #3721) — "for each permanent you control of that
+        // type" (Luminescent Rain): the subtype is the answer a
+        // `chooseCreatureType` Op bound earlier in this same script, read back
+        // through `EffectCardFilter.subtype`'s ref form.
+        else if (key === "chosenType")
+            filter.subtype = { ref: CHOSEN_TYPE_BINDING };
         else
             return unlowerable(
                 `a "${key}" clause has no resolution-time count here`
@@ -2063,6 +2079,20 @@ function lowerSentenceBody(
                 },
             ]);
         }
+        // CR 205.3m (issue #3721) — "Choose a creature type." The bind name is
+        // a RESERVED constant rather than something the grammar invents,
+        // because the descriptor that reads it back ("of that type") is parsed
+        // in a different sentence by a different rule: the two agree by naming
+        // the same constant, which `tsc` checks, instead of by convention.
+        case "choose-creature-type":
+            return lowered([
+                {
+                    op: "chooseCreatureType",
+                    player: "controller",
+                    prompt: "Choose a creature type",
+                    bind: CHOSEN_TYPE_BINDING,
+                },
+            ]);
         default: {
             const never: never = sentence;
             return unlowerable(
