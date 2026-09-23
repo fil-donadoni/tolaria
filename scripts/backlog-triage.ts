@@ -508,7 +508,7 @@ export function runTriage(opts: {
     const settled: Record<number, BoardPriority> = { ...board };
     for (const w of umbrellas.writes) settled[w.number] = w.band;
     const verdicts = triage(issues, index, settled);
-    const summary = summarize(issues, verdicts, board);
+    const summary = summarize(issues, verdicts, board, umbrellas.owned);
     const written = write
         ? applyWrites(
               opts.ghClient,
@@ -521,7 +521,8 @@ export function runTriage(opts: {
         written,
         cardsResidue,
         bandResidue,
-        umbrellas.writes
+        umbrellas.writes,
+        umbrellas.current
     );
     if (!opts.argv.includes("--suggest-cards")) return report;
     // The backfill is a PROPOSAL: printed, never written. An issue that
