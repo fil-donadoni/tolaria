@@ -12931,11 +12931,24 @@ export interface EffectCountSpec {
      *  (CR 401, issue #783 — Shelldock Isle's "if a library has twenty or
      *  fewer cards in it"); `hand` counts cards in the player's hand (CR 402,
      *  issue #2006 — Dark Suspicions' "the number of cards in that player's
-     *  hand"). Both `library` and `hand` are pure CARDINALITY reads: the zone
-     *  is hidden (CR 401.2 / 402.2) but its SIZE is public information every
-     *  player may count, so a `filter` is meaningless there (it would ask the
-     *  engine to read cards the counting player may not see) and is rejected
-     *  by the validator, as is the graveyard-only `countTypes`. */
+     *  hand").
+     *
+     *  `library` is a pure CARDINALITY read: the zone is hidden (CR 401.2) and
+     *  nothing in a script makes it public, so a `filter` is meaningless there
+     *  (it would ask the engine to read cards the counting player may not see)
+     *  and the validator rejects it.
+     *
+     *  `hand` admits a `filter` (issue #2150): the hand is hidden (CR 402.3),
+     *  but a `reveal { player, zone: "hand" }` EARLIER IN THE SAME SCRIPT
+     *  (CR 701.20a) makes the whole hand public, and every printed clause of
+     *  this shape reveals before it counts — Darigaaz, the Igniter's "that
+     *  player reveals their hand and Darigaaz deals damage to the player equal
+     *  to the number of cards of that color revealed this way". The reveal is
+     *  the card author's obligation, not the validator's: a hand `filter` is
+     *  a set read, and the grammar has no way to express "only after a
+     *  reveal". `countTypes` stays rejected on both hidden zones — Delirium
+     *  (CR 702.D) is a graveyard reading, and no shipped card counts card
+     *  types in a hand. */
     zone: "battlefield" | "graveyard" | "library" | "hand";
     /** Whose zone (CR 109.5 relative selectors). Required UNLESS
      *  `acrossAllPlayers` is set, in which case it is omitted (the count spans
@@ -12955,7 +12968,9 @@ export interface EffectCountSpec {
      *  i.e. ANY library including the controller's own). Mutually exclusive
      *  with both `controller` and `acrossAllPlayers`. */
     smallestAcrossPlayers?: boolean;
-    /** Optional card filter (AND of the listed fields). Omitted = count all. */
+    /** Optional card filter (AND of the listed fields). Omitted = count all.
+     *  Legal on `battlefield`, `graveyard` and (issue #2150) `hand`; rejected
+     *  on `library` — see `zone`. */
     filter?: EffectCardFilter;
     /** Fixed integer multiplier applied to the counted cardinality (CR 122 —
      *  "TWICE the number of nonbasic lands", Price of Progress, issue #999).

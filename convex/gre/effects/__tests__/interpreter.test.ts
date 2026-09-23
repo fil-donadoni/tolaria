@@ -1907,6 +1907,172 @@ describe("Effect Script value: hand count + difference (CR 402.2 / 107.1b)", () 
     });
 });
 
+// The FILTERED hand count (issue #2150) — the permanent test for the half of
+// `zone: "hand"`'s restriction that CR 701.20a lifts. Until now a hand count
+// was cardinality-only, on the CR 402.3 reasoning that a hidden zone has
+// nothing a filter could honestly match; a `reveal { player, zone: "hand" }`
+// earlier in the same script makes the whole hand public, so "the number of
+// cards of that color revealed this way" (Darigaaz, the Igniter) counts a
+// PUBLIC set. Inherited free by every later card that reuses the shape; the
+// library count, which nothing reveals card-by-card, stays cardinality-only
+// (asserted in `validate.test.ts`, where its rejection lives).
+describe("Effect Script value: FILTERED hand count (CR 402.3 / 701.20a, issue #2150)", () => {
+    /** A mixed hand: 2 black instants, 1 green bear, 1 WU gold creature, 1
+     *  colourless artifact creature — 5 cards, of which exactly 2 are black
+     *  and exactly 1 is green. */
+    function mixedHand(owner: string): CardInstanceState[] {
+        return [
+            BLACK_CARD_ID,
+            BLACK_CARD_ID,
+            BEAR_ID,
+            GOLD_CREATURE_ID,
+            COLORLESS_CREATURE_ID,
+        ].map((cardId, i) =>
+            makeInstance(cardId, {
+                id: `${owner}-mixed-${i}`,
+                controllerId: owner,
+                ownerId: owner,
+                zone: "hand",
+            })
+        );
+    }
+
+    /** Runs `effects` as p1's sorcery against a p2 holding `mixedHand`. */
+    function resolveAgainstMixedHand(
+        scriptId: string,
+        effects: EffectOp[]
+    ): GameState {
+        const id = registerScript(scriptId, effects);
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: mixedHand("p2") }),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    /** Darigaaz's shape with the colour already chosen: reveal, then burn for
+     *  the number of cards of that colour. */
+    function revealAndBurn(color: string): EffectOp[] {
+        return [
+            { op: "reveal", player: "opponent", zone: "hand" },
+            {
+                op: "dealDamage",
+                amount: {
+                    count: {
+                        zone: "hand",
+                        controller: "opponent",
+                        filter: { color },
+                    },
+                },
+                to: { player: "opponent" },
+            },
+        ] as unknown as EffectOp[];
+    }
+
+    it("CR 105.2 — counts only the matching cards, not the whole hand", () => {
+        // 2 black of 5 cards: an unfiltered read would burn for 5, and a
+        // fail-closed filter would burn for 0. Both are wrong; 2 is right.
+        const state = resolveAgainstMixedHand(
+            "test-hand-filter-black",
+            revealAndBurn("B")
+        );
+        expect(state.players[1].life).toBe(18);
+    });
+
+    it("CR 105.2b — a multicolored card counts for EACH of its colors", () => {
+        // The WU gold creature is the only white card and the only blue card
+        // in the hand, so both reads are 1 — the OR-within-`color` semantics
+        // the filter already has, now reachable on this zone.
+        for (const [color, expected] of [
+            ["W", 1],
+            ["U", 1],
+            ["G", 1],
+            ["R", 0],
+        ] as const) {
+            const state = resolveAgainstMixedHand(
+                `test-hand-filter-${color}`,
+                revealAndBurn(color)
+            );
+            expect(state.players[1].life).toBe(20 - expected);
+        }
+    });
+
+    it("composes with the other `count` fields — `times` and a non-colour filter", () => {
+        // `times` is applied AFTER the filtered count (CR 122 — a literal
+        // multiplier folded into the construct), so 2 black cards × 2 = 4.
+        const doubled = resolveAgainstMixedHand("test-hand-filter-times", [
+            {
+                op: "dealDamage",
+                amount: {
+                    count: {
+                        zone: "hand",
+                        controller: "opponent",
+                        filter: { color: "B" },
+                        times: 2,
+                    },
+                },
+                to: { player: "opponent" },
+            },
+        ] as unknown as EffectOp[]);
+        expect(doubled.players[1].life).toBe(16);
+        // The filter is a full `EffectCardFilter`, not a colour special case:
+        // 3 of the 5 cards are creatures (bear, gold creature, artifact
+        // creature).
+        const creatures = resolveAgainstMixedHand("test-hand-filter-type", [
+            {
+                op: "dealDamage",
+                amount: {
+                    count: {
+                        zone: "hand",
+                        controller: "opponent",
+                        filter: { type: "Creature" },
+                    },
+                },
+                to: { player: "opponent" },
+            },
+        ] as unknown as EffectOp[]);
+        expect(creatures.players[1].life).toBe(17);
+    });
+
+    it("an OMITTED filter still reads the plain cardinality (issue #2006 unbroken)", () => {
+        const state = resolveAgainstMixedHand("test-hand-filter-absent", [
+            {
+                op: "dealDamage",
+                amount: { count: { zone: "hand", controller: "opponent" } },
+                to: { player: "opponent" },
+            },
+        ] as unknown as EffectOp[]);
+        expect(state.players[1].life).toBe(15);
+    });
+
+    it("the reveal makes exactly the counted set public (wire format)", () => {
+        // The count's honesty is the reveal's, so the wire leg asserts the
+        // two agree: after CR 701.20a's whole-hand reveal, the CASTER's own
+        // projection shows the real cards, and the black ones it can now see
+        // are exactly as many as the burn dealt. A projection that kept the
+        // opponent's hand nulled for the caster would leave the damage
+        // unexplainable at the client — the reveal would have happened
+        // server-side only.
+        const state = resolveAgainstMixedHand(
+            "test-hand-filter-wire",
+            revealAndBurn("B")
+        );
+        const wire = projectPublicState(state, 1, "p1");
+        const revealed = wire.players[1].hand;
+        expect(revealed).toHaveLength(5);
+        expect(revealed.every((c) => c !== null)).toBe(true);
+        const blackSeen = revealed.filter(
+            (c) => c?.card?.id === BLACK_CARD_ID
+        ).length;
+        expect(blackSeen).toBe(2);
+        expect(wire.players[1].life).toBe(20 - blackSeen);
+    });
+});
+
 // `{ scaled: { value, times } }` (issue #2366) — a FOURTEENTH EffectValue
 // grammar member, the value grammar's multiplication counterpart to
 // `difference`'s subtraction. Its own permanent test (new-grammar-member

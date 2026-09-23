@@ -5478,21 +5478,21 @@ describe('validateEffectScript — count zone:"hand" + difference (issue #2006)'
         ).toBeGreaterThan(0);
     });
 
-    it("rejects a `filter`/`countTypes` on a hand count — a cardinality read has nothing to filter (CR 402.2)", () => {
+    // CR 402.3 / 701.20a (issue #2150) — the hand count's `filter` restriction
+    // is lifted: a `reveal { player, zone: "hand" }` earlier in the same script
+    // makes the whole hand public, and "the number of cards of that color
+    // revealed this way" (Darigaaz, the Igniter) counts exactly that set.
+    it("accepts a `filter` on a hand count, standalone and inside a difference operand (issue #2150)", () => {
         expect(
             validateEffectScript(
                 host({
-                    effects: loseLife(handCount({ filter: { type: "Land" } })),
+                    effects: loseLife(handCount({ filter: { color: "B" } })),
                 })
-            ).length
-        ).toBeGreaterThan(0);
-        expect(
-            validateEffectScript(
-                host({ effects: loseLife(handCount({ countTypes: true })) })
-            ).length
-        ).toBeGreaterThan(0);
-        // Nested inside a difference operand too — the operand runs the same
-        // `isCountValue` check, so the rejection cannot be sidestepped there.
+            )
+        ).toEqual([]);
+        // The operand slot runs the same `isCountValue` check, so accepting it
+        // there is not a second decision — it is the same one, asserted where
+        // the old rejection was also asserted.
         expect(
             validateEffectScript(
                 host({
@@ -5503,8 +5503,38 @@ describe('validateEffectScript — count zone:"hand" + difference (issue #2006)'
                         },
                     }),
                 })
+            )
+        ).toEqual([]);
+    });
+
+    it("still rejects `countTypes` on a hand count, and a `filter` on a LIBRARY count (issue #2150)", () => {
+        // Delirium (CR 702.D) is a graveyard reading; no card counts card
+        // types in a hand, so the composition stays unshipped rather than
+        // untested.
+        expect(
+            validateEffectScript(
+                host({ effects: loseLife(handCount({ countTypes: true })) })
             ).length
         ).toBeGreaterThan(0);
+        // CR 401.2 — the library is hidden and NOTHING in a script makes it
+        // public card-by-card, so its count stays cardinality-only. This is
+        // the half of the old restriction that did not move.
+        const libraryCount = (extra: Record<string, unknown> = {}) => ({
+            count: { zone: "library", controller: "opponent", ...extra },
+        });
+        expect(
+            validateEffectScript(host({ effects: loseLife(libraryCount()) }))
+        ).toEqual([]);
+        for (const extra of [
+            { filter: { type: "Land" } },
+            { countTypes: true },
+        ]) {
+            expect(
+                validateEffectScript(
+                    host({ effects: loseLife(libraryCount(extra)) })
+                ).length
+            ).toBeGreaterThan(0);
+        }
     });
 
     it("rejects a malformed difference shape (missing operand, extra key)", () => {

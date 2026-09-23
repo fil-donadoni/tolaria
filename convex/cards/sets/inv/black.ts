@@ -47,8 +47,9 @@
 //       - Defiling Tears → tracked-by #3720 (a plain DSL ship: every
 //         clause is covered by shipped Ops, see its stub).
 //       - Tsabo's Decree → tracked-by #3721 (a resolution-time "choose a
-//         creature type" Op + subtype-ref filter), itself blocked by #2150
-//         (the hand-side bulk discard).
+//         creature type" Op + subtype-ref filter), now its ONLY blocker: the
+//         hand-side bulk discard it also waited on is `discard { player,
+//         filter }` (#2713), and #2150 closed the count half.
 //       - Yawgmoth's Agenda → tracked-by #2246 (the card slice). Was #686,
 //         then #1238; #1238 was re-audited and split, since two of its three
 //         premises had drifted — the redirect clause is already shipped infra
@@ -1295,8 +1296,12 @@ export const tsabosAssassin: CardDefinition = {
 // PERMANENT ENTERS (`asEnters: { kind: "subtypes" }` → `chosenSubtypes`,
 // Engineered Plague), which a resolving instant cannot use; (2) the mandatory
 // hand-side bulk discard ("discards ALL creature cards of that type", no
-// player choice), tracked by #2150. #3721 is blocked by #2150 — shipping (1)
-// alone would not unblock this card. Not invented; left a stub.
+// player choice). Gap (2) is CLOSED: `discard { player, filter }` (issue
+// #2713) is the UNCHOSEN filter-matched hand sweep, funnelling through
+// `discardToGraveyard`, and issue #2150 shipped the filtered hand COUNT and
+// the two dragons that consume the pair. #3721 is therefore the card's only
+// remaining blocker — gap (1) alone now unblocks it. Not invented; left a
+// stub.
 // export const tsabosDecree: CardDefinition = {
 //     id: "0c1a0ebd-1add-49e6-b5e6-5b26abb1de88", // INV 129
 //     name: "Tsabo's Decree",

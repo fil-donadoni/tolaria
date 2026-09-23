@@ -90,6 +90,8 @@ const sabertoothNishoba = getDefinition("8338c296-cf3f-41d7-b380-3fb4237cb41c");
 const dromar = getDefinition("cfcc3c72-fff5-454c-814c-eb952fd23ba9");
 const rith = getDefinition("c30be387-280d-49bd-a3d1-c1636ee931ce");
 const treva = getDefinition("4ee67039-6cee-4a2d-b973-570f5060f550");
+const crosis = getDefinition("e5f336d8-12a4-482d-8ffd-c205858c72ba");
+const darigaaz = getDefinition("54dcf5e3-4303-41a3-b54c-24a9d462ce07");
 const stormscapeMaster = getDefinition("9b704165-4587-48f1-8830-c5a07ec666cc");
 const nightscapeMaster = getDefinition("d86174b8-dd9e-4ece-bc23-4f9ac50bccd3");
 const thunderscapeMaster = getDefinition(
@@ -2115,6 +2117,255 @@ describe("Dromar, the Banisher (CR 702.9b flying + 510.4/603.2 combat-damage tri
 
     function dromarInst(state: ReturnType<typeof makeState>) {
         return state.players[0].battlefield.find((c) => c.id === "dromar")!;
+    }
+});
+
+describe("Crosis, the Purger (CR 702.9b flying + 510.4/603.2 combat-damage trigger + 117.3a/118.4 mayPay + 700.2 modal + 701.20a reveal + 701.9 discard, issue #2150)", () => {
+    // A watcher for the CR 701.9 discard EVENT. `SpellContext.discardCard`
+    // reaches `discardToGraveyard`, the single chokepoint that emits
+    // CARD_DISCARDED — which is what CR 614 discard replacements (Library of
+    // Leng), "whenever you discard" triggers and madness (CR 702.35c) all hang
+    // off. `ctx.moveCardById` emits nothing, so a hand→graveyard sweep routed
+    // that way would satisfy every zone assertion below and leave this trigger
+    // silent. The watcher is p2's own, so it fires on p2's discard.
+    const DISCARD_WATCHER_ID = "crosis-test-discard-watcher";
+    registerTokenDefinition({
+        id: DISCARD_WATCHER_ID,
+        name: DISCARD_WATCHER_ID,
+        rarity: "common",
+        manaCost: { X: 1 },
+        types: ["Enchantment"],
+        triggeredAbilities: [
+            {
+                id: "crosis-test-discard-watcher-trigger",
+                oracleText: "Whenever you discard a card, you gain 1 life.",
+                event: "CARD_DISCARDED",
+                matches: (event, self) =>
+                    event.type === "CARD_DISCARDED" &&
+                    event.playerId === self.controllerId,
+                effects: [{ op: "gainLife", player: "controller", amount: 1 }],
+            },
+        ],
+    });
+
+    // p2's hand: one mono-black instant, one blue creature, one green
+    // creature. Only the black card may be swept by a "discards all cards of
+    // that color" on black — the other two prove the filter narrows.
+    function setup() {
+        const crosisInst = makeInstance(crosis.id, {
+            id: "crosis",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [crosisInst],
+                    manaPool: { B: 3 },
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(DISCARD_WATCHER_ID, {
+                            id: "discard-watcher",
+                            controllerId: "p2",
+                        }),
+                    ],
+                    hand: [
+                        makeInstance(agonizingDemise.id, {
+                            id: "black-card",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "hand",
+                        }),
+                        makeInstance(airElemental.id, {
+                            id: "blue-card",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "hand",
+                        }),
+                        makeInstance(grizzlyBears.id, {
+                            id: "green-card",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        return { state };
+    }
+
+    function fire(state: ReturnType<typeof makeState>) {
+        resolveTrigger(state, crosisInst(state), "crosis-damage-discard", {
+            type: "DAMAGE_DEALT",
+            sourceInstanceId: "crosis",
+            isCombat: true,
+            amount: 6,
+            target: { type: "player", id: "p2" },
+        } as never);
+    }
+
+    it("paying {2}{B} and choosing black discards only the black card, through the CR 701.9 chokepoint", () => {
+        const { state } = setup();
+        fire(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        submitChoice(state, ["B"]); // colorChoiceModes ids are the color codes
+        expect(state.players[1].hand.map((c) => c.id)).toEqual([
+            "blue-card",
+            "green-card",
+        ]);
+        // CR 701.9a — the card is in the GRAVEYARD, not merely gone: a
+        // `moveZone` hand→graveyard sweep would land it here too, which is why
+        // the event below is the real assertion.
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual([
+            "black-card",
+        ]);
+        // The chokepoint proof (see DISCARD_WATCHER_ID above): the emitted
+        // CARD_DISCARDED is drained by the post-resolution trigger scan, so
+        // what it leaves behind is p2's watcher trigger, sitting on the stack.
+        expect(
+            state.stack.filter(
+                (item) =>
+                    item.triggeredAbilityId ===
+                    "crosis-test-discard-watcher-trigger"
+            )
+        ).toHaveLength(1);
+    });
+
+    it("CR 701.20a — the reveal exposes the swept hand to the caster (wire format)", () => {
+        const { state } = setup();
+        fire(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        submitChoice(state, ["B"]);
+        // The sweep is only fair if both seats saw the same hand it matched.
+        // p2's hand is normally projected as `null[]` to p1 (CR 402.3), so a
+        // reveal that never reached the projection would leave the discard
+        // unexplainable at the client.
+        const wire = projectPublicState(state, 1, "p1");
+        expect(wire.players[1].hand).toHaveLength(2);
+        expect(wire.players[1].hand.every((c) => c !== null)).toBe(true);
+    });
+
+    it("choosing a color nobody holds discards nothing (CR 608.2b)", () => {
+        const { state } = setup();
+        fire(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        submitChoice(state, ["R"]);
+        expect(state.players[1].hand).toHaveLength(3);
+        expect(state.players[1].graveyard).toHaveLength(0);
+    });
+
+    it("declining the may-pay leaves the hand untouched and raises no colour choice", () => {
+        const { state } = setup();
+        fire(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        expect(state.players[1].hand).toHaveLength(3);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+    });
+
+    function crosisInst(state: ReturnType<typeof makeState>) {
+        return state.players[0].battlefield.find((c) => c.id === "crosis")!;
+    }
+});
+
+describe("Darigaaz, the Igniter (CR 702.9b flying + 510.4/603.2 combat-damage trigger + 117.3a/118.4 mayPay + 700.2 modal + 701.20a reveal + 120.3a damage, issue #2150)", () => {
+    // p2's hand: TWO mono-black instants and one green creature, so the
+    // filtered count (2) differs from both the hand size (3) and zero — the
+    // two ways a wrong read fails.
+    function setup() {
+        const darigaazInst = makeInstance(darigaaz.id, {
+            id: "darigaaz",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [darigaazInst],
+                    manaPool: { R: 3 },
+                }),
+                makePlayer("p2", {
+                    hand: [
+                        makeInstance(agonizingDemise.id, {
+                            id: "black-1",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "hand",
+                        }),
+                        makeInstance(agonizingDemise.id, {
+                            id: "black-2",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "hand",
+                        }),
+                        makeInstance(grizzlyBears.id, {
+                            id: "green-card",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        return { state };
+    }
+
+    function fire(state: ReturnType<typeof makeState>) {
+        resolveTrigger(state, darigaazInst(state), "darigaaz-damage-burn", {
+            type: "DAMAGE_DEALT",
+            sourceInstanceId: "darigaaz",
+            isCombat: true,
+            amount: 6,
+            target: { type: "player", id: "p2" },
+        } as never);
+    }
+
+    it("deals damage equal to the number of cards of the chosen color, NOT the hand size", () => {
+        const { state } = setup();
+        fire(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        submitChoice(state, ["B"]);
+        expect(state.players[1].life).toBe(18);
+        // Nothing is discarded — this half of the pair only counts.
+        expect(state.players[1].hand).toHaveLength(3);
+        expect(state.players[1].graveyard).toHaveLength(0);
+    });
+
+    it("a color nobody holds counts 0, and a 0 amount is a no-op (CR 608.2b)", () => {
+        const { state } = setup();
+        fire(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        submitChoice(state, ["U"]);
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it("CR 701.20a — the reveal exposes the counted hand to the caster (wire format)", () => {
+        const { state } = setup();
+        fire(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
+        submitChoice(state, ["B"]);
+        const wire = projectPublicState(state, 1, "p1");
+        const revealed = wire.players[1].hand;
+        expect(revealed).toHaveLength(3);
+        expect(revealed.every((c) => c !== null)).toBe(true);
+        // The damage is exactly what the caster can now count, which is the
+        // whole point of "revealed this way".
+        const blackSeen = revealed.filter(
+            (c) => c?.card?.id === agonizingDemise.id
+        ).length;
+        expect(wire.players[1].life).toBe(20 - blackSeen);
+    });
+
+    it("declining the may-pay deals no damage and raises no colour choice", () => {
+        const { state } = setup();
+        fire(state);
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        expect(state.players[1].life).toBe(20);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+    });
+
+    function darigaazInst(state: ReturnType<typeof makeState>) {
+        return state.players[0].battlefield.find((c) => c.id === "darigaaz")!;
     }
 });
 

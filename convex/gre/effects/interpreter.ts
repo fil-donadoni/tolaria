@@ -1504,13 +1504,28 @@ function countZoneForPlayer(
     if (spec.zone === "library") {
         return ctx.getLibraryCards(playerId).length;
     }
-    // hand (CR 402, issue #2006) — the library branch's twin, and for the same
-    // reason: the hand is hidden (CR 402.2) but its SIZE is public information
-    // (CR 402.2 — "the number of cards in each player's hand" is known to all),
-    // so this is a pure CARDINALITY read with nothing to filter (the validator
-    // rejects a `filter`/`countTypes` here exactly as it does for `library`).
+    // hand (CR 402, issue #2006) — unfiltered, this is the library branch's
+    // twin: the hand is hidden (CR 402.3) but its SIZE is public information
+    // ("the number of cards in each player's hand" is known to all), so the
+    // plain read grants no knowledge.
+    //
+    // FILTERED (issue #2150, CR 701.20a) — "the number of cards of that color
+    // revealed this way" (Darigaaz, the Igniter). Reads the same registry-backed
+    // characteristics the `discard { player, filter }` hand sweep (issue #2713,
+    // Cabal Therapy) already matches on, through the SAME `matchesCardFilter`
+    // used by the graveyard branch below; `getHandCards` carries name, types,
+    // subtypes, supertypes, colors, manaValue and the printed cost, so every
+    // filter field the validator admits on this zone is honestly readable. The
+    // reveal that makes the count public is a separate Op the card runs first —
+    // the grammar cannot express "only after a reveal", so it is the author's
+    // obligation (see `isCountValue`). `countTypes` never reaches here: the
+    // validator refuses it on this zone.
     if (spec.zone === "hand") {
-        return ctx.getHandSize(playerId);
+        if (spec.filter === undefined) return ctx.getHandSize(playerId);
+        const handFilter = spec.filter;
+        return ctx
+            .getHandCards(playerId)
+            .filter((c) => matchesCardFilter(ctx, c, handFilter)).length;
     }
     // graveyard (CR 404) — filter by the shared card-filter matcher, mirroring
     // the battlefield branch. An absent filter imposes no constraint.

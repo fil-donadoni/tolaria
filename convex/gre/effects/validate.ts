@@ -1149,14 +1149,22 @@ function isCountValue(value: unknown): boolean {
     ) {
         return false;
     }
-    // CR 401 / 402 (issues #783, #2006) — a `library` or `hand` count is a pure
-    // cardinality read: the zone is hidden (CR 401.2 / 402.2) so there is
-    // nothing a filter could honestly match, and `countTypes` is a
-    // graveyard-only Delirium reading.
-    if (
-        (s.zone === "library" || s.zone === "hand") &&
-        ("filter" in s || "countTypes" in s)
-    ) {
+    // CR 401 (issue #783) — a `library` count is a pure cardinality read: the
+    // zone is hidden (CR 401.2) and no Op makes it public card-by-card, so
+    // there is nothing a filter could honestly match.
+    if (s.zone === "library" && "filter" in s) return false;
+    // CR 402.3 / 701.20a (issue #2150) — a `hand` count DOES admit a filter.
+    // The hand is hidden (CR 402.3), but a `reveal { player, zone: "hand" }`
+    // earlier in the same script makes it public, and "the number of cards of
+    // that color revealed this way" (Darigaaz, the Igniter) counts exactly that
+    // public set. Ordering is the card author's obligation — the grammar has no
+    // "only after a reveal" predicate, and the alternative (refusing the shape)
+    // is what kept the clause unshippable.
+    //
+    // `countTypes` stays refused on BOTH hidden zones: Delirium (CR 702.D) is a
+    // graveyard reading and no card counts card types in a hand or library, so
+    // it would ship untested.
+    if ((s.zone === "library" || s.zone === "hand") && "countTypes" in s) {
         return false;
     }
     // CR 608.2h (issue #3807) — `picks` narrows the counted set to a
@@ -1198,12 +1206,13 @@ function isCountValue(value: unknown): boolean {
     // `hasAbility` / `isAttacking` (issue #1097) are honest only on the
     // "battlefield" branch — `countZoneForPlayer` (`gre/effects/interpreter.ts`)
     // reads them via the LIVE `toPermanentFilter`/`requireAbility`/`isAttacking`
-    // path there, but falls back to `matchesCardFilter` for the "graveyard"
-    // branch, which has no ability or combat-role data for a hidden-zone card
-    // at all.
+    // path there, but falls back to `matchesCardFilter` for the "graveyard" and
+    // (issue #2150) "hand" branches, which have no ability or combat-role data
+    // for a hidden-zone card at all.
     // `manaCostEquals` (issue #1898 finding 3) is the INVERSE gate: honest
-    // for the "graveyard" branch (`matchesCardFilter` via `getGraveyardCards`)
-    // but not "battlefield" (`toPermanentFilter` has no mapping for it).
+    // for the "graveyard"/"hand" branches (`matchesCardFilter` via
+    // `getGraveyardCards`/`getHandCards`, both of which carry the printed
+    // `cost`) but not "battlefield" (`toPermanentFilter` has no mapping for it).
     if (
         "filter" in s &&
         !isCardFilter(s.filter, {
