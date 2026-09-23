@@ -340,6 +340,105 @@ describe("check:ui surface table — Named Assertions", () => {
         });
     });
 
+    /**
+     * Issue #4419's half: the seventeen board-dialog specimens on
+     * `/admin/design-system` § 16, plus the pregame gate. Each promises the
+     * LAYER it exists to measure and the dialog's own action
+     * (`docs/guides/ui-runbooks.md` § Board dialog specimens).
+     *
+     * Three shapes, each a decision the obvious locator would have got wrong:
+     *
+     *  - the `0/N` confirm plates are promised `visible`, not `reachable`:
+     *    they are DISABLED until the chooser has picked, which is the state
+     *    the specimen mounts in and the state worth photographing;
+     *  - the two ActionSheet menus and the AnchoredPicker have no `role=
+     *    dialog`, so they are addressed by the `data-action-sheet` /
+     *    `data-slot` seams they already declare;
+     *  - the mana pickers and the graveyard picker promise `contrast` over
+     *    the layer instead of a control: their rows are pip images
+     *    (`<img alt="R">`) or card tiles named after a fixture's card, and
+     *    `manual-verb`'s `Confirm` plate shares its exact accessible name
+     *    with the census page's own Panel specimen.
+     */
+    it("the board-dialog specimens and the pregame gate promise their entry points", () => {
+        expectPromised({
+            "dlg-activatable-ability": [
+                "visible [data-action-sheet]",
+                "reachable role=button name=Sacrifice this creature: Draw a card.",
+            ],
+            "dlg-attack-all": [
+                "visible role=dialog name=Attack with all",
+                "reachable role=button name=Attack",
+            ],
+            "dlg-cast-alt-hand-cost": [
+                "visible role=dialog name=Alternative cost",
+                "visible role=button name=Discard 0/1",
+            ],
+            "dlg-cast-exile-cost": [
+                "visible role=dialog name=Flashback cost",
+                "visible role=button name=Exile 0/2",
+            ],
+            "dlg-controller-phases": [
+                "visible role=dialog name=Turn phases",
+                "reachable role=button name=Close phase list",
+            ],
+            "dlg-convoke": [
+                "visible role=dialog name=Convoke",
+                "visible role=button name=Tap 0/2",
+            ],
+            "dlg-discard-cost": [
+                "visible role=dialog name=Discard a card",
+                "visible role=button name=Discard 0/1",
+            ],
+            "dlg-exile-cost": [
+                "visible role=dialog name=Exile from a graveyard",
+                "visible role=button name=Exile 0/1",
+            ],
+            "dlg-game-over": [
+                "visible role=dialog name=Game Over",
+                "reachable role=button name=Continue to Sideboarding",
+            ],
+            "dlg-graveyard-target": [
+                "visible role=dialog name=Lightning Bolt",
+                "contrast role=dialog name=Lightning Bolt",
+            ],
+            "dlg-hand-card-actions": [
+                "visible [data-action-sheet]",
+                "reachable role=button name=Cast Lightning Bolt",
+            ],
+            "dlg-mana-choice": [
+                'visible [data-slot="dialog-content"]',
+                'contrast [data-slot="dialog-content"]',
+            ],
+            "dlg-mana-spend": [
+                "visible role=dialog name=Choose mana to spend",
+                "contrast role=dialog name=Choose mana to spend",
+            ],
+            "dlg-manual-game-over": [
+                "visible role=dialog name=Game Over",
+                "reachable role=button name=Back to Lobby",
+            ],
+            "dlg-manual-verb": [
+                "visible role=dialog name=Draw how many?",
+                "contrast role=dialog name=Draw how many?",
+            ],
+            "dlg-pause-menu": [
+                "visible role=dialog name=Game Menu",
+                "reachable role=button name=Report a bug",
+            ],
+            "dlg-sideboarding": [
+                "visible role=dialog name=Sideboarding",
+                "reachable role=button name=Ready",
+            ],
+            "game-pregame": [
+                "visible role=dialog name=Coin toss",
+                "reachable role=button name=Play",
+                "contrast role=button name=Play",
+                "reachable role=button name=Draw",
+            ],
+        });
+    });
+
     /** The debt list is empty, and every surface carries its own promises —
      *  the end state ADR 0132 §3 describes. A new surface declares them in the
      *  change that adds it rather than re-opening this list. */

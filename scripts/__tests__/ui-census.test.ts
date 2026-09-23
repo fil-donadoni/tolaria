@@ -54,44 +54,15 @@ const EXEMPT: Record<string, string> = {};
 const DEBT: Record<string, string> = {
     "src/components/admin/scenario-active-game-dialog.tsx":
         "the admin Scenarios page's “a game is already running” confirm (#4402)",
-    "src/components/board/activatable-ability-menu.tsx":
-        "the ActionSheet of a permanent's activatable abilities (#4402)",
-    "src/components/board/attack-all-confirm-dialog.tsx":
-        "the attack-all confirm (#4402)",
-    "src/components/board/cast-alternative-hand-cost-dialog.tsx":
-        "the alternative-hand-cost picker (#4402)",
-    "src/components/board/cast-exile-cost-dialog.tsx":
-        "the cast-from-exile cost picker (#4402)",
-    "src/components/board/controller-phase-list.tsx":
-        "the Turn phases panel — a fixed-width column with its own `100dvh` clamp (#4402)",
-    "src/components/board/convoke-creature-dialog.tsx":
-        "the convoke tapper (#4402)",
-    "src/components/board/discard-cost-dialog.tsx":
-        "the discard-cost hand picker (#4402)",
-    "src/components/board/exile-cost-dialog.tsx":
-        "the exile-cost picker (#4402)",
-    "src/components/board/game-over-dialog.tsx":
-        "the end-of-game result dialog (#4402)",
-    "src/components/board/graveyard-target-dialog.tsx":
-        "the graveyard target picker (#4402)",
-    "src/components/board/hand-card-action-menu.tsx":
-        "the hand card's ActionSheet (#4402)",
-    "src/components/board/mana-choice-picker.tsx":
-        "the anchored mana-choice picker (#4402)",
-    "src/components/board/mana-spend-choice-dialog.tsx":
-        "the mana-spend chooser (#4402)",
-    "src/components/board/manual-game-over-dialog.tsx":
-        "the manual concede/result dialog (#4402)",
+    // The one row of issue #4419's nineteen that its slice could not pay. Its
+    // cards come from `useQuery(api.game.getManualLibraryTop, { gameId, … })`
+    // with no `"skip"` branch once a peek is open, and `useQuery` THROWS on a
+    // query error — so a fixture `gameId` takes the whole census page down
+    // rather than mounting a specimen. Paying it means a Manual Board surface
+    // (a `format: "manual"` deck, the Cockatrice-mode lobby, a live manual
+    // game), which is a slice of its own: `docs/findings/`.
     "src/components/board/manual-peek-dialog.tsx":
-        "the manual zone peek (#4402)",
-    "src/components/board/manual-verb-popover.tsx":
-        "the manual-verb dialog (#4402)",
-    "src/components/board/pause-menu-dialog.tsx":
-        "the in-game pause menu (#4402)",
-    "src/components/board/pregame-dialog.tsx":
-        "the mulligan/pregame dialog — every game walk clicks THROUGH it and none measures it (#4402)",
-    "src/components/board/sideboarding-dialog.tsx":
-        "the between-games sideboarding screen, the largest modal in the app (#4402)",
+        "the Manual Game library peek — a live `getManualLibraryTop` on a real manual game, so no fixture-prop specimen mounts it (#4402)",
     "src/components/bug-report/bug-report-dialog.tsx":
         "the bug-report form (#4402)",
     "src/components/cards/additional-cost-picker.tsx":
@@ -153,11 +124,13 @@ const DEBT: Record<string, string> = {
  * "frozen, shrink-only" was prose until this line.
  *
  * 55 when the census shipped; 47 since issue #4418 walked the eight unwalked
- * `/admin` and `/settings` SCREENS, the first slice of issue #4402. The
+ * `/admin` and `/settings` SCREENS, the first slice of issue #4402; 29 since
+ * issue #4419 gave the board's own dialogs seventeen live specimens on
+ * `/admin/design-system` and the pregame gate a walk of its own. The
  * remaining slices are that issue's other children, one per area — when the
  * last one lands, this constant, `DEBT` and the tests below go with it.
  */
-const DEBT_AT_LANDING = 47;
+const DEBT_AT_LANDING = 29;
 
 function fix(row: CensusRow): string {
     if (row.kind === "route") {

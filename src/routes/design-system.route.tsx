@@ -13,6 +13,7 @@ import { InputsChipsSections } from "./design-system/sections-inputs-chips";
 import { BoardDeadSections } from "./design-system/sections-board-dead";
 import { V3Sections } from "./design-system/sections-v3";
 import { IdentityV4Sections } from "./design-system/sections-identity-v4";
+import { BoardDialogsSection } from "./design-system/sections-board-dialogs";
 
 const TOC: Array<[string, string]> = [
     ["palette", "01 Palette & contrast"],
@@ -30,6 +31,7 @@ const TOC: Array<[string, string]> = [
     ["application-map", "13 Application map"],
     ["v3-tokens", "14 Design system v3"],
     ["identity-v4", "15 Identity v4"],
+    ["board-dialogs", "16 Board dialogs"],
 ];
 
 export default function DesignSystemRoute() {
@@ -82,6 +84,7 @@ export default function DesignSystemRoute() {
                     <BoardDeadSections />
                     <V3Sections />
                     <IdentityV4Sections />
+                    <BoardDialogsSection />
                 </main>
             </div>
         </div>
