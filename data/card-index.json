@@ -16360,6 +16360,14 @@
         "firstPrintSet": "pls"
     },
     {
+        "name": "False Dawn",
+        "scryfallId": "1695e0ba-005a-4652-aea7-e1d1f9ff5d66",
+        "oracleId": "efd9cc25-f445-4de0-9a69-adab9f8878f4",
+        "firstSet": "apc",
+        "firstPrintId": "1695e0ba-005a-4652-aea7-e1d1f9ff5d66",
+        "firstPrintSet": "apc"
+    },
+    {
         "name": "False Defeat",
         "scryfallId": "5ca71ce3-8633-428a-8d9e-9b807b77a8e2",
         "oracleId": "8b119579-38e1-4509-9dcb-019d5a160ac2",
