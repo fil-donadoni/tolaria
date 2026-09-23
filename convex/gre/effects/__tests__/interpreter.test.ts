@@ -1983,7 +1983,7 @@ describe("Effect Script value: FILTERED hand count (CR 402.3 / 701.20a, issue #2
         expect(state.players[1].life).toBe(18);
     });
 
-    it("CR 105.2b — a multicolored card counts for EACH of its colors", () => {
+    it("CR 105.2 / 105.2b — a multicolored card counts for EACH of its colors", () => {
         // The WU gold creature is the only white card and the only blue card
         // in the hand, so both reads are 1 — the OR-within-`color` semantics
         // the filter already has, now reachable on this zone.
@@ -2002,8 +2002,8 @@ describe("Effect Script value: FILTERED hand count (CR 402.3 / 701.20a, issue #2
     });
 
     it("composes with the other `count` fields — `times` and a non-colour filter", () => {
-        // `times` is applied AFTER the filtered count (CR 122 — a literal
-        // multiplier folded into the construct), so 2 black cards × 2 = 4.
+        // `times` is applied AFTER the filtered count (a literal multiplier
+        // folded into the construct), so 2 black cards × 2 = 4.
         const doubled = resolveAgainstMixedHand("test-hand-filter-times", [
             {
                 op: "dealDamage",

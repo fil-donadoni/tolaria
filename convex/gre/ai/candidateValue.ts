@@ -538,6 +538,28 @@ function resolveCountSpecAgainstBoard(
     // context-aware zero would price the clause BELOW the floor it exists to
     // refine (issue #1520). `times` is a printed literal and stays honest.
     if (spec.picks !== undefined) return times * CF_ASSUMED_COUNT_FALLBACK;
+    // CR 402.3 / 701.20a (issue #2150) — a FILTERED hand count reads the set
+    // the card itself made public with a `reveal` DURING its own resolution
+    // ("the number of cards of that color revealed this way", Darigaaz, the
+    // Igniter). Before the card is cast the hand is still hidden, so there is
+    // nothing honest to filter here, and the two ways of answering anyway are
+    // both wrong:
+    //   - `matchesCountFilter` does not evaluate `color` at all (it fails OPEN
+    //     on that dimension), so a colour-filtered hand count would price at
+    //     the WHOLE HAND SIZE — five cards of damage for a clause that deals
+    //     one, the exact over-read this reader's `never` default exists to
+    //     stop on the zone axis;
+    //   - the type/subtype dimensions it DOES read would answer from the real
+    //     hand server-side and from the opaque wire placeholders a client-side
+    //     Brain run holds (`projectedToGameState`, ADR 0074) — one read, two
+    //     answers, and the server's is information the bot has not been shown.
+    // So it falls back to the representative magnitude, for exactly the reason
+    // `picks` above does: the set it counts exists only mid-resolution. The
+    // UNFILTERED hand count is untouched — that one is a pure cardinality read
+    // every player may make (CR 402.3).
+    if (spec.zone === "hand" && spec.filter !== undefined) {
+        return times * CF_ASSUMED_COUNT_FALLBACK;
+    }
     // CR 122 — "in all graveyards" (Accumulated Knowledge, issue #985): SUM
     // every player's count. The graveyard+countTypes shape unions the TYPES
     // across players instead (four types split over two graveyards is four,

@@ -2124,7 +2124,7 @@ describe("Crosis, the Purger (CR 702.9b flying + 510.4/603.2 combat-damage trigg
     // A watcher for the CR 701.9 discard EVENT. `SpellContext.discardCard`
     // reaches `discardToGraveyard`, the single chokepoint that emits
     // CARD_DISCARDED — which is what CR 614 discard replacements (Library of
-    // Leng), "whenever you discard" triggers and madness (CR 702.35c) all hang
+    // Leng), "whenever you discard" triggers and madness (CR 702.35a) all hang
     // off. `ctx.moveCardById` emits nothing, so a hand→graveyard sweep routed
     // that way would satisfy every zone assertion below and leave this trigger
     // silent. The watcher is p2's own, so it fires on p2's discard.
@@ -2246,7 +2246,7 @@ describe("Crosis, the Purger (CR 702.9b flying + 510.4/603.2 combat-damage trigg
         expect(wire.players[1].hand.every((c) => c !== null)).toBe(true);
     });
 
-    it("choosing a color nobody holds discards nothing (CR 608.2b)", () => {
+    it("choosing a color nobody holds discards nothing (CR 101.3)", () => {
         const { state } = setup();
         fire(state);
         applyMayPaySubmit(state, { playerId: "p1", accept: true });
@@ -2331,7 +2331,7 @@ describe("Darigaaz, the Igniter (CR 702.9b flying + 510.4/603.2 combat-damage tr
         expect(state.players[1].graveyard).toHaveLength(0);
     });
 
-    it("a color nobody holds counts 0, and a 0 amount is a no-op (CR 608.2b)", () => {
+    it("a color nobody holds counts 0, and a 0 amount is a no-op (CR 101.3)", () => {
         const { state } = setup();
         fire(state);
         applyMayPaySubmit(state, { playerId: "p1", accept: true });

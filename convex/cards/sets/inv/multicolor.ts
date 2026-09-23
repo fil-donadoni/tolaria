@@ -2964,7 +2964,7 @@ export const treva: CardDefinition = {
 // name") narrows the hand by colour. The discard funnels through
 // `SpellContext.discardCard` → `discardToGraveyard`, so CR 614 discard
 // replacements (Library of Leng), the `CARD_DISCARDED` event and madness
-// (CR 702.35c) all fire per card — the reason a `moveZone` hand→graveyard
+// (CR 702.35a) all fire per card — the reason a `moveZone` hand→graveyard
 // sweep is NOT a substitute for this shape.
 const CROSIS_DISCARD_COLOR_MODES = colorChoiceModes((color) => [
     {
