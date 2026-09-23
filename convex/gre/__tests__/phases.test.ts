@@ -3188,6 +3188,10 @@ describe("CR 514.2 — turn-scoped global flags clear at CLEANUP, not END_OF_COM
         ["damageUnpreventableThisTurn", true],
         ["sourcePreventionShields", [{ sourceIds: ["atk"], combatOnly: true }]],
         [
+            "recipientPreventionShields",
+            [{ match: { controllerId: "p1", cardType: "Creature" } }],
+        ],
+        [
             "combatDamageRedirectToPermanent",
             [{ playerId: "p2", toPermanentId: "guard" }],
         ],
