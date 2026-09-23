@@ -26393,7 +26393,9 @@ export function normalizeManaCost(
             );
             // CR 107.3a / 601.2h (issue #3811) — "Spend only [colour(s)] mana
             // on X": the announced X is owed as coloured (or two-colour
-            // hybrid) pips, never as generic any colour could pay.
+            // hybrid) pips, never as generic any colour could pay. A generic
+            // reduction or delve therefore stops at the fixed generic and
+            // never reaches X (CR 107.4b) — tracked-by: #4429.
             if (xKey === null) extraGeneric += xMana;
             else if (xMana > 0) result[xKey] = (result[xKey] ?? 0) + xMana;
             continue;

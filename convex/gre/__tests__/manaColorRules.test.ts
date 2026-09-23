@@ -344,7 +344,12 @@ describe("full path — the other production sites", () => {
         });
     });
 
-    it("auto-tap pays Lightning Bolt's {R} with a Mountain's replaced {W}", async () => {
+    // Proves the auto-tap funnel neither freezes nor refuses under the
+    // replacement: the Mountain's output arrives as {W} (the funnel is
+    // `applyLandManaReplacement`, pinned above) and the CR 609.4b permission
+    // lets it pay {R}. The PLANNER itself still reads raw source colours —
+    // tracked in the issue named in the PR.
+    it("auto-tap still pays Lightning Bolt's {R} under the replacement", async () => {
         const harness = makeMutationCtx("p1", [
             gameStateSeed(afterFalseDawn()),
         ]);
