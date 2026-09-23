@@ -18,13 +18,30 @@
 // § Card testing convention).
 
 import { describe, expect, it } from "vitest";
-import { getDefinition } from "../../../index";
+import { getDefinition, registerTokenDefinition } from "../../../index";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
     type CardInstanceState,
     type GameState,
 } from "../../../../gre/state";
+import { finalizeCleanup } from "../../../../gre/phases";
+import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import {
+    activateAbility,
+    confirmTargets,
+    selectTarget,
+    submitResolutionChoice,
+} from "../../../../game";
+import {
+    gameStateSeed,
+    makeMutationCtx,
+    runMutation,
+    type Handler,
+} from "../../../../__tests__/gameMutationHarness";
+import type { Id } from "../../../../_generated/dataModel";
+
+const GAME_ID = "game-1" as Id<"games">;
 import { projectPublicState } from "../../../../gameProjections";
 
 // Resolved through the REGISTRY SEAM by id, never by name (`getCardByName`
@@ -140,5 +157,204 @@ describe("Whirlpool Warrior — shuffle the hand back and redraw (CR 608.2h, iss
         expect(projected.players[0].library.count).toBe(4);
         expect(projected.players[1].hand).toHaveLength(4);
         expect(projected.players[1].library.count).toBe(2);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Unnatural Selection (issue #3809) — a resolution-time creature-type choice
+// that excludes Wall drives an until-end-of-turn type SET (CR 205.3m / 205.1a).
+// ---------------------------------------------------------------------------
+
+const UNNATURAL_SELECTION = getDefinition(
+    "c575e2cb-3990-4c73-b81c-e16311ec6bbb"
+);
+const SELECTION_GOBLIN = "unnatural-selection-test-goblin";
+/** A land creature (Dryad Arbor's shape): its land type is NOT a creature
+ *  type and must survive a creature-type set (CR 205.1a). */
+const SELECTION_LAND_CREATURE = "unnatural-selection-test-land-creature";
+registerTokenDefinition({
+    id: SELECTION_GOBLIN,
+    name: SELECTION_GOBLIN,
+    rarity: "common",
+    manaCost: { R: 1 },
+    types: ["Creature"],
+    subtypes: ["Goblin", "Warrior"],
+    power: 1,
+    toughness: 1,
+});
+registerTokenDefinition({
+    id: SELECTION_LAND_CREATURE,
+    name: SELECTION_LAND_CREATURE,
+    rarity: "common",
+    types: ["Land", "Creature"],
+    subtypes: ["Forest", "Dryad"],
+    power: 1,
+    toughness: 1,
+});
+
+function selectionBoard(): { state: GameState; source: CardInstanceState } {
+    const source = makeInstance(UNNATURAL_SELECTION.id, {
+        id: "selection",
+        controllerId: "p1",
+        ownerId: "p1",
+    });
+    const state = makeState({
+        players: [
+            makePlayer("p1", {
+                battlefield: [source],
+                manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 1 },
+            }),
+            makePlayer("p2", {
+                battlefield: [
+                    makeInstance(SELECTION_GOBLIN, {
+                        id: "goblin",
+                        controllerId: "p2",
+                        ownerId: "p2",
+                    }),
+                    makeInstance(SELECTION_LAND_CREATURE, {
+                        id: "arbor",
+                        controllerId: "p2",
+                        ownerId: "p2",
+                    }),
+                ],
+            }),
+        ],
+        activePlayerId: "p1",
+        priorityPlayerId: "p1",
+    });
+    return { state, source };
+}
+
+function activateSelection(
+    state: GameState,
+    source: CardInstanceState,
+    targetId: string
+): void {
+    state.stack.push({
+        ...source,
+        zone: "stack",
+        castById: "p1",
+        abilityId: "unnatural-selection-retype",
+        targets: [{ type: "permanent", id: targetId }],
+    });
+    resolveTopOfStack(state);
+}
+
+function pickType(state: GameState, subtype: string): void {
+    const head = state.pendingChoices![0];
+    applyPendingChoiceSubmit(state, {
+        playerId: head.playerId,
+        stackItemId: head.stackItemId,
+        step: head.step,
+        choiceId: head.choiceId,
+        cardInstanceIds: [subtype],
+    });
+}
+
+const permanent = (state: GameState, id: string) =>
+    state.players.flatMap((p) => p.battlefield).find((c) => c.id === id)!;
+
+describe("Unnatural Selection — choose a creature type other than Wall; target creature becomes that type until end of turn (CR 205.3m / 205.1a, issue #3809)", () => {
+    it("offers every creature type except Wall, and the server refuses Wall", () => {
+        const { state, source } = selectionBoard();
+        activateSelection(state, source, "goblin");
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("option-pick");
+        const ids = head.options!.map((o) => o.id);
+        expect(ids).toContain("Elf");
+        expect(ids).not.toContain("Wall");
+        expect(() => pickType(state, "Wall")).toThrow();
+    });
+
+    it("SETS the creature types — the chosen type replaces them all — and reverts at end of turn", () => {
+        const { state, source } = selectionBoard();
+        activateSelection(state, source, "goblin");
+        pickType(state, "Elf");
+        expect(permanent(state, "goblin").subtypes).toEqual(["Elf"]);
+        // Wire format — the retype reaches the client.
+        const projected = projectPublicState(state, 1, "p1");
+        const slim = projected.players[1].battlefield.find(
+            (c) => c.id === "goblin"
+        )!;
+        expect(slim.subtypes).toEqual(["Elf"]);
+        // CR 611.2 / 514.2 — "until end of turn".
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
+        expect(permanent(state, "goblin").subtypes).toEqual([
+            "Goblin",
+            "Warrior",
+        ]);
+    });
+
+    it("CR 205.1a — a land creature keeps its LAND type; only its creature types are replaced", () => {
+        const { state, source } = selectionBoard();
+        activateSelection(state, source, "arbor");
+        pickType(state, "Elf");
+        expect([...permanent(state, "arbor").subtypes].sort()).toEqual([
+            "Elf",
+            "Forest",
+        ]);
+    });
+});
+
+describe("Unnatural Selection — full path through game.ts (issue #3809)", () => {
+    it("activate → target → resolve → submit the type → the retyped creature is on the wire", async () => {
+        const { state } = selectionBoard();
+        const first = makeMutationCtx("p1", [gameStateSeed(state)]);
+        await runMutation(
+            activateAbility as unknown as Handler<unknown, void>,
+            first.ctx,
+            {
+                gameId: GAME_ID,
+                playerId: "p1",
+                cardInstanceId: "selection",
+                abilityId: "unnatural-selection-retype",
+            }
+        );
+        await runMutation(
+            selectTarget as unknown as Handler<unknown, void>,
+            first.ctx,
+            {
+                gameId: GAME_ID,
+                playerId: "p1",
+                targetType: "permanent",
+                targetId: "goblin",
+            }
+        );
+        if (first.state().pendingTarget !== undefined) {
+            await runMutation(
+                confirmTargets as unknown as Handler<unknown, void>,
+                first.ctx,
+                { gameId: GAME_ID, playerId: "p1" }
+            );
+        }
+        const onStack = first.state();
+        expect(onStack.stack.at(-1)?.abilityId).toBe(
+            "unnatural-selection-retype"
+        );
+        // Both players pass: the ability resolves up to its type choice.
+        resolveTopOfStack(onStack);
+        const second = makeMutationCtx("p1", [gameStateSeed(onStack)]);
+        const head = second.state().pendingChoices![0];
+        const submit = (subtype: string) =>
+            runMutation(
+                submitResolutionChoice as unknown as Handler<unknown, void>,
+                second.ctx,
+                {
+                    gameId: GAME_ID,
+                    playerId: "p1",
+                    stackItemId: head.stackItemId,
+                    step: head.step,
+                    choiceId: head.choiceId,
+                    cardInstanceIds: [subtype],
+                }
+            );
+        await expect(submit("Wall")).rejects.toThrow();
+        await submit("Elf");
+        const projected = projectPublicState(second.state(), 1, "p1");
+        expect(
+            projected.players[1].battlefield.find((c) => c.id === "goblin")!
+                .subtypes
+        ).toEqual(["Elf"]);
     });
 });
