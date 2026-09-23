@@ -680,9 +680,17 @@ export const manaClash: CardDefinition = {
     // heads on the same round" loop with a runtime termination condition.
     // The four frozen structural constructs (bind/ref/if/forEach) iterate
     // over a declaratively-selected SET known in advance — none expresses a
-    // while-style repeat gated on a live coin-flip outcome. `coinFlip` /
-    // `coinFlipSync` exist as Ops, but no loop construct to drive them with.
-    // Protocol-shaped control flow; stays resolve().
+    // while-style repeat gated on a live coin-flip outcome.
+    // A bounded flip loop is an Op's job, never a construct's (ADR 0144):
+    // `coinFlipSeries` repeats ONE player's flips up to a count or to the
+    // first loss and binds the counts for the payoff to read afterwards. This
+    // card sits on three axes that Op leaves out on purpose — two players
+    // flip each round, the damage lands per round rather than after the
+    // series, and the stop is a JOINT result with no call (CR 705.2: nobody
+    // wins or loses a flip that only cares whether it came up heads). A
+    // grammar rule cannot close that; it needs its own Op, which waits for a
+    // second card of the same shape (issue #1917's card-#2 rule).
+    // protocol card: a two-player per-round flip loop no Op expresses; stays resolve().
     resolve: (ctx: SpellContext) => {
         const target = ctx.targets[0];
         if (target?.type !== "player") return;
