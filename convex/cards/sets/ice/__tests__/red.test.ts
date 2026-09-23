@@ -1991,7 +1991,12 @@ describe("Chaos Moon — parity-dependent Mountain rider (CR 614/611, #665)", ()
             activePlayerId: "p1",
         } as StackItem["triggerEvent"]);
         expect(state.landManaRidersThisTurn).toEqual([
-            { subtype: "Mountain", color: "R", mode: "additional" },
+            {
+                subtype: "Mountain",
+                color: "R",
+                mode: "additional",
+                controllerId: "p1",
+            },
         ]);
         const mtn = makeLand(mountain.id, "p1");
         const out = applyLandManaReplacement(state, "p1", mtn, { R: 1 });
@@ -2012,7 +2017,12 @@ describe("Chaos Moon — parity-dependent Mountain rider (CR 614/611, #665)", ()
             activePlayerId: "p1",
         } as StackItem["triggerEvent"]);
         expect(state.landManaRidersThisTurn).toEqual([
-            { subtype: "Mountain", color: "C", mode: "override" },
+            {
+                subtype: "Mountain",
+                color: "C",
+                mode: "override",
+                controllerId: "p1",
+            },
         ]);
         const mtn = makeLand(mountain.id, "p1");
         const out = applyLandManaReplacement(state, "p1", mtn, { R: 1 });
