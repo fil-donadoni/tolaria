@@ -14802,7 +14802,7 @@ export type EffectOp =
      *  consumed by a payment. `from` narrows the pairs to one printed colour
      *  ("white mana"), which the one-shot grant never needed. Per CR 609.4b the
      *  cost itself and the mana actually spent are unchanged. Cleared at
-     *  CLEANUP (CR 514.2). Skipped when the player is gone (CR 608.2b). */
+     *  CLEANUP (CR 514.2). Skipped when the player cannot be resolved. */
     | {
           op: "grantManaSubstitution";
           player: EffectPlayerRef;

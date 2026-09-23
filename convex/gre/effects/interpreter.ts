@@ -3042,7 +3042,7 @@ export const OP_EXECUTORS: {
     },
     // CR 609.4b / 514.2 (issue #3811, False Dawn) — until-end-of-turn,
     // every-cost "spend `from` mana as though it were mana of any color".
-    // Skipped when the player is gone (CR 608.2b).
+    // Skipped when the player cannot be resolved.
     grantManaSubstitution(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return;
@@ -3050,7 +3050,7 @@ export const OP_EXECUTORS: {
     },
     // CR 614.1a / 514.2 (issue #3811, False Dawn) — until-end-of-turn
     // replacement on the coloured mana `player`'s spells and abilities
-    // produce. Skipped when the player is gone (CR 608.2b).
+    // produce. Skipped when the player cannot be resolved.
     replaceManaProductionColor(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return;
