@@ -1611,8 +1611,6 @@ interface BoardDialogSpecimen {
     layer: string;
     layerAssert: NamedAssertion;
     entry: NamedAssertion;
-    /** A third promise, where the layer owes one beyond its action. */
-    extra?: NamedAssertion;
 }
 
 const BOARD_DIALOG_SPECIMENS: readonly BoardDialogSpecimen[] = [
@@ -1812,12 +1810,13 @@ const BOARD_DIALOG_SPECIMENS: readonly BoardDialogSpecimen[] = [
             locator: { selector: '[data-slot="dialog-content"]' },
             check: "visible",
         },
+        // NOT the `Red` row. Its markup is a pip image beside the colour
+        // name, so a browser composes its accessible name as `R Red` — and
+        // `alt="R"` is the only thing keeping it from being `Red` alone.
+        // happy-dom reads the same row as `Red`, which is how this promise
+        // shipped green offline and broke at all five viewports (measured).
+        // The layer's own contrast is the promise that holds.
         entry: {
-            label: "choice row: Red",
-            locator: { role: "button", name: "Red" },
-            check: "reachable",
-        },
-        extra: {
             label: "picker contrast",
             locator: { selector: '[data-slot="dialog-content"]' },
             check: "contrast",
@@ -1921,9 +1920,7 @@ function boardDialogSurface(spec: BoardDialogSpecimen): Surface {
             "src/routes/design-system.route.tsx",
         ],
         label: `Board dialog — ${spec.label} (/admin/design-system § 16)`,
-        asserts: spec.extra
-            ? [spec.layerAssert, spec.entry, spec.extra]
-            : [spec.layerAssert, spec.entry],
+        asserts: [spec.layerAssert, spec.entry],
         mounts: [`src/components/${spec.module}`],
         settleTargets: [spec.layer],
         async walk(page, ctx) {

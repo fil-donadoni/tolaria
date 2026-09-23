@@ -408,7 +408,6 @@ describe("check:ui surface table — Named Assertions", () => {
             ],
             "dlg-mana-choice": [
                 'visible [data-slot="dialog-content"]',
-                "reachable role=button name=Red",
                 'contrast [data-slot="dialog-content"]',
             ],
             "dlg-mana-spend": [

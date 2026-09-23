@@ -413,9 +413,14 @@ section mounts exactly the specimen its opener selected and the lane walks one
 row per opener. With a specimen open the census page behind it measures as
 occluded — that is what a modal is, not a defect.
 
-**The confirm plates read `0/N` and are DISABLED.** `Discard 0/1`, `Exile 0/2`,
-`Tap 0/2`: the specimen mounts the picker before anything is picked, so those
-rows promise `visible`, not `reachable`.
+**The confirm plates read `0/N` and are DISABLED.** `Discard 0/1` (twice),
+`Exile 0/1`, `Exile 0/2`: the specimen mounts the picker before anything is
+picked, so those rows promise `visible`, not `reachable`.
+
+**Convoke is the exception.** `ConvokeCreatureDialog` auto-seeds the selection
+up to `choice.min` before its first render, so the tapper opens at `Tap 1/2`
+with its plate ENABLED — `dlg-convoke` promises it `reachable`. A walk that
+expects `Tap 0/2` there is reading this page, not the screen.
 
 ### The pregame gate
 
