@@ -4345,6 +4345,14 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     nameCard() {
         return null;
     },
+    // `chooseCreatureType` (CR 205.3m, issue #3721) — never reached:
+    // `analyseOp` skips every script carrying it (it suspends for a live pick
+    // out of the ~280-entry creature-type table, which the canned generator
+    // cannot submit). Kept for the 1:1 coverage guard; the Op's own
+    // interpreter tests are the behavioural guarantor.
+    chooseCreatureType() {
+        return null;
+    },
     // `digMatchingToHand` (CR 701.20a / 401.4, issue #1085) — never reached:
     // `analyseOp` skips every script with this Op (its outcome depends on a
     // filter match against library contents the canned generator's filler

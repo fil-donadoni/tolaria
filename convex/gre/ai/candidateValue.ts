@@ -670,6 +670,15 @@ function resolveForEachCountAgainstBoard(
     select: EffectForEachSelector,
     sourceId?: string
 ): number {
+    // CR 205.3m (issue #3721) — a selector filtered by a `{ ref }` subtype is
+    // the forEach twin of the `count` exit above: the type is picked by a
+    // `chooseCreatureType` Op during the very resolution this is pricing, so
+    // the board cannot answer yet and `matchesCountFilter` would refuse every
+    // member. Tsabo's Decree's "destroy all creatures of that type that player
+    // controls" would otherwise price as destroying NOTHING.
+    if ("filter" in select && hasDynamicSubtype(select.filter)) {
+        return CF_ASSUMED_COUNT_FALLBACK;
+    }
     switch (select.set) {
         case "players":
             return state.players.length;

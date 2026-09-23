@@ -1557,6 +1557,12 @@ const explore: Valuer<"explore"> = (op) => ({
 });
 
 const nameCard: Valuer<"nameCard"> = () => ZERO_OP_VALUE;
+// CR 205.3m (issue #3721) — a BIND-ONLY Op: choosing a creature type moves no
+// material by itself. Every point it is worth is carried by the Ops that read
+// its binding back (Tsabo's Decree's `discard` and `destroy`), which the
+// script walk prices on their own. Same ZERO as `nameCard` directly above, and
+// for the identical reason.
+const chooseCreatureType: Valuer<"chooseCreatureType"> = () => ZERO_OP_VALUE;
 
 const preventDamage: Valuer<"preventDamage"> = (op, ctx) => {
     if (op.mode === "next-n") {
@@ -2030,6 +2036,7 @@ export const OP_VALUERS: {
     revealUntilMatch,
     explore,
     nameCard,
+    chooseCreatureType,
     preventDamage,
     redirectDamage,
     markAssignsNoCombatDamage,
@@ -2432,6 +2439,15 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // CR 701.20a — binds the chosen NAME; the material is whatever later Op
     // reads the binding back, which is why `bind` is a required field.
     nameCard: "neutral",
+    // CR 205.3m (issue #3721) — `nameCard`'s twin for creature types, and
+    // neutral for the identical reason: the Op hands its `player` a pick out
+    // of CR 205.3m's table and takes nothing from anyone. It moves no card, no
+    // life and no permanent, so there is no stake a redirect of the recipient
+    // could act on; the sign belongs entirely to the Ops that read the binding
+    // back (Tsabo's Decree's `discard` and `destroy`), each of which carries
+    // its own row and names its own recipient. `bind` is required for exactly
+    // that reason.
+    chooseCreatureType: "neutral",
     // CR 601.2b — divides `objects` into two piles under `chosenBind` /
     // `otherBind`. The pile members are DERIVED from the divider's split and
     // are never announced, so there is nothing here for a redirect to act on —

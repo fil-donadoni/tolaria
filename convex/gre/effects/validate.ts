@@ -5898,6 +5898,18 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
         },
         optional: { nameRestriction: isNameRestriction },
     },
+    // CR 205.3m (issue #3721) — "Choose a creature type." during resolution.
+    // `bind` is REQUIRED, exactly as it is on `nameCard`: the chosen type is
+    // the whole product of the Op, and a choice nothing reads back is a
+    // prompt with no effect. No `restriction` field: CR 205.3m's table is the
+    // whole legal space and no printed card narrows it.
+    chooseCreatureType: {
+        required: {
+            player: isPlayerRef,
+            prompt: isNonEmptyString,
+            bind: isBindingName,
+        },
+    },
     // CR 701.20a reveal / CR 401.4 look (issue #1085) — deterministic sibling
     // of `lookDistribute`: PUBLICLY reveal the top `look` cards to every player
     // (transient dialog + persistent known-to-all), put every FILTER-matching
@@ -6308,6 +6320,10 @@ function bindingKindOf(op: unknown): BindingKind {
     // so a later `EffectCardFilter.name` bare ref reads it through the SAME
     // picks family (not a new binding kind).
     if (op === "nameCard") return "picks";
+    // issue #3721 — `chooseCreatureType` stores its chosen SUBTYPE the same
+    // way `nameCard` stores a chosen NAME: a single-element string array, read
+    // back only by an `EffectCardFilter.subtype` bare ref.
+    if (op === "chooseCreatureType") return "picks";
     // issue #3808 — `reveal { zone: "library", bind }` records the ids it just
     // made public (CR 701.20a) as the same picks family a `choice` binds: a
     // following `choose-library-card` names it in `candidates`, `moveZone`
