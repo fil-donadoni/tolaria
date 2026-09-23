@@ -154,6 +154,7 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     moveSpellFromStack: false,
     moveZone: false,
     preventDamage: false,
+    redirectDamage: false,
     preventRegeneration: false,
     pump: false,
     randomExileToHand: false,

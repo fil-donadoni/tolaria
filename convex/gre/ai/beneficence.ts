@@ -107,6 +107,23 @@ const NESTED_EFFECT_KEYS = new Set([
     "loss",
 ]);
 
+/** CR 614.9 (issue #3810) — Ops that move stake in BOTH directions at once,
+ *  one named slot gaining exactly what another loses. A per-OP sign cannot
+ *  describe them: `redirectDamage`'s `from` is shielded and its `to` is hit,
+ *  so the flat path below would stamp the same sign on both slots and send the
+ *  bot's own creature the damage it was trying to dodge. The sign is per
+ *  FIELD instead, and each field's slots are walked on their own.
+ *
+ *  Keyed by Op name → field name, never by card: a second two-sided Op adds a
+ *  row, not a branch. Every Op here is `"neutral"` in `OP_BENEFICENCE` for the
+ *  same reason — the stake is conserved, so the per-Op axis has nothing to
+ *  say — and the census reads that row. */
+const SPLIT_SIGN_OPS: Partial<
+    Record<EffectOp["op"], Readonly<Record<string, Beneficence>>>
+> = {
+    redirectDamage: { from: "beneficial", to: "harmful" },
+};
+
 /** Accumulate each Op's sign onto every announced slot the Op names. */
 function collectScriptSigns(
     effects: readonly EffectOp[],
@@ -132,6 +149,21 @@ function collectScriptSigns(
                 continue;
             default:
                 break;
+        }
+        const split = SPLIT_SIGN_OPS[op.op];
+        if (split !== undefined) {
+            const bag = op as unknown as Record<string, unknown>;
+            for (const [field, fieldSign] of Object.entries(split)) {
+                const fieldSlots = new Set<number>();
+                announcedSlotsIn(bag[field], fieldSlots);
+                for (const slot of fieldSlots) {
+                    signs.set(
+                        slot,
+                        mergeSign(signs.get(slot) ?? "neutral", fieldSign)
+                    );
+                }
+            }
+            continue;
         }
         const sign = opBeneficence(op);
         if (sign === "neutral") continue;

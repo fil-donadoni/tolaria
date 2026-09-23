@@ -2192,8 +2192,33 @@ function isPreventDamageMode(value: unknown): boolean {
         value === "combat-to-and-by" ||
         value === "all-from-source" ||
         value === "all-from-matching" ||
+        value === "all-to-matching" ||
         value === "next-n-divided"
     );
+}
+
+/** The `match` arm of a RECIPIENT-scoped `preventDamage` shield (CR 615.1a,
+ *  issue #3810): `{ controller?: EffectPlayerRef; cardType?: CardType }`, at
+ *  least one arm present. A closed vocabulary for the same reason its
+ *  source-side twin is one — the matcher runs on the damage path against a
+ *  live battlefield instance, where an unknown field would fail OPEN and
+ *  silently shield every recipient on the board. */
+function isRecipientShieldMatch(value: unknown): boolean {
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+        return false;
+    }
+    const m = value as Record<string, unknown>;
+    for (const key of Object.keys(m)) {
+        if (key !== "controller" && key !== "cardType") return false;
+    }
+    if (m.controller !== undefined && !isPlayerRef(m.controller)) return false;
+    if (
+        m.cardType !== undefined &&
+        !TOKEN_CARD_TYPES.has(m.cardType as string)
+    ) {
+        return false;
+    }
+    return m.controller !== undefined || m.cardType !== undefined;
 }
 
 /** The `match` arm of a source-scoped `preventDamage` shield (issue #1955):
@@ -3184,6 +3209,22 @@ function isDamageRecipient(value: unknown): boolean {
             (value as { attackTargetOf: unknown }).attackTargetOf
         );
     }
+    return (
+        keys.length === 1 &&
+        keys[0] === "player" &&
+        isPlayerRef((value as { player: unknown }).player)
+    );
+}
+
+/** CR 614.9 (issue #3810) — either end of a `redirectDamage` shield: an
+ *  object selector or a relative player. Deliberately NOT `isDamageRecipient`
+ *  — that one also admits `{ attackTargetOf }`, whose referent is read live at
+ *  resolution for ONE damage event, which is not something a turn-scoped
+ *  shield can bind. */
+function isRedirectEnd(value: unknown): boolean {
+    if (isObjectSelector(value)) return true;
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
     return (
         keys.length === 1 &&
         keys[0] === "player" &&
@@ -5067,7 +5108,15 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             duration: isDurationSpec,
             // Source-scoped modes (issue #1955).
             source: isObjectSelector,
-            match: isSourceShieldMatch,
+            // One field, TWO closed shapes: the source-scoped match
+            // (`"all-from-matching"`, issue #1955) and the recipient-scoped
+            // one (`"all-to-matching"`, CR 615.1a, issue #3810). The flat
+            // field map cannot tell them apart, so this predicate admits
+            // either and `check` below pins the RIGHT one to its mode — a
+            // `controller` arm on a source shield would otherwise validate
+            // and then match nothing at all on the damage path.
+            match: (value: unknown) =>
+                isSourceShieldMatch(value) || isRecipientShieldMatch(value),
             combatOnly: isBoolean,
             // Divided recipient-scoped mode (issue #1955); `total` mirrors the
             // card's `divideAsChosen.total` vocabulary exactly.
@@ -5114,10 +5163,37 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                 requireFields(["source"], ["combatOnly"]);
             } else if (entry.mode === "all-from-matching") {
                 requireFields(["match"], ["combatOnly"]);
+                if (has("match") && !isSourceShieldMatch(entry.match)) {
+                    errors.push(
+                        'mode "all-from-matching" takes a SOURCE match ' +
+                            "({ colors?, cardType? })"
+                    );
+                }
+            } else if (entry.mode === "all-to-matching") {
+                requireFields(["match"], ["combatOnly"]);
+                if (has("match") && !isRecipientShieldMatch(entry.match)) {
+                    errors.push(
+                        'mode "all-to-matching" takes a RECIPIENT match ' +
+                            "({ controller?, cardType? })"
+                    );
+                }
             } else if (entry.mode === "next-n-divided") {
                 requireFields(["total", "duration"]);
             }
             return errors;
+        },
+    },
+    /** CR 614.9 (issue #3810) — the recipient-keyed redirection shield. Both
+     *  ends are damage RECIPIENTS, so they take the `dealDamage.to`
+     *  vocabulary minus its attack-target arm: an announced slot, `$source`, a
+     *  `forEach` `$each`, or a relative player. `amount` is the points budget
+     *  and `duration` the shield's expiry. */
+    redirectDamage: {
+        required: {
+            from: isRedirectEnd,
+            to: isRedirectEnd,
+            amount: isEffectValue,
+            duration: isDurationSpec,
         },
     },
     // CR 701.20a (issue #920, #682, #945) — reveal to every player. Two

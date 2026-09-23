@@ -1740,6 +1740,25 @@ function resolveStackObjectRef(
     return { type: "spell", id: ev.id };
 }
 
+/** CR 614.9 (issue #3810) — resolves either end of a `redirectDamage` shield:
+ *  an object selector (an announced slot, `$source`, a `forEach` `$each`) or a
+ *  relative player. Mirrors the recipient branch `preventDamage`'s `"next-n"`
+ *  mode already runs, so a `type: "any"` announced slot lands as a player or a
+ *  permanent indifferently, and returns undefined on a resolution the Op
+ *  should skip (CR 608.2b). */
+function resolveRedirectEnd(
+    ctx: SpellContext,
+    ref: EffectObjectSelector | { player: EffectPlayerRef }
+): TargetSelection | undefined {
+    if ("player" in ref) {
+        const playerId = resolvePlayerRef(ctx, ref.player);
+        return playerId === undefined
+            ? undefined
+            : { type: "player", id: playerId };
+    }
+    return resolveObjectRef(ctx, ref);
+}
+
 /** Resolves an object selector to a TargetSelection: the announced target
  *  slot, or — inside a `forEach` over permanents (issue #807) — the bare
  *  `{ ref: "$each" }` naming the current member. Returns undefined when the
@@ -4871,6 +4890,31 @@ export const OP_EXECUTORS: {
             });
             return;
         }
+        if (op.mode === "all-to-matching") {
+            // CR 615.1a / 615.6 (issue #3810) — the RECIPIENT-side mirror of
+            // "all-from-matching": no recipient id is bound, and the filter is
+            // re-read at the moment damage would be dealt, so a creature that
+            // comes under the named player's control LATER in the turn is
+            // shielded too (Divine Light). `controller` is resolved here,
+            // once, because "you" is the resolving controller (CR 608.2);
+            // only the MEMBERSHIP it selects stays live.
+            const controllerId =
+                op.match.controller === undefined
+                    ? undefined
+                    : resolvePlayerRef(ctx, op.match.controller);
+            if (op.match.controller !== undefined && controllerId === undefined)
+                return;
+            ctx.preventAllDamageToMatching({
+                match: {
+                    ...(controllerId === undefined ? {} : { controllerId }),
+                    ...(op.match.cardType === undefined
+                        ? {}
+                        : { cardType: op.match.cardType }),
+                },
+                ...(op.combatOnly ? { combatOnly: true } : {}),
+            });
+            return;
+        }
         if (op.mode === "next-n-divided") {
             // CR 615.1 / 601.2d / 120.4 (issue #1955) — the DIVIDED sibling of
             // "next-n": one prevent-the-next-N shield per announced target,
@@ -4911,6 +4955,25 @@ export const OP_EXECUTORS: {
         const target = resolveObjectRef(ctx, op.to);
         if (!target) return;
         ctx.preventNextNDamageToTarget(target, amount, op.duration);
+    },
+    // CR 614.9 (issue #3810) — the recipient-keyed redirection shield: "the
+    // next N damage that would be dealt to <from> this turn is dealt to <to>
+    // instead". A thin declarative skin over the single SpellContext primitive
+    // `redirectNextNDamage`, ONE execution path (ADR 0045). Both ends resolve
+    // through the same recipient vocabulary `dealDamage.to` uses, so an
+    // announced "any target" slot lands as a player or a permanent
+    // indifferently. Skipped when either end is gone (CR 608.2b) or the amount
+    // is non-positive; CR 614.9's "the effect does nothing" when the
+    // DESTINATION has left by the time damage would be redirected is decided
+    // on the damage path, not here, because that is when the rule asks.
+    redirectDamage(ctx, op) {
+        const amount = resolveValue(ctx, op.amount);
+        if (amount === undefined || amount <= 0) return;
+        const from = resolveRedirectEnd(ctx, op.from);
+        if (!from) return;
+        const to = resolveRedirectEnd(ctx, op.to);
+        if (!to) return;
+        ctx.redirectNextNDamage(from, to, amount, op.duration);
     },
     // CR 701.19 (issue #846) — stack a regeneration shield on a permanent. A
     // thin declarative skin over the single SpellContext primitive

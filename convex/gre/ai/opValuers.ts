@@ -1583,7 +1583,10 @@ const preventDamage: Valuer<"preventDamage"> = (op, ctx) => {
     }
     // "all-combat" (Fog) / "combat-to-and-by" (Maze of Ith) /
     // "all-from-source" (Falling Timber, Rith's Charm) / "all-from-matching"
-    // (Radiant Kavu) — no scalar amount, a flat defensive shield.
+    // (Radiant Kavu) / "all-to-matching" (Divine Light, issue #3810) — no
+    // scalar amount, a flat defensive shield. The recipient-scoped mode joins
+    // the fall-through on purpose: like its source-scoped mirror it absorbs
+    // without limit for the turn, so there is no printed number to price.
     return {
         points: pricedFraction(
             ctx,
@@ -1591,6 +1594,23 @@ const preventDamage: Valuer<"preventDamage"> = (op, ctx) => {
             PROTECTION_COMPLETENESS.flatPrevent
         ),
         tags: ["protection"],
+    };
+};
+
+/** CR 614.9 (issue #3810) — a redirect MOVES damage rather than erasing it,
+ *  so it is priced as both halves of what it does: `amount` points of damage
+ *  the caster's side stops taking (`lifeSwing`, the same scalar `"next-n"`
+ *  prevention uses) and `amount` points the destination does take (`damage`).
+ *  Pricing only the shield half would make Captain's Maneuver read as a
+ *  strictly worse Healing Salve, which is how a two-sided card ends up never
+ *  cast. Both halves scale with the SAME announced budget, so one `ctx.value`
+ *  call feeds both and the scaling tag is emitted once. */
+const redirectDamage: Valuer<"redirectDamage"> = (op, ctx) => {
+    const { amount, scaling } = ctx.value(op.amount);
+    return {
+        points:
+            priced(ctx, "lifeSwing", amount) + priced(ctx, "damage", amount),
+        tags: [...tagScaling(scaling, "protection"), "targeted"],
     };
 };
 
@@ -2011,6 +2031,7 @@ export const OP_VALUERS: {
     explore,
     nameCard,
     preventDamage,
+    redirectDamage,
     markAssignsNoCombatDamage,
     putBack,
     rangedTopdeck,
@@ -2206,6 +2227,15 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // this Op is looking at a gift.
     setLevel: "beneficial",
     preventDamage: "beneficial",
+    // CR 614.9 (issue #3810) — the sign is genuinely neutral AT THIS
+    // AXIS, and not for want of a decision: a redirect conserves the
+    // stake. It takes exactly as much off the recipient it shields as it
+    // puts on the one it hits, so no single per-Op sign describes it, and
+    // a flat one would mislabel whichever of its two announced slots it
+    // did not mean. The real, opposite signs are carried PER SLOT by
+    // `SPLIT_SIGN_OPS` in `beneficence.ts`, which runs before this table
+    // is consulted; this row is what the census reads.
+    redirectDamage: "neutral",
     becomeMonarch: "beneficial",
     grantCastFromExile: "beneficial",
     grantCastFromGraveyard: "beneficial",

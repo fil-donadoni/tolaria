@@ -539,12 +539,25 @@ const SHIELD_DAMAGE_EFFECT_KIND: Record<
     "to-self-redirect-to-owner": "redirection",
     "reflect-to-source-controller": "other",
     "from-source-to-permanent-redirect": "redirection",
+    "next-n-to-recipient-redirect": "redirection",
+};
+
+/** CR 614.9 (issue #3810) — the un-redirected REMAINDER of a split damage
+ *  event. `next-n-to-recipient-redirect` carries a points budget, so an event
+ *  larger than what is left splits in two: the budget is redirected (it rides
+ *  the returned event, so it goes through the caller's full CR 615 →
+ *  CR 702.16e → application pipeline) and this is what is still dealt to the
+ *  ORIGINAL recipient. The out-parameter shape keeps the function's own return
+ *  type — the one every existing caller and test reads — unchanged. */
+export type TransientRedirectionResidual = {
+    residuals: { target: DamageReplacementEvent["target"]; amount: number }[];
 };
 
 export function applyTransientDamageRedirections(
     state: GameState,
     event: DamageReplacementEvent,
-    locks: DamageLocks = NO_DAMAGE_LOCKS
+    locks: DamageLocks = NO_DAMAGE_LOCKS,
+    residualOut?: TransientRedirectionResidual
 ): DamageReplacementEvent | null {
     const shields = state.damageRedirections;
     if (!shields || shields.length === 0) return event;
@@ -708,6 +721,65 @@ export function applyTransientDamageRedirections(
                 }
                 if (sh.remaining - 1 > 0) {
                     kept.push({ ...sh, remaining: sh.remaining - 1 });
+                }
+                continue;
+            }
+            kept.push(sh);
+        } else if (sh.kind === "next-n-to-recipient-redirect") {
+            if (
+                current.target.type === sh.from.type &&
+                current.target.id === sh.from.id &&
+                sh.remaining > 0 &&
+                current.amount > 0
+            ) {
+                // CR 614.9 — "If one of those permanents is no longer on the
+                // battlefield when the damage would be redirected, or is no
+                // longer a battle, creature, or planeswalker when the damage
+                // would be redirected, the effect does nothing." Captain's
+                // Maneuver's own ruling spells out the consequence: "the
+                // damage is dealt to the first target as if this spell was not
+                // cast". The budget is a points budget spent only on damage
+                // actually MOVED, so an effect that does nothing spends
+                // nothing — unlike the sibling charge-counting shields above,
+                // which spend the "next time" either way.
+                if (sh.redirectTo.type === "permanent") {
+                    const destCard = findOnBattlefieldAnywhere(
+                        state,
+                        sh.redirectTo.id
+                    );
+                    if (
+                        destCard === undefined ||
+                        !isDamageablePermanent(destCard)
+                    ) {
+                        kept.push(sh);
+                        continue;
+                    }
+                }
+                // The budget is DAMAGE POINTS, not a charge (CR 615.7's
+                // vocabulary on the prevention side, which this mirrors): an
+                // event bigger than what is left splits. The redirected half
+                // rides `current`, so it goes through the caller's whole
+                // CR 615 → protection → application pipeline against the NEW
+                // recipient; the remainder is handed back through
+                // `residualOut` for the caller to deal to the original one.
+                const moved = Math.min(current.amount, sh.remaining);
+                const residual = current.amount - moved;
+                if (residual > 0 && residualOut !== undefined) {
+                    // A LIST, not one slot: a second shield keyed on this
+                    // shield's DESTINATION can split the moved half again, and
+                    // the two remainders land on different recipients.
+                    residualOut.residuals.push({
+                        target: current.target,
+                        amount: residual,
+                    });
+                }
+                current = {
+                    ...current,
+                    target: sh.redirectTo,
+                    amount: moved,
+                };
+                if (sh.remaining - moved > 0) {
+                    kept.push({ ...sh, remaining: sh.remaining - moved });
                 }
                 continue;
             }

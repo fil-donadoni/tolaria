@@ -1359,6 +1359,27 @@ export function applyAllCombatDamage(
             unredirectable
         );
         if (!repl) return;
+        // CR 614.9 (issue #3810) — a recipient-keyed redirect whose points
+        // budget was smaller than this hit split it: the remainder is still
+        // combat damage from the same creature to the original recipient, so
+        // it re-enters this same helper and gets every gate above. The
+        // splitting shield was decremented before it returned, so this
+        // terminates.
+        for (const rest of repl.residuals ?? []) {
+            // Only the two damageable selection types can be a residual (a
+            // shield is built from damage recipients), but `TargetSelection`
+            // spans five — narrow rather than cast.
+            if (
+                rest.target.type !== "player" &&
+                rest.target.type !== "permanent"
+            )
+                continue;
+            applyOneCombatDamage(
+                source,
+                { type: rest.target.type, id: rest.target.id },
+                rest.amount
+            );
+        }
         const finalTarget = repl.target;
         const finalAmount = repl.amount;
         if (finalAmount <= 0) return;
@@ -2951,6 +2972,7 @@ const TURN_SCOPED_GLOBAL_FLAGS = [
     // Mantle, Falling Timber, Guard Dogs, Radiant Kavu, Rith's Charm). An
     // unconsumed shield is a "this turn" effect.
     "sourcePreventionShields",
+    "recipientPreventionShields",
     // CR 614.6 / 514.2 — Kjeldoran Royal Guard redirects unblocked combat
     // damage "this turn", which spans every combat phase of that turn.
     "combatDamageRedirectToPermanent",
