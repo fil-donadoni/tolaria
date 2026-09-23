@@ -139,6 +139,13 @@ export type StaticClauseIR =
           readonly counters?: { readonly type: string; readonly count: number };
       }
     /**
+     * CR 614.1c / 614.12a / 205.3m — "As this creature enters, choose a
+     * creature type": a choice made BEFORE the permanent enters, over the
+     * whole CR 205.3m creature-type list, kept on the permanent for the
+     * abilities that read "the chosen type" (CR 607.2d).
+     */
+    | { readonly kind: "as-enters-choose-creature-type" }
+    /**
      * CR 614.1c / 702.33e — "If this creature was kicked, it enters with N
      * <kind> counters on it" (`per: "kicked"`) and "This creature enters with
      * N <kind> counters on it for each time it was kicked" (`per: "each-kick"`,
@@ -832,6 +839,26 @@ const entersTappedWithCounters: Rule<StaticClauseIR> = pattern(
     }
 );
 
+// ── Frame: as-enters creature-type choice (CR 614.1c / 614.12a) ────────────
+
+const AS_ENTERS_CHOOSE_CREATURE_TYPE =
+    /^As (.+) enters, choose a creature type$/;
+
+/**
+ * "As <self> enters, choose a creature type" — CR 614.12a's replacement, made
+ * as the permanent enters. Anchored on the WHOLE sentence: a tail ("other than
+ * Wall", "that isn't …") or a different choice ("a color") is another form and
+ * refuses here, never reads as the plain one.
+ */
+const asEntersChooseCreatureType: Rule<StaticClauseIR> = pattern(
+    "as enters choose a creature type",
+    AS_ENTERS_CHOOSE_CREATURE_TYPE,
+    (match): RuleResult<StaticClauseIR> =>
+        isSelfPhrase(uncapitalise(match[1]!))
+            ? ok({ kind: "as-enters-choose-creature-type" as const })
+            : fail(`"${match[1]}" is not this permanent (CR 109.2)`, match[1]!)
+);
+
 // ── Frame: kicked entry riders (CR 614.1c / 702.33e) ───────────────────────
 
 const KICKED_ENTERS_WITH =
@@ -1350,6 +1377,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         castPermissionRule,
         entersTappedPlain,
         entersTappedWithCounters,
+        asEntersChooseCreatureType,
         kickedEntersWithRule,
         entersWithEachKickRule,
         doesNotUntapRule,

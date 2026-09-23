@@ -46,6 +46,7 @@ import type { CompiledDefinition, OracleCard, ParsedTypeLine } from "./types";
 import type { LineParse, SlotIR } from "./grammar/ir";
 import type { EffectSentenceIR } from "./grammar/shared/effectClause";
 import { keywordVocabulary } from "./grammar/shared/keywordVocabulary";
+import { CREATURE_SUBTYPES } from "./grammar/shared/subtypes";
 
 export type LowerResult =
     | {
@@ -75,6 +76,8 @@ interface Accumulator {
     compiledStaticEffects: CompiledStaticEffect[];
     entersTapped: boolean;
     drawStepReplacement: boolean;
+    /** CR 614.12a — the "as this enters, choose a creature type" lines read. */
+    asEntersCreatureTypeLines: string[];
     entersWithCounters: {
         type: string;
         count: number | "kicker" | { additionalCostPaid: string };
@@ -444,6 +447,14 @@ function lowerLine(
             if (out.entersTapped === true) acc.entersTapped = true;
             if (out.drawStepReplacement === true)
                 acc.drawStepReplacement = true;
+            if (out.asEntersCreatureType === true) {
+                // Two such lines are two choices; `entersWith.asEnters` would
+                // ask both, but "the chosen type" (CR 607.2d) could no longer
+                // say which one it reads — refuse rather than guess.
+                if (acc.asEntersCreatureTypeLines.length > 0)
+                    return "a card declares an as-enters creature-type choice twice";
+                acc.asEntersCreatureTypeLines.push(parsed.line);
+            }
             if (out.entersWithCounters !== undefined)
                 acc.entersWithCounters.push(out.entersWithCounters);
             if (out.kickerCounters !== undefined) {
@@ -604,6 +615,7 @@ export function lowerCard(
         compiledStaticEffects: [],
         entersTapped: false,
         drawStepReplacement: false,
+        asEntersCreatureTypeLines: [],
         entersWithCounters: [],
         kickerRiders: [],
         plannedMechanics: [],
@@ -730,8 +742,28 @@ export function lowerCard(
             };
     }
     if (acc.kickers !== undefined) definition.kickers = acc.kickers;
-    if (acc.entersWithCounters.length > 0)
-        definition.entersWith = { counters: acc.entersWithCounters };
+    if (
+        acc.entersWithCounters.length > 0 ||
+        acc.asEntersCreatureTypeLines.length > 0
+    )
+        definition.entersWith = {
+            ...(acc.entersWithCounters.length > 0
+                ? { counters: acc.entersWithCounters }
+                : {}),
+            // CR 614.12a / 205.3m — the whole creature-type list, the shape
+            // the hand-written catalogue declares (Brass Herald).
+            ...(acc.asEntersCreatureTypeLines.length > 0
+                ? {
+                      asEnters: [
+                          {
+                              kind: "subtypes" as const,
+                              from: [...CREATURE_SUBTYPES],
+                              count: 1,
+                          },
+                      ],
+                  }
+                : {}),
+        };
     // CR 113.3a — the spell site. `modes` and `effects` are mutually exclusive
     // by construction (one `lowerLine` case writes each, and a line of the
     // other kind fails the card), which is also what `validateEffectScript`
