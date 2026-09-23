@@ -585,6 +585,28 @@ describe("backlog-triage — `## Band: none`, the declined verdict (issue #4407)
         const issues = [issue(1, { ruling: declined() })];
         expect(planClear(issues, index, { 1: "P0" })).toEqual([]);
     });
+
+    it("mixes with an ordinary residue cascade in ONE call — a declined row is not deferred to a later pass", () => {
+        // #10 declined, unrelated to the residue chain. #20 residue, its
+        // stale P2 lends to #21 (parent source) until #20 is blanked, at
+        // which point #21 falls to residue too — the SAME fixed-point run
+        // that blanks #10.
+        const issues = [
+            issue(10, { ruling: declined() }),
+            issue(20, { labels: ["prd"] }),
+            issue(21, { parent: 20, labels: ["prd"] }),
+        ];
+        const board: Record<number, BoardPriority> = {
+            10: "P2",
+            20: "P2",
+            21: "P2",
+        };
+        const clears = planClear(issues, index, board);
+        expect(clears.map((c) => c.number)).toEqual([10, 20, 21]);
+        const left = { ...board };
+        for (const c of clears) delete left[c.number];
+        expect(planClear(issues, index, left)).toEqual([]);
+    });
 });
 
 describe("backlog-triage — labelBand, the residue default table (issue #4231)", () => {
@@ -865,11 +887,12 @@ describe("backlog-triage — parseBand (issue #4230)", () => {
         });
     });
 
-    it("`none — <reason>` (issue #4407), case-insensitive, is the `declined` ruling", () => {
+    it("`none — <reason>` (issue #4407), case-insensitive, bare or as a list item, is the `declined` ruling", () => {
         for (const line of [
             "none — off the road",
             "NONE — off the road",
             "None — off the road",
+            "- none — off the road",
         ])
             expect(parseBand(5, body(line))).toEqual({
                 ruling: { band: "none", reason: "off the road" },
