@@ -303,7 +303,20 @@ function isCardFilter(
     const rejectManaCostEquals = opts?.rejectManaCostEquals ?? false;
     const entries = Object.entries(value);
     return entries.every(([k, v]) => {
-        if (k === "type" || k === "subtype" || k === "excludeType") {
+        if (k === "type" || k === "excludeType") {
+            return isValueOrArray(
+                v,
+                (m) => typeof m === "string" && m.length > 0
+            );
+        }
+        // CR 205.3 (issue #3721) — `subtype` additionally accepts a bare
+        // `{ ref: "$binding" }` naming a `chooseCreatureType` Op's chosen-type
+        // binding (Tsabo's Decree). Shape only here, exactly as `name`'s own
+        // ref form is: the binding's EXISTENCE and FAMILY are checked by the
+        // ordered ref pass, which is the only pass that can see the Ops before
+        // this one.
+        if (k === "subtype") {
+            if (isBareRef(v)) return true;
             return isValueOrArray(
                 v,
                 (m) => typeof m === "string" && m.length > 0
@@ -6080,77 +6093,90 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                         // position may accept. See `RefUse.kind`.
                         keyHint === "name"
                         ? "name"
-                        : // `counter.target` (issue #3206) — routed here under
-                          // a SYNTHETIC key by the per-entry walk, because the
-                          // bare key `target` is shared by a dozen Ops that all
-                          // mean a battlefield object. See its collection site.
-                          keyHint === "counterTarget"
-                          ? "stack-object"
-                          : keyHint === "target" ||
-                              keyHint === "to" ||
-                              keyHint === "of" ||
-                              // `dealDamage.to`'s `{ attackTargetOf }` (issue
-                              // #3244) — names the ATTACKING CREATURE, an
-                              // `EffectObjectSelector` exactly like `target`.
-                              keyHint === "attackTargetOf" ||
-                              // `choice`'s `candidates[]` (Barrin's Spite) — the
-                              // already-known battlefield objects the pick is
-                              // narrowed to, each an `EffectObjectSelector`
-                              // exactly like `target`.
-                              keyHint === "candidates" ||
-                              // `createTokenCopy`'s `source` (issue #1459) — the
-                              // runtime permanent being copied, an
-                              // `EffectObjectSelector` exactly like `target`
-                              // (Ocelot Pride's `{ ref: "$each" }`, issue #1461).
-                              // The only other `source` field in the vocabulary
-                              // (`moveZone`'s zone discriminator) is a string
-                              // literal, never a `{ ref }` object, so it never
-                              // reaches this branch.
-                              keyHint === "source" ||
-                              // `objectMatchesFilter` (issue #1747) — the live
-                              // object under test, an `EffectObjectSelector`
-                              // exactly like `target` (`{ ref: "$source" }` on
-                              // Figure of Destiny's stage gates).
-                              keyHint === "objectMatchesFilter" ||
-                              // `sharesColor` / `with` (issue #1955) — the two
-                              // objects whose live colours the Guard Dogs gate
-                              // intersects, each an `EffectObjectSelector` exactly
-                              // like `target`. No other field in the vocabulary is
-                              // named `with`.
-                              keyHint === "sharesColor" ||
-                              // `sameColors` (issue #3806) — `sharesColor`'s
-                              // set-equality twin, same two object-selector
-                              // positions, sharing the `with` row below.
-                              keyHint === "sameColors" ||
-                              keyHint === "with" ||
-                              // `targetMatchesGraveyardFilter` (issue #2385) — the
-                              // announced graveyard-zone target under test, an
-                              // `EffectObjectSelector` exactly like `target` /
-                              // `objectMatchesFilter`. Review finding: this row
-                              // was missing, so a `{ ref: "$each" }` here mis-tagged
-                              // as "number" and a forEach's `$each` form was
-                              // rejected as a malformed ref even though the predicate
-                              // routes it through the identical object-selector path
-                              // one line below (`collectRefUses(p.
-                              // targetMatchesGraveyardFilter, "targetMatchesGraveyardFilter", out)`).
-                              keyHint === "targetMatchesGraveyardFilter" ||
-                              // `addSubtype`'s `enchantRestriction.host` (CR
-                              // 303.4, issue #2471) — the ONE specific object the
-                              // granted enchant clause names ("enchant creature
-                              // put onto the battlefield with Necromancy"), an
-                              // `EffectObjectSelector` exactly like `target` and
-                              // resolved to an instance id at grant time. Same
-                              // omission class as `targetMatchesGraveyardFilter`
-                              // above: the slice that added the field shipped
-                              // with only a `{ target: n }` exerciser, and a
-                              // `{ ref: "$reanimated" }` host — the bound-ref
-                              // form the field's own doc comment describes — was
-                              // mis-tagged "number" and rejected as a malformed
-                              // ref (issue #2392). No other field in the
-                              // vocabulary is named `host`.
-                              keyHint === "host"
-                            ? "object"
-                            : "number",
+                        : // `EffectCardFilter.subtype` (issue #3721) — the
+                          // `chooseCreatureType` binding read back as the
+                          // chosen type. Routed to `picks`, NOT to `name`:
+                          // both are bare refs naming a picks-shaped
+                          // single-string binding, but `name` additionally
+                          // admits the reserved `$target<N>.name`, which is a
+                          // CARD NAME and names no subtype — accepting it here
+                          // would validate a filter that then matches nothing
+                          // at runtime, the silent shape this pass exists to
+                          // turn into an error. Without a row here the generic
+                          // walk calls a bare ref a NUMERIC position.
+                          keyHint === "subtype"
+                          ? "picks"
+                          : // `counter.target` (issue #3206) — routed here under
+                            // a SYNTHETIC key by the per-entry walk, because the
+                            // bare key `target` is shared by a dozen Ops that all
+                            // mean a battlefield object. See its collection site.
+                            keyHint === "counterTarget"
+                            ? "stack-object"
+                            : keyHint === "target" ||
+                                keyHint === "to" ||
+                                keyHint === "of" ||
+                                // `dealDamage.to`'s `{ attackTargetOf }` (issue
+                                // #3244) — names the ATTACKING CREATURE, an
+                                // `EffectObjectSelector` exactly like `target`.
+                                keyHint === "attackTargetOf" ||
+                                // `choice`'s `candidates[]` (Barrin's Spite) — the
+                                // already-known battlefield objects the pick is
+                                // narrowed to, each an `EffectObjectSelector`
+                                // exactly like `target`.
+                                keyHint === "candidates" ||
+                                // `createTokenCopy`'s `source` (issue #1459) — the
+                                // runtime permanent being copied, an
+                                // `EffectObjectSelector` exactly like `target`
+                                // (Ocelot Pride's `{ ref: "$each" }`, issue #1461).
+                                // The only other `source` field in the vocabulary
+                                // (`moveZone`'s zone discriminator) is a string
+                                // literal, never a `{ ref }` object, so it never
+                                // reaches this branch.
+                                keyHint === "source" ||
+                                // `objectMatchesFilter` (issue #1747) — the live
+                                // object under test, an `EffectObjectSelector`
+                                // exactly like `target` (`{ ref: "$source" }` on
+                                // Figure of Destiny's stage gates).
+                                keyHint === "objectMatchesFilter" ||
+                                // `sharesColor` / `with` (issue #1955) — the two
+                                // objects whose live colours the Guard Dogs gate
+                                // intersects, each an `EffectObjectSelector` exactly
+                                // like `target`. No other field in the vocabulary is
+                                // named `with`.
+                                keyHint === "sharesColor" ||
+                                // `sameColors` (issue #3806) — `sharesColor`'s
+                                // set-equality twin, same two object-selector
+                                // positions, sharing the `with` row below.
+                                keyHint === "sameColors" ||
+                                keyHint === "with" ||
+                                // `targetMatchesGraveyardFilter` (issue #2385) — the
+                                // announced graveyard-zone target under test, an
+                                // `EffectObjectSelector` exactly like `target` /
+                                // `objectMatchesFilter`. Review finding: this row
+                                // was missing, so a `{ ref: "$each" }` here mis-tagged
+                                // as "number" and a forEach's `$each` form was
+                                // rejected as a malformed ref even though the predicate
+                                // routes it through the identical object-selector path
+                                // one line below (`collectRefUses(p.
+                                // targetMatchesGraveyardFilter, "targetMatchesGraveyardFilter", out)`).
+                                keyHint === "targetMatchesGraveyardFilter" ||
+                                // `addSubtype`'s `enchantRestriction.host` (CR
+                                // 303.4, issue #2471) — the ONE specific object the
+                                // granted enchant clause names ("enchant creature
+                                // put onto the battlefield with Necromancy"), an
+                                // `EffectObjectSelector` exactly like `target` and
+                                // resolved to an instance id at grant time. Same
+                                // omission class as `targetMatchesGraveyardFilter`
+                                // above: the slice that added the field shipped
+                                // with only a `{ target: n }` exerciser, and a
+                                // `{ ref: "$reanimated" }` host — the bound-ref
+                                // form the field's own doc comment describes — was
+                                // mis-tagged "number" and rejected as a malformed
+                                // ref (issue #2392). No other field in the
+                                // vocabulary is named `host`.
+                                keyHint === "host"
+                              ? "object"
+                              : "number",
         });
         return;
     }
