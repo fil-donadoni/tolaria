@@ -168,7 +168,22 @@ export function handCardMatchesFilter(
         excludeTypes.some((t) => defTypes.includes(t))
     )
         return false;
-    const subtypes = asArray(filter.subtype);
+    // CR 205.3 (issue #3721) — `subtype`'s DYNAMIC shape (`{ ref }`) names a
+    // `chooseCreatureType` binding that only exists on a RESOLVING stack item,
+    // and this matcher takes a registry `CardDefinition`, not a
+    // `SpellContext`. Refuse the card rather than skip the field — skipping is
+    // this function's documented fail-OPEN shape, and here it would match the
+    // whole hand. Same guard, same reason as `color`'s just below; no shipped
+    // card reaches a discard COST with the dynamic form.
+    if (
+        filter.subtype !== undefined &&
+        !Array.isArray(filter.subtype) &&
+        typeof filter.subtype !== "string"
+    ) {
+        return false;
+    }
+    const literalSubtypes: string | string[] | undefined = filter.subtype;
+    const subtypes = asArray(literalSubtypes);
     if (
         subtypes !== undefined &&
         !subtypes.some((s) => defSubtypes.includes(s))

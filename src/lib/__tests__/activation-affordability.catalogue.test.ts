@@ -82,7 +82,15 @@ function findMatchingCardId(filter: EffectCardFilter): string {
     const asArray = <T>(v: T | T[] | undefined): T[] | undefined =>
         v === undefined ? undefined : Array.isArray(v) ? v : [v];
     const types = asArray(filter.type);
-    const subtypes = asArray(filter.subtype);
+    // issue #3721 — a discard COST filter never carries the dynamic
+    // `{ ref }` subtype (no resolving stack item exists at cost time;
+    // `handCardMatchesFilter` refuses it outright), so this fixture builder
+    // reads the literal form only.
+    const literalSubtypes: string | string[] | undefined =
+        typeof filter.subtype === "object" && !Array.isArray(filter.subtype)
+            ? undefined
+            : filter.subtype;
+    const subtypes = asArray(literalSubtypes);
     const found = getAllCards().find((d) => {
         if (types !== undefined && !types.some((t) => d.types.includes(t))) {
             return false;
