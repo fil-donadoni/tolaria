@@ -160,7 +160,19 @@ export type ContinuousEffectInlinePayload =
           remove?: CardType[];
           set?: CardType[];
       }
-    | { kind: "subtype-change"; add?: string[]; set?: string[] }
+    | {
+          kind: "subtype-change";
+          add?: string[];
+          set?: string[];
+          /** CR 205.1a (issue #3809) — the subtype FAMILY a `set` replaces.
+           *  `"creature"` replaces only creature types (every other subtype
+           *  survives); absent keeps the pre-existing behaviour (wholesale on
+           *  a non-land, the CR 305.7 land-type narrowing on a land). An
+           *  explicit declaration, never inferred from the set's contents:
+           *  Oko's "becomes a 3/3 Elk" relies on the wholesale replace to drop
+           *  the Food type correlated to the card type it removed. */
+          family?: "creature";
+      }
     | {
           kind: "supertype-change";
           add?: CardSupertype[];

@@ -35,10 +35,12 @@ import {
     isRegisteredEffectOp,
 } from "../../cards/mechanicsRegistry";
 import type { EventFieldRow } from "../../cards/eventFields";
+import { CREATURE_SUBTYPES } from "../../oracle/grammar/shared/subtypes";
 import {
     isReservedTargetBinding,
     parseSnapshotNameRef,
     parseTargetNameRef,
+    SOURCE_CHOSEN_SUBTYPE_REF,
 } from "./targetRef";
 
 /** The slice of CardDefinition the validator reads — kept narrow so tests
@@ -316,7 +318,7 @@ function isCardFilter(
         // ordered ref pass, which is the only pass that can see the Ops before
         // this one.
         if (k === "subtype") {
-            if (isBareRef(v)) return true;
+            if (isBareRef(v) || isSourceChosenSubtypeRef(v)) return true;
             return isValueOrArray(
                 v,
                 (m) => typeof m === "string" && m.length > 0
@@ -2405,6 +2407,20 @@ function isBareRef(value: unknown): boolean {
     );
 }
 
+/** CR 607.2d (issue #3809) — the reserved `$source.chosenSubtype` ref, SHAPE
+ *  only: legal in a subtype position (`EffectCardFilter.subtype`,
+ *  `setSubtype.subtypes`) and nowhere else, which the ordered ref pass's
+ *  `subtype` kind enforces. */
+function isSourceChosenSubtypeRef(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    return (
+        keys.length === 1 &&
+        keys[0] === "ref" &&
+        (value as { ref: unknown }).ref === SOURCE_CHOSEN_SUBTYPE_REF
+    );
+}
+
 /** Alias for readability at picks positions (`discard.cards`,
  *  `sacrifice.permanents`). */
 const isBarePicksRef = isBareRef;
@@ -3497,6 +3513,14 @@ const DELAYED_TIMINGS = new Set([
     // `targetPlayer`, dequeued by firing, purged at CLEANUP (the "this turn"
     // bound, CR 514.2).
     "attacks-unblocked",
+    // Instance becomes-blocked-by watch (CR 509.3d, issue #3809) — fires once
+    // per creature blocking the WATCHED permanent ("Whenever this creature
+    // becomes blocked by a creature of that color this turn", Zombie Boa).
+    // Instance-scoped (requires `watch`, rejects `targetPlayer`) but
+    // REPEATING like "this-turn-creature-blocks" — its body reads the live
+    // `$event` (checked below) — and purged at CLEANUP. The only timing that
+    // accepts `blockerColors`.
+    "becomes-blocked-by",
 ]);
 
 function isDelayedTiming(value: unknown): boolean {
@@ -4756,9 +4780,31 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     setSubtype: {
         required: {
             target: isObjectSelector,
-            subtypes: (v) => isStringArray(v),
+            // issue #3809 — or a bare `{ ref }`: a chosen type ("becomes
+            // that type", Unnatural Selection). Binding existence and family
+            // are checked by the ordered ref pass (a `subtype` position).
+            subtypes: (v) =>
+                isBareRef(v) || isSourceChosenSubtypeRef(v) || isStringArray(v),
+        },
+        check: (entry) => {
+            const errors: string[] = [];
+            // issue #3809 — the family is carried by the timed ledger row
+            // only; the indefinite `setSubtypes` path has no family slot.
+            if ("family" in entry && !("duration" in entry)) {
+                errors.push('field "family" requires "duration"');
+            }
+            // A chosen type is a CREATURE type (CR 205.3m): a `{ ref }` list
+            // must declare the family so the runtime keeps only real
+            // creature types and replaces only that family (CR 205.1a).
+            if (!Array.isArray(entry.subtypes) && entry.family !== "creature") {
+                errors.push(
+                    'a { ref } "subtypes" requires family: "creature" (CR 205.1a)'
+                );
+            }
+            return errors;
         },
         optional: {
+            family: (v) => v === "creature",
             // CR 611.2b (issue #1746) — omitted REPLACES the subtypes
             // INDEFINITELY (Figure of Destiny's staged respec).
             duration: isDurationSpec,
@@ -5764,6 +5810,18 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             capture: isCaptureMap,
             targetPlayer: isPlayerRef,
             watch: isObjectSelector,
+            // CR 509.3d (issue #3809) — a non-empty list of the five colours.
+            blockerColors: (v) =>
+                Array.isArray(v) &&
+                v.length > 0 &&
+                v.every(
+                    (c) =>
+                        c === "W" ||
+                        c === "U" ||
+                        c === "B" ||
+                        c === "R" ||
+                        c === "G"
+                ),
         },
         check: (entry) => {
             const errors: string[] = [];
@@ -5798,7 +5856,8 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
                 entry.timing === "leaves-battlefield" ||
                 entry.timing === "leaves-battlefield-indefinite" ||
                 entry.timing === "dies" ||
-                entry.timing === "attacks-unblocked";
+                entry.timing === "attacks-unblocked" ||
+                entry.timing === "becomes-blocked-by";
             if (instanceScoped && !("watch" in entry)) {
                 errors.push(
                     `timing "${String(entry.timing)}" is instance-scoped (CR 603.7a) — field "watch" is required`
@@ -5806,7 +5865,17 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             }
             if (!instanceScoped && "watch" in entry) {
                 errors.push(
-                    `field "watch" is only valid with the instance-scoped timings "leaves-battlefield" / "leaves-battlefield-indefinite" / "dies" / "attacks-unblocked"`
+                    `field "watch" is only valid with the instance-scoped timings "leaves-battlefield" / "leaves-battlefield-indefinite" / "dies" / "attacks-unblocked" / "becomes-blocked-by"`
+                );
+            }
+            // CR 509.3d (issue #3809) — the blocker condition only has a
+            // blocker to read on the becomes-blocked-by watch.
+            if (
+                "blockerColors" in entry &&
+                entry.timing !== "becomes-blocked-by"
+            ) {
+                errors.push(
+                    'field "blockerColors" is only valid with timing "becomes-blocked-by"'
                 );
             }
             return errors;
@@ -5914,13 +5983,25 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
     // CR 205.3m (issue #3721) — "Choose a creature type." during resolution.
     // `bind` is REQUIRED, exactly as it is on `nameCard`: the chosen type is
     // the whole product of the Op, and a choice nothing reads back is a
-    // prompt with no effect. No `restriction` field: CR 205.3m's table is the
-    // whole legal space and no printed card narrows it.
+    // prompt with no effect. CR 205.3m's table is the whole legal space,
+    // narrowed only by `exclude` below.
     chooseCreatureType: {
         required: {
             player: isPlayerRef,
             prompt: isNonEmptyString,
             bind: isBindingName,
+        },
+        // CR 205.3m (issue #3809) — "a creature type other than Wall"
+        // (Unnatural Selection). Each entry must itself be a creature type
+        // from CR 205.3m's table: excluding a non-type excludes nothing,
+        // which is a definition bug the validator should name.
+        optional: {
+            exclude: (v) =>
+                Array.isArray(v) &&
+                v.length > 0 &&
+                v.every(
+                    (t) => typeof t === "string" && CREATURE_SUBTYPES.has(t)
+                ),
         },
     },
     // CR 701.20a reveal / CR 401.4 look (issue #1085) — deterministic sibling
@@ -6022,6 +6103,11 @@ interface RefUse {
         | "boolean"
         | "object"
         | "name"
+        /** A SUBTYPE position (`EffectCardFilter.subtype`, issue #3721;
+         *  `setSubtype.subtypes`, issue #3809): a bare picks-shaped
+         *  `chooseCreatureType` binding, OR the reserved
+         *  `$source.chosenSubtype` — which no other position may accept. */
+        | "subtype"
         /** `counter.target` (issue #3206) — a SPELL on the stack, not a
          *  battlefield permanent. Its own position because the two are
          *  resolved by different functions with different presence rechecks
@@ -6104,8 +6190,12 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                           // at runtime, the silent shape this pass exists to
                           // turn into an error. Without a row here the generic
                           // walk calls a bare ref a NUMERIC position.
-                          keyHint === "subtype"
-                          ? "picks"
+                          // Its own `subtype` kind (issue #3809) so the
+                          // reserved `$source.chosenSubtype` is accepted
+                          // here and nowhere else; `setSubtype.subtypes`
+                          // shares it.
+                          keyHint === "subtype" || keyHint === "subtypes"
+                          ? "subtype"
                           : // `counter.target` (issue #3206) — routed here under
                             // a SYNTHETIC key by the per-entry walk, because the
                             // bare key `target` is shared by a dozen Ops that all
@@ -6639,6 +6729,13 @@ function checkRefUse(
     if (use.kind === "name" && parseTargetNameRef(use.ref) !== null) {
         return;
     }
+    // Subtype position (issue #3809) — the reserved `$source.chosenSubtype`
+    // (CR 607.2d: the type chosen as the source entered) is read off the
+    // source by the interpreter, never from the binding store, so nothing
+    // declares it. Every other subtype ref is a bare picks binding below.
+    if (use.kind === "subtype" && use.ref === SOURCE_CHOSEN_SUBTYPE_REF) {
+        return;
+    }
     // `EffectCardFilter.name` (issue #2711) — the OTHER property-path ref a
     // `name` position accepts: `$<binding>.name`, the CR 608.2h last-known name
     // of an object SNAPSHOT binding. Unlike `$target<N>.name` this one DOES
@@ -6673,7 +6770,12 @@ function checkRefUse(
     // (#806, an `if` predicate), and the non-reserved half of a `name`
     // position (a `nameCard` / `choice` binding, issues #1085 / #1104 —
     // stored as picks).
-    if (use.kind === "picks" || use.kind === "boolean" || use.kind === "name") {
+    if (
+        use.kind === "picks" ||
+        use.kind === "boolean" ||
+        use.kind === "name" ||
+        use.kind === "subtype"
+    ) {
         if (use.ref.includes(".")) {
             errors.push(
                 `${at}: ${use.kind} ref "${use.ref}" must be a bare binding name (no property path)`
@@ -7327,8 +7429,11 @@ function checkOpListRefs(
             // timing's body runs at a phase boundary / after the watched
             // permanent already left, so `$event` stays illegal there (ADR
             // 0049) — `inDelayedBody` flips on for those.
+            // "becomes-blocked-by" (issue #3809) is the third: it fires per
+            // BLOCKERS_CONFIRMED pair and threads that event the same way.
             const eventBody =
                 entry.timing === "this-turn-creature-blocks" ||
+                entry.timing === "becomes-blocked-by" ||
                 entry.timing === "until-next-turn-creature-attacks-you";
             const liveEventType =
                 entry.timing === "until-next-turn-creature-attacks-you"

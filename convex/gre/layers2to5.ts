@@ -67,7 +67,11 @@
 import { tryGetDefinition } from "../cards";
 import { declaresLayer2to5StaticEffect } from "../cards/registry";
 import { tryGetEmblemDefinition } from "../cards/emblems";
-import { applyLandTypeReplacement, sameOrder } from "./constants";
+import {
+    applyCreatureTypeReplacement,
+    applyLandTypeReplacement,
+    sameOrder,
+} from "./constants";
 import { compareContinuousEffects } from "./continuousEffects";
 import type { DependencyTemplate } from "./dependency";
 import { CDA_STATIC_EFFECT_KINDS } from "./dependency";
@@ -761,6 +765,7 @@ function finishEffectsFor(
             payload: {
                 kind: "subtype-change",
                 set: [...temporarySet.subtypes],
+                ...(temporarySet.family ? { family: temporarySet.family } : {}),
             },
             characteristicDefining: false,
         });
@@ -873,6 +878,8 @@ type Layer2to5Action =
           kind: "subtype-change";
           add?: readonly string[];
           set?: readonly string[];
+          /** CR 205.1a (issue #3809) — see `ContinuousEffect`'s payload. */
+          family?: "creature";
       }
     | {
           kind: "supertype-change";
@@ -1120,16 +1127,24 @@ export function deriveLayers2to5(
             case "subtype-change": {
                 const attribution = attributionOf(entry);
                 if (action.set) {
+                    // CR 205.1a (issue #3809) — a set DECLARED creature-family
+                    // replaces only the creature types: a land creature keeps
+                    // its land types, an artifact creature its artifact
+                    // types. Declared, never inferred from the set's
+                    // contents — Oko's Elk (a creature-type list with no
+                    // family) needs the wholesale replace to drop a Food's
+                    // correlated artifact type.
                     // CR 305.7 (issue #1883) — a set on a LAND replaces only
                     // the land types; a subtype belonging to another card type
-                    // (Saga on `Enchantment Land — Urza's Saga`) survives. A
-                    // non-land target has no CR 305.7 analogue and keeps the
-                    // wholesale replace.
-                    result.subtypes = result.types.includes("Land")
-                        ? applyLandTypeReplacement(result.subtypes, [
-                              ...action.set,
-                          ])
-                        : [...action.set];
+                    // (Saga on `Enchantment Land — Urza's Saga`) survives. Any
+                    // other set keeps the wholesale replace.
+                    const set = [...action.set];
+                    result.subtypes =
+                        action.family === "creature"
+                            ? applyCreatureTypeReplacement(result.subtypes, set)
+                            : result.types.includes("Land")
+                              ? applyLandTypeReplacement(result.subtypes, set)
+                              : set;
                     result.grantedSubtypes.push({
                         subtypes: [...action.set],
                         sourceId: attribution,

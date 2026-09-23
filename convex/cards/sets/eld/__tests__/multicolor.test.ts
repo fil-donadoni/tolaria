@@ -157,6 +157,22 @@ describe("Oko, Thief of Crowns — +1 elk-ification (CR 611.2c, layers 4/5/6/7b)
         expect(getEffectiveToughness(state, after)).toBe(3);
     });
 
+    it("CR 205.1a — an elk-ified FOOD loses its Food type: the Elk line replaces the whole subtype line (issue #3809 regression)", () => {
+        // +2 makes the Food, +1 targets it — the standard Oko line.
+        const state = board(
+            makeInstance(BEARS, { id: "bystander", controllerId: "p2" })
+        );
+        activate(state, PLUS2);
+        const food = state.players[0].battlefield.find((c) => c.id !== "oko1")!;
+        expect(food.subtypes).toEqual(["Food"]);
+        activate(state, PLUS1, [{ type: "permanent", id: food.id }]);
+        const after = find(state, food.id);
+        expect(after.types).toEqual(["Creature"]);
+        // A creature-type-only narrowing would leave `Food Elk`, and a
+        // "sacrifice a Food" cost would still accept it.
+        expect(after.subtypes).toEqual(["Elk"]);
+    });
+
     it("a +1/+1 counter still applies ON TOP of the base 3/3 (CR 613.4 — 7b then 7c)", () => {
         const state = board(
             makeInstance(BEARS, { id: "victim", controllerId: "p2" })

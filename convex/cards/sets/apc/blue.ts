@@ -92,3 +92,56 @@ export const whirlpoolWarrior: CardDefinition = {
         },
     ],
 };
+
+// Unnatural Selection — {1}{U} Enchantment (issue #3809). "{1}: Choose a
+// creature type other than Wall. Target creature becomes that type until end
+// of turn."
+//
+// The resolution-time `chooseCreatureType` Op (CR 205.3m, issue #3721) with
+// `exclude: ["Wall"]` — Wall is simply not offered, so the server's submit
+// check refuses it too — binds `$type`, which `setSubtype` reads back as its
+// replacement list. The target is announced on activation (CR 602.2b) and the
+// type is chosen on resolution, in Oracle order.
+//
+// "Becomes that type" SETS the creature type (CR 205.1a): `family:
+// "creature"` makes the new type replace the creature's existing CREATURE
+// types only, so a land creature keeps its land types and an artifact
+// creature its artifact types (`applyCreatureTypeReplacement`, layer 4), and
+// it reverts at end of turn (CR 611.2, `setSubtypesUntil`).
+//
+// compiler-gap: {1}: Choose a creature type other than Wall. Target creature becomes that type until end of turn. (#2693)
+export const unnaturalSelection: CardDefinition = {
+    id: "c575e2cb-3990-4c73-b81c-e16311ec6bbb", // APC 32
+    name: "Unnatural Selection",
+    rarity: "rare",
+    oracleText:
+        "{1}: Choose a creature type other than Wall. Target creature becomes that type until end of turn.",
+    manaCost: { X: 1, U: 1 },
+    types: ["Enchantment"],
+    activatedAbilities: [
+        {
+            id: "unnatural-selection-retype",
+            oracleText:
+                "{1}: Choose a creature type other than Wall. Target creature becomes that type until end of turn.",
+            cost: { mana: { X: 1 } },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [
+                {
+                    op: "chooseCreatureType",
+                    player: "controller",
+                    prompt: "Choose a creature type other than Wall.",
+                    bind: "$type",
+                    exclude: ["Wall"],
+                },
+                {
+                    op: "setSubtype",
+                    target: { target: 0 },
+                    subtypes: { ref: "$type" },
+                    family: "creature",
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+        },
+    ],
+};

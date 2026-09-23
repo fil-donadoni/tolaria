@@ -19,6 +19,7 @@ import type { MatchablePermanent } from "../cards/filters";
 import { liveSupertypesOf } from "../cards/snowReads";
 import { LANDWALK_KEYWORD_BY_BASIC_TYPE } from "../cards/types";
 import type { ManaRestriction } from "./types";
+import { CREATURE_SUBTYPES } from "../oracle/grammar/shared/subtypes";
 import {
     NEVER_AUTO_PAYABLE_COST_LEGS as DERIVED_NEVER_AUTO_PAYABLE_COST_LEGS,
     type NeverAutoPayableCostLeg,
@@ -408,6 +409,25 @@ export function applyLandTypeReplacement(
     return [
         ...currentSubtypes.filter((s) => !LAND_TYPES.has(s)),
         ...newLandTypes,
+    ];
+}
+
+/** CR 205.1a (issue #3809) — "when an effect sets one or more of an object's
+ *  subtypes, the new subtype(s) replaces any existing subtypes FROM THE
+ *  APPROPRIATE SET". The creature-type twin of {@link applyLandTypeReplacement}:
+ *  every subtype that is a creature type (CR 205.3m's table) is dropped and
+ *  replaced by `newCreatureTypes`; every other subtype — a land type on a land
+ *  creature (Dryad Arbor's Forest), an artifact type (Equipment) — survives.
+ *
+ *  Callers gate on the set's DECLARED family (`family: "creature"`, Unnatural
+ *  Selection's "becomes that type") — never on what the set contains. */
+export function applyCreatureTypeReplacement(
+    currentSubtypes: readonly string[],
+    newCreatureTypes: readonly string[]
+): string[] {
+    return [
+        ...currentSubtypes.filter((s) => !CREATURE_SUBTYPES.has(s)),
+        ...newCreatureTypes,
     ];
 }
 
