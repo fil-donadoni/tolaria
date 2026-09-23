@@ -766,7 +766,12 @@ export interface TriageSummary {
 export function summarize(
     issues: readonly TriageIssue[],
     verdicts: ReadonlyMap<number, TriageVerdict>,
-    board: Readonly<Record<number, BoardPriority>>
+    board: Readonly<Record<number, BoardPriority>>,
+    /** Owned Target-keyed umbrellas (issue #4408) — `planUmbrellas(...).owned`.
+     *  An owned row's own `residue` verdict is read here (its Target's band
+     *  is its truth, not "nobody has looked"): it is reported in the umbrella
+     *  block only, so it must not inflate the residue count or `perCause`. */
+    umbrellaOwned: ReadonlySet<number> = new Set()
 ): TriageSummary {
     const perBand = Object.fromEntries(
         BANDS.map((b) => [b, { hold: 0, gain: 0, change: 0, unchanged: 0 }])
@@ -810,6 +815,9 @@ export function summarize(
             continue;
         }
         if (v.kind === "residue") {
+            // An owned umbrella's Target IS its band — reported once, in the
+            // umbrella block, never as "no source yields a band" (issue #4408).
+            if (umbrellaOwned.has(issue.number)) continue;
             residue.push({
                 number: issue.number,
                 title: issue.title,
@@ -863,14 +871,22 @@ export interface UmbrellaWrite extends BandWrite {
  * What the umbrella pass decided: `owned` is every OPEN Target-keyed umbrella
  * (the ordinary verdict path must not write these — the Target's band is their
  * truth, the parent-inherited one is not), `writes` the ones whose board value
- * is stale.
+ * is stale, `current` the ones already holding their Target's band (issue
+ * #4408) — reported, never written, so the umbrella block can show all 12
+ * without also inflating `writes` (which `planWrites` sends to the board
+ * verbatim).
  */
 export interface UmbrellaPlan {
     readonly owned: ReadonlySet<number>;
     readonly writes: readonly UmbrellaWrite[];
+    readonly current: readonly UmbrellaWrite[];
 }
 
-const NO_UMBRELLAS: UmbrellaPlan = { owned: new Set(), writes: [] };
+const NO_UMBRELLAS: UmbrellaPlan = {
+    owned: new Set(),
+    writes: [],
+    current: [],
+};
 
 /**
  * The Target-keyed slots of a family table (`BAND_UMBRELLAS`, issue #4212): one
@@ -905,15 +921,21 @@ export function planUmbrellas(
     bandOf: (targetId: string) => Band | null = targetBand
 ): UmbrellaPlan {
     const writes: UmbrellaWrite[] = [];
+    const current: UmbrellaWrite[] = [];
     for (const { number, family, targetId } of slots) {
         const band = bandOf(targetId);
         const from = board[number] ?? null;
-        if (band === null || from === "P0" || from === band) continue;
+        if (band === null || from === "P0") continue;
+        if (from === band) {
+            current.push({ number, band, from, family, targetId });
+            continue;
+        }
         writes.push({ number, band, from, family, targetId });
     }
     return {
         owned: new Set(slots.map((s) => s.number)),
         writes: writes.sort((a, b) => a.number - b.number),
+        current: current.sort((a, b) => a.number - b.number),
     };
 }
 
@@ -1022,7 +1044,8 @@ export function renderReport(
     written: readonly BandWrite[] | null = null,
     cardsResidue: readonly CardsResidue[] = [],
     bandResidue: readonly BandResidue[] = [],
-    umbrellaWrites: readonly UmbrellaWrite[] = []
+    umbrellaWrites: readonly UmbrellaWrite[] = [],
+    umbrellaCurrent: readonly UmbrellaWrite[] = []
 ): string {
     const header =
         written === null
@@ -1086,11 +1109,15 @@ export function renderReport(
         lines.push(`  #${r.issue}  ${r.line}  — ${r.reason}`);
     lines.push(
         "",
-        `## Target umbrellas (own Priority follows the Target's band; P0 slots never touched): ${umbrellaWrites.length} ${written === null ? "to write" : "written"}`
+        `## Target umbrellas (own Priority follows the Target's band; P0 slots never touched; apart from residue, never "nobody has looked"): ${umbrellaWrites.length + umbrellaCurrent.length} (${umbrellaWrites.length} ${written === null ? "to write" : "written"}, ${umbrellaCurrent.length} current)`
     );
     for (const w of umbrellaWrites)
         lines.push(
             `  #${w.number}  ${w.family} / ${w.targetId}  ${w.from ?? "unprioritized"} → ${w.band}`
+        );
+    for (const w of umbrellaCurrent)
+        lines.push(
+            `  #${w.number}  ${w.family} / ${w.targetId}  current ${w.band}`
         );
     return lines.join("\n");
 }

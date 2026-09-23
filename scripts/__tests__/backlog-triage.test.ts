@@ -1183,6 +1183,51 @@ describe("backlog-triage — summary", () => {
         expect(rest).toContain("#3 [board P2] off the road");
         expect(rest).not.toContain("orphan");
     });
+
+    // A Target-keyed umbrella (issue #4212) is a `prd` with no cards of its
+    // own — on the ordinary verdict path that is undeclared residue, but its
+    // Target's band IS its truth (issue #4408): "examined, banded elsewhere",
+    // not "nobody has looked".
+    it("excludes an owned umbrella's own residue verdict — a NOT-owned umbrella of the same shape still counts (issue #4408)", () => {
+        const issues = [
+            issue(50, { title: "[Umbrella] Grammar Rules", labels: ["prd"] }),
+            issue(51, { title: "[Umbrella] Scenario Gaps", labels: ["prd"] }),
+        ];
+        const verdicts = triage(issues, index, {}, 9999);
+        const s = summarize(issues, verdicts, {}, new Set([50]));
+        expect(s.residue).toEqual([
+            {
+                number: 51,
+                title: "[Umbrella] Scenario Gaps",
+                board: null,
+                cause: "undeclared",
+            },
+        ]);
+        expect(s.perCause).toEqual({ undeclared: 1, "off-road": 0 });
+    });
+
+    it("renderReport shows an owned-and-current umbrella once, in the umbrella block, never under residue (issue #4408)", () => {
+        const issues = [
+            issue(50, { title: "[Umbrella] Grammar Rules", labels: ["prd"] }),
+        ];
+        const verdicts = triage(issues, index, {}, 9999);
+        const s = summarize(issues, verdicts, {}, new Set([50]));
+        const current = [
+            {
+                number: 50,
+                band: "P1" as const,
+                from: "P1" as const,
+                family: "ops",
+                targetId: "premodern-metagame",
+            },
+        ];
+        const report = renderReport(s, null, [], [], [], current);
+        expect(report).toContain(
+            "residue (no source yields a band — stays unprioritized, the owner rules): 0"
+        );
+        expect(report).toContain("#50  ops / premodern-metagame  current P1");
+        expect(report).toContain("1 current");
+    });
 });
 
 // ── The I/O half: reads only ─────────────────────────────────────────────
@@ -1531,6 +1576,40 @@ describe("backlog-triage — Target-keyed umbrellas follow their Target (issue #
                 w.band,
             ])
         ).toEqual([[93, null, "P2"]]);
+    });
+
+    it("an already-correct slot lands in `current`, never in `writes` (issue #4408)", () => {
+        const slots = umbrellaSlots(TABLE, ALL_OPEN);
+        // 92 already holds its shifted band; 93 is stale.
+        const board: Record<number, BoardPriority> = { 92: "P1", 93: "P3" };
+        const plan = planUmbrellas(slots, board, after);
+        expect(plan.writes).toEqual([
+            {
+                number: 93,
+                band: "P2",
+                from: "P3",
+                family: "ops",
+                targetId: "format-premodern",
+            },
+        ]);
+        expect(plan.current).toEqual([
+            {
+                number: 92,
+                band: "P1",
+                from: "P1",
+                family: "ops",
+                targetId: "vintage-cube",
+            },
+        ]);
+    });
+
+    it("a Target that lends no band is still `owned`, but appears in neither `writes` nor `current`", () => {
+        const slots = umbrellaSlots(TABLE, ALL_OPEN);
+        // 91 is premodern-metagame — completed under `after`, lends nothing.
+        const plan = planUmbrellas(slots, {}, after);
+        expect(plan.owned.has(91)).toBe(true);
+        expect(plan.writes.some((w) => w.number === 91)).toBe(false);
+        expect(plan.current.some((w) => w.number === 91)).toBe(false);
     });
 
     it("planWrites merges the umbrella writes and never lets an umbrella's own verdict write over them", () => {
@@ -1942,6 +2021,47 @@ describe("backlog-triage — runTriage --write", () => {
             );
             expect(t.mutations).toEqual([]);
             expect(b).toEqual(board());
+        }, 60_000);
+
+        // #4098 already holds `fmt` — an owned umbrella that is already
+        // CORRECT still must not print as residue (issue #4408): both #4097
+        // (stale) and #4098 (current) are `prd` with no cards of their own,
+        // which is undeclared residue on the ordinary verdict path.
+        it("an owned umbrella already holding its Target's band reports as current, never as residue (issue #4408)", () => {
+            const b = board();
+            const t = stubTracker(b, open);
+            const report = runTriage({
+                root: ROOT,
+                argv: [],
+                ghClient: t.client,
+            });
+            expect(report).toContain(
+                "residue (no source yields a band — stays unprioritized, the owner rules): 0"
+            );
+            expect(report).toContain(
+                `#4098  ops / format-premodern  current ${fmt}`
+            );
+        }, 60_000);
+
+        // A `prd` issue NOT in `BAND_UMBRELLAS` is the desired-behavior's
+        // explicit non-goal: it is examined by nobody and stays residue
+        // until it carries its own `## Band` line (issue #4202).
+        it("a band-keyed umbrella (not Target-keyed) still reports as residue", () => {
+            const b = board();
+            const withBandKeyed = [
+                ...open,
+                { number: 4300, parent: null, labels: ["prd"] },
+            ];
+            const t = stubTracker(b, withBandKeyed);
+            const report = runTriage({
+                root: ROOT,
+                argv: [],
+                ghClient: t.client,
+            });
+            expect(report).toContain(
+                "residue (no source yields a band — stays unprioritized, the owner rules): 1"
+            );
+            expect(report).toContain("#4300 issue 4300");
         }, 60_000);
 
         it("an umbrella that is not open is not written", () => {
