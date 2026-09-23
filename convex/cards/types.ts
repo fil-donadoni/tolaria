@@ -156,6 +156,25 @@ export type ManaCost = {
      *  Incarnations, Carnage Interpreter); Hogaak is the exception only because
      *  it forbids spending mana, so its pips are always convoked. */
     hybrid?: Array<[Color, Color]>;
+    /** CR 107.3a / 601.2h (issue #3811, #1330) — "Spend only [colour(s)] mana
+     *  on X.": the colours permitted to pay the VARIABLE `{X}`. X is announced
+     *  before payment (CR 107.3a), so by CR 601.2h the restriction is a fixed
+     *  per-pip constraint on the announced n mana: `normalizeManaCost` owes
+     *  them as n pips of the one colour (Drain Life, `["B"]`) or as n
+     *  guild-hybrid pips of the pair (Soul Burn, `["B","R"]`), never as
+     *  generic — so every payment consumer that already owes coloured and
+     *  composite hybrid keys enforces it with no bespoke branch, and a CR
+     *  609.4b substitution ("spend as though it were mana of any colour")
+     *  still reaches those pips exactly as it reaches printed ones.
+     *
+     *  RULES TEXT, not a mana symbol: `getColorsFromCost` ignores it (CR 105.2
+     *  — Soul Burn stays mono-black), and `manaValue` is unaffected (variable
+     *  X counts 0 off the stack, CR 202.3e). One or two colours only — every
+     *  printed card needs at most two; a wider list is refused by
+     *  `normalizeManaCost`. "Only coloured mana, at most one of each colour"
+     *  (Emblazoned Golem's Kicker {X}) is a different constraint, not
+     *  expressible as pips, and waits on issue #2141. */
+    xSpendColors?: Color[];
 };
 
 /** CR 702.34a / 118.5 — the full Flashback cost, generalizing the mana-only

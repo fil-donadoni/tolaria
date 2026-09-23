@@ -26274,6 +26274,21 @@ export function commitLandsForCost(
  *  from cost modifiers (e.g. Fireball's "+{1} per extra target", CR 601.2f) is
  *  added on top of the generic portion.
  */
+/** CR 107.3a / 601.2h (issue #3811) — the normalized-cost key the announced X
+ *  is owed under when `ManaCost.xSpendColors` restricts it: the colour itself
+ *  for one colour, the composite guild-hybrid key for two, `null` when X is
+ *  unrestricted (plain generic). Throws on three or more colours: no single
+ *  pip key expresses that, and silently folding it to generic would pay X with
+ *  a forbidden colour. */
+function xSpendCostKey(colors: readonly Color[] | undefined): string | null {
+    if (colors === undefined || colors.length === 0) return null;
+    if (colors.length === 1) return colors[0];
+    if (colors.length === 2) return hybridCostKey(colors[0], colors[1]);
+    throw new Error(
+        `xSpendColors supports one or two colours, got ${colors.join(",")}`
+    );
+}
+
 export function normalizeManaCost(
     cost: ManaCost,
     opts: { chosenX?: number; additionalGeneric?: number } = {}
@@ -26285,7 +26300,7 @@ export function normalizeManaCost(
     const xFactor =
         typeof cost.xFactor === "number" && cost.xFactor > 0 ? cost.xFactor : 1;
     for (const [key, val] of Object.entries(cost)) {
-        if (key === "xFactor") continue;
+        if (key === "xFactor" || key === "xSpendColors") continue;
         // CR 107.3 — fixed generic that coexists with a variable `{X}` pip
         // (Soul Burn `{X}{2}{B}`). Folded into the generic total, never a key
         // of its own in the normalized record.
@@ -26294,7 +26309,13 @@ export function normalizeManaCost(
             continue;
         }
         if (key === "X" && typeof val === "string") {
-            extraGeneric += (opts.chosenX ?? 0) * xFactor;
+            const xMana = (opts.chosenX ?? 0) * xFactor;
+            const xKey = xSpendCostKey(cost.xSpendColors);
+            // CR 107.3a / 601.2h (issue #3811) — "Spend only [colour(s)] mana
+            // on X": the announced X is owed as coloured (or two-colour
+            // hybrid) pips, never as generic any colour could pay.
+            if (xKey === null) extraGeneric += xMana;
+            else if (xMana > 0) result[xKey] = (result[xKey] ?? 0) + xMana;
             continue;
         }
         // CR 202.1a / 107.4e (issue #1738) — each guild-hybrid pip is folded
@@ -26309,7 +26330,9 @@ export function normalizeManaCost(
             continue;
         }
         const n = typeof val === "number" ? val : 0;
-        if (n > 0) result[key] = n;
+        // Accumulate, never assign: a restricted X (above) may already have
+        // put pips under this same colour key (Drain Life's X and its {B}).
+        if (n > 0) result[key] = (result[key] ?? 0) + n;
     }
     if (extraGeneric > 0) {
         result.X = (result.X ?? 0) + extraGeneric;

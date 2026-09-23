@@ -371,9 +371,8 @@ export const demonicTutor: CardDefinition = {
 // life gain). Two SEPARATE unmodelled clauses, tracked apart because they are
 // different capabilities:
 //
-// DIVERGENCE (tracked-by: #1330): "Spend only black mana on X" — X is treated
-// as generic (matching Fireball). Same colour-restricted-X-payment capability
-// Atalya, Samite Master needs.
+// "Spend only black mana on X." — CR 107.3a / 601.2h: `xSpendColors: ["B"]`
+// owes the announced X as {B} pips, never generic (issue #3811).
 //
 // DIVERGENCE (tracked-by: #974): the life-gain sub-cap — "you gain life equal
 // to the damage dealt, BUT NOT MORE THAN the player's life total / the
@@ -392,7 +391,7 @@ export const drainLife: CardDefinition = {
     name: "Drain Life",
     oracleText:
         "Spend only black mana on X.\nDrain Life deals X damage to any target. You gain life equal to the damage dealt, but not more life than the player's life total before the damage was dealt, the planeswalker's loyalty before the damage was dealt, or the creature's toughness.",
-    manaCost: { X: "X", generic: 1, B: 1 },
+    manaCost: { X: "X", generic: 1, B: 1, xSpendColors: ["B"] },
     types: ["Sorcery"],
     targetRequirement: { type: "any", count: 1 },
     // Migrated resolve()→effects[] (ADR 0045, #852): X damage to any target

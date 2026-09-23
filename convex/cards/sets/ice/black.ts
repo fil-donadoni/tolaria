@@ -69,8 +69,6 @@ import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 //     event + `discardTrigger` factory shipped; Necropotence is composed from
 //     skip-draw + pay-life face-down exile + next-end-step return + the new
 //     discard→exile trigger).
-//   • "Spend only black/red mana on X" + black-mana-spent lifegain cap —
-//     Soul Burn (no mana-colour-spent tracking primitive).
 //   • Ashen Ghoul — graveyard-SOURCE activated ability (the engine only resolves
 //     activated abilities whose source is on the battlefield; the
 //     "creatures-above-in-graveyard" test itself ships, but activate-from-
@@ -2868,13 +2866,9 @@ export const songsOfTheDamned: CardDefinition = {
 // The `{X}{2}{B}` cost uses the `generic` field (the `X` slot holds the
 // variable marker, so the fixed {2} lives in `generic`).
 //
-// DIVERGENCE (tracked-by: #1330): the oracle's "Spend only black and/or red
-// mana on X" payment restriction is NOT enforced at tap time — the engine has
-// no colour-restricted generic-payment seam, and the merged mana pool carries
-// no provenance of which colour paid the X portion. Same capability Drain Life
-// (`lea/black.ts`) and Atalya, Samite Master need. The card's OWN {B}-spent
-// lifegain cap IS modelled faithfully (noted black minus the fixed pip, clamped
-// to [0, X]) — that half is not a divergence.
+// "Spend only black and/or red mana on X." — CR 107.3a / 601.2h:
+// `xSpendColors: ["B", "R"]` owes the announced X as {B/R} hybrid pips, never
+// generic (issue #3811).
 //
 // DIVERGENCE (tracked-by: #974): the oracle's three OTHER lifegain sub-caps —
 // "but not more than … the player's life total / the planeswalker's loyalty /
@@ -2888,7 +2882,7 @@ export const soulBurn: CardDefinition = {
     rarity: "common",
     oracleText:
         "Spend only black and/or red mana on X.\nSoul Burn deals X damage to any target. You gain life equal to the damage dealt, but not more than the amount of {B} spent on X, the player's life total before the damage was dealt, the planeswalker's loyalty before the damage was dealt, or the creature's toughness.",
-    manaCost: { X: "X", generic: 2, B: 1 },
+    manaCost: { X: "X", generic: 2, B: 1, xSpendColors: ["B", "R"] },
     types: ["Sorcery"],
     targetRequirement: { type: "any", count: 1 },
     noteManaSpent: true,

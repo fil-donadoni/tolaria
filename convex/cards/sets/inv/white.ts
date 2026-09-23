@@ -20,7 +20,8 @@
 // file. #1086 itself is CLOSED — decomposed 2026-07-17 into per-cause
 // capability slices, so each stub below carries its own live
 // `tracked-by:` pointing at the specific open slice (#1329
-// dynamically-recomputed characteristics, #1330 mana-color provenance,
+// dynamically-recomputed characteristics, #1330 mana-color provenance —
+// closed by issue #3811, its stubs re-pointed —
 // #1331 damage-prevention shield extensions, #1332 assorted one-offs —
 // retired 2026-09-16 into #1904/#3712/#3713/#3715), not
 // #1086 (issue #2560 fixup, finding 2). Domain-cluster and
@@ -1037,8 +1038,9 @@ export const prisonBarricade: CardDefinition = {
 // Atalya, Samite Master — {3}{W}{W} Legendary Creature, 2/3. "{X}, {T}:
 // Choose one — Prevent the next X damage that would be dealt to target
 // creature this turn. Spend only white mana on X. / You gain X life. Spend
-// only white mana on X." tracked-by: #1330 (no "spend only [color] mana on
-// X" cost restriction exists on ManaCost / activation-cost validation).
+// only white mana on X." tracked-by: #3688 (the "spend only [colour] mana on
+// X" restriction shipped as `ManaCost.xSpendColors`, issue #3811; what is left
+// is announcing X on a MODAL `{X}, {T}:` ability — UI mode picker and Bot).
 
 // Blinding Light — {2}{W} Sorcery. "Tap all nonwhite creatures." tracked-by:
 // #1904 (`EffectCardFilter.excludeColor` exists since issue #1287, but
@@ -1139,8 +1141,9 @@ export const glimmeringAngel: CardDefinition = {
 // Protective Sphere — {2}{W} Enchantment. "{1}, Pay 1 life: Prevent all
 // damage that would be dealt to you this turn by a source of your choice
 // that shares a color with the mana spent on this activation cost."
-// tracked-by: #1330 (no mechanism tracks "colors of mana spent to pay an
-// activation cost" for a later color-match gate).
+// tracked-by: #1331 (the colour-provenance half has shipped —
+// `noteManaSpent` / `getNotedManaSpent()`; what is left is the choose-a-source
+// prevention shield keyed on a colour match).
 
 // Pure Reflection — {2}{W} Enchantment. "Whenever a player casts a creature
 // spell, destroy all Reflections. Then that player creates an X/X white

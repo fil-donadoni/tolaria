@@ -2584,7 +2584,26 @@ export function maxAffordableX(
     const cost = normalizeManaCost(rawCost);
     const leftover = coloredCostLeftover(player, card, cost, { state });
     if (leftover === null) return 0;
-    return Math.max(0, leftover - (cost.X ?? 0));
+    const unrestricted = Math.max(0, leftover - (cost.X ?? 0));
+    if (!rawCost.xSpendColors?.length) return unrestricted;
+    // CR 107.3a / 601.2h (issue #3811) — "Spend only [colour(s)] mana on X":
+    // the announced X is owed as coloured pips (`normalizeManaCost`), so only
+    // mana of the permitted colours counts toward it. The unrestricted ceiling
+    // bounds the search; each candidate is priced through the SAME coloured
+    // coverage the payment uses, so the ceiling never offers an X the payment
+    // then refuses. Coverage is monotone in X, so the first miss ends it.
+    const xFactor =
+        typeof rawCost.xFactor === "number" && rawCost.xFactor > 0
+            ? rawCost.xFactor
+            : 1;
+    let best = 0;
+    for (let x = 1; x * xFactor <= unrestricted; x++) {
+        const priced = normalizeManaCost(rawCost, { chosenX: x });
+        const left = coloredCostLeftover(player, card, priced, { state });
+        if (left === null || left < (priced.X ?? 0)) break;
+        best = x;
+    }
+    return best;
 }
 
 /** CR 601.2g (`payWith`, ADR 0063) — how many GENERIC pips of `cost` the
