@@ -167,3 +167,61 @@ export const zombieBoa: CardDefinition = {
         },
     ],
 };
+
+// Suppress — {2}{B} Sorcery (issue #3812). "Target player exiles all cards
+// from their hand face down. At the beginning of the end step of that player's
+// next turn, that player returns those cards to their hand."
+//
+// Three engine pieces, none card-shaped:
+//   • The exile is the whole-zone `moveZone` with `faceDown` — CR 406.3: the
+//     oracle grants no look, so the cards "can't be examined by any player",
+//     their owner included (no knower, `isFaceDownExile` reads the producer).
+//   • `bindAll` records exactly the cards that went, and the delayed trigger
+//     freezes them with a `{ select: { set: "bound" } }` list capture — CR
+//     603.7c: a card that has since left exile is a new object and is not
+//     returned.
+//   • `player-next-turn-end-step` is "the end step of THAT PLAYER's NEXT
+//     turn" (CR 603.7 / 513.1): targeting yourself skips this turn's end step.
+// An empty hand exiles nothing and the trigger still fires, returning nothing.
+//
+// hand-tail: "Target player exiles all cards from their hand face down. At the beginning of the end step of that player's next turn, that player returns those cards to their hand." (#4342)
+export const suppress: CardDefinition = {
+    id: "642eefde-8727-44ff-9e04-373abfcd0679", // APC 52
+    name: "Suppress",
+    rarity: "uncommon",
+    oracleText:
+        "Target player exiles all cards from their hand face down. At the beginning of the end step of that player's next turn, that player returns those cards to their hand.",
+    manaCost: { X: 2, B: 1 },
+    types: ["Sorcery"],
+    targetRequirement: { type: "player", count: 1 },
+    effects: [
+        {
+            op: "moveZone",
+            player: { target: 0 },
+            from: "hand",
+            to: "exile",
+            faceDown: true,
+            bindAll: "$exiled",
+        },
+        {
+            op: "delayedTrigger",
+            timing: "player-next-turn-end-step",
+            oracleText:
+                "At the beginning of the end step of that player's next turn, that player returns those cards to their hand.",
+            targetPlayer: { target: 0 },
+            capture: {
+                $player: { target: 0 },
+                $exiled: { select: { set: "bound", ref: "$exiled" } },
+            },
+            effects: [
+                {
+                    op: "moveZone",
+                    cards: { ref: "$exiled" },
+                    player: { ref: "$player" },
+                    from: "exile",
+                    to: "hand",
+                },
+            ],
+        },
+    ],
+};

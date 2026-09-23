@@ -140,10 +140,11 @@ function isTargetRef(value: unknown): boolean {
 }
 
 /** A LIST-valued capture source (ADR 0049, issue #866): exactly
- *  `{ select: { set: "combatPartners", of: { target: n } } }`. The only set is
- *  `combatPartners` (v1); `of` is an announced target slot. Restricted to the
- *  capture-source position — never a general forEach selector — so the shape is
- *  frozen here rather than in `isForEachSelector`. */
+ *  `{ select: { set: "combatPartners", of: { target: n } } }` (`of` an
+ *  announced target slot) or `{ select: { set: "bound", ref: "$x" } }` (issue
+ *  #3812 — freeze an earlier picks/list binding; its family is checked by
+ *  `checkCaptureSource`). Restricted to the capture-source position, so the
+ *  shape is frozen here rather than in `isForEachSelector`. */
 function isListCaptureSource(value: unknown): boolean {
     if (typeof value !== "object" || value === null) return false;
     const keys = Object.keys(value);
@@ -151,11 +152,9 @@ function isListCaptureSource(value: unknown): boolean {
     const select = (value as { select: unknown }).select;
     if (typeof select !== "object" || select === null) return false;
     const s = select as Record<string, unknown>;
-    return (
-        Object.keys(s).length === 2 &&
-        s.set === "combatPartners" &&
-        isTargetRef(s.of)
-    );
+    if (Object.keys(s).length !== 2) return false;
+    if (s.set === "bound") return isBindingName(s.ref);
+    return s.set === "combatPartners" && isTargetRef(s.of);
 }
 
 /** A `bind` name (ADR 0045) — a `$`-prefixed identifier. Property-path
@@ -3461,6 +3460,9 @@ function isPileObjectSelector(value: unknown): boolean {
  *  exactly the `DelayedTriggerTiming` union the engine's fire path handles. */
 const DELAYED_TIMINGS = new Set([
     "next-end-step",
+    // "At the beginning of the end step of that player's next turn" (CR
+    // 603.7 / 513.1, issue #3812) — player-scoped: requires `targetPlayer`.
+    "player-next-turn-end-step",
     "next-end-of-combat",
     "next-draw-step",
     "next-main-phase",
@@ -4061,6 +4063,11 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             // cards the move took out of `from` ("shuffle the cards from your
             // hand into your library, then draw that many cards").
             bindCount: isBindingName,
+            // issue #3812 — the whole-zone shape's CR 406.3 face-down exile
+            // ("exiles all cards from their hand face down", Suppress) and
+            // its PICKS binding of every card moved ("those cards").
+            faceDown: isBoolean,
+            bindAll: isBindingName,
         },
         check: (entry) => {
             const hasTarget = "target" in entry;
@@ -4266,6 +4273,21 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             // existing `forEach { set: "graveyard" }` + `simultaneous`
             // idiom) and no `to: "library-top"` (meaningless with no pick
             // list to order).
+            if (("faceDown" in entry || "bindAll" in entry) && !hasBulk) {
+                errors.push(
+                    'fields "faceDown" / "bindAll" are only valid for the whole-zone bulk mode (no "target"/"cards"/"fromZones") — issue #3812'
+                );
+            }
+            // CR 406.3 — only an exile is "face down", and only a card
+            // arriving from a hidden-or-graveyard zone can be hidden by it.
+            if (
+                entry.faceDown === true &&
+                (entry.to !== "exile" || entry.from === "exile")
+            ) {
+                errors.push(
+                    'field "faceDown" requires to: "exile" and a library/hand/graveyard "from" (CR 406.3, issue #3812)'
+                );
+            }
             if ("bindCount" in entry && !hasBulk) {
                 errors.push(
                     'field "bindCount" is only valid for the whole-zone bulk mode (no "target"/"cards"/"fromZones") — the other shapes move a chosen or filtered subset and bind the cards themselves (issue #4302)'
@@ -5833,7 +5855,8 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             // timings ignore one, so declaring it is a definition bug.
             const playerScoped =
                 entry.timing === "next-draw-step" ||
-                entry.timing === "next-main-phase";
+                entry.timing === "next-main-phase" ||
+                entry.timing === "player-next-turn-end-step";
             if (playerScoped && !("targetPlayer" in entry)) {
                 errors.push(
                     `timing "${String(entry.timing)}" is player-scoped (CR 504/505) — field "targetPlayer" is required`
@@ -5841,7 +5864,7 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             }
             if (!playerScoped && "targetPlayer" in entry) {
                 errors.push(
-                    `field "targetPlayer" is only valid with the player-scoped timings "next-draw-step" / "next-main-phase"`
+                    `field "targetPlayer" is only valid with the player-scoped timings "next-draw-step" / "next-main-phase" / "player-next-turn-end-step"`
                 );
             }
             // CR 603.7a / 603.10 (issues #731 / #1470) / 509.1h — every
@@ -6929,6 +6952,23 @@ function checkCaptureSource(
 ): void {
     if (typeof source !== "object" || source === null) return; // literal
     const obj = source as Record<string, unknown>;
+    // `{ select: { set: "bound", ref } }` (issue #3812) freezes an EARLIER
+    // Op's picks/list binding — the ids themselves, so a snapshot, player or
+    // number binding has nothing to freeze and is refused.
+    const select = obj.select as Record<string, unknown> | undefined;
+    if (select?.set === "bound" && typeof select.ref === "string") {
+        const family = declared.get(select.ref);
+        if (family === undefined) {
+            errors.push(
+                `${at}: capture "${name}" select ref "${select.ref}" references undefined binding "${select.ref}" — no earlier Op binds it`
+            );
+        } else if (family !== "picks" && family !== "list") {
+            errors.push(
+                `${at}: capture "${name}" select ref "${select.ref}" names a ${family} binding — a bound list capture freezes a picks or list binding (issue #3812)`
+            );
+        }
+        return;
+    }
     if (typeof obj.ref !== "string") return; // target slot — nothing to check
     const ref = obj.ref;
     // `$event.<field>` capture (ADR 0049, issue #865) — legal at a trigger
@@ -7791,6 +7831,24 @@ function checkOpListRefs(
                 );
             } else {
                 declared.set(entry.bindCount, "number");
+            }
+        }
+
+        // `moveZone.bindAll` (issue #3812) declares a PICKS binding — every
+        // card a whole-zone move took, the same family as `mill.bindAll`.
+        // NOT registered as a public-zone binding: a face-down exile is
+        // hidden (CR 406.3), so no "from among them" pick may name it.
+        if (entry.op === "moveZone" && typeof entry.bindAll === "string") {
+            if (entry.bindAll === "$each") {
+                errors.push(
+                    `${at}: bindAll "$each" is reserved — only the forEach construct binds it (issue #807)`
+                );
+            } else if (declared.has(entry.bindAll)) {
+                errors.push(
+                    `${at}: bindAll "${entry.bindAll}" re-declares an existing binding — binding names must be unique within a script`
+                );
+            } else {
+                declared.set(entry.bindAll, "picks");
             }
         }
 

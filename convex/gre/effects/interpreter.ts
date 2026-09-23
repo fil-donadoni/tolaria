@@ -1547,6 +1547,25 @@ function movableZoneSize(
     }
 }
 
+/** The instance ids currently in one player's plain zone — what a whole-zone
+ *  `moveZone` is about to take, for its `faceDown` / `bindAll` (issue #3812). */
+function movableZoneCardIds(
+    ctx: SpellContext,
+    playerId: string,
+    zone: MovableZone
+): string[] {
+    switch (zone) {
+        case "hand":
+            return ctx.getHandIds(playerId);
+        case "library":
+            return ctx.getLibraryCards(playerId).map((c) => c.id);
+        case "graveyard":
+            return ctx.getGraveyardCards(playerId).map((c) => c.id);
+        case "exile":
+            return ctx.getExileCards(playerId).map((c) => c.id);
+    }
+}
+
 /** Counts one player's matching cards in the spec's zone (CR 122). Shared by
  *  the single-player and `acrossAllPlayers` branches of `countSet`. */
 function countZoneForPlayer(
@@ -3545,7 +3564,36 @@ export const OP_EXECUTORS: {
                     )
                 );
             }
-            ctx.moveZone(playerId, op.from, op.to);
+            // issue #3812 — the ids the move is about to take, read BEFORE it
+            // (afterwards the zone is empty). A `from === to` move takes none.
+            const movedIds =
+                op.faceDown || op.bindAll !== undefined
+                    ? op.from === op.to
+                        ? []
+                        : movableZoneCardIds(ctx, playerId, op.from)
+                    : [];
+            if (op.faceDown && op.to === "exile" && op.from !== "exile") {
+                // CR 406.3 — "exiles all cards from their hand FACE DOWN":
+                // one face-down exile per card, with NO knower. The oracle
+                // grants no look, so no player may examine them — the owner
+                // included — until they leave exile.
+                for (const id of movedIds) {
+                    ctx.exileFaceDown(
+                        playerId,
+                        id,
+                        op.from,
+                        null,
+                        "face-down-exile"
+                    );
+                }
+            } else {
+                ctx.moveZone(playerId, op.from, op.to);
+            }
+            // The moved set as a PICKS binding (`mill.bindAll`'s shape, issue
+            // #2600) — left uncaptured when nothing moved.
+            if (op.bindAll !== undefined && movedIds.length > 0) {
+                ctx.noteChoice(op.bindAll, movedIds);
+            }
             return;
         }
         // issue #1469 — the RETURN-A-DEPARTED-OBJECT shape. An explicit `from`
@@ -7411,11 +7459,14 @@ function resolveCaptureListSource(
     ctx: SpellContext,
     select: EffectListSelector
 ): string[] {
+    // `bound` (issue #3812): the ids an EARLIER Op's picks/list binding holds
+    // (the validator pins the family), frozen verbatim — "those cards" a
+    // whole-zone `moveZone`'s `bindAll` exiled. An unbound ref (the zone was
+    // empty) freezes nothing, so the body's reader skips (CR 608.2b).
+    if (select.set === "bound")
+        return [...(readBinding(ctx, select.ref) ?? [])];
     const targetId = ctx.targets[select.of.target]?.id;
     if (targetId === undefined) return [];
-    // `combatPartners` is the only member (validator-enforced); the arm is
-    // explicit so a future set joins without changing the fallback.
-    if (select.set !== "combatPartners") return [];
     const blockGraph = ctx.getBlockersByAttacker();
     const partners = new Set<string>();
     // "were blocked by it": the target attacked — its blockers are partners.
