@@ -1752,7 +1752,12 @@ describe("Soul Burn ({X}{2}{B} — X damage, lifegain capped by {B} spent on X, 
     }
 
     it("has the {X}{2}{B} cost (generic field), any-target requirement, and noteManaSpent", () => {
-        expect(soulBurn.manaCost).toEqual({ X: "X", generic: 2, B: 1 });
+        expect(soulBurn.manaCost).toEqual({
+            X: "X",
+            generic: 2,
+            B: 1,
+            xSpendColors: ["B", "R"],
+        });
         expect(soulBurn.targetRequirement).toEqual({ type: "any", count: 1 });
         expect(soulBurn.noteManaSpent).toBe(true);
         // {X}{2}{B} printed mana value = 3 (variable X counts as 0).

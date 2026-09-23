@@ -166,6 +166,7 @@ const RESTRICT_CASTING_VALUE = 20; // a turn-scoped "can't cast" denial
 const RESTRICT_ACTIVATION_VALUE = 15; // a turn-scoped "can't activate" denial
 const GRANT_CAST_TIMING_VALUE = 8; // a "cast as though flash" self-grant (tempo)
 const GRANT_SPELL_MANA_SUBSTITUTION_VALUE = 8; // one spell's colours fixed
+const GRANT_MANA_SUBSTITUTION_VALUE = 10; // a whole turn's colours fixed
 const RESTRICT_COMBAT_VALUE = 45; // a targeted "can't attack/block" soft removal
 const SET_BASE_PT_VALUE = 45; // a base-P/T set (CR 613.4b) — mostly a shrink/neutralize
 const LOSE_ALL_ABILITIES_VALUE = 60; // an ability strip (CR 613.1f) — a neutralize that also takes evasion/engines, so above a bare P/T set
@@ -1783,6 +1784,28 @@ const grantSpellManaSubstitution: Valuer<
     tags: ["tempo"],
 });
 
+const grantManaSubstitution: Valuer<"grantManaSubstitution"> = () => ({
+    // CR 609.4b — "until end of turn, you may spend white mana as though it
+    // were mana of any color" (False Dawn). Colour flexibility for every cost
+    // the player pays this turn — the one-shot sibling's value, slightly more
+    // for the wider scope. Not ramp: the cost and the mana are unchanged.
+    points: GRANT_MANA_SUBSTITUTION_VALUE,
+    tags: ["tempo"],
+});
+
+const replaceManaProductionColor: Valuer<
+    "replaceManaProductionColor"
+> = () => ({
+    // CR 614.1a — "spells and abilities you control that would add colored mana
+    // instead add that much white mana" (False Dawn). No mana gained or lost,
+    // only its colour narrowed: on its own a small COST to the recipient's
+    // colour flexibility, which the printed card offsets with the
+    // `grantManaSubstitution` beside it. Priced as nothing so the pairing nets
+    // to the substitution's value and the card is cast for its cantrip.
+    points: 0,
+    tags: ["tempo"],
+});
+
 const restrictCombat: Valuer<"restrictCombat"> = (op, ctx) => {
     // "cant-be-blocked" (CR 509.1b) is the evasion side — an offensive buff to
     // YOUR creature (it connects), not disruption of an opponent's board. Value
@@ -2052,6 +2075,8 @@ export const OP_VALUERS: {
     grantCastTiming,
     reduceSpellCostThisTurn,
     grantSpellManaSubstitution,
+    grantManaSubstitution,
+    replaceManaProductionColor,
     restrictCombat,
     setIslandSanctuaryProtection,
     setProtectionFromEverything,
@@ -2255,6 +2280,12 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // here is looking at a gift.
     reduceSpellCostThisTurn: "beneficial",
     grantSpellManaSubstitution: "beneficial",
+    // CR 609.4b (issue #3811) — colour flexibility for the recipient's own
+    // payments, paid for by no one.
+    grantManaSubstitution: "beneficial",
+    // CR 614.1a (issue #3811) — narrows the recipient's produced mana to one
+    // colour; aimed at an opponent it would be a mana-screw lock.
+    replaceManaProductionColor: "harmful",
     castDuringResolution: "beneficial",
     // CR 702.85a (issue #3216) — a free extra spell for the cascading spell's
     // own controller. The buried remainder is a real cost, but it is paid by

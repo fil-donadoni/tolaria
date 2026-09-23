@@ -2203,6 +2203,11 @@ export const PERSISTED_OPTIONAL_KEYS = [
     // at any later stable point in the SAME turn.
     "spellCostReductionsThisTurn",
     "spellManaSubstitutionGrants",
+    // CR 609.4b / 614.1a (issue #3811) — False Dawn's until-end-of-turn
+    // permission and production replacement: plain per-player records that
+    // must survive to a later stable point in the same turn.
+    "manaSubstitutionGrantsThisTurn",
+    "manaProductionColorThisTurn",
     "allCreaturesMustAttack",
     "abilityResolutionCounts",
     "destroyReplacementShields",

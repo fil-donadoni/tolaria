@@ -1134,8 +1134,8 @@ export const scavengedWeaponry: CardDefinition = {
 };
 
 // Soul Burn — a reprint of the Ice Age card already implemented as
-// `soulBurn` in `sets/ice/black.ts` (id eb8e00d2-…, including its documented
-// "spend only black/red mana on X" SIMPLIFICATION) (tracked-by: #2785). ADR 0043/0014: a
+// `soulBurn` in `sets/ice/black.ts` (id eb8e00d2-…, whose "spend only
+// black and/or red mana on X" restriction ships since issue #3811). ADR 0043/0014: a
 // cross-set reprint is a `CardPrint` referencing the original
 // `CardDefinition`, not a duplicate definition. Only the primary English
 // printing (#124) is modelled — the two Chinese alt-art variants (#124s,

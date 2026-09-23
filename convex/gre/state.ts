@@ -251,6 +251,7 @@ import {
     normalizedHybridPips,
     substitutionsForBreadth,
     CASTABLE_PERMANENT_TYPES,
+    replaceProducedManaColor,
 } from "./constants";
 // Type-only, and deliberately so: `deckKnowledge.ts` imports this module for
 // its own state types, so a VALUE import here would be a runtime cycle.
@@ -5547,6 +5548,11 @@ export type GameState = {
         subtype: string;
         color: Color;
         mode: "additional" | "override";
+        /** CR 106.3 (issue #3811) — the controller of the effect that adds
+         *  the extra mana; keys `replaceProducedManaColor` for an additional
+         *  rider. Absent on a row written before the field existed, which
+         *  falls back to the tapping player. */
+        controllerId?: string;
     }>;
     /** When true, no player may play a land and lands can't enter the
      *  battlefield (Worms of the Earth). Unlike the turn-scoped flags below,
@@ -5787,6 +5793,22 @@ export type GameState = {
      *  `cannotCastSpellsThisTurn` — NOT `advanceTurn` (that is the different
      *  "until your next turn" boundary `castTimingFlashGrants` uses). */
     spellManaSubstitutionGrants?: Record<string, ManaSubstitutionBreadth[]>;
+    /** CR 609.4b / 514.2 (issue #3811) — per-player UNTIL-END-OF-TURN
+     *  "you may spend `from` mana as though it were mana of any type/color"
+     *  permissions (False Dawn). Unlike `spellManaSubstitutionGrants` these
+     *  reach EVERY cost the player pays and are never consumed; a list so two
+     *  grants of different colours coexist. Read by `getManaSubstitutions`;
+     *  cleared at CLEANUP (CR 514.2). */
+    manaSubstitutionGrantsThisTurn?: Record<
+        string,
+        { from: Color; breadth: ManaSubstitutionBreadth }[]
+    >;
+    /** CR 614.1a / 514.2 (issue #3811) — per-player UNTIL-END-OF-TURN
+     *  replacement on mana production: coloured mana a spell or ability the
+     *  keyed player controls would add is added as that much of this colour
+     *  instead (False Dawn → white). Applied by `replaceProducedManaColor`;
+     *  cleared at CLEANUP (CR 514.2). */
+    manaProductionColorThisTurn?: Record<string, Color>;
     /** Player whose creatures must all attack THIS TURN if able (CR 508.1d,
      *  Siren's Call: "Creatures the active player controls attack this turn if
      *  able"). Turn-scoped, not combat-scoped — 508.1d is explicit that "if a
@@ -18986,7 +19008,14 @@ export function buildSpellContext(
         },
         addMana(cost: CardManaCost): void {
             const player = getPlayer(state, item.castById);
-            for (const [color, amount] of Object.entries(cost)) {
+            // CR 614.1a (issue #3811) — every SpellContext mana writer routes
+            // through the controller's production-colour replacement.
+            const produced = replaceProducedManaColor(
+                state,
+                item.castById,
+                cost
+            );
+            for (const [color, amount] of Object.entries(produced)) {
                 if (
                     color === "X" ||
                     color === "xFactor" ||
@@ -19003,7 +19032,12 @@ export function buildSpellContext(
             persistsUntil?: ManaPersistence
         ): void {
             const player = getPlayer(state, playerId);
-            for (const [color, amount] of Object.entries(cost)) {
+            const produced = replaceProducedManaColor(
+                state,
+                item.castById,
+                cost
+            );
+            for (const [color, amount] of Object.entries(produced)) {
                 if (
                     color === "X" ||
                     color === "xFactor" ||
@@ -19039,7 +19073,12 @@ export function buildSpellContext(
             restriction: ManaRestriction
         ): void {
             const player = getPlayer(state, playerId);
-            for (const [color, amount] of Object.entries(cost)) {
+            const produced = replaceProducedManaColor(
+                state,
+                item.castById,
+                cost
+            );
+            for (const [color, amount] of Object.entries(produced)) {
                 if (
                     color === "X" ||
                     color === "xFactor" ||
@@ -19088,8 +19127,13 @@ export function buildSpellContext(
             const noted = found?.card.notedMana;
             if (!noted) return;
             const player = getPlayer(state, playerId);
-            for (const [color, amount] of Object.entries(noted.mana)) {
-                if (amount <= 0) continue;
+            const produced = replaceProducedManaColor(
+                state,
+                item.castById,
+                noted.mana as CardManaCost
+            );
+            for (const [color, amount] of Object.entries(produced)) {
+                if (typeof amount !== "number" || amount <= 0) continue;
                 if (noted.castableCardId !== undefined) {
                     addRestrictedManaToPool(
                         player,
@@ -20656,8 +20700,11 @@ export function buildSpellContext(
             // CR 614 / 514.2 — additive list, NOT idempotent: each arm pushes an
             // entry so two "additional" riders give two extra mana per tap.
             // Cleared at CLEANUP.
+            // The rider's CONTROLLER is the resolving controller (CR 106.3 —
+            // the extra mana is produced by that player's effect, not by the
+            // player who taps), read by production-colour replacement.
             const list = state.landManaRidersThisTurn ?? [];
-            list.push(rider);
+            list.push({ ...rider, controllerId: item.castById });
             state.landManaRidersThisTurn = list;
         },
 
@@ -20721,6 +20768,29 @@ export function buildSpellContext(
             const grants = state.spellManaSubstitutionGrants ?? {};
             grants[playerId] = [...(grants[playerId] ?? []), breadth];
             state.spellManaSubstitutionGrants = grants;
+        },
+
+        grantManaSubstitution(
+            playerId: string,
+            from: Color,
+            breadth: ManaSubstitutionBreadth
+        ): void {
+            // CR 609.4b — "Until end of turn, you may spend white mana as though
+            // it were mana of any color" (False Dawn). Every cost, never
+            // consumed; cleared at CLEANUP (CR 514.2).
+            const grants = state.manaSubstitutionGrantsThisTurn ?? {};
+            grants[playerId] = [...(grants[playerId] ?? []), { from, breadth }];
+            state.manaSubstitutionGrantsThisTurn = grants;
+        },
+
+        replaceManaProductionColor(playerId: string, color: Color): void {
+            // CR 614.1a — "spells and abilities you control that would add
+            // colored mana instead add that much white mana" (False Dawn).
+            // Latest wins (CR 616.1 ordering is moot for one colour).
+            state.manaProductionColorThisTurn = {
+                ...(state.manaProductionColorThisTurn ?? {}),
+                [playerId]: color,
+            };
         },
 
         addDamageCapShield(playerId: string, maxDamage: number): void {
@@ -23382,10 +23452,16 @@ export function buildSpellContext(
                 for (const src of owner.battlefield) {
                     if (tappedIds.has(src.id)) src.isTapped = true;
                 }
-                const produced = manaFromPlan(sources, plan);
+                // CR 614.1a (issue #3811) — the lands' controller (the
+                // controlled player) produces this mana.
+                const produced = replaceProducedManaColor(
+                    state,
+                    owner.id,
+                    manaFromPlan(sources, plan)
+                );
                 for (const color of MANA_COLORS) {
                     const v = produced[color];
-                    if (v) {
+                    if (typeof v === "number" && v > 0) {
                         owner.manaPool[color] =
                             (owner.manaPool[color] ?? 0) + v;
                     }
@@ -24961,6 +25037,8 @@ type ManaCost = Record<
     | string
     | Partial<Record<Color, number>>
     | Array<[Color, Color]>
+    // CR 107.3a (issue #3811) — `xSpendColors`, folded by `normalizeManaCost`.
+    | Color[]
     | undefined
 >;
 
@@ -26274,6 +26352,21 @@ export function commitLandsForCost(
  *  from cost modifiers (e.g. Fireball's "+{1} per extra target", CR 601.2f) is
  *  added on top of the generic portion.
  */
+/** CR 107.3a / 601.2h (issue #3811) — the normalized-cost key the announced X
+ *  is owed under when `ManaCost.xSpendColors` restricts it: the colour itself
+ *  for one colour, the composite guild-hybrid key for two, `null` when X is
+ *  unrestricted (plain generic). Throws on three or more colours: no single
+ *  pip key expresses that, and silently folding it to generic would pay X with
+ *  a forbidden colour. */
+function xSpendCostKey(colors: readonly Color[] | undefined): string | null {
+    if (colors === undefined || colors.length === 0) return null;
+    if (colors.length === 1) return colors[0];
+    if (colors.length === 2) return hybridCostKey(colors[0], colors[1]);
+    throw new Error(
+        `xSpendColors supports one or two colours, got ${colors.join(",")}`
+    );
+}
+
 export function normalizeManaCost(
     cost: ManaCost,
     opts: { chosenX?: number; additionalGeneric?: number } = {}
@@ -26285,7 +26378,7 @@ export function normalizeManaCost(
     const xFactor =
         typeof cost.xFactor === "number" && cost.xFactor > 0 ? cost.xFactor : 1;
     for (const [key, val] of Object.entries(cost)) {
-        if (key === "xFactor") continue;
+        if (key === "xFactor" || key === "xSpendColors") continue;
         // CR 107.3 — fixed generic that coexists with a variable `{X}` pip
         // (Soul Burn `{X}{2}{B}`). Folded into the generic total, never a key
         // of its own in the normalized record.
@@ -26294,7 +26387,17 @@ export function normalizeManaCost(
             continue;
         }
         if (key === "X" && typeof val === "string") {
-            extraGeneric += (opts.chosenX ?? 0) * xFactor;
+            const xMana = (opts.chosenX ?? 0) * xFactor;
+            const xKey = xSpendCostKey(
+                cost.xSpendColors as Color[] | undefined
+            );
+            // CR 107.3a / 601.2h (issue #3811) — "Spend only [colour(s)] mana
+            // on X": the announced X is owed as coloured (or two-colour
+            // hybrid) pips, never as generic any colour could pay. A generic
+            // reduction or delve therefore stops at the fixed generic and
+            // never reaches X (CR 107.4b) — tracked-by: #4429.
+            if (xKey === null) extraGeneric += xMana;
+            else if (xMana > 0) result[xKey] = (result[xKey] ?? 0) + xMana;
             continue;
         }
         // CR 202.1a / 107.4e (issue #1738) — each guild-hybrid pip is folded
@@ -26309,7 +26412,9 @@ export function normalizeManaCost(
             continue;
         }
         const n = typeof val === "number" ? val : 0;
-        if (n > 0) result[key] = n;
+        // Accumulate, never assign: a restricted X (above) may already have
+        // put pips under this same colour key (Drain Life's X and its {B}).
+        if (n > 0) result[key] = (result[key] ?? 0) + n;
     }
     if (extraGeneric > 0) {
         result.X = (result.X ?? 0) + extraGeneric;
@@ -26873,6 +26978,17 @@ export function getManaSubstitutions(
                 }
             }
         }
+    }
+    // CR 609.4b (issue #3811) — the player's until-end-of-turn grants (False
+    // Dawn). Worded with no cost scope, so every payment sees them, named cast
+    // or not, and `excludeOneShotGrants` leaves them in (they are not one-shot).
+    for (const grant of state.manaSubstitutionGrantsThisTurn?.[playerId] ??
+        []) {
+        out.push(
+            ...substitutionsForBreadth(grant.breadth).filter(
+                (pair) => pair.from === grant.from
+            )
+        );
     }
     if (castCardInstanceId === undefined) return out;
     // Hot-loop short-circuit: `coloredCostLeftover` calls this once per hand

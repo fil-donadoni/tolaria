@@ -2093,6 +2093,23 @@ function lowerSentenceBody(
                     bind: CHOSEN_TYPE_BINDING,
                 },
             ]);
+        case "replace-mana-production-color":
+            return lowered([
+                {
+                    op: "replaceManaProductionColor",
+                    player: "controller",
+                    color: sentence.color,
+                },
+            ]);
+        case "grant-mana-substitution":
+            return lowered([
+                {
+                    op: "grantManaSubstitution",
+                    player: "controller",
+                    from: sentence.from,
+                    breadth: sentence.breadth,
+                },
+            ]);
         default: {
             const never: never = sentence;
             return unlowerable(
