@@ -2336,11 +2336,13 @@ describe("Library of Leng — no maximum hand size (CR 402.2 / 514.1)", () => {
         );
     });
 
-    it("cleanup-driven discard after Library of Leng leaves still honors any subsequent Library of Leng routing (CR 614 still fires)", () => {
+    it("cleanup-step discard is NOT routed by a Library of Leng that arrives mid-CLEANUP (CR 514.1 — a turn-based action, not an effect)", () => {
         // Setup: 9 cards in hand at end-of-turn, no Library of Leng yet →
         // cleanup prompts for 2 discards. Then BEFORE committing, drop a
-        // Library of Leng in. The commit goes through applyDiscardReplacements
-        // and routes the discards to the library top (CR 614 still fires).
+        // Library of Leng in. Its replacement reads "If an EFFECT causes you
+        // to discard" (CR 609.1), and the CR 514.1 hand-size discard is a
+        // turn-based action — so the commit reaches the graveyard (issue
+        // #3814; the discard's `origin` is `"turn-based-action"`).
         const lengId = "leng-after";
         const state = makeState({
             phase: "END_STEP",
@@ -2364,8 +2366,8 @@ describe("Library of Leng — no maximum hand size (CR 402.2 / 514.1)", () => {
 
         // Library of Leng drops in mid-CLEANUP. Clause 1 ("no maximum hand
         // size") doesn't retroact on the already-enqueued prompt — the count
-        // is fixed at enqueue time — but clause 2 (CR 614 routing) still
-        // fires on each discard event.
+        // is fixed at enqueue time — and clause 2 does not apply to a
+        // discard no effect caused.
         state.players[0].battlefield.push(
             makeInstance(libraryOfLeng.id, {
                 id: lengId,
@@ -2380,14 +2382,11 @@ describe("Library of Leng — no maximum hand size (CR 402.2 / 514.1)", () => {
         ];
         finalizeCleanupDiscard(state, picks);
 
-        // Both picks routed to library top (CR 614), not graveyard.
-        expect(state.players[0].graveyard.length).toBe(0);
-        expect(
-            state.players[0].library
-                .slice(0, 2)
-                .map((c) => c.id)
-                .sort()
-        ).toEqual(picks.sort());
+        // Both picks reach the graveyard; the library top is untouched.
+        expect(state.players[0].graveyard.map((c) => c.id).sort()).toEqual(
+            [...picks].sort()
+        );
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["topdeck"]);
         expect(state.players[0].hand.length).toBe(7);
         expect(state.pendingCleanupDiscard).toBeUndefined();
     });
