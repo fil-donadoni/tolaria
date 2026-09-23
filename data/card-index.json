@@ -29490,6 +29490,16 @@
         "firstPrintSet": "znr"
     },
     {
+        "name": "Luminescent Rain",
+        "scryfallId": "5f9903cc-350c-44cf-9c0b-5df7922ed766",
+        "oracleId": "7e23a2e7-b8b3-424f-8922-a1adb1db3f4d",
+        "firstSet": "mor",
+        "firstPrintId": "5f9903cc-350c-44cf-9c0b-5df7922ed766",
+        "firstPrintSet": "mor",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Luminous Angel",
         "scryfallId": "9b4f880d-6262-429f-91b7-def417aa13bd",
         "oracleId": "8d7cf56c-94fd-47d8-9e0f-cd3163688983",
