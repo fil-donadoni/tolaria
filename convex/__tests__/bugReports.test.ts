@@ -3,10 +3,13 @@ import {
     applyDiagnosticsConsent,
     buildGameStateSection,
     buildIssuePayload,
+    buildIssueRequest,
     describeOwedInput,
     isGameParticipant,
+    REPORT_LABELS,
 } from "../bugReports";
 import { BUG_REPORT_CONSENT_VERSION } from "../bugReportConsent";
+import { labelBand } from "../../scripts/lib/backlog-triage";
 
 // Pure payload builder for the in-app bug-report button. The action wrapping it
 // only adds network/auth/storage — the title/body shaping and validation live
@@ -377,5 +380,36 @@ describe("BUG_REPORT_CONSENT_VERSION", () => {
     it("is a positive integer", () => {
         expect(Number.isInteger(BUG_REPORT_CONSENT_VERSION)).toBe(true);
         expect(BUG_REPORT_CONSENT_VERSION).toBeGreaterThan(0);
+    });
+});
+
+// ADR 0143's `user-report → P1` default is dead for a filed report unless the
+// issue actually carries the `user-report` label (issue #4409): the two live
+// reports of 2026-09-20 (issue #4217, issue #4218) sat in the residue because
+// `submitBugReport` filed with `needs-triage` alone.
+describe("REPORT_LABELS / buildIssueRequest (issue #4409)", () => {
+    it("stamps both labels — provenance (`user-report`) and state (`needs-triage`)", () => {
+        expect(REPORT_LABELS).toEqual(["user-report", "needs-triage"]);
+    });
+
+    it("buildIssueRequest — the request payload the mutation actually POSTs — carries both labels alongside the title/body", () => {
+        const request = buildIssueRequest({
+            name: "Ada",
+            description: "Board freezes on attack",
+        });
+        expect(request.labels).toEqual(["user-report", "needs-triage"]);
+        expect(request.title).toBe("[User Bug] Board freezes on attack");
+        expect(request.body).toContain("Board freezes on attack");
+    });
+
+    // Pins the contract this whole fix depends on: `labelBand` reading
+    // `user-report` as the strongest default is what makes the label worth
+    // sending. If `LABEL_BAND_TABLE.userReport` ever moved, this test —
+    // not just the `backlog:triage` suite — would catch it here too.
+    it('`labelBand(["user-report", "needs-triage"])` bands P1 via `user-report`', () => {
+        expect(labelBand([...REPORT_LABELS])).toEqual({
+            band: "P1",
+            via: "user-report",
+        });
     });
 });
