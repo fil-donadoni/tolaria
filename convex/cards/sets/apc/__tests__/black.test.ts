@@ -385,6 +385,12 @@ describe("Zombie Boa — choose a color; whenever it becomes blocked by a creatu
                 toZone: "exile",
             } as GameEvent,
         ]);
+        // The departure itself drops the watch.
+        expect(
+            (state.delayedTriggers ?? []).filter(
+                (t) => t.timing === "becomes-blocked-by"
+            )
+        ).toHaveLength(0);
         state.players[0].exile = state.players[0].exile.filter(
             (c) => c.id !== "boa"
         );
