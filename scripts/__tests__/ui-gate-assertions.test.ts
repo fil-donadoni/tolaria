@@ -279,6 +279,67 @@ describe("check:ui surface table — Named Assertions", () => {
         });
     });
 
+    /**
+     * Issue #4418's half: the rest of the `/admin` section and `/settings`,
+     * the eight screens the coverage census (issue #3420) recorded as
+     * measured at no viewport. Each is held to the entry points its runbook
+     * names (`docs/guides/ui-runbooks.md` § The rest of /admin, and
+     * /settings).
+     *
+     * Three of these encode a decision the obvious locator would have got
+     * wrong, and each is stated on the surface itself:
+     *
+     *  - `admin-index` promises its cards by the ROUTE each leads to, because
+     *    a card's accessible name is its title AND its description line;
+     *  - `admin-testers` promises the account list by seam, because the row's
+     *    control reads `Grant tester` or `Revoke tester` depending on the flag
+     *    the lane's own account carries;
+     *  - `settings` promises `<fieldset>` GROUPS rather than options, for the
+     *    same accessible-name reason as the index's cards.
+     */
+    it("the rest of the admin section and /settings promise their entry points", () => {
+        expectPromised({
+            "admin-index": [
+                "visible role=heading name=Admin",
+                'reachable [data-admin-nav="/admin/scenarios"]',
+                'reachable [data-admin-nav="/admin/verdicts"]',
+            ],
+            "admin-scenarios": [
+                "visible role=heading name=Saved scenarios",
+                "reachable role=textbox name=Search scenarios\u2026",
+                "reachable role=button name=New scenario",
+            ],
+            "admin-banlists": [
+                "visible role=heading name=Banlist Sync",
+                "reachable role=button name=Sync from Scryfall",
+                "visible role=button name=View cards",
+            ],
+            "admin-pick-ratings": [
+                "visible role=radiogroup name=Rating Scope",
+                "reachable role=textbox name=Search cards",
+            ],
+            "admin-testers": [
+                "visible role=heading name=Accounts",
+                "visible [data-tester-row]",
+            ],
+            "admin-bug-reports": [
+                "visible role=heading name=Reports",
+                "reachable role=link name=\u2190 Admin",
+            ],
+            "draft-lab": [
+                "reachable role=button name=Synthetic",
+                "reachable role=combobox name=Pack source",
+                "reachable role=button name=Start draft",
+            ],
+            settings: [
+                "visible role=heading name=Settings",
+                "visible role=group name=Density",
+                "visible role=group name=Card preview default",
+                "reachable role=button name=Reset to defaults",
+            ],
+        });
+    });
+
     /** The debt list is empty, and every surface carries its own promises —
      *  the end state ADR 0132 §3 describes. A new surface declares them in the
      *  change that adds it rather than re-opening this list. */

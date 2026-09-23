@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Panel, PanelHeader, PanelBody } from "~/components/ui/panel";
+import SurfaceReadyMarker from "~/components/ui/surface-ready-marker";
 import SettingsOptionGroup from "./settings-option-group";
 import { useUserPreferences } from "~/hooks/useUserPreferences";
 import {
@@ -25,6 +26,10 @@ export default function SettingsDensitySection() {
 
     return (
         <Panel>
+            {/* The Settings page's ready marker: every section reads the same
+                `useUserPreferences`, so the first one to render it speaks for
+                the screen (`settle.ts`). */}
+            {!isLoading && <SurfaceReadyMarker />}
             <PanelHeader
                 title="Density"
                 subtitle="Panel spacing rhythm across the app"

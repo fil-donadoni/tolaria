@@ -1,5 +1,6 @@
 import { useCurrentUser } from "~/hooks/useCurrentUser";
 import { canEditPresets } from "~/lib/adminGating";
+import SurfaceReadyMarker from "~/components/ui/surface-ready-marker";
 import PickRatingPanel from "./pick-rating-panel";
 
 /**
@@ -21,5 +22,13 @@ import PickRatingPanel from "./pick-rating-panel";
 export default function PickRatingAdminPanel() {
     const user = useCurrentUser();
     if (!canEditPresets(user)) return null;
-    return <PickRatingPanel />;
+    // The gate is this component's own loaded branch (`useCurrentUser` has
+    // answered), and `PickRatingPanel`'s queries are covered by the settle
+    // predicate's in-flight count rather than by a second marker.
+    return (
+        <>
+            <SurfaceReadyMarker />
+            <PickRatingPanel />
+        </>
+    );
 }

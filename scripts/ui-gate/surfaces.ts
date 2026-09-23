@@ -2347,6 +2347,351 @@ export const SURFACES: readonly Surface[] = [
             await settle(page);
         },
     },
+    /*
+     * The rest of the `/admin` section, plus `/settings` (issue #4418, a slice
+     * of the coverage census's debt, issue #4402). Eight route modules the
+     * census counted as SCREENS and the lane photographed at no viewport: the
+     * gate walked three admin pages out of nine (`design-system`,
+     * `admin-card-profiles`, `admin-verdicts`) and every other one was
+     * measured by nothing.
+     *
+     * They share one walk shape — navigate, check the screen's own heading,
+     * settle — because each is a page reached by URL with no click sequence in
+     * front of it. What differs is the heading each one throws `Unreachable`
+     * on, and that heading is deliberately the PAGE's (`h1`), never `main`:
+     * `/admin/*` renders inside `AdminLayoutRoute`, whose gate answers a
+     * non-admin with the 404 screen — which also renders a `main`, the exact
+     * fail-open the `design-system` walk records next door.
+     */
+    {
+        id: "admin-index",
+        entries: [
+            "src/routes/admin/admin-layout.route.tsx",
+            "src/routes/admin/admin-index.route.tsx",
+        ],
+        label: "Admin index (/admin)",
+        // The index is a list of doors and nothing else, so its promises are
+        // the doors — addressed by the route each card leads to, because the
+        // card's accessible name is its title AND its one-line description.
+        asserts: [
+            {
+                label: "page heading",
+                locator: { role: "heading", name: "Admin" },
+                check: "visible",
+            },
+            {
+                label: "nav card: Scenarios",
+                locator: { selector: '[data-admin-nav="/admin/scenarios"]' },
+                check: "reachable",
+            },
+            {
+                label: "nav card: Verdict Review",
+                locator: { selector: '[data-admin-nav="/admin/verdicts"]' },
+                check: "reachable",
+            },
+        ],
+        async walk(page, ctx) {
+            await goto(page, ctx, "/admin");
+            if (!(await visible(page, "h1:has-text('Admin')", 10_000))) {
+                throw new Unreachable(
+                    "/admin did not render the section heading — is this account still an admin?"
+                );
+            }
+        },
+    },
+    {
+        id: "admin-scenarios",
+        entries: [
+            "src/routes/admin/admin-layout.route.tsx",
+            "src/routes/admin/admin-scenarios.route.tsx",
+        ],
+        label: "Scenario library (/admin/scenarios)",
+        // The library's four entry points: the page, the list panel, the
+        // filter the list is read through, and the control that opens the
+        // editor. `Clean up ephemeral` is deliberately NOT promised — it is
+        // disabled on a deployment with no scenarios, so it would be a
+        // promise about the fixture rather than about the screen.
+        asserts: [
+            {
+                label: "page heading",
+                locator: { role: "heading", name: "Scenarios" },
+                check: "visible",
+            },
+            {
+                label: "library panel",
+                locator: { role: "heading", name: "Saved scenarios" },
+                check: "visible",
+            },
+            {
+                label: "scenario search",
+                locator: { role: "textbox", name: "Search scenarios…" },
+                check: "reachable",
+            },
+            {
+                label: "New scenario",
+                locator: { role: "button", name: "New scenario" },
+                check: "reachable",
+            },
+        ],
+        async walk(page, ctx) {
+            await goto(page, ctx, "/admin/scenarios");
+            if (!(await visible(page, "h1:has-text('Scenarios')", 10_000))) {
+                throw new Unreachable(
+                    "/admin/scenarios did not render the page heading — is this account still an admin?"
+                );
+            }
+        },
+    },
+    {
+        id: "admin-banlists",
+        entries: [
+            "src/routes/admin/admin-layout.route.tsx",
+            "src/routes/admin/admin-banlists.route.tsx",
+        ],
+        label: "Banlist sync (/admin/banlists)",
+        // The sync page's own controls. `View cards` is promised `visible`
+        // rather than `reachable` because it is DISABLED until its format's
+        // counts have answered — the settle predicate's socket-wide in-flight
+        // count makes that unlikely by the time assertions run, and `visible`
+        // is the check that holds either way.
+        //
+        // Both buttons render once per banlist Format with identical labels,
+        // so `.first()` addresses the Premodern row. They are one component
+        // under different props — a layout defect in one is a defect in both —
+        // which is why this stays a name rather than a per-row seam (review of
+        // PR #4425).
+        asserts: [
+            {
+                label: "page heading",
+                locator: { role: "heading", name: "Banlists" },
+                check: "visible",
+            },
+            {
+                label: "sync panel",
+                locator: { role: "heading", name: "Banlist Sync" },
+                check: "visible",
+            },
+            {
+                label: "Sync from Scryfall",
+                locator: { role: "button", name: "Sync from Scryfall" },
+                check: "reachable",
+            },
+            {
+                label: "View cards",
+                locator: { role: "button", name: "View cards" },
+                check: "visible",
+            },
+        ],
+        async walk(page, ctx) {
+            await goto(page, ctx, "/admin/banlists");
+            if (!(await visible(page, "h1:has-text('Banlists')", 10_000))) {
+                throw new Unreachable(
+                    "/admin/banlists did not render the page heading — is this account still an admin?"
+                );
+            }
+        },
+    },
+    {
+        id: "admin-pick-ratings",
+        entries: [
+            "src/routes/admin/admin-layout.route.tsx",
+            "src/routes/admin/admin-pick-ratings.route.tsx",
+        ],
+        label: "Pick Ratings editor (/admin/pick-ratings)",
+        // The editor is a scope picker over a searchable card list, and both
+        // halves are promised: the scope decides WHICH ratings are on screen,
+        // the search is how a rater finds the card they came for.
+        //
+        // `Pick Ratings` names TWO headings — the frame's `h1` and the panel's
+        // own `h2`, which said the page's name twice before this surface
+        // existed — so `.first()` decides between them by DOM order. It takes
+        // the frame's, and `walk()` below throws `Unreachable` on that same
+        // `h1` independently, so the promise cannot be met by the panel alone
+        // (review of PR #4425).
+        asserts: [
+            {
+                label: "page heading",
+                locator: { role: "heading", name: "Pick Ratings" },
+                check: "visible",
+            },
+            {
+                label: "Rating Scope picker",
+                locator: { role: "radiogroup", name: "Rating Scope" },
+                check: "visible",
+            },
+            {
+                label: "card search",
+                locator: { role: "textbox", name: "Search cards" },
+                check: "reachable",
+            },
+        ],
+        async walk(page, ctx) {
+            await goto(page, ctx, "/admin/pick-ratings");
+            if (!(await visible(page, "h1:has-text('Pick Ratings')", 10_000))) {
+                throw new Unreachable(
+                    "/admin/pick-ratings did not render the page heading — is this account still an admin?"
+                );
+            }
+        },
+    },
+    {
+        id: "admin-testers",
+        entries: [
+            "src/routes/admin/admin-layout.route.tsx",
+            "src/routes/admin/admin-testers.route.tsx",
+        ],
+        label: "Tester roles (/admin/testers)",
+        // The account list is promised by SEAM, not by its button: the row's
+        // control reads `Grant tester` or `Revoke tester` depending on the
+        // flag the lane's own account happens to carry, so naming either would
+        // be a promise about the deployment. The lane is signed in, so at
+        // least one row always exists.
+        asserts: [
+            {
+                label: "page heading",
+                locator: { role: "heading", name: "Testers" },
+                check: "visible",
+            },
+            {
+                label: "accounts panel",
+                locator: { role: "heading", name: "Accounts" },
+                check: "visible",
+            },
+            {
+                label: "account row",
+                locator: { selector: "[data-tester-row]" },
+                check: "visible",
+            },
+        ],
+        async walk(page, ctx) {
+            await goto(page, ctx, "/admin/testers");
+            if (!(await visible(page, "h1:has-text('Testers')", 10_000))) {
+                throw new Unreachable(
+                    "/admin/testers did not render the page heading — is this account still an admin?"
+                );
+            }
+        },
+    },
+    {
+        id: "admin-bug-reports",
+        entries: [
+            "src/routes/admin/admin-layout.route.tsx",
+            "src/routes/admin/admin-bug-reports.route.tsx",
+        ],
+        label: "Bug report evidence (/admin/bug-reports)",
+        // Promised WITHOUT a report row: the page is read-only over whatever
+        // the deployment has filed, and the lane files none — so the row list
+        // is a fixture, while the page, its list panel and the way back out
+        // are the screen. The right-hand pane is its empty state until a row
+        // is picked, which is the state this surface measures.
+        asserts: [
+            {
+                label: "page heading",
+                locator: { role: "heading", name: "Bug Reports" },
+                check: "visible",
+            },
+            {
+                label: "reports panel",
+                locator: { role: "heading", name: "Reports" },
+                check: "visible",
+            },
+            {
+                label: "back to the admin index",
+                locator: { role: "link", name: "← Admin" },
+                check: "reachable",
+            },
+        ],
+        async walk(page, ctx) {
+            await goto(page, ctx, "/admin/bug-reports");
+            if (!(await visible(page, "h1:has-text('Bug Reports')", 10_000))) {
+                throw new Unreachable(
+                    "/admin/bug-reports did not render the page heading — is this account still an admin?"
+                );
+            }
+        },
+    },
+    {
+        id: "draft-lab",
+        entries: [
+            "src/routes/admin/admin-layout.route.tsx",
+            "src/routes/draft-lab.route.tsx",
+        ],
+        label: "Draft Lab (/admin/draft-lab)",
+        // The workbench BEFORE a draft is started: the two mode tabs, the pack
+        // source, and the control that would start one. The walk deliberately
+        // does not start a draft — an 8-seat bot draft runs in the browser and
+        // would put a moving screen under the probe, and the layout this
+        // surface exists to measure is the controls bar's, which is on screen
+        // either way.
+        asserts: [
+            {
+                label: "page heading",
+                locator: { role: "heading", name: "Draft Lab" },
+                check: "visible",
+            },
+            {
+                label: "mode tab: Synthetic",
+                locator: { role: "button", name: "Synthetic" },
+                check: "reachable",
+            },
+            {
+                label: "Pack source",
+                locator: { role: "combobox", name: "Pack source" },
+                check: "reachable",
+            },
+            {
+                label: "Start draft",
+                locator: { role: "button", name: "Start draft" },
+                check: "reachable",
+            },
+        ],
+        async walk(page, ctx) {
+            await goto(page, ctx, "/admin/draft-lab");
+            if (!(await visible(page, "h1:has-text('Draft Lab')", 10_000))) {
+                throw new Unreachable(
+                    "/admin/draft-lab did not render the page heading — is this account still an admin?"
+                );
+            }
+        },
+    },
+    {
+        id: "settings",
+        entries: ["src/routes/settings.route.tsx"],
+        label: "Settings (/settings)",
+        // The one general-user screen in this group, and the only one under
+        // no admin gate. Its sections are `<fieldset>`/`<legend>` groups whose
+        // legend is `sr-only` (the Panel title already says it), so each is
+        // promised by its GROUP rather than by an option: an option's
+        // accessible name is its label AND its description line.
+        asserts: [
+            {
+                label: "page heading",
+                locator: { role: "heading", name: "Settings" },
+                check: "visible",
+            },
+            {
+                label: "Density group",
+                locator: { role: "group", name: "Density" },
+                check: "visible",
+            },
+            {
+                label: "Card preview default group",
+                locator: { role: "group", name: "Card preview default" },
+                check: "visible",
+            },
+            {
+                label: "Reset to defaults",
+                locator: { role: "button", name: "Reset to defaults" },
+                check: "reachable",
+            },
+        ],
+        async walk(page, ctx) {
+            await goto(page, ctx, "/settings");
+            if (!(await visible(page, "h1:has-text('Settings')", 10_000))) {
+                throw new Unreachable("/settings did not render its heading");
+            }
+        },
+    },
     {
         id: "limited-list",
         entries: ["src/routes/limited-events.route.tsx"],

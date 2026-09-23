@@ -14,6 +14,7 @@
 // dependency tree (`draft-lab-no-mutation.test.ts` enforces this statically).
 import { useState } from "react";
 import { useDraftLab } from "@/hooks/useDraftLab";
+import SurfaceReadyMarker from "@/components/ui/surface-ready-marker";
 import DraftLabControls from "@/components/draft-lab/draft-lab-controls";
 import DraftLabSeatTable from "@/components/draft-lab/draft-lab-seat-table";
 import DraftLabFocusPanel from "@/components/draft-lab/draft-lab-focus-panel";
@@ -34,6 +35,9 @@ export default function DraftLabWorkbench() {
 
     return (
         <>
+            {/* `canStart` is exactly `scopeCardProfiles !== undefined`
+                (`useDraftLab`): the Card Profile query has answered. */}
+            {lab.canStart && <SurfaceReadyMarker />}
             <p className="mt-3 max-w-3xl text-sm text-text-muted">
                 {mode === "synthetic"
                     ? "Runs a whole Bot Drafter draft in the browser from a seed — the same picking code the server uses, with the full score breakdown and provenance for every candidate."

@@ -142,30 +142,22 @@ const DEBT: Record<string, string> = {
         "the join-by-code form (#4402)",
     "src/components/lobby/lobby.tsx":
         "the lobby's inline confirm — the `lobby` surface measures the page, never this layer (#4402)",
-    "src/routes/admin/admin-banlists.route.tsx":
-        "the Banlists admin screen (#4402)",
-    "src/routes/admin/admin-bug-reports.route.tsx":
-        "the Bug Reports admin screen (#4402)",
-    "src/routes/admin/admin-index.route.tsx": "the admin index (#4402)",
-    "src/routes/admin/admin-pick-ratings.route.tsx":
-        "the Pick Ratings admin screen (#4402)",
-    "src/routes/admin/admin-scenarios.route.tsx":
-        "the Scenarios admin screen (#4402)",
-    "src/routes/admin/admin-testers.route.tsx":
-        "the Testers admin screen (#4402)",
-    "src/routes/draft-lab.route.tsx": "the Draft Lab screen (#4402)",
     "src/routes/join.route.tsx": "the join-a-table screen (#4402)",
-    "src/routes/settings.route.tsx": "the Settings screen (#4402)",
 };
 
 /** What to do about an uncensused element, in the terms of its own kind. */
 /**
- * What `DEBT` held when the census shipped. Pinned, not a ceiling: paying debt
- * down lowers it, and GROWING it is a two-line edit with a number going UP —
- * which is what a reviewer can see. A row quietly added to a 55-row dictionary
- * is not, and "frozen, shrink-only" was prose until this line.
+ * What `DEBT` holds. Pinned, not a ceiling: paying debt down lowers it, and
+ * GROWING it is a two-line edit with a number going UP — which is what a
+ * reviewer can see. A row quietly added to a 55-row dictionary is not, and
+ * "frozen, shrink-only" was prose until this line.
+ *
+ * 55 when the census shipped; 47 since issue #4418 walked the eight unwalked
+ * `/admin` and `/settings` SCREENS, the first slice of issue #4402. The
+ * remaining slices are that issue's other children, one per area — when the
+ * last one lands, this constant, `DEBT` and the tests below go with it.
  */
-const DEBT_AT_LANDING = 55;
+const DEBT_AT_LANDING = 47;
 
 function fix(row: CensusRow): string {
     if (row.kind === "route") {

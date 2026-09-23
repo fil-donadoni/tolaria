@@ -19,6 +19,7 @@ import type { Doc, Id } from "@convex/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Panel, PanelHeader, PanelBody } from "@/components/ui/panel";
+import SurfaceReadyMarker from "@/components/ui/surface-ready-marker";
 import { Banner } from "@/components/ui/banner";
 import DebugScenarioRow from "@/components/debug/debug-scenario-row";
 import DebugScenarioPreview from "@/components/debug/debug-scenario-preview";
@@ -112,6 +113,7 @@ export default function ScenariosAdminPanel() {
 
     return (
         <>
+            {scenarios !== undefined && <SurfaceReadyMarker />}
             {(error || testGame.error) && (
                 <Banner tone="danger">{error ?? testGame.error}</Banner>
             )}

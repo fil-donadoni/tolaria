@@ -3,6 +3,7 @@
 // shows up in both.
 import { Link } from "@tanstack/react-router";
 import AmbientPageGround from "@/components/ui/ambient-page-ground";
+import SurfaceReadyMarker from "@/components/ui/surface-ready-marker";
 import { Panel, PanelHeader, PanelBody } from "@/components/ui/panel";
 import { ADMIN_NAV } from "@/lib/adminNav";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
@@ -11,6 +12,9 @@ export default function AdminIndexRoute() {
     useDocumentTitle("Admin");
     return (
         <div className="relative">
+            {/* The index renders `ADMIN_NAV`, a module constant: there is nothing
+                to wait for, so the marker is up from the first render. */}
+            <SurfaceReadyMarker />
             <AmbientPageGround />
             <div className="relative z-10 mx-auto max-w-6xl px-6 py-8">
                 <header>
@@ -29,7 +33,17 @@ export default function AdminIndexRoute() {
 
                 <div className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
                     {ADMIN_NAV.map((entry) => (
-                        <Link key={entry.to} to={entry.to} className="block">
+                        <Link
+                            key={entry.to}
+                            to={entry.to}
+                            // The walk seam `check:ui` promises this index by
+                            // (`scripts/ui-gate/surfaces.ts`): the card's own
+                            // accessible name is its title AND its
+                            // description, which no assertion should have to
+                            // spell out.
+                            data-admin-nav={entry.to}
+                            className="block"
+                        >
                             <Panel className="h-full transition-colors hover:border-border-accent">
                                 <PanelHeader title={entry.label} />
                                 <PanelBody>
