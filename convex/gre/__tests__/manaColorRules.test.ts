@@ -19,7 +19,8 @@ import { oracleCard } from "../../oracle/__tests__/fixtures";
 import { falseDawn } from "../../cards/sets/apc/white";
 import { darkRitual } from "../../cards/sets/lea/black";
 import { lightningBolt } from "../../cards/sets/lea/red";
-import { mountain, solRing } from "../../cards/sets/lea/colorless";
+import { island, mountain, solRing } from "../../cards/sets/lea/colorless";
+import { coalGolem } from "../../cards/sets/drk/colorless";
 import {
     getManaSubstitutions,
     getPlayer,
@@ -33,7 +34,12 @@ import {
 } from "../constants";
 import { projectPublicState } from "../../gameProjections";
 import { compactState, expandState } from "../serialize";
-import { announceCast, selectTargets, tapUntap } from "../../game";
+import {
+    announceCast,
+    autoTapForPayment,
+    selectTargets,
+    tapUntap,
+} from "../../game";
 import {
     makeInstance,
     makePlayer,
@@ -188,6 +194,55 @@ describe("production — coloured mana becomes white for the controller only (CR
     });
 });
 
+describe("bonus mana from ANOTHER player's effect is keyed on that effect's controller (CR 106.3)", () => {
+    const islandOf = (state: GameState, pid: string) => {
+        const card = makeInstance(island.id, {
+            id: `isl-${pid}`,
+            controllerId: pid,
+            ownerId: pid,
+        });
+        getPlayer(state, pid).battlefield.push(card);
+        return card;
+    };
+
+    it("p2's High Tide: p1 (False Dawn) taps an Island for {W} + {U}", () => {
+        const state = afterFalseDawn();
+        state.highTideThisTurn = ["p2"];
+        expect(
+            applyLandManaReplacement(state, "p1", islandOf(state, "p1"), {
+                U: 1,
+            })
+        ).toEqual({ W: 1, U: 1 });
+    });
+
+    it("p1's High Tide: p2 taps an Island for {U} + {W}", () => {
+        const state = afterFalseDawn();
+        state.highTideThisTurn = ["p1"];
+        expect(
+            applyLandManaReplacement(state, "p2", islandOf(state, "p2"), {
+                U: 1,
+            })
+        ).toEqual({ U: 1, W: 1 });
+    });
+
+    it("an additional land rider replaces under its own controller", () => {
+        const state = afterFalseDawn();
+        state.landManaRidersThisTurn = [
+            {
+                subtype: "Mountain",
+                color: "R",
+                mode: "additional",
+                controllerId: "p2",
+            },
+        ];
+        const mtn = getPlayer(state, "p1").battlefield[0];
+        expect(applyLandManaReplacement(state, "p1", mtn, { R: 1 })).toEqual({
+            W: 1,
+            R: 1,
+        });
+    });
+});
+
 describe("spending — white as any colour, and only white (CR 609.4b)", () => {
     it("the controller's substitutions are exactly W → each colour", () => {
         const state = afterFalseDawn();
@@ -259,5 +314,66 @@ describe("full path — a Mountain taps for {W} and the {W} pays Lightning Bolt"
         expect(state.pendingCast).toBeUndefined();
         expect(state.stack.map((i) => i.card.id)).toEqual([lightningBolt.id]);
         expect(getPlayer(state, "p1").manaPool.W).toBe(0);
+    });
+});
+
+describe("full path — the other production sites", () => {
+    const BASE = { gameId: "game-1" as Id<"games">, playerId: "p1" };
+
+    it("a sacrifice mana ability (Coal Golem) adds {W}{W}{W}", async () => {
+        const state = afterFalseDawn();
+        const p1 = getPlayer(state, "p1");
+        p1.battlefield.push(
+            makeInstance(coalGolem.id, {
+                id: "golem",
+                controllerId: "p1",
+                ownerId: "p1",
+            })
+        );
+        p1.manaPool = { ...POOL0, C: 3 };
+        const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
+        await runMutation(
+            tapUntap as unknown as Handler<Record<string, unknown>, void>,
+            harness.ctx,
+            { ...BASE, cardInstanceId: "golem" }
+        );
+        expect(getPlayer(harness.state(), "p1").manaPool).toMatchObject({
+            W: 3,
+            R: 0,
+            C: 0,
+        });
+    });
+
+    it("auto-tap pays Lightning Bolt's {R} with a Mountain's replaced {W}", async () => {
+        const harness = makeMutationCtx("p1", [
+            gameStateSeed(afterFalseDawn()),
+        ]);
+        await runMutation(
+            announceCast as unknown as Handler<Record<string, unknown>, void>,
+            harness.ctx,
+            { ...BASE, cardInstanceId: "bolt" }
+        );
+        await runMutation(
+            selectTargets as unknown as Handler<Record<string, unknown>, void>,
+            harness.ctx,
+            { ...BASE, targets: [{ targetType: "player", targetId: "p2" }] }
+        );
+        if (harness.state().pendingCast) {
+            await runMutation(
+                autoTapForPayment as unknown as Handler<
+                    Record<string, unknown>,
+                    void
+                >,
+                harness.ctx,
+                BASE
+            );
+        }
+        const state = harness.state();
+        expect(state.pendingCast).toBeUndefined();
+        expect(state.stack.map((i) => i.card.id)).toEqual([lightningBolt.id]);
+        const mtn = getPlayer(state, "p1").battlefield.find(
+            (c) => c.id === "mtn"
+        );
+        expect(mtn?.isTapped).toBe(true);
     });
 });

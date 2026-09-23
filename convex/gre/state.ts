@@ -5548,6 +5548,11 @@ export type GameState = {
         subtype: string;
         color: Color;
         mode: "additional" | "override";
+        /** CR 106.3 (issue #3811) — the controller of the effect that adds
+         *  the extra mana; keys `replaceProducedManaColor` for an additional
+         *  rider. Absent on a row written before the field existed, which
+         *  falls back to the tapping player. */
+        controllerId?: string;
     }>;
     /** When true, no player may play a land and lands can't enter the
      *  battlefield (Worms of the Earth). Unlike the turn-scoped flags below,
@@ -20695,8 +20700,11 @@ export function buildSpellContext(
             // CR 614 / 514.2 — additive list, NOT idempotent: each arm pushes an
             // entry so two "additional" riders give two extra mana per tap.
             // Cleared at CLEANUP.
+            // The rider's CONTROLLER is the resolving controller (CR 106.3 —
+            // the extra mana is produced by that player's effect, not by the
+            // player who taps), read by production-colour replacement.
             const list = state.landManaRidersThisTurn ?? [];
-            list.push(rider);
+            list.push({ ...rider, controllerId: item.castById });
             state.landManaRidersThisTurn = list;
         },
 
@@ -23444,10 +23452,16 @@ export function buildSpellContext(
                 for (const src of owner.battlefield) {
                     if (tappedIds.has(src.id)) src.isTapped = true;
                 }
-                const produced = manaFromPlan(sources, plan);
+                // CR 614.1a (issue #3811) — the lands' controller (the
+                // controlled player) produces this mana.
+                const produced = replaceProducedManaColor(
+                    state,
+                    owner.id,
+                    manaFromPlan(sources, plan)
+                );
                 for (const color of MANA_COLORS) {
                     const v = produced[color];
-                    if (v) {
+                    if (typeof v === "number" && v > 0) {
                         owner.manaPool[color] =
                             (owner.manaPool[color] ?? 0) + v;
                     }

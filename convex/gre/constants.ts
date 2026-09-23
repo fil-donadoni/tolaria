@@ -2234,10 +2234,13 @@ function getContinuousLandManaOverride(
  *  non-mana keys a `ManaCost` may carry are dropped, as every pool writer
  *  already ignores them. Returns `produced` itself when no replacement is live.
  *
- *  The ONE helper every production site calls — the tap funnel
- *  `applyLandManaReplacement` below and the `SpellContext` mana writers — so a
- *  new site that forgets it is the only way to miss it. Keyed on the
- *  CONTROLLER of the producing spell or ability, never on the receiving pool. */
+ *  The ONE helper production sites call: the tap funnel
+ *  `applyLandManaReplacement` below, the `SpellContext` mana writers, and the
+ *  deposits that bypass the funnel (auto-tap `manaFromPlan` totals, sacrifice
+ *  and choice mana abilities, player-sourced mana abilities, the Bot
+ *  sandboxes). A NEW production site must call it too. Idempotent. Keyed on
+ *  the CONTROLLER of the producing spell or ability, never on the receiving
+ *  pool. */
 export function replaceProducedManaColor(
     state: Pick<GameState, "manaProductionColorThisTurn">,
     controllerId: string,
@@ -2299,7 +2302,8 @@ export function applyLandManaReplacement(
     // a land subtype, global. Overrides run before additionals so the override
     // colour is what the additional then increments.
     const riders = state.landManaRidersThisTurn ?? [];
-    if (riders.length > 0 && isLand(card)) {
+    const onLand = isLand(card);
+    if (riders.length > 0 && onLand) {
         for (const rider of riders) {
             if (!card.subtypes.includes(rider.subtype)) continue;
             if (rider.mode === "override") {
@@ -2307,31 +2311,45 @@ export function applyLandManaReplacement(
                 if (total > 0) result = { [rider.color]: total };
             }
         }
+    }
+    // (4) CR 614.1a / 106.3 (issue #3811) — the production-colour replacement
+    // (False Dawn) applies to what the TAPPED source produces, keyed on the
+    // tapping player who controls that mana ability — so it runs here, on the
+    // source's own (possibly overridden) output, BEFORE the additive riders.
+    result = replaceProducedManaColor(state, controllerId, result);
+    // The additive riders below are mana a DIFFERENT effect adds (CR 106.3:
+    // its source is the rider's spell, controlled by whoever cast it), so each
+    // unit is replaced under ITS controller, never the tapper's. The order
+    // among replacements is fixed rather than chosen by the affected player
+    // (CR 616.1): no legal board makes the colour depend on it except via
+    // two opposing production replacements, which no printed card pairs.
+    const addUnit = (color: Color, producerId: string) => {
+        const unit = replaceProducedManaColor(state, producerId, {
+            [color]: 1,
+        });
+        for (const c of MANA_COLORS) {
+            const n = unit[c] ?? 0;
+            if (n > 0) result = { ...result, [c]: (result[c] ?? 0) + n };
+        }
+    };
+    if (riders.length > 0 && onLand) {
         for (const rider of riders) {
             if (!card.subtypes.includes(rider.subtype)) continue;
             if (rider.mode === "additional") {
-                result = {
-                    ...result,
-                    [rider.color]: (result[rider.color] ?? 0) + 1,
-                };
+                addUnit(rider.color, rider.controllerId ?? controllerId);
             }
         }
     }
     // (3b) FEM High Tide (CR 614-style additive rider): "Until end of turn,
     // whenever a player taps an Island for mana, that player adds an additional
-    // {U}." Global (every player who taps an Island benefits), so the count is
-    // the number of active High Tides. Folded into the single mana funnel so
-    // every tap path adds the bonus consistently, keyed to Island (CR 305.6).
+    // {U}." Global, one extra {U} per active High Tide, each produced by ITS
+    // caster's effect (the list holds one caster id per resolution).
     if (card.subtypes.includes("Island")) {
-        const highTides = state.highTideThisTurn?.length ?? 0;
-        if (highTides > 0) {
-            result = { ...result, U: (result.U ?? 0) + highTides };
+        for (const casterId of state.highTideThisTurn ?? []) {
+            addUnit("U", casterId);
         }
     }
-    // (4) CR 614.1a (issue #3811) — the controller's until-end-of-turn
-    // production-colour replacement (False Dawn). Not land-only: every source
-    // tapped through this funnel is an ability its controller controls.
-    return replaceProducedManaColor(state, controllerId, result);
+    return result;
 }
 
 /** Spend restriction (CR 106.6) carried by a card's fixed tap mana ability, or

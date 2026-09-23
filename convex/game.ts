@@ -2087,7 +2087,12 @@ function activateFixedSacrificeManaAbility(
     // {1}, Coal Golem's {3}) FIRST, before any source mutation, so an
     // unaffordable activation throws with nothing changed.
     applyManaAbilityManaCost(state, player, ability, card);
-    const produced = ability.manaProduced ?? {};
+    // CR 614.1a (issue #3811) — production-colour replacement (False Dawn).
+    const produced = replaceProducedManaColor(
+        state,
+        player.id,
+        ability.manaProduced ?? {}
+    );
     // CR 106.6 — a restricted output floats in the parallel `restrictedMana`
     // pool, exactly as the tap branches deposit it.
     depositTappedMana(
@@ -2829,7 +2834,8 @@ function inlineManaAbilityOutput(
         }
         const chosen = choices[choiceIndex];
         if (!chosen) throw new Error("Invalid mana choice");
-        return chosen;
+        // CR 614.1a (issue #3811) — the controller's production replacement.
+        return replaceProducedManaColor(state, player.id, chosen);
     }
     if (!ability.manaProduced) return undefined;
     // CR 106.1 — a board-conditional amount (the Urza trio's `manaAmount`)
@@ -14694,16 +14700,30 @@ export const tapUntap = mutation({
                 );
                 if (restriction || hasAnyManaRider(fixedRiders)) {
                     if (!wasTapped) {
+                        // CR 614.1a (issue #3811) — the controller's
+                        // production-colour replacement; a rewritten colour is
+                        // snapshotted so every untap site refunds what was
+                        // actually added (`refundChosenManaOutput`).
+                        const added = replaceProducedManaColor(
+                            state,
+                            player.id,
+                            { [manaColor]: amount } as ManaCost
+                        );
+                        const addedColor =
+                            (MANA_COLORS.find((c) => (added[c] ?? 0) > 0) as
+                                | Color
+                                | undefined) ?? manaColor;
+                        if (addedColor !== manaColor) card.chosenMana = added;
                         addRestrictedManaToPool(
                             player,
-                            manaColor,
+                            addedColor,
                             amount,
                             restriction ?? undefined,
                             undefined,
                             fixedRiders
                         );
                         producedThisActivation = {
-                            [manaColor]: amount,
+                            [addedColor]: amount,
                         } as ManaCost;
                         emitPermanentTapped(
                             state,
@@ -14711,6 +14731,9 @@ export const tapUntap = mutation({
                             true,
                             producedThisActivation
                         );
+                    } else if (card.chosenMana) {
+                        refundChosenManaOutput(player, card);
+                        card.chosenMana = undefined;
                     } else {
                         reverseRestrictedManaFromPool(
                             player,
