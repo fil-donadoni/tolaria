@@ -310,6 +310,13 @@ export type CounterTaxIR = {
 };
 
 export type EffectSentenceIR =
+    /** CR 205.3m (issue #3721) — "Choose a creature type." made as the spell
+     *  or ability RESOLVES, the head of a line whose later sentences read the
+     *  answer back through a `chosenType` descriptor ("of that type" / "of the
+     *  chosen type"). Carries no data: the chooser is always the resolving
+     *  controller (no printed card lets another player choose) and the legal
+     *  space is always CR 205.3m's whole table. */
+    | { readonly kind: "choose-creature-type" }
     | {
           readonly kind: "pump";
           readonly subject: SubjectIR;
@@ -1574,6 +1581,9 @@ const LIFE = /^(.+) (gain|gains|lose|loses) (\S+|that much) life$/;
  * printed number: "X life for each …" is a product of two variables this
  * grammar does not read.
  */
+/** CR 205.3m — "Choose a creature type." The whole sentence; see the branch
+ *  in `effectSentence` for why it is anchored at both ends. */
+const CHOOSE_CREATURE_TYPE = /^Choose a creature type$/;
 const LIFE_FOR_EACH = /^(.+) (gain|gains|lose|loses) (\S+) life (for each .+)$/;
 /** CR 119.3 + CR 202.3 + CR 208.1 — "You lose life equal to its mana value"
  *  (or "that card's", or "that permanent's" — Feed the Swarm), and "You gain
@@ -2162,6 +2172,14 @@ function effectSentence(
     span: string,
     ctx: unknown
 ): RuleResult<EffectSentenceIR> {
+    // ── choose a creature type (CR 205.3m) ─────────────────────────────────
+    // An EXACT match, not a prefix: the whole sentence is the instruction, and
+    // anything appended to it ("Choose a creature type other than Wall") is a
+    // restriction this rule does not read and must not silently drop.
+    if (CHOOSE_CREATURE_TYPE.test(span)) {
+        return ok({ kind: "choose-creature-type" as const });
+    }
+
     // ── pump (CR 613.4c, layer 7c) ─────────────────────────────────────────
     const pump = span.match(PUMP);
     if (pump !== null) {

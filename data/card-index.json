@@ -29490,6 +29490,16 @@
         "firstPrintSet": "znr"
     },
     {
+        "name": "Luminescent Rain",
+        "scryfallId": "5f9903cc-350c-44cf-9c0b-5df7922ed766",
+        "oracleId": "7e23a2e7-b8b3-424f-8922-a1adb1db3f4d",
+        "firstSet": "mor",
+        "firstPrintId": "5f9903cc-350c-44cf-9c0b-5df7922ed766",
+        "firstPrintSet": "mor",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Luminous Angel",
         "scryfallId": "9b4f880d-6262-429f-91b7-def417aa13bd",
         "oracleId": "8d7cf56c-94fd-47d8-9e0f-cd3163688983",
@@ -52711,6 +52721,14 @@
         "oracleId": "4d00c44b-8953-4b18-af73-2944321b6cd1",
         "firstSet": "inv",
         "firstPrintId": "0047302d-4e3d-4327-9bb2-ecd5b00b00e3",
+        "firstPrintSet": "inv"
+    },
+    {
+        "name": "Tsabo's Decree",
+        "scryfallId": "0c1a0ebd-1add-49e6-b5e6-5b26abb1de88",
+        "oracleId": "4e0de4d9-7a30-4a2b-94ba-8239baad2a0a",
+        "firstSet": "inv",
+        "firstPrintId": "0c1a0ebd-1add-49e6-b5e6-5b26abb1de88",
         "firstPrintSet": "inv"
     },
     {

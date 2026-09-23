@@ -49,7 +49,7 @@ import {
 } from "../../../../gre/layers";
 import { projectPublicState } from "../../../../gameProjections";
 import type { GameState, StackItem } from "../../../../gre/state";
-import { getDefinition } from "../../../index";
+import { getDefinition, registerTokenDefinition } from "../../../index";
 
 const addle = getDefinition("e8afb9d0-affa-4599-bf29-729cfe64703b");
 const andraditeLeech = getDefinition("6da0d4f3-9216-406c-8f3e-b9bb0a11dc75");
@@ -58,6 +58,7 @@ const bogInitiate = getDefinition("8962dc3b-24ca-4c3c-ba1d-933c29cf7b73");
 const cremate = getDefinition("1095cdfe-8060-4a73-bacf-9f983152b486");
 const cryptAngel = getDefinition("522ddc6f-ec13-4a70-8f4c-b3c846b102fd");
 const desperateResearch = getDefinition("6a42ac7e-4a27-488c-a2e7-338b18103b02");
+const tsabosDecree = getDefinition("0c1a0ebd-1add-49e6-b5e6-5b26abb1de88");
 const doOrDie = getDefinition("05f63cd9-e82b-4cf8-b8ce-f0aa0157692b");
 const dredge = getDefinition("68bfa3d5-0f0b-4684-9567-f1478da01df7");
 const duskwalker = getDefinition("39a4a026-f44e-40e1-9942-a3d8448aca70");
@@ -2280,5 +2281,140 @@ describe("Addle (choose a color; target player reveals hand, you choose a card o
         expect(
             projected.players[1].hand.some((c) => c?.id === "p2-white-wire")
         ).toBe(true);
+    });
+});
+
+describe("Tsabo's Decree (CR 205.3m creature-type choice + 701.20a reveal + 701.9 discard + 701.8/701.19c destroy, issue #3721)", () => {
+    // p2 holds two Goblins and an Elf in hand, and controls a Goblin and an
+    // Elf. One choice must reach BOTH halves: the hidden-zone matcher and the
+    // battlefield one read the same binding, and the Elves prove the filter
+    // narrows rather than sweeping everything.
+    const GOBLIN_ID = "tsabo-test-goblin";
+    const ELF_ID = "tsabo-test-elf";
+    registerTokenDefinition({
+        id: GOBLIN_ID,
+        name: GOBLIN_ID,
+        rarity: "common",
+        manaCost: { R: 1 },
+        types: ["Creature"],
+        subtypes: ["Goblin"],
+        power: 2,
+        toughness: 2,
+    });
+    registerTokenDefinition({
+        id: ELF_ID,
+        name: ELF_ID,
+        rarity: "common",
+        manaCost: { G: 1 },
+        types: ["Creature"],
+        subtypes: ["Elf"],
+        power: 2,
+        toughness: 2,
+    });
+
+    function setup() {
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(GOBLIN_ID, {
+                            id: "bf-goblin",
+                            controllerId: "p2",
+                        }),
+                        makeInstance(ELF_ID, {
+                            id: "bf-elf",
+                            controllerId: "p2",
+                        }),
+                    ],
+                    hand: [
+                        makeInstance(GOBLIN_ID, {
+                            id: "hand-goblin",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "hand",
+                        }),
+                        makeInstance(ELF_ID, {
+                            id: "hand-elf",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        pushSpell(state, tsabosDecree.id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    function choose(state: GameState, subtype: string) {
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [subtype],
+        });
+    }
+
+    it("one chosen type drives BOTH halves — the hand sweep and the board sweep", () => {
+        const state = setup();
+        // The controller is asked, not the target (CR 608.2d — the spell's
+        // controller makes a choice its own text does not hand to anyone else).
+        expect(state.pendingChoices![0].playerId).toBe("p1");
+        choose(state, "Goblin");
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["hand-elf"]);
+        // CR 701.9a — the discarded card is in the graveyard, alongside the
+        // destroyed permanent (CR 701.8a).
+        expect(state.players[1].graveyard.map((c) => c.id).sort()).toEqual([
+            "bf-goblin",
+            "hand-goblin",
+        ]);
+        expect(state.players[1].battlefield.map((c) => c.id)).toEqual([
+            "bf-elf",
+        ]);
+    });
+
+    it("CR 701.19c — the destroyed creatures can't be regenerated", () => {
+        const state = setup();
+        const shielded = state.players[1].battlefield.find(
+            (c) => c.id === "bf-goblin"
+        )!;
+        shielded.regenerationShields = 1;
+        choose(state, "Goblin");
+        // The shield does not save it: "They can't be regenerated" suppresses
+        // the replacement rather than being consumed by it.
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "bf-goblin")
+        ).toBe(false);
+        expect(
+            state.players[1].graveyard.some((c) => c.id === "bf-goblin")
+        ).toBe(true);
+    });
+
+    it("a type the target holds nowhere does nothing (CR 101.3)", () => {
+        const state = setup();
+        choose(state, "Zombie");
+        expect(state.players[1].hand).toHaveLength(2);
+        expect(state.players[1].battlefield).toHaveLength(2);
+        expect(state.players[1].graveyard).toHaveLength(0);
+    });
+
+    it("CR 701.20a — the reveal exposes the swept hand to the caster (wire format)", () => {
+        const state = setup();
+        choose(state, "Goblin");
+        // p2's hand is normally `null[]` to p1 (CR 402.3); without the reveal
+        // reaching the projection the discard would be unexplainable client-
+        // side. The option list must reach the CHOOSER too, or the dialog is
+        // empty and the resolution never finishes.
+        const wire = projectPublicState(state, 1, "p1");
+        expect(wire.players[1].hand).toHaveLength(1);
+        expect(wire.players[1].hand.every((c) => c !== null)).toBe(true);
+        expect(wire.players[1].battlefield.map((c) => c.id)).toEqual([
+            "bf-elf",
+        ]);
     });
 });

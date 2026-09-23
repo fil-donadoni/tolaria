@@ -71,6 +71,9 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     cascade: true,
     choice: true,
     chooseCategorized: true,
+    // CR 205.3m (issue #3721) — enqueues an `option-pick` over the
+    // creature-type table and suspends, exactly like `nameCard` below.
+    chooseCreatureType: true,
     coinFlip: true,
     divideIntoPiles: true,
     draw: true,

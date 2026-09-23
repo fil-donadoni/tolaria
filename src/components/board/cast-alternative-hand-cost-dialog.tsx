@@ -143,7 +143,11 @@ function describeRequirement(req: {
     count: number;
 }): string {
     const f = req.filter;
-    if (f.subtype !== undefined) {
+    // issue #3721 — `subtype` also has a DYNAMIC `{ ref }` shape, resolvable
+    // only on a resolving stack item. This dialog describes a COST leg, where
+    // there is none, so it falls through to the generic label below rather
+    // than rendering "[object Object] card".
+    if (f.subtype !== undefined && typeof f.subtype !== "object") {
         const s = Array.isArray(f.subtype) ? f.subtype.join("/") : f.subtype;
         return `${req.count > 1 ? `${req.count} ` : "a"}${req.count > 1 ? "" : "n"} ${s} card${req.count > 1 ? "s" : ""}`.replace(
             "an ",

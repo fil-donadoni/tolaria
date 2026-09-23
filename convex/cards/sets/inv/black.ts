@@ -46,10 +46,10 @@
 //         `flashSurcharge` rider).
 //       - Defiling Tears → tracked-by #3720 (a plain DSL ship: every
 //         clause is covered by shipped Ops, see its stub).
-//       - Tsabo's Decree → tracked-by #3721 (a resolution-time "choose a
-//         creature type" Op + subtype-ref filter), now its ONLY blocker: the
-//         hand-side bulk discard it also waited on is `discard { player,
-//         filter }` (#2713), and #2150 closed the count half.
+//       - Tsabo's Decree shipped below (issue #3721 — the resolution-time
+//         `chooseCreatureType` Op and the `{ ref }` form of
+//         `EffectCardFilter.subtype`; the hand-side bulk discard it also
+//         waited on is `discard { player, filter }`, #2713).
 //       - Yawgmoth's Agenda → tracked-by #2246 (the card slice). Was #686,
 //         then #1238; #1238 was re-audited and split, since two of its three
 //         premises had drifted — the redirect clause is already shipped infra
@@ -1287,29 +1287,71 @@ export const tsabosAssassin: CardDefinition = {
     ],
 };
 
-// STOP-AND-ISSUE (tracked-by: #3721) — Tsabo's Decree: "Choose a creature
-// type. Target player reveals their hand and discards all creature cards of
-// that type. Then destroy all creatures of that type that player controls.
-// They can't be regenerated." TWO stacked gaps: (1) a RESOLUTION-TIME "choose
-// a creature type" Op with a bindable answer, plus an `EffectCardFilter`
-// subtype position that reads it — the choice itself exists only AS A
-// PERMANENT ENTERS (`asEnters: { kind: "subtypes" }` → `chosenSubtypes`,
-// Engineered Plague), which a resolving instant cannot use; (2) the mandatory
-// hand-side bulk discard ("discards ALL creature cards of that type", no
-// player choice). Gap (2) is CLOSED: `discard { player, filter }` (issue
-// #2713) is the UNCHOSEN filter-matched hand sweep, funnelling through
-// `discardToGraveyard`, and issue #2150 shipped the filtered hand COUNT and
-// the two dragons that consume the pair. #3721 is therefore the card's only
-// remaining blocker — gap (1) alone now unblocks it. Not invented; left a
-// stub.
-// export const tsabosDecree: CardDefinition = {
-//     id: "0c1a0ebd-1add-49e6-b5e6-5b26abb1de88", // INV 129
-//     name: "Tsabo's Decree",
-//     rarity: "rare",
-//     manaCost: { X: 5, B: 1 },
-//     types: ["Instant"],
-//     targetRequirement: { type: "player", count: 1 },
-// };
+// Tsabo's Decree — {5}{B} Instant. "Choose a creature type. Target player
+// reveals their hand and discards all creature cards of that type. Then
+// destroy all creatures of that type that player controls. They can't be
+// regenerated." (CR 205.3m the creature-type choice, made at RESOLUTION —
+// `chooseCreatureType`, issue #3721, the first card to need it: the engine's
+// other creature-type choice happens only as a permanent enters, which an
+// instant has nowhere to put; CR 701.20a reveal; CR 701.9 discard, the
+// UNCHOSEN filter-matched hand sweep `discard { player, filter }` (issue
+// #2713) routed through `discardToGraveyard`, so CR 614 replacements,
+// `CARD_DISCARDED` and madness all fire; CR 400.7 mass zone change;
+// CR 701.8 destroy with CR 701.19c regeneration suppression.)
+//
+// The chosen type reaches BOTH halves through the one binding: `$type` is
+// written by the choice Op and read back by `EffectCardFilter.subtype`'s ref
+// form in the hand filter AND in the battlefield `forEach` selector. Both
+// resolve FAIL-CLOSED — an unresolved ref matches nothing — because the
+// fail-open reading of this card discards a whole hand and destroys a whole
+// board.
+//
+// Order is the Oracle's and CR 608.2c's: choose, then reveal-and-discard,
+// then destroy. "That player controls" is the announced target (slot 0), so
+// the sweep is controller-scoped rather than global.
+//
+// compiler-gap: Target player reveals their hand and discards all creature cards of that type. (#2693)
+// compiler-gap: Then destroy all creatures of that type that player controls. They can't be regenerated. (#2693)
+export const tsabosDecree: CardDefinition = {
+    id: "0c1a0ebd-1add-49e6-b5e6-5b26abb1de88",
+    name: "Tsabo's Decree",
+    rarity: "rare",
+    oracleText:
+        "Choose a creature type. Target player reveals their hand and discards all creature cards of that type. Then destroy all creatures of that type that player controls. They can't be regenerated.",
+    manaCost: { X: 5, B: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "player", count: 1 },
+    effects: [
+        {
+            op: "chooseCreatureType",
+            player: "controller",
+            prompt: "Choose a creature type (Tsabo's Decree)",
+            bind: "$type",
+        },
+        { op: "reveal", player: { target: 0 }, zone: "hand" },
+        {
+            op: "discard",
+            player: { target: 0 },
+            filter: { type: "Creature", subtype: { ref: "$type" } },
+        },
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                controller: { target: 0 },
+                filter: { type: "Creature", subtype: { ref: "$type" } },
+            },
+            effects: [
+                {
+                    op: "destroy",
+                    target: { ref: "$each" },
+                    cantBeRegenerated: true,
+                },
+            ],
+        },
+    ],
+};
 
 // Twilight's Call — the CR 601.3c conditional-flash rider (issue #2146),
 // shipped as `flashSurcharge`: legal to ANNOUNCE at any priority ("that player

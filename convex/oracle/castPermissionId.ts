@@ -110,8 +110,11 @@ function primaryClass(filter: EffectCardFilter): string {
         Array.isArray(value) ? value[0] : value;
     const type = first(filter.type);
     if (type !== undefined) return slug(type);
+    // issue #3721 — `subtype` may be a `{ ref }`; this digest is cosmetic and
+    // has no binding store to resolve one against, so a dynamic subtype simply
+    // does not name the class (the next clause does).
     const subtype = first(filter.subtype);
-    if (subtype !== undefined) return slug(subtype);
+    if (typeof subtype === "string") return slug(subtype);
     for (const clause of filter.any ?? []) {
         const nested = primaryClass(clause);
         if (nested !== "spell") return nested;

@@ -415,6 +415,20 @@ function resolveFixedPlayerRef(
     return undefined;
 }
 
+/** Does this filter carry the DYNAMIC `{ ref }` subtype (issue #3721)? Such a
+ *  filter is unreadable before the card resolves, and both board readers below
+ *  take their representative-magnitude exit on it rather than pricing it at
+ *  zero. Recurses into `any` clauses — an OR whose one usable branch is the
+ *  dynamic one is just as unreadable. */
+function hasDynamicSubtype(filter: EffectCardFilter | undefined): boolean {
+    if (filter === undefined) return false;
+    const st = filter.subtype;
+    if (st !== undefined && typeof st === "object" && !Array.isArray(st)) {
+        return true;
+    }
+    return (filter.any ?? []).some(hasDynamicSubtype);
+}
+
 /** Minimal card-filter match for a live board/graveyard count (issue #1433
  *  review finding 2) — type / excludeType / subtype ANDed, mirroring
  *  `EffectCardFilter`'s AND-of-fields / OR-within-field semantics
@@ -441,7 +455,21 @@ function matchesCountFilter(
     const excludeTypes = asArray(filter.excludeType);
     if (excludeTypes && excludeTypes.some((t) => card.types.includes(t)))
         return false;
-    const subtypes = asArray(filter.subtype);
+    // issue #3721 — a `{ ref }` subtype names a `chooseCreatureType` binding
+    // that only exists mid-resolution. Refused rather than skipped: skipping
+    // is this reader's documented fail-OPEN shape for a field it does not
+    // evaluate, and here that would count EVERY permanent for "creatures of
+    // the chosen type". The caller takes its own representative-magnitude exit
+    // for this shape (`resolveCountSpecAgainstBoard`), so this branch is the
+    // backstop, not the answer.
+    const literalSubtypes: string | string[] | undefined =
+        typeof filter.subtype === "object" && !Array.isArray(filter.subtype)
+            ? undefined
+            : filter.subtype;
+    if (filter.subtype !== undefined && literalSubtypes === undefined) {
+        return false;
+    }
+    const subtypes = asArray(literalSubtypes);
     if (subtypes && !subtypes.some((s) => card.subtypes.includes(s)))
         return false;
     // manaValueAtMost/manaValueEquals/supertype/color/hasCounter/name: not
@@ -609,6 +637,18 @@ function resolveCountSpecAgainstBoard(
     ) {
         return times * CF_ASSUMED_COUNT_FALLBACK;
     }
+    // CR 205.3m (issue #3721) — a `{ ref }` subtype names the type a
+    // `chooseCreatureType` Op picks DURING the resolution this valuation is
+    // pricing, so before the card is cast there is nothing to read. Same
+    // representative fallback as `picks` and the filtered hand count above,
+    // and for the same reason: the set it counts does not exist yet. Reading
+    // the board anyway is the fail-open — `matchesCountFilter` would refuse
+    // every card and price Luminescent Rain's "2 life for each permanent of
+    // that type" at ZERO, below the context-free floor this reader refines
+    // (#1520).
+    if (hasDynamicSubtype(spec.filter)) {
+        return times * CF_ASSUMED_COUNT_FALLBACK;
+    }
     return times * countSpecForPlayer(state, pid, spec);
 }
 
@@ -630,6 +670,15 @@ function resolveForEachCountAgainstBoard(
     select: EffectForEachSelector,
     sourceId?: string
 ): number {
+    // CR 205.3m (issue #3721) — a selector filtered by a `{ ref }` subtype is
+    // the forEach twin of the `count` exit above: the type is picked by a
+    // `chooseCreatureType` Op during the very resolution this is pricing, so
+    // the board cannot answer yet and `matchesCountFilter` would refuse every
+    // member. Tsabo's Decree's "destroy all creatures of that type that player
+    // controls" would otherwise price as destroying NOTHING.
+    if ("filter" in select && hasDynamicSubtype(select.filter)) {
+        return CF_ASSUMED_COUNT_FALLBACK;
+    }
     switch (select.set) {
         case "players":
             return state.players.length;

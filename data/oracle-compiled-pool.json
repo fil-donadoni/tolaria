@@ -63571,6 +63571,52 @@
         "setCode": "dom"
     },
     {
+        "name": "Luminescent Rain",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "oracleText": "Choose a creature type. You gain 2 life for each permanent you control of that type.",
+        "effects": [
+            {
+                "op": "chooseCreatureType",
+                "player": "controller",
+                "prompt": "Choose a creature type",
+                "bind": "$chosenType"
+            },
+            {
+                "op": "gainLife",
+                "player": "controller",
+                "amount": {
+                    "count": {
+                        "zone": "battlefield",
+                        "controller": "controller",
+                        "filter": {
+                            "type": [
+                                "Artifact",
+                                "Battle",
+                                "Creature",
+                                "Enchantment",
+                                "Land",
+                                "Planeswalker"
+                            ],
+                            "subtype": {
+                                "ref": "$chosenType"
+                            }
+                        },
+                        "times": 2
+                    }
+                }
+            }
+        ],
+        "id": "5f9903cc-350c-44cf-9c0b-5df7922ed766",
+        "rarity": "common",
+        "setCode": "mor"
+    },
+    {
         "name": "Viashino Slasher",
         "types": [
             "Creature"

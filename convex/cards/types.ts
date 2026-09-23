@@ -13137,7 +13137,28 @@ export interface EffectCountSpec {
  *  present (an unlikely but not-forbidden combination). */
 export interface EffectCardFilter {
     type?: CardType | CardType[];
-    subtype?: string | string[];
+    /** CR 205.3 — the card has (any) one of these subtypes. A FIXED literal
+     *  subtype or array of them, OR (issue #3721) a bare `{ ref: "$binding" }`
+     *  naming a `chooseCreatureType` Op's chosen-type binding — Tsabo's
+     *  Decree's "all creature cards of THAT type". The literal-or-`{ ref }`
+     *  pair mirrors `name`'s exactly (issues #1085/#1104): one field, one
+     *  meaning ("which subtypes"), a static and a dynamic source, and the
+     *  dynamic form resolves to a one-element list that is then ORed exactly
+     *  as an array literal is.
+     *
+     *  Fails CLOSED at every unresolvable edge — no such binding, or an
+     *  uncaptured one because the choosing Op was skipped (CR 101.3) — which
+     *  yields the empty subtype set and matches nothing, never "no
+     *  constraint". A fail-OPEN here would make Tsabo's Decree discard the
+     *  target player's whole hand and destroy every creature they control.
+     *  `toPermanentFilter` resolves the ref at the BATTLEFIELD boundary
+     *  exactly as it resolves a `name` ref (`PermanentFilter.subtypes` carries
+     *  literals only, and dropping the field there would be fail-OPEN),
+     *  yielding the UNMATCHABLE_FILTER sentinel for an empty set. The third
+     *  matcher, `handCardMatchesFilter`, has no resolving context at all and
+     *  therefore refuses the dynamic form outright rather than matching every
+     *  card. */
+    subtype?: string | string[] | EffectRef;
     supertype?: CardSupertype;
     /** Negative of `supertype` (CR 205.4a) — a card matches only if it has
      *  NONE of the listed supertypes. Mirrors `TargetRequirement.excludeSupertypes`
@@ -17412,6 +17433,59 @@ export type EffectOp =
           prompt: string;
           bind: string;
           nameRestriction?: NameRestriction;
+      }
+    /** CR 205.3m (issue #3721) — "Choose a creature type." made DURING
+     *  resolution, the sibling `nameCard` is for card names and `chooseNumber`
+     *  for numbers. The engine already had this choice, but only AS A
+     *  PERMANENT ENTERS (`entersWith.asEnters: { kind: "subtypes" }` →
+     *  `CardInstanceState.chosenSubtypes`, Engineered Plague / Conspiracy),
+     *  which a resolving instant or sorcery cannot use: there is no permanent
+     *  to stamp, and the answer must live on the STACK ITEM until the script
+     *  that asked for it finishes.
+     *
+     *  A thin declarative skin over `SpellContext.requestOptionChoice`, one
+     *  execution path (ADR 0045) — NOT a new Pending Choice kind. The options
+     *  are CR 205.3m's creature-type table, each carrying `subtype` on the
+     *  option, which is the channel the as-enters family already uses: the
+     *  client's combobox (`subtype-option-combobox.tsx`) and the bot's
+     *  `subtypeModePrior` (`gre/ai/choicePriors.ts`, which ranks the types
+     *  actually on the battlefield so a ~280-option list does not collapse to
+     *  the first eight alphabetically) both serve it unchanged.
+     *
+     *  Deliberately NOT `optionChoice`: that Op carries one `effects[]` body
+     *  per mode, so a creature-type pick would mean ~280 duplicated bodies and
+     *  still could not BIND the answer for a later Op to read.
+     *
+     *  SUSPENDS like `nameCard`/`choice`/`mayPay` — the first execution
+     *  enqueues the `option-pick` and reports "suspend"; the resumed execution
+     *  reads the chosen type back off the same `collectedChoices` store, the
+     *  binding name doubling as the `choiceId`. `bind` is REQUIRED: a type
+     *  choice nothing reads back is meaningless. The stored value is the
+     *  subtype STRING, read ONLY by a bare `{ ref: "$binding" }` in an
+     *  `EffectCardFilter.subtype` position (Tsabo's Decree's "all creature
+     *  cards of that type" and "all creatures of that type that player
+     *  controls").
+     *
+     *  CR 205.3e is what the shape has to honour — "that player must choose
+     *  one, and only one, EXISTING subtype, and the subtype must be for the
+     *  appropriate card type" — and it is honoured structurally rather than by
+     *  a post-hoc check: the options ARE CR 205.3m's table (gate-verified
+     *  against the vendored document by `scripts/__tests__/oracle-subtypes.test.ts`),
+     *  `count: 1` on the Pending Choice is the "one, and only one", and
+     *  `applyPendingChoiceSubmit` validates the submitted id against the
+     *  entry's own `options`, so a client cannot submit a string that is not
+     *  a creature type.
+     *
+     *  Named for the MECHANIC and for the CR wording, not for a generic
+     *  `chooseSubtype { family }` (issue #1917): card #1 names it, and the
+     *  generic SHAPE waits for card #2 to show the axis of variation — a land
+     *  type or an artifact type would be that second card, and neither is
+     *  shipped. */
+    | {
+          op: "chooseCreatureType";
+          player: EffectPlayerRef;
+          prompt: string;
+          bind: string;
       }
     /** CR 701.20a reveal / CR 401.4 look (issue #1085) — deterministic
      *  sibling of `lookDistribute`: reveals the top `look` cards of a library to

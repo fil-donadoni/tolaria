@@ -462,15 +462,24 @@ function spawnMatching(
  *  bear would silently count as zero against a "for each Shrine" filter. */
 function countFillerId(filter: {
     type?: string | string[];
-    subtype?: string | string[];
+    subtype?: string | string[] | { ref: string };
 }): string {
     // issue #677 — `type`/`subtype` may be an OR-array; a single representative
     // filler matching the FIRST value is enough for a canned scenario's count.
     const type =
         (Array.isArray(filter.type) ? filter.type[0] : filter.type) ??
         "Creature";
+    // issue #3721 — a `{ ref }` subtype names a `chooseCreatureType` binding,
+    // so there is no literal to build a filler for. Falls back to the generic
+    // filler subtype; the script carrying such a filter also carries the
+    // suspending Op, which `analyseOp` skips wholesale, so this branch only
+    // keeps the type honest rather than serving a live scenario.
+    const literalSubtype =
+        typeof filter.subtype === "object" && !Array.isArray(filter.subtype)
+            ? undefined
+            : filter.subtype;
     const subtype =
-        (Array.isArray(filter.subtype) ? filter.subtype[0] : filter.subtype) ??
+        (Array.isArray(literalSubtype) ? literalSubtype[0] : literalSubtype) ??
         FILLER_SUBTYPE;
     const id = `gen-count-filler-${type}-${subtype}`;
     registerTokenDefinition({
@@ -2628,6 +2637,21 @@ function analyseOp(op: EffectOp, req: Requirements): void {
                 `Op "explore" reveals an unprovisionable top card and suspends on the nonland branch's keep-or-bin choice — covered by the Op's interpreter tests`
             );
             return;
+        case "chooseCreatureType":
+            // CR 205.3m (issue #3721) — SUSPENDS for a live creature-type pick
+            // out of a ~280-option list, which a canned single-resolution
+            // scenario cannot submit (the same reason `nameCard` skips, and
+            // the same reason: the answer is the whole point, and every card
+            // that asks for it reads it back through a filter ref). Explicit
+            // skip; execution coverage is the Op's own interpreter tests,
+            // which drive the suspend, the resume and the unresolvable-chooser
+            // no-op.
+            skipBecause(
+                req,
+                "suspends-for-input",
+                `Op "chooseCreatureType" suspends for a live creature-type choice (CR 205.3m) — covered by the Op's interpreter tests`
+            );
+            return;
         default: {
             // Exhaustiveness guard: a registered Op with no analyser branch is
             // a skip, not a silent pass.
@@ -2855,6 +2879,18 @@ function sourceContributesTo(
     if (filter === undefined) return true;
     const { type, subtype, ...rest } = filter;
     if (Object.keys(rest).length > 0) return "undecidable";
+    // issue #3721 — a `{ ref }` subtype names a `chooseCreatureType` binding
+    // whose value only exists mid-resolution, so this static reader cannot
+    // decide it. "undecidable" is the honest answer; treating it as "no
+    // subtype constraint" would be the fail-OPEN this helper's own array
+    // handling below is careful to avoid.
+    if (
+        subtype !== undefined &&
+        !Array.isArray(subtype) &&
+        typeof subtype !== "string"
+    ) {
+        return "undecidable";
+    }
     // issue #677 — `type` / `subtype` may be an OR-array, so ONE matching
     // member is a match.
     const types = type === undefined ? [] : [type].flat();
@@ -4307,6 +4343,14 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // Kept for the 1:1 coverage guard; the Op's own interpreter tests are
     // the behavioural guarantor.
     nameCard() {
+        return null;
+    },
+    // `chooseCreatureType` (CR 205.3m, issue #3721) — never reached:
+    // `analyseOp` skips every script carrying it (it suspends for a live pick
+    // out of the ~280-entry creature-type table, which the canned generator
+    // cannot submit). Kept for the 1:1 coverage guard; the Op's own
+    // interpreter tests are the behavioural guarantor.
+    chooseCreatureType() {
         return null;
     },
     // `digMatchingToHand` (CR 701.20a / 401.4, issue #1085) — never reached:

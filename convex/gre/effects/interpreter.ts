@@ -119,6 +119,23 @@ import {
 } from "../categorizedPick";
 import { manaCostsEqual } from "../constants";
 import { readTaggedNumber, writeTaggedNumber } from "../numberBinding";
+import { CREATURE_SUBTYPES } from "../../oracle/grammar/shared/subtypes";
+
+/** CR 205.3m (issue #3721) — the creature-type table as an `option-pick`
+ *  option list, built ONCE at module load (it is a ~280-entry constant, and
+ *  rebuilding it per resolution would allocate it on every `chooseCreatureType`
+ *  suspension and resume). `id === label === subtype` here, but all three are
+ *  written out: `subtype` is the field `subtypeModePrior` (`gre/ai/
+ *  choicePriors.ts`) and the client combobox read, and its own doc comment is
+ *  explicit that a consumer must never have to assume the three coincide.
+ *  Sorted so the list a player scrolls — and the one a persisted choice
+ *  replays against — is stable across runs; `CREATURE_SUBTYPES` is a Set,
+ *  whose iteration order is its insertion order and therefore the CR
+ *  transcription's, not alphabetical. */
+const CREATURE_TYPE_OPTIONS: { id: string; label: string; subtype: string }[] =
+    [...CREATURE_SUBTYPES]
+        .sort()
+        .map((subtype) => ({ id: subtype, label: subtype, subtype }));
 
 type OpOf<K extends EffectOp["op"]> = Extract<EffectOp, { op: K }>;
 
@@ -1078,10 +1095,20 @@ function toPermanentFilter(
         if (clauses.length === 0) return UNMATCHABLE_FILTER;
         any = clauses;
     }
+    // CR 205.3 (issue #3721) — the same boundary treatment `name` and `color`
+    // get right above: `PermanentFilter.subtypes` carries LITERALS only, so a
+    // `{ ref }` subtype must be resolved here. Dropping it would be fail-OPEN
+    // ("creatures of the chosen type" becoming "all creatures"), and an
+    // unresolved ref resolves to the empty list, which matches nothing —
+    // the UNMATCHABLE_FILTER sentinel, not a silently absent constraint.
+    const subtypes = resolveFilterSubtypes(ctx, filter.subtype);
+    if (subtypes !== undefined && subtypes.length === 0) {
+        return UNMATCHABLE_FILTER;
+    }
     return {
         types: filter.type,
         excludeTypes: filter.excludeType,
-        subtypes: filter.subtype,
+        subtypes,
         supertypes: filter.supertype,
         excludeSupertypes: filter.excludeSupertype,
         colors,
@@ -1196,6 +1223,29 @@ function resolveFilterColors(
     return ctx.getAdditionalSacrificeColors() ?? [];
 }
 
+/** Resolves an `EffectCardFilter.subtype` to the literal list the matchers
+ *  compare against (issue #3721). A literal string or array passes through; a
+ *  bare `{ ref: "$binding" }` names a `chooseCreatureType` Op's chosen-type
+ *  binding (Tsabo's Decree's "all creature cards of THAT type") and is read
+ *  out of the SAME `collectedChoices` store the Op wrote it to.
+ *
+ *  Fails CLOSED on an unresolvable ref — no binding, or an uncaptured one
+ *  because the choosing Op was skipped (CR 101.3) — by yielding the EMPTY
+ *  list, which every consumer treats as "matches nothing". The fail-OPEN
+ *  alternative (returning `undefined`, i.e. no constraint) would make Tsabo's
+ *  Decree discard the target player's whole hand and destroy every creature
+ *  they control. Mirrors `resolveFilterColors`' contract exactly. */
+function resolveFilterSubtypes(
+    ctx: SpellContext,
+    value: EffectCardFilter["subtype"]
+): string[] | undefined {
+    if (value === undefined) return undefined;
+    if (typeof value === "string") return [value];
+    if (Array.isArray(value)) return value;
+    const stored = readBinding(ctx, value.ref);
+    return stored === undefined || stored.length === 0 ? [] : [stored[0]];
+}
+
 /** Matches a hidden-zone card's registry-read characteristics (library /
  *  graveyard, via `getLibraryCards` / `getGraveyardCards`) against an
  *  `EffectCardFilter` (issue #677). Every present field is ANDed; an
@@ -1255,7 +1305,10 @@ function matchesCardFilter(
     }
     const types = asFilterArray(filter.type);
     const excludeTypes = asFilterArray(filter.excludeType);
-    const subtypes = asFilterArray(filter.subtype);
+    // CR 205.3 (issue #3721) — literal subtypes, or a `chooseCreatureType`
+    // binding's chosen one (Tsabo's Decree). An empty list from the dynamic
+    // form matches nothing, the same fail-closed reading `color` takes.
+    const subtypes = resolveFilterSubtypes(ctx, filter.subtype);
     // CR 105.2 (issue #3806) — literal colours, or the cost-sacrificed
     // permanent's last-known ones (Mind Extraction). An empty set from the
     // dynamic form matches nothing, which is the fail-closed reading.
@@ -5597,6 +5650,28 @@ export const OP_EXECUTORS: {
             nameRestriction: op.nameRestriction,
         });
         if (named === undefined) return "suspend"; // enqueued — wait
+    },
+    // CR 205.3m (issue #3721) — "Choose a creature type." DURING resolution,
+    // the `nameCard` sibling for creature types. A thin adapter over
+    // `SpellContext.requestOptionChoice` (ADR 0045, one execution path): the
+    // whole CR 205.3m table becomes the option list, each option carrying
+    // `subtype` — the channel the as-enters `{ kind: "subtypes" }` family
+    // already uses, so the client's combobox and the bot's `subtypeModePrior`
+    // serve it with no new wiring. SUSPENDS like `nameCard`: the binding name
+    // doubles as the `choiceId` (unique within the script,
+    // validator-enforced), so the stored option id — which IS the subtype
+    // string — is the binding an `EffectCardFilter.subtype` bare ref reads
+    // back.
+    chooseCreatureType(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return; // CR 101.3 — chooser gone, skip
+        const chosen = ctx.requestOptionChoice({
+            playerId,
+            choiceId: op.bind,
+            prompt: op.prompt,
+            options: CREATURE_TYPE_OPTIONS,
+        });
+        if (chosen === undefined) return "suspend"; // enqueued — wait
     },
     // CR 701.20a reveal / CR 401.4 look (issue #1085) — deterministic
     // sibling of `lookDistribute`: reveal the top `look` cards to EVERY player,
