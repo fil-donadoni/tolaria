@@ -179,7 +179,7 @@ describe("CR 615.1a — prevent all damage dealt to creatures a player controls"
     it("wire format — the active shield survives `projectPublicState`", () => {
         const state = twoBoards();
         castDivineLight(state, "p1");
-        const projected = projectPublicState(state, "p1");
+        const projected = projectPublicState(state, 1, "p1");
         expect(projected.recipientPreventionShields).toEqual([
             { match: { controllerId: "p1", cardType: "Creature" } },
         ]);
@@ -372,7 +372,7 @@ describe("CR 614.9 — the next N damage dealt to one recipient is dealt to anot
             { type: "player", id: "p1" },
             { type: "permanent", id: "theirs" }
         );
-        const projected = projectPublicState(state, "p1");
+        const projected = projectPublicState(state, 1, "p1");
         expect(projected.damageRedirections?.[0]).toMatchObject({
             kind: "next-n-to-recipient-redirect",
             from: { type: "player", id: "p1" },

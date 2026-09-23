@@ -112,6 +112,16 @@ const ROLE_PHRASE: Record<
         op.combatOnly === true
             ? "prevented from dealing combat damage"
             : "prevented from dealing damage",
+    // CR 614.9 — ONE Op naming two OPPOSITE roles through two keys, which is
+    // exactly the case this table is keyed by a pair for: `from` is the
+    // recipient the shield takes damage OFF, `to` is the one it puts it ON.
+    // A single phrase for both would read as "the slots receive the same
+    // half" and the guard would refuse the announcement.
+    "redirectDamage.from": (op) =>
+        typeof op.amount === "number"
+            ? `spared the next ${op.amount} damage dealt to it`
+            : "spared the next damage dealt to it",
+    "redirectDamage.to": () => "dealt that damage instead",
 };
 
 /** An announced-slot selector is the object shape `{ target: <int> }` sitting

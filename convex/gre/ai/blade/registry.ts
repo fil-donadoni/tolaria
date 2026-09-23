@@ -8021,6 +8021,66 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: "Issue #3808, the categorised-search seam (CR 701.23a). The root decision is the live `search-library` choice, reached by really casting Gaea's Balance — which also pays the first COUNTED additional sacrifice (five lands) through the search's own cost path. `searchLibraryCandidates` builds each candidate as the best set LED BY one card, a greedy prefix that knows nothing about categories: with two Forests ranked adjacently it proposes both, a submission `applyPendingChoiceSubmit` REJECTS, and a rejected submission inside the tree is a throw rather than a low score. Proof-of-failure: removing the `canAddCategorizedPick` gate from the inner fill loop in `gre/ai/choiceCandidates.ts` reds this at every seed (the chosen set is two Forests, which the predicate refuses as unmatchable).",
     },
+    {
+        label: "redirection shield: shields ITS OWN side and points the damage at the opponent",
+        spec: {
+            cards: [
+                { name: "Captain's Maneuver", owner: "me", zone: "hand" },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                { name: "Plains", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                { name: "Craw Wurm", owner: "opp", zone: "battlefield" },
+                // A library each side, so no line ends in a decking win and
+                // the position does not evaluate flat.
+                { name: "Craw Wurm", owner: "me", zone: "library", count: 15 },
+                { name: "Craw Wurm", owner: "opp", zone: "library", count: 20 },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 0,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        // A PREDICATE, not `moves`: the claim is about the ORIENTATION of two
+        // announced slots, and `MoveMatcher.target` matches when ANY target
+        // resolves to a name — so the blunder and the good play carry the
+        // identical matcher. It is also why this entry does not lower to a
+        // Verdict and obliges no weight refit: nothing here prefers one BOARD
+        // over another, it rejects an announcement that points a gift at the
+        // opponent and a hit at itself.
+        expect: {
+            predicate: (move, state) => {
+                if (!move || move.kind !== "cast-spell") return false;
+                const me = state.players[0]!.id;
+                const sideOf = (t: { type: string; id: string }): string =>
+                    t.type === "player"
+                        ? t.id === me
+                            ? "me"
+                            : "opp"
+                        : state.players.find((p) =>
+                                p.battlefield.some((c) => c.id === t.id)
+                            )?.id === me
+                          ? "me"
+                          : "opp";
+                const [from, to] = move.targets ?? [];
+                if (!from || !to) return false;
+                // CR 614.9 — slot 0 is the SHIELDED recipient and slot 1 the
+                // destination. Shielding the opponent and aiming the damage at
+                // yourself is the same spell run backwards.
+                return sideOf(from) === "me" && sideOf(to) === "opp";
+            },
+            describe:
+                "casts Captain's Maneuver shielding its OWN side (slot 0) and pointing the redirect at the opponent (slot 1)",
+        },
+        note: 'CR 614.9 recipient-keyed redirection (issue #3810). A redirect conserves the stake, so its per-OP beneficence sign is genuinely `"neutral"` and its two announced slots carry OPPOSITE signs — carried per FIELD by `SPLIT_SIGN_OPS` (`gre/ai/beneficence.ts`), which `misdirectedTargetCount` reads to rank sibling target tuples. Proof-of-failure: dropping the `redirectDamage` row from `SPLIT_SIGN_OPS` reds this at EVERY seed — the bot shields the opponent and redirects the damage onto its own face, the Wild Growth gift in a new costume.',
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the

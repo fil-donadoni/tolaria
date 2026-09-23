@@ -112,7 +112,7 @@ describe("CR 614.9 full path — Captain's Maneuver from announcement to board",
 
         // The surface assertion traverses the wire projection — a hand-built
         // view would prove nothing about what the client receives.
-        const projected = projectPublicState(state, "p1");
+        const projected = projectPublicState(state, 1, "p1");
         expect(projected.players.find((p) => p.id === "p1")?.life).toBe(20);
         expect(
             projected.players
