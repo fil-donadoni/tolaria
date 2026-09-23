@@ -1652,7 +1652,7 @@ export const tsaboTavoc: CardDefinition = {
 // Void — {3}{B}{R} Sorcery. "Choose a number. Destroy all artifacts and
 // creatures with mana value equal to that number. Then target player
 // reveals their hand and discards all nonland cards with mana value equal
-// to the number." tracked-by: #3874 — a REF-valued `EffectCardFilter
+// to the number." tracked-by: #4411 — a REF-valued `EffectCardFilter
 // .manaValueEquals`. Two of this card's three blockers are gone: the numeric
 // nomination shipped as the `chooseNumber` Op (issue #1421, PR #3572), and
 // the filtered UNCHOSEN bulk hand discard is `discard { player, filter }`
