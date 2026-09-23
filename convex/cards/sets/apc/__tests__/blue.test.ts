@@ -19,6 +19,8 @@
 
 import { describe, expect, it } from "vitest";
 import { getDefinition, registerTokenDefinition } from "../../../index";
+import { withTemporaryDefinition } from "../../../registry";
+import type { CardDefinition } from "../../../types";
 import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
@@ -26,7 +28,10 @@ import {
     type GameState,
 } from "../../../../gre/state";
 import { finalizeCleanup } from "../../../../gre/phases";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import {
+    applyNameCardSubmit,
+    applyPendingChoiceSubmit,
+} from "../../../../gre/pendingChoiceSubmit";
 import {
     activateAbility,
     confirmTargets,
@@ -356,5 +361,45 @@ describe("Unnatural Selection — full path through game.ts (issue #3809)", () =
             projected.players[1].battlefield.find((c) => c.id === "goblin")!
                 .subtypes
         ).toEqual(["Elf"]);
+    });
+});
+
+describe('setSubtype family "creature" keeps only real creature types (CR 205.3m, issue #3809)', () => {
+    it("a ref that resolves to a non-creature-type string (a card NAME) changes nothing", () => {
+        const probe = {
+            ...UNNATURAL_SELECTION,
+            activatedAbilities: [
+                {
+                    ...UNNATURAL_SELECTION.activatedAbilities![0],
+                    effects: [
+                        {
+                            op: "nameCard",
+                            player: "controller",
+                            prompt: "Name a card.",
+                            bind: "$n",
+                        },
+                        {
+                            op: "setSubtype",
+                            target: { target: 0 },
+                            subtypes: { ref: "$n" },
+                            family: "creature",
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+        } as CardDefinition;
+        withTemporaryDefinition(probe, () => {
+            const { state, source } = selectionBoard();
+            activateSelection(state, source, "goblin");
+            applyNameCardSubmit(state, {
+                playerId: "p1",
+                cardName: "Grizzly Bears",
+            });
+            expect(permanent(state, "goblin").subtypes).toEqual([
+                "Goblin",
+                "Warrior",
+            ]);
+        });
     });
 });
