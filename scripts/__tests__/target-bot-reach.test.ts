@@ -12,7 +12,9 @@ import {
     definitionHash,
     findingRow,
     findingsCache,
+    findingsCachePath,
     findingsHeader,
+    findingsOutputPath,
     parseFindings,
     serializeFindings,
     type FindingRow,
@@ -322,10 +324,89 @@ describe("findingsCache", () => {
         expect(cache.replayed()).toBe(0);
     });
 
+    it("replays a card that LOST its definition — an `unplayable` row is a row that changed", () => {
+        const cache = findingsCache(previous, "sha256:bot");
+        expect(
+            cache.verdictFor("o-1", {}, () => ({ outcome: "unplayable" }))
+        ).toEqual({ outcome: "unplayable" });
+        expect(cache.replayed()).toBe(1);
+    });
+
+    it("replays a card that GAINED a definition", () => {
+        const none = buildFindings(
+            header(),
+            ["t"],
+            [
+                findingRow(
+                    { oracleId: "o-1", name: "A", targets: ["t"] },
+                    { outcome: "unplayable" },
+                    []
+                ),
+            ]
+        );
+        const cache = findingsCache(none, "sha256:bot");
+        expect(cache.verdictFor("o-1", key, fresh)).toEqual(fresh());
+        expect(cache.replayed()).toBe(1);
+    });
+
     it("has no cache at all on a first run", () => {
         const cache = findingsCache(null, "sha256:bot");
         expect(cache.verdictFor("o-1", key, fresh)).toEqual(fresh());
         expect(cache.replayed()).toBe(1);
+    });
+});
+
+describe("findingsOutputPath", () => {
+    const ROOT = "/repo";
+    const COMMITTED = "/repo/data/bot-reach-findings.json";
+
+    it("writes the committed artifact when the run measured the full scope", () => {
+        expect(findingsOutputPath(ROOT, "/repo", [])).toEqual({
+            path: COMMITTED,
+        });
+    });
+
+    it("refuses to write anything when `--target` narrowed the run and no path was named", () => {
+        const out = findingsOutputPath(ROOT, "/repo", ["vintage-cube"]);
+        expect(out.path).toBeUndefined();
+        expect(out.refusal).toContain("vintage-cube");
+    });
+
+    it("refuses the committed artifact under a narrowed run however it is spelled", () => {
+        for (const spelling of [
+            "data/bot-reach-findings.json",
+            "./data/bot-reach-findings.json",
+            "/repo/data/bot-reach-findings.json",
+            "data/../data/bot-reach-findings.json",
+        ]) {
+            const out = findingsOutputPath(
+                ROOT,
+                "/repo",
+                ["vintage-cube"],
+                spelling
+            );
+            expect(out.path).toBeUndefined();
+            expect(out.refusal).toContain("DROP every card outside that scope");
+        }
+    });
+
+    it("lets a narrowed run write somewhere else", () => {
+        expect(
+            findingsOutputPath(ROOT, "/repo", ["vintage-cube"], "/tmp/x.json")
+        ).toEqual({ path: "/tmp/x.json" });
+    });
+
+    it("lets a full-scope run redirect the write, committed path or not", () => {
+        expect(findingsOutputPath(ROOT, "/repo", [], "/tmp/x.json")).toEqual({
+            path: "/tmp/x.json",
+        });
+    });
+
+    it("reads the cache from the committed artifact unless a path was named", () => {
+        expect(findingsCachePath(ROOT, "/repo")).toBe(COMMITTED);
+        expect(findingsCachePath(ROOT, "/elsewhere", "x.json")).toBe(
+            "/elsewhere/x.json"
+        );
     });
 });
 

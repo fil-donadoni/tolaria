@@ -30,7 +30,7 @@
 
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type {
     BotReachCause,
     BotReachOutcome,
@@ -385,10 +385,12 @@ export interface MeasuredDefinition {
     readonly defHash?: string;
 }
 
+/** `unplayable`: the card ships no definition, so nothing was played. */
+export type FindingOutcome = BotReachOutcome | "unplayable";
+
 /** The measured half of a row — the only part {@link findingsCache} reuses. */
 export interface MeasuredVerdict extends MeasuredDefinition {
-    /** `unplayable`: the card ships no definition, so nothing was played. */
-    readonly outcome: BotReachOutcome | "unplayable";
+    readonly outcome: FindingOutcome;
     readonly cause?: BotReachCause;
     /** The verdict's own form, NOT the derived one — the cast-shape override
      *  is re-applied from the definition on every build. */
@@ -420,6 +422,66 @@ export const FINDINGS_GENERATOR =
 
 export const FINDINGS_PATH = "data/bot-reach-findings.json";
 
+/** Where a run may write its measurement — and, when it may not, why not. */
+export interface FindingsOutput {
+    /** Absolute path to write; absent exactly when {@link refusal} is set. */
+    readonly path?: string;
+    readonly refusal?: string;
+}
+
+/**
+ * The committed artifact records a fixed SCOPE, and a run narrowed by
+ * `--target` measured a subset of it: writing that subset would silently drop
+ * every card outside the narrowed Targets, because the run builds its rows
+ * from what it measured and never merges them into the previous file.
+ *
+ * So a narrowed run may write somewhere else, and NOWHERE else is not a
+ * synonym for "wherever `--findings` says": the path is compared against the
+ * committed one, because `--findings data/bot-reach-findings.json` is the
+ * committed artifact by another spelling (review of PR #4410, finding 1).
+ */
+export function findingsOutputPath(
+    root: string,
+    cwd: string,
+    /** The `--target` values; empty means the run measured the full scope. */
+    narrowed: readonly string[],
+    findingsArg?: string
+): FindingsOutput {
+    const committed = resolve(root, FINDINGS_PATH);
+    const named =
+        findingsArg !== undefined ? resolve(cwd, findingsArg) : undefined;
+    if (narrowed.length === 0) return { path: named ?? committed };
+    const scope = narrowed.join(", ");
+    if (named === undefined)
+        return {
+            refusal:
+                `--target narrowed the run to ${scope}, a SUBSET of the ` +
+                `committed scope — pass \`--findings <path>\` to write the ` +
+                `measurement somewhere else.`,
+        };
+    if (named === committed)
+        return {
+            refusal:
+                `--target narrowed the run to ${scope}, a SUBSET of the ` +
+                `committed scope, and \`--findings\` names the committed ` +
+                `artifact (${FINDINGS_PATH}) — writing it would DROP every ` +
+                `card outside that scope. Name another path.`,
+        };
+    return { path: named };
+}
+
+/** Where a run READS its cache from — always safe, so `--findings` wins and
+ *  the committed artifact is the default. */
+export function findingsCachePath(
+    root: string,
+    cwd: string,
+    findingsArg?: string
+): string {
+    return findingsArg !== undefined
+        ? resolve(cwd, findingsArg)
+        : resolve(root, FINDINGS_PATH);
+}
+
 /**
  * sha256 of the definition that was played.
  *
@@ -427,6 +489,15 @@ export const FINDINGS_PATH = "data/bot-reach-findings.json";
  * which `JSON.stringify` drops, and a protocol card whose `resolve()` changed
  * is a card whose verdict may have changed too. The compiled half is pure
  * data, so this costs it nothing.
+ *
+ * **The bound.** `Function.prototype.toString()` returns the function's own
+ * source and nothing it CALLS, so editing a module-level helper a `resolve()`
+ * invokes changes the card's behaviour without changing this hash, and the
+ * card's verdict is carried forward unswept. Hashing the card's source FILE
+ * instead would replay every card in it whenever any one card is added, which
+ * is the 265 s sweep back on every catalogue edit. So this is a documented
+ * bound, exactly like the one {@link BOT_SOURCE_FILES} carries for the engine:
+ * it is closed by the next edit to a hashed Bot source, or by `--replay`.
  */
 export function definitionHash(definition: unknown): string {
     const text =
@@ -438,13 +509,14 @@ export function definitionHash(definition: unknown): string {
 
 /** Every outcome a row may carry — a row outside this vocabulary was written
  *  by a tree this one is not, so it is a cache MISS (the lockfile applies the
- *  same rule to its causes, review of PR #4057 finding 9). */
+ *  same rule to its causes, review of PR #4057 finding 9). Typed like
+ *  `BOT_REACH_CAUSES`, so a member that is not an outcome reds `tsc`. */
 const FINDING_OUTCOMES: ReadonlySet<string> = new Set([
     "played",
     "ignored",
     "frozen",
     "unplayable",
-]);
+] satisfies FindingOutcome[]);
 
 /** The committed verdict of a row whose definition is unchanged. */
 function reusableVerdict(

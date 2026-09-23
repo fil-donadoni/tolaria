@@ -26,8 +26,9 @@
  * `--replay` ignores the cache and plays every card. `--json` is the legacy
  * per-Target report (`oracle:report`'s input, issue #4149), unrelated to the
  * artifact. A run narrowed by `--target` would measure a SUBSET of the
- * committed scope, so it refuses to overwrite the committed artifact and asks
- * for an explicit `--findings <path>` instead.
+ * committed scope, so it refuses to write the committed artifact — by any
+ * spelling of its path — and asks for an explicit `--findings <path>`
+ * elsewhere instead. It still READS the committed artifact as its cache.
  *
  * Default Targets: `premodern-metagame`, `vintage-cube` (the v1 pair,
  * issue #3846).
@@ -52,8 +53,9 @@ import {
     definitionHash,
     findingRow,
     findingsCache,
+    findingsCachePath,
     findingsHeader,
-    FINDINGS_PATH,
+    findingsOutputPath,
     parseFindings,
     serializeFindings,
     type FindingRow,
@@ -197,11 +199,14 @@ async function main(): Promise<void> {
     const targetIds = argValues("--target");
     const jsonPath = argValues("--json")[0];
     const findingsOut = argValues("--findings")[0];
-    /** Where the artifact is written — nowhere when `--target` narrowed the
-     *  run below the committed scope and no path was named. */
-    const findingsPath =
-        findingsOut ??
-        (targetIds.length === 0 ? join(ROOT, FINDINGS_PATH) : undefined);
+    /** Where the artifact is written, and why not — a narrowed run may never
+     *  write the committed artifact, by any spelling of its path. */
+    const output = findingsOutputPath(
+        ROOT,
+        process.cwd(),
+        targetIds,
+        findingsOut
+    );
     const lock = parseLockfile(
         readFileSync(join(ROOT, "data", "oracle-compiled.json"), "utf8")
     );
@@ -263,7 +268,7 @@ async function main(): Promise<void> {
 
     // The committed artifact IS the cache (ADR 0141 § 4): a verdict survives
     // while the definition AND the Bot hash are unchanged.
-    const cachePath = findingsOut ?? join(ROOT, FINDINGS_PATH);
+    const cachePath = findingsCachePath(ROOT, process.cwd(), findingsOut);
     const previous: FindingsArtifact | null = existsSync(cachePath)
         ? parseFindings(readFileSync(cachePath, "utf8"))
         : null;
@@ -310,13 +315,21 @@ async function main(): Promise<void> {
         }
         let entry: Measured;
         if (def === undefined || source === undefined) {
+            // Through the cache like every other card, though there is
+            // nothing to play: a card LOSING its definition is a row that
+            // changed, and a change the run never counts is a header that
+            // keeps a provenance the file no longer matches (review of
+            // PR #4410, finding 3).
+            const verdict = cache.verdictFor(row.oracleId, {}, () => ({
+                outcome: "unplayable" as const,
+            }));
             entry = {
                 measure: {
                     name: row.name,
                     oracleId: row.oracleId,
-                    outcome: "unplayable",
+                    outcome: verdict.outcome,
                 },
-                verdict: { outcome: "unplayable" },
+                verdict,
                 opsUsed: [],
                 targets: new Set([targetId]),
             };
@@ -367,7 +380,7 @@ async function main(): Promise<void> {
         report.push(aggregate(id, cards));
     }
     process.stderr.write(
-        `\n${measured.size} cards — ${cache.replayed()} played, ` +
+        `\n${measured.size} cards — ${cache.replayed()} measured, ` +
             `${measured.size - cache.replayed()} reused ` +
             `(${Math.round((Date.now() - started) / 1000)}s)\n`
     );
@@ -392,11 +405,9 @@ async function main(): Promise<void> {
     if (jsonPath !== undefined)
         writeFileSync(jsonPath, JSON.stringify({ report, perCard }, null, 2));
 
-    if (findingsPath === undefined) {
+    if (output.path === undefined) {
         process.stdout.write(
-            `\nno findings artifact written — \`--target\` narrowed the run to ` +
-                `${scope.join(", ")}, a SUBSET of the committed scope. ` +
-                `Pass \`--findings <path>\` to write one anyway.\n`
+            `\nno findings artifact written — ${output.refusal ?? ""}\n`
         );
         return;
     }
@@ -422,11 +433,11 @@ async function main(): Promise<void> {
         cache.replayed()
     );
     writeFileSync(
-        findingsPath,
+        output.path,
         serializeFindings(buildFindings(header, scope, findings))
     );
     process.stdout.write(
-        `\n${findingsPath}: ${findings.length} findings, ` +
+        `\n${output.path}: ${findings.length} findings, ` +
             `measured ${header.measuredAt} @ ${header.sha.slice(0, 9)}\n`
     );
 }
