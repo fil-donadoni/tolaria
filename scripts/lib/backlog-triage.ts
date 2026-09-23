@@ -12,7 +12,11 @@
  * untouched and computed no further. An issue whose body carries a `## Band`
  * line (`P2 — <reason>`, ADR 0143 / issue #4230) takes THAT band, always —
  * `user-decision`, a hand ruling, the truth and not one more candidate; a
- * `## Band: P3` under a `P1` parent is WRITTEN as `P3`. What that value then
+ * `## Band: P3` under a `P1` parent is WRITTEN as `P3`. `## Band: none —
+ * <reason>` (issue #4407) is the same `user-decision` truth ruling nothing:
+ * verdict `declined`, reported apart from residue — "the owner ruled this
+ * off the road" must not read as "nobody has looked" (see residue below).
+ * What that value then
  * DOES is the queue's business, not this rule's (issue #4371): `queue:plan`
  * bands an issue by its parent's board value whenever the parent carries one,
  * so on a slice the written value orders it INSIDE its umbrella's turn and
@@ -495,9 +499,14 @@ export function issueCards(
     return [...ids].sort();
 }
 
-/** A hand ruling on one issue — its `## Band` line (issue #4230). */
+/**
+ * A hand ruling on one issue — its `## Band` line (issue #4230). `none` is
+ * the `declined` shape (issue #4407): the owner has examined the issue and
+ * ruled it off the road, on purpose — a `user-decision` outcome like a
+ * `P1`–`P3` ruling, just one that bands nothing.
+ */
 export interface BandRuling {
-    readonly band: Band;
+    readonly band: Band | "none";
     /** What followed the dash — the reason travels with the ruling. */
     readonly reason: string;
 }
@@ -512,15 +521,19 @@ export interface BandResidue {
 /** `P2 — <reason>`: a band, a dash (em, en or hyphen) and a non-empty reason. */
 const BAND_LINE = /^(P\d)\s+[—–-]\s+(\S.*)$/;
 
+/** `none — <reason>`, case-insensitive `none`: a `declined` ruling. */
+const NONE_LINE = /^none\s+[—–-]\s+(\S.*)$/i;
+
 /**
- * Read one body's `## Band` section (issue #4230) — ONE line, `P2 — <reason>`,
- * a bare line or a list item. Per the ADR's write rule a line present is the
- * truth, so nothing is guessed: a line that is not `P1`–`P3` plus a reason, a
- * `P0` (hand-set on the board, never a band the machine writes), or a second
- * line (two rulings disagree with nobody to break the tie) yields NO ruling
- * and comes back as residue for the owner to fix. `None.` and an empty section
- * declare nothing. Fenced code is not markdown here — `declaredSection` owns
- * that, and why.
+ * Read one body's `## Band` section (issue #4230) — ONE line, `P2 — <reason>`
+ * or `none — <reason>` (issue #4407), a bare line or a list item. Per the
+ * ADR's write rule a line present is the truth, so nothing is guessed: a line
+ * that is not `P1`–`P3`/`none` plus a reason, a `P0` (hand-set on the board,
+ * never a band the machine writes), or a second line (two rulings disagree
+ * with nobody to break the tie) yields NO ruling and comes back as residue
+ * for the owner to fix. `None.` and an empty section declare nothing — that
+ * is silence, not a `none — <reason>` ruling. Fenced code is not markdown
+ * here — `declaredSection` owns that, and why.
  */
 export function parseBand(
     issue: number,
@@ -537,7 +550,14 @@ export function parseBand(
     });
     if (lines.length === 0) return { ruling: null, residue: [] };
     if (lines.length > 1) return residue("extra line", lines);
-    const m = BAND_LINE.exec(lines[0]!.trim());
+    const line = lines[0]!.trim();
+    const none = NONE_LINE.exec(line);
+    if (none !== null)
+        return {
+            ruling: { band: "none", reason: none[1]!.trim() },
+            residue: [],
+        };
+    const m = BAND_LINE.exec(line);
     if (m === null) return residue("unreadable", lines);
     if (m[1] === "P0") return residue("P0 is never written", lines);
     if (!(BANDS as readonly string[]).includes(m[1]!))
@@ -574,7 +594,10 @@ export type TriageVerdict =
            *  `parent`, `user-decision`), the label that lent it (`labels`). */
           readonly via: string;
       }
-    | { readonly kind: "residue"; readonly cause: ResidueCause };
+    | { readonly kind: "residue"; readonly cause: ResidueCause }
+    /** A `## Band: none — <reason>` ruling (issue #4407): examined and
+     *  deliberately unbanded — a `user-decision` outcome, apart from residue. */
+    | { readonly kind: "declined"; readonly reason: string };
 
 /** Why the rule abstained: no cards to read, or cards that band nothing. */
 export type ResidueCause = "undeclared" | "off-road";
@@ -626,7 +649,8 @@ export function triage(
     const seedBand = (n: number): Band | null => {
         const issue = byNumber.get(n);
         if (issue === undefined) return null;
-        if (issue.ruling) return issue.ruling.band;
+        if (issue.ruling)
+            return issue.ruling.band === "none" ? null : issue.ruling.band;
         return seedCandidates(issue).reduce<Band | null>(
             (acc, c) => stronger(acc, c.band),
             null
@@ -640,12 +664,17 @@ export function triage(
             continue;
         }
         if (issue.ruling) {
-            verdicts.set(issue.number, {
-                kind: "band",
-                band: issue.ruling.band,
-                source: "user-decision",
-                via: `#${issue.number}`,
-            });
+            verdicts.set(
+                issue.number,
+                issue.ruling.band === "none"
+                    ? { kind: "declined", reason: issue.ruling.reason }
+                    : {
+                          kind: "band",
+                          band: issue.ruling.band,
+                          source: "user-decision",
+                          via: `#${issue.number}`,
+                      }
+            );
             continue;
         }
         const candidates = seedCandidates(issue);
@@ -725,6 +754,13 @@ export interface TriageSummary {
         readonly cause: ResidueCause;
     }[];
     readonly perCause: Readonly<Record<ResidueCause, number>>;
+    /** `## Band: none — <reason>` rulings (issue #4407) — apart from
+     *  residue: examined, not "nobody has looked". */
+    readonly declined: readonly {
+        readonly number: number;
+        readonly title: string;
+        readonly reason: string;
+    }[];
 }
 
 export function summarize(
@@ -756,12 +792,21 @@ export function summarize(
         undeclared: 0,
         "off-road": 0,
     };
+    const declined: { number: number; title: string; reason: string }[] = [];
     for (const issue of [...issues].sort((a, b) => a.number - b.number)) {
         const v = verdicts.get(issue.number);
         if (v === undefined) continue;
         const now = board[issue.number];
         if (v.kind === "p0") {
             p0.push(issue.number);
+            continue;
+        }
+        if (v.kind === "declined") {
+            declined.push({
+                number: issue.number,
+                title: issue.title,
+                reason: v.reason,
+            });
             continue;
         }
         if (v.kind === "residue") {
@@ -781,7 +826,15 @@ export function summarize(
         else if (now === v.band) row.unchanged++;
         else row.change++;
     }
-    return { total: issues.length, p0, perBand, perSource, residue, perCause };
+    return {
+        total: issues.length,
+        p0,
+        perBand,
+        perSource,
+        residue,
+        perCause,
+        declined,
+    };
 }
 
 /** One board value the write side sets: `from` is what the board holds today
@@ -905,8 +958,11 @@ export interface BandClear {
  * The rows `--clear-residue` blanks (ADR 0143): every open issue that NO
  * source bands — residue AFTER `labels`, so a row the default bands is never
  * here (the normal pass overwrites a stale value on it) — and that holds a
- * board value today. Never a `P0`, never a row with no value, never a
- * Target-keyed umbrella (`owned`: its own value follows its Target).
+ * board value today. A `declined` row (issue #4407) is blanked here too: it
+ * was EXAMINED, so its stale board value is not evidence of anything the rule
+ * would recompute, the same reasoning `## Band: none` exists for. Never a
+ * `P0`, never a row with no value, never a Target-keyed umbrella (`owned`:
+ * its own value follows its Target).
  *
  * The residue is a FIXED POINT, not one reading of the board. A `parent`-source
  * band is lent by the parent's board value, so a residue parent that is blanked
@@ -935,7 +991,7 @@ export function planClear(
         for (const [number, v] of triage(issues, index, settled)) {
             const from = working[number];
             if (
-                v.kind !== "residue" ||
+                (v.kind !== "residue" && v.kind !== "declined") ||
                 umbrellas.owned.has(number) ||
                 from === undefined ||
                 from === "P0"
@@ -1010,6 +1066,12 @@ export function renderReport(
                 `  #${r.number}${r.board === null ? "" : ` [board ${r.board}]`} ${r.title}`
             );
     }
+    lines.push(
+        "",
+        `## Declined (## Band: none — examined, ruled off the road, apart from residue): ${summary.declined.length}`
+    );
+    for (const d of summary.declined)
+        lines.push(`  #${d.number} ${d.title} — ${d.reason}`);
     lines.push(
         "",
         `## Cards residue (a declared line that bands nothing — fix the line): ${cardsResidue.length}`

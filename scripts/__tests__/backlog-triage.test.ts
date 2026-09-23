@@ -471,6 +471,144 @@ describe("backlog-triage — `## Band`, the user-decision source (issue #4230)",
     });
 });
 
+describe("backlog-triage — `## Band: none`, the declined verdict (issue #4407)", () => {
+    const declined = (reason = "off the road") =>
+        ({ band: "none", reason }) as const;
+
+    it("`none — <reason>` yields verdict `declined` with that reason", () => {
+        expect(
+            verdictOf([issue(1, { ruling: declined("superseded") })])
+        ).toEqual({ kind: "declined", reason: "superseded" });
+    });
+
+    it("wins over cards, an edge and the parent — same precedence as a P1-P3 ruling", () => {
+        const issues = [
+            issue(1, {
+                cards: [CARDS.Meta],
+                blocks: [2],
+                parent: 50,
+                ruling: declined(),
+            }),
+            issue(2, { cards: [CARDS.Meta] }),
+            issue(50, { cards: [CARDS.Meta] }),
+        ];
+        expect(verdictOf(issues, {}, 1)).toEqual({
+            kind: "declined",
+            reason: "off the road",
+        });
+    });
+
+    it("a `bug` + `area:mechanics` declined issue is NOT banded P2 by the `labels` default", () => {
+        const issues = [
+            issue(1, { labels: ["bug", "area:mechanics"], ruling: declined() }),
+        ];
+        expect(verdictOf(issues)).toEqual({
+            kind: "declined",
+            reason: "off the road",
+        });
+    });
+
+    it("lends NOTHING to a neighbour — a declined issue is off the road, not a band of its own", () => {
+        const issues = [
+            issue(50, { ruling: declined() }),
+            issue(1, { parent: 50 }),
+            issue(2, { blocks: [3] }),
+            issue(3, { ruling: declined() }),
+        ];
+        const v = triage(issues, index, { 50: "P1" }, 9999);
+        // #1's parent is declined (no seed band) and the board's stale P1 is
+        // ignored (a ruled parent's ruling IS its lending value) → residue.
+        expect(v.get(1)).toMatchObject({ kind: "residue" });
+        // #2 blocks a declined issue → no band from that edge → residue.
+        expect(v.get(2)).toMatchObject({ kind: "residue" });
+    });
+
+    it("a hand-set P0 on the board still wins — declined never clears it", () => {
+        expect(
+            verdictOf([issue(1, { ruling: declined() })], { 1: "P0" })
+        ).toEqual({ kind: "p0" });
+    });
+
+    it("summarize counts it apart from residue, with its reason", () => {
+        const issues = [
+            issue(1, { ruling: declined("superseded rollout") }),
+            issue(2, { labels: ["prd"] }), // genuine residue, undeclared
+        ];
+        const verdicts = triage(issues, index, {}, 9999);
+        const s = summarize(issues, verdicts, {});
+        expect(s.declined).toEqual([
+            { number: 1, title: "issue 1", reason: "superseded rollout" },
+        ]);
+        expect(s.residue).toEqual([
+            { number: 2, title: "issue 2", board: null, cause: "undeclared" },
+        ]);
+    });
+
+    it("planWrites owes nothing for a declined row", () => {
+        const issues = [issue(1, { ruling: declined() })];
+        const verdicts = triage(issues, index, { 1: "P3" }, 9999);
+        expect(planWrites(verdicts, { 1: "P3" })).toEqual([]);
+    });
+
+    it("renderReport prints a `## Declined` block and the residue count excludes it", () => {
+        const issues = [
+            issue(1, { ruling: declined("superseded rollout") }),
+            issue(2, { labels: ["prd"] }),
+        ];
+        const verdicts = triage(issues, index, {}, 9999);
+        const report = renderReport(summarize(issues, verdicts, {}));
+        expect(report).toContain(
+            "## Declined (## Band: none — examined, ruled off the road, apart from residue): 1"
+        );
+        expect(report).toContain("#1 issue 1 — superseded rollout");
+        expect(report).toContain(
+            "residue (no source yields a band — stays unprioritized, the owner rules): 1"
+        );
+    });
+
+    it("planClear blanks a declined row's stale board value; a second clear owes nothing", () => {
+        const issues = [issue(1, { ruling: declined() })];
+        const board: Record<number, BoardPriority> = { 1: "P2" };
+        const clears = planClear(issues, index, board);
+        expect(clears).toEqual([{ number: 1, title: "issue 1", from: "P2" }]);
+        const left = { ...board };
+        for (const c of clears) delete left[c.number];
+        expect(planClear(issues, index, left)).toEqual([]);
+    });
+
+    it("planClear owes nothing for a declined row with no board value", () => {
+        const issues = [issue(1, { ruling: declined() })];
+        expect(planClear(issues, index, {})).toEqual([]);
+    });
+
+    it("a declined row never blanked at P0", () => {
+        const issues = [issue(1, { ruling: declined() })];
+        expect(planClear(issues, index, { 1: "P0" })).toEqual([]);
+    });
+
+    it("mixes with an ordinary residue cascade in ONE call — a declined row is not deferred to a later pass", () => {
+        // #10 declined, unrelated to the residue chain. #20 residue, its
+        // stale P2 lends to #21 (parent source) until #20 is blanked, at
+        // which point #21 falls to residue too — the SAME fixed-point run
+        // that blanks #10.
+        const issues = [
+            issue(10, { ruling: declined() }),
+            issue(20, { labels: ["prd"] }),
+            issue(21, { parent: 20, labels: ["prd"] }),
+        ];
+        const board: Record<number, BoardPriority> = {
+            10: "P2",
+            20: "P2",
+            21: "P2",
+        };
+        const clears = planClear(issues, index, board);
+        expect(clears.map((c) => c.number)).toEqual([10, 20, 21]);
+        const left = { ...board };
+        for (const c of clears) delete left[c.number];
+        expect(planClear(issues, index, left)).toEqual([]);
+    });
+});
+
 describe("backlog-triage — labelBand, the residue default table (issue #4231)", () => {
     // One case per row of the ADR 0143 table, then the stacking rules.
     const cases: [string, string[], "P1" | "P2" | "P3" | null, string?][] = [
@@ -747,6 +885,36 @@ describe("backlog-triage — parseBand (issue #4230)", () => {
             ruling: null,
             residue: [],
         });
+    });
+
+    it("`none — <reason>` (issue #4407), case-insensitive, bare or as a list item, is the `declined` ruling", () => {
+        for (const line of [
+            "none — off the road",
+            "NONE — off the road",
+            "None — off the road",
+            "- none — off the road",
+        ])
+            expect(parseBand(5, body(line))).toEqual({
+                ruling: { band: "none", reason: "off the road" },
+                residue: [],
+            });
+    });
+
+    it("`none` with no reason is unreadable, never silence", () => {
+        const r = parseBand(5, body("none —"));
+        expect(r.ruling).toBeNull();
+        expect(r.residue).toEqual([
+            { issue: 5, line: "none —", reason: "unreadable" },
+        ]);
+    });
+
+    it("`none` AND a `P<n>` line is `extra line` residue, same as two P lines", () => {
+        const r = parseBand(5, body("none — off the road\nP2 — also this"));
+        expect(r.ruling).toBeNull();
+        expect(r.residue.map((x) => x.reason)).toEqual([
+            "extra line",
+            "extra line",
+        ]);
     });
 });
 
