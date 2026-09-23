@@ -662,7 +662,13 @@ export function buildFindings(
     };
 }
 
-/** Deterministic serializer — `serializeLockfile`'s shape, same reasons. */
+/**
+ * Deterministic serializer — `serializeLockfile`'s shape, same reasons: one
+ * row per line, so a card changing verdict is a single changed line in review.
+ * It shares that file's formatting helpers rather than copying them; this
+ * module is already inside `compilerHash`'s `DRIVER_FILES`, so a change here
+ * restamps the lockfile either way.
+ */
 export function serializeFindings(artifact: FindingsArtifact): string {
     return (
         [
