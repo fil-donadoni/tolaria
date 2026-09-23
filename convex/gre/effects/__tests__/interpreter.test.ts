@@ -2092,6 +2092,235 @@ describe("Effect Script value: FILTERED hand count (CR 402.3 / 701.20a, issue #2
     });
 });
 
+// `chooseCreatureType` (CR 205.3m, issue #3721) — a NEW Op, so it earns the
+// full per-Op regime: the construct combinations it participates in, the
+// fail-closed edges of the binding it writes, and one wire-format assertion.
+// Inherited free by every later card that reuses it.
+//
+// The Op's whole product is its BINDING: it moves nothing itself, and every
+// consumer reads the chosen type back through `EffectCardFilter.subtype`'s
+// `{ ref }` form. So the tests below are about that pairing, not about the
+// prompt.
+describe("Op: chooseCreatureType + the subtype ref it binds (CR 205.3m, issue #3721)", () => {
+    const GOBLIN_ID = "test-cct-goblin";
+    registerTokenDefinition({
+        id: GOBLIN_ID,
+        name: GOBLIN_ID,
+        rarity: "common",
+        manaCost: { R: 1 },
+        types: ["Creature"],
+        subtypes: ["Goblin"],
+        power: 2,
+        toughness: 2,
+    });
+    const ELF_ID = "test-cct-elf";
+    registerTokenDefinition({
+        id: ELF_ID,
+        name: ELF_ID,
+        rarity: "common",
+        manaCost: { G: 1 },
+        types: ["Creature"],
+        subtypes: ["Elf"],
+        power: 2,
+        toughness: 2,
+    });
+
+    /** Tsabo's Decree's own shape, scoped to the battlefield half. */
+    const SWEEP: EffectOp[] = [
+        {
+            op: "chooseCreatureType",
+            player: "controller",
+            prompt: "Choose a creature type",
+            bind: "$type",
+        },
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                controller: { target: 0 },
+                filter: { type: "Creature", subtype: { ref: "$type" } },
+            },
+            effects: [{ op: "destroy", target: { ref: "$each" } }],
+        },
+    ] as unknown as EffectOp[];
+
+    function setup(effects: EffectOp[] = SWEEP) {
+        const id = registerScript(
+            `test-cct-${effects.length}-${Math.random()}`,
+            effects
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(GOBLIN_ID, {
+                            id: "gob",
+                            controllerId: "p2",
+                        }),
+                        makeInstance(ELF_ID, { id: "elf", controllerId: "p2" }),
+                    ],
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    function answer(state: GameState, subtype: string) {
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: [subtype],
+        });
+    }
+
+    it("CR 205.3m — suspends on an option-pick over the creature-type table", () => {
+        const state = setup();
+        const head = state.pendingChoices![0];
+        expect(head.kind).toBe("option-pick");
+        expect(head.playerId).toBe("p1");
+        // The table is CR 205.3m's, not a per-card list, and every option
+        // carries `subtype` — the channel `subtypeModePrior` and the client
+        // combobox read. A bare `{ id, label }` option would validate and
+        // leave both blind.
+        expect(head.options!.length).toBeGreaterThan(200);
+        expect(head.options!.every((o) => o.subtype === o.id)).toBe(true);
+        expect(head.options!.some((o) => o.id === "Goblin")).toBe(true);
+        // Nothing has happened yet — the Op moves nothing on its own.
+        expect(state.players[1].battlefield).toHaveLength(2);
+    });
+
+    it("the answer reaches an EffectCardFilter.subtype ref — only the chosen type is swept", () => {
+        const state = setup();
+        answer(state, "Goblin");
+        expect(state.players[1].battlefield.map((c) => c.id)).toEqual(["elf"]);
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual(["gob"]);
+    });
+
+    it("a type nobody controls sweeps nothing (CR 101.3)", () => {
+        const state = setup();
+        answer(state, "Zombie");
+        expect(state.players[1].battlefield).toHaveLength(2);
+        expect(state.players[1].graveyard).toHaveLength(0);
+    });
+
+    it("the ref FAILS CLOSED when the binding was never captured", () => {
+        // The choosing Op is inside an `if` branch that does not run, so
+        // `$type` is never written. The sweep must then match NOTHING — the
+        // fail-open reading (an absent subtype constraint) destroys every
+        // creature the target controls, which is the whole reason this field's
+        // ref form resolves to the empty list rather than to `undefined`.
+        const state = setup([
+            {
+                op: "chooseCreatureType",
+                player: "controller",
+                prompt: "Choose a creature type",
+                bind: "$type",
+            },
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    controller: { target: 0 },
+                    filter: { subtype: { ref: "$unbound" } },
+                },
+                effects: [{ op: "destroy", target: { ref: "$each" } }],
+            },
+        ] as unknown as EffectOp[]);
+        answer(state, "Goblin");
+        expect(state.players[1].battlefield).toHaveLength(2);
+    });
+
+    it("the binding also drives a hidden-zone filter and a count (the two other matchers)", () => {
+        // `discard`'s hand sweep goes through `matchesCardFilter`, the count
+        // through `toPermanentFilter` — one binding, three matchers, and the
+        // hidden-zone one is the matcher that cannot see the battlefield.
+        const id = registerScript("test-cct-hand-and-count", [
+            {
+                op: "chooseCreatureType",
+                player: "controller",
+                prompt: "Choose a creature type",
+                bind: "$type",
+            },
+            { op: "reveal", player: { target: 0 }, zone: "hand" },
+            {
+                op: "discard",
+                player: { target: 0 },
+                filter: { type: "Creature", subtype: { ref: "$type" } },
+            },
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: {
+                    count: {
+                        zone: "battlefield",
+                        controller: { target: 0 },
+                        filter: { subtype: { ref: "$type" } },
+                    },
+                },
+            },
+        ] as unknown as EffectOp[]);
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(GOBLIN_ID, {
+                            id: "gob",
+                            controllerId: "p2",
+                        }),
+                    ],
+                    hand: [
+                        makeInstance(GOBLIN_ID, {
+                            id: "hand-gob",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "hand",
+                        }),
+                        makeInstance(ELF_ID, {
+                            id: "hand-elf",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                            zone: "hand",
+                        }),
+                    ],
+                }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        answer(state, "Goblin");
+        expect(state.players[1].hand.map((c) => c.id)).toEqual(["hand-elf"]);
+        // One Goblin on the battlefield → 1 life.
+        expect(state.players[0].life).toBe(21);
+    });
+
+    it("the chosen type survives the wire projection (wire format)", () => {
+        // The pick is an `option-pick` the chooser answers from the CLIENT, so
+        // the option list has to reach them: a projection that stripped
+        // `options` would leave the dialog empty and the resolution stuck
+        // forever. Asserted through `projectPublicState`, not off the fat
+        // state.
+        const state = setup();
+        const wire = projectPublicState(state, 1, "p1");
+        const head = wire.pendingChoices![0];
+        expect(head.kind).toBe("option-pick");
+        expect(head.options!.some((o) => o.id === "Goblin")).toBe(true);
+        expect(head.options!.every((o) => o.subtype !== undefined)).toBe(true);
+        // And after the answer, the sweep is visible on the wire board.
+        answer(state, "Goblin");
+        const after = projectPublicState(state, 2, "p1");
+        expect(after.players[1].battlefield.map((c) => c.id)).toEqual(["elf"]);
+    });
+});
+
 // `{ scaled: { value, times } }` (issue #2366) — a FOURTEENTH EffectValue
 // grammar member, the value grammar's multiplication counterpart to
 // `difference`'s subtraction. Its own permanent test (new-grammar-member
