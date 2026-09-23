@@ -44,11 +44,17 @@
  * Run: bun run check:gaps
  */
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { EFFECT_OP_REGISTRY } from "../convex/cards/mechanicsRegistry";
 import { inScopeBotGapKeys, rankedCardIds } from "./lib/gap-kinds";
 import { opGapKey } from "./lib/grammar-gaps";
+import {
+    botHash,
+    FINDINGS_PATH,
+    mergeBotVerdicts,
+    parseFindings,
+} from "./lib/oracle-bot-reach";
 import {
     parseClaimRows,
     readTargetRegistry,
@@ -349,9 +355,15 @@ function main(): void {
         allowlist,
         baseline: baselineAllowlist(root),
     });
+    const findingsPath = join(root, FINDINGS_PATH);
+    const findings = existsSync(findingsPath)
+        ? parseFindings(readFileSync(findingsPath, "utf8"))
+        : null;
+    const botMerge = mergeBotVerdicts(findings, lock.cards, botHash(root));
     const inScope = inScopeBotGapKeys(
         lock.cards,
-        rankedCardIds(readTargetRegistry(root), resolveContext(root, lock))
+        rankedCardIds(readTargetRegistry(root), resolveContext(root, lock)),
+        botMerge.merged
     );
     const unclaimed = unclaimedBotGaps(
         inScope,

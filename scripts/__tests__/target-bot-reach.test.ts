@@ -15,12 +15,14 @@ import {
     findingsCachePath,
     findingsHeader,
     findingsOutputPath,
+    mergeBotVerdicts,
     parseFindings,
     serializeFindings,
     type FindingRow,
     type FindingsHeader,
     type MeasuredVerdict,
 } from "../lib/oracle-bot-reach";
+import type { CardRow } from "../lib/oracle-lockfile";
 import { aggregate, type CardMeasure } from "../target-bot-reach";
 
 describe("aggregate", () => {
@@ -432,5 +434,162 @@ describe("findingsHeader", () => {
 
     it("stamps a fresh header on a first run", () => {
         expect(findingsHeader(null, now, 0)).toEqual(now);
+    });
+});
+
+describe("mergeBotVerdicts — the report over the lockfile (issue #4406)", () => {
+    const BOT_HASH = "sha256:bot";
+    const lockCard = (over: Partial<CardRow> = {}): CardRow => ({
+        oracleId: "o-1",
+        name: "A",
+        state: "ready",
+        ...over,
+    });
+
+    it("a card measured by BOTH: lockfile `played`, report `ignored` — the report's verdict is filed", () => {
+        const findings = buildFindings(
+            header(),
+            ["t"],
+            [row({ outcome: "ignored" })]
+        );
+        const { merged, stale } = mergeBotVerdicts(
+            findings,
+            [lockCard({ botReach: "played" })],
+            BOT_HASH
+        );
+        expect(stale).toEqual([]);
+        expect(merged.get("o-1")).toEqual({
+            outcome: "ignored",
+            gap: "never-chosen › instant › draw",
+        });
+    });
+
+    it("…and the reverse: lockfile `ignored`, report `played` — nothing is filed", () => {
+        const findings = buildFindings(
+            header(),
+            ["t"],
+            [row({ outcome: "played" })]
+        );
+        const { merged } = mergeBotVerdicts(
+            findings,
+            [lockCard({ botReach: "ignored", botGap: "old › key" })],
+            BOT_HASH
+        );
+        expect(merged.get("o-1")!.outcome).toBe("played");
+        expect(merged.get("o-1")!.gap).toBeUndefined();
+    });
+
+    it("a card the lockfile alone measured keeps its verdict — no regression on a compiled class", () => {
+        const { merged } = mergeBotVerdicts(
+            null,
+            [lockCard({ oracleId: "o-2", botReach: "ignored", botGap: "x" })],
+            BOT_HASH
+        );
+        expect(merged.get("o-2")).toEqual({ outcome: "ignored", gap: "x" });
+    });
+
+    it("a card the REPORT alone measured is merged too — the hand-written card the lockfile never played", () => {
+        const findings = buildFindings(
+            header(),
+            ["t"],
+            [
+                row({
+                    oracleId: "o-3",
+                    outcome: "frozen",
+                    cause: "no-legal-move",
+                }),
+            ]
+        );
+        const { merged } = mergeBotVerdicts(
+            findings,
+            [lockCard({ oracleId: "o-3", state: "unparsed" })], // no `botReach`
+            BOT_HASH
+        );
+        expect(merged.get("o-3")).toEqual({
+            outcome: "frozen",
+            gap: "no-legal-move › instant",
+        });
+    });
+
+    it("an `unplayable` report row never overrides — falls back to the lockfile's own verdict, no stale claim", () => {
+        const findings = buildFindings(
+            header(),
+            ["t"],
+            [row({ outcome: "unplayable", cause: undefined, form: undefined })]
+        );
+        const { merged, stale } = mergeBotVerdicts(
+            findings,
+            [lockCard({ botReach: "ignored", botGap: "x" })],
+            BOT_HASH
+        );
+        expect(stale).toEqual([]);
+        expect(merged.get("o-1")).toEqual({ outcome: "ignored", gap: "x" });
+    });
+
+    it("a Bot hash mismatch stales EVERY report row and falls back to the lockfile", () => {
+        const findings = buildFindings(
+            header({ botHash: "sha256:other-bot" }),
+            ["t"],
+            [row({ outcome: "ignored" })]
+        );
+        const { merged, stale } = mergeBotVerdicts(
+            findings,
+            [lockCard({ botReach: "played" })],
+            BOT_HASH
+        );
+        expect(stale).toEqual(["o-1"]);
+        expect(merged.get("o-1")).toEqual({ outcome: "played" });
+    });
+
+    it("a compiled row whose def hash no longer matches the lockfile's is stale on its own", () => {
+        const definition = { id: "c-1" };
+        const findings = buildFindings(
+            header(),
+            ["t"],
+            [
+                row({
+                    source: "compiled",
+                    defHash: "sha256:stale-def",
+                    outcome: "ignored",
+                }),
+            ]
+        );
+        const { merged, stale } = mergeBotVerdicts(
+            findings,
+            [
+                lockCard({
+                    botReach: "played",
+                    definition: definition as CardRow["definition"],
+                }),
+            ],
+            BOT_HASH
+        );
+        expect(stale).toEqual(["o-1"]);
+        expect(merged.get("o-1")).toEqual({ outcome: "played" });
+
+        // Matching def hash: not stale, the report's verdict wins.
+        const matching = buildFindings(
+            header(),
+            ["t"],
+            [
+                row({
+                    source: "compiled",
+                    defHash: definitionHash(definition),
+                    outcome: "ignored",
+                }),
+            ]
+        );
+        const fresh = mergeBotVerdicts(
+            matching,
+            [
+                lockCard({
+                    botReach: "played",
+                    definition: definition as CardRow["definition"],
+                }),
+            ],
+            BOT_HASH
+        );
+        expect(fresh.stale).toEqual([]);
+        expect(fresh.merged.get("o-1")!.outcome).toBe("ignored");
     });
 });

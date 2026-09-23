@@ -22,8 +22,12 @@
  *                                  # card by card in its coverage state, + playable,
  *                                  # + `completed: yes/no` — the v1 gate's three
  *                                  # clauses (ADR 0143), the third read from the
- *                                  # `bun scripts/target-bot-reach.ts --json <path>`
- *                                  # report (absent: bot-play is red, unproved)
+ *                                  # committed Bot Reach Findings report
+ *                                  # (data/bot-reach-findings.json, issue #4175) by
+ *                                  # default — no flag needed; `--bot-reach <path>`
+ *                                  # points at a narrowed local run's own
+ *                                  # `bun scripts/target-bot-reach.ts --findings <path>`
+ *                                  # output instead (absent: bot-play is red, unproved)
  *   bun scripts/oracle-report.ts --gap "<key or substring>" [--set apc | --pool premodern]
  *                                  # ONE Grammar Gap, card by card: every refused
  *                                  # line, sole-gap cards (the ones the rule
@@ -43,6 +47,11 @@ import { dirname, join } from "node:path";
 import { REPORTED_FORMATS } from "./oracle-corpus";
 import { poolOracleIds } from "./oracle-compile";
 import { parseLockfile, type Lockfile } from "./lib/oracle-lockfile";
+import {
+    FINDINGS_PATH,
+    parseFindings,
+    type FindingsArtifact,
+} from "./lib/oracle-bot-reach";
 import { ORIGIN_BASE } from "./lib/branches";
 import {
     formatReadyDelta,
@@ -279,26 +288,42 @@ function coverageLines(coverage: TargetCoverage): string {
     );
 }
 
-/** `target-bot-reach.ts --json`'s `perCard`, keyed by Target id. */
-function readBotReachReport(path: string): Record<string, BotPlayCard[]> {
+/**
+ * The Bot Reach Findings report (issue #4175, ADR 0141 § 4) grouped by Target
+ * id — the committed artifact by default (`data/bot-reach-findings.json`, no
+ * flag needed), or one `--bot-reach <path>` names, in the SAME schema: a
+ * narrowed local run's `--findings <path>` output (`target-bot-reach.ts`),
+ * never the legacy `--json` per-Target report that script's own header calls
+ * "unrelated to the artifact".
+ */
+function readFindingsReport(path: string): Record<string, BotPlayCard[]> {
     let parsed: unknown;
     try {
-        parsed = JSON.parse(readFileSync(path, "utf8"));
+        parsed = parseFindings(readFileSync(path, "utf8"));
     } catch (err) {
         process.stderr.write(
             `oracle:report --bot-reach — cannot read ${path}: ${(err as Error).message}\n`
         );
         process.exit(1);
     }
-    const perCard = (parsed as { perCard?: unknown } | null)?.perCard;
-    if (typeof perCard !== "object" || perCard === null) {
+    const findings = (parsed as Partial<FindingsArtifact> | null)?.findings;
+    if (!Array.isArray(findings)) {
         process.stderr.write(
-            `oracle:report --bot-reach — ${path} has no \`perCard\`; it is the output of ` +
-                `bun scripts/target-bot-reach.ts --target <id> --json <path>\n`
+            `oracle:report --bot-reach — ${path} has no \`findings\`; it is the output of ` +
+                "`bun run bot:reach` or `bun scripts/target-bot-reach.ts --target <id> --findings <path>`\n"
         );
         process.exit(1);
     }
-    return perCard as Record<string, BotPlayCard[]>;
+    const perTarget: Record<string, BotPlayCard[]> = {};
+    for (const row of findings) {
+        const card: BotPlayCard = {
+            name: row.name,
+            outcome: row.outcome,
+            ...(row.gap !== undefined ? { gap: row.gap } : {}),
+        };
+        for (const id of row.targets ?? []) (perTarget[id] ??= []).push(card);
+    }
+    return perTarget;
 }
 
 /**
@@ -315,13 +340,13 @@ async function botPlayVerdicts(
     if (report === undefined)
         return {
             missing:
-                "no Bot-play report supplied — run `bun scripts/target-bot-reach.ts " +
-                `--target ${id} --json <path>\`, then pass \`--bot-reach <path>\``,
+                `${FINDINGS_PATH} is missing — run \`bun run bot:reach\` to ` +
+                "produce it, or pass `--bot-reach <path>` to a narrowed local run's own report",
         };
     const cards = report[id];
     if (!Array.isArray(cards))
         return {
-            missing: `${reportPath} carries no verdicts for Target \`${id}\` (pass --target ${id} to target-bot-reach)`,
+            missing: `${reportPath} carries no verdicts for Target \`${id}\` — it was not among the Targets \`bot:reach\` measured (pass --target ${id} to it)`,
         };
     const { BLADE_SCENARIOS } = await import("../convex/gre/ai/blade/registry");
     return { cards, mustCovered: mustCoveredCards(BLADE_SCENARIOS) };
@@ -359,11 +384,14 @@ async function reportTargets(
         );
         process.exit(1);
     }
-    const botReachPath = flag("--bot-reach");
+    const committedFindings = join(ROOT, FINDINGS_PATH);
+    const botReachPath =
+        flag("--bot-reach") ??
+        (existsSync(committedFindings) ? committedFindings : undefined);
     const botReport =
         botReachPath === undefined
             ? undefined
-            : readBotReachReport(botReachPath);
+            : readFindingsReport(botReachPath);
     process.stdout.write(
         `\nTarget Lists — ${TARGETS_PATH}, hand-tail floor ${registry.handTailFloor} corpus cards\n` +
             `states: ${COVERAGE_STATES.join(", ")}; playable is a separate figure; ` +

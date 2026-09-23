@@ -127,6 +127,13 @@ import {
     type KindInputs,
 } from "./lib/gap-kinds";
 import { LOCKFILE_PATH } from "./check-gaps";
+import {
+    botHash,
+    FINDINGS_PATH,
+    mergeBotVerdicts,
+    parseFindings,
+    type BotGapVerdict,
+} from "./lib/oracle-bot-reach";
 import { parseLockfile } from "./lib/oracle-lockfile";
 import {
     claimId,
@@ -446,7 +453,10 @@ export function buildAllFilings(
     lock: ReturnType<typeof parseLockfile>,
     allowlist: ReturnType<typeof parseAllowlist>,
     registry: ReturnType<typeof readTargetRegistry>,
-    ctx: ReturnType<typeof resolveContext>
+    ctx: ReturnType<typeof resolveContext>,
+    /** The Bot Reach Findings report merged over the lockfile (issue #4406) —
+     *  absent exactly when `data/bot-reach-findings.json` is missing. */
+    botFindings?: ReadonlyMap<string, BotGapVerdict>
 ): {
     filings: GapFiling[];
     handTailHeld: readonly GapFiling[];
@@ -470,6 +480,7 @@ export function buildAllFilings(
         handTailFiling: registry.handTailFiling,
         enforced: enforcedCardIds(registry, ctx),
         handTail: handTailOracleIds(root, ctx.byName),
+        botFindings,
         ...gapIndex(lock),
     };
     const handTail = buildHandTailFilings(inputs);
@@ -578,12 +589,40 @@ function main(): void {
     const registry = readTargetRegistry(root);
     const ctx = resolveContext(root, lock);
 
+    // The Bot Reach Findings report (issue #4175) merged over the lockfile
+    // (issue #4406) — the `bot` kind's second input, absent exactly when the
+    // committed artifact is missing (a checkout that predates it, or a
+    // narrowed local run that wrote its measurement elsewhere).
+    const findingsPath = join(root, FINDINGS_PATH);
+    const findings = existsSync(findingsPath)
+        ? parseFindings(readFileSync(findingsPath, "utf8"))
+        : null;
+    // Freshly computed, never the lockfile's own header: that field only
+    // catches up the next time `oracle:compile` REPLAYS a card, so it can
+    // lag behind the Bot's actual source for arbitrarily long between full
+    // compiler runs (`mergeBotVerdicts`'s own doc).
+    const botMerge = mergeBotVerdicts(findings, lock.cards, botHash(root));
+    if (botMerge.stale.length > 0) {
+        const nameOf = new Map(lock.cards.map((c) => [c.oracleId, c.name]));
+        const names = botMerge.stale
+            .map((id) => nameOf.get(id) ?? id)
+            .slice(0, 20);
+        console.log(
+            `stale      ${FINDINGS_PATH}: ${botMerge.stale.length} row(s) disagree with the lockfile ` +
+                "(Bot hash or definition hash moved since `bot:reach` last ran) — falling back to the " +
+                `lockfile's own verdict, filing nothing from them: ${names.join(", ")}` +
+                (botMerge.stale.length > names.length ? ", …" : "") +
+                " — re-run `bun run bot:reach` to refresh"
+        );
+    }
+
     const { filings, handTailHeld, filed } = buildAllFilings(
         root,
         lock,
         allowlist,
         registry,
-        ctx
+        ctx,
+        botMerge.merged
     );
 
     // Reported whether or not filing is on — but a SUMMARY, plus one line per
