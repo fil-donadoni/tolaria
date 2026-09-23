@@ -28,8 +28,11 @@ export default function BanlistAdminPanel() {
 
     return (
         <Panel>
-            {/* `canEditPresets` is false while `useCurrentUser` is still loading,
-                so this branch IS the loaded one (`settle.ts`). */}
+            {/* `canEditPresets` is false while `useCurrentUser` is still
+                loading, so this branch IS this component's loaded one. The
+                rows' own queries are covered by the settle predicate's
+                socket-wide in-flight count, not by a second marker
+                (`settle.ts`). */}
             <SurfaceReadyMarker />
             <PanelHeader
                 title="Banlist Sync"

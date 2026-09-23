@@ -2351,8 +2351,9 @@ export const SURFACES: readonly Surface[] = [
      * The rest of the `/admin` section, plus `/settings` (issue #4418, a slice
      * of the coverage census's debt, issue #4402). Eight route modules the
      * census counted as SCREENS and the lane photographed at no viewport: the
-     * gate walked two admin pages out of nine and every other one was measured
-     * by nothing.
+     * gate walked three admin pages out of nine (`design-system`,
+     * `admin-card-profiles`, `admin-verdicts`) and every other one was
+     * measured by nothing.
      *
      * They share one walk shape — navigate, check the screen's own heading,
      * settle — because each is a page reached by URL with no click sequence in
@@ -2449,9 +2450,16 @@ export const SURFACES: readonly Surface[] = [
         ],
         label: "Banlist sync (/admin/banlists)",
         // The sync page's own controls. `View cards` is promised `visible`
-        // rather than `reachable`: it is disabled until the format's counts
-        // have answered, and a disabled control is exactly what `visible`
-        // exists for.
+        // rather than `reachable` because it is DISABLED until its format's
+        // counts have answered — the settle predicate's socket-wide in-flight
+        // count makes that unlikely by the time assertions run, and `visible`
+        // is the check that holds either way.
+        //
+        // Both buttons render once per banlist Format with identical labels,
+        // so `.first()` addresses the Premodern row. They are one component
+        // under different props — a layout defect in one is a defect in both —
+        // which is why this stays a name rather than a per-row seam (review of
+        // PR #4425).
         asserts: [
             {
                 label: "page heading",
@@ -2493,6 +2501,13 @@ export const SURFACES: readonly Surface[] = [
         // The editor is a scope picker over a searchable card list, and both
         // halves are promised: the scope decides WHICH ratings are on screen,
         // the search is how a rater finds the card they came for.
+        //
+        // `Pick Ratings` names TWO headings — the frame's `h1` and the panel's
+        // own `h2`, which said the page's name twice before this surface
+        // existed — so `.first()` decides between them by DOM order. It takes
+        // the frame's, and `walk()` below throws `Unreachable` on that same
+        // `h1` independently, so the promise cannot be met by the panel alone
+        // (review of PR #4425).
         asserts: [
             {
                 label: "page heading",
