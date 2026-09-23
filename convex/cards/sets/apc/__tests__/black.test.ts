@@ -34,6 +34,23 @@ import {
     type GameState,
 } from "../../../../gre/state";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
+import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import {
+    emitBlockersConfirmedEvents,
+    finalizeCleanup,
+} from "../../../../gre/phases";
+import { projectPublicState } from "../../../../gameProjections";
+import { compactState, expandState } from "../../../../gre/serialize";
+import { activateAbility } from "../../../../game";
+import {
+    gameStateSeed,
+    makeMutationCtx,
+    runMutation,
+    type Handler,
+} from "../../../../__tests__/gameMutationHarness";
+import type { Id } from "../../../../_generated/dataModel";
+
+const GAME_ID = "game-1" as Id<"games">;
 
 const DEAD_RINGERS = getDefinition("9b78028c-3ebd-432d-b628-e1fa284f08f3");
 const MIND_EXTRACTION = getDefinition("7d77ddcc-e66b-4036-8a55-ec42953918d1");
@@ -210,5 +227,196 @@ describe("Mind Extraction — discard all cards of each of the sacrificed creatu
 
     it("discards nothing with no snapshot colours at all (CR 608.2b)", () => {
         expect(run(undefined).graveyard).toEqual([]);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Zombie Boa (issue #3809) — a chosen COLOUR parameterises a this-turn
+// "becomes blocked by a creature of that color" trigger (CR 509.3d).
+// ---------------------------------------------------------------------------
+
+const ZOMBIE_BOA = getDefinition("1fb8c277-3154-47c9-835f-327cac297a5e");
+
+/** p1 attacks-ready with Zombie Boa (and a second attacker); p2 holds two
+ *  green creatures and one black-and-red one as potential blockers. */
+function boaBoard(): GameState {
+    const blocker = (defId: string, id: string) =>
+        makeInstance(defId, { id, controllerId: "p2", ownerId: "p2" });
+    return makeState({
+        players: [
+            makePlayer("p1", {
+                battlefield: [
+                    makeInstance(ZOMBIE_BOA.id, {
+                        id: "boa",
+                        controllerId: "p1",
+                        ownerId: "p1",
+                    }),
+                    makeInstance(GREEN_CREATURE.id, {
+                        id: "other-attacker",
+                        controllerId: "p1",
+                        ownerId: "p1",
+                    }),
+                ],
+            }),
+            makePlayer("p2", {
+                battlefield: [
+                    blocker(GREEN_CREATURE.id, "g1"),
+                    blocker(GREEN_CREATURE.id, "g2"),
+                    blocker(BLACK_CREATURE.id, "k1"),
+                ],
+            }),
+        ],
+        activePlayerId: "p1",
+        priorityPlayerId: "p1",
+    });
+}
+
+/** Resolves Zombie Boa's ability (cost assumed paid) and names `color`. */
+function activateBoa(state: GameState, color: string): void {
+    const boa = state.players[0].battlefield.find((c) => c.id === "boa")!;
+    state.stack.push({
+        ...boa,
+        zone: "stack",
+        castById: "p1",
+        abilityId: "zombie-boa-watch",
+        targets: [],
+    });
+    resolveTopOfStack(state);
+    const head = state.pendingChoices![0];
+    expect(head.kind).toBe("option-pick");
+    applyPendingChoiceSubmit(state, {
+        playerId: head.playerId,
+        stackItemId: head.stackItemId,
+        step: head.step,
+        choiceId: head.choiceId,
+        cardInstanceIds: [color],
+    });
+}
+
+/** Declares `blocks` (blocker → attacker) as confirmed and fires the
+ *  BLOCKERS_CONFIRMED batch, putting any resulting triggers on the stack. */
+function block(
+    state: GameState,
+    attackerIds: string[],
+    blocks: Record<string, string>
+): void {
+    state.phase = "DECLARE_BLOCKERS";
+    state.combat = {
+        attackerIds,
+        confirmed: true,
+        blockersConfirmed: true,
+        blockerAssignments: Object.fromEntries(
+            Object.entries(blocks).map(([b, a]) => [b, [a]])
+        ),
+    };
+    emitBlockersConfirmedEvents(state);
+}
+
+const boaTriggers = (state: GameState) =>
+    state.stack.filter((i) => i.delayedTriggerId !== undefined);
+
+const onBattlefield = (state: GameState, id: string) =>
+    state.players.some((p) => p.battlefield.some((c) => c.id === id));
+
+describe("Zombie Boa — choose a color; whenever it becomes blocked by a creature of that color this turn, destroy that creature (CR 509.3d, issue #3809)", () => {
+    it("fires only for a blocker of the chosen colour, and destroys THAT blocker", () => {
+        const state = boaBoard();
+        activateBoa(state, "G");
+        block(state, ["boa"], { g1: "boa", k1: "boa" });
+        // The black-and-red blocker does not trigger it at all: the colour is
+        // part of the trigger event, not an intervening-if.
+        expect(boaTriggers(state)).toHaveLength(1);
+        resolveTopOfStack(state);
+        expect(onBattlefield(state, "g1")).toBe(false);
+        expect(onBattlefield(state, "k1")).toBe(true);
+        // Wire format — the destroyed blocker is in its owner's graveyard.
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[1].graveyard.map((c) => c.id)).toContain("g1");
+    });
+
+    it("the colour condition survives the persisted snapshot (serialize round-trip)", () => {
+        const live = boaBoard();
+        activateBoa(live, "G");
+        const state = expandState(compactState(live));
+        expect(state.delayedTriggers?.[0]?.blockerColors).toEqual(["G"]);
+        block(state, ["boa"], { g1: "boa", k1: "boa" });
+        expect(boaTriggers(state)).toHaveLength(1);
+    });
+
+    it("triggers once for EACH creature of that colour blocking it (CR 509.3d)", () => {
+        const state = boaBoard();
+        activateBoa(state, "G");
+        block(state, ["boa"], { g1: "boa", g2: "boa" });
+        expect(boaTriggers(state)).toHaveLength(2);
+        resolveTopOfStack(state);
+        resolveTopOfStack(state);
+        expect(onBattlefield(state, "g1")).toBe(false);
+        expect(onBattlefield(state, "g2")).toBe(false);
+    });
+
+    it("watches only Zombie Boa — a green creature blocking ANOTHER attacker is untouched", () => {
+        const state = boaBoard();
+        activateBoa(state, "G");
+        block(state, ["boa", "other-attacker"], { g1: "other-attacker" });
+        expect(boaTriggers(state)).toHaveLength(0);
+    });
+
+    it("naming another colour turns the same block into no trigger", () => {
+        const state = boaBoard();
+        activateBoa(state, "B");
+        block(state, ["boa"], { g1: "boa", k1: "boa" });
+        expect(boaTriggers(state)).toHaveLength(1);
+        resolveTopOfStack(state);
+        expect(onBattlefield(state, "k1")).toBe(false);
+        expect(onBattlefield(state, "g1")).toBe(true);
+    });
+
+    it("lasts the rest of the turn (stays queued after firing) and expires at cleanup (CR 514.2)", () => {
+        const state = boaBoard();
+        activateBoa(state, "G");
+        block(state, ["boa"], { g1: "boa" });
+        expect(
+            state.delayedTriggers?.filter(
+                (t) => t.timing === "becomes-blocked-by"
+            )
+        ).toHaveLength(1);
+        state.stack = [];
+        state.combat = undefined;
+        state.phase = "CLEANUP";
+        finalizeCleanup(state);
+        expect(state.delayedTriggers ?? []).toHaveLength(0);
+    });
+
+    it("is activatable only as a sorcery, through game.ts", async () => {
+        const activate = async (state: GameState) => {
+            const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
+            await runMutation(
+                activateAbility as unknown as Handler<unknown, void>,
+                harness.ctx,
+                {
+                    gameId: GAME_ID,
+                    playerId: "p1",
+                    cardInstanceId: "boa",
+                    abilityId: "zombie-boa-watch",
+                }
+            );
+            return harness.state();
+        };
+        const mana = { W: 0, U: 0, B: 2, R: 0, G: 0, C: 0 };
+        // Own main phase, empty stack: legal, and the ability is on the stack.
+        const legal = boaBoard();
+        legal.players[0].manaPool = { ...mana };
+        const after = await activate(legal);
+        expect(after.stack.at(-1)?.abilityId).toBe("zombie-boa-watch");
+        // A non-empty stack is not sorcery timing (CR 307.1 / 602.5d).
+        const busy = boaBoard();
+        busy.players[0].manaPool = { ...mana };
+        busy.stack.push({
+            ...busy.players[1].battlefield[0],
+            zone: "stack",
+            castById: "p2",
+            targets: [],
+        });
+        await expect(activate(busy)).rejects.toThrow(/sorcery/i);
     });
 });

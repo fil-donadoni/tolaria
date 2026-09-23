@@ -7748,3 +7748,110 @@ describe("validateEffectScript — categorised library selection (CR 701.23a / 7
         }
     });
 });
+
+describe("chosen type / colour as an effect parameter (CR 205.3m / 607.2d / 509.3d, issue #3809)", () => {
+    const run = (effects: unknown[]) =>
+        validateEffectScript(host({ effects: effects as EffectOp[] }));
+    const choose = (extra: Record<string, unknown> = {}) => ({
+        op: "chooseCreatureType",
+        player: "controller",
+        prompt: "Choose a creature type.",
+        bind: "$type",
+        ...extra,
+    });
+    const reveal = (subtype: unknown) => ({
+        op: "lookDistribute",
+        player: "controller",
+        look: 4,
+        take: 4,
+        keepTo: "hand",
+        filter: { type: "Creature", subtype },
+        optional: false,
+        reveal: "window",
+        prompt: "p",
+    });
+    const blocked = (extra: Record<string, unknown>) => ({
+        op: "delayedTrigger",
+        timing: "becomes-blocked-by",
+        oracleText: "o",
+        // A spell-site script has no `$source`; an announced target watches
+        // the same way (the ability-site `$source` form ships on Zombie Boa and
+        // is swept by the catalogue test).
+        watch: { target: 0 },
+        effects: [{ op: "destroy", target: { ref: "$event.blockerId" } }],
+        ...extra,
+    });
+
+    it("CR 205.3m — `exclude` accepts creature types and refuses anything else", () => {
+        expect(run([choose({ exclude: ["Wall"] })])).toEqual([]);
+        expect(run([choose({ exclude: ["Swamp"] })]).length).toBeGreaterThan(0);
+        expect(run([choose({ exclude: [] })]).length).toBeGreaterThan(0);
+    });
+
+    it("CR 607.2d — `$source.chosenSubtype` is legal in a subtype position with no bind", () => {
+        expect(run([reveal({ ref: "$source.chosenSubtype" })])).toEqual([]);
+        expect(
+            run([
+                {
+                    op: "setSubtype",
+                    target: { target: 0 },
+                    subtypes: { ref: "$source.chosenSubtype" },
+                    duration: { phase: "end-of-turn" },
+                },
+            ])
+        ).toEqual([]);
+    });
+
+    it("REJECTS `$source.chosenSubtype` outside a subtype position, and an unknown `$source.` property", () => {
+        expect(
+            run([
+                {
+                    op: "moveZone",
+                    cards: { ref: "$source.chosenSubtype" },
+                    from: "graveyard",
+                    to: "hand",
+                },
+            ]).length
+        ).toBeGreaterThan(0);
+        expect(
+            run([reveal({ ref: "$source.chosenName" })]).length
+        ).toBeGreaterThan(0);
+    });
+
+    it("`setSubtype.subtypes` reads a chooseCreatureType binding, and refuses an undeclared one", () => {
+        const set = {
+            op: "setSubtype",
+            target: { target: 0 },
+            subtypes: { ref: "$type" },
+            duration: { phase: "end-of-turn" },
+        };
+        expect(run([choose({ exclude: ["Wall"] }), set])).toEqual([]);
+        expect(run([set]).length).toBeGreaterThan(0);
+    });
+
+    it("CR 509.3d — `becomes-blocked-by` requires `watch`, reads `$event`, and alone accepts `blockerColors`", () => {
+        expect(run([blocked({ blockerColors: ["G"] })])).toEqual([]);
+        expect(run([blocked({})])).toEqual([]);
+        const { watch: _w, ...noWatch } = blocked({});
+        expect(run([noWatch]).length).toBeGreaterThan(0);
+        expect(run([blocked({ blockerColors: ["C"] })]).length).toBeGreaterThan(
+            0
+        );
+        expect(
+            run([
+                {
+                    op: "delayedTrigger",
+                    timing: "this-turn-creature-blocks",
+                    oracleText: "o",
+                    blockerColors: ["G"],
+                    effects: [
+                        {
+                            op: "destroy",
+                            target: { ref: "$event.blockerId" },
+                        },
+                    ],
+                },
+            ]).length
+        ).toBeGreaterThan(0);
+    });
+});
