@@ -1508,7 +1508,7 @@ async function ensureVsAiBoard(page: Page, ctx: WalkContext): Promise<void> {
 }
 
 /** The pregame gate's own dialog (`pregame-dialog.tsx`): the coin toss, and
- *  the play/draw choice the toss winner owes (CR 103.2-103.4). */
+ *  the play/draw choice the toss winner owes (CR 103.1). */
 const PREGAME_GATE = '[role=dialog]:has-text("Coin toss")';
 /** The same layer as PLAIN CSS. `settle.ts` hands its targets to
  *  `querySelectorAll` in the page, which does not know Playwright's
@@ -3768,7 +3768,7 @@ export const SURFACES: readonly Surface[] = [
         needsGame: true,
         settleTargets: [PREGAME_GATE_BOX],
         entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
-        label: "Pregame gate — coin toss + play/draw (CR 103.2-103.4)",
+        label: "Pregame gate — coin toss + play/draw (CR 103.1)",
         asserts: [
             {
                 label: "dialog: Coin toss",
