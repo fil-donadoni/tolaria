@@ -3189,7 +3189,7 @@ const OP_ASSERTORS: Record<string, Assertor> = {
     // `replaceManaProductionColor` (CR 614.1a, issue #3811, False Dawn) — a
     // deterministic same-resolution state change: the colour lands under the
     // named player's key in state.manaProductionColorThisTurn.
-    replaceManaProductionColor(rawOp, _scenario, _pre) {
+    replaceManaProductionColor(rawOp) {
         const op = rawOp as Extract<
             EffectOp,
             { op: "replaceManaProductionColor" }
