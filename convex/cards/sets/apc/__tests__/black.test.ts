@@ -589,7 +589,7 @@ describe("Suppress — target player exiles their hand face down; it returns at 
             expect(handIds(state, "p1")).toContain(`p1-${id}`);
     });
 
-    it("CR 603.7c — a card that left exile meanwhile is a new object and is not returned", () => {
+    it("CR 603.7c — a card no longer in exile when the trigger resolves is not returned", () => {
         const state = suppressBoard("p2");
         resolveTopOfStack(state);
         const opp = state.players[1];

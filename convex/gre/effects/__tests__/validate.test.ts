@@ -7932,11 +7932,15 @@ describe("validateEffectScript — face-down whole-zone exile + bound list captu
         const toHand = validateEffectScript(
             host({ effects: suppressShape({ exile: { to: "hand" } }) })
         );
-        expect(toHand.join("\n")).toMatch(/"faceDown" requires to: "exile"/);
+        expect(toHand.join("\n")).toMatch(
+            /"faceDown" requires from: "hand" and to: "exile"/
+        );
         const fromExile = validateEffectScript(
             host({ effects: suppressShape({ exile: { from: "exile" } }) })
         );
-        expect(fromExile.join("\n")).toMatch(/"faceDown" requires to: "exile"/);
+        expect(fromExile.join("\n")).toMatch(
+            /"faceDown" requires from: "hand" and to: "exile"/
+        );
     });
 
     it("rejects faceDown / bindAll outside the whole-zone shape", () => {

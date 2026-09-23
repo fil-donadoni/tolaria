@@ -15529,8 +15529,9 @@ export type EffectOp =
      *  move a chosen or filtered subset and bind the cards themselves.
      *
      *  `faceDown` (issue #3812) — CR 406.3 "exiles all cards from their hand
-     *  FACE DOWN" (Suppress): valid only with `to: "exile"` and a
-     *  library/hand/graveyard `from` (validator-enforced). Each card goes
+     *  FACE DOWN" (Suppress): valid only with `from: "hand"` and
+     *  `to: "exile"` (validator-enforced — a library/graveyard sweep would
+     *  need one batched CARDS_EXILED, issue #1558). Each card goes
      *  through `SpellContext.exileFaceDown` with NO knower — the oracle grants
      *  no look, and CR 406.3 says a card exiled face down "can't be examined by
      *  any player except when instructions allow it", its owner included.

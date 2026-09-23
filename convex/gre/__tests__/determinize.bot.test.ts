@@ -614,6 +614,30 @@ describe("unseenRemainder — what the decklist still admits (issue #2789)", () 
         ).not.toContain(BOLT);
     });
 
+    it("does not subtract a face-down exile NO player may look at, for either observer (CR 406.3, issue #3812)", () => {
+        // Suppress / Memory Jar: face down with no knower — no `knownTo` at
+        // all, marked by its producer alone. Read as "absent knownTo = public"
+        // it would be accounted for and leak its identity to the search.
+        const hidden = makeInstance(BOLT, {
+            controllerId: "p2",
+            ownerId: "p2",
+            id: "exiled",
+            zone: "exile",
+        });
+        hidden.faceDownBy = "face-down-exile";
+        const state = makeState({
+            players: [
+                makePlayer("p1", {}),
+                makePlayer("p2", { exile: [hidden] }),
+            ],
+        });
+        for (const observer of ["p1", "p2"]) {
+            expect(
+                unseenRemainder(state, state.players[1], DECK, observer)
+            ).toContain(BOLT);
+        }
+    });
+
     it("subtracts a permanent whose CONTROL changed — it is still this seat's copy", () => {
         // `applyControlChange` splices the instance onto the new controller's
         // battlefield and leaves `ownerId` alone. Scanning only the seat's own

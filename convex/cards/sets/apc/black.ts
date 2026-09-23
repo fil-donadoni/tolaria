@@ -178,7 +178,7 @@ export const zombieBoa: CardDefinition = {
 //     their owner included (no knower, `isFaceDownExile` reads the producer).
 //   • `bindAll` records exactly the cards that went, and the delayed trigger
 //     freezes them with a `{ select: { set: "bound" } }` list capture — CR
-//     603.7c: a card that has since left exile is a new object and is not
+//     603.7c: a card no longer in exile when the trigger resolves is not
 //     returned.
 //   • `player-next-turn-end-step` is "the end step of THAT PLAYER's NEXT
 //     turn" (CR 603.7 / 513.1): targeting yourself skips this turn's end step.

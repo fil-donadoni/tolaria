@@ -95,7 +95,9 @@ export function isFaceDownProducer(value: unknown): value is FaceDownProducer {
  *  was a face-down PERMANENT and is now a perfectly public exiled card still
  *  carries it. Reading it here would refuse disclosure for cards everyone can
  *  see. The ONE producer that is read is `"face-down-exile"`, which only
- *  `exileFaceDownCard` stamps and every exit from exile clears: it is how a
+ *  `exileFaceDownCard` stamps and `moveCard` / `removeFromZone` clear on the
+ *  way out of exile (a direct battlefield return may leave it behind, which
+ *  fails CLOSED — hidden, never leaked): it is how a
  *  face-down exile NO player may look at (Suppress, issue #3812 — CR 406.3
  *  "can't be examined by any player") is told apart from a public card, since
  *  it carries no `knownTo` grant at all. `faceDown` is likewise not it — an exile instance never carries that

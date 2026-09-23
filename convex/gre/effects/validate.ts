@@ -4280,12 +4280,16 @@ const OP_SCHEMAS: Record<string, OpSchema> = {
             }
             // CR 406.3 — only an exile is "face down", and only a card
             // arriving from a hidden-or-graveyard zone can be hidden by it.
+            // `from: "hand"` only, for now: the per-card face-down primitive
+            // emits one CARDS_EXILED per card, and a library/graveyard sweep
+            // must be ONE exile occurrence to "one or more cards" watchers
+            // (issue #1558). No hand-exile watcher exists, so hand is exact.
             if (
                 entry.faceDown === true &&
-                (entry.to !== "exile" || entry.from === "exile")
+                (entry.to !== "exile" || entry.from !== "hand")
             ) {
                 errors.push(
-                    'field "faceDown" requires to: "exile" and a library/hand/graveyard "from" (CR 406.3, issue #3812)'
+                    'field "faceDown" requires from: "hand" and to: "exile" (CR 406.3, issue #3812)'
                 );
             }
             if ("bindCount" in entry && !hasBulk) {

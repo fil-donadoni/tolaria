@@ -3591,8 +3591,12 @@ export const OP_EXECUTORS: {
             }
             // The moved set as a PICKS binding (`mill.bindAll`'s shape, issue
             // #2600) — left uncaptured when nothing moved.
-            if (op.bindAll !== undefined && movedIds.length > 0) {
-                ctx.noteChoice(op.bindAll, movedIds);
+            // Only cards that actually ARRIVED in `to` (a CR 614 redirect may
+            // have sent some elsewhere) — `mill.bindAll`'s own contract.
+            const arrived = new Set(movableZoneCardIds(ctx, playerId, op.to));
+            const bound = movedIds.filter((id) => arrived.has(id));
+            if (op.bindAll !== undefined && bound.length > 0) {
+                ctx.noteChoice(op.bindAll, bound);
             }
             return;
         }

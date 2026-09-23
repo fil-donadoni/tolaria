@@ -51,6 +51,7 @@
 // instance's identity while it sits in a hidden zone (library, hand, face-down
 // exile), so it is what this asks rather than a second, parallel notion.
 
+import { isFaceDownExile } from "./faceDown";
 import type { Color } from "../cards/types";
 import { getCardColors } from "../cards/colors";
 import { tryGetDefinition } from "../cards";
@@ -100,7 +101,11 @@ function removeOne(multiset: Map<string, number>, cardId: string): void {
  *  `knownTo` absent means the zone is public and everyone reads it. */
 function readableBy(card: CardInstanceState, observerId: string): boolean {
     if (card.faceDown === true) return false;
-    return card.knownTo === undefined || card.knownTo.includes(observerId);
+    // A face-down exile NO player may look at (CR 406.3, issue #3812) carries
+    // no `knownTo` at all — the shared predicate is what tells it from a
+    // public card.
+    if (card.knownTo === undefined) return !isFaceDownExile(card);
+    return card.knownTo.includes(observerId);
 }
 
 /** `CardInstanceState.card` is a `Record<string, unknown>`, so its `id` needs
