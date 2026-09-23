@@ -7878,3 +7878,141 @@ describe("chosen type / colour as an effect parameter (CR 205.3m / 607.2d / 509.
         ).toBeGreaterThan(0);
     });
 });
+
+describe("validateEffectScript — face-down whole-zone exile + bound list capture + player-next-turn-end-step (CR 406.3 / 603.7, issue #3812)", () => {
+    const suppressShape = (
+        overrides: {
+            exile?: Partial<Extract<EffectOp, { op: "moveZone" }>>;
+            capture?: Record<string, unknown>;
+            targetPlayer?: unknown;
+        } = {}
+    ): EffectOp[] =>
+        [
+            {
+                op: "moveZone",
+                player: { target: 0 },
+                from: "hand",
+                to: "exile",
+                faceDown: true,
+                bindAll: "$exiled",
+                ...overrides.exile,
+            },
+            {
+                op: "delayedTrigger",
+                timing: "player-next-turn-end-step",
+                oracleText: "Return those cards.",
+                ...("targetPlayer" in overrides
+                    ? overrides.targetPlayer === undefined
+                        ? {}
+                        : { targetPlayer: overrides.targetPlayer }
+                    : { targetPlayer: { target: 0 } }),
+                capture: overrides.capture ?? {
+                    $player: { target: 0 },
+                    $exiled: { select: { set: "bound", ref: "$exiled" } },
+                },
+                effects: [
+                    {
+                        op: "moveZone",
+                        cards: { ref: "$exiled" },
+                        player: { ref: "$player" },
+                        from: "exile",
+                        to: "hand",
+                    },
+                ],
+            },
+        ] as EffectOp[];
+
+    it("accepts the exile → freeze → return script", () => {
+        expect(
+            validateEffectScript(host({ effects: suppressShape() }))
+        ).toEqual([]);
+    });
+
+    it("rejects faceDown on anything but an exile from a hidden or graveyard zone", () => {
+        const toHand = validateEffectScript(
+            host({ effects: suppressShape({ exile: { to: "hand" } }) })
+        );
+        expect(toHand.join("\n")).toMatch(/"faceDown" requires to: "exile"/);
+        const fromExile = validateEffectScript(
+            host({ effects: suppressShape({ exile: { from: "exile" } }) })
+        );
+        expect(fromExile.join("\n")).toMatch(/"faceDown" requires to: "exile"/);
+    });
+
+    it("rejects faceDown / bindAll outside the whole-zone shape", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "moveZone",
+                        target: { target: 0 },
+                        to: "exile",
+                        faceDown: true,
+                    } as EffectOp,
+                ],
+            })
+        );
+        expect(errors.join("\n")).toMatch(
+            /"faceDown" \/ "bindAll" are only valid for the whole-zone bulk mode/
+        );
+    });
+
+    it("a bound list capture must name an earlier picks/list binding", () => {
+        const undefinedRef = validateEffectScript(
+            host({
+                effects: suppressShape({
+                    capture: {
+                        $player: { target: 0 },
+                        $exiled: { select: { set: "bound", ref: "$nope" } },
+                    },
+                }),
+            })
+        );
+        expect(undefinedRef.join("\n")).toMatch(
+            /select ref "\$nope" references undefined binding/
+        );
+        const snapshot = validateEffectScript(
+            host({
+                effects: [
+                    { op: "exile", target: { target: 1 }, bind: "$c" },
+                    ...suppressShape({
+                        capture: {
+                            $player: { target: 0 },
+                            $exiled: { select: { set: "bound", ref: "$c" } },
+                        },
+                    }),
+                ],
+            })
+        );
+        expect(snapshot.join("\n")).toMatch(
+            /names a snapshot binding — a bound list capture freezes a picks or list binding/
+        );
+    });
+
+    it("the new timing is player-scoped: targetPlayer is required", () => {
+        const errors = validateEffectScript(
+            host({ effects: suppressShape({ targetPlayer: undefined }) })
+        );
+        expect(errors.join("\n")).toMatch(
+            /timing "player-next-turn-end-step" is player-scoped/
+        );
+    });
+
+    it("a target-slot capture is a PLAYER binding only when it is also the targetPlayer slot", () => {
+        // Slot 1 is not the proven-player slot → it stays a snapshot, and
+        // the body's player position refuses it.
+        const errors = validateEffectScript(
+            host({
+                effects: suppressShape({
+                    capture: {
+                        $player: { target: 1 },
+                        $exiled: { select: { set: "bound", ref: "$exiled" } },
+                    },
+                }),
+            })
+        );
+        expect(errors.join("\n")).toMatch(
+            /ref "\$player" names a snapshot binding in a bare player position/
+        );
+    });
+});

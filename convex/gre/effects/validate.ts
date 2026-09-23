@@ -7452,10 +7452,31 @@ function checkOpListRefs(
             const bodyScope = new Map<string, BindingKind>();
             const capture = entry.capture;
             if (capture && typeof capture === "object") {
+                // A target slot that is ALSO this Op's `targetPlayer` is
+                // provably a player: `delayedTrigger` refuses to schedule when
+                // `targetPlayer` does not resolve to one (issue #3812 —
+                // Suppress's "that player returns those cards").
+                const tp = entry.targetPlayer as
+                    | { target?: unknown }
+                    | undefined;
+                const playerSlot =
+                    typeof tp === "object" && tp !== null
+                        ? tp.target
+                        : undefined;
                 for (const [name, src] of Object.entries(capture)) {
+                    const slot =
+                        typeof src === "object" && src !== null
+                            ? (src as { target?: unknown }).target
+                            : undefined;
                     bodyScope.set(
                         name,
-                        captureBindingKind(src, declared, eventScope.eventTypes)
+                        typeof slot === "number" && slot === playerSlot
+                            ? "player"
+                            : captureBindingKind(
+                                  src,
+                                  declared,
+                                  eventScope.eventTypes
+                              )
                     );
                 }
             }
