@@ -307,6 +307,26 @@ describe("context-aware count grounding threads every EffectCountSpec zone/scope
                 },
             }).amount
         ).toBe(3);
+        // The perspective player's OWN hand is exempt — CR 402.3 lets a
+        // player look at their own hand at any time, and the client-side
+        // rehydration hands the viewer their real cards, so the read is
+        // honest and identical on both sides of the authority boundary. Two
+        // of p1's three cards are creatures.
+        const ownState = makeState({
+            players: [
+                makePlayer("p1", { hand: hand("p1", 3) }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(
+            contextAwareGroundingForChoice(ownState, "p1").value({
+                count: {
+                    zone: "hand",
+                    controller: "controller",
+                    filter: { type: "Creature" },
+                },
+            }).amount
+        ).toBe(3);
     });
 });
 

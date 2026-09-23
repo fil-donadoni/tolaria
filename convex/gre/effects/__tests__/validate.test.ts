@@ -5479,27 +5479,169 @@ describe('validateEffectScript — count zone:"hand" + difference (issue #2006)'
     });
 
     // CR 402.3 / 701.20a (issue #2150) — the hand count's `filter` restriction
-    // is lifted: a `reveal { player, zone: "hand" }` earlier in the same script
-    // makes the whole hand public, and "the number of cards of that color
-    // revealed this way" (Darigaaz, the Igniter) counts exactly that set.
-    it("accepts a `filter` on a hand count, standalone and inside a difference operand (issue #2150)", () => {
+    // is lifted, but only OVER A REVEALED HAND: a `reveal { player, zone:
+    // "hand" }` earlier in the same list makes it public, and "the number of
+    // cards of that color revealed this way" (Darigaaz, the Igniter) counts
+    // exactly that set. The shape check says the FIELD is legal; the ordered
+    // pass says the READ is honest.
+    const revealOpponentHand = {
+        op: "reveal",
+        player: "opponent",
+        zone: "hand",
+    } as unknown as EffectOp;
+
+    it("accepts a `filter` on a REVEALED hand count, standalone and inside a difference operand (issue #2150)", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        revealOpponentHand,
+                        ...loseLife(handCount({ filter: { color: "B" } })),
+                    ],
+                })
+            )
+        ).toEqual([]);
+        // The operand slot runs the same checks, so accepting it there is not
+        // a second decision — it is the same one, asserted where the old
+        // rejection was also asserted.
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        revealOpponentHand,
+                        ...loseLife({
+                            difference: {
+                                from: handCount({ filter: { type: "Land" } }),
+                                minus: 1,
+                            },
+                        }),
+                    ],
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("rejects a filtered hand count with NO reveal, one revealing the WRONG hand, or one that comes after (CR 402.3)", () => {
+        // No reveal at all — the read would turn a hidden zone into a public
+        // number with nothing having been shown.
         expect(
             validateEffectScript(
                 host({
                     effects: loseLife(handCount({ filter: { color: "B" } })),
                 })
-            )
+            ).length
+        ).toBeGreaterThan(0);
+        // A reveal of the CONTROLLER's hand makes nothing public about the
+        // opponent's — `reveal` scans the named player's zones only.
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            op: "reveal",
+                            player: "controller",
+                            zone: "hand",
+                        } as unknown as EffectOp,
+                        ...loseLife(handCount({ filter: { color: "B" } })),
+                    ],
+                })
+            ).length
+        ).toBeGreaterThan(0);
+        // ORDER is the rule: a reveal AFTER the count has not happened yet
+        // when the count reads (CR 608.2c — instructions in the order
+        // written).
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        ...loseLife(handCount({ filter: { color: "B" } })),
+                        revealOpponentHand,
+                    ],
+                })
+            ).length
+        ).toBeGreaterThan(0);
+        // An UNFILTERED hand count is untouched — its size is public.
+        expect(
+            validateEffectScript(host({ effects: loseLife(handCount()) }))
         ).toEqual([]);
-        // The operand slot runs the same `isCountValue` check, so accepting it
-        // there is not a second decision — it is the same one, asserted where
-        // the old rejection was also asserted.
+    });
+
+    it("a reveal inside a branch body does not license a filtered count OUTSIDE it (fails closed)", () => {
+        // The `if` branch may not run, so nothing it reveals can be relied on
+        // — the same list scoping `revealedBindings` uses for the
+        // `choose-library-card` invariant.
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        {
+                            op: "if",
+                            predicate: { binding: "$nope" },
+                            then: [revealOpponentHand],
+                        } as unknown as EffectOp,
+                        ...loseLife(handCount({ filter: { color: "B" } })),
+                    ],
+                })
+            ).length
+        ).toBeGreaterThan(0);
+        // And the mirror: a reveal in the OUTER list does NOT reach into a
+        // nested body, which starts with an empty set.
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [
+                        revealOpponentHand,
+                        {
+                            op: "if",
+                            predicate: { binding: "$nope" },
+                            then: loseLife(
+                                handCount({ filter: { color: "B" } })
+                            ),
+                        } as unknown as EffectOp,
+                    ],
+                })
+            ).length
+        ).toBeGreaterThan(0);
+    });
+
+    it("refuses the two BATTLEFIELD-only filter booleans off the battlefield (CR 111.7 / 400.7)", () => {
+        // `matchesCardFilter` — the matcher every non-battlefield count branch
+        // falls back to — evaluates neither `isToken` nor `enteredThisTurn`,
+        // so admitting them on a hidden zone would match EVERY card: a whole
+        // hand counted instead of 0. The fail-OPEN class, newly reachable now
+        // that a hand filter is legal.
+        for (const zone of ["hand", "graveyard"] as const) {
+            for (const filter of [
+                { isToken: true },
+                { enteredThisTurn: true },
+            ]) {
+                expect(
+                    validateEffectScript(
+                        host({
+                            effects: [
+                                revealOpponentHand,
+                                ...loseLife({
+                                    count: {
+                                        zone,
+                                        controller: "opponent",
+                                        filter,
+                                    },
+                                }),
+                            ],
+                        })
+                    ).length
+                ).toBeGreaterThan(0);
+            }
+        }
+        // Both stay legal on the battlefield, where they are honest.
         expect(
             validateEffectScript(
                 host({
                     effects: loseLife({
-                        difference: {
-                            from: handCount({ filter: { type: "Land" } }),
-                            minus: 1,
+                        count: {
+                            zone: "battlefield",
+                            controller: "opponent",
+                            filter: { isToken: true },
                         },
                     }),
                 })
@@ -5507,8 +5649,32 @@ describe('validateEffectScript — count zone:"hand" + difference (issue #2006)'
         ).toEqual([]);
     });
 
+    it("rejects a filtered hand count under an all-players scope — no reveal can make that set public", () => {
+        for (const scope of [
+            { acrossAllPlayers: true },
+            { smallestAcrossPlayers: true },
+        ]) {
+            expect(
+                validateEffectScript(
+                    host({
+                        effects: [
+                            revealOpponentHand,
+                            ...loseLife({
+                                count: {
+                                    zone: "hand",
+                                    filter: { color: "B" },
+                                    ...scope,
+                                },
+                            }),
+                        ],
+                    })
+                ).length
+            ).toBeGreaterThan(0);
+        }
+    });
+
     it("still rejects `countTypes` on a hand count, and a `filter` on a LIBRARY count (issue #2150)", () => {
-        // Delirium (CR 702.D) is a graveyard reading; no card counts card
+        // Delirium (CR 207.2c — an ability word, no CR entry of its own) is a graveyard reading; no card counts card
         // types in a hand, so the composition stays unshipped rather than
         // untested.
         expect(

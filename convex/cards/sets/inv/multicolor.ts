@@ -2989,8 +2989,10 @@ const CROSIS_DISCARD_COLOR_MODES = colorChoiceModes((color) => [
 // combat-damage trigger — unlike Dromar/Rith/Treva the effect IS about the
 // damaged player, so the firing `DAMAGE_DEALT` event's `damagedPlayer` field
 // is read directly as a player ref, exactly as Blazing Specter reads it in
-// this same file; CR 117.3a/118.4 optional additional-cost `mayPay`;
-// CR 700.2 modal colour pick; CR 701.20a reveal; CR 701.9 discard.) Same
+// this same file; CR 118.12 "[a player] may [do something]. If [that player]
+// [does], [effect]" — the cost is paid AS THE ABILITY RESOLVES, which is
+// what `mayPay` + `if { binding }` is; CR 700.2 modal colour pick;
+// CR 701.20a reveal; CR 701.9 discard.) Same
 // smoke-skip note as Dromar (this file) — a script carrying `mayPay` is
 // skipped by the generated canned-scenario test, so the per-card tests cover
 // the accept and decline paths by hand.
@@ -3085,9 +3087,9 @@ const DARIGAAZ_BURN_COLOR_MODES = colorChoiceModes((color) => [
 // {2}{R}. If you do, choose a color, then that player reveals their hand and
 // Darigaaz deals damage to the player equal to the number of cards of that
 // color revealed this way." (CR 702.9b flying; CR 510.4/603.2 combat-damage
-// trigger with the `damagedPlayer` event ref, as Crosis above; CR
-// 117.3a/118.4 optional additional-cost `mayPay`; CR 700.2 modal colour pick;
-// CR 701.20a reveal; CR 120.3a damage to a player.) Same smoke-skip note as
+// trigger with the `damagedPlayer` event ref, as Crosis above; CR 118.12's
+// resolution-time optional cost (`mayPay` + `if { binding }`); CR 700.2
+// modal colour pick; CR 701.20a reveal; CR 120.3a damage to a player.) Same smoke-skip note as
 // Dromar (this file).
 //
 // hand-tail: "you may pay {2}{R}. If you do, choose a color, then that player reveals their hand and Darigaaz deals damage to the player equal to the number of cards of that color revealed this way." (#2150)

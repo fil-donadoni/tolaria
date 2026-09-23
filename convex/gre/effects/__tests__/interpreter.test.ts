@@ -1937,11 +1937,18 @@ describe("Effect Script value: FILTERED hand count (CR 402.3 / 701.20a, issue #2
         );
     }
 
-    /** Runs `effects` as p1's sorcery against a p2 holding `mixedHand`. */
+    /** Runs `effects` as p1's sorcery against a p2 holding `mixedHand`.
+     *
+     *  Every script goes through `validateEffectScript` FIRST: the reveal a
+     *  filtered hand count is read over is a validator requirement (issue
+     *  #2150), so a fixture that skipped it would be asserting the behaviour
+     *  of a script no card can ship — which is how the leak this guard closes
+     *  would get written down as the expected answer. */
     function resolveAgainstMixedHand(
         scriptId: string,
         effects: EffectOp[]
     ): GameState {
+        expect(validateEffectScript({ effects } as never)).toEqual([]);
         const id = registerScript(scriptId, effects);
         const state = makeState({
             players: [
@@ -1954,11 +1961,21 @@ describe("Effect Script value: FILTERED hand count (CR 402.3 / 701.20a, issue #2
         return state;
     }
 
+    /** CR 701.20a — the whole-hand reveal every filtered hand count is read
+     *  over. The validator REQUIRES it in the same list (issue #2150), so it
+     *  is not decoration: a script that counts a hidden hand does not pass
+     *  `validateEffectScript` at all. */
+    const REVEAL_OPPONENT_HAND = {
+        op: "reveal",
+        player: "opponent",
+        zone: "hand",
+    } as unknown as EffectOp;
+
     /** Darigaaz's shape with the colour already chosen: reveal, then burn for
      *  the number of cards of that colour. */
     function revealAndBurn(color: string): EffectOp[] {
         return [
-            { op: "reveal", player: "opponent", zone: "hand" },
+            REVEAL_OPPONENT_HAND,
             {
                 op: "dealDamage",
                 amount: {
@@ -2005,6 +2022,7 @@ describe("Effect Script value: FILTERED hand count (CR 402.3 / 701.20a, issue #2
         // `times` is applied AFTER the filtered count (a literal multiplier
         // folded into the construct), so 2 black cards × 2 = 4.
         const doubled = resolveAgainstMixedHand("test-hand-filter-times", [
+            REVEAL_OPPONENT_HAND,
             {
                 op: "dealDamage",
                 amount: {
@@ -2023,6 +2041,7 @@ describe("Effect Script value: FILTERED hand count (CR 402.3 / 701.20a, issue #2
         // 3 of the 5 cards are creatures (bear, gold creature, artifact
         // creature).
         const creatures = resolveAgainstMixedHand("test-hand-filter-type", [
+            REVEAL_OPPONENT_HAND,
             {
                 op: "dealDamage",
                 amount: {

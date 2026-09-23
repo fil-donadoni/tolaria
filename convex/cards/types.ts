@@ -12947,8 +12947,8 @@ export interface EffectCountSpec {
      *  the card author's obligation, not the validator's: a hand `filter` is
      *  a set read, and the grammar has no way to express "only after a
      *  reveal". `countTypes` stays rejected on both hidden zones — Delirium
-     *  (CR 702.D) is a graveyard reading, and no shipped card counts card
-     *  types in a hand. */
+     *  is an ability word with no CR entry of its own (CR 207.2c) and is a
+     *  graveyard reading; no shipped card counts card types in a hand. */
     zone: "battlefield" | "graveyard" | "library" | "hand";
     /** Whose zone (CR 109.5 relative selectors). Required UNLESS
      *  `acrossAllPlayers` is set, in which case it is omitted (the count spans

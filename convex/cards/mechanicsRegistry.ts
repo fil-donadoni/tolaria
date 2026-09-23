@@ -3713,8 +3713,9 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  over `getHandCards` that the `discard { player, filter }` hand sweep
  *  (#2713, Cabal Therapy) already uses. Pairing the count with the reveal is
  *  the card author's obligation: the grammar has no "only after a reveal"
- *  predicate. `countTypes` stays rejected on both hidden zones (Delirium,
- *  CR 702.D, is a graveyard reading).
+ *  predicate. `countTypes` stays rejected on both hidden zones (Delirium is
+ *  an ability word with no CR entry of its own, CR 207.2c, and is a
+ *  graveyard reading).
  *  `EffectCountSpec.picks` (issue #3807) is the same class again: a REFINEMENT
  *  of the existing `count` value, not an Op and not a new grammar member. It
  *  narrows the counted set to a picks-family binding an earlier Op captured —

@@ -2120,7 +2120,7 @@ describe("Dromar, the Banisher (CR 702.9b flying + 510.4/603.2 combat-damage tri
     }
 });
 
-describe("Crosis, the Purger (CR 702.9b flying + 510.4/603.2 combat-damage trigger + 117.3a/118.4 mayPay + 700.2 modal + 701.20a reveal + 701.9 discard, issue #2150)", () => {
+describe("Crosis, the Purger (CR 702.9b flying + 510.4/603.2 combat-damage trigger + 118.12 mayPay + 700.2 modal + 701.20a reveal + 701.9 discard, issue #2150)", () => {
     // A watcher for the CR 701.9 discard EVENT. `SpellContext.discardCard`
     // reaches `discardToGraveyard`, the single chokepoint that emits
     // CARD_DISCARDED — which is what CR 614 discard replacements (Library of
@@ -2268,7 +2268,7 @@ describe("Crosis, the Purger (CR 702.9b flying + 510.4/603.2 combat-damage trigg
     }
 });
 
-describe("Darigaaz, the Igniter (CR 702.9b flying + 510.4/603.2 combat-damage trigger + 117.3a/118.4 mayPay + 700.2 modal + 701.20a reveal + 120.3a damage, issue #2150)", () => {
+describe("Darigaaz, the Igniter (CR 702.9b flying + 510.4/603.2 combat-damage trigger + 118.12 mayPay + 700.2 modal + 701.20a reveal + 120.3a damage, issue #2150)", () => {
     // p2's hand: TWO mono-black instants and one green creature, so the
     // filtered count (2) differs from both the hand size (3) and zero — the
     // two ways a wrong read fails.
