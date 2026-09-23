@@ -28,6 +28,7 @@
  *   - INFRA (issue #3644) — a cell the machine cut short, standing after the
  *     lane's retries: an `INFRA` row, unproven, a red run, never a UI failure.
  */
+import { createHash } from "node:crypto";
 import {
     FLOORS,
     SHAPE_READINGS,
@@ -487,6 +488,61 @@ export function verdictBlockLines(ev: Evaluation): string[] {
         coverageLine(ev),
     ];
 }
+
+/**
+ * THE DIGEST FORM OF THE VERDICT BLOCK (issue #4419).
+ *
+ * The block is a line per surface × viewport plus a line per Named Assertion
+ * × viewport, so it grows with the SURFACE TABLE, not with the change under
+ * review. At 52 surfaces it is 74,850 characters and **GitHub refuses a pull
+ * request body over 65,536** — so the receipt could no longer be pasted where
+ * `land` reads it (`verify-receipt.ts` reads `gh pr view --json body` and
+ * nowhere else), and the lane's whole enforcement is that paste.
+ *
+ * WHY A HASH IS EXACTLY AS STRONG AS THE PASTE. `verify-receipt` never trusted
+ * the pasted rows: it RE-DERIVES the block by running the real evaluator over
+ * a clean walk of every in-scope cell and rendering it through this file's own
+ * renderer, then diffs the paste against it. The only block that lands is the
+ * all-`PASS` one, and that block is fully determined by the scope. So a
+ * SHA-256 over the same lines carries the same claim in 80 characters: a run
+ * that broke a Floor, missed a cell or lost an assertion renders different
+ * lines and hashes differently.
+ *
+ * The banner and the coverage line stay in plain text. They are what a reader
+ * needs without tooling — which lane ran, how many surfaces it measured, which
+ * were declared unwalked — and `verify-receipt` re-derives both textually.
+ */
+export const VERDICT_DIGEST_PREFIX = "verdict-sha256: ";
+
+/** SHA-256, hex, over the block's MIDDLE lines (rows then assertions) joined
+ *  by `\n` — the banner and the coverage line are compared as text. */
+export function verdictDigest(middleLines: readonly string[]): string {
+    return createHash("sha256").update(middleLines.join("\n")).digest("hex");
+}
+
+/** The middle of a rendered verdict block: everything between the banner and
+ *  the coverage line. One definition, so the printer and the verifier cannot
+ *  hash two different things. */
+export function verdictBlockMiddle(ev: Evaluation): string[] {
+    const [, ...rest] = verdictBlockLines(ev);
+    rest.pop();
+    return rest;
+}
+
+/** The three lines a PR body carries in place of the whole block. */
+export function verdictDigestLines(ev: Evaluation): string[] {
+    const middle = verdictBlockMiddle(ev);
+    return [
+        receiptKindLine(ev),
+        `${VERDICT_DIGEST_PREFIX}${verdictDigest(middle)}  (${middle.length} lines)`,
+        coverageLine(ev),
+    ];
+}
+
+/** The header the printer puts over the digest form, so the three lines under
+ *  it are recognisable as the thing to paste. Never part of the block. */
+export const DIGEST_HEADER =
+    "─── receipt digest — paste THESE three lines when the block above does not fit a PR body ───";
 
 /** The fixed line between the two blocks. Everything after it is diagnostic. */
 export const DIAGNOSTIC_SEPARATOR =

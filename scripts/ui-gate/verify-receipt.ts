@@ -52,6 +52,8 @@ import {
     type ResultRow,
     type SurfaceWalk,
     type Verdict,
+    VERDICT_DIGEST_PREFIX,
+    verdictDigest,
 } from "./receipt.ts";
 import { assertLabelsBySurface } from "./assertions.ts";
 import { SURFACES, SURFACE_IDS } from "./surfaces.ts";
@@ -176,6 +178,9 @@ export interface VerdictBlock {
      *  kinds together is refused even when each kind is individually right. */
     middleLines: string[];
     coverageLine: string;
+    /** Set when the body carried the DIGEST form in place of the rows
+     *  (issue #4419); `rows`/`assertRows` are then empty by construction. */
+    digest?: VerdictDigest;
 }
 
 /**
@@ -222,6 +227,22 @@ export function parseAssertRowLine(
  * and the first `coverage: ` line after it. Everything after the coverage line
  * is the diagnostic block and is never read.
  */
+/** A body that carried the DIGEST form instead of the whole block (issue
+ *  #4419): the SHA-256 the paste claims, and the line count beside it. */
+export interface VerdictDigest {
+    sha256: string;
+    lines: number;
+}
+
+/** Parse the digest line, or `null` if this is not one. */
+export function parseDigestLine(line: string): VerdictDigest | null {
+    if (!line.startsWith(VERDICT_DIGEST_PREFIX)) return null;
+    const rest = line.slice(VERDICT_DIGEST_PREFIX.length).trim();
+    const m = /^([0-9a-f]{64})\s+\((\d+) lines?\)$/.exec(rest);
+    if (!m) return null;
+    return { sha256: m[1], lines: Number(m[2]) };
+}
+
 export function extractVerdictBlock(
     body: string,
     vocab: ReceiptVocabulary
@@ -248,6 +269,32 @@ export function extractVerdictBlock(
                 "no `coverage: …` line found after the banner — the verdict block was pasted without the line that closes it",
             ],
         };
+    }
+
+    const middle = lines
+        .slice(bannerIdx + 1, coverageIdx)
+        .filter((l) => l !== "");
+    // THE DIGEST FORM (issue #4419): banner, one `verdict-sha256:` line,
+    // coverage. Recognised here rather than in the row parser so a body that
+    // carries a digest AND stray rows is a parse error, not a half-read
+    // block that verifies on the half it could read.
+    if (middle.length === 1) {
+        const digest = parseDigestLine(middle[0]);
+        if (digest) {
+            return {
+                block: {
+                    bannerLine: lines[bannerIdx],
+                    rows: [],
+                    rowLines: [],
+                    assertRows: [],
+                    assertLines: [],
+                    middleLines: [],
+                    coverageLine: lines[coverageIdx],
+                    digest,
+                },
+                problems: [],
+            };
+        }
     }
 
     const problems: string[] = [];
@@ -453,6 +500,38 @@ export function verifyReceiptText(
     );
     const expectedCoverage = rest.pop()!;
     const expectedMiddle = rest;
+
+    // THE DIGEST FORM (issue #4419). The block is re-derived either way; this
+    // branch compares its SHA-256 instead of diffing 1,141 lines the body
+    // cannot hold. A run that broke a Floor, missed a cell or lost an
+    // assertion renders different lines and hashes differently, so the claim
+    // is the same one — see `receipt.ts` § THE DIGEST FORM.
+    if (block.digest) {
+        const problems: string[] = [];
+        if (block.bannerLine !== expectedBanner) {
+            problems.push(
+                `banner mismatch:\n  pasted:      ${block.bannerLine}\n  re-derived:  ${expectedBanner}`
+            );
+        }
+        const expectedDigest = verdictDigest(expectedMiddle);
+        if (block.digest.lines !== expectedMiddle.length) {
+            problems.push(
+                `the digest claims ${block.digest.lines} verdict line(s); this tree's scope owes ${expectedMiddle.length}`
+            );
+        }
+        if (block.digest.sha256 !== expectedDigest) {
+            problems.push(
+                `verdict digest mismatch — the pasted run is not a run of this tree at this scope:\n  pasted:      ${block.digest.sha256}\n  re-derived:  ${expectedDigest}`
+            );
+        }
+        if (block.coverageLine !== expectedCoverage) {
+            problems.push(
+                `coverage line mismatch:\n  pasted:      ${block.coverageLine}\n  re-derived:  ${expectedCoverage}`
+            );
+        }
+        return { ok: problems.length === 0, problems };
+    }
+
     const expectedRows = expectedMiddle.filter(
         (line) =>
             parseResultRowLine(line, vocab.surfaceIds, vocab.viewportIds) !==

@@ -2,10 +2,14 @@ import { describe, it, expect } from "vitest";
 import type { Readings, UnwalkedSurface } from "../ui-gate/floors.ts";
 import {
     DIAGNOSTIC_SEPARATOR,
+    DIGEST_HEADER,
     diagnosticLines,
     evaluateRun,
     formatResultRow,
+    VERDICT_DIGEST_PREFIX,
     verdictBlockLines,
+    verdictDigest,
+    verdictDigestLines,
     zeroReadings,
     type DiffScope,
     type Evaluation,
@@ -592,5 +596,106 @@ describe("verify-receipt — the assertion lines", () => {
             ok: true,
             problems: [],
         });
+    });
+});
+
+/**
+ * THE DIGEST FORM (issue #4419). The verdict block grows with the SURFACE
+ * TABLE, not with the diff, and at 52 surfaces it outgrew GitHub's
+ * 65,536-character pull-request body — so the receipt could no longer be
+ * pasted where `land` reads it. The digest carries the same claim in three
+ * lines, and it is the SAME re-derivation behind it: these cases are the
+ * full-paste cases above, said in hashes.
+ */
+describe("verify-receipt — the digest form", () => {
+    /** A PR body carrying the three digest lines `check:ui` prints. */
+    const digestBody = (ev: Evaluation): string =>
+        [
+            "Closes #4419",
+            "",
+            "## UI receipt",
+            "",
+            "```",
+            DIGEST_HEADER,
+            ...verdictDigestLines(ev),
+            "```",
+        ].join("\n");
+
+    it("accepts a digest of the same run the full paste would carry", () => {
+        expect(verify(digestBody(run(ALL)))).toEqual({
+            ok: true,
+            problems: [],
+        });
+    });
+
+    it("the digest it accepts is the hash of the block it would have diffed", () => {
+        const ev = run(ALL);
+        const middle = verdictBlockLines(ev).slice(1, -1);
+        expect(verdictDigestLines(ev)[1]).toBe(
+            `${VERDICT_DIGEST_PREFIX}${verdictDigest(middle)}  (${middle.length} lines)`
+        );
+    });
+
+    it("refuses a hash that is not this tree's", () => {
+        const tampered = digestBody(run(ALL)).replace(
+            /verdict-sha256: [0-9a-f]{64}/,
+            `${VERDICT_DIGEST_PREFIX}${"0".repeat(64)}`
+        );
+        const result = verify(tampered);
+        expect(result.ok).toBe(false);
+        expect(result.problems.join("\n")).toMatch(/verdict digest mismatch/);
+    });
+
+    it("refuses a run that was not green, though its banner and coverage line are", () => {
+        const red = run(ALL, {
+            at: (s, v) =>
+                s === "lobby" && v === "390x844x3"
+                    ? { ...zeroReadings(), hOverflow: 1 }
+                    : undefined,
+        });
+        const result = verify(digestBody(red));
+        expect(result.ok).toBe(false);
+        expect(result.problems.join("\n")).toMatch(/verdict digest mismatch/);
+    });
+
+    it("refuses a line count that does not match the scope's", () => {
+        const wrong = digestBody(run(ALL)).replace(
+            /\(\d+ lines\)/,
+            "(3 lines)"
+        );
+        const result = verify(wrong);
+        expect(result.ok).toBe(false);
+        expect(result.problems.join("\n")).toMatch(
+            /the digest claims 3 verdict line\(s\)/
+        );
+    });
+
+    it("refuses a digest with verdict rows beside it — half a block is not a block", () => {
+        const ev = run(ALL);
+        const half = [
+            "```",
+            DIGEST_HEADER,
+            verdictDigestLines(ev)[0],
+            verdictDigestLines(ev)[1],
+            verdictBlockLines(ev)[1],
+            verdictDigestLines(ev)[2],
+            "```",
+        ].join("\n");
+        const result = verify(half);
+        expect(result.ok).toBe(false);
+        expect(result.problems.join("\n")).toMatch(
+            /could not parse as a verdict line/
+        );
+    });
+
+    it("still refuses a SCOPED digest the landing diff does not justify", () => {
+        const ev = run(["lobby"], {
+            diffScope: { base: BASE, kind: "scoped", surfaces: ["lobby"] },
+        });
+        const result = verify(
+            digestBody(ev),
+            scoped(["lobby", "deck-builder"])
+        );
+        expect(result.ok).toBe(false);
     });
 });

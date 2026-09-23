@@ -373,6 +373,70 @@ the ActionSheet). Every in-game dialog is a `GameDialog`, so this is the Panel
 frame under measurement. With the dialog open, 10-12 controls behind the scrim
 measure as occluded — that is what a modal is, not a defect.
 
+## Board dialog specimens, and the pregame gate (2026-09-23)
+
+The board's own overlays, walked since issue #4419 (slice of the census debt
+issue #4402). Seventeen of them paint a layer over a live game and were
+measured at no viewport; reaching one on a real board means reaching the exact
+position that opens it, so `/admin/design-system` § **16 Board dialogs** mounts
+each from fixture props instead
+(`src/routes/design-system/sections-board-dialogs.tsx`).
+
+**By hand**: open `/admin/design-system`, scroll to § 16, press one opener.
+Each opener carries `data-board-dialog-specimen="<slug>"`, and the lane's row
+for it is `dlg-<slug>`:
+
+| Slug                  | Layer                                | Module                                  |
+| --------------------- | ------------------------------------ | --------------------------------------- |
+| `activatable-ability` | `[data-action-sheet]`                | `activatable-ability-menu.tsx`          |
+| `attack-all`          | `role=dialog` Attack with all        | `attack-all-confirm-dialog.tsx`         |
+| `cast-alt-hand-cost`  | `role=dialog` Alternative cost       | `cast-alternative-hand-cost-dialog.tsx` |
+| `cast-exile-cost`     | `role=dialog` Flashback cost         | `cast-exile-cost-dialog.tsx`            |
+| `controller-phases`   | `role=dialog` Turn phases            | `controller-phase-list.tsx`             |
+| `convoke`             | `role=dialog` Convoke                | `convoke-creature-dialog.tsx`           |
+| `discard-cost`        | `role=dialog` Discard a card         | `discard-cost-dialog.tsx`               |
+| `exile-cost`          | `role=dialog` Exile from a graveyard | `exile-cost-dialog.tsx`                 |
+| `game-over`           | `role=dialog` Game Over              | `game-over-dialog.tsx`                  |
+| `graveyard-target`    | `role=dialog` Lightning Bolt         | `graveyard-target-dialog.tsx`           |
+| `hand-card-actions`   | `[data-action-sheet]`                | `hand-card-action-menu.tsx`             |
+| `mana-choice`         | `[data-slot="dialog-content"]`       | `mana-choice-picker.tsx`                |
+| `mana-spend`          | `role=dialog` Choose mana to spend   | `mana-spend-choice-dialog.tsx`          |
+| `manual-game-over`    | `role=dialog` Game Over              | `manual-game-over-dialog.tsx`           |
+| `manual-verb`         | `role=dialog` Draw how many?         | `manual-verb-popover.tsx`               |
+| `pause-menu`          | `role=dialog` Game Menu              | `pause-menu-dialog.tsx`                 |
+| `sideboarding`        | `role=dialog` Sideboarding           | `sideboarding-dialog.tsx`               |
+
+**One at a time.** Every one of these portals to `document.body` at
+`position: fixed`: pressing a second opener while one is up would stack two
+scrims and leave the probe measuring whichever landed on top, which is why the
+section mounts exactly the specimen its opener selected and the lane walks one
+row per opener. With a specimen open the census page behind it measures as
+occluded — that is what a modal is, not a defect.
+
+**The confirm plates read `0/N` and are DISABLED.** `Discard 0/1` (twice),
+`Exile 0/1`, `Exile 0/2`: the specimen mounts the picker before anything is
+picked, so those rows promise `visible`, not `reachable`.
+
+**Convoke is the exception.** `ConvokeCreatureDialog` auto-seeds the selection
+up to `choice.min` before its first render, so the tapper opens at `Tap 1/2`
+with its plate ENABLED — `dlg-convoke` promises it `reachable`. A walk that
+expects `Tap 0/2` there is reading this page, not the screen.
+
+### The pregame gate
+
+`game-pregame` is the one board row that is NOT a specimen: the dialog opens a
+live `getMatch` on a real Match. Reach it by starting a solo game from cold
+(§ Start a solo game from cold) and **stopping before the `Play` click** — the
+`Coin toss` dialog with its Play/Draw pair is the screen. A game already past
+its toss cannot be rewound, so the lane reports the surface UNWALKED rather
+than measuring the board behind it; the row's cleanup clicks the gate and the
+two mulligan `Keep`s through, leaving the board rows below it the state they
+have always had.
+
+`manual-peek-dialog` is the nineteenth row and is still `DEBT`: its cards come
+from a live query on a Manual Game, which needs the lane's first Manual Board
+surface — `docs/findings/4419-manual-peek-needs-a-manual-board-surface.md`.
+
 ## The rest of /admin, and /settings (2026-09-23)
 
 The eight screens the coverage census (issue #3420) recorded as measured at no

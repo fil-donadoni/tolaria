@@ -114,9 +114,11 @@ import {
 } from "./floors.ts";
 import {
     DIAGNOSTIC_SEPARATOR,
+    DIGEST_HEADER,
     diagnosticLines,
     evaluateRun,
     verdictBlockLines,
+    verdictDigestLines,
     type Evaluation,
     type DiffScope,
     type InfraCell,
@@ -243,6 +245,12 @@ function printReceipt(
 ): number {
     log("\n─── check:ui ───────────────────────────────────────────────────");
     for (const line of verdictBlockLines(ev)) log(line);
+    // The digest form, right under the block it stands for (issue #4419).
+    // The block outgrew GitHub's 65,536-character pull-request body at 52
+    // surfaces, and the PR paste is this lane's whole enforcement; these
+    // three lines carry the same claim, and `verify-receipt` accepts either.
+    log(DIGEST_HEADER);
+    for (const line of verdictDigestLines(ev)) log(line);
     log(DIAGNOSTIC_SEPARATOR);
     for (const line of diagnosticLines(ev)) log(line);
     for (const line of runFacts) log(line);

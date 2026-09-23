@@ -1507,6 +1507,454 @@ async function ensureVsAiBoard(page: Page, ctx: WalkContext): Promise<void> {
     }
 }
 
+/** The pregame gate's own dialog (`pregame-dialog.tsx`): the coin toss, and
+ *  the play/draw choice the toss winner owes (CR 103.1). */
+const PREGAME_GATE = '[role=dialog]:has-text("Coin toss")';
+/** The same layer as PLAIN CSS. `settle.ts` hands its targets to
+ *  `querySelectorAll` in the page, which does not know Playwright's
+ *  `:has-text()` engine and throws `not a valid selector` — measured, and it
+ *  reported the surface UNWALKED. Only one dialog is up at the gate. */
+const PREGAME_GATE_BOX = "[role=dialog]";
+
+/**
+ * Reach a game STOPPED at its pregame gate (issue #4419).
+ *
+ * `ensureBoard` above clicks straight THROUGH this dialog — it is in the way
+ * of every board row — which is how the one screen every match opens with
+ * ended up measured at no viewport, and why the census called it the sharpest
+ * row in `DEBT`: a walk that dismisses a layer is not a walk that photographs
+ * it.
+ *
+ * So this is `ensureBoard`'s lobby half WITHOUT the dismissal, and it refuses
+ * rather than substitutes: a game already past its pregame cannot be rewound,
+ * so the surface reports UNWALKED instead of measuring the board behind it.
+ * The row's `cleanup` clicks the gate through afterwards, so the board rows
+ * that follow it in this table find exactly the state they always did.
+ */
+async function ensurePregameGate(page: Page, ctx: WalkContext): Promise<void> {
+    if (
+        page.url().includes("/game") &&
+        (await visible(page, PREGAME_GATE, 2000))
+    ) {
+        return;
+    }
+    await goto(page, ctx, "/");
+    if (await clickIfVisible(page, BANNER_RESUME, 4000)) {
+        ctx.log("resumed the pre-existing active game");
+    } else {
+        if (!(await visible(page, DECK_TILE_SELECTED, 2000))) {
+            if (!(await selectPlayableDeck(page))) {
+                throw new Unreachable(
+                    "the lobby offered neither Resume nor a selectable Deck Shelf tile — is the deployment seeded with preset decks?"
+                );
+            }
+            await settle(page);
+        }
+        if (!(await clickIfVisible(page, MODE_TILE_SOLO, 6000))) {
+            throw new Unreachable(
+                "the lobby's Mode Tiles offered no 'Solo game' tile — is the game-mode selector stuck on Cockatrice mode?"
+            );
+        }
+        if (!(await clickIfVisible(page, LOBBY_PRIMARY, 6000))) {
+            throw new Unreachable(
+                "the Loadout's primary action stayed disabled after selecting a deck and the 'Solo game' Mode Tile"
+            );
+        }
+        ctx.createdGame = true;
+        ctx.log("created a solo game");
+    }
+    await page.waitForURL(/\/game/, { timeout: NAV_TIMEOUT }).catch(() => {
+        throw new Unreachable("the lobby never routed to /game");
+    });
+    await settle(page);
+    if (!(await visible(page, PREGAME_GATE, 10_000))) {
+        throw new Unreachable(
+            "reached /game with no pregame gate on screen — the game in progress is already past its coin toss, and rewinding it is not something a walk may do. Finish or concede it, then re-run"
+        );
+    }
+    await settle(page, [PREGAME_GATE_BOX]);
+}
+
+/**
+ * THE BOARD DIALOG SPECIMENS (issue #4419, slice of the census debt #4402).
+ *
+ * Seventeen `src/components/board/**` overlays paint a layer over a live game
+ * and were measured at no viewport. Reaching each one on a real board would
+ * mean reaching the exact position that opens it — a convoke cast with the
+ * right pips, an escape cost with the right graveyard — so instead
+ * `/admin/design-system` mounts each from fixture props
+ * (`src/routes/design-system/sections-board-dialogs.tsx`) and the lane walks
+ * ONE ROW PER DIALOG.
+ *
+ * ONE ROW PER DIALOG, NOT ONE FOR THE SECTION. Every one of these is a real
+ * portal overlay at `position: fixed`: mounting them together would stack
+ * seventeen scrims and measure whichever landed on top, and a walk that opened
+ * each in turn would still photograph only the last — `reachable in
+ * principle`, which is the status this census exists to refuse. The cost is
+ * seventeen cheap rows (one navigation, one click, no game) and the return is
+ * seventeen dialogs held to the Floors at all five viewports.
+ *
+ * `layer` is the CSS the walk waits on; `layerAssert` is the same layer
+ * addressed the way an assertion must be (role+name or a declared `data-*`
+ * seam). `entry` is the dialog's own action — what it exists to offer — or,
+ * where its controls carry no stable accessible name (a mana pip is an `<img
+ * alt="R">`), a `contrast` promise over the layer's own subtree.
+ */
+interface BoardDialogSpecimen {
+    /** Surface id suffix and the `data-board-dialog-specimen` opener seam. */
+    slug: string;
+    /** The censused module this row claims in `mounts`, under `src/components/`. */
+    module: string;
+    /** Human label, for the receipt's surface label. */
+    label: string;
+    /** CSS the walk waits on and settles against. */
+    layer: string;
+    layerAssert: NamedAssertion;
+    entry: NamedAssertion;
+}
+
+const BOARD_DIALOG_SPECIMENS: readonly BoardDialogSpecimen[] = [
+    {
+        slug: "activatable-ability",
+        module: "board/activatable-ability-menu.tsx",
+        label: "Activatable abilities (ActionSheet)",
+        layer: "[data-action-sheet]",
+        layerAssert: {
+            label: "sheet layer",
+            locator: { selector: "[data-action-sheet]" },
+            check: "visible",
+        },
+        entry: {
+            label: "ability row",
+            locator: {
+                role: "button",
+                name: "Sacrifice this creature: Draw a card.",
+            },
+            check: "reachable",
+        },
+    },
+    {
+        slug: "attack-all",
+        module: "board/attack-all-confirm-dialog.tsx",
+        label: "Attack with all",
+        layer: "[role=dialog]",
+        layerAssert: {
+            label: "dialog: Attack with all",
+            locator: { role: "dialog", name: "Attack with all" },
+            check: "visible",
+        },
+        entry: {
+            label: "confirm: Attack",
+            locator: { role: "button", name: "Attack" },
+            check: "reachable",
+        },
+    },
+    {
+        slug: "cast-alt-hand-cost",
+        module: "board/cast-alternative-hand-cost-dialog.tsx",
+        label: "Alternative hand cost",
+        layer: "[role=dialog]",
+        layerAssert: {
+            label: "dialog: Alternative cost",
+            locator: { role: "dialog", name: "Alternative cost" },
+            check: "visible",
+        },
+        entry: {
+            label: "confirm: Discard 0/1",
+            locator: { role: "button", name: "Discard 0/1" },
+            check: "visible",
+        },
+    },
+    {
+        slug: "cast-exile-cost",
+        module: "board/cast-exile-cost-dialog.tsx",
+        label: "Flashback exile cost",
+        layer: "[role=dialog]",
+        layerAssert: {
+            label: "dialog: Flashback cost",
+            locator: { role: "dialog", name: "Flashback cost" },
+            check: "visible",
+        },
+        entry: {
+            label: "confirm: Exile 0/2",
+            locator: { role: "button", name: "Exile 0/2" },
+            check: "visible",
+        },
+    },
+    {
+        slug: "controller-phases",
+        module: "board/controller-phase-list.tsx",
+        label: "Turn phases",
+        layer: "[role=dialog]",
+        layerAssert: {
+            label: "dialog: Turn phases",
+            locator: { role: "dialog", name: "Turn phases" },
+            check: "visible",
+        },
+        entry: {
+            label: "close phase list",
+            locator: { role: "button", name: "Close phase list" },
+            check: "reachable",
+        },
+    },
+    {
+        slug: "convoke",
+        module: "board/convoke-creature-dialog.tsx",
+        label: "Convoke tapper",
+        layer: "[role=dialog]",
+        layerAssert: {
+            label: "dialog: Convoke",
+            locator: { role: "dialog", name: "Convoke" },
+            check: "visible",
+        },
+        // `Tap 1/2`, not `0/2`: the tapper opens with the minimum already
+        // picked, so this plate is the one confirm in the family that is
+        // ENABLED at rest.
+        entry: {
+            label: "confirm: Tap 1/2",
+            locator: { role: "button", name: "Tap 1/2" },
+            check: "reachable",
+        },
+    },
+    {
+        slug: "discard-cost",
+        module: "board/discard-cost-dialog.tsx",
+        label: "Discard cost",
+        layer: "[role=dialog]",
+        layerAssert: {
+            label: "dialog: Discard a card",
+            locator: { role: "dialog", name: "Discard a card" },
+            check: "visible",
+        },
+        entry: {
+            label: "confirm: Discard 0/1",
+            locator: { role: "button", name: "Discard 0/1" },
+            check: "visible",
+        },
+    },
+    {
+        slug: "exile-cost",
+        module: "board/exile-cost-dialog.tsx",
+        label: "Exile cost",
+        layer: "[role=dialog]",
+        layerAssert: {
+            label: "dialog: Exile from a graveyard",
+            locator: { role: "dialog", name: "Exile from a graveyard" },
+            check: "visible",
+        },
+        entry: {
+            label: "confirm: Exile 0/1",
+            locator: { role: "button", name: "Exile 0/1" },
+            check: "visible",
+        },
+    },
+    {
+        slug: "game-over",
+        module: "board/game-over-dialog.tsx",
+        label: "Game Over (Bo3 interstitial)",
+        layer: "[role=dialog]",
+        layerAssert: {
+            label: "dialog: Game Over",
+            locator: { role: "dialog", name: "Game Over" },
+            check: "visible",
+        },
+        entry: {
+            label: "primary: Continue to Sideboarding",
+            locator: { role: "button", name: "Continue to Sideboarding" },
+            check: "reachable",
+        },
+    },
+    {
+        slug: "graveyard-target",
+        module: "board/graveyard-target-dialog.tsx",
+        label: "Graveyard target picker",
+        layer: "[role=dialog]",
+        layerAssert: {
+            label: "dialog: Lightning Bolt",
+            locator: { role: "dialog", name: "Lightning Bolt" },
+            check: "visible",
+        },
+        // The picker's controls are CARD TILES, whose accessible name is a
+        // card name the fixture chose — a promise about the fixture, not
+        // about the screen. The dialog's own subtree contrast is the promise
+        // worth keeping here.
+        entry: {
+            label: "picker contrast",
+            locator: { role: "dialog", name: "Lightning Bolt" },
+            check: "contrast",
+        },
+    },
+    {
+        slug: "hand-card-actions",
+        module: "board/hand-card-action-menu.tsx",
+        label: "Hand card actions (ActionSheet)",
+        layer: "[data-action-sheet]",
+        layerAssert: {
+            label: "sheet layer",
+            locator: { selector: "[data-action-sheet]" },
+            check: "visible",
+        },
+        entry: {
+            label: "primary action row",
+            locator: { role: "button", name: "Cast Lightning Bolt" },
+            check: "reachable",
+        },
+    },
+    {
+        slug: "mana-choice",
+        module: "board/mana-choice-picker.tsx",
+        label: "Mana choice picker",
+        layer: '[data-slot="dialog-content"]',
+        layerAssert: {
+            label: "picker layer",
+            locator: { selector: '[data-slot="dialog-content"]' },
+            check: "visible",
+        },
+        // NOT the `Red` row. Its markup is a pip image beside the colour
+        // name, so a browser composes its accessible name as `R Red` — and
+        // `alt="R"` is the only thing keeping it from being `Red` alone.
+        // happy-dom reads the same row as `Red`, which is how this promise
+        // shipped green offline and broke at all five viewports (measured).
+        // The layer's own contrast is the promise that holds.
+        entry: {
+            label: "picker contrast",
+            locator: { selector: '[data-slot="dialog-content"]' },
+            check: "contrast",
+        },
+    },
+    {
+        slug: "mana-spend",
+        module: "board/mana-spend-choice-dialog.tsx",
+        label: "Mana spend chooser",
+        layer: "[role=dialog]",
+        layerAssert: {
+            label: "dialog: Choose mana to spend",
+            locator: { role: "dialog", name: "Choose mana to spend" },
+            check: "visible",
+        },
+        // Its controls are bare pip images (`<img alt="R">`).
+        entry: {
+            label: "chooser contrast",
+            locator: { role: "dialog", name: "Choose mana to spend" },
+            check: "contrast",
+        },
+    },
+    {
+        slug: "manual-game-over",
+        module: "board/manual-game-over-dialog.tsx",
+        label: "Manual Game Over",
+        layer: "[role=dialog]",
+        layerAssert: {
+            label: "dialog: Game Over",
+            locator: { role: "dialog", name: "Game Over" },
+            check: "visible",
+        },
+        entry: {
+            label: "primary: Back to Lobby",
+            locator: { role: "button", name: "Back to Lobby" },
+            check: "reachable",
+        },
+    },
+    {
+        slug: "manual-verb",
+        module: "board/manual-verb-popover.tsx",
+        label: "Manual verb prompt",
+        layer: "[role=dialog]",
+        layerAssert: {
+            label: "dialog: Draw how many?",
+            locator: { role: "dialog", name: "Draw how many?" },
+            check: "visible",
+        },
+        // NOT its `Confirm` plate: the census page's own Panel specimen
+        // renders a button of that exact name, and an assertion that can
+        // resolve to a control outside the layer it is describing promises
+        // nothing about the layer.
+        entry: {
+            label: "prompt contrast",
+            locator: { role: "dialog", name: "Draw how many?" },
+            check: "contrast",
+        },
+    },
+    {
+        slug: "pause-menu",
+        module: "board/pause-menu-dialog.tsx",
+        label: "Game Menu (pause)",
+        layer: "[role=dialog]",
+        layerAssert: {
+            label: "dialog: Game Menu",
+            locator: { role: "dialog", name: "Game Menu" },
+            check: "visible",
+        },
+        entry: {
+            label: "menu row: Report a bug",
+            locator: { role: "button", name: "Report a bug" },
+            check: "reachable",
+        },
+    },
+    {
+        slug: "sideboarding",
+        module: "board/sideboarding-dialog.tsx",
+        label: "Sideboarding",
+        layer: "[role=dialog]",
+        layerAssert: {
+            label: "dialog: Sideboarding",
+            locator: { role: "dialog", name: "Sideboarding" },
+            check: "visible",
+        },
+        entry: {
+            label: "primary: Ready",
+            locator: { role: "button", name: "Ready" },
+            check: "reachable",
+        },
+    },
+];
+
+/** One `dlg-*` row: open the specimen page, press its opener, measure the
+ *  layer it mounted. The entries are the design-system route's, as every
+ *  other row on that page: the section lives inside it. */
+function boardDialogSurface(spec: BoardDialogSpecimen): Surface {
+    return {
+        id: `dlg-${spec.slug}`,
+        entries: [
+            "src/routes/admin/admin-layout.route.tsx",
+            "src/routes/design-system.route.tsx",
+        ],
+        label: `Board dialog — ${spec.label} (/admin/design-system § 16)`,
+        asserts: [spec.layerAssert, spec.entry],
+        mounts: [`src/components/${spec.module}`],
+        settleTargets: [spec.layer],
+        async walk(page, ctx) {
+            await goto(page, ctx, "/admin/design-system");
+            const opener = page
+                .locator(`[data-board-dialog-specimen="${spec.slug}"]`)
+                .first();
+            try {
+                await opener.waitFor({ state: "visible", timeout: 10_000 });
+            } catch {
+                throw new Unreachable(
+                    `/admin/design-system rendered no board-dialog opener for "${spec.slug}"`
+                );
+            }
+            await opener.scrollIntoViewIfNeeded({ timeout: STEP_TIMEOUT });
+            await opener.click({ timeout: STEP_TIMEOUT });
+            // Park the pointer OFF the layer before measuring. The dialog
+            // mounts centred, i.e. under the cursor the click left behind,
+            // and a card tile under the pointer opens the hover CARD PREVIEW
+            // over the dialog — measured: `dlg-discard-cost` and
+            // `dlg-cast-exile-cost` broke `cardsSquare` at 390x844x3 on the
+            // preview's art crop, which is a different surface's element and
+            // a different surface's row.
+            await page.mouse.move(2, 2);
+            if (!(await visible(page, spec.layer, STEP_TIMEOUT))) {
+                throw new Unreachable(
+                    `the "${spec.slug}" specimen opened no \`${spec.layer}\` layer within 8s — an import that renders nothing is not a specimen`
+                );
+            }
+            await settle(page, [spec.layer]);
+        },
+    };
+}
+
 export const SURFACES: readonly Surface[] = [
     {
         id: "auth-sign-in",
@@ -2142,6 +2590,7 @@ export const SURFACES: readonly Surface[] = [
             await settle(page);
         },
     },
+    ...BOARD_DIALOG_SPECIMENS.map(boardDialogSurface),
     {
         id: "admin-card-profiles",
         entries: [
@@ -3300,6 +3749,61 @@ export const SURFACES: readonly Surface[] = [
                 throw new Unreachable(
                     "the desktop Pool menu opened, but a `[data-peek-panel]` ALSO mounted — issue #2861 retires that rail entirely on this regime"
                 );
+            }
+            await settle(page);
+        },
+    },
+    {
+        // Issue #4419 — THE PREGAME GATE, the first screen of every match and
+        // the census's sharpest `DEBT` row: every other game walk clicks
+        // through it (`ensureBoard`'s `button:text-is('Play')`), so the one
+        // dialog every player meets before any board was photographed at no
+        // viewport. Its own row because it is a different SCREEN and a
+        // different moment — there is no board to measure yet, and the choice
+        // it offers is gone a click later.
+        //
+        // FIRST among the game rows on purpose: it needs a game at its
+        // pregame, and every row below it leaves one past it.
+        id: "game-pregame",
+        needsGame: true,
+        settleTargets: [PREGAME_GATE_BOX],
+        entries: ["src/routes/lobby.route.tsx", "src/routes/game.route.tsx"],
+        label: "Pregame gate — coin toss + play/draw (CR 103.1)",
+        asserts: [
+            {
+                label: "dialog: Coin toss",
+                locator: { role: "dialog", name: "Coin toss" },
+                check: "visible",
+            },
+            {
+                label: "choice: Play",
+                locator: { role: "button", name: "Play" },
+                check: "reachable",
+            },
+            {
+                label: "choice: Play contrast",
+                locator: { role: "button", name: "Play" },
+                check: "contrast",
+            },
+            {
+                label: "choice: Draw",
+                locator: { role: "button", name: "Draw" },
+                check: "reachable",
+            },
+        ],
+        mounts: ["src/components/board/pregame-dialog.tsx"],
+        async walk(page, ctx) {
+            await ensurePregameGate(page, ctx);
+        },
+        // Hand the rest of the run the state it has always had: the gate
+        // answered and the mulligans kept. `ensureBoard` recovers on its own
+        // if this fails (cleanup failures are swallowed) — it clicks the same
+        // two prompts — so this is hygiene, not a dependency.
+        async cleanup(page) {
+            await clickIfVisible(page, PREGAME_PLAY, 6000);
+            for (let seat = 0; seat < 2; seat++) {
+                if (!(await clickIfVisible(page, MULLIGAN_KEEP, 6000))) break;
+                await settle(page);
             }
             await settle(page);
         },

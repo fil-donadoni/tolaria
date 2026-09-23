@@ -493,6 +493,36 @@ screenshots: .claude/telemetry/ui-gate/3f9c0a1b2d4e/
 wall time: 412s
 ```
 
+### The digest form — when the block does not fit a PR body (issue #4419)
+
+The verdict block is a line per surface × viewport plus a line per Named
+Assertion × viewport, so it grows with the **surface table**, not with the
+change under review. At 52 surfaces it is 74,850 characters and GitHub refuses
+a pull-request body over **65,536** (`GraphQL: Body is too long`), while
+`verify-receipt` reads the receipt from `gh pr view --json body` and nowhere
+else. So `check:ui` prints the block's DIGEST beside it, and that is what goes
+in the PR body once the block no longer fits:
+
+```
+─── receipt digest — paste THESE three lines when the block above does not fit a PR body ───
+RECEIPT — full lane run, 52 surface(s) in scope (50 measured, 2 declared unwalked)
+verdict-sha256: 8b1f…4d02  (1141 lines)
+coverage: 50/52 surfaces measured, 2 declared unwalked: game-card-preview (issue #3506), game-stress (issue #3506)
+```
+
+**The claim is the same one.** `land` never trusted the pasted rows: it
+re-derives the block by running the real evaluator over a clean walk of every
+in-scope cell, renders it through the real renderer, and diffs the paste
+against it — and the only block that lands is the all-`PASS` one of that
+scope. The digest is a SHA-256 over exactly those lines, so a run that broke a
+Floor, missed a cell or lost an assertion renders different lines and hashes
+differently. The banner and the coverage line stay in plain text because they
+are what a reader needs without tooling.
+
+Either form lands, and `bun run verify:ui-receipt <PR#>` checks both. What is
+refused is a HALF one: a digest line with verdict rows beside it is a parse
+error, never a block verified on the half it could read.
+
 A run the diff scoped prints `SCOPED` instead, naming the base and every surface
 walked:
 
