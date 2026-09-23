@@ -2904,6 +2904,14 @@ export type DelayedTriggerInstance = {
      *  phase-boundary timing. A pending leave-watch expires unfired at CLEANUP
      *  (the "this turn" bound, CR 514.2). */
     watchInstanceId?: string;
+    /** CR 509.3d (issue #3809) — the `becomes-blocked-by` timing's blocker
+     *  condition: the watched creature's delayed trigger fires only for a
+     *  blocking creature having at least one of these colours ("becomes
+     *  blocked by a creature OF THAT COLOR", Zombie Boa). Read against the
+     *  `BLOCKERS_CONFIRMED` event's own layer-5 `blockerColors`. Absent means
+     *  "blocked by a creature" with no colour condition; never set on any
+     *  other timing (validator-enforced). */
+    blockerColors?: Color[];
     /** CR 701.27f (issue #3249) — the permanent whose ability CREATED this
      *  delayed trigger (the scheduling stack item's `triggerSourceId`, else
      *  its own id — `SpellContext.sourceInstanceId`). Carried onto the fired
@@ -16496,6 +16504,22 @@ export function buildSpellContext(
             beginApplyingStaticEffects(state, src.card);
         },
 
+        // CR 607.2d (issue #3809) — the creature type chosen as the source
+        // entered, read by a linked ability's "the chosen type". The source's
+        // departure-time `sourceLki` wins when present: it is both the CR
+        // 608.2h last-known answer for a source that left (Brass Herald
+        // bounced in response to its own ETB) and the CR 400.7 gate — a
+        // same-id permanent that has since re-entered is a NEW object whose
+        // choice this ability must not read.
+        getChosenSubtypes(): string[] | undefined {
+            if (item.sourceLki) return item.sourceLki.chosenSubtypes;
+            const src = findOnBattlefield(
+                state,
+                item.triggerSourceId ?? item.id
+            );
+            return src?.card.chosenSubtypes;
+        },
+
         getChosenModeId(): string | undefined {
             const src = findOnBattlefield(
                 state,
@@ -20292,7 +20316,8 @@ export function buildSpellContext(
             payload: Record<string, string | string[]>,
             targetPlayerId?: string,
             inline?: DelayedTriggerInlineBody,
-            watchInstanceId?: string
+            watchInstanceId?: string,
+            blockerColors?: Color[]
         ): void {
             state.nextDelayedSeq = (state.nextDelayedSeq ?? 0) + 1;
             const instance: DelayedTriggerInstance = {
@@ -20307,6 +20332,7 @@ export function buildSpellContext(
                 payload,
                 ...(targetPlayerId ? { targetPlayerId } : {}),
                 ...(watchInstanceId ? { watchInstanceId } : {}),
+                ...(blockerColors ? { blockerColors: [...blockerColors] } : {}),
                 ...(inline
                     ? {
                           effects: inline.effects,

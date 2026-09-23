@@ -110,7 +110,11 @@ import { getEventFieldRow } from "../../cards/mechanicsRegistry";
 import type { EventFieldFamily } from "../../cards/mechanicsRegistry";
 import { resolveTokenTriggeredAbilities } from "../../cards/tokenTriggeredAbilities";
 import { parseProtectionFromColor } from "../protection";
-import { parseSnapshotNameRef, parseTargetNameRef } from "./targetRef";
+import {
+    parseSnapshotNameRef,
+    parseTargetNameRef,
+    SOURCE_CHOSEN_SUBTYPE_REF,
+} from "./targetRef";
 import {
     categorizedEligibleIds,
     maxCategorizedPicks,
@@ -1242,6 +1246,14 @@ function resolveFilterSubtypes(
     if (value === undefined) return undefined;
     if (typeof value === "string") return [value];
     if (Array.isArray(value)) return value;
+    // CR 607.2d (issue #3809) — the reserved `$source.chosenSubtype`: the
+    // type chosen as the source permanent entered (Brass Herald). Read off
+    // the source, not the binding store; the same fail-closed empty list
+    // when no choice was stored.
+    if (value.ref === SOURCE_CHOSEN_SUBTYPE_REF) {
+        const chosen = ctx.getChosenSubtypes();
+        return chosen === undefined || chosen.length === 0 ? [] : [chosen[0]];
+    }
     const stored = readBinding(ctx, value.ref);
     return stored === undefined || stored.length === 0 ? [] : [stored[0]];
 }
@@ -3986,14 +3998,21 @@ export const OP_EXECUTORS: {
     setSubtype(ctx, op) {
         const target = resolveObjectRef(ctx, op.target);
         if (!target) return;
+        // issue #3809 — a `{ ref }` list is a chosen type ("becomes THAT
+        // type", Unnatural Selection), resolved exactly as a filter's dynamic
+        // subtype is. An unresolved choice resolves EMPTY and the Op is
+        // skipped (CR 101.3): "becomes no creature type" is not what any
+        // printed "becomes that type" means.
+        const subtypes = resolveFilterSubtypes(ctx, op.subtypes) ?? [];
+        if (!Array.isArray(op.subtypes) && subtypes.length === 0) return;
         // CR 611.2b (issue #1746) — an omitted `duration` REPLACES the subtypes
         // INDEFINITELY ("this creature becomes a Kithkin Spirit", Figure of
         // Destiny): the pre-existing `setSubtypes` primitive (Living Lands'
         // resolve() closures) is exactly that effect, so no new primitive.
         if (op.duration === undefined) {
-            ctx.setSubtypes(target, op.subtypes);
+            ctx.setSubtypes(target, subtypes);
         } else {
-            ctx.setSubtypesUntil(target, op.subtypes, op.duration);
+            ctx.setSubtypesUntil(target, subtypes, op.duration);
         }
     },
     // CR 208.2 / 611.1 (issue #1317) — turn a permanent into a creature with
@@ -5665,11 +5684,20 @@ export const OP_EXECUTORS: {
     chooseCreatureType(ctx, op) {
         const playerId = resolvePlayerRef(ctx, op.player);
         if (playerId === undefined) return; // CR 101.3 — chooser gone, skip
+        // CR 205.3m (issue #3809) — "a creature type other than Wall": the
+        // excluded types are simply not offered, so the submit check against
+        // the entry's own options refuses them as well.
+        const exclude = op.exclude;
         const chosen = ctx.requestOptionChoice({
             playerId,
             choiceId: op.bind,
             prompt: op.prompt,
-            options: CREATURE_TYPE_OPTIONS,
+            options:
+                exclude === undefined || exclude.length === 0
+                    ? CREATURE_TYPE_OPTIONS
+                    : CREATURE_TYPE_OPTIONS.filter(
+                          (o) => !exclude.includes(o.subtype)
+                      ),
         });
         if (chosen === undefined) return "suspend"; // enqueued — wait
     },
@@ -6333,7 +6361,8 @@ export const OP_EXECUTORS: {
             op.timing === "leaves-battlefield" ||
             op.timing === "leaves-battlefield-indefinite" ||
             op.timing === "dies" ||
-            op.timing === "attacks-unblocked"
+            op.timing === "attacks-unblocked" ||
+            op.timing === "becomes-blocked-by"
         ) {
             const watched =
                 op.watch !== undefined
@@ -6349,7 +6378,8 @@ export const OP_EXECUTORS: {
             payload,
             targetPlayerId,
             { oracleText: op.oracleText, effects: op.effects },
-            watchInstanceId
+            watchInstanceId,
+            op.blockerColors
         );
     },
     // CR 603.12 — create a REFLEXIVE triggered ability from inside this

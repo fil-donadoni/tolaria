@@ -3820,6 +3820,15 @@ export interface SpellContext {
      *  chosen or the source has left the battlefield. Used by Psychic Allergy's
      *  upkeep trigger to read the colour chosen as it entered. */
     getChosenModeId: () => string | undefined;
+    /** CR 607.2d (issue #3809) — the creature type(s) chosen as the source
+     *  permanent entered (`entersWith.asEnters: { kind: "subtypes" }` →
+     *  `CardInstanceState.chosenSubtypes`), for a LINKED ability's "the chosen
+     *  type" (Brass Herald's ETB reveal). Reads the source's departure-time
+     *  last-known record when it has left the battlefield (CR 608.2h), and
+     *  never a same-id permanent that has since re-entered (CR 400.7).
+     *  Undefined when no choice was made. Read by the Effect Script's reserved
+     *  `$source.chosenSubtype` ref. */
+    getChosenSubtypes: () => string[] | undefined;
     /** True if the given permanent currently has a keyword removal record
      *  for `keyword` (set by a keyword-remove static effect). */
     hasRemovedKeyword: (permanentId: string, keyword: string) => boolean;
@@ -5728,7 +5737,11 @@ export interface SpellContext {
         /** REQUIRED for the `leaves-battlefield` timing (CR 603.7a / 603.10):
          *  the instance id whose `PERMANENT_LEFT` fires this delayed trigger.
          *  Undefined for every phase-boundary timing. */
-        watchInstanceId?: string
+        watchInstanceId?: string,
+        /** CR 509.3d (issue #3809) — the `becomes-blocked-by` timing's
+         *  blocker-colour condition (`DelayedTriggerInstance.blockerColors`).
+         *  Undefined for every other timing. */
+        blockerColors?: Color[]
     ) => void;
     /** CR 603.12 — creates a REFLEXIVE triggered ability from inside a
      *  resolving effect ("Sacrifice a creature. **When you do**, ~ deals X
@@ -7451,6 +7464,23 @@ export type DelayedTriggerTiming =
      *  Rejects `targetPlayer` / `watch` like the phase-boundary timings
      *  (validate.ts). */
     | "this-turn-creature-blocks"
+    /** CR 509.3d / 603.7c (issue #3809) — an INSTANCE-scoped, REPEATING,
+     *  this-turn-bounded watch: "Whenever this creature becomes blocked by a
+     *  creature [of that color] this turn, …" (Zombie Boa). Names ONE watched
+     *  instance (`watch` required, like `attacks-unblocked`) but repeats like
+     *  `this-turn-creature-blocks`: it stays queued after firing and fires
+     *  once PER BLOCKING CREATURE — CR 509.3d, "triggers once for each
+     *  creature that blocks the specified creature" — i.e. once per
+     *  `BLOCKERS_CONFIRMED` event (already one per attacker/blocker pair)
+     *  whose `attackerId` is the watched instance. The optional
+     *  `blockerColors` condition is part of the TRIGGER EVENT, not an
+     *  intervening-if: a blocker of another colour does not trigger it at
+     *  all (the event's layer-5 `blockerColors`, read when blocks are
+     *  confirmed). The firing event is threaded onto the stack item, so the
+     *  body reads the blocker as `$event.blockerId` ("destroy that
+     *  creature"). Purged unfired-or-not at CLEANUP (the "this turn" bound,
+     *  CR 514.2). Rejects `targetPlayer`. */
+    | "becomes-blocked-by"
     /** CR 720.2 (Forth Eorlingas!, issue #1199) — a REPEATING, this-turn-
      *  bounded, combat-damage watch: "Whenever one or more creatures you
      *  control deal combat damage to one or more players this turn, you
@@ -13157,7 +13187,13 @@ export interface EffectCardFilter {
      *  yielding the UNMATCHABLE_FILTER sentinel for an empty set. The third
      *  matcher, `handCardMatchesFilter`, has no resolving context at all and
      *  therefore refuses the dynamic form outright rather than matching every
-     *  card. */
+     *  card.
+     *
+     *  The ref may also be the RESERVED `$source.chosenSubtype` (issue #3809):
+     *  the type chosen as the SOURCE permanent entered (CR 607.2d — Brass
+     *  Herald's "creature cards of the chosen type"), read through
+     *  `SpellContext.getChosenSubtypes` with no preceding bind. Same
+     *  fail-closed contract: no stored choice matches nothing. */
     subtype?: string | string[] | EffectRef;
     supertype?: CardSupertype;
     /** Negative of `supertype` (CR 205.4a) — a card matches only if it has
@@ -15843,7 +15879,14 @@ export type EffectOp =
     | {
           op: "setSubtype";
           target: EffectObjectSelector;
-          subtypes: string[];
+          /** The replacement subtype list — literal, OR (issue #3809) a bare
+           *  `{ ref }` read exactly as `EffectCardFilter.subtype`'s dynamic
+           *  form is: a `chooseCreatureType` binding ("target creature
+           *  becomes THAT type", Unnatural Selection) or the reserved
+           *  `$source.chosenSubtype`. An unresolvable ref resolves to no
+           *  subtype and the Op is SKIPPED (CR 101.3 — an impossible
+           *  instruction), never applied as "becomes no type". */
+          subtypes: string[] | EffectRef;
           /** CR 611.2 — when the replacement reverts. OMITTED is INDEFINITE
            *  (CR 611.2b, issue #1746): the permanent simply IS the new subtype
            *  line until it leaves the battlefield — "this creature becomes a
@@ -17486,6 +17529,12 @@ export type EffectOp =
           player: EffectPlayerRef;
           prompt: string;
           bind: string;
+          /** CR 205.3m (issue #3809) — creature types the chooser may NOT
+           *  name: "Choose a creature type OTHER THAN WALL" (Unnatural
+           *  Selection). Removed from the offered options, so the submit
+           *  check (`applyPendingChoiceSubmit` validates against the entry's
+           *  own options) refuses them too — one list, both sides. */
+          exclude?: string[];
       }
     /** CR 701.20a reveal / CR 401.4 look (issue #1085) — deterministic
      *  sibling of `lookDistribute`: reveals the top `look` cards of a library to
@@ -18100,6 +18149,14 @@ export type EffectOp =
            *  is the trigger CONDITION's watched instance, not necessarily
            *  anything the body reads. */
           watch?: EffectObjectSelector;
+          /** CR 509.3d (issue #3809) — ONLY for the `becomes-blocked-by`
+           *  timing (validator-enforced): the trigger event's blocker must
+           *  have at least one of these colours ("becomes blocked by a
+           *  creature of that color"). A chosen colour composes through
+           *  `colorChoiceModes` — one `optionChoice` mode per colour, each
+           *  scheduling this Op with its own literal — so no colour binding
+           *  is needed here (ADR 0045 "generalize, don't add"). */
+          blockerColors?: Color[];
           /** The delayed body — a nested Effect Script run by the
            *  interpreter when the trigger fires. */
           effects: EffectOp[];

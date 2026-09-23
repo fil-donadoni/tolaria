@@ -788,6 +788,47 @@ export function collectTriggers(
         }
     }
 
+    // CR 509.3d (issue #3809, Zombie Boa) — a `timing: "becomes-blocked-by"`
+    // instance watches ONE creature and fires once per creature that blocks
+    // it ("triggers once for each creature that blocks the specified
+    // creature"): `BLOCKERS_CONFIRMED` is already one event per
+    // attacker/blocker pair, so each pair whose attacker is the watched
+    // instance is one firing. The blocker-colour condition belongs to the
+    // trigger EVENT — a blocker with none of `blockerColors` (read off the
+    // event's own layer-5 colours) does not trigger at all, so nothing
+    // reaches the stack. Repeating like `this-turn-creature-blocks`: stays
+    // queued after firing, purged at CLEANUP (phases.ts). The event rides
+    // onto the StackItem so the body reads `$event.blockerId`.
+    if (state.delayedTriggers?.length) {
+        const blockWatchers = state.delayedTriggers.filter(
+            (t) =>
+                t.timing === "becomes-blocked-by" &&
+                t.watchInstanceId !== undefined
+        );
+        if (blockWatchers.length > 0) {
+            for (const event of events) {
+                if (event.type !== "BLOCKERS_CONFIRMED") continue;
+                for (const t of blockWatchers) {
+                    if (event.attackerId !== t.watchInstanceId) continue;
+                    // An event carrying no colours (a colourless blocker,
+                    // CR 105.2c) matches no colour condition — fail closed.
+                    const wanted = t.blockerColors;
+                    const have = event.blockerColors ?? [];
+                    if (
+                        wanted !== undefined &&
+                        !wanted.some((c) => have.includes(c))
+                    ) {
+                        continue;
+                    }
+                    out.push({
+                        ...buildDelayedTriggerStackItem(state, t),
+                        triggerEvent: event,
+                    });
+                }
+            }
+        }
+    }
+
     // CR 606 / 603.7a / 506.2 (issue #2385, Tamiyo, Seasoned Scholar's +2)
     // — a `timing: "until-next-turn-creature-attacks-you"` instance is the
     // "until your next turn" (NOT "this turn") twin of the repeating

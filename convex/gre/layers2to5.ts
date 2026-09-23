@@ -67,7 +67,12 @@
 import { tryGetDefinition } from "../cards";
 import { declaresLayer2to5StaticEffect } from "../cards/registry";
 import { tryGetEmblemDefinition } from "../cards/emblems";
-import { applyLandTypeReplacement, sameOrder } from "./constants";
+import {
+    applyCreatureTypeReplacement,
+    applyLandTypeReplacement,
+    sameOrder,
+} from "./constants";
+import { CREATURE_SUBTYPES } from "../oracle/grammar/shared/subtypes";
 import { compareContinuousEffects } from "./continuousEffects";
 import type { DependencyTemplate } from "./dependency";
 import { CDA_STATIC_EFFECT_KINDS } from "./dependency";
@@ -1120,16 +1125,24 @@ export function deriveLayers2to5(
             case "subtype-change": {
                 const attribution = attributionOf(entry);
                 if (action.set) {
+                    // CR 205.1a (issue #3809) — a set made of CREATURE types
+                    // replaces only the creature types: a land creature keeps
+                    // its land types, an artifact creature its artifact
+                    // types. Checked first, so a land creature told to
+                    // "become that [creature] type" is not routed through the
+                    // land-type narrowing below.
                     // CR 305.7 (issue #1883) — a set on a LAND replaces only
                     // the land types; a subtype belonging to another card type
-                    // (Saga on `Enchantment Land — Urza's Saga`) survives. A
-                    // non-land target has no CR 305.7 analogue and keeps the
-                    // wholesale replace.
-                    result.subtypes = result.types.includes("Land")
-                        ? applyLandTypeReplacement(result.subtypes, [
-                              ...action.set,
-                          ])
-                        : [...action.set];
+                    // (Saga on `Enchantment Land — Urza's Saga`) survives. Any
+                    // other set keeps the wholesale replace.
+                    const set = [...action.set];
+                    result.subtypes =
+                        set.length > 0 &&
+                        set.every((st) => CREATURE_SUBTYPES.has(st))
+                            ? applyCreatureTypeReplacement(result.subtypes, set)
+                            : result.types.includes("Land")
+                              ? applyLandTypeReplacement(result.subtypes, set)
+                              : set;
                     result.grantedSubtypes.push({
                         subtypes: [...action.set],
                         sourceId: attribution,

@@ -30,6 +30,15 @@
  *  the same index the `{ target: N }` object selector uses. */
 export const TARGET_BINDING_PREFIX = "$target";
 
+/** CR 607.2d (issue #3809) — the reserved ref naming the creature type chosen
+ *  as the resolving ability's SOURCE permanent entered ("the chosen type" of
+ *  a linked ability — Brass Herald). Legal only in a SUBTYPE position
+ *  (`EffectCardFilter.subtype`, `setSubtype.subtypes`); the interpreter reads
+ *  it through `SpellContext.getChosenSubtypes`, never the binding store, so
+ *  it needs no bind and a bind cannot shadow it (the `.` is not a legal
+ *  binding-name character). */
+export const SOURCE_CHOSEN_SUBTYPE_REF = "$source.chosenSubtype";
+
 /** The only property path the reserved target ref supports today (CR 201.2 —
  *  the target's live name). Extending this list is a deliberate act: each
  *  property needs a resolver on the matching typed path (the STRING path,

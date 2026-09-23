@@ -3,6 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 import type { CardDefinition } from "../../types";
+import { colorChoiceModes } from "../../abilities/chooseColor";
 
 // Dead Ringers — {4}{B} Sorcery. "Destroy two target nonblack creatures unless
 // either one is a color the other isn't. They can't be regenerated."
@@ -102,6 +103,67 @@ export const mindExtraction: CardDefinition = {
             op: "discard",
             player: { target: 0 },
             filter: { color: { sacrificed: { read: "colors" } } },
+        },
+    ],
+};
+
+// Zombie Boa — {4}{B} 3/3 Creature — Zombie Snake (issue #3809). "{1}{B}:
+// Choose a color. Whenever this creature becomes blocked by a creature of that
+// color this turn, destroy that creature. Activate only as a sorcery."
+//
+// The colour choice is the established `colorChoiceModes` composition (one
+// `optionChoice` mode per colour, CR 105.1 — never colorless), each mode
+// scheduling the SAME delayed trigger with its own literal colour. The trigger
+// is the `becomes-blocked-by` watch (CR 509.3d): it watches this creature,
+// fires once PER creature blocking it, and only for a blocker of the chosen
+// colour — the colour is part of the trigger event, so a blocker of another
+// colour puts nothing on the stack. "That creature" is the blocker, read off
+// the live firing event. The watch lasts the rest of the turn (CR 514.2 purge)
+// and each activation adds its own, so two activations naming the same colour
+// destroy a blocker twice over — harmlessly — exactly as two instances would.
+//
+// compiler-gap: {1}{B}: Choose a color. Whenever this creature becomes blocked by a creature of that color this turn, destroy that creature. Activate only as a sorcery. (#2693)
+export const zombieBoa: CardDefinition = {
+    id: "1fb8c277-3154-47c9-835f-327cac297a5e", // APC 54
+    name: "Zombie Boa",
+    rarity: "common",
+    oracleText:
+        "{1}{B}: Choose a color. Whenever this creature becomes blocked by a creature of that color this turn, destroy that creature. Activate only as a sorcery.",
+    manaCost: { X: 4, B: 1 },
+    types: ["Creature"],
+    subtypes: ["Zombie", "Snake"],
+    power: 3,
+    toughness: 3,
+    activatedAbilities: [
+        {
+            id: "zombie-boa-watch",
+            oracleText:
+                "{1}{B}: Choose a color. Whenever this creature becomes blocked by a creature of that color this turn, destroy that creature. Activate only as a sorcery.",
+            cost: { mana: { X: 1, B: 1 } },
+            useStack: true,
+            sorcerySpeedOnly: true,
+            effects: [
+                {
+                    op: "optionChoice",
+                    prompt: "Choose a color (Zombie Boa).",
+                    modes: colorChoiceModes((color) => [
+                        {
+                            op: "delayedTrigger",
+                            timing: "becomes-blocked-by",
+                            oracleText:
+                                "Whenever this creature becomes blocked by a creature of that color this turn, destroy that creature.",
+                            watch: { ref: "$source" },
+                            blockerColors: [color],
+                            effects: [
+                                {
+                                    op: "destroy",
+                                    target: { ref: "$event.blockerId" },
+                                },
+                            ],
+                        },
+                    ]),
+                },
+            ],
         },
     ],
 };
