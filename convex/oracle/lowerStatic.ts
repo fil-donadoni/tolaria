@@ -80,6 +80,8 @@ export interface LoweredStatic {
         readonly type: string;
         readonly count: number;
     };
+    /** CR 614.12a / 205.3m — "As this enters, choose a creature type". */
+    readonly asEntersCreatureType?: true;
     /**
      * CR 614.1c / 702.33e — kicker-counted entry counters, one `"kicker"`
      * entry per printed counter: `entersWith` SUMS same-type entries, and
@@ -296,6 +298,8 @@ export function lowerStaticClause(
                         : {}),
                 },
             };
+        case "as-enters-choose-creature-type":
+            return { ok: true, lowered: { asEntersCreatureType: true } };
         case "kicked-enters-with":
             return lowerKickedRider(clause, kickers, nextId);
         case "does-not-untap":
