@@ -42,7 +42,8 @@ const key = (file: string, test: string) => `${file}::${test}`;
 /**
  * Seeded 2026-09-24 from a per-block triage of the 258 blocks the classifier
  * flagged repo-wide: 197 census / partition / drift checks (below), 61 true
- * identity blocks (left flagged, for the purge ticket).
+ * identity blocks (left flagged, for the purge ticket) — plus this list's own
+ * hygiene census in `purge-identity-tests.test.ts`.
  */
 export const IDENTITY_ALLOWLIST: readonly AllowListEntry[] = [
     {
@@ -759,6 +760,11 @@ export const IDENTITY_ALLOWLIST: readonly AllowListEntry[] = [
         file: "scripts/__tests__/perf-test-boundary.test.ts",
         test: "perf project — vitest.config.ts keeps perf tests out of every gate > declares a `perf` project that selects the suffix",
         reason: "Real vitest.config.ts parsed and tied to the independently-defined PERF_GLOB constant",
+    },
+    {
+        file: "scripts/__tests__/purge-identity-tests.test.ts",
+        test: "the named allow-list (issue #4489) > every entry carries a reason and a unique name, and none sits in the card sets",
+        reason: "Census over this list: unique names, a non-empty reason per entry, no card-set entry",
     },
     {
         file: "scripts/__tests__/tier1-decks.test.ts",
