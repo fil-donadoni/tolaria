@@ -8664,6 +8664,16 @@
         "source": "compiled"
     },
     {
+        "name": "Cinder Shade",
+        "scryfallId": "b8dd933a-19ed-4d30-a94a-bfb2f66f8f13",
+        "oracleId": "9e120284-0fcc-432c-9471-9106eab71025",
+        "firstSet": "inv",
+        "firstPrintId": "b8dd933a-19ed-4d30-a94a-bfb2f66f8f13",
+        "firstPrintSet": "inv",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Cinder Storm",
         "scryfallId": "9e2d16c1-6226-438f-be1e-eaab3df687e1",
         "oracleId": "c7971968-c4ee-4437-92ec-1238bce1935f",
@@ -18038,6 +18048,16 @@
         "source": "compiled"
     },
     {
+        "name": "Flame Elemental",
+        "scryfallId": "498e813d-b0b3-4040-b87a-4fa2be681ec5",
+        "oracleId": "975226a4-2d03-4993-9337-cfd6595011bd",
+        "firstSet": "mir",
+        "firstPrintId": "498e813d-b0b3-4040-b87a-4fa2be681ec5",
+        "firstPrintSet": "mir",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Flame Jab",
         "scryfallId": "06c2b6b2-485e-41e6-b106-4f6f402e0ec3",
         "oracleId": "05eccdee-84f8-42d5-b79c-36d081656915",
@@ -20282,6 +20302,16 @@
         "firstSet": "inv",
         "firstPrintId": "78827acd-a526-411b-bd22-ab9b538c75dd",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Ghitu Fire-Eater",
+        "scryfallId": "131dce1c-e9c8-437a-b7aa-36a47049d2d2",
+        "oracleId": "3e792338-4a21-4a06-ad94-39931118e06c",
+        "firstSet": "ulg",
+        "firstPrintId": "131dce1c-e9c8-437a-b7aa-36a47049d2d2",
+        "firstPrintSet": "ulg",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Ghitu War Cry",
@@ -23597,6 +23627,16 @@
         "firstPrintId": "7db219ea-2ed1-4a86-955c-d61ecedbc019",
         "firstPrintSet": "war",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Heartfire Immolator",
+        "scryfallId": "869fb9f1-0d59-4874-aa52-ac665c3cc0e8",
+        "oracleId": "1e414a4f-6e76-4cbe-9c69-d52852cd5bc0",
+        "firstSet": "m21",
+        "firstPrintId": "869fb9f1-0d59-4874-aa52-ac665c3cc0e8",
+        "firstPrintSet": "m21",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -32432,6 +32472,16 @@
         "firstSet": "rtr",
         "firstPrintId": "e22959dc-8759-454e-80b9-623a799af354",
         "firstPrintSet": "rtr",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Minotaur Illusionist",
+        "scryfallId": "d8a49d29-6d01-4b1d-80c8-9e5378a76878",
+        "oracleId": "ee5fc6e9-0c10-4015-8853-dd1f33dcc27e",
+        "firstSet": "apc",
+        "firstPrintId": "d8a49d29-6d01-4b1d-80c8-9e5378a76878",
+        "firstPrintSet": "apc",
         "rarity": "uncommon",
         "source": "compiled"
     },
