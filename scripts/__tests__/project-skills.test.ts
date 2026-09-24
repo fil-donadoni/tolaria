@@ -534,8 +534,9 @@ describe("/new-set v2 is compile-first (ADR 0137, issue #3835)", () => {
         // both would make every rollout double-file its own set.
         const text = body();
         expect(text).toMatch(
-            /`\[Grammar\] <slot>: <form> — N <set> \/ M corpus`/
+            /`\[Grammar\] <family>: <N> gaps — N <set> \/ M corpus`/
         );
+        expect(text).toMatch(/One ticket per Grammar Cluster/);
         expect(text).toMatch(/deliberately NOT `gaps:sync`'s/);
         expect(src("scripts", "lib", "gap-issues.ts")).toContain(
             'grammar: "Grammar Gap:"'

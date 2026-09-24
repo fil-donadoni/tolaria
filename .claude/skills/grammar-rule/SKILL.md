@@ -1,16 +1,28 @@
 ---
 name: grammar-rule
-description: Close ONE Grammar Gap — read the gap's refused lines and counts, write the Grammar Rule in the right slot or shared sub-grammar, one golden fixture per accepted form with proof of failure, `/new-op` inside the same ticket when the rule needs an Op, recompile, read back the `ready` delta per set and corpus, graduate the hand-written cards that now round-trip out of Guard C's baseline, regenerate the catalogue artefacts, and write the PR body. Use when an issue names a Grammar Gap (`Grammar Gap: <key>`, an `oracle:report` rank, a `compiler-gap:` marker's fragment), when `/new-set` v2 cuts a grammar ticket, or when `/new-op` Branch A needs its emitting rule.
-argument-hint: "<gap key | issue #N>"
+description: Close ONE Grammar Cluster — the gaps one rule family closes (a single gap is a cluster of one) — read each gap's refused lines and counts, write the Grammar Rule in the right slot or shared sub-grammar, one golden fixture per accepted form with proof of failure, `/new-op` inside the same ticket when the rule needs an Op, recompile, read back the `ready` delta per set and corpus, graduate the hand-written cards that now round-trip out of Guard C's baseline, regenerate the catalogue artefacts, and write the PR body. Use when an issue names a Grammar Gap or a cluster of them (`Grammar Gap: <key>`, a `[Grammar]` cluster ticket's `## Grammar Gaps`, an `oracle:report` rank, a `compiler-gap:` marker's fragment), when `/new-set` v2 cuts a grammar ticket, or when `/new-op` Branch A needs its emitting rule.
+argument-hint: "<gap key | cluster issue #N>"
 ---
 
-# /grammar-rule — one Grammar Gap → rule + golden fixtures → ready delta
+# /grammar-rule — one Grammar Cluster → rules + golden fixtures → ready delta
 
 The unit of card work is the **Grammar Rule**, not the card (ADR 0137): one
 clause form accepted by a slot or a shared sub-grammar, delivered with its
 golden fixtures, measured by how many corpus cards it turns `ready`. This skill
 is the sequence one such rule owes. It runs inside `/next-issue` (claim,
 worktree, review, `land` are that skill's); everything below is §3 of it.
+
+**The ticket is a Grammar Cluster** (`/new-set` Phase 3): the gaps one rule
+family closes, listed under the issue's `## Grammar Gaps`. Steps 1–4 run per
+member gap — read it, sort its forms, place its rule, fixture every accepted
+form; steps 5–10 run ONCE for the whole cluster — one recompile, one delta, one
+graduation, one PR. That is the point of the cluster: the fixed cost is paid
+once, the evidence is still paid per form. A member gap that turns out out of
+reach (step 3) is refused and named in the PR with why — it does not hold the
+rest back, and its claim moves to a new issue (or the long-tail cluster of its
+slot) before `land`, so it is never left `unclaimed`. **Do not widen a cluster
+mid-ticket** to a gap that is not in its list without saying so in the PR and
+adding its claim row — the claim, not the diff, is what `check:targets` reads.
 
 ## The three anti-Forge guards — read before writing a line
 
@@ -240,15 +252,17 @@ rule is closed by the PR's own `Closes #N`.)
 Review and `land` are `/next-issue` §4–§5. The body:
 
 ````markdown
-Closes #<gap issue>
+Closes #<cluster issue>
 
-## Grammar Gap
+## Grammar Gaps
 
-`<key>` — <target> <compile>/<refuse>, corpus <compile>/<refuse> (from `oracle:report --gap`).
+| Key     | Target c/r | Corpus c/r | Outcome                       |
+| ------- | ---------- | ---------- | ----------------------------- |
+| `<key>` | <c>/<r>    | <c>/<r>    | closed / refused — why (→ #N) |
 
-## Rule
+## Rules
 
-<slot or sub-grammar> · label `<label>` · Ops emitted: <list> (new Op: none | `/new-op` <op>) · CR <ids>.
+<slot or sub-grammar> · label `<label>` · Ops emitted: <list> (new Op: none | `/new-op` <op>) · CR <ids> — one line per rule.
 Refused neighbours (fail-closed, pinned by refusal tests): <form — why>, …
 
 ## Fixtures

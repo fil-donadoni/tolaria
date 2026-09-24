@@ -1,6 +1,6 @@
 ---
 name: new-set
-description: Drive a full MTG set rollout for the Tolaria engine the grammar-first way (ADR 0137) — compile the set with the Oracle compiler, read its ranked Grammar Gap backlog, and cut one ticket per gap plus the Guard C residue queue and the set's acceptance ticket. Invoke as "/new-set <3-letter code>", e.g. "/new-set inv".
+description: Drive a full MTG set rollout for the Tolaria engine the grammar-first way (ADR 0137) — compile the set with the Oracle compiler, read its ranked Grammar Gap backlog, and cut one ticket per Grammar Cluster (gaps one rule family closes) plus the Guard C residue queue and the set's acceptance ticket. Invoke as "/new-set <3-letter code>", e.g. "/new-set inv".
 argument-hint: "<set-code>"
 ---
 
@@ -180,12 +180,15 @@ residue ticket's scope. This manifest is the **contract the rollout closes
 against** (Phase 4); persist it in the PRD body, it is not a throwaway tally.
 ICE skipped the v1 equivalent and silently lost ~26 cards to untracked stubs.
 
-**The cut line.** Cut a gap ticket per rank until the set's cumulative
+**The cut line.** Take gaps by rank until the set's cumulative
 `compiles` reaches the acceptance target agreed in the grill (default 80 %
 `ready`), and never below `handTailFloor` (`data/targets.json`, 3 corpus
 cards): a gap under the floor is residue by definition, not a rule worth its
 fixtures. Say the line out loud — "ranks 1–17, cumulative 31 of 112 unparsed,
 floor reached at rank 24" — so the grill argues about a number, not a feeling.
+A Target with `completion: "ready"` (issue #4519) has no floor: every gap owes
+a `grammar` claim, the one-card tail included — which is exactly what the
+long-tail clusters of Phase 3 are for.
 
 ### 0.5 Evidence — the capability cross-check, for gaps that need an Op
 
@@ -332,11 +335,35 @@ takes the umbrella's band.
 `data/targets.json` row + the committed MTGJSON blob. `enhancement` +
 `area:cards`, `ready-for-agent`, no `model:*`. Every other ticket is **blocked-by** it.
 
-**One ticket per Grammar Gap on the cut line.**
+**One ticket per Grammar Cluster on the cut line — never one per gap.** A
+Grammar Cluster is the set of gaps ONE rule family closes: the same
+sub-grammar or the same clause shape with its variants (every
+`Protection from <quality>`, every `Search your library for a <A> or <B> card`
+fetch, every `Whenever you cast a <filter> spell` head, every keyword line of
+one parameter shape). The recompile, the lane, the review and the landing are
+paid per PR; the golden fixture is paid per form anyway — so a ticket per gap
+pays the fixed cost N times for no extra evidence. Cluster the ranked list
+before cutting:
 
-- **Title**: `[Grammar] <slot>: <form> — N <set> / M corpus`, where `N` is the
-  set's `compiles` and `M` the corpus `compiles`
-  (e.g. `[Grammar] triggered › effect clause: Reveal the top four cards of your library — 6 APC / 7 corpus`).
+- **One family, never a grab-bag.** A cluster is one rule (or one shared
+  sub-grammar plus the slots that route through it) — the reviewer must be
+  able to read it as one design. Two unrelated gaps are two clusters.
+- **Cap ~10 gaps.** Past that the PR is too big to review and one red form
+  blocks the rest; split by form.
+- **The long tail clusters by slot.** Singletons with no family (one card, one
+  shape) go in a few `[Grammar] <slot> long tail` tickets, one per slot, each
+  still capped — never one ticket each.
+- **Every gap key is listed and claimed.** The body's `## Grammar Gaps` lists
+  each key with its counts; each key gets a `claims` row (kind `grammar`) in
+  `data/grammar-gaps.json` pointing at the cluster — or, for an Op-census key,
+  its `ops` row's `issue`. `gaps:sync` recognises an issue claimed by two or
+  more keys as a cluster and never rewrites its body or moves its parent
+  (`syncGaps` action `cluster`); a cluster of ONE key is a plain gap issue and
+  gets rewritten, so a one-gap ticket stays the exception.
+
+- **Title**: `[Grammar] <family>: <N> gaps — N <set> / M corpus`, where the
+  counts are the SUM of the member gaps' `compiles`
+  (e.g. `[Grammar] fetch lands: 6 gaps — 6 ONS / 11 corpus`).
   **This prefix is deliberately NOT `gaps:sync`'s.** That command files the
   bounded, shrink-only **Op-census** rows of `data/grammar-gaps.json` under
   `Grammar Gap: <key>` (ADR 0105 § 7.3); this backlog is the **per-fragment**
@@ -346,12 +373,14 @@ takes the umbrella's band.
 - **Labels**: `enhancement` + `ready-for-agent` + `area:mechanics`. A `model:*` label only per
   `docs/agents/triage-labels.md` § Model-routing labels — the single authority;
   never re-derive a tier from the area a gap touches.
-- **Body**: `## Parent` (→ umbrella) · `## Grammar Gap` (the key verbatim, the
-  four counts, the `e.g.` card, and the PRD's Op verdict row) · `## What to
-build` ("run `/grammar-rule <key>`" — the rule, one golden fixture per
-  accepted form with proof of failure, the refused neighbours pinned by
-  refusal tests) · `## Acceptance criteria` (the rule lands; `ready` delta ≥
-  the gap's `compiles` or the shortfall explained by quarantine `reason.kind`;
+- **Body**: `## Parent` (→ umbrella) · `## Grammar Gaps` (one line per member:
+  the key verbatim, the four counts, the `e.g.` card, and the PRD's Op verdict
+  row) · `## What to
+build` ("run `/grammar-rule #<this issue>`" — the rule family, one golden
+  fixture per accepted form with proof of failure, the refused neighbours
+  pinned by refusal tests) · `## Acceptance criteria` (the rules land; `ready`
+  delta ≥ the summed `compiles` or the shortfall explained by quarantine
+  `reason.kind`, a member gap left refused named with why;
   `lost` = 0; Guard C graduates removed from the baseline with
   `BASELINE_CEILING` lowered by exactly that many; the artefact checks green) ·
   `## Blocked by` (T0, plus any shared sub-grammar gap it routes through, and
@@ -383,7 +412,7 @@ the queue the migration kind drains.
 Body: the target percentage, the command that proves it
 (`bun run oracle:report --set <code>`, header line quoted), `unclaimed == 0`
 via `bun run check:targets`, and the flip of `enforced: true` on the Target's
-row once it holds. **Blocked-by every gap ticket and the residue ticket** — it
+row once it holds. **Blocked-by every cluster ticket and the residue ticket** — it
 is what closes the umbrella.
 
 **Reconcile before you stop.** The cards named across the cut tickets plus the
@@ -475,7 +504,7 @@ nothing.
 - ADR 0137 (grammar-first authoring), ADR 0105 (fail-closed compiler, § 7 the
   amendment), ADR 0045/0046 (frozen constructs, registry seam), ADR 0041
   (worklist/import), ADR 0014 (prints vs defs), ADR 0010 (ante/subgame)
-- Skills: `/grammar-rule` (implements one gap ticket), `/new-op` (inside a gap
+- Skills: `/grammar-rule` (implements one cluster ticket), `/new-op` (inside a gap
   ticket when its rule needs an Op), `/mtg-rules-check`,
   `{grill-with-docs,to-prd,to-tickets}`
 - Commands: `oracle:report` (`--set` / `--pool` / `--targets` / `--gap` /
