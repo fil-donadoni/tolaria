@@ -323,7 +323,10 @@ describe("a sorcery removal spell's narrowed target is posed and played (CR 115.
     });
 
     it("a mana value bound the position cannot read poses nothing", () => {
-        const def = removal("sorcery-mv-x", { mvFilter: { min: 3, max: "X" } });
+        const def = removal("sorcery-mv-x", {
+            mvFilter: { max: "X" },
+            subtypeFilter: ["Human"],
+        });
         expect(
             withTemporaryDefinition(def, () => targetPoseCards(def))
         ).toEqual([]);
