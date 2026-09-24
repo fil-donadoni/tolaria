@@ -6,6 +6,7 @@ import * as path from "node:path";
 import {
     ESLINT_CACHE_FILE,
     TSBUILDINFO_DIR,
+    VITEST_CACHE_DIR,
     seedWorktreeCaches,
 } from "../lib/worktree-seed";
 
@@ -564,9 +565,36 @@ describe("build-cache seeding (issue #3776, ADR 0136 §9)", () => {
         expect(r.done).toEqual([]);
         expect(r.skipped).toEqual([
             "tsbuildinfo seed (primary has none — cold type-check)",
+            "vitest results cache (primary has none — name order)",
             "eslint cache (primary has none — cold run)",
         ]);
         expect(fs.existsSync(path.join(cwd, "node_modules"))).toBe(false);
+    });
+
+    it("byte-copies every vitest results cache the primary has (issue #4483)", () => {
+        // Keyed `<project>:<relative path>`, so no rewrite is owed. Without it
+        // every gate worktree starts with no durations and the sequencer
+        // degrades to name order — the order it exists to replace.
+        const results = JSON.stringify({
+            version: "4.1.7",
+            results: [["node-engine:convex/a.test.ts", { duration: 9 }]],
+        });
+        write(primary, `${VITEST_CACHE_DIR}/aaa/results.json`, results);
+        write(primary, `${VITEST_CACHE_DIR}/bbb/results.json`, results);
+        write(primary, `${VITEST_CACHE_DIR}/ccc/other.json`, "no");
+
+        const r = seedWorktreeCaches({ primary, cwd });
+
+        expect(r.done).toContain("vitest results cache (2 files from primary)");
+        expect(
+            fs.readFileSync(
+                path.join(cwd, VITEST_CACHE_DIR, "bbb/results.json"),
+                "utf8"
+            )
+        ).toBe(results);
+        expect(fs.existsSync(path.join(cwd, VITEST_CACHE_DIR, "ccc"))).toBe(
+            false
+        );
     });
 
     it("rewrites the eslint cache's absolute keys from the primary's path to this worktree's", () => {
@@ -631,11 +659,14 @@ describe("build-cache seeding (issue #3776, ADR 0136 §9)", () => {
         write(primary, ESLINT_CACHE_FILE, "[{},{}]");
         write(cwd, `${TSBUILDINFO_DIR}/tsconfig.app.tsbuildinfo`, "mine");
         write(cwd, ESLINT_CACHE_FILE, "[{},{}]");
+        write(primary, `${VITEST_CACHE_DIR}/aaa/results.json`, "new");
+        write(cwd, `${VITEST_CACHE_DIR}/aaa/results.json`, "mine");
 
         const r = seedWorktreeCaches({ primary, cwd });
         expect(r.done).toEqual([]);
         expect(r.skipped).toEqual([
             "tsbuildinfo seed (1 present: tsconfig.app.tsbuildinfo)",
+            "vitest results cache (1 present)",
             "eslint cache (present)",
         ]);
         expect(
@@ -646,7 +677,7 @@ describe("build-cache seeding (issue #3776, ADR 0136 §9)", () => {
         ).toBe("mine");
 
         const forced = seedWorktreeCaches({ primary, cwd, force: true });
-        expect(forced.done).toHaveLength(2);
+        expect(forced.done).toHaveLength(3);
         expect(
             fs.readFileSync(
                 path.join(cwd, TSBUILDINFO_DIR, "tsconfig.app.tsbuildinfo"),

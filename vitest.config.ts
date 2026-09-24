@@ -2,6 +2,7 @@ import { defineConfig } from "vitest/config";
 import path from "path";
 import { splitScriptsTests, splitSrcTests } from "./scripts/test-env-split";
 import { buildDefine } from "./scripts/lib/build-define";
+import { LongestFirstSequencer } from "./scripts/lib/vitest-sequencer";
 
 // Shared resolve aliases — must match tsconfig paths so both projects resolve
 // `~`, `@`, and `@convex` identically.
@@ -249,6 +250,11 @@ export default defineConfig({
         globals: true,
         maxWorkers: WORKERS,
         minWorkers: 1,
+        // Longest project first, each project's files contiguous, longest
+        // file first — from vitest's own duration cache, never from the diff
+        // (issue #4483, ADR 0104). The rule and its measurement live in
+        // `scripts/lib/vitest-sequencer.ts`.
+        sequence: { sequencer: LongestFirstSequencer },
         projects: [
             {
                 extends: true,

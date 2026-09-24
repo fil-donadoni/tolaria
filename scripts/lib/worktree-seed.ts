@@ -28,6 +28,13 @@
  *     entirely: a fresh checkout's mtimes differ from the primary's on every
  *     file, so `package.json`'s `lint` must keep `--cache-strategy content`.
  *
+ * The vitest results cache (`node_modules/.vite/vitest/<hash>/results.json`,
+ * issue #4483) is the third: it records each test file's last duration, keyed
+ * by `<project>:<path RELATIVE to the root>`, so a byte copy hits in any
+ * worktree. It is read ONLY by the sequencer (`scripts/lib/vitest-sequencer.ts`)
+ * to start the longest project and file first — an order, never a selection,
+ * so a stale seed costs wall time at worst, never a test.
+ *
  * A cache is an optimisation, never an input: nothing here can fail the
  * bootstrap. A missing source is reported as a skip, and the caller wraps the
  * whole step so an unexpected error becomes a skip too.
@@ -61,6 +68,13 @@ export const ESLINT_CACHE_FILE = "node_modules/.cache/eslint.json";
  * Caches keyed by absolute path in a JSON document — the `file-entry-cache`
  * shape. Each is seeded by rewriting the primary's prefix to the worktree's.
  */
+/**
+ * Vitest's cache root. One sub-directory per config, named by a hash of the
+ * config's project name — copied whole-directory-by-directory rather than by a
+ * hard-coded hash, so a config renaming itself cannot orphan the seed.
+ */
+export const VITEST_CACHE_DIR = "node_modules/.vite/vitest";
+
 export const PATH_KEYED_CACHES = [
     { label: "eslint cache", file: ESLINT_CACHE_FILE },
 ] as const;
@@ -88,6 +102,7 @@ export interface SeedOptions {
 export function seedWorktreeCaches(opts: SeedOptions): SeedReport {
     const report: SeedReport = { done: [], skipped: [] };
     seedTsBuildInfo(opts, report);
+    seedVitestResults(opts, report);
     for (const cache of PATH_KEYED_CACHES) {
         seedPathKeyedCache(opts, cache.label, cache.file, report);
     }
@@ -129,6 +144,38 @@ function seedTsBuildInfo(opts: SeedOptions, report: SeedReport): void {
             `${label} (${present.length} present: ${present.join(", ")})`
         );
     }
+}
+
+function seedVitestResults(opts: SeedOptions, report: SeedReport): void {
+    const label = "vitest results cache";
+    const srcDir = join(opts.primary, VITEST_CACHE_DIR);
+    const dirs = existsSync(srcDir)
+        ? readdirSync(srcDir)
+              .filter((d) => existsSync(join(srcDir, d, "results.json")))
+              .sort()
+        : [];
+    if (dirs.length === 0) {
+        report.skipped.push(`${label} (primary has none — name order)`);
+        return;
+    }
+    let copied = 0;
+    let present = 0;
+    for (const dir of dirs) {
+        const dst = join(opts.cwd, VITEST_CACHE_DIR, dir, "results.json");
+        if (existsSync(dst) && !opts.force) {
+            present++;
+            continue;
+        }
+        mkdirSync(dirname(dst), { recursive: true });
+        copyFileSync(join(srcDir, dir, "results.json"), dst);
+        copied++;
+    }
+    if (copied > 0) {
+        report.done.push(
+            `${label} (${copied} file${copied === 1 ? "" : "s"} from primary)`
+        );
+    }
+    if (present > 0) report.skipped.push(`${label} (${present} present)`);
 }
 
 /**
