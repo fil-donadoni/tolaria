@@ -113,6 +113,12 @@ describe("identity-only card tests (issue #2363)", () => {
     }, 120_000);
 
     it("every allowlist entry carries a reason and still names a real identity block", () => {
+        // Every key is `<test file>:<line text>` — asserted of the (empty) map
+        // as a whole, so the block asserts even when the loop has nothing to
+        // walk (issue #4492).
+        expect(
+            [...ALLOWLIST.keys()].filter((k) => !/\.test\.tsx?:/.test(k))
+        ).toEqual([]);
         for (const [key, reason] of ALLOWLIST) {
             expect(
                 reason.trim().length,

@@ -225,8 +225,12 @@ describe("seed:preset --all classification (issue #3254)", () => {
     });
 
     it("every blocked list in the canonical file names its blockers", () => {
-        for (const row of rows.filter((r) => r.state === "blocked")) {
-            expect(row.problems?.join("\n")).toMatch(/unknown card name\(s\)/);
-        }
+        const silent = rows
+            .filter((r) => r.state === "blocked")
+            .filter(
+                (r) =>
+                    !/unknown card name\(s\)/.test(r.problems?.join("\n") ?? "")
+            );
+        expect(silent).toEqual([]);
     });
 });

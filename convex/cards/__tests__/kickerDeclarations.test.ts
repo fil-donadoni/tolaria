@@ -209,7 +209,11 @@ describe("Kicker declarations (CR 702.33 / 702.33e, ADR 0079)", () => {
             const declared = new Set((card.kickers ?? []).map((k) => k.id));
             const referenced = new Set<string>();
             additionalCostPaidIdsIn(allEffectScriptValues(card), referenced);
-            for (const id of referenced) expect(declared).toContain(id);
+            // One assertion over the set: a card whose kicker gates nothing
+            // references no id, and a per-id loop would assert nothing.
+            expect([...referenced].filter((id) => !declared.has(id))).toEqual(
+                []
+            );
         }
     );
 

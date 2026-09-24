@@ -60,6 +60,7 @@ import {
     makeState,
 } from "../../cards/__tests__/setup";
 import { getCardByName, registerTokenDefinition } from "../../cards";
+import { spellCastTrigger } from "../../cards/abilities/triggers/spellCastTrigger";
 
 const DAMN = getCardByName("Damn");
 const WINDS = getCardByName("Winds of Abandon");
@@ -98,6 +99,40 @@ registerTokenDefinition({
         mana: { X: "X", W: 2 },
     },
     targetRequirement: { type: "Creature", count: 1, mvFilter: { max: "X" } },
+    effects: [
+        {
+            op: "forEach",
+            select: { set: "targets" },
+            effects: [{ op: "destroy", target: { ref: "$each" } }],
+        },
+    ],
+});
+
+/** An overload card with its own "when you cast this spell" trigger. That
+ *  trigger is built by SPREADING the cast spell (`collectSelfCastTriggers`),
+ *  which is exactly how it could inherit the spell's overload marker (PR #3288
+ *  review finding 1). Synthetic: no shipped overload card has a cast trigger. */
+const SELF_CAST_PROBE_ID = "test:overload-self-cast-probe";
+registerTokenDefinition({
+    id: SELF_CAST_PROBE_ID,
+    rarity: "rare",
+    name: "Overload Self-Cast Probe",
+    manaCost: { W: 1 },
+    types: ["Sorcery"],
+    overload: {
+        id: "overload",
+        description: "Overload {2}{W}{W}",
+        mana: { X: 2, W: 2 },
+    },
+    targetRequirement: { type: "Creature", count: 1 },
+    triggeredAbilities: [
+        spellCastTrigger({
+            id: "overload-self-cast",
+            oracleText: "When you cast this spell, take an extra turn.",
+            scope: "self",
+            effects: [{ op: "extraTurn", player: "controller" }],
+        }),
+    ],
     effects: [
         {
             op: "forEach",
@@ -513,12 +548,25 @@ describe("Overload — the marker is CAST-INSTANCE scoped (CR 702.96a, PR #3288 
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
-        const item = damnOnStack(state, { overloaded: true });
+        const item: StackItem = {
+            ...handCard(SELF_CAST_PROBE_ID, "probe"),
+            zone: "stack",
+            castById: "p1",
+            overloaded: true,
+        };
+        state.stack.push(item);
+        // `emitSpellCastEvent` collects the self-cast trigger itself
+        // (`collectSelfCastTriggers`), as the real cast path does.
         emitSpellCastEvent(state, item);
-        for (const queued of state.stack) {
-            if (queued.id === item.id) continue;
-            expect(queued.overloaded).toBeUndefined();
-        }
+        const triggers = state.stack.filter((queued) => queued.id !== item.id);
+        // The trigger IS on the stack — without it the claim below holds of
+        // an empty list, which is how this block once asserted nothing
+        // (issue #4492).
+        expect(triggers.map((t) => t.triggeredAbilityId)).toEqual([
+            "overload-self-cast",
+        ]);
+        expect(triggers[0].overloaded).toBeUndefined();
+        expect(item.overloaded).toBe(true);
     });
 });
 

@@ -99,13 +99,13 @@ describe("COST_LEG_CLAIMS — the activation-cost leg census (issue #3007)", () 
     });
 
     it("a declared hole names the sibling issue that tracks it", () => {
-        for (const [leg, claim] of entries) {
-            if (!claim.hole) continue;
-            expect(
-                /^#\d+$/.test(claim.hole),
-                `${leg} declares a hole but its tracking reference is not an issue number`
-            ).toBe(true);
-        }
+        const untracked = entries
+            .filter(([, claim]) => claim.hole && !/^#\d+$/.test(claim.hole))
+            .map(([leg]) => leg);
+        expect(
+            untracked,
+            "these legs declare a hole whose tracking reference is not an issue number"
+        ).toEqual([]);
     });
 
     // The derivation replaced a hand-maintained array. This pins that it

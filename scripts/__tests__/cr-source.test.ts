@@ -156,22 +156,26 @@ describe("no third-party CR mirror in the workflow (ADR 0098)", () => {
     const MIRRORS = ["yawgatog.com", "ancestral.vision", "mtg.fandom.com"];
 
     for (const file of INSTRUCTION_FILES) {
-        it(`${file} names no mirror as a fetch target`, () => {
-            const full = path.join(REPO_ROOT, file);
-            if (!fs.existsSync(full)) return; // settings.local.json is per-machine
-            const text = fs.readFileSync(full, "utf8");
-            for (const mirror of MIRRORS) {
-                // The mtg-rules-check skill names them once, in the prohibition.
-                const asTarget = new RegExp(
-                    `(WebFetch\\(domain:${mirror.replace(".", "\\.")}\\)|https?://[\\w.]*${mirror.replace(".", "\\.")})`,
-                    "i"
-                );
-                expect(
-                    asTarget.test(text),
-                    `${file} still points at ${mirror}`
-                ).toBe(false);
+        const full = path.join(REPO_ROOT, file);
+        // settings.local.json is per-machine: absent, there is nothing to read,
+        // and a block that returns early asserts nothing (issue #4492).
+        it.skipIf(!fs.existsSync(full))(
+            `${file} names no mirror as a fetch target`,
+            () => {
+                const text = fs.readFileSync(full, "utf8");
+                for (const mirror of MIRRORS) {
+                    // The mtg-rules-check skill names them once, in the prohibition.
+                    const asTarget = new RegExp(
+                        `(WebFetch\\(domain:${mirror.replace(".", "\\.")}\\)|https?://[\\w.]*${mirror.replace(".", "\\.")})`,
+                        "i"
+                    );
+                    expect(
+                        asTarget.test(text),
+                        `${file} still points at ${mirror}`
+                    ).toBe(false);
+                }
             }
-        });
+        );
     }
 
     it("the rules-check skill points at the vendored document", () => {

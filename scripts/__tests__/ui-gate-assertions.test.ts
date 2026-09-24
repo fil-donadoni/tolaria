@@ -72,13 +72,19 @@ describe("check:ui surface table — Named Assertions", () => {
     });
 
     it("the debt list only names surfaces that exist and still declare nothing", () => {
+        // One assertion over the whole list, not one per entry: an empty
+        // debt list is the goal state, and a loop over it asserts nothing
+        // (issue #4492, `requireAssertions`).
         const ids = new Set(SURFACES.map((s) => s.id));
-        for (const entry of ASSERTION_DEBT) {
-            expect(ids.has(entry.surface), entry.surface).toBe(true);
+        const stale = ASSERTION_DEBT.filter((entry) => {
             const declared = SURFACES.find((s) => s.id === entry.surface);
-            expect(declared?.asserts ?? [], entry.surface).toEqual([]);
-            expect(entry.issue).toBeGreaterThan(0);
-        }
+            return (
+                !ids.has(entry.surface) ||
+                (declared?.asserts ?? []).length > 0 ||
+                !(entry.issue > 0)
+            );
+        }).map((entry) => entry.surface);
+        expect(stale).toEqual([]);
     });
 
     it("the auth and lobby surfaces declare theirs", () => {
