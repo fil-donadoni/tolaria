@@ -46,7 +46,12 @@ import {
 import { keywordVocabulary } from "./keywordVocabulary";
 import { durationRule, type DurationIR } from "./duration";
 import { playerRefRule, type PlayerRefIR } from "./playerRef";
-import { countedSetRule, readNumberWord, type CountedSetIR } from "./quantity";
+import {
+    countedSetRule,
+    numberOfSetRule,
+    readNumberWord,
+    type CountedSetIR,
+} from "./quantity";
 import { isSelfPhrase } from "./cost";
 import { SELF_MARKER } from "../../normalize";
 import type { ParseContext } from "../../types";
@@ -1716,6 +1721,14 @@ const DAMAGE_EQUAL_MANA_VALUE = new RegExp(
     `^(.+) deals damage equal to ${actedOnNounGroup(["permanent"])} mana value to (.+)$`
 );
 /**
+ * CR 107.1 + CR 119.3 — "{self} deals damage to target creature equal to the
+ * number of Mountains you control" (Rockslide Ambush). Recipient and count are
+ * both open spans; "equal to the number of" is the only anchor between them,
+ * so the recipient is read lazily up to it.
+ */
+const DAMAGE_EQUAL_COUNT =
+    /^(.+) deals damage to (.+?) equal to (the number of .+)$/;
+/**
  * CR 608.2c — a drain: "Target player loses 2 life and you gain 2 life". The
  * loss reads through `LIFE` like any other, and the gain is pinned to exactly
  * "you gain N life" (anti-leniency, as `YOU_DRAW_AND_LOSE_LIFE`): every other
@@ -2565,6 +2578,28 @@ function effectSentence(
         return ok({
             kind: "deal-damage" as const,
             amount,
+            to: to.value,
+            ...(dealerIsPronoun ? { sourceIsPronoun: true as const } : {}),
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── damage equal to a counted set (CR 107.1) ───────────────────────────
+    const damageCount = span.match(DAMAGE_EQUAL_COUNT);
+    if (damageCount !== null) {
+        const dealer = uncapitalise(damageCount[1]!);
+        const dealerIsPronoun = dealer === PRONOUN_MARKER;
+        if (!dealerIsPronoun && !isSelfPhrase(dealer))
+            return fail(
+                `"${damageCount[1]}" is not a damage source this grammar knows`,
+                span
+            );
+        const set = numberOfSetRule.run(damageCount[3]!, ctx);
+        if (!set.ok) return set;
+        const to = subjectRule.run(damageCount[2]!, ctx);
+        if (!to.ok) return to;
+        return ok({
+            kind: "deal-damage" as const,
+            amount: { kind: "counted" as const, times: 1, set: set.value },
             to: to.value,
             ...(dealerIsPronoun ? { sourceIsPronoun: true as const } : {}),
         } satisfies EffectSentenceIR);
