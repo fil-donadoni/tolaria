@@ -2617,6 +2617,7 @@ export function keyedMovesFor(
  *  window and is excluded separately. */
 const TRANSIENT_PAYOFF_PHASES: ReadonlySet<string> = new Set([
     "DECLARE_BLOCKERS",
+    "FIRST_STRIKE_DAMAGE",
     "COMBAT_DAMAGE",
 ]);
 

@@ -8130,7 +8130,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
     {
         // SACRIFICE-OUTLET reachability (CR 701.21a, issue #4261). The bot's
         // precombat main, a Grizzly Bears on each side, Nantuko Husk in hand
-        // and three untapped Swamps for its {2}{B}: a 2/2 body that can turn
+        // and five untapped Swamps for its {2}{B}: a 2/2 body that can turn
         // any creature into +2/+2 until end of turn. Casting it is strictly
         // better than holding it.
         //
@@ -8139,7 +8139,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         // the cast, and the rollouts drew it at random, so each rollout that
         // held the outlet stripped its own board. A twin whose ability cost
         // mana instead of a creature was cast. Fixed by class, not by card:
-        // `isDeferrableTransientSacrifice` and `isSacrificeConversion`
+        // `isDeferrableTransientSacrifice` and `isTransientSacrificeConversion`
         // (`search.ts`).
         label: "Sacrifice outlet with a transient payoff: casts the creature",
         spec: {
