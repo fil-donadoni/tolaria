@@ -16,6 +16,7 @@ import { parseLockfile, type CardRow } from "../lib/oracle-lockfile";
 import {
     claimId,
     coverageState,
+    coverageVerdict,
     quarantineClass,
     gapIndex,
     parseNameList,
@@ -70,6 +71,14 @@ describe("data/targets.json — the registered Target Lists", () => {
                 .sort((a, b) => a.priority! - b.priority!)
                 .map((t) => t.id)
         ).toEqual(["premodern-metagame", "vintage-cube", "format-premodern"]);
+    });
+
+    it("flags premodern-metagame as a `ready` Target and no other (issue #4519)", () => {
+        expect(
+            registry.targets
+                .filter((t) => t.completion === "ready")
+                .map((t) => t.id)
+        ).toEqual(["premodern-metagame"]);
     });
 
     it("resolves every registered Target to 100% oracle ids of the pinned corpus", () => {
@@ -222,6 +231,32 @@ describe("parseTargetRegistry rejects a malformed registry", () => {
         expect(parseTargetRegistry(doc({})).targets).toHaveLength(2);
     });
 
+    it.each(["playable", "ready"])("accepts `completion: %s`", (completion) => {
+        const registry = parseTargetRegistry(
+            doc({
+                targets: [{ id: "a", kind: "set", source: "x", completion }],
+            })
+        );
+        expect(registry.targets[0]!.completion).toBe(completion);
+    });
+
+    it("rejects an unknown `completion`, naming the row", () => {
+        expect(() =>
+            parseTargetRegistry(
+                doc({
+                    targets: [
+                        {
+                            id: "a",
+                            kind: "set",
+                            source: "x",
+                            completion: "all",
+                        },
+                    ],
+                })
+            )
+        ).toThrow(/a: unknown `completion` `all`/);
+    });
+
     it.each([
         ["a non-positive floor", { handTailFloor: 0 }, /handTailFloor/],
         [
@@ -322,6 +357,47 @@ describe("coverage states — exactly one per card", () => {
             // The marker never outranks a gap (issue #3868): the gap climbed.
             ["hc", "gap-pending"],
         ]);
+    });
+
+    it("a `ready` Target has no floor: a below-floor gap owes a grammar claim, and Hand Tail never settles the card (issue #4519)", () => {
+        const verdict = (id: string, over: Partial<CoverageContext> = {}) =>
+            coverageVerdict(byOracleId.get(id)!, { ...ctx, ...over }, "ready");
+        // "Below" carries a gap of 1 card (floor 3): Hand Tail under `playable`,
+        // unclaimed under `ready` until its `grammar` claim exists.
+        expect(coverageState(byOracleId.get("b")!, ctx)).toBe("unclaimed");
+        const [BELOW] = gaps.gapKeys(byOracleId.get("b")!);
+        expect(verdict("b").state).toBe("unclaimed");
+        expect(verdict("b").why).toContain("`grammar` claim");
+        expect(
+            verdict("b", {
+                claims: new Set([...ctx.claims, claimId("grammar", BELOW!)]),
+            }).state
+        ).toBe("gap-pending");
+        // "Declared" has a marker and a gap of 2 corpus cards: the marker
+        // settles it under `playable`, but under `ready` the gap is grammar owed.
+        expect(coverageState(byOracleId.get("h")!, ctx)).toBe("hand-tail");
+        expect(verdict("h").state).toBe("unclaimed");
+        expect(verdict("h").why).toContain("no `grammar` claim");
+        // A gapless card cannot be owed a grammar claim; its `hand-tail` claim
+        // or marker is reported as not satisfying a `ready` Target.
+        const bare = row("g", "Gapless", "unparsed", { gaps: [] });
+        for (const over of [
+            { handTail: new Set(["g"]) },
+            {
+                claims: new Set([
+                    ...ctx.claims,
+                    claimId("hand-tail", "Gapless"),
+                ]),
+            },
+        ])
+            expect(coverageVerdict(bare, { ...ctx, ...over }, "ready")).toEqual(
+                {
+                    state: "unclaimed",
+                    why: expect.stringContaining(
+                        "does not satisfy a `ready` Target"
+                    ),
+                }
+            );
     });
 
     it("raises the floor and gap-pending falls to unclaimed", () => {

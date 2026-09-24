@@ -1137,6 +1137,36 @@ describe("the grammar kind files fragment gaps of enforced Targets, and the clai
         ).toEqual([]);
     });
 
+    it("a `ready` Target's card owes a grammar claim for a BELOW-floor gap too (issue #4519)", () => {
+        // t-1 carries NARROW_GAP (2 corpus cards, floor 3) and sits in a
+        // `completion: "ready"` Target: the floor does not apply to it.
+        const filings = buildFragmentGapFilings(
+            inputs(lock, {
+                enforced: new Set(["t-1"]),
+                floorless: new Set(["t-1"]),
+            })
+        );
+        expect(filings.map((f) => f.key)).toEqual([NARROW_GAP]);
+        expect(filings[0]!.body(1)).toContain(
+            "Enforced-Target cards held (1): Tail One"
+        );
+    });
+
+    it("a `ready` Target's card is never filed as hand-tail — it owes grammar", () => {
+        const tail = inputs(lock, {
+            handTailFiling: true,
+            enforced: new Set(["t-1"]),
+            ranked: new Set(["t-1"]),
+        });
+        expect(buildHandTailFilings(tail).filings.map((f) => f.key)).toEqual([
+            "Tail One",
+        ]);
+        expect(
+            buildHandTailFilings({ ...tail, floorless: new Set(["t-1"]) })
+                .filings
+        ).toEqual([]);
+    });
+
     it("skips a card that is not `unparsed` — a ready or quarantined card owes no grammar claim", () => {
         const mixed = {
             fragments: lock.fragments,

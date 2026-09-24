@@ -76,10 +76,19 @@ const CTX: CoverageContext = {
     ...gaps,
 };
 
-function coverage(ids: readonly string[], ctx: CoverageContext = CTX) {
+function coverage(
+    ids: readonly string[],
+    ctx: CoverageContext = CTX,
+    completion?: "playable" | "ready"
+) {
     return targetCoverage(
         {
-            row: { id: "t", kind: "name-list", source: "t.txt" },
+            row: {
+                id: "t",
+                kind: "name-list",
+                source: "t.txt",
+                ...(completion === undefined ? {} : { completion }),
+            },
             cards: ids.map((id) => ({
                 oracleId: id,
                 name: byOracleId.get(id)!.name,
@@ -380,6 +389,45 @@ describe("targetCompleted — the three clauses of the v1 gate", () => {
         );
         expect(formatCompletion(completion)).toContain(
             "never-chosen, covered by a must Test Position (1): Ready"
+        );
+    });
+});
+
+describe("targetCompleted — a `ready` Target completes at 100 % ready (issue #4519)", () => {
+    const READY_BOT = verdicts([played("Ready"), played("Ready Two")]);
+
+    it("is completed when every card is ready", () => {
+        const completion = targetCompleted(
+            coverage(["r", "r2"], CTX, "ready"),
+            READY_BOT
+        );
+        expect(completion.failing).toEqual([]);
+        expect(completion.completed).toBe(true);
+    });
+
+    it("lists a hand-written card as missing under a `ready` clause, where `playable` counts it green", () => {
+        const bot = verdicts([played("Ready"), played("Held Hand-Written")]);
+        const asPlayable = targetCompleted(coverage(GREEN_IDS), bot);
+        expect(asPlayable.completed).toBe(true);
+
+        const completion = targetCompleted(
+            coverage(GREEN_IDS, CTX, "ready"),
+            bot
+        );
+        expect(completion.completed).toBe(false);
+        expect(completion.failing).toEqual(["ready"]);
+        expect(completion.playable.missing).toEqual(["Held Hand-Written"]);
+        const text = formatCompletion(completion);
+        expect(text).toContain("completed: no — ready");
+        expect(text).toContain("ready — 1 card(s) not ready");
+        expect(text).toContain("Held Hand-Written");
+        expect(text).not.toContain("playable —");
+    });
+
+    it("defaults to `playable` when the row names no completion", () => {
+        expect(coverage(GREEN_IDS).completion).toBe("playable");
+        expect(coverage(GREEN_IDS, CTX, "playable").completion).toBe(
+            "playable"
         );
     });
 });
