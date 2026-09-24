@@ -219,8 +219,10 @@ describe("morph — Bot search appliers put the right object on the board", () =
         expect(next.stack).toHaveLength(0);
     });
 
-    it("ISMCTS tree: turn-face-up reveals the REAL creature and keeps priority", () => {
-        const state = faceDownBoard(4);
+    it("ISMCTS tree: turn-face-up reveals the REAL creature, taps the morph cost and keeps priority", () => {
+        // Five Plains for the {2}{W}{W} morph cost: the payment leg must tap
+        // four and leave one (issue #4478).
+        const state = faceDownBoard(5);
         applyMoveInSearch(state, "p1", {
             kind: "turn-face-up",
             cardInstanceId: "morphed",
@@ -230,6 +232,10 @@ describe("morph — Bot search appliers put the right object on the board", () =
         )!;
         expect(permanent.faceDown).toBeUndefined();
         expect(getEffectivePower(state, permanent)).toBe(4);
+        const lands = state.players[0].battlefield.filter((c) =>
+            c.id.startsWith("plains")
+        );
+        expect(lands.filter((c) => c.isTapped)).toHaveLength(4);
         expect(state.stack).toHaveLength(0);
         expect(state.passCount).toBe(0);
         expect(state.priorityPlayerId).toBe("p1");

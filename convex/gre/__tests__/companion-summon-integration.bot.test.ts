@@ -1,5 +1,6 @@
 // Integration: the `summon-companion` special action (CR 116.2 / 702.139a,
-// ADR 0064) — GRE move loop (enumerateMoves/applyMoveForSearch) AND the
+// ADR 0064) — GRE move loop (enumerateMoves/applyMoveForSearch), the ISMCTS
+// in-tree applier (applyMoveInSearch, issue #4478) AND the
 // authoritative `summonCompanion` mutation (game.ts). The project has no
 // convex-test harness (see moves-integration.test.ts's own header), so the
 // mutation's core sequence is replicated here against the SAME pure
@@ -25,6 +26,7 @@ import {
 import { MANA_COLORS } from "../constants";
 import { enumerateMoves } from "../moves";
 import { applyMoveForSearch } from "../applyMove";
+import { applyMoveInSearch } from "../search";
 import { lutri } from "../../cards/sets/iko/multicolor";
 import { getCardByName } from "../../cards";
 import type { GameState, PlayerState } from "../state";
@@ -140,6 +142,47 @@ describe("summon-companion — GRE move loop (CR 116.2, ADR 0064)", () => {
         expect(next.stack).toHaveLength(0);
         // The original (pre-move) state is untouched — pure simulation.
         expect(state.players[0].companion?.used).toBe(false);
+    });
+});
+
+describe("summon-companion — ISMCTS in-tree applier (CR 116.2, issue #4478)", () => {
+    it("applyMoveInSearch: taps exactly the {3}, moves the companion to hand, marks it used, no stack item, keeps priority", () => {
+        // Four Mountains for a {3} cost: the payment leg must tap three and
+        // leave one, so "tapped everything" and "tapped nothing" both red.
+        const state = makeState({
+            players: [
+                playerWithCompanion({
+                    battlefield: Array.from({ length: 4 }, () =>
+                        makeInstance(MOUNTAIN, {
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        })
+                    ),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        state.passCount = 1;
+        const move = enumerateMoves(state, "p1").find(
+            (m) => m.kind === "summon-companion"
+        );
+        expect(move).toBeDefined();
+
+        applyMoveInSearch(state, "p1", move!);
+
+        const p1 = state.players[0];
+        expect(p1.companion?.used).toBe(true);
+        expect(
+            p1.hand.some(
+                (c) => c.card && (c.card as { id: string }).id === lutri.id
+            )
+        ).toBe(true);
+        expect(p1.battlefield.filter((c) => c.isTapped)).toHaveLength(3);
+        expect(state.stack).toHaveLength(0);
+        // CR 116.2a — a special action: the pass cycle restarts and the
+        // actor keeps priority.
+        expect(state.passCount).toBe(0);
+        expect(state.priorityPlayerId).toBe("p1");
     });
 });
 
