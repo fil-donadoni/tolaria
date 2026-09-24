@@ -8,7 +8,7 @@
 // own comment in `convex/game.ts` for the shape.
 //
 // The project has no `convex-test` harness (see
-// `convex/__tests__/debugSetupScenario.test.ts`), so the Convex-runtime
+// `convex/__tests__/adminAuth.test.ts`), so the Convex-runtime
 // slice of the handler (the `ctx` calls) genuinely cannot be driven from
 // here and is covered by convention instead, not by exercising the mutation
 // itself:
