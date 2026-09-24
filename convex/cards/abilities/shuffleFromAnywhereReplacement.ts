@@ -48,7 +48,7 @@
 // non-stack-item contexts) have no stack item to key a notification against
 // — genuine new engine plumbing (a stack-item-independent reveal
 // addressing scheme), not a one-line addition. tracked-by: #2557.
-import type { ReplacementEffect } from "../types";
+import type { CardDefinition, ReplacementEffect } from "../types";
 
 export function shuffleFromAnywhereReplacement(args: {
     id: string;
@@ -77,4 +77,54 @@ export function shuffleFromAnywhereReplacement(args: {
             };
         },
     };
+}
+
+/** The clause as printed, with the card's own name (CR 201.4a) where Oracle
+ *  says "this card". The compiler accepts exactly this sentence, so the
+ *  rebuilt text is the printed one. */
+export function shuffleFromAnywhereOracleText(name: string): string {
+    return `If ${name} would be put into a graveyard from anywhere, reveal ${name} and shuffle it into its owner's library instead.`;
+}
+
+/** `blightsteel-colossus-shuffle` — the id the hand-written catalogue gives
+ *  the entry, derived from the name so a compiled card and its hand-written
+ *  twin carry one id. */
+export function shuffleFromAnywhereId(name: string): string {
+    const slug = name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+    return `${slug}-shuffle`;
+}
+
+/**
+ * ADR 0054 seam — rebuild the Oracle compiler's JSON-pure
+ * `CardDefinition.shuffleFromAnywhere` flag into the `replacementEffects[]`
+ * entry above, and REMOVE the flag from the expanded definition, for the
+ * reason `expandCompiledStatics` gives: the expanded definition is what every
+ * engine read sees and what the gold harness compares against the
+ * hand-written card, so a leftover flag would read as a compiler defect.
+ */
+export function expandShuffleFromAnywhere(
+    base: CardDefinition
+): CardDefinition {
+    if (base.shuffleFromAnywhere !== true) return base;
+    const id = shuffleFromAnywhereId(base.name);
+    const existing = base.replacementEffects ?? [];
+    const expanded: CardDefinition = {
+        ...base,
+        // Idempotence guard: a definition that already spells the entry out
+        // by hand must not end up replacing the event twice.
+        replacementEffects: existing.some((r) => r.id === id)
+            ? existing
+            : [
+                  ...existing,
+                  shuffleFromAnywhereReplacement({
+                      id,
+                      oracleText: shuffleFromAnywhereOracleText(base.name),
+                  }),
+              ],
+    };
+    delete expanded.shuffleFromAnywhere;
+    return expanded;
 }
