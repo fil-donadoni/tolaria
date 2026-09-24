@@ -31,7 +31,7 @@ import type {
     TargetRequirement,
 } from "../../cards/types";
 import type { ScenarioCard, ScenarioSpec } from "../../debugScenarioSpec";
-import { manaValue } from "../constants";
+import { LAND_SUBTYPE_MANA, manaValue } from "../constants";
 import { targetSlotBeneficence } from "./beneficence";
 
 /** The plain creature every generated position seeds (both sides), and the
@@ -210,8 +210,9 @@ function grantedBody(
 }
 
 /** The requirement a single-target creature spell states, if it is one. */
-function creatureRequirement(def: CardDefinition): TargetRequirement | null {
-    const req = def.targetRequirement;
+function creatureRequirement(
+    req: CardDefinition["targetRequirement"]
+): TargetRequirement | null {
     if (!req || Array.isArray(req)) return null;
     const types = Array.isArray(req.type) ? req.type : [req.type];
     return types.includes("Creature") ? req : null;
@@ -219,9 +220,10 @@ function creatureRequirement(def: CardDefinition): TargetRequirement | null {
 
 /** The requirement a single-target LAND spell states, if it is one — a type
  *  list of exactly Land. Its subtype / supertype / nonbasic clauses are not
- *  read: the pose is a basic Forest, so a narrower filter is not yet posed. */
-function landRequirement(def: CardDefinition): TargetRequirement | null {
-    const req = def.targetRequirement;
+ *  read, except a basic land type (CR 305.6), which names the land posed. */
+function landRequirement(
+    req: CardDefinition["targetRequirement"]
+): TargetRequirement | null {
     if (!req || Array.isArray(req)) return null;
     const types = Array.isArray(req.type) ? req.type : [req.type];
     return types.length === 1 && types[0] === "Land" ? req : null;
@@ -233,13 +235,19 @@ function landRequirement(def: CardDefinition): TargetRequirement | null {
  *  the verdict read `never-chosen` about a position that never posed the
  *  question (issue #4262). A land destroyer is posed on the side where it is
  *  worth casting — the opponent's, or the holder's own for a boon. The land is
- *  a basic Forest, legal for any plain `Land` target. */
-function landPose(def: CardDefinition, req: TargetRequirement): TargetPose {
-    const owner = favoursItsTarget(def, req) ? "me" : "opp";
+ *  a basic Forest, legal for any plain `Land` target, unless the requirement
+ *  names a basic land type: then that basic. */
+function landPose(
+    def: CardDefinition,
+    req: TargetRequirement,
+    modeId: string | undefined
+): TargetPose {
+    const owner = favoursItsTarget(def, req, modeId) ? "me" : "opp";
+    const named = asList(req.subtypeFilter).find((s) => s in LAND_SUBTYPE_MANA);
     return {
         cards:
             owner === "opp"
-                ? [{ name: TARGET_LAND, owner, zone: "battlefield" }]
+                ? [{ name: named ?? TARGET_LAND, owner, zone: "battlefield" }]
                 : [],
         omitToughnessBoost: false,
         position: {},
@@ -252,11 +260,12 @@ function landPose(def: CardDefinition, req: TargetRequirement): TargetPose {
  *  a requirement that says "you control" says the same thing outright. */
 function favoursItsTarget(
     def: CardDefinition,
-    req: TargetRequirement
+    req: TargetRequirement,
+    modeId?: string
 ): boolean {
     return (
         req.controller === "you" ||
-        targetSlotBeneficence(def, undefined, 0) === "beneficial"
+        targetSlotBeneficence(def, modeId, 0) === "beneficial"
     );
 }
 
@@ -312,7 +321,7 @@ const TRICK_COMBAT: TargetPose["position"] = {
 export function combatTrickPosition(
     def: CardDefinition
 ): TargetPose["position"] | null {
-    const req = creatureRequirement(def);
+    const req = creatureRequirement(def.targetRequirement);
     return req && !narrows(req) && isCombatTrick(def, req)
         ? TRICK_COMBAT
         : null;
@@ -359,16 +368,38 @@ function narrows(req: TargetRequirement): boolean {
  * the holder).
  */
 export function targetPose(def: CardDefinition): TargetPose {
-    const landReq = landRequirement(def);
-    if (landReq) return landPose(def, landReq);
-    const req = creatureRequirement(def);
+    const modes = def.targetRequirement ? [] : (def.modes ?? []);
+    if (modes.length === 0)
+        return requirementPose(def, def.targetRequirement, undefined);
+    // A modal spell states its targets per mode (CR 700.2a): the position holds
+    // what EACH mode needs, so whichever the Bot picks has a legal target
+    // (issue #4268). A combat a mode's role names is the first such mode's.
+    const poses = modes.map((m) =>
+        requirementPose(def, m.targetRequirement, m.id)
+    );
+    return {
+        cards: poses.flatMap((p) => p.cards),
+        omitToughnessBoost: poses.some((p) => p.omitToughnessBoost),
+        position: poses.find((p) => p.position.phase)?.position ?? {},
+    };
+}
+
+/** The pose for ONE target requirement — the spell's own, or a mode's. */
+function requirementPose(
+    def: CardDefinition,
+    target: CardDefinition["targetRequirement"],
+    modeId: string | undefined
+): TargetPose {
+    const landReq = landRequirement(target);
+    if (landReq) return landPose(def, landReq, modeId);
+    const req = creatureRequirement(target);
     if (!req || !narrows(req)) return NO_POSE;
     const printed = creatureFor(req);
     const granted = printed === null ? grantedBody(req) : null;
     const body = printed ?? granted?.body ?? null;
     if (body === null) return NO_POSE;
     const name = body.name;
-    const owner = favoursItsTarget(def, req) ? "me" : "opp";
+    const owner = favoursItsTarget(def, req, modeId) ? "me" : "opp";
     const other = owner === "me" ? "opp" : "me";
     // The position already seeds the base creature on both sides.
     const tapped = req.tappedFilter === "tapped";
