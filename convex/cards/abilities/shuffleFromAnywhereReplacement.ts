@@ -79,7 +79,7 @@ export function shuffleFromAnywhereReplacement(args: {
     };
 }
 
-/** The clause as printed, with the card's own name (CR 201.4a) where Oracle
+/** The clause as printed, with the card's own name (CR 201.5) where Oracle
  *  says "this card". The compiler accepts exactly this sentence, so the
  *  rebuilt text is the printed one. */
 export function shuffleFromAnywhereOracleText(name: string): string {

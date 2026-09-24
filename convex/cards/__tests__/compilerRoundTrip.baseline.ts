@@ -228,7 +228,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Bleachbone Verge",
     "Blessed Wine",
     "Blight",
-    "Blightsteel Colossus",
     "Blizzard",
     "Blood Crypt",
     "Blood Lust",

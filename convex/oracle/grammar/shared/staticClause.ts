@@ -1083,11 +1083,11 @@ const skipDrawStepRule: Rule<StaticClauseIR> = pattern(
  * (`shuffleFromAnywhereReplacement`, issue #2106), including its one confessed
  * simplification: the CR 701.20a reveal is not modelled (tracked-by: #2557).
  *
- * Both self references must name THIS object (CR 109.2). Every neighbour stays
+ * Both self references must name THIS object (CR 201.5). Every neighbour stays
  * refused by the anchored regex: the "When <self> is put into a graveyard from
  * anywhere" TRIGGER (Emrakul, the Aeons Torn — CR 603, not a replacement), an
- * exile redirect, a wording without "reveal", and the same sentence on a spell
- * (Nexus of Fate), which never reaches this slot.
+ * exile redirect, and a wording without "reveal". The same sentence on an
+ * instant (Nexus of Fate) is a separate Grammar Gap under the spell slot.
  */
 const SHUFFLE_FROM_ANYWHERE =
     /^If (.+) would be put into a graveyard from anywhere, reveal (.+) and shuffle it into its owner's library instead$/;
@@ -1099,7 +1099,7 @@ const shuffleFromAnywhereRule: Rule<StaticClauseIR> = pattern(
         for (const phrase of [match[1]!, match[2]!])
             if (!isSelfPhrase(phrase))
                 return fail(
-                    `"${phrase}" is not this object (CR 109.2)`,
+                    `"${phrase}" is not this object (CR 201.5)`,
                     phrase
                 );
         return ok({ kind: "shuffle-from-anywhere" as const });

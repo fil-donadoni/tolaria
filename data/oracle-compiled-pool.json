@@ -40391,6 +40391,58 @@
         "setCode": "xln"
     },
     {
+        "name": "Legacy Weapon",
+        "types": [
+            "Artifact"
+        ],
+        "supertypes": [
+            "Legendary"
+        ],
+        "manaCost": {
+            "X": 7
+        },
+        "oracleText": "{W}{U}{B}{R}{G}: Exile target permanent.\nIf Legacy Weapon would be put into a graveyard from anywhere, reveal Legacy Weapon and shuffle it into its owner's library instead.",
+        "activatedAbilities": [
+            {
+                "id": "legacy-weapon-ability",
+                "oracleText": "{W}{U}{B}{R}{G}: Exile target permanent.",
+                "cost": {
+                    "mana": {
+                        "W": 1,
+                        "U": 1,
+                        "B": 1,
+                        "R": 1,
+                        "G": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "exile",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": [
+                        "Artifact",
+                        "Battle",
+                        "Creature",
+                        "Enchantment",
+                        "Land",
+                        "Planeswalker"
+                    ],
+                    "count": 1
+                }
+            }
+        ],
+        "shuffleFromAnywhere": true,
+        "id": "385d8691-b9bd-4b4d-86db-7a7cc6181104",
+        "rarity": "rare",
+        "setCode": "apc"
+    },
+    {
         "name": "Refute",
         "types": [
             "Instant"
@@ -131544,6 +131596,36 @@
         "setCode": "m13"
     },
     {
+        "name": "Progenitus",
+        "types": [
+            "Creature"
+        ],
+        "supertypes": [
+            "Legendary"
+        ],
+        "subtypes": [
+            "Hydra",
+            "Avatar"
+        ],
+        "manaCost": {
+            "W": 2,
+            "U": 2,
+            "B": 2,
+            "R": 2,
+            "G": 2
+        },
+        "power": 10,
+        "toughness": 10,
+        "oracleText": "Protection from everything\nIf Progenitus would be put into a graveyard from anywhere, reveal Progenitus and shuffle it into its owner's library instead.",
+        "staticAbilities": [
+            "protection from everything"
+        ],
+        "shuffleFromAnywhere": true,
+        "id": "bcc764b0-3046-4bde-b424-c0f4e1a6169b",
+        "rarity": "mythic",
+        "setCode": "con"
+    },
+    {
         "name": "Fire Diamond",
         "types": [
             "Artifact"
@@ -141001,6 +141083,30 @@
         "id": "cbc0b009-3951-4aa3-985a-97139882da7e",
         "rarity": "rare",
         "setCode": "leg"
+    },
+    {
+        "name": "Darksteel Colossus",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Golem"
+        ],
+        "manaCost": {
+            "X": 11
+        },
+        "power": 11,
+        "toughness": 11,
+        "oracleText": "Trample (This creature can deal excess combat damage to the player or planeswalker it's attacking.)\nIndestructible (Damage and effects that say \"destroy\" don't destroy this creature.)\nIf Darksteel Colossus would be put into a graveyard from anywhere, reveal Darksteel Colossus and shuffle it into its owner's library instead.",
+        "staticAbilities": [
+            "trample",
+            "indestructible"
+        ],
+        "shuffleFromAnywhere": true,
+        "id": "cbc27b24-f085-48b0-8757-cd11fbf25b91",
+        "rarity": "rare",
+        "setCode": "dst"
     },
     {
         "name": "Canopy Gorger",

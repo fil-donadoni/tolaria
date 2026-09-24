@@ -183,7 +183,7 @@ import {
 // activated ability): Armor of Faith, Blessing, Crown of Flames, Firebreathing,
 // Holy Armor and Stonehands round-trip once the pump on the host reads as a
 // `$host` script.
-const BASELINE_CEILING = 1507;
+const BASELINE_CEILING = 1506;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that
