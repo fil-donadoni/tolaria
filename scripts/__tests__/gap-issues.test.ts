@@ -31,6 +31,7 @@ import {
     PRD_ISSUE,
     renderOpGapBody,
     SUB_ISSUE_CAP,
+    clusterIssues,
     syncGaps,
     type GapFiling,
     type GapTracker,
@@ -281,7 +282,9 @@ describe("syncGaps", () => {
                     body: () => "draw text",
                 }),
             ],
-            tracker
+            tracker,
+            undefined,
+            new Set([4001])
         );
         expect(result.actions.map((a) => a.action)).toEqual([
             "cluster",
@@ -291,6 +294,53 @@ describe("syncGaps", () => {
         expect(tracker.updateCalls).toBe(0);
         expect(tracker.getIssue(4001)?.body).toBe("cluster, by hand");
         expect(tracker.parents.get(4001)).toBe(4092);
+    });
+
+    it("a half-done cluster — one member's gap closed, so it files nothing — is still left alone", () => {
+        const tracker = new StubTracker();
+        tracker.issues.set(4001, { state: "OPEN", body: "cluster, by hand" });
+        tracker.parents.set(4001, 4092);
+        const rows = allowlist([
+            { key: ADD_MANA_KEY, op: "addMana", issue: 4001 },
+        ]);
+        const withClaim: Allowlist = {
+            ...rows,
+            claims: [
+                {
+                    kind: "grammar",
+                    key: "spell › effect clause › X",
+                    issue: 4001,
+                },
+            ],
+        };
+        const result = syncGaps(
+            [filing({ currentIssue: 4001, body: () => "addMana text" })],
+            tracker,
+            undefined,
+            clusterIssues(withClaim)
+        );
+        expect(result.actions.map((a) => a.action)).toEqual(["cluster"]);
+        expect(tracker.getIssue(4001)?.body).toBe("cluster, by hand");
+        expect(tracker.parents.get(4001)).toBe(4092);
+    });
+
+    it("clusterIssues counts allowlist rows — two rows on one issue, never the PRD placeholder", () => {
+        const rows: Allowlist = {
+            ops: [
+                { key: ADD_MANA_KEY, op: "addMana", issue: 4001 },
+                { key: "(op) › draw", op: "draw", issue: PRD_ISSUE },
+                { key: "(op) › mill", op: "mill", issue: PRD_ISSUE },
+                { key: "(op) › exile", op: "exile", issue: 4002 },
+            ],
+            claims: [
+                {
+                    kind: "grammar",
+                    key: "static › static clause › Y",
+                    issue: 4001,
+                },
+            ],
+        };
+        expect([...clusterIssues(rows)]).toEqual([4001]);
     });
 
     it("a gap gone from the allowlist is never passed in — its issue stays open", () => {

@@ -96,6 +96,7 @@ import {
     partitionCardIndex,
     RETIRED_UMBRELLAS,
     planUnlockEdges,
+    clusterIssues,
     syncGaps,
     syncUnlockEdges,
     withPartitionBands,
@@ -727,7 +728,8 @@ function main(): void {
     const result = syncGaps(
         withUnlockBlockers(filings, blockers),
         tracker,
-        originBand
+        originBand,
+        clusterIssues(allowlist)
     );
 
     const counts = new Map<string, number>();
