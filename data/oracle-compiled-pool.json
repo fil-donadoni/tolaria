@@ -1423,6 +1423,35 @@
         "setCode": "ths"
     },
     {
+        "name": "Pillar of Light",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "Exile target creature with toughness 4 or greater.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "toughnessFilter": {
+                "min": 4
+            }
+        },
+        "id": "018ff99e-a23d-4440-8c5c-cfb4942f1906",
+        "rarity": "common",
+        "setCode": "m15"
+    },
+    {
         "name": "Nip Gwyllion",
         "types": [
             "Creature"
@@ -4589,6 +4618,31 @@
         "id": "05bc4236-566f-401b-b9d7-f58126fa228b",
         "rarity": "common",
         "setCode": "thb"
+    },
+    {
+        "name": "Erase",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "oracleText": "Exile target enchantment.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Enchantment",
+            "count": 1
+        },
+        "id": "05c89d61-3c2e-4d70-86d6-f70eba3d327f",
+        "rarity": "common",
+        "setCode": "ulg"
     },
     {
         "name": "River's Favor",
@@ -7899,6 +7953,51 @@
         "id": "0a605abc-78e8-47ba-9022-0fad9006fd05",
         "rarity": "common",
         "setCode": "rix"
+    },
+    {
+        "name": "Silverchase Fox",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Fox"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{1}{W}, Sacrifice this creature: Exile target enchantment.",
+        "activatedAbilities": [
+            {
+                "id": "silverchase-fox-ability",
+                "oracleText": "{1}{W}, Sacrifice this creature: Exile target enchantment.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "W": 1
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "exile",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Enchantment",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "0a81bfab-3397-4562-8b82-5f24cef167e3",
+        "rarity": "common",
+        "setCode": "isd"
     },
     {
         "name": "Fire-Lit Thicket",
@@ -17860,6 +17959,35 @@
         "setCode": "soi"
     },
     {
+        "name": "Revoke Existence",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "Exile target artifact or enchantment.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Artifact",
+                "Enchantment"
+            ],
+            "count": 1
+        },
+        "id": "18ae62f9-361c-4849-b0af-2b08fc0421c8",
+        "rarity": "common",
+        "setCode": "som"
+    },
+    {
         "name": "Reclaiming Vines",
         "types": [
             "Sorcery"
@@ -18009,6 +18137,50 @@
         "id": "193289c9-837d-4d18-9ef1-720e8e335e62",
         "rarity": "uncommon",
         "setCode": "grn"
+    },
+    {
+        "name": "Lightbringer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Kor",
+            "Rebel"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{T}, Sacrifice this creature: Exile target black creature.",
+        "activatedAbilities": [
+            {
+                "id": "lightbringer-ability",
+                "oracleText": "{T}, Sacrifice this creature: Exile target black creature.",
+                "cost": {
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "exile",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "colorFilter": "B"
+                }
+            }
+        ],
+        "id": "19451993-7a53-4a50-bfca-ddc9cdfbe168",
+        "rarity": "common",
+        "setCode": "nem"
     },
     {
         "name": "Liliana's Steward",
@@ -23182,6 +23354,37 @@
         "setCode": "mrd"
     },
     {
+        "name": "Shoot Down",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "G": 1
+        },
+        "oracleText": "Exile target artifact, enchantment, or creature with flying.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Artifact",
+                "Enchantment",
+                "Creature"
+            ],
+            "count": 1,
+            "requireAbility": "flying"
+        },
+        "id": "20014a1c-197c-4e04-94b2-874886183e2f",
+        "rarity": "common",
+        "setCode": "bro"
+    },
+    {
         "name": "Ghosts of the Damned",
         "types": [
             "Creature"
@@ -25711,6 +25914,40 @@
         "id": "239e48d8-e2ba-4e25-88ef-301420c796b4",
         "rarity": "rare",
         "setCode": "mmq"
+    },
+    {
+        "name": "True Love's Kiss",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 2
+        },
+        "oracleText": "Exile target artifact or enchantment.\nDraw a card.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Artifact",
+                "Enchantment"
+            ],
+            "count": 1
+        },
+        "id": "23a4bac2-f6cb-4712-8510-a63657c43a5c",
+        "rarity": "common",
+        "setCode": "eld"
     },
     {
         "name": "How to Start a Riot",
@@ -31865,6 +32102,50 @@
         "setCode": "wth"
     },
     {
+        "name": "Lawbringer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Kor",
+            "Rebel"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{T}, Sacrifice this creature: Exile target red creature.",
+        "activatedAbilities": [
+            {
+                "id": "lawbringer-ability",
+                "oracleText": "{T}, Sacrifice this creature: Exile target red creature.",
+                "cost": {
+                    "tap": true,
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "exile",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "colorFilter": "R"
+                }
+            }
+        ],
+        "id": "2d76b7e3-6890-4120-8575-732909c8bdff",
+        "rarity": "common",
+        "setCode": "nem"
+    },
+    {
         "name": "Dakmor Scorpion",
         "types": [
             "Creature"
@@ -32396,6 +32677,35 @@
         "id": "2e4a0c29-a759-465f-9136-9d709b6f30fc",
         "rarity": "uncommon",
         "setCode": "ori"
+    },
+    {
+        "name": "Death in the Family",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Exile target creature with mana value 3 or less.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "mvFilter": {
+                "max": 3
+            }
+        },
+        "id": "2e4f2148-d398-4f3d-9c59-81c87b6a4588",
+        "rarity": "uncommon",
+        "setCode": "tmt"
     },
     {
         "name": "Whip Sergeant",
@@ -35191,6 +35501,42 @@
         "setCode": "iko"
     },
     {
+        "name": "Despark",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "W": 1,
+            "B": 1
+        },
+        "oracleText": "Exile target permanent with mana value 4 or greater.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Artifact",
+                "Battle",
+                "Creature",
+                "Enchantment",
+                "Land",
+                "Planeswalker"
+            ],
+            "count": 1,
+            "mvFilter": {
+                "min": 4
+            }
+        },
+        "id": "32b17dfc-b916-4134-ba77-501cff435e7e",
+        "rarity": "uncommon",
+        "setCode": "war"
+    },
+    {
         "name": "Safehold Duo",
         "types": [
             "Creature"
@@ -35944,6 +36290,44 @@
         "setCode": "mir"
     },
     {
+        "name": "Unmake",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "hybrid": [
+                [
+                    "W",
+                    "B"
+                ],
+                [
+                    "W",
+                    "B"
+                ],
+                [
+                    "W",
+                    "B"
+                ]
+            ]
+        },
+        "oracleText": "Exile target creature.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "338f7852-9f69-4406-b6ad-93a2574296f7",
+        "rarity": "common",
+        "setCode": "eve"
+    },
+    {
         "name": "Lathnu Sailback",
         "types": [
             "Creature"
@@ -36210,6 +36594,56 @@
         "id": "3400a39f-9dd1-4e86-b29a-3cb9758b60be",
         "rarity": "uncommon",
         "setCode": "ust"
+    },
+    {
+        "name": "Undead Slayer",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Cleric"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{W}, {T}: Exile target Skeleton, Vampire, or Zombie.",
+        "activatedAbilities": [
+            {
+                "id": "undead-slayer-ability",
+                "oracleText": "{W}, {T}: Exile target Skeleton, Vampire, or Zombie.",
+                "cost": {
+                    "mana": {
+                        "W": 1
+                    },
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "exile",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "subtypeFilter": [
+                        "Skeleton",
+                        "Vampire",
+                        "Zombie"
+                    ]
+                }
+            }
+        ],
+        "id": "3439568c-606e-4b95-b4fc-4d31e12ff30a",
+        "rarity": "uncommon",
+        "setCode": "m10"
     },
     {
         "name": "Cruel Cut",
@@ -36966,6 +37400,35 @@
         "id": "35952c24-d728-4ec6-b0d1-b8183a18554a",
         "rarity": "uncommon",
         "setCode": "dgm"
+    },
+    {
+        "name": "Blade Banish",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "oracleText": "Exile target creature with power 4 or greater.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "powerFilter": {
+                "min": 4
+            }
+        },
+        "id": "35a30091-7f68-4a67-b47e-f44318fc93b2",
+        "rarity": "common",
+        "setCode": "iko"
     },
     {
         "name": "Coral Eel",
@@ -39784,6 +40247,43 @@
         "setCode": "gtc"
     },
     {
+        "name": "Utter End",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1,
+            "B": 1
+        },
+        "oracleText": "Exile target nonland permanent.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Artifact",
+                "Battle",
+                "Creature",
+                "Enchantment",
+                "Land",
+                "Planeswalker"
+            ],
+            "count": 1,
+            "excludeTypes": [
+                "Land"
+            ]
+        },
+        "id": "39643107-8873-42f6-9b4d-b546a0a976ba",
+        "rarity": "rare",
+        "setCode": "ktk"
+    },
+    {
         "name": "Seal of Doom",
         "types": [
             "Enchantment"
@@ -42108,6 +42608,32 @@
         "id": "3d33ce7f-f318-4161-843a-f5bb6d6e3d29",
         "rarity": "common",
         "setCode": "tmp"
+    },
+    {
+        "name": "Wander Off",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 1
+        },
+        "oracleText": "Exile target creature.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "3d409512-50b9-4a38-91b0-19ba25227992",
+        "rarity": "common",
+        "setCode": "sos"
     },
     {
         "name": "Steel Wall",
@@ -51810,6 +52336,35 @@
         "id": "4ce3f1c6-2e6f-4087-8619-a01fdcc6d4a3",
         "rarity": "common",
         "setCode": "jou"
+    },
+    {
+        "name": "Blessed Light",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 4,
+            "W": 1
+        },
+        "oracleText": "Exile target creature or enchantment.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Creature",
+                "Enchantment"
+            ],
+            "count": 1
+        },
+        "id": "4cf3eb65-0f52-49c1-8243-14ce05de9f3b",
+        "rarity": "common",
+        "setCode": "dom"
     },
     {
         "name": "Courier Griffin",
@@ -66173,6 +66728,64 @@
         "setCode": "dis"
     },
     {
+        "name": "Bring to Trial",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "Exile target creature with power 4 or greater.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "powerFilter": {
+                "min": 4
+            }
+        },
+        "id": "63d566fc-0936-4035-96fd-f8b0c4eadbf5",
+        "rarity": "common",
+        "setCode": "rna"
+    },
+    {
+        "name": "Epic Downfall",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "oracleText": "Exile target creature with mana value 3 or greater.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "mvFilter": {
+                "min": 3
+            }
+        },
+        "id": "63da83fe-fa59-40cb-a42e-e1b14b650bc8",
+        "rarity": "uncommon",
+        "setCode": "eld"
+    },
+    {
         "name": "Boggart Ram-Gang",
         "types": [
             "Creature"
@@ -66777,6 +67390,39 @@
         "id": "6479a246-21ac-490a-aefb-6ed72aabdb88",
         "rarity": "uncommon",
         "setCode": "ogw"
+    },
+    {
+        "name": "Final Vengeance",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "B": 1
+        },
+        "oracleText": "As an additional cost to cast this spell, sacrifice a creature or enchantment.\nExile target creature.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "additionalCosts": {
+            "sacrificeFilter": {
+                "types": [
+                    "Creature",
+                    "Enchantment"
+                ]
+            }
+        },
+        "id": "648da934-71f6-4945-a08f-09698414417b",
+        "rarity": "common",
+        "setCode": "dsk"
     },
     {
         "name": "Clay Statue",
@@ -72135,6 +72781,35 @@
         "setCode": "p02"
     },
     {
+        "name": "Iona's Judgment",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 4,
+            "W": 1
+        },
+        "oracleText": "Exile target creature or enchantment.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Creature",
+                "Enchantment"
+            ],
+            "count": 1
+        },
+        "id": "6c2c308c-e681-4eba-8b62-bcc95f1e8548",
+        "rarity": "common",
+        "setCode": "wwk"
+    },
+    {
         "name": "Cabaretti Initiate",
         "types": [
             "Creature"
@@ -73277,6 +73952,38 @@
         "setCode": "hbg"
     },
     {
+        "name": "Scour from Existence",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 7
+        },
+        "oracleText": "Exile target permanent.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Artifact",
+                "Battle",
+                "Creature",
+                "Enchantment",
+                "Land",
+                "Planeswalker"
+            ],
+            "count": 1
+        },
+        "id": "6e47edb2-e43d-479f-a911-e72b67a06c3b",
+        "rarity": "common",
+        "setCode": "bfz"
+    },
+    {
         "name": "Baron, Airship Kingdom",
         "types": [
             "Land"
@@ -74275,6 +74982,35 @@
         "id": "6fe72bd9-825e-4451-9314-826882f75c85",
         "rarity": "uncommon",
         "setCode": "m19"
+    },
+    {
+        "name": "Not on My Watch",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "Exile target attacking creature.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "combatRoleFilter": [
+                "attacking"
+            ]
+        },
+        "id": "700294fc-7c16-4f7d-bce0-7452d8e9c401",
+        "rarity": "uncommon",
+        "setCode": "mkm"
     },
     {
         "name": "Autochthon Wurm",
@@ -75544,6 +76280,32 @@
         "id": "71fb2595-b4b5-40b4-a3b6-236c0e2cdc83",
         "rarity": "common",
         "setCode": "tle"
+    },
+    {
+        "name": "Caustic Rain",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 2
+        },
+        "oracleText": "Exile target land.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Land",
+            "count": 1
+        },
+        "id": "71fde21d-ce4e-41b7-97d5-c982f90b84a0",
+        "rarity": "uncommon",
+        "setCode": "gpt"
     },
     {
         "name": "Lightning Wolf",
@@ -83445,6 +84207,33 @@
         "setCode": "jud"
     },
     {
+        "name": "Excoriate",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "oracleText": "Exile target tapped creature.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "tappedFilter": "tapped"
+        },
+        "id": "7d5023a5-b77c-48c6-9e84-ef525300ecdf",
+        "rarity": "common",
+        "setCode": "bng"
+    },
+    {
         "name": "Woolly Thoctar",
         "types": [
             "Creature"
@@ -88503,6 +89292,60 @@
         "id": "84c1d384-d341-4bab-bf71-5dbcf76d51e8",
         "rarity": "uncommon",
         "setCode": "exo"
+    },
+    {
+        "name": "Devout Chaplain",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Cleric"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "{T}, Tap two untapped Humans you control: Exile target artifact or enchantment.",
+        "activatedAbilities": [
+            {
+                "id": "devout-chaplain-ability",
+                "oracleText": "{T}, Tap two untapped Humans you control: Exile target artifact or enchantment.",
+                "cost": {
+                    "tap": true,
+                    "tapOtherFilter": {
+                        "filter": {
+                            "subtypes": [
+                                "Human"
+                            ],
+                            "controllerRelation": "you"
+                        },
+                        "count": 2
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "exile",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": [
+                        "Artifact",
+                        "Enchantment"
+                    ],
+                    "count": 1
+                }
+            }
+        ],
+        "id": "84ceb7f1-14b7-4102-ade2-fbeb835d3804",
+        "rarity": "uncommon",
+        "setCode": "avr"
     },
     {
         "name": "Krenko's Command",
@@ -95749,6 +96592,32 @@
         "setCode": "eve"
     },
     {
+        "name": "Final Death",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 4,
+            "B": 1
+        },
+        "oracleText": "Exile target creature.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "8e5b8580-9198-4735-83c1-289400c1d814",
+        "rarity": "common",
+        "setCode": "thb"
+    },
+    {
         "name": "Pelakka Wurm",
         "types": [
             "Creature"
@@ -96329,6 +97198,66 @@
         "id": "8ed3c301-8d8e-45fe-902a-af03a79525be",
         "rarity": "common",
         "setCode": "mbs"
+    },
+    {
+        "name": "Glare of Heresy",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "Exile target white permanent.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Artifact",
+                "Battle",
+                "Creature",
+                "Enchantment",
+                "Land",
+                "Planeswalker"
+            ],
+            "count": 1,
+            "colorFilter": "W"
+        },
+        "id": "8ed3d16f-f0c6-4080-8913-758208b08234",
+        "rarity": "uncommon",
+        "setCode": "ths"
+    },
+    {
+        "name": "Final Reward",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 4,
+            "B": 1
+        },
+        "oracleText": "Exile target creature.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1
+        },
+        "id": "8f202f6b-710f-4376-a49c-e5f135b26eaf",
+        "rarity": "common",
+        "setCode": "akh"
     },
     {
         "name": "Reckless Abandon",
@@ -97392,6 +98321,48 @@
         "setCode": "dom"
     },
     {
+        "name": "Anguished Unmaking",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1,
+            "B": 1
+        },
+        "oracleText": "Exile target nonland permanent. You lose 3 life.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            },
+            {
+                "op": "loseLife",
+                "player": "controller",
+                "amount": 3
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Artifact",
+                "Battle",
+                "Creature",
+                "Enchantment",
+                "Land",
+                "Planeswalker"
+            ],
+            "count": 1,
+            "excludeTypes": [
+                "Land"
+            ]
+        },
+        "id": "90ced4fa-6509-4f7a-9da7-efc70de6f90c",
+        "rarity": "rare",
+        "setCode": "soi"
+    },
+    {
         "name": "Goblin Instigator",
         "types": [
             "Creature"
@@ -97888,6 +98859,35 @@
         "id": "91678632-ebe6-41b6-9250-cd3ffd63663b",
         "rarity": "uncommon",
         "setCode": "nph"
+    },
+    {
+        "name": "Ironwright's Cleansing",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "Exile target artifact or enchantment.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Artifact",
+                "Enchantment"
+            ],
+            "count": 1
+        },
+        "id": "916d8aa5-158f-46f4-babe-981a391fd88b",
+        "rarity": "common",
+        "setCode": "emn"
     },
     {
         "name": "Sunken Ruins",
@@ -103226,6 +104226,35 @@
         "setCode": "bok"
     },
     {
+        "name": "Feed the Serpent",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 2
+        },
+        "oracleText": "Exile target creature or planeswalker.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Creature",
+                "Planeswalker"
+            ],
+            "count": 1
+        },
+        "id": "99a1a75b-20cf-4db9-a244-cc54411446c4",
+        "rarity": "common",
+        "setCode": "khm"
+    },
+    {
         "name": "Disentomb",
         "types": [
             "Sorcery"
@@ -103651,6 +104680,59 @@
         "id": "9a359837-2e41-4ddc-9299-89a783d62014",
         "rarity": "common",
         "setCode": "pcy"
+    },
+    {
+        "name": "Repel the Vile",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "oracleText": "Choose one —\n• Exile target creature with power 4 or greater.\n• Exile target enchantment.",
+        "modes": [
+            {
+                "id": "repel-the-vile-mode-1",
+                "label": "Exile target creature with power 4 or greater",
+                "oracleText": "Exile target creature with power 4 or greater.",
+                "effects": [
+                    {
+                        "op": "exile",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "powerFilter": {
+                        "min": 4
+                    }
+                }
+            },
+            {
+                "id": "repel-the-vile-mode-2",
+                "label": "Exile target enchantment",
+                "oracleText": "Exile target enchantment.",
+                "effects": [
+                    {
+                        "op": "exile",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Enchantment",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "9a37d5b4-af3a-48b0-895f-91b652108ef6",
+        "rarity": "common",
+        "setCode": "neo"
     },
     {
         "name": "Tooth of Ramos",
@@ -104237,6 +105319,35 @@
         "id": "9b200790-43c7-42ae-9edf-89c8198a385b",
         "rarity": "common",
         "setCode": "con"
+    },
+    {
+        "name": "Fate Forgotten",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "Exile target artifact or enchantment.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Artifact",
+                "Enchantment"
+            ],
+            "count": 1
+        },
+        "id": "9b2161d9-ad52-45a6-9be9-e7ff09ec8f5a",
+        "rarity": "common",
+        "setCode": "dtk"
     },
     {
         "name": "Wei Ambush Force",
@@ -112353,6 +113464,37 @@
         "setCode": "dvd"
     },
     {
+        "name": "Shattering Blow",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 1,
+            "hybrid": [
+                [
+                    "R",
+                    "W"
+                ]
+            ]
+        },
+        "oracleText": "Exile target artifact.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Artifact",
+            "count": 1
+        },
+        "id": "a77058d9-d2b5-424a-bfe2-070b754051cb",
+        "rarity": "common",
+        "setCode": "gtc"
+    },
+    {
         "name": "Kabira Crossroads",
         "types": [
             "Land"
@@ -115697,6 +116839,57 @@
         "setCode": "thb"
     },
     {
+        "name": "Archon of Justice",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Archon"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 2
+        },
+        "power": 4,
+        "toughness": 4,
+        "oracleText": "Flying\nWhen this creature dies, exile target permanent.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "archon-of-justice-trigger",
+                "oracleText": "When this creature dies, exile target permanent.",
+                "head": {
+                    "kind": "died",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": [
+                        "Artifact",
+                        "Battle",
+                        "Creature",
+                        "Enchantment",
+                        "Land",
+                        "Planeswalker"
+                    ],
+                    "count": 1
+                },
+                "effects": [
+                    {
+                        "op": "exile",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "ab707e7f-8ab5-43f1-9428-6a17c1b672fa",
+        "rarity": "rare",
+        "setCode": "eve"
+    },
+    {
         "name": "Blink of an Eye",
         "types": [
             "Instant"
@@ -117400,6 +118593,41 @@
         "id": "ad9f1b09-73c2-43c5-a28b-4a40fff7b727",
         "rarity": "common",
         "setCode": "all"
+    },
+    {
+        "name": "Worthy Cost",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "B": 1
+        },
+        "oracleText": "As an additional cost to cast this spell, sacrifice a creature.\nExile target creature or planeswalker.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Creature",
+                "Planeswalker"
+            ],
+            "count": 1
+        },
+        "additionalCosts": {
+            "sacrificeFilter": {
+                "types": [
+                    "Creature"
+                ]
+            }
+        },
+        "id": "adc18edc-01d8-4a7e-a87b-a854e50aa75e",
+        "rarity": "common",
+        "setCode": "tdm"
     },
     {
         "name": "Deadly Insect",
@@ -119384,6 +120612,40 @@
         "setCode": "ogw"
     },
     {
+        "name": "Second Thoughts",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 4,
+            "W": 1
+        },
+        "oracleText": "Exile target attacking creature.\nDraw a card.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            },
+            {
+                "op": "draw",
+                "player": "controller",
+                "count": 1
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "combatRoleFilter": [
+                "attacking"
+            ]
+        },
+        "id": "b09586de-4853-4e51-a4ac-70eabb37eef4",
+        "rarity": "common",
+        "setCode": "ody"
+    },
+    {
         "name": "Razorfield Thresher",
         "types": [
             "Artifact",
@@ -119917,6 +121179,45 @@
         "id": "b1d1298b-9f56-4540-8d6b-7eecfe38cf62",
         "rarity": "rare",
         "setCode": "mir"
+    },
+    {
+        "name": "Brittle Effigy",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 1
+        },
+        "oracleText": "{4}, {T}, Exile this artifact: Exile target creature.",
+        "activatedAbilities": [
+            {
+                "id": "brittle-effigy-ability",
+                "oracleText": "{4}, {T}, Exile this artifact: Exile target creature.",
+                "cost": {
+                    "mana": {
+                        "X": 4
+                    },
+                    "tap": true,
+                    "exileThis": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "exile",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "id": "b1e2a430-339c-46ae-a43f-61e11e018b7b",
+        "rarity": "rare",
+        "setCode": "m11"
     },
     {
         "name": "Ascended Lawmage",
@@ -122783,6 +124084,35 @@
         "id": "b6969d4d-c311-4663-bcd6-77a4d6458335",
         "rarity": "common",
         "setCode": "p02"
+    },
+    {
+        "name": "Grotesque Demise",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "oracleText": "Exile target creature with power 3 or less.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "powerFilter": {
+                "max": 3
+            }
+        },
+        "id": "b698c5e1-3816-4f35-8e39-65dc68f5c64f",
+        "rarity": "common",
+        "setCode": "rna"
     },
     {
         "name": "Halberdier",
@@ -127832,6 +129162,40 @@
         "setCode": "mbs"
     },
     {
+        "name": "Vraska's Contempt",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 2
+        },
+        "oracleText": "Exile target creature or planeswalker. You gain 2 life.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            },
+            {
+                "op": "gainLife",
+                "player": "controller",
+                "amount": 2
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Creature",
+                "Planeswalker"
+            ],
+            "count": 1
+        },
+        "id": "bd7550dd-dfc5-43cd-a117-1244ee3086a8",
+        "rarity": "rare",
+        "setCode": "xln"
+    },
+    {
         "name": "Disruptive Stormbrood",
         "types": [
             "Creature"
@@ -128976,6 +130340,33 @@
         "id": "be436b65-9193-45ca-93e0-c5e9718f7e72",
         "rarity": "uncommon",
         "setCode": "tmp"
+    },
+    {
+        "name": "Expel",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "Exile target tapped creature.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "tappedFilter": "tapped"
+        },
+        "id": "be517a58-b7ee-4213-98a5-8c19e1b2def6",
+        "rarity": "common",
+        "setCode": "stx"
     },
     {
         "name": "Woodwraith Strangler",
@@ -141921,6 +143312,48 @@
         "setCode": "5dn"
     },
     {
+        "name": "Angelic Purge",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "oracleText": "As an additional cost to cast this spell, sacrifice a permanent.\nExile target artifact, creature, or enchantment.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Artifact",
+                "Creature",
+                "Enchantment"
+            ],
+            "count": 1
+        },
+        "additionalCosts": {
+            "sacrificeFilter": {
+                "types": [
+                    "Artifact",
+                    "Battle",
+                    "Creature",
+                    "Enchantment",
+                    "Land",
+                    "Planeswalker"
+                ]
+            }
+        },
+        "id": "d38bae3e-95f3-413a-bb4d-6a0814112a7a",
+        "rarity": "common",
+        "setCode": "soi"
+    },
+    {
         "name": "Parch",
         "types": [
             "Instant"
@@ -146990,6 +148423,35 @@
         "setCode": "ulg"
     },
     {
+        "name": "Altar's Light",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 2
+        },
+        "oracleText": "Exile target artifact or enchantment.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Artifact",
+                "Enchantment"
+            ],
+            "count": 1
+        },
+        "id": "dd037f62-7cef-4737-b575-942c5959f1ea",
+        "rarity": "uncommon",
+        "setCode": "mrd"
+    },
+    {
         "name": "Wild Aesthir",
         "types": [
             "Creature"
@@ -149311,6 +150773,87 @@
         "setCode": "frf"
     },
     {
+        "name": "Hanged Executioner",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Spirit"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Flying\nWhen this creature enters, create a 1/1 white Spirit creature token with flying.\n{3}{W}, Exile this creature: Exile target creature.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "hanged-executioner-ability",
+                "oracleText": "{3}{W}, Exile this creature: Exile target creature.",
+                "cost": {
+                    "mana": {
+                        "X": 3,
+                        "W": 1
+                    },
+                    "exileThis": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "exile",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1
+                }
+            }
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "hanged-executioner-trigger",
+                "oracleText": "When this creature enters, create a 1/1 white Spirit creature token with flying.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "createToken",
+                        "token": {
+                            "name": "Spirit",
+                            "types": [
+                                "Creature"
+                            ],
+                            "subtypes": [
+                                "Spirit"
+                            ],
+                            "power": 1,
+                            "toughness": 1,
+                            "colors": [
+                                "W"
+                            ],
+                            "staticAbilities": [
+                                "flying"
+                            ]
+                        },
+                        "controller": "controller"
+                    }
+                ]
+            }
+        ],
+        "id": "e0d6cea1-83d1-4045-b4da-40560af86df9",
+        "rarity": "rare",
+        "setCode": "m20"
+    },
+    {
         "name": "Raze the Effigy",
         "types": [
             "Instant"
@@ -150334,6 +151877,35 @@
         "id": "e246294f-7614-48e9-a655-647faf0bf697",
         "rarity": "common",
         "setCode": "ala"
+    },
+    {
+        "name": "Angelic Edict",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 4,
+            "W": 1
+        },
+        "oracleText": "Exile target creature or enchantment.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Creature",
+                "Enchantment"
+            ],
+            "count": 1
+        },
+        "id": "e24b62d3-c200-4330-a255-92d77f01ba44",
+        "rarity": "common",
+        "setCode": "gtc"
     },
     {
         "name": "Brood Weaver",
@@ -151899,6 +153471,35 @@
         "setCode": "dgm"
     },
     {
+        "name": "Fade into Antiquity",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 1
+        },
+        "oracleText": "Exile target artifact or enchantment.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Artifact",
+                "Enchantment"
+            ],
+            "count": 1
+        },
+        "id": "e43e46a6-f7de-482a-a386-73932d1d9002",
+        "rarity": "common",
+        "setCode": "ths"
+    },
+    {
         "name": "Obsessive Stitcher",
         "types": [
             "Creature"
@@ -152473,6 +154074,61 @@
         "id": "e50e88fe-307a-4944-9233-14df4e0bb775",
         "rarity": "common",
         "setCode": "dtk"
+    },
+    {
+        "name": "Lieutenant Kirtar",
+        "types": [
+            "Creature"
+        ],
+        "supertypes": [
+            "Legendary"
+        ],
+        "subtypes": [
+            "Bird",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 2
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Flying\n{1}{W}, Sacrifice Lieutenant Kirtar: Exile target attacking creature.",
+        "staticAbilities": [
+            "flying"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "lieutenant-kirtar-ability",
+                "oracleText": "{1}{W}, Sacrifice {self}: Exile target attacking creature.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "W": 1
+                    },
+                    "sacrifice": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "exile",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": "Creature",
+                    "count": 1,
+                    "combatRoleFilter": [
+                        "attacking"
+                    ]
+                }
+            }
+        ],
+        "id": "e518750f-492d-4575-b4ee-c80c1f8e0a58",
+        "rarity": "rare",
+        "setCode": "ody"
     },
     {
         "name": "Slagwoods Bridge",
@@ -161817,6 +163473,39 @@
         "setCode": "eve"
     },
     {
+        "name": "Exorcise",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "oracleText": "Exile target artifact, enchantment, or creature with power 4 or greater.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Artifact",
+                "Enchantment",
+                "Creature"
+            ],
+            "count": 1,
+            "powerFilter": {
+                "min": 4
+            }
+        },
+        "id": "f49006f2-a097-417d-8eb0-b8016ff2e0d5",
+        "rarity": "uncommon",
+        "setCode": "dsk"
+    },
+    {
         "name": "Talarian Hook Spider",
         "types": [
             "Creature"
@@ -167341,6 +169030,35 @@
         "setCode": "gs1"
     },
     {
+        "name": "Reaver Ambush",
+        "types": [
+            "Instant"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "oracleText": "Exile target creature with power 3 or less.",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": "Creature",
+            "count": 1,
+            "powerFilter": {
+                "max": 3
+            }
+        },
+        "id": "fceaac2f-b26c-4da9-bf4f-c7672394dd7f",
+        "rarity": "uncommon",
+        "setCode": "rix"
+    },
+    {
         "name": "Fortify",
         "types": [
             "Instant"
@@ -167735,6 +169453,50 @@
         "setCode": "por"
     },
     {
+        "name": "Amulet of Unmaking",
+        "types": [
+            "Artifact"
+        ],
+        "manaCost": {
+            "X": 5
+        },
+        "oracleText": "{5}, {T}, Exile this artifact: Exile target artifact, creature, or land. Activate only as a sorcery.",
+        "activatedAbilities": [
+            {
+                "id": "amulet-of-unmaking-ability",
+                "oracleText": "{5}, {T}, Exile this artifact: Exile target artifact, creature, or land. Activate only as a sorcery.",
+                "cost": {
+                    "mana": {
+                        "X": 5
+                    },
+                    "tap": true,
+                    "exileThis": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "exile",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ],
+                "targetRequirement": {
+                    "type": [
+                        "Artifact",
+                        "Creature",
+                        "Land"
+                    ],
+                    "count": 1
+                },
+                "sorcerySpeedOnly": true
+            }
+        ],
+        "id": "fdbd94c8-611c-4b20-99ca-dd2d7661d644",
+        "rarity": "rare",
+        "setCode": "mir"
+    },
+    {
         "name": "Lone Missionary",
         "types": [
             "Creature"
@@ -167987,6 +169749,62 @@
         "id": "fe1eb098-7128-4ec8-8218-51fdde3e8326",
         "rarity": "uncommon",
         "setCode": "isd"
+    },
+    {
+        "name": "Rite of Oblivion",
+        "types": [
+            "Sorcery"
+        ],
+        "manaCost": {
+            "W": 1,
+            "B": 1
+        },
+        "oracleText": "As an additional cost to cast this spell, sacrifice a nonland permanent.\nExile target nonland permanent.\nFlashback {2}{W}{B} (You may cast this card from your graveyard for its flashback cost and any additional costs. Then exile it.)",
+        "effects": [
+            {
+                "op": "exile",
+                "target": {
+                    "target": 0
+                }
+            }
+        ],
+        "targetRequirement": {
+            "type": [
+                "Artifact",
+                "Battle",
+                "Creature",
+                "Enchantment",
+                "Land",
+                "Planeswalker"
+            ],
+            "count": 1,
+            "excludeTypes": [
+                "Land"
+            ]
+        },
+        "additionalCosts": {
+            "sacrificeFilter": {
+                "types": [
+                    "Artifact",
+                    "Battle",
+                    "Creature",
+                    "Enchantment",
+                    "Land",
+                    "Planeswalker"
+                ],
+                "excludeTypes": [
+                    "Land"
+                ]
+            }
+        },
+        "flashback": {
+            "X": 2,
+            "W": 1,
+            "B": 1
+        },
+        "id": "fe1f8d52-565e-4900-8357-fd29f2022dc1",
+        "rarity": "uncommon",
+        "setCode": "mid"
     },
     {
         "name": "Akroan Phalanx",

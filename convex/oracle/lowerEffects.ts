@@ -1597,6 +1597,18 @@ function lowerSentenceBody(
             recordActedOn(walk, sentence.subject, destroy);
             return lowered([destroy]);
         }
+        // CR 701.13a — exile the announced permanent. `bind` is stamped by
+        // `recordActedOn` when a later sentence names it (CR 608.2h).
+        case "exile": {
+            const target = objectSelector(sentence.subject, slots, site);
+            if (!target.ok) return target;
+            const exile: Extract<EffectOp, { op: "exile" }> = {
+                op: "exile",
+                target: target.value,
+            };
+            recordActedOn(walk, sentence.subject, exile);
+            return lowered([exile]);
+        }
         // CR 701.6a — counter the announced spell, with CR 118.12a's punisher
         // when the sentence prints one.
         case "counter": {
@@ -2281,7 +2293,11 @@ function recordActedOn(
     op: EffectOp
 ): void {
     if (subject.kind !== "target") return;
-    if (op.op === "destroy" || (op.op === "moveZone" && "target" in op))
+    if (
+        op.op === "destroy" ||
+        op.op === "exile" ||
+        (op.op === "moveZone" && "target" in op)
+    )
         walk.actedOn = { op, requirement: subject.requirement };
 }
 
