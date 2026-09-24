@@ -8162,7 +8162,6 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
             phase: "PRECOMBAT_MAIN",
             turn: 3,
             libraryCount: 20,
-            hiddenHand: { me: 1 },
         },
         bot: "me",
         // The Bot-play sweep's own position, budget and seeds
