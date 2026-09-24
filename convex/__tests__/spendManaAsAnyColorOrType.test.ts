@@ -580,4 +580,23 @@ describe("an X spell spends the one-shot grant on BOTH commit paths (CR 609.4b /
         expect(after.players[0].manaPool.G).toBe(0);
         expect(after.spellManaSubstitutionGrants).toBeUndefined();
     });
+
+    it("RESUME commit: a parked X=1 cast whose pool is later covered consumes the grant", () => {
+        const state = xBoard(earthquake);
+        // The cast parked on mana at announce (X priced at the announced 1);
+        // the pool has since been covered and the parked cast resumes.
+        state.pendingCast = {
+            playerId: "p1",
+            cardInstanceId: "spell",
+            manaCost: { X: 1, R: 1 },
+            chosenX: 1,
+            tappedLandIds: [],
+        };
+        const committed = tryAutoCommitPendingCast(state, "p1");
+
+        expect(committed?.cardInstanceId).toBe("spell");
+        expect(state.stack).toHaveLength(1);
+        expect(state.players[0].manaPool.G).toBe(0);
+        expect(state.spellManaSubstitutionGrants).toBeUndefined();
+    });
 });
