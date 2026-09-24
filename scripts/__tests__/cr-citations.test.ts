@@ -65,7 +65,7 @@ describe("the scanner itself flags a bad id and passes a good one", () => {
         expect(bad.get("611.1b")).toEqual([{ file: "fake.ts", line: 1 }]);
     });
 
-    it("accepts the rule that citation should have pointed at", () => {
+    it("accepts the rule that citation should have pointed at, counting a prefixed id once, not once per pass", () => {
         const { bad, total } = scanCitations(
             [{ file: "fake.ts", text: cite("611.2a") }],
             ids
@@ -106,15 +106,6 @@ describe("the scanner itself flags a bad id and passes a good one", () => {
         expect(total).toBe(2);
         expect([...bad.keys()]).toEqual(["112.5"]);
         expect(bad.get("112.5")).toEqual([{ file: "fake.ts", line: 1 }]);
-    });
-
-    it("counts a prefixed id once, not once per pass", () => {
-        const { bad, total } = scanCitations(
-            [{ file: "fake.ts", text: cite("611.2a") }],
-            ids
-        );
-        expect(total).toBe(1);
-        expect(bad.size).toBe(0);
     });
 
     it("ignores a bare id on a line with no CR mention", () => {

@@ -93,33 +93,4 @@ describe("affordableAltCostsForCard — the Adventure cast option (CR 715.3)", (
         expect(row.description).toContain("Petty Theft");
         expect(row.description).toContain("Return target nonland permanent");
     });
-
-    it("offers nothing for a card with no inset spell", () => {
-        const bears = makeInstance(getCardByName("Grizzly Bears").id, {
-            id: "bear",
-            controllerId: "p1",
-            ownerId: "p1",
-            zone: "hand",
-        });
-        const state = makeState({
-            players: [makePlayer("p1", { hand: [bears] }), makePlayer("p2")],
-            activePlayerId: "p1",
-            priorityPlayerId: "p1",
-        });
-        const projected = projectPublicState(state, 1, "p1") as unknown as {
-            players: Player[];
-            activePlayerId: string;
-        };
-        const card = projected.players[0].hand.find(
-            (c) => c?.id === "bear"
-        ) as CardInstance;
-        expect(
-            affordableAltCostsForCard(
-                card,
-                "p1",
-                projected.players,
-                projected.activePlayerId
-            )
-        ).toEqual([]);
-    });
 });

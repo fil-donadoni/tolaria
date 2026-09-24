@@ -69,21 +69,10 @@ describe("--prompt — the prompt each pass runs", () => {
         ]);
     });
 
-    it("a --prompt override switches the pre-flight OFF — no issue appended, no --model injected", () => {
+    it("a --prompt override switches the pre-flight OFF — no issue appended, no --model injected, the multi-word prompt ONE argument", () => {
         // An operator who names the prompt owns the whole invocation: the
         // driver must not append an issue number to a scoped prompt, nor
         // second-guess the tier they launched with.
-        expect(
-            argvForOnePass(["--prompt", "/process-gh-issues figli di 2405"])
-        ).toEqual([
-            "argc=3",
-            "arg=-p",
-            "arg=/process-gh-issues figli di 2405",
-            "arg=x",
-        ]);
-    });
-
-    it("passes a multi-word prompt as ONE argument, never word-split", () => {
         expect(
             argvForOnePass(["--prompt", "/process-gh-issues figli di 2405"])
         ).toEqual([

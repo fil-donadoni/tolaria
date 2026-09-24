@@ -211,6 +211,8 @@ describe("shellShowsReturnBanner (issue #2582)", () => {
     });
 
     it("shows the banner on an ordinary Browse route with a game running", () => {
+        // Ownership is per ROUTE, never "anything lobby-ish": walking into the
+        // deck list is exactly the case the band exists for.
         expect(
             shellShowsReturnBanner("/decks/goblins", {
                 hasGame: true,
@@ -295,17 +297,6 @@ describe("shellShowsReturnBanner (issue #2582)", () => {
         expect(
             shellShowsReturnBanner("/", { hasGame: true, eventId: "e1" })
         ).toBe(false);
-    });
-
-    it("still shows the banner one route away from the lobby", () => {
-        // Ownership is per ROUTE, never "anything lobby-ish": walking into the
-        // deck list is exactly the case the band exists for.
-        expect(
-            shellShowsReturnBanner("/decks/goblins", {
-                hasGame: true,
-                eventId: null,
-            })
-        ).toBe(true);
     });
 
     it("shows the banner on an unregistered path — nothing there owns a return", () => {
