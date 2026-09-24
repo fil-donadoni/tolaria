@@ -438,6 +438,9 @@ export function purgeFile(
     };
 }
 
+const isCardSetSuite = (relFile: string) =>
+    relFile.startsWith("convex/cards/sets/");
+
 /** `set:<code>` for a card-set suite, else the first two path segments. */
 export function areaOf(relFile: string): string {
     const set = /^convex\/cards\/sets\/([^/]+)\//.exec(relFile);
@@ -456,6 +459,8 @@ export interface DryRunReport {
     /** Why a behavioural, asserting block was NOT Op-only — reason kind → count. */
     cleared: Map<string, number>;
     stale: string[];
+    /** Entries whose name matches more than one block — each exempts them all. */
+    ambiguous: string[];
     rows: string[];
 }
 
@@ -498,6 +503,7 @@ export function dryRun(
         byArea: new Map(),
         cleared: new Map(),
         stale: [],
+        ambiguous: [],
         rows: [],
     };
     const opOnlyCards = new Set<string>();
@@ -513,7 +519,12 @@ export function dryRun(
         );
 
     for (const { file, source } of sources) {
-        const blocks = classifyTestBlocks(file, source, { cards, readImport });
+        // The Op-only class is a per-CARD-suite verdict: outside the card sets a
+        // block on a pure-DSL card is an engine test using it as a fixture.
+        const blocks = classifyTestBlocks(file, source, {
+            cards: isCardSetSuite(file) ? cards : undefined,
+            readImport,
+        });
         all.push(...blocks);
         report.blocks += blocks.length;
         const area = areaOf(file);
@@ -543,7 +554,11 @@ export function dryRun(
                 row(b, "op-only", b.line, b.opOnly.cards.join(", "));
             } else if (b.opOnly) {
                 const { rule, reason } = b.opOnly;
-                if (rule !== "no-catalogue-card" && rule !== "card-owns-code")
+                if (
+                    rule !== "no-catalogue-card" &&
+                    rule !== "unknown-card" &&
+                    rule !== "card-owns-code"
+                )
                     report.opOnly.onPureDslCards++;
                 // A foreign call is broken out by callee: that is the list a
                 // sampled review reads to see where the vocabulary stops.
@@ -558,7 +573,9 @@ export function dryRun(
         }
     }
     report.opOnly.cards = opOnlyCards.size;
-    report.stale = staleEntries(all).map((e) => `${e.file} :: ${e.test}`);
+    const { stale, ambiguous } = staleEntries(all);
+    report.stale = stale.map((e) => `${e.file} :: ${e.test}`);
+    report.ambiguous = ambiguous.map((e) => `${e.file} :: ${e.test}`);
     return report;
 }
 
@@ -575,10 +592,10 @@ function trackedTestFiles(): string[] {
 async function loadCardFacts(): Promise<CardFacts> {
     // Imported lazily: the rewrite mode never needs the catalogue.
     const { getAllCards } = await import("../convex/cards");
-    const { buildCardFacts, smokeSkippedCards } =
+    const { buildCardFacts, smokeCoverage } =
         await import("./lib/card-code-ownership");
     const cards = getAllCards();
-    return buildCardFacts(cards, smokeSkippedCards(cards));
+    return buildCardFacts(cards, smokeCoverage(cards));
 }
 
 function printReport(r: DryRunReport, top: number) {
@@ -605,6 +622,12 @@ function printReport(r: DryRunReport, top: number) {
         .sort((a, b) => b[1] - a[1])
         .slice(0, top))
         console.log(`  ${String(n).padStart(6)}  ${k}`);
+    if (r.ambiguous.length > 0) {
+        console.log(
+            `\nAMBIGUOUS allow-list entries (${r.ambiguous.length}) — one name, several blocks; retitle them:`
+        );
+        for (const a of r.ambiguous) console.log("  " + a);
+    }
     if (r.stale.length > 0) {
         console.log(
             `\nSTALE allow-list entries (${r.stale.length}) — delete them:`

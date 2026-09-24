@@ -84,20 +84,29 @@ import * as ts from "typescript";
  *   1. every call is neutral, a fixture builder, a catalogue lookup, or a
  *      cast/resolve entry point (`OP_ONLY_CALLS`) — any other call is
  *      card-owned code or engine surface the Op test does not cover (a
- *      trigger scan, a legality query, the projection, a choice submit);
+ *      trigger scan, a legality query, the projection, a choice submit) —
+ *      and at least one cast/resolve entry point is called. File-local and
+ *      imported test helpers count as the calls their bodies make; a
+ *      vocabulary name aliased onto a foreign export, or redeclared locally,
+ *      is the foreign call;
  *   2. no identifier or property names card-owned code
  *      (`CARD_OWNED_NAME`: trigger, kicker, cost, restriction, matcher,
  *      projection, legality);
- *   3. every `expect` subject reads an Op outcome (`OUTCOME_FIELDS`: zone,
- *      damage, counters, life, and the zone arrays a draw moves through);
+ *   3. every `expect` subject's TERMINAL read is an Op outcome
+ *      (`OUTCOME_FIELDS`: zone, damage, counters, life, the zone arrays a
+ *      draw moves through — or a P/T query);
  *   4. every outer binding the block reads was built by the same vocabulary
  *      (an uninitialised `let` filled in a `beforeEach` is opaque → cleared);
- *   5. the block names at least one catalogue card, and EVERY card it names is
- *      pure-DSL per the caller's `CardFacts` (no `resolve()`, static or
- *      replacement effect, not on the smoke skip list).
+ *   5. every card the block names is known to the caller's `CardFacts` (an
+ *      unknown one — a compiled card — clears it) and pure-DSL (no function
+ *      anywhere in the definition, no static, replacement or SBA exception,
+ *      no modes, no card-dependent smoke skip), and at least one of them has
+ *      an Effect Script the smoke sweep runs.
  *
  * The class is evaluated only when the caller passes `CardFacts` — the
- * classifier stays pure and never loads the catalogue itself.
+ * classifier stays pure and never loads the catalogue itself — and the dry
+ * run passes them for the card-set suites only: outside them a block on a
+ * pure-DSL card is an engine test using the card as a fixture.
  */
 
 /** Built-in namespaces whose statics compute nothing about the system. */
@@ -230,6 +239,13 @@ export const OP_ONLY_CALLS: ReadonlySet<string> = new Set([
     ...["getEffectivePower", "getEffectiveToughness"],
 ]);
 
+/** The entry points that run a card's Effect Script — a block must call one. */
+const CAST_RESOLVE_CALLS = new Set([
+    "pushSpell",
+    "resolveTopOfStack",
+    "resolveActivated",
+]);
+
 /** Calls whose RESULT is an Op outcome, so an expect over one satisfies clause 3. */
 const OUTCOME_QUERIES = new Set(["getEffectivePower", "getEffectiveToughness"]);
 
@@ -281,6 +297,8 @@ export interface CardFact {
     name: string;
     /** Why the card owns code a per-card test may legitimately cover, or null when it is pure-DSL. */
     ownsCode: string | null;
+    /** The smoke sweep RUNS at least one of the card's Effect Script sites. */
+    smokeRun: boolean;
 }
 
 /** The catalogue as the Op-only class sees it — supplied by the caller. */
@@ -303,7 +321,10 @@ export interface ClassifyOptions {
 /** Which Op-only clause cleared a block — the header's clauses 1–5. */
 export type OpOnlyRule =
     | "no-catalogue-card" // 5: names no card the catalogue knows
+    | "unknown-card" // 5: names a card the caller's facts do not cover
     | "card-owns-code" // 5: a named card is not pure-DSL
+    | "no-smoke-run-card" // 5: no named card has a script the sweep runs
+    | "no-cast-resolve" // 1: never casts or resolves anything
     | "foreign-call" // 1: a call outside the vocabulary
     | "opaque-binding" // 4: reads a binding with no initialiser
     | "card-owned-name" // 2: names card-owned code
@@ -769,6 +790,49 @@ function mentionedNames(node: ts.Node): string[] {
     return out;
 }
 
+/**
+ * Clause 3: the subject's TERMINAL read is an Op outcome — `lion.zone`,
+ * `p.graveyard.map(…)`, `p.hand.length`, `getEffectivePower(…)`. Any other
+ * last field (`battlefield.find(…)?.controllerId`) is not, even when an
+ * outcome name appears earlier in the chain.
+ */
+function isOutcomeSubject(subject: ts.Expression): boolean {
+    let cur = unwrap(subject);
+    for (;;) {
+        if (ts.isCallExpression(cur)) {
+            const callee = unwrap(cur.expression);
+            if (ts.isIdentifier(callee))
+                return OUTCOME_QUERIES.has(callee.text);
+            if (
+                ts.isPropertyAccessExpression(callee) &&
+                NEUTRAL_METHODS.has(callee.name.text)
+            ) {
+                cur = unwrap(callee.expression);
+                continue;
+            }
+            return false;
+        }
+        if (ts.isPropertyAccessExpression(cur)) {
+            if (cur.name.text === "length") {
+                cur = unwrap(cur.expression);
+                continue;
+            }
+            return OUTCOME_FIELDS.has(cur.name.text);
+        }
+        if (ts.isElementAccessExpression(cur)) {
+            // `p.counters["+1/+1"]` reads the counters; `graveyard[0]` a card.
+            const inner = unwrap(cur.expression);
+            return (
+                ts.isPropertyAccessExpression(inner) &&
+                inner.name.text === "counters"
+            );
+        }
+        if (ts.isBinaryExpression(cur) || ts.isConditionalExpression(cur))
+            return false;
+        return false;
+    }
+}
+
 const isAllowedOpOnlyCall = (name: string) =>
     OP_ONLY_CALLS.has(name) ||
     CARD_LOOKUP_CALLS.has(name) ||
@@ -788,11 +852,18 @@ function classifyOpOnly(
     const own = describeExpression(body, bindings);
 
     // 5 first: at least one catalogue card, every one of them pure-DSL — so
-    // the reasons below describe only blocks on pure-DSL cards.
+    // the reasons below describe only blocks on pure-DSL cards. A card the
+    // facts do not cover (a compiled card, a token) is NOT skipped: it may own
+    // exactly the code the block exercises, so it clears the block.
     const named = new Map<string, CardFact>();
     for (const ref of own.cardRefs) {
         const fact = ref.id ? cards.byId(ref.id) : cards.byName(ref.name!);
-        if (fact) named.set(fact.id, fact);
+        if (!fact)
+            return cleared(
+                "unknown-card",
+                `names ${ref.id ?? ref.name}, which the card facts do not cover`
+            );
+        named.set(fact.id, fact);
     }
     if (named.size === 0)
         return cleared("no-catalogue-card", "names no catalogue card");
@@ -800,6 +871,15 @@ function classifyOpOnly(
         if (fact.ownsCode)
             return cleared("card-owns-code", `${fact.name}: ${fact.ownsCode}`);
     }
+    // A block about vanilla fixtures only (an SBA test on Grizzly Bears) is an
+    // engine test, not a test of any card's script.
+    if (![...named.values()].some((f) => f.smokeRun))
+        return cleared(
+            "no-smoke-run-card",
+            "no named card has an Effect Script the smoke sweep runs"
+        );
+    if (!own.callees.some((c) => CAST_RESOLVE_CALLS.has(c)))
+        return cleared("no-cast-resolve", "never casts or resolves anything");
     // 1 + 4: every call, the block's own and the ones behind the outer bindings it reads.
     const foreign = own.callees.find((c) => !isAllowedOpOnlyCall(c));
     if (foreign) return cleared("foreign-call", `calls ${foreign}`);
@@ -818,8 +898,7 @@ function classifyOpOnly(
 
     // 3: every assertion is about an Op outcome.
     for (const { subject } of expectSubjects(body)) {
-        const names = subject ? mentionedNames(subject) : [];
-        if (!names.some((n) => OUTCOME_FIELDS.has(n) || OUTCOME_QUERIES.has(n)))
+        if (!subject || !isOutcomeSubject(subject))
             return cleared(
                 "non-outcome-assertion",
                 `asserts a non-outcome: ${subject?.getText() ?? "<none>"}`
@@ -832,9 +911,17 @@ function classifyOpOnly(
     };
 }
 
+/**
+ * The block's title: a string literal's text, or a template's SOURCE text
+ * (`${name} declares …`) so that blocks written in a loop keep distinct,
+ * stable names; null for anything else.
+ */
 function literalTitle(node: ts.CallExpression): string | null {
     const arg = node.arguments[0];
-    return arg && ts.isStringLiteralLike(arg) ? arg.text : null;
+    if (!arg) return null;
+    if (ts.isStringLiteralLike(arg)) return arg.text;
+    if (ts.isTemplateExpression(arg)) return arg.getText().slice(1, -1);
+    return null;
 }
 
 /** `it`, `it.only`, `test.each(...)` — the root identifier of the callee. */
@@ -911,6 +998,28 @@ export function classifyTestBlocks(
             helper.helper = true;
             bindingScopes[bindingScopes.length - 1].set(node.name.text, helper);
         }
+        // `import { castSpell as pushSpell }` — a vocabulary name on a foreign
+        // export is the foreign call, not the vocabulary one.
+        if (ts.isImportDeclaration(node)) {
+            const named = node.importClause?.namedBindings;
+            if (named && ts.isNamedImports(named)) {
+                for (const el of named.elements) {
+                    if (
+                        el.propertyName &&
+                        el.propertyName.text !== el.name.text &&
+                        isAllowedOpOnlyCall(el.name.text)
+                    ) {
+                        bindingScopes[0].set(el.name.text, {
+                            callees: [el.propertyName.text],
+                            cardRefs: [],
+                            cardDef: false,
+                            opaque: false,
+                            helper: true,
+                        });
+                    }
+                }
+            }
+        }
         if (
             ts.isImportDeclaration(node) &&
             ts.isStringLiteral(node.moduleSpecifier) &&
@@ -929,7 +1038,11 @@ export function classifyTestBlocks(
                     const exportedName = (el.propertyName ?? el.name).text;
                     // The vocabulary is trusted BY NAME: `makeInstance` is a
                     // fixture builder whatever its body calls to mint an id.
-                    if (isAllowedOpOnlyCall(exportedName)) continue;
+                    if (
+                        isAllowedOpOnlyCall(exportedName) &&
+                        exportedName === el.name.text
+                    )
+                        continue;
                     const b = exported.get(exportedName);
                     if (b) bindingScopes[0].set(el.name.text, b);
                 }
@@ -1015,6 +1128,17 @@ export function classifyTestBlocks(
         ts.forEachChild(node, visit);
     };
 
+    // Function declarations are hoisted: a file-local `function
+    // resolveActivated` declared BELOW its first use is still the local one,
+    // never the vocabulary's. Seed every top-level one before the walk (the
+    // walk re-records each with the bindings visible at its declaration).
+    for (const stmt of sf.statements) {
+        if (ts.isFunctionDeclaration(stmt) && stmt.name && stmt.body) {
+            const helper = describeExpression(stmt.body, new Map());
+            helper.helper = true;
+            bindingScopes[0].set(stmt.name.text, helper);
+        }
+    }
     visit(sf);
     return blocks;
 }

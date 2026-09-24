@@ -24,7 +24,7 @@ import {
     planSmokeTest,
     type Plan,
 } from "../../gre/effects/scenarioGenerator";
-import { collectDslSites } from "../../gre/effects/smokeSites";
+import { collectDslSites } from "./smokeSites";
 import { makeInstance } from "./setup";
 import { resolveTopOfStack } from "../../gre/state";
 

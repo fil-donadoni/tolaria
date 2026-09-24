@@ -30,7 +30,7 @@ export interface AllowListEntry {
     reason: string;
 }
 
-/** The block's name: its describe chain and title, `<dynamic>` for a computed title. */
+/** The block's name: its describe chain and title (a template's source text), `<dynamic>` for any other computed title. */
 export function testName(
     block: Pick<TestBlock, "describeChain" | "title">
 ): string {
@@ -48,7 +48,7 @@ const key = (file: string, test: string) => `${file}::${test}`;
 export const IDENTITY_ALLOWLIST: readonly AllowListEntry[] = [
     {
         file: "convex/__tests__/activationModuleSplit.test.ts",
-        test: "convex/game.ts re-exports the pure activation path (issue #3479) > <dynamic>",
+        test: "convex/game.ts re-exports the pure activation path (issue #3479) > \\`${name}\\` is the SAME function object, not a copy",
         reason: "Proves re-export not re-implementation via object identity across two modules.",
     },
     {
@@ -68,7 +68,7 @@ export const IDENTITY_ALLOWLIST: readonly AllowListEntry[] = [
     },
     {
         file: "convex/__tests__/deckArgsDefinitionId.test.ts",
-        test: "game-start args accept a deck carrying definitionId (issue #4117) > <dynamic>",
+        test: "game-start args accept a deck carrying definitionId (issue #4117) > ${name} declares definitionId on a Maindeck card",
         reason: "Each of 3 independently-declared mutation validators must declare definitionId.",
     },
     {
@@ -1055,11 +1055,32 @@ export function isAllowListed(
     return keysOf(list).has(key(block.file, testName(block)));
 }
 
-/** Entries that match no block in `blocks` — stale, to be deleted. */
+/**
+ * Allow-list hygiene over a classified tree:
+ *   - `stale`: the entry exempts nothing — no block of that name is still
+ *     flagged (identity, or carrying definition-read lines). Delete it.
+ *   - `ambiguous`: the name matches more than one block (a computed title, a
+ *     repeated one), so the entry silently exempts all of them.
+ */
 export function staleEntries(
-    blocks: readonly Pick<TestBlock, "file" | "describeChain" | "title">[],
+    blocks: readonly Pick<
+        TestBlock,
+        "file" | "describeChain" | "title" | "verdict" | "definitionReads"
+    >[],
     list: readonly AllowListEntry[] = IDENTITY_ALLOWLIST
-): AllowListEntry[] {
-    const live = new Set(blocks.map((b) => key(b.file, testName(b))));
-    return list.filter((e) => !live.has(key(e.file, e.test)));
+): { stale: AllowListEntry[]; ambiguous: AllowListEntry[] } {
+    const matches = new Map<string, number>();
+    const flagged = new Set<string>();
+    for (const b of blocks) {
+        const k = key(b.file, testName(b));
+        matches.set(k, (matches.get(k) ?? 0) + 1);
+        if (b.verdict === "identity" || b.definitionReads.length > 0)
+            flagged.add(k);
+    }
+    return {
+        stale: list.filter((e) => !flagged.has(key(e.file, e.test))),
+        ambiguous: list.filter(
+            (e) => (matches.get(key(e.file, e.test)) ?? 0) > 1
+        ),
+    };
 }

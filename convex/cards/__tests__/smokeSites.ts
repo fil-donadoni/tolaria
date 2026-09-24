@@ -5,14 +5,14 @@
 // planner SKIPS is on the "smoke skip list" (issue #4489,
 // `scripts/purge-identity-tests.ts`).
 
-import type { CardDefinition, EffectOp } from "../../cards/types";
+import type { CardDefinition, EffectOp } from "../types";
 import {
     abilityHost,
     activatedAbilitySourceOnBattlefield,
     SPELL_HOST,
     triggeredAbilitySourceOnBattlefield,
     type SmokeHost,
-} from "./scenarioGenerator";
+} from "../../gre/effects/scenarioGenerator";
 
 /** A DSL Effect Script found in the catalogue, tagged by host so the harness
  *  can push the right stack item — and so the planner seeds a source of the

@@ -306,11 +306,28 @@ it("t", () => { expect(DEF.power).toBe(1); });`)
     describe("the Op-only class (issue #4489)", () => {
         const BOLT = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a";
         const LIONS = "d05b92bd-797e-413f-a8b0-32e0937a1ee0";
-        const facts = (owns: Record<string, string | null> = {}): CardFacts => {
+        const facts = (
+            owns: Record<string, string | null> = {},
+            smokeRun: Record<string, boolean> = {}
+        ): CardFacts => {
             const all: CardFact[] = [
-                { id: BOLT, name: "Lightning Bolt", ownsCode: null },
-                { id: LIONS, name: "Savannah Lions", ownsCode: null },
-            ].map((f) => ({ ...f, ownsCode: owns[f.name] ?? f.ownsCode }));
+                {
+                    id: BOLT,
+                    name: "Lightning Bolt",
+                    ownsCode: null,
+                    smokeRun: true,
+                },
+                {
+                    id: LIONS,
+                    name: "Savannah Lions",
+                    ownsCode: null,
+                    smokeRun: false,
+                },
+            ].map((f) => ({
+                ...f,
+                ownsCode: owns[f.name] ?? f.ownsCode,
+                smokeRun: smokeRun[f.name] ?? f.smokeRun,
+            }));
             return {
                 byId: (id) => all.find((f) => f.id === id),
                 byName: (name) => all.find((f) => f.name === name),
@@ -362,6 +379,70 @@ const lions = getDefinition("${LIONS}");
             expect(
                 opOnly(BOLT_TO_FACE, facts({ "Lightning Bolt": "resolve()" }))
             ).toMatchObject({ kind: "cleared", rule: "card-owns-code" });
+        });
+
+        it("clears a block naming a card the facts do not cover (a compiled card)", () => {
+            expect(
+                opOnly(`${BOLT_TO_FACE}
+    const other = makeInstance("00000000-0000-4000-8000-000000000000", { id: "x" });
+    expect(other.zone).toBe("battlefield");`)
+            ).toMatchObject({ kind: "cleared", rule: "unknown-card" });
+        });
+
+        it("clears a block whose cards have no smoke-run script (an SBA test on a vanilla fixture)", () => {
+            expect(
+                opOnly(`    const lion = makeInstance(lions.id, { id: "lion", damageMarked: 2 });
+    const state = makeState({ players: [makePlayer("p1", { battlefield: [lion] }), makePlayer("p2")] });
+    resolveTopOfStack(state);
+    expect(state.players[0].graveyard).toHaveLength(1);`)
+            ).toMatchObject({ kind: "cleared", rule: "no-smoke-run-card" });
+        });
+
+        it("clears a block that never casts or resolves", () => {
+            expect(
+                opOnly(`    const lion = makeInstance(bolt.id, { id: "b" });
+    const state = makeState({ players: [makePlayer("p1", { hand: [lion] }), makePlayer("p2")] });
+    checkStateBasedActions(state);
+    expect(state.players[0].hand).toHaveLength(1);`)
+            ).toMatchObject({ kind: "cleared", rule: "no-cast-resolve" });
+        });
+
+        it("reads the TERMINAL field of an assertion, not any outcome name in it", () => {
+            expect(
+                opOnly(`    const state = makeState();
+    pushSpell(state, bolt.id, "p1", []);
+    resolveTopOfStack(state);
+    expect(state.players[1].battlefield.find((c) => c.id === "x")?.controllerId).toBe("p1");`)
+            ).toMatchObject({ kind: "cleared", rule: "non-outcome-assertion" });
+            expect(
+                opOnly(`    const state = makeState();
+    pushSpell(state, bolt.id, "p1", []);
+    resolveTopOfStack(state);
+    expect(state.players[1].hand.length).toBe(0);
+    expect(state.players[1].graveyard.map((c) => c.id)).toEqual([]);`)
+            ).toMatchObject({ kind: "op-only" });
+        });
+
+        it("does not trust a vocabulary name aliased onto a foreign export", () => {
+            const source =
+                src(`${header}import { castWithCosts as pushSpell } from "../../gre/casting";
+it("t", () => {\n${BOLT_TO_FACE}\n});`);
+            expect(
+                classifyTestBlocks("x.test.ts", source, { cards: facts() })[0]
+                    .opOnly
+            ).toMatchObject({ kind: "cleared", reason: "calls castWithCosts" });
+        });
+
+        it("does not trust a vocabulary name redeclared locally below its first use", () => {
+            const source = src(`${header}it("t", () => {\n${BOLT_TO_FACE}\n});
+function pushSpell(state, id) { collectTriggers(state); }`);
+            expect(
+                classifyTestBlocks("x.test.ts", source, { cards: facts() })[0]
+                    .opOnly
+            ).toMatchObject({
+                kind: "cleared",
+                reason: "calls collectTriggers",
+            });
         });
 
         it("clears a block that names no catalogue card", () => {
@@ -451,7 +532,7 @@ it("t", () => {
             expect(
                 classifyTestBlocks("x.test.ts", source, { cards: facts() })[0]
                     .opOnly
-            ).toMatchObject({ kind: "cleared", reason: "calls cast" });
+            ).toMatchObject({ kind: "cleared", rule: "no-cast-resolve" });
         });
 
         it("is not evaluated without CardFacts, nor on a non-behavioural block", () => {
@@ -460,6 +541,18 @@ it("identity", () => { expect(bolt.manaCost).toEqual({ R: 1 }); });`);
             expect(
                 classifyTestBlocks("x.test.ts", source).map((b) => b.opOnly)
             ).toEqual([null, null]);
+        });
+    });
+
+    describe("titles", () => {
+        it("names a template-titled block by its template source, so loop-written blocks stay distinct", () => {
+            const [b] = classifyTestBlocks(
+                "x.test.ts",
+                src(
+                    "for (const n of NAMES) { it(`${n} is unique`, () => { expect(1).toBe(1); }); }"
+                )
+            );
+            expect(b.title).toBe("${n} is unique");
         });
     });
 });

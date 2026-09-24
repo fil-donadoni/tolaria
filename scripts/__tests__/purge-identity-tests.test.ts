@@ -172,10 +172,19 @@ describe("the named allow-list (issue #4489)", () => {
         }
     });
 
-    it("reports an entry that matches no block as stale", () => {
+    it("reports an entry that no longer exempts anything as stale", () => {
         const [b] = classifyTestBlocks(entry.file, censusSource);
-        const list = [entry, { ...entry, test: "gone > block" }];
-        expect(staleEntries([b], list)).toEqual([list[1]]);
+        const gone = { ...entry, test: "gone > block" };
+        expect(staleEntries([b], [entry, gone]).stale).toEqual([gone]);
+        // The block gained a call: it exists, but the entry exempts nothing.
+        const behavioural = { ...b, verdict: "behavioural" as const };
+        expect(staleEntries([behavioural], [entry]).stale).toEqual([entry]);
+    });
+
+    it("reports an entry whose name matches several blocks as ambiguous", () => {
+        const [b] = classifyTestBlocks(entry.file, censusSource);
+        expect(staleEntries([b, b], [entry]).ambiguous).toEqual([entry]);
+        expect(staleEntries([b], [entry]).ambiguous).toEqual([]);
     });
 });
 
@@ -184,7 +193,7 @@ describe("the repo-wide dry run (issue #4489)", () => {
     const cards: CardFacts = {
         byId: (id) =>
             id === BOLT
-                ? { id, name: "Lightning Bolt", ownsCode: null }
+                ? { id, name: "Lightning Bolt", ownsCode: null, smokeRun: true }
                 : undefined,
         byName: () => undefined,
     };
@@ -232,6 +241,15 @@ describe("Lightning Bolt", () => {
         const r = dryRun([{ file: SET_FILE, source }], cards);
         expect(r.opOnly).toEqual({ blocks: 1, cards: 1, onPureDslCards: 1 });
         expect(r.byArea.get("set:lea")).toEqual([0, 0, 1]);
+    });
+
+    it("evaluates the Op-only class in the card-set suites only", () => {
+        const source = SET_SOURCE.replace(
+            "        expect(bolt.manaCost).toEqual({ R: 1 });\n",
+            ""
+        );
+        const r = dryRun([{ file: GRE_FILE, source }], cards);
+        expect(r.opOnly).toEqual({ blocks: 0, cards: 0, onPureDslCards: 0 });
     });
 
     it("names an area by set code inside the card sets, by directory elsewhere", () => {

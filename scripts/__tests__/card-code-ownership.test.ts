@@ -3,7 +3,7 @@ import type { CardDefinition } from "../../convex/cards/types";
 import {
     buildCardFacts,
     ownedCode,
-    smokeSkippedCards,
+    smokeCoverage,
 } from "../lib/card-code-ownership";
 
 /**
@@ -32,16 +32,20 @@ describe("card code ownership (issue #4489)", () => {
     });
 
     it.each([
-        ["resolve()", { resolve: () => {} }, /^resolve\(\) \(card\.resolve\)/],
+        [
+            "resolve()",
+            { resolve: () => {} },
+            /^imperative code \(card\.resolve\)/,
+        ],
         [
             "an ability's imperative effect",
             { activatedAbilities: [{ id: "a", effect: () => {} }] },
-            /^resolve\(\) \(card\.activatedAbilities\[0\]\.effect\)/,
+            /^imperative code \(card\.activatedAbilities\[0\]\.effect\)/,
         ],
         [
             "resolveSteps",
             { resolveSteps: [() => {}] },
-            /^resolve\(\) \(card\.resolveSteps\[0\]\)/,
+            /^imperative code \(card\.resolveSteps\[0\]\)/,
         ],
         ["a static effect", { staticEffects: [{}] }, /^static effect/],
         [
@@ -55,7 +59,7 @@ describe("card code ownership (issue #4489)", () => {
         expect(ownedCode(card(extra), undefined)).toMatch(reason);
     });
 
-    it("a function that is NOT an effect (a trigger matcher) leaves the card pure", () => {
+    it("ANY function owns code — a trigger matcher runs inside resolveTopOfStack's trigger scan", () => {
         expect(
             ownedCode(
                 card({
@@ -63,7 +67,15 @@ describe("card code ownership (issue #4489)", () => {
                 }),
                 undefined
             )
-        ).toBeNull();
+        ).toMatch(
+            /^imperative code \(card\.triggeredAbilities\[0\]\.matches\)/
+        );
+    });
+
+    it("modes own code — the sweep never visits modes[] scripts", () => {
+        expect(ownedCode(card({ modes: [{ id: "m" }] }), undefined)).toMatch(
+            /^modes/
+        );
     });
 
     it("a card-dependent smoke skip disqualifies the card", () => {
@@ -90,17 +102,21 @@ describe("card code ownership (issue #4489)", () => {
             ],
             targetRequirement: { type: "player", count: 1 },
         });
-        const skipped = smokeSkippedCards([PURE, xSpell, randomDiscard]);
+        const { skipped, run } = smokeCoverage([PURE, xSpell, randomDiscard]);
         expect([...skipped.keys()]).toEqual(["t-x"]);
         expect(skipped.get("t-x")).toMatch(/^cast-time-x: /);
+        expect([...run]).toEqual(["t-bolt"]);
     });
 
     it("a name shared by several prints owns code if ANY print does", () => {
         const facts = buildCardFacts(
             [PURE, card({ id: "t-bolt-2", staticEffects: [{}] })],
-            new Map()
+            { skipped: new Map(), run: new Set(["t-bolt"]) }
         );
-        expect(facts.byId("t-bolt")?.ownsCode).toBeNull();
+        expect(facts.byId("t-bolt")).toMatchObject({
+            ownsCode: null,
+            smokeRun: true,
+        });
         expect(facts.byName("Test Bolt")?.ownsCode).toMatch(/^static/);
     });
 });

@@ -5,7 +5,7 @@ import {
     planSmokeTest,
     SMOKE_SKIP_CLASS,
 } from "../../convex/gre/effects/scenarioGenerator";
-import { collectDslSites } from "../../convex/gre/effects/smokeSites";
+import { collectDslSites } from "../../convex/cards/__tests__/smokeSites";
 import type { CardFact, CardFacts } from "./identity-test-classifier";
 
 /**
@@ -15,13 +15,13 @@ import type { CardFact, CardFacts } from "./identity-test-classifier";
  * A card is **pure-DSL** when everything it does runs through the Effect Script
  * interpreter and the generated smoke test actually exercises it:
  *
- *   - no `resolve()` — no function under a `resolve` / `resolveSteps` /
- *     `effect` key anywhere in the definition (card, mode, ability or face):
- *     the imperative escape hatch. Other function-valued fields (a trigger
- *     matcher, a filter, a condition) are card-owned code too, but a block
- *     only exercises them through a surface the classifier's call rule
- *     already refuses (a trigger scan, a legality query), so they do not
- *     disqualify the CARD;
+ *   - no function anywhere in the definition — `resolve()` and its kin, but
+ *     also a trigger matcher, a `getTargetRequirement`, a `canActivate`:
+ *     `resolveTopOfStack` runs the trigger scan and re-checks targets
+ *     (CR 608.2b) itself, so a block that only casts and resolves CAN reach
+ *     them;
+ *   - no modes — the sweep does not visit `modes[]` scripts, so a modal card
+ *     is never smoke-run;
  *   - no static effect (`staticEffects` / `compiledStaticEffects` — the layer
  *     system's input, card-owned by construction);
  *   - no replacement effect (`replacementEffects`, `drawReplacement`,
@@ -47,26 +47,21 @@ const REPLACEMENT_FIELDS = [
     "drawStepReplacement",
 ] as const;
 
-/** Keys under which a function is the imperative effect escape hatch. */
-const IMPERATIVE_KEYS = new Set(["resolve", "resolveSteps", "effect"]);
-
-/** Path of the first imperative effect function in a definition, or null. */
-function firstImperativePath(
+/** Path of the first function-valued property in a definition, or null. */
+function firstFunctionPath(
     value: unknown,
     at: string,
-    seen: Set<unknown>,
-    underImperativeKey = false
+    seen: Set<unknown>
 ): string | null {
-    if (typeof value === "function") return underImperativeKey ? at : null;
+    if (typeof value === "function") return at;
     if (value === null || typeof value !== "object" || seen.has(value))
         return null;
     seen.add(value);
     for (const [key, child] of Object.entries(value)) {
-        const found = firstImperativePath(
+        const found = firstFunctionPath(
             child,
             Array.isArray(value) ? `${at}[${key}]` : `${at}.${key}`,
-            seen,
-            Array.isArray(value) ? underImperativeKey : IMPERATIVE_KEYS.has(key)
+            seen
         );
         if (found) return found;
     }
@@ -88,36 +83,49 @@ export function ownedCode(
         if (present(fields[f])) return `replacement effect (${f})`;
     if (present(fields.sbaMods))
         return "state-based-action exception (sbaMods)";
-    const fn = firstImperativePath(card, "card", new Set());
-    if (fn) return `resolve() (${fn})`;
+    if (present(fields.modes)) return "modes (not smoke-swept)";
+    const fn = firstFunctionPath(card, "card", new Set());
+    if (fn) return `imperative code (${fn})`;
     if (smokeSkip) return `smoke skip (${smokeSkip})`;
     return null;
 }
 
-/** Card id → the first `card-dependent` smoke-planner skip among its DSL sites. */
-export function smokeSkippedCards(
-    cards: readonly CardDefinition[]
-): Map<string, string> {
+/** What the smoke sweep does with each card's Effect Script sites. */
+export interface SmokeCoverage {
+    /** Card id → the first `card-dependent` skip among its DSL sites. */
+    skipped: Map<string, string>;
+    /** Cards with at least one DSL site the sweep actually runs. */
+    run: Set<string>;
+}
+
+export function smokeCoverage(cards: readonly CardDefinition[]): SmokeCoverage {
     // The planner seeds its scenarios with this filler, exactly as the sweep
     // registers it before planning (`effectScriptSmoke.test.ts`).
     registerTokenDefinition(FILLER_CARD_DEFINITION);
-    const skipped = new Map<string, string>();
+    const coverage: SmokeCoverage = { skipped: new Map(), run: new Set() };
     for (const site of collectDslSites(cards)) {
-        if (skipped.has(site.cardId)) continue;
         const plan = planSmokeTest(site.effects, site.host);
-        if (plan.kind !== "skip") continue;
+        if (plan.kind === "run") {
+            coverage.run.add(site.cardId);
+            continue;
+        }
         const own = plan.skips.find(
             (s) => SMOKE_SKIP_CLASS[s.code] === "card-dependent"
         );
-        if (own) skipped.set(site.cardId, `${own.code}: ${own.reason}`);
+        if (own && !coverage.skipped.has(site.cardId))
+            coverage.skipped.set(site.cardId, `${own.code}: ${own.reason}`);
     }
-    return skipped;
+    return coverage;
 }
 
-/** The classifier's view of the catalogue. */
+/**
+ * The classifier's view of the catalogue. Built from the cards the smoke sweep
+ * walks (`getAllCards()`, the hand-written catalogue); a compiled card is
+ * absent, and the classifier clears any block naming one.
+ */
 export function buildCardFacts(
     cards: readonly CardDefinition[],
-    smokeSkipped: ReadonlyMap<string, string>
+    coverage: SmokeCoverage
 ): CardFacts {
     const byId = new Map<string, CardFact>();
     const byName = new Map<string, CardFact>();
@@ -125,7 +133,8 @@ export function buildCardFacts(
         const fact: CardFact = {
             id: card.id,
             name: card.name,
-            ownsCode: ownedCode(card, smokeSkipped.get(card.id)),
+            ownsCode: ownedCode(card, coverage.skipped.get(card.id)),
+            smokeRun: coverage.run.has(card.id),
         };
         byId.set(card.id, fact);
         // Same name, several prints: the name owns code if ANY print does.
