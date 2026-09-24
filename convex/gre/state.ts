@@ -11273,17 +11273,27 @@ export function resolveFight(
 /** Replacement-aware tap (CR 701.26a, 614). Runs the tap replacement loop
  *  before setting `isTapped` so a face-down permanent that would become tapped
  *  is turned face up first (CR 708.9, ADR 0013), then taps as its real self.
- *  No-op if the permanent is already tapped or a replacement cancels the tap.
- *  Every creature-tap site that a face-down permanent can hit (explicit tap
+ *  No-op if the permanent is already tapped or a replacement cancels the tap;
+ *  on a real transition it queues one PERMANENT_TAPPED (`forMana: false`) and
+ *  returns true. Every creature-tap site that a face-down permanent can hit (explicit tap
  *  effects, attacker declaration) routes through this. */
-export function tapPermanent(state: GameState, card: CardInstanceState): void {
-    if (card.isTapped) return;
+export function tapPermanent(
+    state: GameState,
+    card: CardInstanceState
+): boolean {
+    if (card.isTapped) return false;
     const ev = applyTapReplacements(state, {
         kind: "tap",
         cardInstanceId: card.id,
     });
-    if (ev === null) return;
+    if (ev === null) return false;
     card.isTapped = true;
+    // CR 701.26a — a real untapped → tapped transition is a "becomes tapped"
+    // event, mirroring `untapPermanent` / PERMANENT_UNTAPPED. Mana-ability and
+    // Improvise taps set `isTapped` themselves and emit `forMana`-tagged
+    // events, so they never route through here (no double event).
+    emitPermanentTapped(state, card, false);
+    return true;
 }
 
 /** Replacement-aware destroy (CR 614.5, 701.19a). If the permanent has at
