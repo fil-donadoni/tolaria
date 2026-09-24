@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { StackItem } from "~/types/game";
@@ -119,6 +120,16 @@ type GameStackProps = {
      *  inheritance — which follows the DOM tree, not the React tree — never
      *  reaches it). Ignored when `landscape` is falsy. */
     landscapePileClearancePx?: number;
+    /** Issue #2930 — folds the panel down to its header (which still reads
+     *  `Stack (N)`). Controlled by the caller so the choice outlives this
+     *  component's mount: the desktop mount unmounts the panel whenever the
+     *  stack empties, and a fold held in local state would reset every time.
+     *  Ignored while a spell-target pick is pending on the viewer — the rows
+     *  are the click targets then. The z-tier is unchanged either way. */
+    collapsed?: boolean;
+    /** Renders the fold control in the header; omit for layouts whose own
+     *  chip already toggles the panel (portrait, landscape). */
+    onToggleCollapse?: () => void;
 };
 
 /** How many top rows the collapsed list shows before the "N more" expander. */
@@ -139,6 +150,8 @@ export default function GameStack({
     narrow,
     landscape,
     landscapePileClearancePx,
+    collapsed,
+    onToggleCollapse,
 }: GameStackProps) {
     const {
         gameId,
@@ -178,6 +191,13 @@ export default function GameStack({
         !!pendingTarget &&
         pendingTarget.playerId === playerId &&
         wantsSpellTarget(pendingTarget.targetType);
+
+    const folded = !!collapsed && !canTargetSpell;
+
+    // A row unmounted mid-hover fires no mouseleave; drop its arrow seed.
+    useEffect(() => {
+        if (folded) setSeed?.(null);
+    }, [folded, setSeed]);
 
     const visible = expanded ? reversed : reversed.slice(0, COLLAPSED_ROWS);
     const hidden = reversed.length - visible.length;
@@ -323,101 +343,139 @@ export default function GameStack({
                             ? "flex max-h-full w-72 flex-col pointer-events-auto"
                             : landscape
                               ? "max-h-[80vh] w-72"
-                              : "max-h-[80vh] w-96"
+                              : folded
+                                ? "w-52"
+                                : "max-h-[80vh] w-96"
                     } max-w-[92vw] overflow-visible p-0`}
                 >
                     <DragHandle
                         label={`Stack (${stack.length})`}
                         handlers={dragHandlers}
+                        action={
+                            onToggleCollapse && (
+                                <button
+                                    type="button"
+                                    onClick={onToggleCollapse}
+                                    disabled={!!collapsed && canTargetSpell}
+                                    aria-label={
+                                        folded
+                                            ? "Expand stack"
+                                            : "Collapse stack"
+                                    }
+                                    aria-expanded={!folded}
+                                    data-testid="stack-collapse-toggle"
+                                    className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border border-border-strong text-text-muted transition-colors hover:text-parchment disabled:opacity-40"
+                                >
+                                    {folded ? (
+                                        <ChevronDown className="h-3 w-3" />
+                                    ) : (
+                                        <ChevronUp className="h-3 w-3" />
+                                    )}
+                                </button>
+                            )
+                        }
                     />
-                    {/* Issue #3556 §5 — the panel-header half of the **Yield**
+                    {!folded && (
+                        <>
+                            {/* Issue #3556 §5 — the panel-header half of the **Yield**
                         reset. Renders itself away while the viewing seat holds
                         none; the Game Menu carries the same control so it
                         stays reachable with the panel collapsed. "Manage
                         yields" (issue #3629) rides beside it, on the same
                         count. */}
-                    <div className="flex gap-2 px-2 pt-2 empty:hidden">
-                        <ClearYieldsButton />
-                        <ManageYieldsButton />
-                    </div>
-                    <div
-                        className={`flex ${
-                            narrow ? "min-h-0 flex-1" : "max-h-[70vh]"
-                        } flex-col gap-2 overflow-y-auto p-2`}
-                    >
-                        {visible.map((item, i) => {
-                            // ADR 0068 / issue #1956 — ONE composed predicate
-                            // covering every client-checked spell filter (the
-                            // per-filter chain that used to live here is where
-                            // a newly added filter silently went missing).
-                            const isTargetable =
-                                canTargetSpell &&
-                                matchesSpellPendingTarget(item, pendingTarget, {
-                                    playerId,
-                                    activePlayerId,
-                                    players: allPlayers,
-                                }) &&
-                                // CR 601.2c — a target-choice requirement
-                                // (Flagbearer) narrows this pick to permanents
-                                // on the battlefield, so no stack object is a
-                                // legal choice while one binds.
-                                !isBarredByRequiredTargetChoice(
-                                    pendingTarget,
-                                    item.id
-                                );
-
-                            const dimmed =
-                                highlight?.nodes != null &&
-                                !highlight.nodes.has(item.id);
-
-                            return (
-                                <StackRow
-                                    key={item.id}
-                                    item={item}
-                                    order={i + 1}
-                                    isTop={i === 0}
-                                    isTargetable={!!isTargetable}
-                                    onSelect={() => {
-                                        if (!isTargetable) return;
-                                        selectTarget({
-                                            gameId,
-                                            playerId,
-                                            targetType: "spell",
-                                            targetId: item.id,
-                                        });
-                                    }}
-                                    onHoverSeed={(seeding) => {
-                                        if (!setSeed) return;
-                                        setSeed(
-                                            seeding ? { nodeId: item.id } : null
-                                        );
-                                    }}
-                                    dimmed={dimmed}
-                                    arrived={
-                                        recentArrivals?.has(item.id) === true
-                                    }
-                                    allPlayers={allPlayers}
-                                    viewerId={playerId}
-                                    stack={stack}
-                                    // Phone panels only (issue #2727): both
-                                    // of these cover the board the arrows
-                                    // cross, so the row names its targets in
-                                    // text there and nowhere else.
-                                    showTargetLine={!!narrow || !!landscape}
-                                />
-                            );
-                        })}
-                        {hidden > 0 && (
-                            <button
-                                type="button"
-                                className="rounded-sm border border-border-subtle px-2 py-1 text-center text-[10px] text-accent-strong hover:bg-accent-soft/20"
-                                onClick={() => setExpanded(true)}
-                                onMouseEnter={() => setExpanded(true)}
+                            <div className="flex gap-2 px-2 pt-2 empty:hidden">
+                                <ClearYieldsButton />
+                                <ManageYieldsButton />
+                            </div>
+                            <div
+                                className={`flex ${
+                                    narrow ? "min-h-0 flex-1" : "max-h-[70vh]"
+                                } flex-col gap-2 overflow-y-auto p-2`}
                             >
-                                ▾ {hidden} more below
-                            </button>
-                        )}
-                    </div>
+                                {visible.map((item, i) => {
+                                    // ADR 0068 / issue #1956 — ONE composed predicate
+                                    // covering every client-checked spell filter (the
+                                    // per-filter chain that used to live here is where
+                                    // a newly added filter silently went missing).
+                                    const isTargetable =
+                                        canTargetSpell &&
+                                        matchesSpellPendingTarget(
+                                            item,
+                                            pendingTarget,
+                                            {
+                                                playerId,
+                                                activePlayerId,
+                                                players: allPlayers,
+                                            }
+                                        ) &&
+                                        // CR 601.2c — a target-choice requirement
+                                        // (Flagbearer) narrows this pick to permanents
+                                        // on the battlefield, so no stack object is a
+                                        // legal choice while one binds.
+                                        !isBarredByRequiredTargetChoice(
+                                            pendingTarget,
+                                            item.id
+                                        );
+
+                                    const dimmed =
+                                        highlight?.nodes != null &&
+                                        !highlight.nodes.has(item.id);
+
+                                    return (
+                                        <StackRow
+                                            key={item.id}
+                                            item={item}
+                                            order={i + 1}
+                                            isTop={i === 0}
+                                            isTargetable={!!isTargetable}
+                                            onSelect={() => {
+                                                if (!isTargetable) return;
+                                                selectTarget({
+                                                    gameId,
+                                                    playerId,
+                                                    targetType: "spell",
+                                                    targetId: item.id,
+                                                });
+                                            }}
+                                            onHoverSeed={(seeding) => {
+                                                if (!setSeed) return;
+                                                setSeed(
+                                                    seeding
+                                                        ? { nodeId: item.id }
+                                                        : null
+                                                );
+                                            }}
+                                            dimmed={dimmed}
+                                            arrived={
+                                                recentArrivals?.has(item.id) ===
+                                                true
+                                            }
+                                            allPlayers={allPlayers}
+                                            viewerId={playerId}
+                                            stack={stack}
+                                            // Phone panels only (issue #2727): both
+                                            // of these cover the board the arrows
+                                            // cross, so the row names its targets in
+                                            // text there and nowhere else.
+                                            showTargetLine={
+                                                !!narrow || !!landscape
+                                            }
+                                        />
+                                    );
+                                })}
+                                {hidden > 0 && (
+                                    <button
+                                        type="button"
+                                        className="rounded-sm border border-border-subtle px-2 py-1 text-center text-[10px] text-accent-strong hover:bg-accent-soft/20"
+                                        onClick={() => setExpanded(true)}
+                                        onMouseEnter={() => setExpanded(true)}
+                                    >
+                                        ▾ {hidden} more below
+                                    </button>
+                                )}
+                            </div>
+                        </>
+                    )}
                 </Panel>
             </div>
         </div>
