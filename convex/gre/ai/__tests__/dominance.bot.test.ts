@@ -820,6 +820,59 @@ describe("applyProbeCast — Urza's tapOtherFilter mana ability (issue #2420)", 
     });
 });
 
+// Issue #4478 — the probe's tap plan on the COMMON leg: a plain land entry
+// taps exactly the source the enumerator planned for the cost and nothing
+// else, and credits nothing to the pool (the coarse model `isNoOpDelta`
+// relies on to compare pools). Pinned through the public `applyProbeCast`
+// so the retirement of the probe's private copy (issue #4444) keeps it.
+describe("applyProbeCast — the tap plan taps the planned sources only (issue #4478)", () => {
+    it("a {U} cast on Island + Mountain + Forest taps the Island alone and leaves the pool empty", () => {
+        const land = (name: string, id: string) =>
+            makeInstance(getCardByName(name).id, {
+                id,
+                controllerId: "p1",
+                ownerId: "p1",
+            });
+        const spell = makeInstance(getCardByName("Brainstorm").id, {
+            id: "spell",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "hand",
+        });
+        const probe = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: [spell],
+                    battlefield: [
+                        land("Mountain", "mountain"),
+                        land("Island", "island"),
+                        land("Forest", "forest"),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+            activePlayerId: "p1",
+            priorityPlayerId: "p1",
+        });
+        const cast = enumerateMoves(probe, "p1").find(
+            (m): m is Extract<Move, { kind: "cast-spell" }> =>
+                m.kind === "cast-spell" && m.cardInstanceId === "spell"
+        );
+        expect(cast?.tapPlan.map((t) => t.cardInstanceId)).toEqual(["island"]);
+
+        expect(applyProbeCast(probe, "p1", cast!)).toBe(true);
+
+        const p1 = probe.players.find((p) => p.id === "p1")!;
+        const tapped = p1.battlefield
+            .filter((c) => c.isTapped)
+            .map((c) => c.id);
+        expect(tapped).toEqual(["island"]);
+        expect(
+            Object.values(p1.manaPool).reduce((a, b) => a + (b ?? 0), 0)
+        ).toBe(0);
+    });
+});
+
 describe("the probe applies CAST MODES (CR 601.2b, issue #3215)", () => {
     // The probe is the FIFTH build-a-StackItem-from-a-cast site, and the one
     // place where dropping a cast mode is worse than mis-valuing the line: this
