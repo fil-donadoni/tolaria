@@ -118,7 +118,13 @@ describe("NESTED_SCRIPT_KEYS — a nested script's hand read is checked in ITS s
 
 /** `preventDamage` is an op-covered Op (a dormant shield — ADR 0105 § 7.1),
  *  so the generator reads its OWN arguments back; `key` carries an object
- *  the generator cannot size. */
+ *  the generator cannot size.
+ *
+ *  This pins TODAY's semantics: `AMOUNT_KEYS` is a global key-name list, read
+ *  on whatever Op carries the key — hence one host for every name. A
+ *  derivation that classifies amounts per Op variant (issue #4451) would stop
+ *  reading e.g. `look` on `preventDamage` as an amount; these rows then go red
+ *  for a legitimate reason, and move to hosts that really declare each key. */
 function opCoveredWith(key: string): EffectOp[] {
     return [
         {

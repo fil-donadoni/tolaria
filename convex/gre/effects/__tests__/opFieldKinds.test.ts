@@ -14,8 +14,8 @@
 //     card): `grantCastTiming`, `grantSpellManaSubstitution`, `redirectDamage`.
 //
 // Each test feeds the field in the shape the derivation must classify — an
-// amount as a COMPUTED `EffectValue` (never the literal the interpreter file
-// already uses), an object or player slot through a `ref` / announced target,
+// `EffectValue` amount as a COMPUTED value (never the literal the interpreter
+// file already uses; `setBasePT`'s P/T are typed plain numbers), an object or player slot through a `ref` / announced target,
 // a binding read back through a later Op's `ref` — and asserts the outcome on
 // the board, never an internal. A derivation that misfiles one field changes
 // a zone, a life total or a legality verdict below.
@@ -396,9 +396,13 @@ describe("grantManaSubstitution / replaceManaProductionColor — the announced p
             "test-fk-grant-substitution"
         );
         const subs = getManaSubstitutions(state, "p2");
+        expect(subs.length).toBeGreaterThan(0);
         expect(subs.every((s) => s.from === "U")).toBe(true);
         expect(isManaCostCovered({ U: 1 }, { R: 1 }, subs)).toBe(true);
         expect(isManaCostCovered({ W: 1 }, { R: 1 }, subs)).toBe(false);
+        // "any-color", not "any-type": a {C} pip is not payable with blue
+        // (CR 105.1 — colourless is not a colour).
+        expect(isManaCostCovered({ U: 1 }, { C: 1 }, subs)).toBe(false);
         expect(getManaSubstitutions(state, "p1")).toEqual([]);
     });
 
@@ -558,15 +562,19 @@ describe("revealTopAndRoute — computed count (CR 701.20a)", () => {
 
 describe("setBasePT — the power and toughness amounts (CR 613.4b)", () => {
     it("sets base power and toughness to the two numbers, each read from its own field", () => {
-        const id = registerScript("test-fk-set-base-pt", [
-            {
-                op: "setBasePT",
-                target: { target: 0 },
-                power: 7,
-                toughness: 1,
-                duration: { phase: "end-of-turn" },
-            },
-        ]);
+        const id = registerScript(
+            "test-fk-set-base-pt",
+            [
+                {
+                    op: "setBasePT",
+                    target: { target: 0 },
+                    power: 7,
+                    toughness: 1,
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
+            { targetRequirement: { type: "Creature", count: 1 } }
+        );
         const state = makeState({
             players: [
                 makePlayer("p1"),
@@ -602,8 +610,11 @@ describe("grantCastTiming — the announced player slot and the card-type list (
                     manaPool: { ...pool },
                 }),
                 makePlayer("p2", {
-                    hand: [card(HELD_SORCERY_ID, "p2", "theirs", "hand")],
-                    manaPool: { ...pool },
+                    hand: [
+                        card(HELD_SORCERY_ID, "p2", "theirs", "hand"),
+                        card(BEAR_ID, "p2", "their-creature", "hand"),
+                    ],
+                    manaPool: { ...pool, G: 1, C: 1 },
                 }),
             ],
             activePlayerId: "p1",
@@ -619,6 +630,12 @@ describe("grantCastTiming — the announced player slot and the card-type list (
         expect(getLegalActions(state, state.players[1], theirs)).toContain(
             "cast"
         );
+        // The grant is narrowed to Sorcery: a Creature stays at sorcery speed.
+        // (An ABSENT list means every type, so this is what pins `cardTypes`.)
+        const creature = state.players[1].hand[1];
+        expect(
+            getLegalActions(state, state.players[1], creature)
+        ).not.toContain("cast");
         // Next turn is p2's: now p1 is the non-active player, and holds no grant.
         state.activePlayerId = "p2";
         state.priorityPlayerId = "p1";

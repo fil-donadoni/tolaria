@@ -518,6 +518,7 @@
         {"id":"105.1","line":"/** `colors` came from ONE \"<colour> or <colour>\" adjective (CR 105.1) —","sites":1,"status":"confirmed","ruleHash":"a0773a550784c5c5"},
         {"id":"105.1","line":"// \"Any COLOR\", not \"any type\": CR 105.1's five colours, colorless never a","sites":1,"status":"baseline"},
         {"id":"105.1","line":"// \"any-color\", not \"any-type\": colourless is not a colour (CR 105.1).","sites":1,"status":"confirmed","ruleHash":"a0773a550784c5c5"},
+        {"id":"105.1","line":"// (CR 105.1 — colourless is not a colour).","sites":1,"status":"confirmed","ruleHash":"a0773a550784c5c5"},
         {"id":"105.1","line":"// (CR 105.1), each a single `addMana` Op. That is the same","sites":1,"status":"baseline"},
         {"id":"105.1","line":"// (CR 105.1/613.1f, issue #4307). Grammar Gap `activated › effect clause","sites":1,"status":"confirmed","ruleHash":"a0773a550784c5c5"},
         {"id":"105.1","line":"// 1. GRAMMAR — a \"<colour> or <colour>\" descriptor (CR 105.1) is one","sites":1,"status":"confirmed","ruleHash":"a0773a550784c5c5"},
