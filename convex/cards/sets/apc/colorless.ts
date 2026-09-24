@@ -196,15 +196,13 @@ export const dodecapod: CardDefinition = {
 // be spent this way. / If this creature was kicked, it enters with X +1/+1
 // counters on it."
 //
-// Blocked on a VARIABLE Kicker: CR 107.3a gives the spell one announced X that
-// its Kicker cost shares, but `foldKickerCosts` (`gre/kicker.ts`) normalizes
-// the kicker mana with no chosen X, the cast dialog's X stepper keys off the
-// printed cost, and the Bot's X enumeration never looks at a kicker — the
-// Verdeloth the Ancient gap. Its spend clause is a SECOND, different
-// constraint from `ManaCost.xSpendColors` (issue #3811): "only coloured, at
-// most one of each colour" is a distinctness rule across the X pips, not a
-// per-pip colour set, so it cannot be owed as pips and ships with the card.
-// tracked-by: #2141
+// The VARIABLE Kicker itself is payable since issue #2141 (CR 107.3a — the
+// Kicker's {X} is the spell's one announced X; see Verdeloth the Ancient,
+// `inv/green.ts`). What still blocks the card is its spend clause, a
+// different constraint from `ManaCost.xSpendColors` (issue #3811): "only
+// coloured, at most one of each colour" is a distinctness rule across the X
+// pips, not a per-pip colour set, so it cannot be owed as pips.
+// tracked-by: #4506
 // export const emblazonedGolem: CardDefinition = {
 //     id: "98527fc6-4f4c-4ded-9e72-49186b7e5bd3", // APC 136
 //     name: "Emblazoned Golem",
