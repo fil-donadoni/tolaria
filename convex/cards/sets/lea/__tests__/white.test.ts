@@ -32,6 +32,7 @@ import {
 } from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
 import { checkStateBasedActions } from "../../../../gre/sba";
+import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import {
     validateAttackerEligibility,
     validateBlockerEligibility,
@@ -1515,17 +1516,18 @@ describe("Balance ({1}{W}, sorcery — equalize lands / cards / creatures)", () 
         return state;
     }
 
-    /** Mimics selectResolutionChoice for the head pending choice. */
-    function commitHead(state: ReturnType<typeof seed>, picks: string[]) {
-        const queue = state.pendingChoices ?? [];
-        const head = queue[0];
-        const item = state.stack.find((s) => s.id === head.stackItemId)!;
-        item.collectedChoices = {
-            ...(item.collectedChoices ?? {}),
-            [`${head.step}:${head.choiceId}`]: picks,
-        };
-        queue.shift();
-        state.pendingChoices = queue.length > 0 ? queue : undefined;
+    /** Answers the head keep choice through the REAL submit seam (issue
+     *  #4476) — validation included, and the submit resumes Balance's
+     *  resolution itself, so no test re-drives `resolveTopOfStack`. */
+    function submitHead(state: ReturnType<typeof seed>, picks: string[]) {
+        const head = state.pendingChoices![0];
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: picks,
+        });
     }
 
     it("no-op when all counts are equal (resolves to graveyard with no choices)", () => {
@@ -1555,8 +1557,7 @@ describe("Balance ({1}{W}, sorcery — equalize lands / cards / creatures)", () 
         resolveTopOfStack(state);
         expect(state.pendingChoices?.[0].playerId).toBe("p1");
         expect(state.pendingChoices?.[0].count).toBe(1);
-        commitHead(state, ["p1-land-1"]);
-        resolveTopOfStack(state);
+        submitHead(state, ["p1-land-1"]);
 
         expect(state.players[0].battlefield.map((c) => c.id)).toEqual([
             "p1-land-1",
@@ -1636,15 +1637,13 @@ describe("Balance ({1}{W}, sorcery — equalize lands / cards / creatures)", () 
         // Suspended on lands step
         expect(state.stack[0].resolutionStep).toBe(0);
         expect(state.pendingChoices?.[0].filter?.types).toBe("Land");
-        commitHead(state, ["p1-land-0"]);
-        resolveTopOfStack(state);
+        submitHead(state, ["p1-land-0"]);
 
         // Lands applied, hand applied (min=0, no prompt), creatures suspends
         expect(state.players[0].hand.length).toBe(0);
         expect(state.stack[0].resolutionStep).toBe(2);
         expect(state.pendingChoices?.[0].filter?.types).toBe("Creature");
-        commitHead(state, ["p1-bear-0"]);
-        resolveTopOfStack(state);
+        submitHead(state, ["p1-bear-0"]);
 
         // Fully resolved
         expect(state.stack.length).toBe(0);
@@ -1667,8 +1666,7 @@ describe("Balance ({1}{W}, sorcery — equalize lands / cards / creatures)", () 
         expect(state.pendingChoices?.[0].kind).toBe("keep-hand");
         expect(state.pendingChoices?.[0].count).toBe(1);
 
-        commitHead(state, ["p1-card-2"]);
-        resolveTopOfStack(state);
+        submitHead(state, ["p1-card-2"]);
 
         expect(state.players[0].hand.map((c) => c.id)).toEqual(["p1-card-2"]);
         expect(state.players[1].hand.map((c) => c.id)).toEqual(["p2-card-0"]);

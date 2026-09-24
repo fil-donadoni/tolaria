@@ -33,8 +33,6 @@ const PENDING_CHOICE_KIND_LABELS: Record<PendingChoiceKind, string> = {
     // trigger-time player target (CR 115.1a — Endurance's "up to one target player")
     "choose-player": "Choose a player",
     "draw-look-keep": "Keep",
-    // look-top (Stock Up / Preordain, #942) — look at the top N, pick a subset
-    "look-top": "Look",
     // order-top (scry / surveil / ponder drag picker) — order the kept top cards
     "order-top": "Scry",
     // look-distribute (Impulse / Stock Up) — take N to hand, order the rest bottom

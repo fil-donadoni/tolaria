@@ -1024,7 +1024,7 @@ describe("Worldly Counsel (CR 401.4 dig-to-hand — Domain, issue #1066)", () =>
             ],
         });
         pushSpell(state, worldlyCounsel.id, "p1");
-        expect(resolveTopOfStack(state)).toBeNull(); // suspended on look-top
+        expect(resolveTopOfStack(state)).toBeNull(); // suspended on look-distribute
         const head = state.pendingChoices![0];
         // Domain is 2 — exactly the top two library cards are looked at.
         expect(head.candidateIds).toEqual(["wc-a", "wc-b"]);

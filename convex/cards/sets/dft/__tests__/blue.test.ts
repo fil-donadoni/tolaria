@@ -70,7 +70,7 @@ describe("Stock Up (look 5, two to hand, rest to bottom; CR 401.4 / 401)", () =>
             ],
         });
         pushSpell(state, stockUp.id, "p1");
-        resolveTopOfStack(state); // suspends on the look-top choice
+        resolveTopOfStack(state); // suspends on the look-distribute choice
 
         // Chooser's view: exactly the top five are face-up as `libraryPeek`.
         const chooserView = projectPublicState(state, 1, "p1");

@@ -7684,7 +7684,7 @@ describe("validateEffectScript — categorised library selection (CR 701.23a / 7
             search({ zone: "hand", kind: "discard-hand" }),
             search({ zone: "graveyard", kind: "choose-graveyard-card" }),
             search({ zone: "battlefield", kind: "choose-permanents" }),
-            search({ kind: "look-top" }),
+            search({ kind: "draw-look-keep" }),
         ]) {
             const errors = validateEffectScript(host({ effects: [bad] }));
             expect(

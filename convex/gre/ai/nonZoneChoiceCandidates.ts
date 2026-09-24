@@ -106,7 +106,6 @@ export const NON_ZONE_CANDIDATE_SOURCE: Record<
     "choose-exile-card": "none",
     "choose-library-card": "none",
     "draw-look-keep": "none",
-    "look-top": "none",
     "order-top": "none",
     "look-distribute": "none",
     "choose-categorized": "none",

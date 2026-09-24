@@ -111,7 +111,6 @@ export function openPeekTopCount(
     if ((choice.zoneOwnerId ?? choice.playerId) !== libraryOwnerId) return 0;
     switch (choice.kind) {
         case "order-top":
-        case "look-top":
         case "look-distribute":
         case "draw-look-keep":
             return choice.candidateIds?.length ?? 0;

@@ -8,7 +8,7 @@ import type { CardDefinition } from "../../types";
 //
 // The look/hand/bottom effect is the already-censused `lookDistribute` Op (CR 401.4,
 // issue #984) with `look: { X: true }` (the announced X, issue #852) and the
-// default `take: 1`: it reveals the top X, drives a suspending `look-top` pick
+// default `take: 1`: it reveals the top X, drives a suspending `look-distribute` pick
 // of one card to keep (moved library → hand), and bottoms the rest. "In any
 // order" is a formality auto-resolved in look order — the bottomed cards go
 // face-down into the library, unknown, so no arrangement carries value.
