@@ -69,6 +69,7 @@ describe("assertNever tails refuse a kind the type never admitted (issue #4441)"
         } as unknown as PendingChoice;
         expect(() =>
             heuristicChoicePrior(makeState(), choice, {
+                key: "accept",
                 move: { kind: "may-pay", accept: true } as Move,
             })
         ).toThrow(/Unhandled PendingChoiceKind in heuristicChoicePrior/);
