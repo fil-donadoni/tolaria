@@ -29,6 +29,52 @@ still involved" excludes the queue label.
 
 Edit the right-hand column to match whatever vocabulary you actually use.
 
+## Every new issue is stamped at filing (issue #4457)
+
+**Every surface that creates an issue stamps it** — a skill, a script, a
+session typing `gh issue create` by hand. An unstamped issue is a residue row
+a human must come back to: the residue batch of issue #4202 drove 196 rows to
+5 and watched 15 new ones appear within a day, each from a filing surface that
+did not write what the band rule reads. Nothing below is new policy: it is
+ADR 0143 and this file applied at the moment of creation instead of
+retroactively.
+
+| Field     | Rule                                                                                                                                                                                        |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `area:*`  | **Always** — exactly one of `area:admin`, `area:cards`, `area:docs`, `area:game-bot`, `area:infra`, `area:limited-bot`, `area:mechanics`, `area:monitoring`, `area:ui-ux`, `area:workflow`. |
+| type      | **Always** — one of `bug` / `enhancement` / `prd` / `user-report`. A filer who cannot decide applies `needs-triage` instead, which is itself the declaration "a human must type this".      |
+| band      | **Only where no prioritised parent lends one** — see below.                                                                                                                                 |
+| `model:*` | **By exception only**, per § Model-routing labels escalate by exception. There is no `model:sonnet` label and none is ever created: absence IS the default.                                 |
+
+**The band and the parent** (ADR 0143 Amendment II, issue #4371). A slice
+wired under a prioritised umbrella takes its band from the umbrella, demotions
+included; a `## Band` line on it orders it INSIDE the umbrella's turn and moves
+the band not at all, so a slice needs none. A standalone issue — no parent, or
+a parent with no board `Priority` — carries a `## Band` section in its body:
+
+```markdown
+## Band
+
+P2 — <one-line reason>
+```
+
+`P1`-`P3` or `none — <reason>` (ruled off the road); never `P0`, which is
+hand-set on the board and never written by a filer. A filer who may not rule
+the band applies `needs-triage` instead. With neither, `backlog:triage`
+computes the coarse label default (ADR 0143 § The write rule and the default)
+and the issue is residue until a human rules it.
+
+The stamp is two `--label` flags and, for a standalone, one body section:
+
+```sh
+gh issue create --title "…" --body "…" --label enhancement --label area:workflow --label ready-for-agent
+```
+
+Scripts stamp from their own table: `GAP_LABELS` in `scripts/lib/gap-issues.ts`
+carries `enhancement` + an area on every Gap kind, and no band (every Gap
+issue is parented to its band's umbrella). A script that COPIES an issue
+(`prd:copy`) carries the original's labels through and adds none.
+
 ## Model-routing labels escalate by exception
 
 **This section is the single authority on model routing, for filing AND for

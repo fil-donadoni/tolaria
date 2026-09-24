@@ -172,6 +172,12 @@ self-contained, because the tracker is about to be closed:
   touches everything; omit append-only registration points. A WRONG path is
   worse than a missing one (it makes two issues look disjoint when they are
   not), so widen rather than guess.
+- **The filing stamp** (`docs/agents/triage-labels.md` § Every new issue is
+  stamped at filing) — a type (`enhancement` for a missing capability, `bug`
+  for shipped behaviour that is wrong) and exactly one `area:*` on every
+  ticket; a `## Band` line only on a ticket that is NOT wired under a
+  prioritised umbrella:
+  `gh issue create --title "…" --body "…" --label enhancement --label area:mechanics --label ready-for-agent`.
 
 Label: `ready-for-agent` when the shape is settled, `needs-design` when Phase 5
 left a real fork. Add `model:opus` only for a ticket introducing a

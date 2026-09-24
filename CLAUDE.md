@@ -389,6 +389,7 @@ A capability that genuinely isn't built: flag it explicitly — most are.
   fills it). `bun run findings`; format in `docs/findings/README.md`.
 - **Triage labels**: five canonical roles + model-routing labels. See
   `docs/agents/triage-labels.md`.
+- **Every issue you file is stamped**: `area:*` + a type always, a `## Band` only with no prioritised parent (`docs/agents/triage-labels.md` § Every new issue).
 - **Domain docs**: `CONTEXT.md` + `docs/adr/`. ADRs are not auto-loaded —
   `docs/adr/README.md` is the queryable index; **every new ADR MUST add its
   index row** in the same change.

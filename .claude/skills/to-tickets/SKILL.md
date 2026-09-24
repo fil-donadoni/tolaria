@@ -93,6 +93,8 @@ Same call closes the loop at the other end: `subIssuesSummary.completed == total
 
 Do **not** put `ready-for-agent` on the umbrella itself — it is a spec, not a work item, and the loop skips `prd`-labelled issues by design. The children carry the label; the lineage sort carries the priority.
 
+**Stamp every ticket at filing (GitHub tracker)** — the rule is `docs/agents/triage-labels.md` § Every new issue is stamped at filing, not restated here: a type (`bug` / `enhancement`) and exactly one `area:*` on every ticket, always; a `## Band` section in the body only on a ticket with no prioritised parent — a ticket wired under a prioritised umbrella takes its band from it and needs none. The calling skill hands you the area when it knows it; otherwise pick the one the ticket's files live in. Example: `gh issue create --title "…" --body "…" --label enhancement --label area:workflow --label ready-for-agent`.
+
 **Stamp the implement-model label by complexity (GitHub tracker).** `/process-gh-issues` runs each ticket's implement-subagent on the tier named by its `model:*` label, defaulting to **Sonnet** when none is present. Sonnet is safe for the bulk of work and the opus reviewer + full gate + catalogue guards catch correctness regressions — but a diff-review is weak at catching a **wrong abstraction**, so the one thing worth deciding here (where the design context is freshest) is: does this ticket set a pattern others will copy? Apply exactly one label:
 
 - `model:opus` — the ticket introduces a **new Op / primitive / cross-layer interaction / a shape later tickets will imitate**. Design mistakes here propagate; pay for the stronger implementer.

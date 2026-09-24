@@ -104,7 +104,9 @@ is more work than the Op". Then:
    a new Op never enters; until it files fragment gaps too (issue #3869), open
    the issue through `/new-qa-issue`, titled `Grammar Gap: <key>`, under the
    Grammar Rules umbrella of its band (`docs/agents/issue-tracker.md` §
-   Umbrellas partition by band).
+   Umbrellas partition by band). Its filing stamp
+   (`docs/agents/triage-labels.md` § Every new issue is stamped at filing) is
+   `enhancement` + `area:mechanics`, and no `## Band` — the umbrella lends it.
 3. Stop here and report the gap issue. The Op lands with the rule that emits
    it, as Branch A, in the issue that closes the gap.
 

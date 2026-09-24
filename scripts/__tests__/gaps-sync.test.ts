@@ -17,6 +17,7 @@ import {
     type Band,
 } from "../lib/backlog-triage";
 import {
+    GAP_LABELS,
     applyUpdatedIssues,
     BAND_UMBRELLAS,
     KIND_FALLBACK,
@@ -59,6 +60,7 @@ import type { CardRow, FragmentRow, Lockfile } from "../lib/oracle-lockfile";
 import {
     claimId,
     coverageVerdict,
+    GAP_KINDS,
     gapIndex,
     parseClaims,
     resolveContext,
@@ -319,7 +321,11 @@ describe("the mechanic and scenario kinds — one issue per quarantine class", (
         expect(filing.key).toBe(
             'planned-mechanic › keyword "changeling" is not implemented in the Mechanics Registry'
         );
-        expect(filing.labels).toEqual(["ready-for-agent", "area:mechanics"]);
+        expect(filing.labels).toEqual([
+            "ready-for-agent",
+            "enhancement",
+            "area:mechanics",
+        ]);
         const body = filing.body(7001);
         // Two cards carry the class; only one of them is in the premodern pool.
         expect(body).toContain("- format-premodern (format, priority 1): 1");
@@ -450,7 +456,11 @@ describe("the bot kind — one issue per Bot Gap key, scoped to the ranked Targe
         const filing = filings[0]!;
         expect(filing.kind).toBe("bot");
         expect(filing.title).toBe(`Bot Gap: ${NEVER_CHOSEN}`);
-        expect(filing.labels).toEqual(["ready-for-agent", "area:game-bot"]);
+        expect(filing.labels).toEqual([
+            "ready-for-agent",
+            "enhancement",
+            "area:game-bot",
+        ]);
         expect(filing.fallbackParent).toBe(KIND_FALLBACK.bot);
         const body = filing.body(7001);
         expect(body.split("\n")[0]).toBe(
@@ -683,6 +693,7 @@ describe("the hand-tail kind — one issue per CARD, gated by handTailFiling", (
         expect(filings.map((f) => f.key)).not.toContain("Mixed Card");
         expect(filings[0]!.labels).toEqual([
             "ready-for-agent",
+            "enhancement",
             "area:cards",
             "hand-tail",
         ]);
@@ -834,6 +845,7 @@ describe("the migration kind — graduates cluster by the rule that unlocked the
         const cluster = filings.find((f) => f.key === "keyword-line")!;
         expect(cluster.labels).toEqual([
             "ready-for-agent",
+            "enhancement",
             "area:cards",
             "migration",
         ]);
@@ -1833,5 +1845,18 @@ describe("parseOriginBand — the flag is the only channel into a hand-set P0 um
         expect(() => parseOriginBand(["--band", "p0"])).toThrow(/got "p0"/);
         expect(() => parseOriginBand(["--band=P9"])).toThrow(/got "P9"/);
         expect(() => parseOriginBand(["--band"])).toThrow(/got nothing/);
+    });
+});
+
+describe("GAP_LABELS carries the filing stamp (issue #4457)", () => {
+    // docs/agents/triage-labels.md § Every new issue is stamped at filing:
+    // one type and one area on every computed issue; the band comes from the
+    // umbrella every gap issue is parented to, so no kind carries one.
+    const TYPES = ["bug", "enhancement", "prd", "user-report"];
+    it.each(GAP_KINDS)("%s: exactly one type and exactly one area:*", (k) => {
+        const labels = GAP_LABELS[k];
+        expect(labels.filter((l) => TYPES.includes(l))).toHaveLength(1);
+        expect(labels.filter((l) => l.startsWith("area:"))).toHaveLength(1);
+        expect(labels.filter((l) => l.startsWith("model:"))).toEqual([]);
     });
 });

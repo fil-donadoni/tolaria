@@ -159,23 +159,25 @@ If after Step 2's clarification round the answer is still "an agent could not
 execute this without asking someone", it is `needs-triage`. Otherwise it is
 `ready-for-agent`. Never hedge by applying both.
 
-### Step 6b — Decide the board Priority (P0/P1/P2)
+### Step 6b — Decide the band (P0/P1/P2, standalone only)
 
-**The board offers a fourth band, `P3`, and this step does NOT seed it**
-(issue #4051). `P3` is a maintainer's ruling — "I looked at this and it goes
-last" — and a seed is by definition not one: a fresh QA issue nobody has
-ranked belongs in the unprioritized residue, which is where it lands with no
-value set. Only an explicit `P3` in the user's own message (rule 1 below)
-reaches the board from here.
+The filing stamp is `docs/agents/triage-labels.md` § Every new issue is
+stamped at filing: `area:*` (Step 5b) + a type (`bug` / `enhancement`, from
+Step 4's Category) always, a band only where no prioritised parent lends one.
 
-The GitHub Project board's `Priority` single-select (Project #2) is what
-`queue:plan` sorts on as its zeroth key
-(`docs/agents/issue-tracker.md` § Why the queue is sorted the way it is) — an
-issue with no value there sorts on the default heuristic (bug label, lineage,
-number), behind everything a human has actually flagged. This step seeds a
-STARTING value so a fresh QA issue does not silently fall to the bottom of a
-200+-item queue; it is a seed, not a lock — the maintainer's own edit on the
-board still overrides it at any time, exactly as before.
+**A slice cut from a prioritised umbrella (Step 8b) gets NO band** — the
+umbrella's board `Priority` governs it, demotions included (ADR 0143
+Amendment II); skip this step. **A standalone issue** gets its band as a
+`## Band` section in the body, one line `P<n> — <reason>` — never as a
+hand-typed board value, because the board is the OUTPUT of
+`backlog:triage --write` and cannot tell a seed from a ruling (ADR 0143
+§ The write rule and the default). **`P0` is the one exception**: it is
+hand-set on the board and never written as a `## Band` line, which
+`backlog:triage` refuses (Step 8c).
+
+**`P3` is NOT seeded** (issue #4051). `P3` is a maintainer's ruling — "I
+looked at this and it goes last" — and a seed is by definition not one. Only
+an explicit `P3` in the user's own message (rule 1 below) is written.
 
 1. **Explicit wins.** If the user's own message names a priority — `P0`/`P1`/
    `P2`/`P3` literally, or an unambiguous severity word (`critico`/`blocca tutto`/
@@ -193,11 +195,19 @@ board still overrides it at any time, exactly as before.
 3. State the chosen priority and a one-line reason alongside the draft in
    Step 7, so the user can correct it before creation — this is a proposal,
    not a silent write.
+4. `P1`/`P2`/`P3` go into the body as the last section, before creation:
+
+    ```markdown
+    ## Band
+
+    P1 — <the one-line reason from 3>
+    ```
 
 ### Step 7 — Confirm with user
 
-Present the full draft (title, body, labels including the queue label and the
-model label, and the Step 6b priority + its one-line reason) and ask for
+Present the full draft (title, body, labels including the type, area, queue
+and model labels, and the Step 6b band + its one-line reason, or "none — slice
+of #N") and ask for
 approval. Accept edits — including a priority override. Do not create the
 issue until the user confirms.
 
@@ -209,12 +219,13 @@ Ensure the queue label exists (only the one chosen in Step 6):
 gh label create needs-triage --description "Maintainer needs to evaluate" --color "FBCA04" --force
 ```
 
-Create the issue — `<queue>` = **one** of `ready-for-agent` / `needs-triage`,
-`<model>` = the model label from Step 5 (omit the flag entirely when not
-escalating):
+Create the issue — `<type>` = `bug` / `enhancement` (Step 4's Category),
+`<area>` = the Step 5b label, `<queue>` = **one** of `ready-for-agent` /
+`needs-triage`, `<model>` = the model label from Step 5 (omit the flag entirely
+when not escalating):
 
 ```sh
-gh issue create --title "<title>" --body "<body>" --label "<type>" --label "<queue>" --label "model:<opus|fable>"
+gh issue create --title "<title>" --body "<body>" --label "<type>" --label "area:<area>" --label "<queue>" --label "model:<opus|fable>"
 ```
 
 Output the issue URL.
@@ -286,16 +297,18 @@ matched the `## Blocked by` section only, so it reported parity on a body whose
 inline `depends on #N` the planner already read as a blocker; `queue:lint`
 compares against the planner's OWN parser.
 
-### Step 8c — Apply the Step 6b Priority to the board
+### Step 8c — Put the issue on the board (and a `P0` on its Priority)
 
-Add the new issue to the board and set its `Priority` to the value decided (or
-corrected) in Step 6b/7 — `<owner>`/`<project>` default to `fil-donadoni`/`2`
-(override with `TOLARIA_PROJECT_OWNER`/`TOLARIA_PROJECT_NUMBER`, matching
-`scripts/queue-plan.ts`), `<priority>` is one of `P0`/`P1`/`P2`/`P3`:
+Add the new issue to the board — `<owner>`/`<project>` default to
+`fil-donadoni`/`2` (override with `TOLARIA_PROJECT_OWNER`/
+`TOLARIA_PROJECT_NUMBER`, matching `scripts/queue-plan.ts`). Only a `P0`
+decided in Step 6b/7 is written to the `Priority` field by hand; `P1`-`P3`
+travel in the `## Band` section and `backlog:triage --write` puts them on the
+board:
 
 ```sh
 gh project item-add <project> --owner <owner> --url <issue-url>
-gh project item-edit <project> --owner <owner> --url <issue-url> --field Priority --value <priority>
+gh project item-edit <project> --owner <owner> --url <issue-url> --field Priority --value P0   # P0 only
 ```
 
 This is a convenience seed, not a gate: if either command fails (missing
@@ -318,9 +331,10 @@ degrade-with-an-escape-hatch shape as the board READ in
 - [ ] Model label decided — **none** unless escalating (`model:opus` / `model:fable`)
 - [ ] If `area:game-bot`: acceptance criteria include the `Blade:` line
 - [ ] Queue label decided — **exactly one** of `ready-for-agent` / `needs-triage`, never both
-- [ ] Board Priority decided (explicit from the user, else severity heuristic) and shown for confirmation
+- [ ] Band decided (explicit from the user, else severity heuristic) and shown for confirmation — or none, when a prioritised umbrella lends it
 - [ ] User confirmed before creation
-- [ ] Labels applied: category + exactly one queue label (+ `model:*` only if escalated)
+- [ ] Labels applied: type + exactly one `area:*` + exactly one queue label (+ `model:*` only if escalated)
+- [ ] Standalone `P1`-`P3`: a `## Band` section in the body
 - [ ] If cut from a `prd` umbrella: `--parent` wired and `subIssuesSummary.total` verified
 - [ ] Every dependency (explicit or implied) wired natively AND as a `## Blocked by` body line, parity read-back shows no `DRIFT`
-- [ ] Board Priority applied (`item-add` + `item-edit`), or the fallback commands printed if it failed
+- [ ] On the board (`item-add`, + `item-edit` for a `P0`), or the fallback commands printed if it failed
