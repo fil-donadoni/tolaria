@@ -130,6 +130,12 @@ test (interpreter unit + one wire-format assertion through
 - Every new function/behavior change needs tests in `convex/gre/__tests__/`.
 - Tests reference their CR section (`describe("lands (CR 305.2)")`).
 - `bun run test` zero failures after any change.
+- **One behaviour, one block, in the module that owns it** — a duplicate test
+  block is an antipattern (issue #4493 deleted 20). A card test does not
+  restate its mechanic's engine test; a caller does not restate its callee's
+  gate; the same shape with different inputs is `it.each`, not a copy.
+  `scripts/__tests__/duplicate-test-blocks.test.ts` reds on two blocks with
+  the same body AND the same bindings (issue #4620, runs on `health`).
 
 ## Proof-of-failure (mandatory for every new guarding test)
 

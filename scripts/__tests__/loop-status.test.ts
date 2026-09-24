@@ -86,7 +86,12 @@ describe("loop-status — computeStage", () => {
         ).toBe("claimed");
     });
 
-    it("advances to 'worktree' once a worktree exists, before any branch is pushed", () => {
+    it("advances to 'worktree' once a worktree exists, before any branch is pushed — a LOCAL-only branch does not reach 'branch pushed'", () => {
+        // The stage is named for the push. A pass killed mid-edit leaves its
+        // local branch on disk forever, so counting it here would report dead
+        // work as further along than it ever got — the same conflation that
+        // let eight claims read as live for 25-36 hours (loop-doctor.ts,
+        // ClaimFacts.hasLocalBranch).
         expect(
             computeStage({
                 hasWorktree: true,
@@ -106,22 +111,6 @@ describe("loop-status — computeStage", () => {
                 reviewApproved: false,
             })
         ).toBe("branch pushed");
-    });
-
-    it("a LOCAL-only branch does not reach 'branch pushed'", () => {
-        // The stage is named for the push. A pass killed mid-edit leaves its
-        // local branch on disk forever, so counting it here would report dead
-        // work as further along than it ever got — the same conflation that
-        // let eight claims read as live for 25-36 hours (loop-doctor.ts,
-        // ClaimFacts.hasLocalBranch).
-        expect(
-            computeStage({
-                hasWorktree: true,
-                hasRemoteBranch: false,
-                hasOpenPr: false,
-                reviewApproved: false,
-            })
-        ).toBe("worktree");
     });
 
     it("advances to 'PR open' once a PR exists", () => {

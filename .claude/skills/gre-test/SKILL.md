@@ -129,6 +129,12 @@ For each function or rule:
 3. **Edge cases** — empty zones, turn 1 special rules, 0 values
 4. **CR compliance** — reference the specific rule number being validated
 
+**Never restate a test that already exists.** Before writing a block, grep for
+the behaviour: if the engine suite (or the callee's suite) already asserts it,
+do not copy it into the card or caller file — a duplicate block is a project
+antipattern, red on `health` (`scripts/__tests__/duplicate-test-blocks.test.ts`,
+issue #4620). Same shape, different inputs → `it.each`.
+
 ## Running tests
 
 - `bun run test` — run all tests once
