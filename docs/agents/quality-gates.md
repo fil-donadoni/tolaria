@@ -472,6 +472,60 @@ behind measured 219.6 s at load 21 → 12. The lane's `node-engine` step, where
 the reorder acts inside one project, is the cleanest signal (−22 to −43 s).
 Re-derive at a quiet moment before quoting a speed-up.
 
+### Filesystem module cache — measured, dropped (issue #4488)
+
+Vitest 4's `experimental.fsModuleCache` writes every transformed module to
+disk and serves it back to a later invocation. The question was whether it
+cuts the `transform` phase (≈176 s summed across the four
+vitest runs the issue measured on 2026-09-24 — node, dom, bot, blade) on `health`. **Verdict: drop — from every tier, `health`
+included.** It stays in the tree only as a manual knob,
+`TOLARIA_VITEST_FS_CACHE=<dir>` (`scripts/lib/vitest-fs-cache.ts`), which no
+script sets.
+
+Why it cannot pay on `health` as built: vitest hashes the module's ABSOLUTE
+id and the config `root` into every cache key, and `health` gates each tip in
+a fresh `tolaria-health-<pid>` worktree. Every cycle is therefore a cold
+cycle — no key written by one is ever read by the next — and a cold cycle
+pays the write (8 181 files, 384 MB) for a hit only inside itself: `test:bot`
+reading what `test:app` transformed. The blade config's key differs from the
+root config's, so `test:blade` does not even get that. A persistent cache
+directory would also grow by ~384 MB per cycle with nothing to prune it.
+
+Measured on detached worktrees at the same commit, `bun run test` through
+the heavy tier (`TOLARIA_VITEST_WORKERS=4`), vitest's own `Duration`
+(transform phase in parentheses, summed across workers):
+
+| Run                                 | `test:app`      | `test:bot`     | `test:blade`   | Total   | Transform | Load avg (1m) |
+| ----------------------------------- | --------------- | -------------- | -------------- | ------- | --------- | ------------- |
+| A — off                             | 381.9 s (144.7) | 113.1 s (66.1) | 112.0 s (22.0) | 607.0 s | 232.8 s   | 25 → 72       |
+| A2 — off                            | 256.6 s (103.1) | 93.2 s (56.7)  | 112.1 s (20.4) | 461.9 s | 180.2 s   | 7.5 → 7.9     |
+| B — on, empty cache (cycle 1)       | 288.3 s (116.3) | 83.7 s (23.9)  | 137.2 s (24.5) | 509.2 s | 164.7 s   | 22 → 17       |
+| D — on, NEW worktree path (cycle 2) | 286.4 s (109.6) | 72.7 s (24.2)  | 130.9 s (22.4) | 490.0 s | 156.2 s   | 6.0 → 8.0     |
+| C2 — on, SAME worktree path (warm)  | 222.9 s (32.5)  | 64.2 s (19.2)  | 107.3 s (7.7)  | 394.4 s | 59.4 s    | 28 → 5.9      |
+
+B and D are the two health cycles in `health`'s real shape: D's `test:app`
+transform (109.6 s) is B's cold figure, and the cache doubled to 16 362
+files instead of hitting. Against the quiet baseline A2, D is **+28 s** wall:
+`test:app` +30 s (it pays the cold write and
+reads nothing back), `test:bot` −21 s (the one in-cycle hit, reading
+`test:app`'s transforms), `test:blade` +19 s (keyed apart, it only writes). A is voided as a comparison — it ran
+at load 40–72. C2 is the ceiling a stable path would reach: **−67 s (−15 %)**
+against A2, transform 180 → 59 s.
+
+Correctness: no stale module was served. The key covers source content,
+`NODE_ENV`, the config file's bytes and plugin names — but not plugin
+OPTIONS, so a `define` constant (`__BUILD_COMMIT__`) would be served with the
+previous commit's value; `defineCacheKeyPlugin` adds the define values to the
+key of exactly the modules that mention one (pinned by
+`vitest-fs-cache.test.ts`). The one red seen (C, load 61),
+`health-cadence-spawn.test.ts` CONTROL, is a process-group timing race,
+green 3/3 re-run with the cache on — it transforms nothing.
+
+What would reopen it: a stable gate-worktree path — `health` reusing one
+directory per checkout, with the concurrency that implies — plus a pruning
+rule for the cache directory. Re-measure C2 against A2 at a quiet moment
+before adopting; nothing else in this section changes.
+
 ### Batch homogeneity and the batch-level `check:ui`
 
 `scripts/lib/queue-plan.ts`'s `planBatch` (issue #2743) computes each
