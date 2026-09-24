@@ -75,6 +75,6 @@ describe("OrientationHint — once per surface per session (issue #2594)", () =>
 
         // A DIFFERENT surface, same session — must still show.
         render(<OrientationHint surfaceId="draft-room" message="Draft hint" />);
-        expect(screen.getByText("Draft hint")).toBeInTheDocument();
+        expect(screen.getByText("Draft hint").textContent).toBe("Draft hint");
     });
 });

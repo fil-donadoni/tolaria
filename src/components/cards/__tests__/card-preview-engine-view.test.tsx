@@ -76,7 +76,7 @@ describe("CardPreviewEngineView (issue #2728)", () => {
         const { getByText } = render(
             <CardPreviewEngineView badge={{ kind: "protocol" }} />
         );
-        expect(getByText("Protocol")).toBeInTheDocument();
+        expect(getByText("Protocol").textContent).toBe("Protocol");
     });
 
     it("compact (desktop lateral zoom): badge + 'Alt: engine view' hint, no header or tree well", () => {
