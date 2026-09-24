@@ -21,30 +21,19 @@
 // token specs. Tests that need a mutable card build one via the fixture
 // builders (`makeInstance`, …) or `structuredClone` a frozen definition —
 // cloning a frozen object yields an unfrozen copy.
-import { getAllCards } from "./convex/cards/catalogue";
 import { preloadDefinitions } from "./convex/cards/registry";
-import * as sharedTokens from "./convex/cards/sharedTokens";
 import {
     assertSwapped,
     parseSwapIds,
     resolveSwapTwins,
     SWAP_ENV,
 } from "./convex/oracle/behavioural";
+import { deepFreeze, freezeCatalogueOnce } from "./vitest.freeze-catalogue";
 
-const seen = new WeakSet<object>();
-
-function deepFreeze(value: unknown): void {
-    if (value === null || typeof value !== "object") return;
-    if (seen.has(value)) return;
-    seen.add(value);
-    for (const key of Object.getOwnPropertyNames(value)) {
-        deepFreeze((value as Record<string, unknown>)[key]);
-    }
-    Object.freeze(value);
-}
-
-for (const def of getAllCards()) deepFreeze(def);
-for (const spec of Object.values(sharedTokens)) deepFreeze(spec);
+// Vitest re-runs this file for every test file, but modules it imports stay
+// cached in a non-isolated worker — so the walk lives in an imported module
+// and runs once per worker (issue #4484), not once per file.
+freezeCatalogueOnce();
 
 // ── Behavioural gold: serve a COMPILED definition instead (issue #2703) ─────
 //
