@@ -183,6 +183,11 @@ import {
 // activated ability): Armor of Faith, Blessing, Crown of Flames, Firebreathing,
 // Holy Armor and Stonehands round-trip once the pump on the host reads as a
 // `$host` script.
+//
+// Lowered 1507 -> 1506 by issue #4315 (self-shuffle replacement): Blightsteel
+// Colossus round-trips once "If <self> would be put into a graveyard from
+// anywhere, reveal <self> and shuffle it into its owner's library instead"
+// reads as the `shuffleFromAnywhere` flag its hand-written entry expands from.
 const BASELINE_CEILING = 1506;
 
 /**
