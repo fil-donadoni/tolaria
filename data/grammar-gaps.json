@@ -631,6 +631,16 @@
         },
         {
             "kind": "grammar",
+            "key": "(card) › \"each player\" is not in grammar v0",
+            "issue": 4587
+        },
+        {
+            "kind": "grammar",
+            "key": "(card) › \"that player\" names no player at this site",
+            "issue": 4587
+        },
+        {
+            "kind": "grammar",
             "key": "(card) › land with a basic land type — intrinsic mana ability (CR 305.6) is not in grammar v0",
             "issue": 4541
         },
@@ -648,6 +658,11 @@
             "kind": "grammar",
             "key": "activated › activation cost › Discard your hand",
             "issue": 4563
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › activation cost › Domain — {…}",
+            "issue": 4584
         },
         {
             "kind": "grammar",
@@ -686,6 +701,11 @@
         },
         {
             "kind": "grammar",
+            "key": "activated › effect clause › Activate no more than twice each turn",
+            "issue": 4585
+        },
+        {
+            "kind": "grammar",
             "key": "activated › effect clause › Choose a card name, then reveal a card at random from your hand",
             "issue": 4550
         },
@@ -716,6 +736,11 @@
         },
         {
             "kind": "grammar",
+            "key": "activated › effect clause › Prevent all combat damage that would be dealt to and dealt by this creature this turn",
+            "issue": 4590
+        },
+        {
+            "kind": "grammar",
             "key": "activated › effect clause › Prevent the next N damage that would be dealt to any target this turn",
             "issue": 4300
         },
@@ -723,6 +748,11 @@
             "kind": "grammar",
             "key": "activated › effect clause › Prevent the next N damage that would be dealt to target creature this turn",
             "issue": 4309
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › Put target creature you control on top of its owner's library",
+            "issue": 4594
         },
         {
             "kind": "grammar",
@@ -756,6 +786,11 @@
         },
         {
             "kind": "grammar",
+            "key": "activated › effect clause › Search your library for a card, put that card into your hand, then shuffle",
+            "issue": 4591
+        },
+        {
+            "kind": "grammar",
             "key": "activated › effect clause › Search your library for a creature card, reveal that card, put it into your hand, then shuffle",
             "issue": 4553
         },
@@ -781,8 +816,28 @@
         },
         {
             "kind": "grammar",
+            "key": "activated › effect clause › Target creature blocks this creature this turn if able",
+            "issue": 4580
+        },
+        {
+            "kind": "grammar",
             "key": "activated › effect clause › Target creature you control fights target creature an opponent controls",
             "issue": 4572
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › Target creature you control gains protection from the color of your choice until end of turn",
+            "issue": 4588
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › Target opponent may draw a card",
+            "issue": 4592
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › Target opponent reveals a card at random from their hand",
+            "issue": 4592
         },
         {
             "kind": "grammar",
@@ -793,6 +848,11 @@
             "kind": "grammar",
             "key": "activated › effect clause › The next time a red source of your choice would deal damage to you this turn, prevent that damage",
             "issue": 4572
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › This creature becomes colorless until end of turn",
+            "issue": 4588
         },
         {
             "kind": "grammar",
@@ -831,8 +891,18 @@
         },
         {
             "kind": "grammar",
+            "key": "activated › effect clause › enchanted creature",
+            "issue": 4583
+        },
+        {
+            "kind": "grammar",
             "key": "activated › effect clause › mass subject › object descriptor › artifact or creature with mana value equal to the number of fuse counters on this artifact",
             "issue": 4557
+        },
+        {
+            "kind": "grammar",
+            "key": "activated › effect clause › target filter › colors",
+            "issue": 4589
         },
         {
             "kind": "grammar",
@@ -936,8 +1006,18 @@
         },
         {
             "kind": "grammar",
+            "key": "mana-ability › mana production › one mana of any color that a land an opponent controls could produce",
+            "issue": 4593
+        },
+        {
+            "kind": "grammar",
             "key": "mana-ability › mana production › one mana of any type that a land you control could produce",
             "issue": 4541
+        },
+        {
+            "kind": "grammar",
+            "key": "mana-ability › mana production › one mana of the chosen color",
+            "issue": 4588
         },
         {
             "kind": "grammar",
@@ -986,6 +1066,16 @@
         },
         {
             "kind": "grammar",
+            "key": "spell › effect clause › Cast this spell only during combat",
+            "issue": 4585
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Cast this spell only during combat after blockers are declared",
+            "issue": 4585
+        },
+        {
+            "kind": "grammar",
             "key": "spell › effect clause › Change the target of target spell with a single target",
             "issue": 4555
         },
@@ -993,6 +1083,16 @@
             "kind": "grammar",
             "key": "spell › effect clause › Choose a nonland card name",
             "issue": 4550
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Choose two target creatures controlled by the same player",
+            "issue": 4594
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Counter target instant or sorcery spell unless its controller pays {…}",
+            "issue": 4586
         },
         {
             "kind": "grammar",
@@ -1036,6 +1136,11 @@
         },
         {
             "kind": "grammar",
+            "key": "spell › effect clause › Flip a coin",
+            "issue": 4594
+        },
+        {
+            "kind": "grammar",
             "key": "spell › effect clause › Gain control of target creature with mana value X or less",
             "issue": 4573
         },
@@ -1056,13 +1161,33 @@
         },
         {
             "kind": "grammar",
+            "key": "spell › effect clause › It",
+            "issue": 4587
+        },
+        {
+            "kind": "grammar",
             "key": "spell › effect clause › Its controller",
             "issue": 4573
         },
         {
             "kind": "grammar",
+            "key": "spell › effect clause › Its controller loses N life",
+            "issue": 4587
+        },
+        {
+            "kind": "grammar",
             "key": "spell › effect clause › Look at target player's hand",
             "issue": 4566
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Prevent all combat damage that would be dealt this turn",
+            "issue": 4590
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Prevent the next N damage that would be dealt this turn to any number of targets, divided as you choose",
+            "issue": 4590
         },
         {
             "kind": "grammar",
@@ -1101,8 +1226,23 @@
         },
         {
             "kind": "grammar",
+            "key": "spell › effect clause › Search your library for a basic land card, put that card onto the battlefield tapped, then shuffle",
+            "issue": 4591
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Search your library for a basic land card, put that card onto the battlefield, then shuffle",
+            "issue": 4591
+        },
+        {
+            "kind": "grammar",
             "key": "spell › effect clause › Search your library for a basic land card, reveal it, put it into your hand, then shuffle",
             "issue": 4305
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Search your library for a card, put that card into your hand, then shuffle",
+            "issue": 4591
         },
         {
             "kind": "grammar",
@@ -1123,6 +1263,11 @@
             "kind": "grammar",
             "key": "spell › effect clause › Target artifact, creature, or land phases out",
             "issue": 4573
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › Target creature can't block this turn",
+            "issue": 4580
         },
         {
             "kind": "grammar",
@@ -1161,6 +1306,11 @@
         },
         {
             "kind": "grammar",
+            "key": "spell › effect clause › That creature",
+            "issue": 4587
+        },
+        {
+            "kind": "grammar",
             "key": "spell › effect clause › Then that permanent's controller may sacrifice a land of their choice",
             "issue": 4573
         },
@@ -1171,13 +1321,28 @@
         },
         {
             "kind": "grammar",
+            "key": "spell › effect clause › This spell can't be countered",
+            "issue": 4586
+        },
+        {
+            "kind": "grammar",
             "key": "spell › effect clause › Until end of turn, target player can't cast instant or sorcery spells, and that player can't activate abilities that aren't mana abilities",
             "issue": 4562
         },
         {
             "kind": "grammar",
+            "key": "spell › effect clause › X target nonland permanents",
+            "issue": 4594
+        },
+        {
+            "kind": "grammar",
             "key": "spell › effect clause › You gain life equal to the number of creature cards in your graveyard",
             "issue": 4574
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › You may cast this spell as though it had flash if you pay {…} more to cast it",
+            "issue": 4584
         },
         {
             "kind": "grammar",
@@ -1203,6 +1368,11 @@
             "kind": "grammar",
             "key": "spell › effect clause › You may have that player shuffle",
             "issue": 4567
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › You may put a creature card from your hand onto the battlefield",
+            "issue": 4594
         },
         {
             "kind": "grammar",
@@ -1251,6 +1421,11 @@
         },
         {
             "kind": "grammar",
+            "key": "spell › effect clause › duration › and gains flying and first strike until end of turn",
+            "issue": 4594
+        },
+        {
+            "kind": "grammar",
             "key": "spell › effect clause › each creature",
             "issue": 4557
         },
@@ -1258,6 +1433,11 @@
             "kind": "grammar",
             "key": "spell › effect clause › each creature target opponent controls",
             "issue": 4557
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › each creature with flying and each player",
+            "issue": 4590
         },
         {
             "kind": "grammar",
@@ -1276,6 +1456,11 @@
         },
         {
             "kind": "grammar",
+            "key": "spell › effect clause › mass subject › excludeColors",
+            "issue": 4589
+        },
+        {
+            "kind": "grammar",
             "key": "spell › effect clause › mass subject › object descriptor › lands target player controls and that player loses all unspent mana",
             "issue": 4557
         },
@@ -1283,6 +1468,16 @@
             "kind": "grammar",
             "key": "spell › effect clause › mass subject › object descriptor › non-Aura enchantments",
             "issue": 4557
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › target filter › colors",
+            "issue": 4589
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › target filter › object descriptor › activated ability",
+            "issue": 4586
         },
         {
             "kind": "grammar",
@@ -1313,6 +1508,16 @@
             "kind": "grammar",
             "key": "spell › effect clause › target filter › object descriptor › creature and you gain N life",
             "issue": 4556
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › target filter › object descriptor › creature spell",
+            "issue": 4586
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › target filter › object descriptor › noncreature spell",
+            "issue": 4586
         },
         {
             "kind": "grammar",
@@ -1363,6 +1568,11 @@
             "kind": "grammar",
             "key": "spell › effect clause › up to three target cards from a single graveyard",
             "issue": 4568
+        },
+        {
+            "kind": "grammar",
+            "key": "spell › effect clause › zone reference › the battlefield under its owner's control at the beginning of the next end step",
+            "issue": 4594
         },
         {
             "kind": "grammar",
@@ -1426,6 +1636,11 @@
         },
         {
             "kind": "grammar",
+            "key": "static › static clause › As this creature enters, choose a color",
+            "issue": 4588
+        },
+        {
+            "kind": "grammar",
             "key": "static › static clause › As this creature enters, choose a creature type",
             "issue": 4308
         },
@@ -1441,6 +1656,11 @@
         },
         {
             "kind": "grammar",
+            "key": "static › static clause › As this enchantment enters, choose a color",
+            "issue": 4588
+        },
+        {
+            "kind": "grammar",
             "key": "static › static clause › Black creatures can't attack you",
             "issue": 4562
         },
@@ -1448,6 +1668,11 @@
             "kind": "grammar",
             "key": "static › static clause › Cumulative upkeep—Pay N life",
             "issue": 4539
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Domain — This spell costs {…} less to cast for each basic land type among lands you control",
+            "issue": 4584
         },
         {
             "kind": "grammar",
@@ -1463,6 +1688,16 @@
             "kind": "grammar",
             "key": "static › static clause › Each spell costs {…} more to cast except during its controller's turn",
             "issue": 4560
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Enchanted creature doesn't untap during its controller's untap step",
+            "issue": 4583
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › Enchanted land is a Swamp",
+            "issue": 4583
         },
         {
             "kind": "grammar",
@@ -1546,8 +1781,28 @@
         },
         {
             "kind": "grammar",
+            "key": "static › static clause › This creature attacks each combat if able",
+            "issue": 4580
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › This creature can't attack unless defending player controls an Island",
+            "issue": 4580
+        },
+        {
+            "kind": "grammar",
             "key": "static › static clause › This creature can't attack unless you control more creatures than defending player",
             "issue": 4562
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › This creature can't be blocked by blue creatures",
+            "issue": 4580
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › This creature can't block",
+            "issue": 4580
         },
         {
             "kind": "grammar",
@@ -1581,6 +1836,11 @@
         },
         {
             "kind": "grammar",
+            "key": "static › static clause › This spell can't be countered",
+            "issue": 4586
+        },
+        {
+            "kind": "grammar",
             "key": "static › static clause › Threshold — This creature gets +N/+N as long as there are seven or more cards in your graveyard",
             "issue": 4551
         },
@@ -1588,6 +1848,11 @@
             "kind": "grammar",
             "key": "static › static clause › While an opponent is choosing targets as part of casting a spell they control or activating an ability they control, that player must choose at least one Flagbearer on the battlefield if able",
             "issue": 4301
+        },
+        {
+            "kind": "grammar",
+            "key": "static › static clause › You can't cast more than one spell each turn",
+            "issue": 4585
         },
         {
             "kind": "grammar",
@@ -1611,8 +1876,18 @@
         },
         {
             "kind": "grammar",
+            "key": "static › static clause › Your opponents play with their hands revealed",
+            "issue": 4592
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › condition › defending player controls no black nontoken permanents",
             "issue": 4544
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › condition › it was kicked",
+            "issue": 4584
         },
         {
             "kind": "grammar",
@@ -1636,6 +1911,11 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › effect clause › Add one mana of any color",
+            "issue": 4593
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › Create a N/N green Bear creature token for each nontoken creature put into your graveyard from the battlefield this turn",
             "issue": 4571
         },
@@ -1646,6 +1926,11 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › effect clause › Discard a card at random",
+            "issue": 4592
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › Draw two additional cards",
             "issue": 4571
         },
@@ -1653,6 +1938,16 @@
             "kind": "grammar",
             "key": "triggered › effect clause › Exchange control of this creature and up to one target creature an opponent controls",
             "issue": 4571
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Exile it",
+            "issue": 4592
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Sacrifice a creature",
+            "issue": 4592
         },
         {
             "kind": "grammar",
@@ -1741,6 +2036,11 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › effect clause › a red or green creature you control",
+            "issue": 4589
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › colors",
             "issue": 4557
         },
@@ -1751,13 +2051,28 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › effect clause › enchanted creature",
+            "issue": 4583
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › mass subject › Goblin creatures",
             "issue": 4557
         },
         {
             "kind": "grammar",
+            "key": "triggered › effect clause › target filter › colors",
+            "issue": 4589
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › target filter › object descriptor › nonartifact, nonblack creature",
             "issue": 4556
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › target filter › object descriptor › player or planeswalker",
+            "issue": 4589
         },
         {
             "kind": "grammar",
@@ -1776,8 +2091,23 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › trigger head › At the beginning of combat on each opponent's turn",
+            "issue": 4581
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › trigger head › At the beginning of each of your main phases",
             "issue": 4545
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › At the beginning of each opponent's upkeep",
+            "issue": 4582
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › At the beginning of each player's end step",
+            "issue": 4582
         },
         {
             "kind": "grammar",
@@ -1813,6 +2143,11 @@
             "kind": "grammar",
             "key": "triggered › trigger head › When an opponent casts an instant spell",
             "issue": 4543
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › When enchanted creature becomes the target of a spell or ability",
+            "issue": 4583
         },
         {
             "kind": "grammar",
@@ -1861,8 +2196,23 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › trigger head › Whenever a land enters",
+            "issue": 4582
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever a player casts a creature spell",
+            "issue": 4582
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › trigger head › Whenever a player casts an enchantment spell",
             "issue": 4543
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever a player taps a land for mana",
+            "issue": 4582
         },
         {
             "kind": "grammar",
@@ -1876,13 +2226,38 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › trigger head › Whenever enchanted creature becomes tapped",
+            "issue": 4583
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › trigger head › Whenever enchanted land is tapped for mana",
             "issue": 4547
         },
         {
             "kind": "grammar",
+            "key": "triggered › trigger head › Whenever this creature attacks alone",
+            "issue": 4581
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › trigger head › Whenever this creature attacks and isn't blocked",
             "issue": 4544
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever this creature attacks or blocks",
+            "issue": 4581
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever this creature becomes blocked",
+            "issue": 4581
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › trigger head › Whenever this creature deals combat damage to a creature",
+            "issue": 4581
         },
         {
             "kind": "grammar",
@@ -1911,6 +2286,66 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Addle",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Agonizing Demise",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Alabaster Leech",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Allied Strategies",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Amphibious Kavu",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Andradite Leech",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Arctic Merfolk",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Atalya, Samite Master",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Aurora Griffin",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Backlash",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Barrin's Unmaking",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Bend or Break",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
             "key": "Bloodfire Infusion",
             "issue": 4319
         },
@@ -1921,8 +2356,23 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Bog Down",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
             "key": "Brass Herald",
             "issue": 4446
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Callous Giant",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Captain Sisay",
+            "issue": 4596
         },
         {
             "kind": "hand-tail",
@@ -1931,8 +2381,38 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Cloud Cover",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
             "key": "Coalition Flag",
             "issue": 4365
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Coalition Victory",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Collapsing Borders",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Collective Restraint",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Confound",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Crimson Acolyte",
+            "issue": 4596
         },
         {
             "kind": "hand-tail",
@@ -1941,8 +2421,43 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Crusading Knight",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Crystal Spray",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
             "key": "Dead Ringers",
             "issue": 4326
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Death or Glory",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Defiling Tears",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Desperate Research",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Destructive Flow",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Disciple of Kangee",
+            "issue": 4595
         },
         {
             "kind": "hand-tail",
@@ -1951,8 +2466,23 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Divine Presence",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Do or Die",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
             "key": "Dodecapod",
             "issue": 4327
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Dominaria's Judgment",
+            "issue": 4595
         },
         {
             "kind": "hand-tail",
@@ -1961,8 +2491,83 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Dralnu's Crusade",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Dralnu's Pet",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Dredge",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Dromar, the Banisher",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Dueling Grounds",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Eladamri's Call",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Elfhame Sanctuary",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Elvish Champion",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
             "key": "Emblazoned Golem",
             "issue": 4577
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Empress Galina",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Ertai's Trickery",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Essence Leak",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Exotic Curse",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Exotic Disease",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Fact or Fiction",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Falling Timber",
+            "issue": 4595
         },
         {
             "kind": "hand-tail",
@@ -1971,8 +2576,28 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Firebrand Ranger",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Fleetfoot Panther",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Forsaken City",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
             "key": "Gaea's Balance",
             "issue": 4330
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Gaea's Herald",
+            "issue": 4595
         },
         {
             "kind": "hand-tail",
@@ -1986,13 +2611,83 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Global Ruin",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Goblin Game",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Goham Djinn",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Guard Dogs",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
             "key": "Guided Passage",
             "issue": 4333
         },
         {
             "kind": "hand-tail",
+            "key": "Halam Djinn",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Hanna, Ship's Navigator",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Harrow",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
             "key": "Haunted Angel",
             "issue": 4334
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Heroic Defiance",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Hobble",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Honorable Scout",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Hull Breach",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Hunting Drake",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Hunting Kavu",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Hypnotic Cloud",
+            "issue": 4596
         },
         {
             "kind": "hand-tail",
@@ -2006,8 +2701,28 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Jade Leech",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
             "key": "Jaded Response",
             "issue": 4336
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Juntu Stakes",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Kangee, Aerie Keeper",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Kavu Lair",
+            "issue": 4596
         },
         {
             "kind": "hand-tail",
@@ -2016,8 +2731,73 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Kavu Monarch",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Kavu Runner",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Kavu Scout",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Lashknife Barrier",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
             "key": "Last Stand",
             "issue": 4504
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Lava Zombie",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Lightning Dart",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Lobotomy",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Lord of the Undead",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Mages' Contest",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Magma Burst",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Magnigoth Treefolk",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Malicious Advice",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Mana Maze",
+            "issue": 4596
         },
         {
             "kind": "hand-tail",
@@ -2026,8 +2806,68 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Manipulate Fate",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Marauding Knight",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Metathran Aerostat",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Meteor Crater",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
             "key": "Mind Extraction",
             "issue": 4338
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Mirrorwood Treefolk",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Mogg Jailer",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Molimo, Maro-Sorcerer",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Natural Emergence",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Nemata, Grove Guardian",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Nightscape Familiar",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Noxious Vapors",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Obsidian Acolyte",
+            "issue": 4596
         },
         {
             "kind": "hand-tail",
@@ -2036,8 +2876,98 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Ordered Migration",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Orim's Chant",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Orim's Touch",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Overload",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Phantasmal Terrain",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Phyrexian Infiltrator",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Phyrexian Reaper",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Phyrexian Slayer",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Phyrexian Tyranny",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Plague Spores",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Planar Overlay",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Pledge of Loyalty",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Prison Barricade",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Prohibit",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Protective Sphere",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Psychic Battle",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Pulse of Llanowar",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
             "key": "Putrid Warrior",
             "issue": 4339
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Pygmy Kavu",
+            "issue": 4595
         },
         {
             "kind": "hand-tail",
@@ -2046,8 +2976,228 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Quirion Dryad",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Radiant Kavu",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Razing Snidd",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Reckless Spite",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Recoil",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Restock",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Restrain",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Reviving Vapors",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Rewards of Diversity",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Rith's Charm",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Rith, the Awakener",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Root Greevil",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Ruby Leech",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Ruham Djinn",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Samite Elder",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Samite Ministration",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Samite Pilgrim",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Sapphire Leech",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Saproling Infestation",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Savage Offensive",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Sawtooth Loon",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Scarred Puma",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Scorching Lava",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Scouting Trek",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Searing Rays",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Shoreline Raider",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Silver Drake",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Simoon",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Singe",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Sinister Strength",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Skittish Kavu",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Skyship Weatherlight",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Skyshroud Blessing",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Sleeper's Robe",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Soul Burn",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Spirit of Resistance",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Spreading Plague",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
             "key": "Squee's Revenge",
             "issue": 4322
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Stand or Fall",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Star Compass",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Steel Leaf Paladin",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Sterling Grove",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Stormscape Familiar",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Stormscape Master",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Strength of Unity",
+            "issue": 4596
         },
         {
             "kind": "hand-tail",
@@ -2056,13 +3206,163 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Sulam Djinn",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Sunken Hope",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Sunscape Familiar",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
             "key": "Suppress",
             "issue": 4342
         },
         {
             "kind": "hand-tail",
+            "key": "Sway of Illusion",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Tahngarth, Talruum Hero",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Teferi's Care",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Tek",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Temporal Distortion",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
             "key": "Temporal Spring",
             "issue": 4323
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Thornscape Familiar",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Thornscape Master",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Thunderscape Familiar",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Traveler's Cloak",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Treva, the Renewer",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Tribal Flames",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Tsabo's Assassin",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Tsabo's Decree",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Tsabo's Web",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Turf Wound",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Urborg Shambler",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Urza's Filter",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Urza's Guilt",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Verdeloth the Ancient",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Vigorous Charge",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Vile Consumption",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Void",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Wandering Stream",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Warped Devotion",
+            "issue": 4595
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Wash Out",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Wayfaring Giant",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Well-Laid Plans",
+            "issue": 4596
         },
         {
             "kind": "hand-tail",
@@ -2073,6 +3373,26 @@
             "kind": "hand-tail",
             "key": "Wild Research",
             "issue": 4343
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Winnow",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Worldly Counsel",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Yavimaya Kavu",
+            "issue": 4596
+        },
+        {
+            "kind": "hand-tail",
+            "key": "Zanam Djinn",
+            "issue": 4596
         },
         {
             "kind": "hand-tail",
