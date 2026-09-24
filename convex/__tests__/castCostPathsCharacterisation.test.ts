@@ -369,6 +369,7 @@ describe("announceCast immediate commit — retrace, forced discard (CR 702.81a,
                             ownerId: "p1",
                             emblemId: WRENN_AND_SIX_EMBLEM_ID,
                             name: "Wrenn and Six emblem",
+                            text: "Instant and sorcery cards in your graveyard have retrace.",
                         },
                     ],
                 })
