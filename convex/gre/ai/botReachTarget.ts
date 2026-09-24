@@ -170,8 +170,8 @@ function creatureRequirement(def: CardDefinition): TargetRequirement | null {
 }
 
 /** The requirement a single-target LAND spell states, if it is one — a type
- *  list of exactly Land, so "target nonbasic land" narrows and "target artifact
- *  or land" does not. */
+ *  list of exactly Land. Its subtype / supertype / nonbasic clauses are not
+ *  read: the pose is a basic Forest, so a narrower filter is not yet posed. */
 function landRequirement(def: CardDefinition): TargetRequirement | null {
     const req = def.targetRequirement;
     if (!req || Array.isArray(req)) return null;
@@ -184,9 +184,8 @@ function landRequirement(def: CardDefinition): TargetRequirement | null {
  *  legal target is the holder's own mana: the Bot declines it, correctly, and
  *  the verdict read `never-chosen` about a position that never posed the
  *  question (issue #4262). A land destroyer is posed on the side where it is
- *  worth casting — the opponent's, or the holder's own for a boon. The basic
- *  land is the holder's cost colour cycle's own, so it is legal for any
- *  land filter a basic satisfies. */
+ *  worth casting — the opponent's, or the holder's own for a boon. The land is
+ *  a basic Forest, legal for any plain `Land` target. */
 function landPose(def: CardDefinition, req: TargetRequirement): TargetPose {
     const owner = favoursItsTarget(def, req) ? "me" : "opp";
     return {
