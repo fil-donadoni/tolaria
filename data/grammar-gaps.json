@@ -806,6 +806,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Illuminate",
+            "issue": 4500
+        },
+        {
+            "kind": "hand-tail",
             "key": "Jaded Response",
             "issue": 4336
         },
