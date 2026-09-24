@@ -6653,7 +6653,9 @@ export function finalizeTargetSelection(
                     manaCost,
                     chosenX
                 ),
-                cardInstanceId
+                cardInstanceId,
+                undefined,
+                chosenX
             );
             immediateManaRiders = payment.riders;
             immediateNotedManaSpent = payment.notedManaSpent;
@@ -8811,7 +8813,8 @@ export const announceCast = mutation({
                     player,
                     args.cardInstanceId,
                     cardDef,
-                    manaCost
+                    manaCost,
+                    chosenX
                 )
             )
         ) {
@@ -8836,9 +8839,12 @@ export const announceCast = mutation({
                         player,
                         args.cardInstanceId,
                         cardDef,
-                        manaCost
+                        manaCost,
+                        chosenX
                     ),
-                    args.cardInstanceId
+                    args.cardInstanceId,
+                    undefined,
+                    chosenX
                 );
                 normalManaRiders = payment.riders;
                 normalNotedManaSpent = payment.notedManaSpent;
