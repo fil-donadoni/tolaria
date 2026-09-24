@@ -58,9 +58,18 @@ describe("keyword line slot (CR 702.1)", () => {
 
     it("REFUSES a parameterised keyword rather than dropping the parameter", () => {
         // The whole misparse class in one assertion: "Protection from white"
-        // read as "protection" is a card that plays wrong forever.
+        // read as "protection" is a card that plays wrong forever. Protection
+        // itself is read WITH its quality (protectionLine.test.ts); a quality
+        // the engine cannot name is refused, never dropped.
+        const protection = keywordLineSlot.run("Protection from white", ctx);
+        expect(protection).toMatchObject({
+            ok: true,
+            value: {
+                keywords: [{ ability: "protection from white" }],
+            },
+        });
         for (const line of [
-            "Protection from white",
+            "Protection from Goblins",
             "Rampage 1",
             "Ward {4}",
             "Cycling {2}",

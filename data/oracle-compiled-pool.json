@@ -1733,6 +1733,29 @@
         "setCode": "pcy"
     },
     {
+        "name": "Horizon Drake",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Drake"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 2
+        },
+        "power": 3,
+        "toughness": 1,
+        "oracleText": "Flying, protection from lands",
+        "staticAbilities": [
+            "flying",
+            "protection from lands"
+        ],
+        "id": "022f07c5-c644-41cd-9434-a57068f73ab2",
+        "rarity": "uncommon",
+        "setCode": "wwk"
+    },
+    {
         "name": "Ravenous Chupacabra",
         "types": [
             "Creature"
@@ -7338,6 +7361,30 @@
         "setCode": "mir"
     },
     {
+        "name": "Nightwind Glider",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Rebel"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "Flying, protection from black",
+        "staticAbilities": [
+            "flying",
+            "protection from black"
+        ],
+        "id": "0968401d-522f-4def-92a1-d504471ac54e",
+        "rarity": "common",
+        "setCode": "mmq"
+    },
+    {
         "name": "Feast of the Unicorn",
         "types": [
             "Enchantment"
@@ -8276,6 +8323,29 @@
         "id": "0b0979f9-aae3-4fc7-beae-c8c6637ae596",
         "rarity": "common",
         "setCode": "dmu"
+    },
+    {
+        "name": "Vulshok Refugee",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Warrior"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 2
+        },
+        "power": 3,
+        "toughness": 2,
+        "oracleText": "Protection from red",
+        "staticAbilities": [
+            "protection from red"
+        ],
+        "id": "0b1615ec-21b3-4575-8b02-fd2bccb930ba",
+        "rarity": "uncommon",
+        "setCode": "nph"
     },
     {
         "name": "Serra Zealot",
@@ -10637,6 +10707,29 @@
         "id": "0f1f6dea-3554-4649-966c-5f33229132d4",
         "rarity": "rare",
         "setCode": "7ed"
+    },
+    {
+        "name": "Blood Knight",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Knight"
+        ],
+        "manaCost": {
+            "R": 2
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "First strike, protection from white",
+        "staticAbilities": [
+            "first strike",
+            "protection from white"
+        ],
+        "id": "0f2133c0-8561-4264-8802-1b2933abf186",
+        "rarity": "uncommon",
+        "setCode": "plc"
     },
     {
         "name": "Naga Eternal",
@@ -13707,6 +13800,29 @@
         "setCode": "exo"
     },
     {
+        "name": "Nacatl Outlander",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Cat",
+            "Scout"
+        ],
+        "manaCost": {
+            "R": 1,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Protection from blue",
+        "staticAbilities": [
+            "protection from blue"
+        ],
+        "id": "12b5b694-46c8-4cb0-ab6b-4bc67c04cc7f",
+        "rarity": "common",
+        "setCode": "con"
+    },
+    {
         "name": "Assault Zeppelid",
         "types": [
             "Creature"
@@ -13809,6 +13925,49 @@
         "setCode": "ths"
     },
     {
+        "name": "Spectral Lynx",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Cat",
+            "Spirit"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "Protection from green\n{B}: Regenerate this creature.",
+        "staticAbilities": [
+            "protection from green"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "spectral-lynx-ability",
+                "oracleText": "{B}: Regenerate this creature.",
+                "cost": {
+                    "mana": {
+                        "B": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "regenerate",
+                        "target": {
+                            "ref": "$source"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "13099abe-721e-42b4-9666-9e6b5f1d75c9",
+        "rarity": "rare",
+        "setCode": "apc"
+    },
+    {
         "name": "Spearbreaker Behemoth",
         "types": [
             "Creature"
@@ -13908,6 +14067,61 @@
         "id": "132d6ed5-0bbc-465e-bc30-3174c910b435",
         "rarity": "common",
         "setCode": "dst"
+    },
+    {
+        "name": "Subterranean Spirit",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elemental",
+            "Spirit"
+        ],
+        "manaCost": {
+            "X": 3,
+            "R": 2
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "Protection from red\n{T}: This creature deals 1 damage to each creature without flying.",
+        "staticAbilities": [
+            "protection from red"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "subterranean-spirit-ability",
+                "oracleText": "{T}: This creature deals 1 damage to each creature without flying.",
+                "cost": {
+                    "tap": true
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "forEach",
+                        "select": {
+                            "set": "permanents",
+                            "zone": "battlefield",
+                            "filter": {
+                                "type": "Creature",
+                                "excludeAbility": "flying"
+                            }
+                        },
+                        "effects": [
+                            {
+                                "op": "dealDamage",
+                                "amount": 1,
+                                "to": {
+                                    "ref": "$each"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "id": "132e8aac-9698-45fa-8d64-b460fd5deffc",
+        "rarity": "rare",
+        "setCode": "mir"
     },
     {
         "name": "Cryptwailing",
@@ -16028,6 +16242,52 @@
         "setCode": "exo"
     },
     {
+        "name": "Karoo Meerkat",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Mongoose"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "Protection from blue",
+        "staticAbilities": [
+            "protection from blue"
+        ],
+        "id": "16396594-4f59-4600-8e39-d99544062265",
+        "rarity": "uncommon",
+        "setCode": "mir"
+    },
+    {
+        "name": "Knight of Glory",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Knight"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "Protection from black (This creature can't be blocked, targeted, dealt damage, or enchanted by anything black.)\nExalted (Whenever a creature you control attacks alone, that creature gets +1/+1 until end of turn.)",
+        "staticAbilities": [
+            "protection from black",
+            "exalted"
+        ],
+        "id": "1646cb67-e0ac-4f2d-af21-618ff3613d69",
+        "rarity": "uncommon",
+        "setCode": "m13"
+    },
+    {
         "name": "Capashen Standard",
         "types": [
             "Enchantment"
@@ -16260,6 +16520,46 @@
         "id": "16705695-1ba8-4169-974f-d8c683ab2652",
         "rarity": "rare",
         "setCode": "ody"
+    },
+    {
+        "name": "Eviscerator",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Phyrexian",
+            "Horror"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 2
+        },
+        "power": 5,
+        "toughness": 5,
+        "oracleText": "Protection from white\nWhen this creature enters, you lose 5 life.",
+        "staticAbilities": [
+            "protection from white"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "eviscerator-trigger",
+                "oracleText": "When this creature enters, you lose 5 life.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "effects": [
+                    {
+                        "op": "loseLife",
+                        "player": "controller",
+                        "amount": 5
+                    }
+                ]
+            }
+        ],
+        "id": "167e7f67-8d44-4134-b7b9-54ccdfb8675c",
+        "rarity": "rare",
+        "setCode": "ulg"
     },
     {
         "name": "Sky Terror",
@@ -16556,6 +16856,58 @@
         "id": "16debeb1-fb2b-4172-b6da-726416d4fb38",
         "rarity": "common",
         "setCode": "cmm"
+    },
+    {
+        "name": "Devout Lightcaster",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Kor",
+            "Cleric"
+        ],
+        "manaCost": {
+            "W": 3
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Protection from black\nWhen this creature enters, exile target black permanent.",
+        "staticAbilities": [
+            "protection from black"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "devout-lightcaster-trigger",
+                "oracleText": "When this creature enters, exile target black permanent.",
+                "head": {
+                    "kind": "entered",
+                    "scope": "self"
+                },
+                "targetRequirement": {
+                    "type": [
+                        "Artifact",
+                        "Battle",
+                        "Creature",
+                        "Enchantment",
+                        "Land",
+                        "Planeswalker"
+                    ],
+                    "count": 1,
+                    "colorFilter": "B"
+                },
+                "effects": [
+                    {
+                        "op": "exile",
+                        "target": {
+                            "target": 0
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "16e31e43-84d3-429e-9e81-60b325989c93",
+        "rarity": "rare",
+        "setCode": "zen"
     },
     {
         "name": "Desolate Lighthouse",
@@ -21194,6 +21546,29 @@
         "setCode": "usg"
     },
     {
+        "name": "Voice of Duty",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Angel"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Flying, protection from green",
+        "staticAbilities": [
+            "flying",
+            "protection from green"
+        ],
+        "id": "1c648e59-c872-4e04-b45f-2729b42410af",
+        "rarity": "uncommon",
+        "setCode": "uds"
+    },
+    {
         "name": "Timid Shieldbearer",
         "types": [
             "Creature"
@@ -22003,6 +22378,29 @@
         "id": "1d5e98d3-2521-4340-8d48-98e8c2c7818d",
         "rarity": "uncommon",
         "setCode": "ulg"
+    },
+    {
+        "name": "Tel-Jilad Outrider",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elf",
+            "Warrior"
+        ],
+        "manaCost": {
+            "X": 3,
+            "G": 1
+        },
+        "power": 3,
+        "toughness": 1,
+        "oracleText": "Protection from artifacts",
+        "staticAbilities": [
+            "protection from artifacts"
+        ],
+        "id": "1d811d8f-437b-4c9f-8ea2-c85590a07935",
+        "rarity": "common",
+        "setCode": "dst"
     },
     {
         "name": "Urborg Elf",
@@ -23559,6 +23957,29 @@
         "id": "20275678-3488-43d8-a93b-993e2267ab07",
         "rarity": "common",
         "setCode": "leg"
+    },
+    {
+        "name": "Narwhal",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Whale"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 2
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "First strike, protection from red",
+        "staticAbilities": [
+            "first strike",
+            "protection from red"
+        ],
+        "id": "202d3ed5-f493-43b6-bf36-81ad289e6fb0",
+        "rarity": "rare",
+        "setCode": "hml"
     },
     {
         "name": "Seismic Shudder",
@@ -35589,6 +36010,33 @@
         "setCode": "jud"
     },
     {
+        "name": "Phyrexian Crusader",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Phyrexian",
+            "Zombie",
+            "Knight"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 2
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "First strike, protection from red and from white\nInfect (This creature deals damage to creatures in the form of -1/-1 counters and to players in the form of poison counters.)",
+        "staticAbilities": [
+            "first strike",
+            "protection from red",
+            "protection from white",
+            "infect"
+        ],
+        "id": "32aaa8b9-987b-4809-8a54-aa29bdc18805",
+        "rarity": "rare",
+        "setCode": "mbs"
+    },
+    {
         "name": "Savage Gorilla",
         "types": [
             "Creature"
@@ -36676,6 +37124,29 @@
         "setCode": "ori"
     },
     {
+        "name": "Freewind Falcon",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Bird"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Flying, protection from red",
+        "staticAbilities": [
+            "flying",
+            "protection from red"
+        ],
+        "id": "33dc0244-319c-4e15-9083-8d21ad0364d8",
+        "rarity": "common",
+        "setCode": "vis"
+    },
+    {
         "name": "Goblin Oriflamme",
         "types": [
             "Enchantment"
@@ -37597,6 +38068,29 @@
         "setCode": "iko"
     },
     {
+        "name": "Soltari Priest",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Soltari",
+            "Cleric"
+        ],
+        "manaCost": {
+            "W": 2
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "Protection from red\nShadow (This creature can block or be blocked by only creatures with shadow.)",
+        "staticAbilities": [
+            "protection from red",
+            "shadow"
+        ],
+        "id": "35a71390-3fa8-43eb-ad86-67de2a7aeab8",
+        "rarity": "uncommon",
+        "setCode": "tmp"
+    },
+    {
         "name": "Coral Eel",
         "types": [
             "Creature"
@@ -37991,6 +38485,33 @@
         "setCode": "blb"
     },
     {
+        "name": "Commander Eesha",
+        "types": [
+            "Creature"
+        ],
+        "supertypes": [
+            "Legendary"
+        ],
+        "subtypes": [
+            "Bird",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 2
+        },
+        "power": 2,
+        "toughness": 4,
+        "oracleText": "Flying, protection from creatures",
+        "staticAbilities": [
+            "flying",
+            "protection from creatures"
+        ],
+        "id": "3607f6a9-b8d2-4119-9f70-95dcedc0662d",
+        "rarity": "rare",
+        "setCode": "jud"
+    },
+    {
         "name": "Lunarch Mantle",
         "types": [
             "Enchantment"
@@ -38200,6 +38721,75 @@
         "id": "3682f6c9-3f24-478f-abed-2583ea686457",
         "rarity": "common",
         "setCode": "tle"
+    },
+    {
+        "name": "White Shield Crusader",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Knight"
+        ],
+        "manaCost": {
+            "W": 2
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "Protection from black\n{W}: This creature gains flying until end of turn.\n{W}{W}: This creature gets +1/+0 until end of turn.",
+        "staticAbilities": [
+            "protection from black"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "white-shield-crusader-ability",
+                "oracleText": "{W}: This creature gains flying until end of turn.",
+                "cost": {
+                    "mana": {
+                        "W": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "ability": "flying",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            },
+            {
+                "id": "white-shield-crusader-ability-2",
+                "oracleText": "{W}{W}: This creature gets +1/+0 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "W": 2
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 1,
+                        "toughness": 0,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "368322d7-d399-45e1-8d7f-8001d048071e",
+        "rarity": "uncommon",
+        "setCode": "csp"
     },
     {
         "name": "Onyx Goblet",
@@ -40773,6 +41363,30 @@
         "id": "3a144e7f-e0f7-4346-a4e8-f4a358c3b4a9",
         "rarity": "common",
         "setCode": "tle"
+    },
+    {
+        "name": "Tel-Jilad Archers",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elf",
+            "Archer"
+        ],
+        "manaCost": {
+            "X": 4,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 4,
+        "oracleText": "Reach (This creature can block creatures with flying.)\nProtection from artifacts",
+        "staticAbilities": [
+            "reach",
+            "protection from artifacts"
+        ],
+        "id": "3a1fde33-e86a-4146-9c90-4616a5fc0868",
+        "rarity": "common",
+        "setCode": "mrd"
     },
     {
         "name": "Ekundu Griffin",
@@ -44449,6 +45063,127 @@
         "setCode": "mom"
     },
     {
+        "name": "Stillmoon Cavalier",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Zombie",
+            "Knight"
+        ],
+        "manaCost": {
+            "X": 1,
+            "hybrid": [
+                [
+                    "W",
+                    "B"
+                ],
+                [
+                    "W",
+                    "B"
+                ]
+            ]
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "Protection from white and from black\n{W/B}: This creature gains flying until end of turn.\n{W/B}: This creature gains first strike until end of turn.\n{W/B}{W/B}: This creature gets +1/+0 until end of turn.",
+        "staticAbilities": [
+            "protection from white",
+            "protection from black"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "stillmoon-cavalier-ability",
+                "oracleText": "{W/B}: This creature gains flying until end of turn.",
+                "cost": {
+                    "mana": {
+                        "hybrid": [
+                            [
+                                "W",
+                                "B"
+                            ]
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "ability": "flying",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            },
+            {
+                "id": "stillmoon-cavalier-ability-2",
+                "oracleText": "{W/B}: This creature gains first strike until end of turn.",
+                "cost": {
+                    "mana": {
+                        "hybrid": [
+                            [
+                                "W",
+                                "B"
+                            ]
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "ability": "first strike",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            },
+            {
+                "id": "stillmoon-cavalier-ability-3",
+                "oracleText": "{W/B}{W/B}: This creature gets +1/+0 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "hybrid": [
+                            [
+                                "W",
+                                "B"
+                            ],
+                            [
+                                "W",
+                                "B"
+                            ]
+                        ]
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 1,
+                        "toughness": 0,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "400dc91e-96c0-49bf-b307-677d6f80f3ed",
+        "rarity": "rare",
+        "setCode": "eve"
+    },
+    {
         "name": "Sword of the Chosen",
         "types": [
             "Artifact"
@@ -44519,6 +45254,29 @@
         "id": "401f9ccf-f30c-4777-9a5b-4c340e724fff",
         "rarity": "common",
         "setCode": "msh"
+    },
+    {
+        "name": "Voice of Truth",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Angel"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Flying, protection from white",
+        "staticAbilities": [
+            "flying",
+            "protection from white"
+        ],
+        "id": "40377e3d-77d9-4d86-ac8c-4e27803e48d8",
+        "rarity": "uncommon",
+        "setCode": "nem"
     },
     {
         "name": "Prismite",
@@ -50878,6 +51636,29 @@
         "id": "4a7207dd-854a-4150-b813-f60713ecfc30",
         "rarity": "common",
         "setCode": "5dn"
+    },
+    {
+        "name": "Cemetery Gate",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Wall"
+        ],
+        "manaCost": {
+            "X": 2,
+            "B": 1
+        },
+        "power": 0,
+        "toughness": 5,
+        "oracleText": "Defender (This creature can't attack.)\nProtection from black",
+        "staticAbilities": [
+            "defender",
+            "protection from black"
+        ],
+        "id": "4a7b2cc1-cb0b-4cb8-963f-453a1d5b0e3c",
+        "rarity": "common",
+        "setCode": "hml"
     },
     {
         "name": "Ranger en-Vec",
@@ -57475,6 +58256,30 @@
         "setCode": "p02"
     },
     {
+        "name": "Soltari Monk",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Soltari",
+            "Monk",
+            "Cleric"
+        ],
+        "manaCost": {
+            "W": 2
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "Protection from black\nShadow (This creature can block or be blocked by only creatures with shadow.)",
+        "staticAbilities": [
+            "protection from black",
+            "shadow"
+        ],
+        "id": "54e0d969-3e4d-4ff9-8bda-3a6ac8df01b2",
+        "rarity": "uncommon",
+        "setCode": "tmp"
+    },
+    {
         "name": "Hulk, Bruce Banner",
         "types": [
             "Creature"
@@ -59408,6 +60213,30 @@
         "id": "57d2b895-8921-4615-a674-fb85eed5ea3f",
         "rarity": "common",
         "setCode": "mh2"
+    },
+    {
+        "name": "Aven Smokeweaver",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Bird",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 2
+        },
+        "power": 2,
+        "toughness": 3,
+        "oracleText": "Flying, protection from red",
+        "staticAbilities": [
+            "flying",
+            "protection from red"
+        ],
+        "id": "57f5d024-f137-4ea8-be02-7de46dee95fd",
+        "rarity": "uncommon",
+        "setCode": "ody"
     },
     {
         "name": "Moorland Inquisitor",
@@ -61963,6 +62792,29 @@
         "setCode": "akh"
     },
     {
+        "name": "Cerulean Wyvern",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Drake"
+        ],
+        "manaCost": {
+            "X": 4,
+            "U": 1
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "Flying, protection from green",
+        "staticAbilities": [
+            "flying",
+            "protection from green"
+        ],
+        "id": "5c599f95-c0dd-4dd8-a8d7-9481df0cf649",
+        "rarity": "uncommon",
+        "setCode": "mir"
+    },
+    {
         "name": "Amok",
         "types": [
             "Enchantment"
@@ -63282,6 +64134,29 @@
         "id": "5e1b65a7-d385-428b-986c-a0d9283a5f75",
         "rarity": "common",
         "setCode": "emn"
+    },
+    {
+        "name": "Goblin Outlander",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Goblin",
+            "Scout"
+        ],
+        "manaCost": {
+            "B": 1,
+            "R": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Protection from white",
+        "staticAbilities": [
+            "protection from white"
+        ],
+        "id": "5e33683b-8bda-4bb9-beb4-fc0cd5ed79ae",
+        "rarity": "common",
+        "setCode": "con"
     },
     {
         "name": "Orcish Mechanics",
@@ -64934,6 +65809,30 @@
         "id": "60473300-0bdc-4e89-87d9-28c8d7b4d83d",
         "rarity": "common",
         "setCode": "dtk"
+    },
+    {
+        "name": "Treetop Sentinel",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Bird",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 2
+        },
+        "power": 2,
+        "toughness": 3,
+        "oracleText": "Flying, protection from green",
+        "staticAbilities": [
+            "flying",
+            "protection from green"
+        ],
+        "id": "606b4e02-f81a-490c-8d2e-cfea7917d6b7",
+        "rarity": "uncommon",
+        "setCode": "ody"
     },
     {
         "name": "Bone Pit Brute",
@@ -67272,6 +68171,31 @@
         "setCode": "tle"
     },
     {
+        "name": "Tel-Jilad Fallen",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Phyrexian",
+            "Elf",
+            "Warrior"
+        ],
+        "manaCost": {
+            "X": 2,
+            "G": 2
+        },
+        "power": 3,
+        "toughness": 1,
+        "oracleText": "Protection from artifacts\nInfect (This creature deals damage to creatures in the form of -1/-1 counters and to players in the form of poison counters.)",
+        "staticAbilities": [
+            "protection from artifacts",
+            "infect"
+        ],
+        "id": "643891b6-23d0-4734-81e0-b315d2d58f50",
+        "rarity": "common",
+        "setCode": "som"
+    },
+    {
         "name": "Viridian Acolyte",
         "types": [
             "Creature"
@@ -67942,6 +68866,30 @@
         "id": "6518d0c5-58ee-4089-bf19-5030d4319681",
         "rarity": "rare",
         "setCode": "apc"
+    },
+    {
+        "name": "Windreaper Falcon",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Bird"
+        ],
+        "manaCost": {
+            "X": 1,
+            "R": 1,
+            "G": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Flying, protection from blue",
+        "staticAbilities": [
+            "flying",
+            "protection from blue"
+        ],
+        "id": "65285030-0714-43bf-bb91-a79dcba1ccc5",
+        "rarity": "uncommon",
+        "setCode": "mir"
     },
     {
         "name": "Doomed Traveler",
@@ -70791,6 +71739,30 @@
         "setCode": "kld"
     },
     {
+        "name": "Hazerider Drake",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Drake"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1,
+            "U": 1
+        },
+        "power": 2,
+        "toughness": 3,
+        "oracleText": "Flying, protection from red",
+        "staticAbilities": [
+            "flying",
+            "protection from red"
+        ],
+        "id": "68d2ae5c-58b9-4690-8039-d50cca9ef6cf",
+        "rarity": "uncommon",
+        "setCode": "mir"
+    },
+    {
         "name": "Cetavolver",
         "types": [
             "Creature"
@@ -72742,6 +73714,30 @@
         "setCode": "uds"
     },
     {
+        "name": "Coast Watcher",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Bird",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Flying, protection from green",
+        "staticAbilities": [
+            "flying",
+            "protection from green"
+        ],
+        "id": "6bbbc67d-99d0-4277-a8f2-64509e59ec00",
+        "rarity": "common",
+        "setCode": "scg"
+    },
+    {
         "name": "Mask of Law and Grace",
         "types": [
             "Enchantment"
@@ -72909,6 +73905,29 @@
         "id": "6c02d053-0885-4720-bf74-b65b3f87cfd9",
         "rarity": "common",
         "setCode": "shm"
+    },
+    {
+        "name": "Oraxid",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Crab",
+            "Beast"
+        ],
+        "manaCost": {
+            "X": 3,
+            "U": 1
+        },
+        "power": 2,
+        "toughness": 3,
+        "oracleText": "Protection from red",
+        "staticAbilities": [
+            "protection from red"
+        ],
+        "id": "6c05609a-f32d-4454-af24-a24452997dcb",
+        "rarity": "common",
+        "setCode": "nem"
     },
     {
         "name": "Serene Offering",
@@ -74045,6 +75064,54 @@
         "id": "6d94aaa4-c2fd-4714-9198-8415158b9c4d",
         "rarity": "common",
         "setCode": "dka"
+    },
+    {
+        "name": "Wildfire Emissary",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Efreet"
+        ],
+        "manaCost": {
+            "X": 3,
+            "R": 1
+        },
+        "power": 2,
+        "toughness": 4,
+        "oracleText": "Protection from white\n{1}{R}: This creature gets +1/+0 until end of turn.",
+        "staticAbilities": [
+            "protection from white"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "wildfire-emissary-ability",
+                "oracleText": "{1}{R}: This creature gets +1/+0 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "X": 1,
+                        "R": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 1,
+                        "toughness": 0,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "6d99204c-b42d-48bc-9a93-fae5660665c7",
+        "rarity": "uncommon",
+        "setCode": "mir"
     },
     {
         "name": "Jeskai Sage",
@@ -76131,6 +77198,30 @@
         "setCode": "vis"
     },
     {
+        "name": "Defender of Chaos",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Knight"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "Flash\nProtection from white",
+        "staticAbilities": [
+            "flash",
+            "protection from white"
+        ],
+        "id": "717ae26a-e5a0-4478-9995-00ea6bd84c03",
+        "rarity": "common",
+        "setCode": "ulg"
+    },
+    {
         "name": "Fists of Ironwood",
         "types": [
             "Enchantment"
@@ -76206,6 +77297,29 @@
         "id": "71a25c69-8e57-4a44-955a-da1541bbe0fe",
         "rarity": "common",
         "setCode": "bng"
+    },
+    {
+        "name": "Abbey Gargoyles",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Gargoyle"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 3
+        },
+        "power": 3,
+        "toughness": 4,
+        "oracleText": "Flying, protection from red",
+        "staticAbilities": [
+            "flying",
+            "protection from red"
+        ],
+        "id": "71a5d8de-25f1-4070-a7a6-dc3f2339ce30",
+        "rarity": "uncommon",
+        "setCode": "hml"
     },
     {
         "name": "Unyaro Bee Sting",
@@ -77299,6 +78413,29 @@
         "id": "72e6ed79-bdfd-49f9-bfa4-be4196880487",
         "rarity": "common",
         "setCode": "inv"
+    },
+    {
+        "name": "Voice of Grace",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Angel"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Flying, protection from black",
+        "staticAbilities": [
+            "flying",
+            "protection from black"
+        ],
+        "id": "72e8eb3b-3ebf-426c-8dc8-138ec9b7c671",
+        "rarity": "uncommon",
+        "setCode": "usg"
     },
     {
         "name": "Conifer Strider",
@@ -85265,6 +86402,29 @@
         "setCode": "usg"
     },
     {
+        "name": "Valeron Outlander",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Scout"
+        ],
+        "manaCost": {
+            "W": 1,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Protection from black",
+        "staticAbilities": [
+            "protection from black"
+        ],
+        "id": "7e73cd46-0dec-441b-bb91-ec6defb3355e",
+        "rarity": "common",
+        "setCode": "con"
+    },
+    {
         "name": "Dauthi Embrace",
         "types": [
             "Enchantment"
@@ -87484,6 +88644,37 @@
         "setCode": "soi"
     },
     {
+        "name": "Akroma, Angel of Wrath",
+        "types": [
+            "Creature"
+        ],
+        "supertypes": [
+            "Legendary"
+        ],
+        "subtypes": [
+            "Angel"
+        ],
+        "manaCost": {
+            "X": 5,
+            "W": 3
+        },
+        "power": 6,
+        "toughness": 6,
+        "oracleText": "Flying, first strike, vigilance, trample, haste, protection from black and from red",
+        "staticAbilities": [
+            "flying",
+            "first strike",
+            "vigilance",
+            "trample",
+            "haste",
+            "protection from black",
+            "protection from red"
+        ],
+        "id": "814245de-6105-43ef-acbf-d12d304b6331",
+        "rarity": "rare",
+        "setCode": "lgn"
+    },
+    {
         "name": "Kami of Old Stone",
         "types": [
             "Creature"
@@ -88186,6 +89377,32 @@
         "setCode": "thb"
     },
     {
+        "name": "Ihsan's Shade",
+        "types": [
+            "Creature"
+        ],
+        "supertypes": [
+            "Legendary"
+        ],
+        "subtypes": [
+            "Shade",
+            "Knight"
+        ],
+        "manaCost": {
+            "X": 3,
+            "B": 3
+        },
+        "power": 5,
+        "toughness": 5,
+        "oracleText": "Protection from white",
+        "staticAbilities": [
+            "protection from white"
+        ],
+        "id": "82351724-2814-4d9e-b065-bb72c761b2e7",
+        "rarity": "uncommon",
+        "setCode": "hml"
+    },
+    {
         "name": "Plated Sliver",
         "types": [
             "Creature"
@@ -88251,6 +89468,30 @@
         "id": "829069cf-7e63-4443-b679-65ad15d6ca5e",
         "rarity": "rare",
         "setCode": "ons"
+    },
+    {
+        "name": "Melesse Spirit",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Angel",
+            "Spirit"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 2
+        },
+        "power": 3,
+        "toughness": 3,
+        "oracleText": "Flying, protection from black",
+        "staticAbilities": [
+            "flying",
+            "protection from black"
+        ],
+        "id": "8292b6e7-92ac-4bbb-906c-1fe47e260a24",
+        "rarity": "uncommon",
+        "setCode": "mir"
     },
     {
         "name": "Tenth District Guard",
@@ -92513,6 +93754,51 @@
         "setCode": "con"
     },
     {
+        "name": "Oversoul of Dusk",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Spirit",
+            "Avatar"
+        ],
+        "manaCost": {
+            "hybrid": [
+                [
+                    "G",
+                    "W"
+                ],
+                [
+                    "G",
+                    "W"
+                ],
+                [
+                    "G",
+                    "W"
+                ],
+                [
+                    "G",
+                    "W"
+                ],
+                [
+                    "G",
+                    "W"
+                ]
+            ]
+        },
+        "power": 5,
+        "toughness": 5,
+        "oracleText": "Protection from blue, from black, and from red",
+        "staticAbilities": [
+            "protection from blue",
+            "protection from black",
+            "protection from red"
+        ],
+        "id": "8893842f-aa3f-45f6-8139-ca775d33792b",
+        "rarity": "rare",
+        "setCode": "shm"
+    },
+    {
         "name": "Coral Commando",
         "types": [
             "Creature"
@@ -93137,6 +94423,29 @@
         "id": "88ed7210-17a4-4750-a003-617ba75bff3e",
         "rarity": "uncommon",
         "setCode": "tmp"
+    },
+    {
+        "name": "Sea Sprite",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Faerie"
+        ],
+        "manaCost": {
+            "X": 1,
+            "U": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Flying, protection from red",
+        "staticAbilities": [
+            "flying",
+            "protection from red"
+        ],
+        "id": "88fb001b-3afb-44f5-ab78-af2bf9a4e63a",
+        "rarity": "uncommon",
+        "setCode": "hml"
     },
     {
         "name": "Blighted Cataract",
@@ -95501,6 +96810,29 @@
         "id": "8c755ae6-badc-4dc8-bfa6-fdebcb00bfba",
         "rarity": "common",
         "setCode": "bfz"
+    },
+    {
+        "name": "Weatherseed Faeries",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Faerie"
+        ],
+        "manaCost": {
+            "X": 2,
+            "U": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "Flying, protection from red",
+        "staticAbilities": [
+            "flying",
+            "protection from red"
+        ],
+        "id": "8c7ebec7-7375-4362-9489-437ff9305f19",
+        "rarity": "common",
+        "setCode": "ulg"
     },
     {
         "name": "Witch's Familiar",
@@ -100525,6 +101857,29 @@
         "id": "93e3c013-319f-4a77-a55e-11323468b8ea",
         "rarity": "uncommon",
         "setCode": "ody"
+    },
+    {
+        "name": "Silver Knight",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Knight"
+        ],
+        "manaCost": {
+            "W": 2
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "First strike, protection from red",
+        "staticAbilities": [
+            "first strike",
+            "protection from red"
+        ],
+        "id": "93f559da-08ad-402d-8c6b-3050bce5867b",
+        "rarity": "uncommon",
+        "setCode": "scg"
     },
     {
         "name": "Selesnya Evangel",
@@ -106590,6 +107945,30 @@
         "setCode": "ths"
     },
     {
+        "name": "Defender of Law",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Knight"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "Flash\nProtection from red",
+        "staticAbilities": [
+            "flash",
+            "protection from red"
+        ],
+        "id": "9c8e8719-8c33-429d-8b95-b7f813888850",
+        "rarity": "common",
+        "setCode": "ulg"
+    },
+    {
         "name": "Prakhata Pillar-Bug",
         "types": [
             "Artifact",
@@ -107864,6 +109243,30 @@
         "id": "9e2d16c1-6226-438f-be1e-eaab3df687e1",
         "rarity": "uncommon",
         "setCode": "s99"
+    },
+    {
+        "name": "Knight of Infamy",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Knight"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "Protection from white (This creature can't be blocked, targeted, dealt damage, or enchanted by anything white.)\nExalted (Whenever a creature you control attacks alone, that creature gets +1/+1 until end of turn.)",
+        "staticAbilities": [
+            "protection from white",
+            "exalted"
+        ],
+        "id": "9e339853-5b6b-47b7-8d88-e9d3befb803f",
+        "rarity": "uncommon",
+        "setCode": "m13"
     },
     {
         "name": "Scorching Spear",
@@ -110612,6 +112015,28 @@
         "setCode": "tmp"
     },
     {
+        "name": "Yavimaya Scion",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Treefolk"
+        ],
+        "manaCost": {
+            "X": 4,
+            "G": 1
+        },
+        "power": 4,
+        "toughness": 4,
+        "oracleText": "Protection from artifacts",
+        "staticAbilities": [
+            "protection from artifacts"
+        ],
+        "id": "a2f80036-1058-4513-8549-0557df9b5d61",
+        "rarity": "common",
+        "setCode": "ulg"
+    },
+    {
         "name": "Go for the Throat",
         "types": [
             "Instant"
@@ -112846,6 +114271,75 @@
         "id": "a5b91ddc-8630-4214-8dce-215f28ccc685",
         "rarity": "common",
         "setCode": "pcy"
+    },
+    {
+        "name": "Stromgald Crusader",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Zombie",
+            "Knight"
+        ],
+        "manaCost": {
+            "B": 2
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "Protection from white\n{B}: This creature gains flying until end of turn.\n{B}{B}: This creature gets +1/+0 until end of turn.",
+        "staticAbilities": [
+            "protection from white"
+        ],
+        "activatedAbilities": [
+            {
+                "id": "stromgald-crusader-ability",
+                "oracleText": "{B}: This creature gains flying until end of turn.",
+                "cost": {
+                    "mana": {
+                        "B": 1
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "grantAbility",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "ability": "flying",
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            },
+            {
+                "id": "stromgald-crusader-ability-2",
+                "oracleText": "{B}{B}: This creature gets +1/+0 until end of turn.",
+                "cost": {
+                    "mana": {
+                        "B": 2
+                    }
+                },
+                "useStack": true,
+                "effects": [
+                    {
+                        "op": "pump",
+                        "target": {
+                            "ref": "$source"
+                        },
+                        "power": 1,
+                        "toughness": 0,
+                        "duration": {
+                            "phase": "end-of-turn"
+                        }
+                    }
+                ]
+            }
+        ],
+        "id": "a5baeff5-40e9-47b6-85a8-3a6548565b5f",
+        "rarity": "uncommon",
+        "setCode": "csp"
     },
     {
         "name": "Hordeling Outburst",
@@ -118766,6 +120260,29 @@
         "setCode": "znr"
     },
     {
+        "name": "Nacatl Savage",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Cat",
+            "Warrior"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "Protection from artifacts",
+        "staticAbilities": [
+            "protection from artifacts"
+        ],
+        "id": "ad602fba-6a73-4fd0-aff5-802c3be3100e",
+        "rarity": "common",
+        "setCode": "con"
+    },
+    {
         "name": "Raging Regisaur",
         "types": [
             "Creature"
@@ -121064,6 +122581,61 @@
         "setCode": "ogw"
     },
     {
+        "name": "Dross Harvester",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Horror"
+        ],
+        "manaCost": {
+            "X": 1,
+            "B": 2
+        },
+        "power": 4,
+        "toughness": 4,
+        "oracleText": "Protection from white\nAt the beginning of your end step, you lose 4 life.\nWhenever a creature dies, you gain 2 life.",
+        "staticAbilities": [
+            "protection from white"
+        ],
+        "compiledTriggeredAbilities": [
+            {
+                "id": "dross-harvester-trigger",
+                "oracleText": "At the beginning of your end step, you lose 4 life.",
+                "head": {
+                    "kind": "phase",
+                    "phase": "END_STEP",
+                    "scope": "your"
+                },
+                "effects": [
+                    {
+                        "op": "loseLife",
+                        "player": "controller",
+                        "amount": 4
+                    }
+                ]
+            },
+            {
+                "id": "dross-harvester-trigger-2",
+                "oracleText": "Whenever a creature dies, you gain 2 life.",
+                "head": {
+                    "kind": "died",
+                    "scope": "any"
+                },
+                "effects": [
+                    {
+                        "op": "gainLife",
+                        "player": "controller",
+                        "amount": 2
+                    }
+                ]
+            }
+        ],
+        "id": "b088832c-6119-4460-98b7-ae25cf70b2c5",
+        "rarity": "rare",
+        "setCode": "mrd"
+    },
+    {
         "name": "Second Thoughts",
         "types": [
             "Instant"
@@ -122723,6 +124295,30 @@
         "id": "b3b5b510-fd5c-415d-98b0-386e7508f7af",
         "rarity": "uncommon",
         "setCode": "stx"
+    },
+    {
+        "name": "Scalebane's Elite",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Soldier"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1,
+            "G": 1
+        },
+        "power": 4,
+        "toughness": 4,
+        "oracleText": "Protection from black",
+        "staticAbilities": [
+            "protection from black"
+        ],
+        "id": "b3bff610-783a-46b7-bd15-061da41027bb",
+        "rarity": "uncommon",
+        "setCode": "vis"
     },
     {
         "name": "Vampire of the Dire Moon",
@@ -124477,6 +126073,29 @@
         "id": "b6673d49-c3f6-41f6-84c6-1957fff71509",
         "rarity": "uncommon",
         "setCode": "mir"
+    },
+    {
+        "name": "Azorius First-Wing",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Griffin"
+        ],
+        "manaCost": {
+            "W": 1,
+            "U": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Flying, protection from enchantments",
+        "staticAbilities": [
+            "flying",
+            "protection from enchantments"
+        ],
+        "id": "b675c1e6-add5-4959-a5be-f2571ccebcb4",
+        "rarity": "common",
+        "setCode": "dis"
     },
     {
         "name": "Ogre Arsonist",
@@ -131028,6 +132647,29 @@
         "setCode": "mrd"
     },
     {
+        "name": "Duskrider Falcon",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Bird"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Flying, protection from black",
+        "staticAbilities": [
+            "flying",
+            "protection from black"
+        ],
+        "id": "bee3a23a-6ecf-439c-8637-e096fa8c1a80",
+        "rarity": "common",
+        "setCode": "wth"
+    },
+    {
         "name": "Channeler Initiate",
         "types": [
             "Creature"
@@ -131167,6 +132809,31 @@
         "id": "bf020acb-e0c6-43b4-8324-0f2ec68b73d6",
         "rarity": "common",
         "setCode": "war"
+    },
+    {
+        "name": "Paladin en-Vec",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Knight"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 2
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "First strike, protection from black and from red (This creature deals combat damage before creatures without first strike. It can't be blocked, targeted, dealt damage, or enchanted by anything black or red.)",
+        "staticAbilities": [
+            "first strike",
+            "protection from black",
+            "protection from red"
+        ],
+        "id": "bf1ea89d-4b9d-455f-a7f4-a26026e0c272",
+        "rarity": "rare",
+        "setCode": "exo"
     },
     {
         "name": "Boros Swiftblade",
@@ -135349,6 +137016,30 @@
         "setCode": "mor"
     },
     {
+        "name": "Angelic Curator",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Angel",
+            "Spirit"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Flying, protection from artifacts",
+        "staticAbilities": [
+            "flying",
+            "protection from artifacts"
+        ],
+        "id": "c63ba2da-6dea-44ac-8439-527222da565b",
+        "rarity": "common",
+        "setCode": "ulg"
+    },
+    {
         "name": "Maalfeld Twins",
         "types": [
             "Creature"
@@ -136322,6 +138013,36 @@
         "id": "c82be2ca-8350-4cf5-83b6-e8b60a9e21c6",
         "rarity": "common",
         "setCode": "m21"
+    },
+    {
+        "name": "Sphinx of the Steel Wind",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Sphinx"
+        ],
+        "manaCost": {
+            "X": 5,
+            "W": 1,
+            "U": 1,
+            "B": 1
+        },
+        "power": 6,
+        "toughness": 6,
+        "oracleText": "Flying, first strike, vigilance, lifelink, protection from red and from green",
+        "staticAbilities": [
+            "flying",
+            "first strike",
+            "vigilance",
+            "lifelink",
+            "protection from red",
+            "protection from green"
+        ],
+        "id": "c860cf0f-ef68-455f-9c71-a6dd25b51d71",
+        "rarity": "mythic",
+        "setCode": "arb"
     },
     {
         "name": "Murder",
@@ -144529,6 +146250,29 @@
         "setCode": "gpt"
     },
     {
+        "name": "Needlebug",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Insect"
+        ],
+        "manaCost": {
+            "X": 4
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Flash\nProtection from artifacts",
+        "staticAbilities": [
+            "flash",
+            "protection from artifacts"
+        ],
+        "id": "d54fbd8a-1e2a-450e-98f2-26bbc9e9ac79",
+        "rarity": "uncommon",
+        "setCode": "mrd"
+    },
+    {
         "name": "Thistledown Duo",
         "types": [
             "Creature"
@@ -145005,6 +146749,28 @@
         "id": "d61b4b71-3cbb-4422-8ce7-657ca3bb6a82",
         "rarity": "common",
         "setCode": "m21"
+    },
+    {
+        "name": "Guma",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Cat"
+        ],
+        "manaCost": {
+            "X": 2,
+            "R": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Protection from blue",
+        "staticAbilities": [
+            "protection from blue"
+        ],
+        "id": "d6246f17-6034-4423-82c5-1aea8d71f94e",
+        "rarity": "uncommon",
+        "setCode": "usg"
     },
     {
         "name": "Pegasus Charger",
@@ -145665,6 +147431,30 @@
         "id": "d7533a72-77d1-40cd-b3a1-7597d566c428",
         "rarity": "common",
         "setCode": "leg"
+    },
+    {
+        "name": "Vedalken Outlander",
+        "types": [
+            "Artifact",
+            "Creature"
+        ],
+        "subtypes": [
+            "Vedalken",
+            "Scout"
+        ],
+        "manaCost": {
+            "W": 1,
+            "U": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Protection from red",
+        "staticAbilities": [
+            "protection from red"
+        ],
+        "id": "d75a7314-39f2-4e32-a5b0-ac1761b6d238",
+        "rarity": "common",
+        "setCode": "con"
     },
     {
         "name": "Icatian Priest",
@@ -147720,6 +149510,31 @@
         "setCode": "uds"
     },
     {
+        "name": "Mirran Crusader",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Knight"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 2
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Double strike, protection from black and from green",
+        "staticAbilities": [
+            "double strike",
+            "protection from black",
+            "protection from green"
+        ],
+        "id": "d9a8a187-c479-429c-b0ef-c98153ffa5e5",
+        "rarity": "rare",
+        "setCode": "pmbs"
+    },
+    {
         "name": "Ember Hauler",
         "types": [
             "Creature"
@@ -148165,6 +149980,29 @@
         "id": "dac35181-baae-4c50-b397-a10b234833e5",
         "rarity": "uncommon",
         "setCode": "akh"
+    },
+    {
+        "name": "Voice of Law",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Angel"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Flying, protection from red",
+        "staticAbilities": [
+            "flying",
+            "protection from red"
+        ],
+        "id": "daec52a4-02da-4bff-aff4-5247baed1326",
+        "rarity": "uncommon",
+        "setCode": "usg"
     },
     {
         "name": "Arms Dealer",
@@ -150025,6 +151863,29 @@
         "setCode": "hbg"
     },
     {
+        "name": "Beloved Chaplain",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Cleric"
+        ],
+        "manaCost": {
+            "X": 1,
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Protection from creatures",
+        "staticAbilities": [
+            "protection from creatures"
+        ],
+        "id": "decec62b-7ac4-4097-9215-5db18db2dec6",
+        "rarity": "uncommon",
+        "setCode": "ody"
+    },
+    {
         "name": "Iron Bully",
         "types": [
             "Artifact",
@@ -151698,6 +153559,28 @@
         "id": "e16c9f3a-534b-42d4-9765-8d1cb15375aa",
         "rarity": "uncommon",
         "setCode": "m20"
+    },
+    {
+        "name": "Death Speakers",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Cleric"
+        ],
+        "manaCost": {
+            "W": 1
+        },
+        "power": 1,
+        "toughness": 1,
+        "oracleText": "Protection from black",
+        "staticAbilities": [
+            "protection from black"
+        ],
+        "id": "e17c19a4-0186-45a0-89b9-d7b0fb0ddd8a",
+        "rarity": "uncommon",
+        "setCode": "hml"
     },
     {
         "name": "Krosan Archer",
@@ -159618,6 +161501,29 @@
         "setCode": "ths"
     },
     {
+        "name": "Voice of Reason",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Angel"
+        ],
+        "manaCost": {
+            "X": 3,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Flying, protection from blue",
+        "staticAbilities": [
+            "flying",
+            "protection from blue"
+        ],
+        "id": "ed3d5a10-6d4b-4383-b400-7323f2b4670e",
+        "rarity": "uncommon",
+        "setCode": "uds"
+    },
+    {
         "name": "Dragon Hatchling",
         "types": [
             "Creature"
@@ -160928,6 +162834,29 @@
         "id": "eef8ad11-4ffa-4878-9354-737be6f9e90c",
         "rarity": "uncommon",
         "setCode": "rav"
+    },
+    {
+        "name": "Tel-Jilad Chosen",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Elf",
+            "Warrior"
+        ],
+        "manaCost": {
+            "X": 1,
+            "G": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "Protection from artifacts",
+        "staticAbilities": [
+            "protection from artifacts"
+        ],
+        "id": "eefea84f-d657-491d-b60d-63e6a61e9eb2",
+        "rarity": "common",
+        "setCode": "mrd"
     },
     {
         "name": "Elfhame Wurm",
@@ -162693,6 +164622,29 @@
         "id": "f272ac54-fea8-4044-83e2-f8fdc10f467d",
         "rarity": "common",
         "setCode": "znr"
+    },
+    {
+        "name": "Zombie Outlander",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Zombie",
+            "Scout"
+        ],
+        "manaCost": {
+            "U": 1,
+            "B": 1
+        },
+        "power": 2,
+        "toughness": 2,
+        "oracleText": "Protection from green",
+        "staticAbilities": [
+            "protection from green"
+        ],
+        "id": "f27c2690-5121-452b-b82a-72acb8be6878",
+        "rarity": "common",
+        "setCode": "con"
     },
     {
         "name": "Battle Rampart",
@@ -169931,6 +171883,30 @@
         "id": "fd8061d2-84ce-4e4a-9911-ffc9833749da",
         "rarity": "common",
         "setCode": "ori"
+    },
+    {
+        "name": "Thermal Glider",
+        "types": [
+            "Creature"
+        ],
+        "subtypes": [
+            "Human",
+            "Rebel"
+        ],
+        "manaCost": {
+            "X": 2,
+            "W": 1
+        },
+        "power": 2,
+        "toughness": 1,
+        "oracleText": "Flying, protection from red",
+        "staticAbilities": [
+            "flying",
+            "protection from red"
+        ],
+        "id": "fd909c26-930d-4af0-b19a-c899847338b4",
+        "rarity": "common",
+        "setCode": "mmq"
     },
     {
         "name": "Abbey Matron",

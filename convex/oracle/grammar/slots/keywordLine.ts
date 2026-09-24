@@ -46,6 +46,10 @@ import type { KeywordIR, KickerIR, SlotIR } from "../ir";
 import { activationCostRule } from "../shared/cost";
 import { keywordVocabulary } from "../shared/keywordVocabulary";
 import {
+    protectionKeywordsRule,
+    protectionListRule,
+} from "../shared/protectionKeyword";
+import {
     descriptorRule,
     targetRequirementFromDescriptor,
 } from "../shared/targetFilter";
@@ -73,14 +77,28 @@ function opensWithKeyword(span: string): boolean {
     return false;
 }
 
-const keyword: Rule<KeywordIR> = subGrammar(
+/**
+ * One keyword span: a registry name, or the parameterised "Protection from
+ * [quality]" (CR 702.16a) — which may name two qualities (CR 702.16g) and so
+ * yields a list.
+ */
+const keyword: Rule<readonly KeywordIR[]> = subGrammar(
     KEYWORD_ABILITY,
-    atom(KEYWORD_ABILITY, KEYWORD_VOCABULARY),
+    oneOf(KEYWORD_ABILITY, [
+        map(
+            atom(KEYWORD_ABILITY, KEYWORD_VOCABULARY),
+            (k): RuleResult<readonly KeywordIR[]> => ok([k])
+        ),
+        protectionKeywordsRule,
+    ]),
     opensWithKeyword
 );
 
 /** `"Flying, vigilance"` — a comma-separated run of keywords. */
-const commaRun: Rule<KeywordIR[]> = listOf("keyword run", ", ", keyword);
+const commaRun: Rule<KeywordIR[]> = map(
+    listOf("keyword run", ", ", keyword),
+    (runs): RuleResult<KeywordIR[]> => ok(runs.flat())
+);
 
 /** `"Flying; banding"` — semicolon groups, each a comma run. */
 const semicolonGroups: Rule<KeywordIR[][]> = listOf(
@@ -91,25 +109,26 @@ const semicolonGroups: Rule<KeywordIR[][]> = listOf(
 
 export const KEYWORD_LINE_SLOT = "keyword-line";
 
-const keywordRunRule: Rule<SlotIR> = map(
-    semicolonGroups,
-    (groups): RuleResult<SlotIR> => {
-        const keywords = groups.flat();
-        const seen = new Set<string>();
-        for (const k of keywords) {
-            // The same keyword twice on one line is not a shape Magic prints;
-            // it is a sign the line was misread, so it fails rather than being
-            // silently deduped.
-            if (seen.has(k.registryId)) {
-                return fail(
-                    `keyword "${k.ability}" named twice on one line`,
-                    k.ability
-                );
-            }
-            seen.add(k.registryId);
+/** One `keywords` slot, refusing a keyword named twice on the line. */
+function keywordsSlot(keywords: readonly KeywordIR[]): RuleResult<SlotIR> {
+    const seen = new Set<string>();
+    for (const k of keywords) {
+        // The same keyword twice on one line is not a shape Magic prints;
+        // it is a sign the line was misread, so it fails rather than being
+        // silently deduped.
+        if (seen.has(k.ability)) {
+            return fail(
+                `keyword "${k.ability}" named twice on one line`,
+                k.ability
+            );
         }
-        return ok({ kind: "keywords", keywords });
+        seen.add(k.ability);
     }
+    return ok({ kind: "keywords", keywords });
+}
+
+const keywordRunRule: Rule<SlotIR> = map(semicolonGroups, (groups) =>
+    keywordsSlot(groups.flat())
 );
 
 // ── Enchant <descriptor> (CR 702.5a) ───────────────────────────────────────
@@ -334,6 +353,7 @@ export const kickerRule: Rule<SlotIR> = rule("kicker", (span, ctx) => {
  */
 export const keywordLineRule: Rule<SlotIR> = oneOf("keyword line", [
     keywordRunRule,
+    map(protectionListRule, keywordsSlot),
     enchantRule,
     kickerRule,
 ]);
