@@ -1697,6 +1697,57 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 205.3m + CR 205.1a (issue #4316) — "Choose a creature type other than
+    // Wall. Target creature becomes that type until end of turn." The `exclude`
+    // leg and the chosen-type write-back are one form: the `setSubtype` Op
+    // reads a `{ ref }` bound by the sentence before it, a runtime binding the
+    // canned smoke scenario cannot supply. Exhibits `setSubtype` with
+    // `family: "creature"` over a ref list.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "0be10525-09dc-4970-b495-2db7d4d3c3e7",
+            name: "Unnatural Selection",
+            manaCost: "{1}{U}",
+            typeLine: "Enchantment",
+            oracleText:
+                "{1}: Choose a creature type other than Wall. Target creature becomes that type until end of turn.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Unnatural Selection",
+            types: ["Enchantment"],
+            manaCost: { X: 1, U: 1 },
+            oracleText:
+                "{1}: Choose a creature type other than Wall. Target creature becomes that type until end of turn.",
+            activatedAbilities: [
+                {
+                    id: "unnatural-selection-ability",
+                    oracleText:
+                        "{1}: Choose a creature type other than Wall. Target creature becomes that type until end of turn.",
+                    cost: { mana: { X: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "chooseCreatureType",
+                            player: "controller",
+                            prompt: "Choose a creature type other than Wall.",
+                            bind: "$chosenType",
+                            exclude: ["Wall"],
+                        },
+                        {
+                            op: "setSubtype",
+                            target: { target: 0 },
+                            subtypes: { ref: "$chosenType" },
+                            family: "creature",
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                    targetRequirement: { type: "Creature", count: 1 },
+                },
+            ],
+        },
+    },
     // CR 120.3 + CR 603.2 — "Whenever this creature deals damage to an
     // opponent, that player discards a card at random": "that player" is the
     // damaged player, `DAMAGE_DEALT.damagedPlayer`. Exhibits a discard by an

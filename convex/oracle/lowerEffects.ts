@@ -1186,6 +1186,28 @@ function landTypeChangeSelector(
     return slotFor(requirement, slots);
 }
 
+/** CR 115.1 / 205.1a — the ONE announced creature a chosen-type change
+ *  reaches; any other subject shape would silently drop recipients. */
+function chosenTypeSelector(
+    subject: SubjectIR,
+    slots: TargetSlots
+): Lowered<EffectObjectSelector> {
+    if (subject.kind !== "target")
+        return unlowerable(
+            "a chosen-type change is read only on an announced target (CR 115.1)"
+        );
+    const requirement = subject.requirement;
+    if (
+        requirement.type !== "Creature" ||
+        requirement.count !== 1 ||
+        (requirement.zone !== undefined && requirement.zone !== "battlefield")
+    )
+        return unlowerable(
+            "a chosen-type change reaches ONE creature on the battlefield (CR 110.1, CR 205.1a)"
+        );
+    return slotFor(requirement, slots);
+}
+
 /** Announce `requirement` and point an Op at the slot it took (CR 601.2c). */
 function slotFor(
     requirement: TargetRequirement,
@@ -2162,10 +2184,34 @@ function lowerSentenceBody(
                 {
                     op: "chooseCreatureType",
                     player: "controller",
-                    prompt: "Choose a creature type",
+                    prompt:
+                        sentence.exclude === undefined
+                            ? "Choose a creature type"
+                            : `Choose a creature type other than ${sentence.exclude.join(", ")}.`,
                     bind: CHOSEN_TYPE_BINDING,
+                    ...(sentence.exclude === undefined
+                        ? {}
+                        : { exclude: [...sentence.exclude] }),
                 },
             ]);
+        // CR 205.1a / 611.2 (issue #4316) — the chosen type replaces the
+        // subject's CREATURE types only (`family: "creature"`), reverting at
+        // `duration`. Reads the SAME reserved binding the choose sentence
+        // writes; a line without that sentence leaves the ref unbound, which
+        // `validateEffectScript` refuses.
+        case "set-chosen-creature-type": {
+            const target = chosenTypeSelector(sentence.subject, slots);
+            if (!target.ok) return target;
+            return lowered([
+                {
+                    op: "setSubtype",
+                    target: target.value,
+                    subtypes: { ref: CHOSEN_TYPE_BINDING },
+                    family: "creature",
+                    duration: durationSpec(sentence.duration),
+                },
+            ]);
+        }
         case "replace-mana-production-color":
             return lowered([
                 {
