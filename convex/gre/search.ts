@@ -2656,8 +2656,10 @@ function isDeferrableTransientSacrifice(
     pid: string,
     move: Move
 ): boolean {
-    if (state.stack.length > 0 || TRANSIENT_PAYOFF_PHASES.has(state.phase))
-        return false;
+    const inLiveCombat =
+        TRANSIENT_PAYOFF_PHASES.has(state.phase) &&
+        (state.combat?.attackerIds.length ?? 0) > 0;
+    if (state.stack.length > 0 || inLiveCombat) return false;
     return isSacrificeConversionWhere(
         state,
         pid,
