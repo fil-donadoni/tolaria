@@ -677,11 +677,14 @@ function main(): void {
     }
 
     if (dryRun) {
+        const clusters = clusterIssues(allowlist);
         for (const filing of filings) {
             const at =
                 filing.currentIssue === null
                     ? "would CREATE"
-                    : `would reconcile issue #${filing.currentIssue}`;
+                    : clusters.has(filing.currentIssue)
+                      ? `would leave Grammar Cluster issue #${filing.currentIssue} alone`
+                      : `would reconcile issue #${filing.currentIssue}`;
             const origin = originUmbrellaOf(filing, originBand);
             const umbrella = bandUmbrellaOf(filing);
             const band =
