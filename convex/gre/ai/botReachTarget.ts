@@ -371,7 +371,7 @@ export function targetPose(def: CardDefinition): TargetPose {
     const modes = def.targetRequirement ? [] : (def.modes ?? []);
     if (modes.length === 0)
         return requirementPose(def, def.targetRequirement, undefined);
-    // A modal spell states its targets per mode (CR 700.2): the position holds
+    // A modal spell states its targets per mode (CR 700.2a): the position holds
     // what EACH mode needs, so whichever the Bot picks has a legal target
     // (issue #4268). A combat a mode's role names is the first such mode's.
     const poses = modes.map((m) =>
