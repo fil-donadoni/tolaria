@@ -27,6 +27,7 @@ import {
     cardsNamedByEngineTitle,
     claimedCards,
     issueCards,
+    filingGaps,
     labelBand,
     planClear,
     planUmbrellas,
@@ -852,13 +853,16 @@ describe("backlog-triage — parseBand (issue #4230)", () => {
             expect(parseBand(5, b)).toEqual({ ruling: null, residue: [] });
     });
 
-    it("a P0 line is reported and yields no band", () => {
+    it("a P0 line yields no band, and RECORDS its reason — never residue (issue #4455)", () => {
         expect(parseBand(5, body("P0 — now"))).toEqual({
             ruling: null,
-            residue: [
-                { issue: 5, line: "P0 — now", reason: "P0 is never written" },
-            ],
+            residue: [],
+            recordedP0: { issue: 5, reason: "now" },
         });
+        // A P0 with no reason is still unreadable — the reason IS the record.
+        expect(parseBand(5, body("P0 —")).residue).toEqual([
+            { issue: 5, line: "P0 —", reason: "unreadable" },
+        ]);
     });
 
     it("an unreadable line — no reason, no band, prose — is reported, never guessed", () => {
@@ -1160,7 +1164,11 @@ describe("backlog-triage — summary", () => {
                 cause: "off-road",
             },
         ]);
-        expect(s.perCause).toEqual({ undeclared: 1, "off-road": 1 });
+        expect(s.perCause).toEqual({
+            "awaiting-triage": 0,
+            undeclared: 1,
+            "off-road": 1,
+        });
         expect(s.perSource.cards).toBe(3);
     });
 
@@ -1184,6 +1192,100 @@ describe("backlog-triage — summary", () => {
         expect(rest).not.toContain("orphan");
     });
 
+    // `needs-triage` is a DECLARATION (issue #4455): a human parked the row
+    // for typing — not "nobody has looked", so not the residue the owner rules.
+    it("a needs-triage row no source bands is awaiting-triage — cards or none — and outside the residue total (issue #4455)", () => {
+        const issues = [
+            issue(1, { title: "parked", labels: ["needs-triage"] }),
+            issue(2, {
+                title: "parked, off-road cards",
+                cards: [CARDS.Loose],
+                labels: ["needs-triage", "area:mechanics"],
+            }),
+            issue(3, { title: "forgotten" }),
+            issue(4, { title: "forgotten, off-road", cards: [CARDS.Loose] }),
+            // A source DOES band it: the label default, untouched by the cause.
+            issue(5, {
+                title: "parked but typed",
+                labels: ["needs-triage", "enhancement"],
+            }),
+        ];
+        const board: Record<number, BoardPriority> = { 2: "P3" };
+        const verdicts = triage(issues, index, board, 9999);
+        expect(verdicts.get(1)).toEqual({
+            kind: "residue",
+            cause: "awaiting-triage",
+        });
+        expect(verdicts.get(2)).toEqual({
+            kind: "residue",
+            cause: "awaiting-triage",
+        });
+        // The regression this must not paper over: no needs-triage, still residue.
+        expect(verdicts.get(3)).toEqual({
+            kind: "residue",
+            cause: "undeclared",
+        });
+        expect(verdicts.get(4)).toEqual({ kind: "residue", cause: "off-road" });
+        expect(verdicts.get(5)).toMatchObject({
+            kind: "band",
+            band: "P3",
+            source: "labels",
+        });
+
+        const s = summarize(issues, verdicts, board);
+        expect(s.residue.map((r) => r.number)).toEqual([3, 4]);
+        expect(s.awaitingTriage).toEqual([
+            { number: 1, title: "parked", board: null },
+            { number: 2, title: "parked, off-road cards", board: "P3" },
+        ]);
+        expect(s.perCause).toEqual({
+            "awaiting-triage": 2,
+            undeclared: 1,
+            "off-road": 1,
+        });
+
+        const report = renderReport(s);
+        expect(report).toContain(
+            "residue (no source yields a band — stays unprioritized, the owner rules): 2\n"
+        );
+        const [head, awaiting] = report.split("## Awaiting triage");
+        expect(head).not.toContain("parked");
+        expect(awaiting).toMatch(
+            /^ \(needs-triage [^\n]*\): 2 \(1 hold a board value today\)\n/
+        );
+        expect(awaiting).toContain("  #1 parked\n");
+        expect(awaiting).toContain("  #2 [board P3] parked, off-road cards\n");
+    });
+
+    it("filingGaps names the open issues missing an area:* and, apart, a type — needs-triage is not a type (issue #4455)", () => {
+        const gaps = filingGaps([
+            { number: 9, labels: ["needs-triage"] },
+            { number: 3, labels: ["bug", "area:ui-ux"] },
+            { number: 4, labels: ["prd"] },
+            { number: 5, labels: ["area:docs", "ready-for-agent"] },
+            { number: 6 },
+            // `area:bogus` is not canonical — LABEL_BAND_TABLE's set only.
+            { number: 7, labels: ["user-report", "area:bogus"] },
+        ]);
+        expect(gaps).toEqual({
+            missingArea: [4, 6, 7, 9],
+            missingType: [5, 6, 9],
+        });
+        const report = renderReport(
+            summarize([], new Map(), {}),
+            null,
+            [],
+            [],
+            [],
+            [],
+            [],
+            gaps
+        );
+        expect(report).toContain(
+            "\nmissing an area:* label: 4 — #4, #6, #7, #9\nmissing a type label (bug / enhancement / prd / user-report): 3 — #5, #6, #9"
+        );
+    });
+
     // A Target-keyed umbrella (issue #4212) is a `prd` with no cards of its
     // own — on the ordinary verdict path that is undeclared residue, but its
     // Target's band IS its truth (issue #4408): "examined, banded elsewhere",
@@ -1203,7 +1305,11 @@ describe("backlog-triage — summary", () => {
                 cause: "undeclared",
             },
         ]);
-        expect(s.perCause).toEqual({ undeclared: 1, "off-road": 0 });
+        expect(s.perCause).toEqual({
+            "awaiting-triage": 0,
+            undeclared: 1,
+            "off-road": 0,
+        });
     });
 
     it("renderReport shows an owned-and-current umbrella once, in the umbrella block, never under residue (issue #4408)", () => {
@@ -1275,13 +1381,13 @@ function recordingGh(calls: string[][]) {
                     data: {
                         repository: {
                             issues: {
-                                totalCount: 5,
+                                totalCount: 6,
                                 pageInfo: { hasNextPage: false },
                                 nodes: [
                                     {
                                         number: 7,
                                         title: "hand-set",
-                                        body: "",
+                                        body: "## Band\n\nP0 — the owner's reason\n",
                                         parent: null,
                                         blocking: { totalCount: 0, nodes: [] },
                                         labels: { totalCount: 0, nodes: [] },
@@ -1324,6 +1430,17 @@ function recordingGh(calls: string[][]) {
                                             ],
                                         },
                                     },
+                                    {
+                                        number: 12,
+                                        title: "parked for a human",
+                                        body: "",
+                                        parent: null,
+                                        blocking: { totalCount: 0, nodes: [] },
+                                        labels: {
+                                            totalCount: 1,
+                                            nodes: [{ name: "needs-triage" }],
+                                        },
+                                    },
                                 ],
                             },
                         },
@@ -1347,6 +1464,8 @@ describe("backlog-triage — runTriage", () => {
             "P0 untouched (hand-set, never written or cleared): 1 — #7"
         );
         expect(report).toMatch(/residue .*: 1 /);
+        // #8 alone: the needs-triage #12 is outside the residue total.
+        expect(report).toContain("the owner rules): 1\n");
         expect(report).toContain("#8 nothing");
         // #8 declares nothing (its backticked names are prose, not a claim).
         expect(report).toMatch(
@@ -1363,9 +1482,22 @@ describe("backlog-triage — runTriage", () => {
         expect(report).not.toContain("#11 labelled only");
         // #10's `## Band` line is the band, read through the driver.
         expect(report).toMatch(/^P3 +1 +1 +/m);
-        // #9's P0 line bands nothing (its cards still do) and is reported in its own section.
+        // #7's P0 reason is printed beside the hand-set list; #9's P0 line
+        // bands nothing (its cards still do) and its board is not P0 — a
+        // disagreement, never band residue (issue #4455).
+        expect(report).toContain(
+            "P0 untouched (hand-set, never written or cleared): 1 — #7\n  #7 P0 — the owner's reason\n  #9 DISAGREES: body records `## Band: P0 — now`, board is not P0\n"
+        );
+        expect(report).toMatch(/## Band residue[^\n]*: 0\n/);
+        // #12 is needs-triage: its own heading, outside the residue total.
         expect(report).toMatch(
-            /## Band residue[^\n]*: 1\n {2}#9 {2}P0 — now {2}— P0 is never written/
+            /## Awaiting triage [^\n]*: 1 \(0 hold a board value today\)\n {2}#12 parked for a human/
+        );
+        expect(report).toMatch(
+            /^missing an area:\* label: 5 — #7, #8, #9, #10, #12$/m
+        );
+        expect(report).toMatch(
+            /^missing a type label \(bug \/ enhancement \/ prd \/ user-report\): 5 — #7, #8, #9, #10, #12$/m
         );
         expect(report).toContain("#9  Not A Real Card Name  — no such card");
         // No flag, no backfill.

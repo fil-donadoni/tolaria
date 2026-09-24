@@ -203,6 +203,25 @@ export const LABEL_BAND_TABLE: {
 };
 
 /**
+ * The filing rule's two axes (issue #4455): every open issue carries a TYPE
+ * and a canonical `area:*`. The area set is {@link LABEL_BAND_TABLE}'s own —
+ * one list, never a copy. `needs-triage` is not a type: it is the declaration
+ * that a human has yet to give one.
+ */
+export const TYPE_LABELS: readonly string[] = [
+    "bug",
+    "enhancement",
+    "prd",
+    "user-report",
+];
+export const AREA_LABELS: readonly string[] = [
+    ...LABEL_BAND_TABLE.bugAreas.keys(),
+];
+/** Filed without a type, on purpose — parked out of the AFK loop until a
+ *  human types it (issue #4455): a declaration, not unexamined residue. */
+export const NEEDS_TRIAGE_LABEL = "needs-triage";
+
+/**
  * The band an issue's labels default to, and the label that lent it — or
  * `null` (residue). Precedence when labels stack, top-down: `user-report`,
  * then `bug` (the strongest of its areas), then `enhancement`; a row with none
@@ -515,7 +534,7 @@ export interface BandRuling {
 export interface BandResidue {
     readonly issue: number;
     readonly line: string;
-    readonly reason: "unreadable" | "P0 is never written" | "extra line";
+    readonly reason: "unreadable" | "extra line";
 }
 
 /** `P2 — <reason>`: a band, a dash (em, en or hyphen) and a non-empty reason. */
@@ -525,20 +544,35 @@ const BAND_LINE = /^(P\d)\s+[—–-]\s+(\S.*)$/;
 const NONE_LINE = /^none\s+[—–-]\s+(\S.*)$/i;
 
 /**
+ * A `## Band: P0 — <reason>` line (issue #4455): the REASON for a hand-set
+ * board `P0`, recorded. Never a ruling — the machine never writes `P0` and
+ * never clears it — so it bands nothing; it is printed beside the hand-set
+ * `P0` list, and one whose board value is not `P0` is a disagreement.
+ */
+export interface RecordedP0 {
+    readonly issue: number;
+    readonly reason: string;
+}
+
+/**
  * Read one body's `## Band` section (issue #4230) — ONE line, `P2 — <reason>`
  * or `none — <reason>` (issue #4407), a bare line or a list item. Per the
  * ADR's write rule a line present is the truth, so nothing is guessed: a line
- * that is not `P1`–`P3`/`none` plus a reason, a `P0` (hand-set on the board,
- * never a band the machine writes), or a second line (two rulings disagree
- * with nobody to break the tie) yields NO ruling and comes back as residue
- * for the owner to fix. `None.` and an empty section declare nothing — that
+ * that is not `P0`–`P3`/`none` plus a reason, or a second line (two rulings
+ * disagree with nobody to break the tie) yields NO ruling and comes back as
+ * residue for the owner to fix. A `P0` line yields no ruling either — `P0` is
+ * hand-set on the board — but its reason is RECORDED ({@link RecordedP0}). `None.` and an empty section declare nothing — that
  * is silence, not a `none — <reason>` ruling. Fenced code is not markdown
  * here — `declaredSection` owns that, and why.
  */
 export function parseBand(
     issue: number,
     body: string
-): { ruling: BandRuling | null; residue: BandResidue[] } {
+): {
+    ruling: BandRuling | null;
+    residue: BandResidue[];
+    recordedP0?: RecordedP0;
+} {
     const section = declaredSection(body, BAND_HEADING) ?? [];
     const lines = section.map((l) => l.item ?? l.raw);
     const residue = (
@@ -559,7 +593,12 @@ export function parseBand(
         };
     const m = BAND_LINE.exec(line);
     if (m === null) return residue("unreadable", lines);
-    if (m[1] === "P0") return residue("P0 is never written", lines);
+    if (m[1] === "P0")
+        return {
+            ruling: null,
+            residue: [],
+            recordedP0: { issue, reason: m[2]!.trim() },
+        };
     if (!(BANDS as readonly string[]).includes(m[1]!))
         return residue("unreadable", lines);
     return {
@@ -599,16 +638,45 @@ export type TriageVerdict =
      *  deliberately unbanded — a `user-decision` outcome, apart from residue. */
     | { readonly kind: "declined"; readonly reason: string };
 
-/** Why the rule abstained: no cards to read, or cards that band nothing. */
-export type ResidueCause = "undeclared" | "off-road";
+/**
+ * Why the rule abstained: parked for a human to type (`needs-triage`, issue
+ * #4455 — a declaration, printed apart and outside the residue total), no
+ * cards to read, or cards that band nothing.
+ */
+export type ResidueCause = "awaiting-triage" | "undeclared" | "off-road";
 export const RESIDUE_CAUSES: readonly ResidueCause[] = [
+    "awaiting-triage",
     "undeclared",
     "off-road",
 ];
 
-/** A residue issue's cause — a pure read of its cards, whatever else bands it. */
+/** A residue issue's cause — `needs-triage` first, whatever its cards say;
+ *  else a pure read of its cards. */
 export function residueCause(issue: TriageIssue): ResidueCause {
+    if ((issue.labels ?? []).includes(NEEDS_TRIAGE_LABEL))
+        return "awaiting-triage";
     return issue.cards.length === 0 ? "undeclared" : "off-road";
+}
+
+/** The filing rule measured (issue #4455): the open issues with no canonical
+ *  `area:*` label, and those with no type label — report lines, never a gate. */
+export interface FilingGaps {
+    readonly missingArea: readonly number[];
+    readonly missingType: readonly number[];
+}
+
+export function filingGaps(
+    issues: readonly Pick<TriageIssue, "number" | "labels">[]
+): FilingGaps {
+    const sorted = [...issues].sort((a, b) => a.number - b.number);
+    const lacks = (set: readonly string[]) =>
+        sorted
+            .filter((i) => !(i.labels ?? []).some((l) => set.includes(l)))
+            .map((i) => i.number);
+    return {
+        missingArea: lacks(AREA_LABELS),
+        missingType: lacks(TYPE_LABELS),
+    };
 }
 
 /**
@@ -753,7 +821,16 @@ export interface TriageSummary {
         readonly board: BoardPriority | null;
         readonly cause: ResidueCause;
     }[];
+    /** Every cause counted, `awaiting-triage` included; the residue TOTAL
+     *  is `residue.length`, which leaves `awaiting-triage` out. */
     readonly perCause: Readonly<Record<ResidueCause, number>>;
+    /** `needs-triage` rows no source bands (issue #4455) — apart from
+     *  residue: declared, a human must type them. */
+    readonly awaitingTriage: readonly {
+        readonly number: number;
+        readonly title: string;
+        readonly board: BoardPriority | null;
+    }[];
     /** `## Band: none — <reason>` rulings (issue #4407) — apart from
      *  residue: examined, not "nobody has looked". */
     readonly declined: readonly {
@@ -794,9 +871,15 @@ export function summarize(
         cause: ResidueCause;
     }[] = [];
     const perCause: Record<ResidueCause, number> = {
+        "awaiting-triage": 0,
         undeclared: 0,
         "off-road": 0,
     };
+    const awaitingTriage: {
+        number: number;
+        title: string;
+        board: BoardPriority | null;
+    }[] = [];
     const declined: { number: number; title: string; reason: string }[] = [];
     for (const issue of [...issues].sort((a, b) => a.number - b.number)) {
         const v = verdicts.get(issue.number);
@@ -818,13 +901,21 @@ export function summarize(
             // An owned umbrella's Target IS its band — reported once, in the
             // umbrella block, never as "no source yields a band" (issue #4408).
             if (umbrellaOwned.has(issue.number)) continue;
+            perCause[v.cause]++;
+            if (v.cause === "awaiting-triage") {
+                awaitingTriage.push({
+                    number: issue.number,
+                    title: issue.title,
+                    board: now ?? null,
+                });
+                continue;
+            }
             residue.push({
                 number: issue.number,
                 title: issue.title,
                 board: now ?? null,
                 cause: v.cause,
             });
-            perCause[v.cause]++;
             continue;
         }
         const row = perBand[v.band];
@@ -841,6 +932,7 @@ export function summarize(
         perSource,
         residue,
         perCause,
+        awaitingTriage,
         declined,
     };
 }
@@ -1033,6 +1125,8 @@ export function planClear(
 }
 
 const RESIDUE_CAUSE_LABEL: Readonly<Record<ResidueCause, string>> = {
+    "awaiting-triage":
+        'needs-triage (declared: a human must type this — apart from residue, never "nobody has looked")',
     undeclared: "undeclared (no cards at all — nobody has looked)",
     "off-road":
         "off-road (cards declared, none in a Target that lends a band — looked, and off the road)",
@@ -1045,7 +1139,9 @@ export function renderReport(
     cardsResidue: readonly CardsResidue[] = [],
     bandResidue: readonly BandResidue[] = [],
     umbrellaWrites: readonly UmbrellaWrite[] = [],
-    umbrellaCurrent: readonly UmbrellaWrite[] = []
+    umbrellaCurrent: readonly UmbrellaWrite[] = [],
+    recordedP0: readonly RecordedP0[] = [],
+    filing: FilingGaps | null = null
 ): string {
     const header =
         written === null
@@ -1062,9 +1158,20 @@ export function renderReport(
             (summary.p0.length > 0
                 ? ` — ${summary.p0.map((n) => `#${n}`).join(", ")}`
                 : ""),
-        "",
-        "band  would hold  gain (unprioritized →)  change (other band →)  unchanged",
     ];
+    // A recorded reason (issue #4455) beside the hand-set list; a record the
+    // board does not hold at `P0` is the one case worth its own line.
+    const p0 = new Set(summary.p0);
+    for (const r of recordedP0)
+        lines.push(
+            p0.has(r.issue)
+                ? `  #${r.issue} P0 — ${r.reason}`
+                : `  #${r.issue} DISAGREES: body records \`## Band: P0 — ${r.reason}\`, board is not P0`
+        );
+    lines.push(
+        "",
+        "band  would hold  gain (unprioritized →)  change (other band →)  unchanged"
+    );
     for (const band of BANDS) {
         const r = summary.perBand[band];
         lines.push(
@@ -1079,6 +1186,7 @@ export function renderReport(
         `residue (no source yields a band — stays unprioritized, the owner rules): ${summary.residue.length}`
     );
     for (const cause of RESIDUE_CAUSES) {
+        if (cause === "awaiting-triage") continue;
         const group = summary.residue.filter((r) => r.cause === cause);
         lines.push(
             `residue — ${RESIDUE_CAUSE_LABEL[cause]}: ${summary.perCause[cause]}` +
@@ -1089,6 +1197,15 @@ export function renderReport(
                 `  #${r.number}${r.board === null ? "" : ` [board ${r.board}]`} ${r.title}`
             );
     }
+    lines.push(
+        "",
+        `## Awaiting triage (${RESIDUE_CAUSE_LABEL["awaiting-triage"]}): ${summary.perCause["awaiting-triage"]}` +
+            ` (${summary.awaitingTriage.filter((r) => r.board !== null).length} hold a board value today)`
+    );
+    for (const r of summary.awaitingTriage)
+        lines.push(
+            `  #${r.number}${r.board === null ? "" : ` [board ${r.board}]`} ${r.title}`
+        );
     lines.push(
         "",
         `## Declined (## Band: none — examined, ruled off the road, apart from residue): ${summary.declined.length}`
@@ -1119,6 +1236,16 @@ export function renderReport(
         lines.push(
             `  #${w.number}  ${w.family} / ${w.targetId}  current ${w.band}`
         );
+    if (filing !== null) {
+        const list = (ns: readonly number[]) =>
+            ns.length > 0 ? ` — ${ns.map((n) => `#${n}`).join(", ")}` : "";
+        lines.push(
+            "",
+            `## Filing gaps (the filing rule measured: a type and a canonical area:* on every open issue — report only, never a gate)`,
+            `missing an area:* label: ${filing.missingArea.length}${list(filing.missingArea)}`,
+            `missing a type label (${TYPE_LABELS.join(" / ")}): ${filing.missingType.length}${list(filing.missingType)}`
+        );
+    }
     return lines.join("\n");
 }
 

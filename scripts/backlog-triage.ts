@@ -64,6 +64,7 @@ import { ALLOWLIST_PATH, LOCKFILE_PATH, parseAllowlist } from "./check-gaps";
 import {
     cardBandIndex,
     claimedCards,
+    filingGaps,
     issueCards,
     planClear,
     planUmbrellas,
@@ -82,6 +83,7 @@ import {
     type BandClear,
     type BandWrite,
     type BandResidue,
+    type RecordedP0,
     type CardsResidue,
     type TriageIssue,
 } from "./lib/backlog-triage";
@@ -473,11 +475,13 @@ export function runTriage(opts: {
     const open = fetchOpenIssues(opts.ghClient);
     const cardsResidue: CardsResidue[] = [];
     const bandResidue: BandResidue[] = [];
+    const recordedP0: RecordedP0[] = [];
     const issues: TriageIssue[] = open.map((i) => {
         const declared = resolveDeclaredCards(i.number, i.body, byName);
         cardsResidue.push(...declared.residue);
         const band = parseBand(i.number, i.body);
         bandResidue.push(...band.residue);
+        if (band.recordedP0) recordedP0.push(band.recordedP0);
         return {
             number: i.number,
             title: i.title,
@@ -522,7 +526,9 @@ export function runTriage(opts: {
         cardsResidue,
         bandResidue,
         umbrellas.writes,
-        umbrellas.current
+        umbrellas.current,
+        recordedP0,
+        filingGaps(issues)
     );
     if (!opts.argv.includes("--suggest-cards")) return report;
     // The backfill is a PROPOSAL: printed, never written. An issue that
