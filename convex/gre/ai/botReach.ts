@@ -52,6 +52,7 @@ import { manaValue } from "../constants";
 import { basicLandsForColors, getCardColors } from "../../cards/colors";
 import type { CardDefinition, EffectForEachSelector } from "../../cards/types";
 import { castShape } from "./botReachForm";
+import { costPose, targetPose } from "./botReachTarget";
 export { castShape } from "./botReachForm";
 
 /** CR 115.1 — a spell that targets a SPELL needs one on the stack. Lives
@@ -367,10 +368,11 @@ export function botReachSpec(
         });
     }
     const shrinks = shrinksEveryCreature(def);
+    const target = targetPose(def);
     for (const owner of ["me", "opp"] as const) {
         cards.push({ name: FILLER_CREATURE, owner, zone: "battlefield" });
         cards.push({ name: FILLER_ARTIFACT, owner, zone: "battlefield" });
-        if (!shrinks)
+        if (!shrinks && !target.omitToughnessBoost)
             cards.push({
                 name: FILLER_ENCHANTMENT,
                 owner,
@@ -437,6 +439,8 @@ export function botReachSpec(
             });
         }
     }
+    const cost = costPose(def);
+    cards.push(...target.cards, ...cost.cards);
     const stack = needsStackTarget(def);
     return {
         cards,
@@ -452,6 +456,8 @@ export function botReachSpec(
         hiddenHand: { me: 1 },
         activePlayer: "me",
         priority: "me",
+        ...target.position,
+        ...(cost.manaPool ? { manaPool: cost.manaPool } : {}),
         ...(stack
             ? {
                   stack: [
