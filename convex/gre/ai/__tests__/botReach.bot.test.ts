@@ -389,6 +389,90 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
             });
     }, 300_000);
 
+    /** CR 701.21 — an "each player sacrifices" edict of `filter`. */
+    const eachPlayerSacrifices = (
+        id: string,
+        filter: Record<string, unknown>
+    ): CardDefinition => ({
+        id: `bot-reach-test:${id}`,
+        name: `Bot Reach ${id}`,
+        rarity: "common",
+        manaCost: { B: 1, generic: 1 },
+        types: ["Sorcery"],
+        effects: [
+            {
+                op: "forEach",
+                select: { set: "players" },
+                simultaneous: true,
+                effects: [
+                    {
+                        op: "choice",
+                        kind: "sacrifice-permanents",
+                        player: { ref: "$each" },
+                        zone: "battlefield",
+                        filter,
+                        count: 1,
+                        prompt: "Sacrifice one.",
+                        bind: "$sacrifice1",
+                    },
+                    { op: "sacrifice", permanents: { ref: "$sacrifice1" } },
+                ],
+            },
+        ],
+    });
+    const ownersOf = (
+        def: CardDefinition,
+        seat: 0 | 1,
+        kind: string
+    ): { holder: number; opponent: number } => {
+        const { state, holderId } = buildBotReachState(def, seat);
+        const count = (own: boolean): number =>
+            state.players
+                .find((p) => (p.id === holderId) === own)!
+                .battlefield.filter((c) => c.types.includes(kind)).length;
+        return { holder: count(true), opponent: count(false) };
+    };
+
+    it("a symmetric edict's position leaves the holder nothing of the edicted type and the opponent bodies to lose", () => {
+        for (const [name, kind] of [
+            ["Barter in Blood", "Creature"],
+            ["Simplify", "Enchantment"],
+        ] as const)
+            for (const seat of [0, 1] as const) {
+                const { holder, opponent } = ownersOf(
+                    getCardByName(name),
+                    seat,
+                    kind
+                );
+                expect(holder, name).toBe(0);
+                expect(opponent, name).toBeGreaterThan(0);
+            }
+    });
+
+    it("no claim is made where the edict is not a plain type filter", () => {
+        // A subtype-filtered edict and a land edict leave the level pose:
+        // the holder still has its creature.
+        for (const def of [
+            eachPlayerSacrifices("edict-subtype", {
+                type: "Creature",
+                subtype: "Goblin",
+            }),
+            getCardByName("Tremble"),
+        ])
+            expect(ownersOf(def, 0, "Creature").holder, def.name).toBe(2);
+    });
+
+    it("played — a symmetric edict is cast where the opponent loses more", () => {
+        for (const name of [
+            "Barter in Blood",
+            "Crack the Earth",
+            "Simplify",
+        ] as const)
+            expect(playBotReach(getCardByName(name)), name).toEqual({
+                outcome: "played",
+            });
+    }, 300_000);
+
     it("a destroying sweep's position puts the opponent ahead in the swept type, the holder ahead in bodies", () => {
         for (const seat of [0, 1] as const) {
             const wrath = getCardByName("Day of Judgment");

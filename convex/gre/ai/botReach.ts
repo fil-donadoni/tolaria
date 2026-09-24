@@ -227,6 +227,58 @@ function pumpsOwnCreatures(def: CardDefinition): boolean {
     );
 }
 
+/**
+ * CR 701.21 — the permanent types the card's SPELL script makes EVERY player
+ * sacrifice: a `forEach` over `set: "players"` whose body is a
+ * `sacrifice-permanents` choice of the battlefield for the iteration player
+ * (Tremble, Simplify, Barter in Blood, Crack the Earth). A symmetric edict
+ * costs the holder the card and one sacrifice of its own, so it wins only where
+ * the holder gives up less than the opponent does — where the holder has
+ * nothing of the type worth keeping. Empty when the card makes no such edict.
+ *
+ * What it does NOT model: an edict hosted by a triggered or activated ability,
+ * one aimed at a chosen player (not symmetric), or a filter on anything but
+ * `type` (`subtype`, `excludeType`, …) — no claim rather than a wrong one.
+ * Lives HERE for the same reason as `sweptTypes`: it decides what the position
+ * CONTAINS, so it is a verdict input and must be inside the Bot hash.
+ */
+function edictedTypes(def: CardDefinition): ReadonlySet<SweepableType> {
+    const edicted = new Set<SweepableType>();
+    const visitBody = (node: unknown): void => {
+        if (Array.isArray(node)) return node.forEach(visitBody);
+        if (node === null || typeof node !== "object") return;
+        const record = node as Record<string, unknown>;
+        const filter = record.filter as
+            | { type?: string | string[]; [k: string]: unknown }
+            | undefined;
+        const player = record.player as { ref?: string } | undefined;
+        if (
+            record.op === "choice" &&
+            record.kind === "sacrifice-permanents" &&
+            record.zone === "battlefield" &&
+            player?.ref === "$each" &&
+            filter?.type !== undefined &&
+            Object.keys(filter).length === 1
+        )
+            for (const t of [filter.type].flat())
+                if ((SWEEPABLE_TYPES as readonly string[]).includes(t))
+                    edicted.add(t as SweepableType);
+        Object.values(record).forEach(visitBody);
+    };
+    const visit = (node: unknown): void => {
+        if (Array.isArray(node)) return node.forEach(visit);
+        if (node === null || typeof node !== "object") return;
+        const record = node as Record<string, unknown>;
+        const select = record.select as EffectForEachSelector | undefined;
+        if (record.op === "forEach" && select?.set === "players")
+            visitBody(record.effects);
+        else Object.values(record).forEach(visit);
+    };
+    visit(def.effects);
+    visit(def.modes);
+    return edicted;
+}
+
 export type BotReachOutcome = "played" | "ignored" | "frozen";
 
 /** Why a card is not `played` — the first half of its Bot Gap form. */
@@ -336,6 +388,15 @@ const FILLER_ENCHANTMENT = "Castle";
  *  shrinking sweep is posed against. */
 const FILLER_SMALL_CREATURE = "Mons's Goblin Raiders";
 
+/** What each filler puts on the battlefield, by permanent type — the types an
+ *  edict pose reads to decide which of the holder's fillers it must not leave
+ *  standing. Ornithopter is an artifact CREATURE, Castle an enchantment. */
+const FILLER_TYPES: Readonly<Record<string, readonly SweepableType[]>> = {
+    [FILLER_CREATURE]: ["Creature"],
+    [FILLER_ARTIFACT]: ["Artifact", "Creature"],
+    [FILLER_ENCHANTMENT]: ["Enchantment"],
+};
+
 /**
  * The generated position, as a `ScenarioSpec` for the HOLDER seat (`me`): its
  * lands in the colours of the card's own cost, enough of them for the mana
@@ -369,10 +430,26 @@ export function botReachSpec(
     }
     const shrinks = shrinksEveryCreature(def);
     const target = targetPose(def);
+    const edicted = edictedTypes(def);
+    // A symmetric edict is posed where the holder has nothing of the edicted
+    // type to give up: every filler of that type stays on the opponent's side
+    // only, so the opponent sacrifices one and the holder gives up nothing
+    // (a whole-permanent edict takes the holder's spare land instead). A land
+    // edict is not posed: no filler is a Land.
+    const holderKeeps = (name: string): boolean =>
+        !FILLER_TYPES[name]!.some((t) => edicted.has(t));
     for (const owner of ["me", "opp"] as const) {
-        cards.push({ name: FILLER_CREATURE, owner, zone: "battlefield" });
-        cards.push({ name: FILLER_ARTIFACT, owner, zone: "battlefield" });
-        if (!shrinks && !target.omitToughnessBoost)
+        const stands = (name: string): boolean =>
+            owner === "opp" || holderKeeps(name);
+        if (stands(FILLER_CREATURE))
+            cards.push({ name: FILLER_CREATURE, owner, zone: "battlefield" });
+        if (stands(FILLER_ARTIFACT))
+            cards.push({ name: FILLER_ARTIFACT, owner, zone: "battlefield" });
+        if (
+            !shrinks &&
+            !target.omitToughnessBoost &&
+            stands(FILLER_ENCHANTMENT)
+        )
             cards.push({
                 name: FILLER_ENCHANTMENT,
                 owner,
