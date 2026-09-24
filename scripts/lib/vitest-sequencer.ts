@@ -15,9 +15,11 @@
  *   1. `sequence.groupOrder` first — vitest runs each group to completion
  *      before the next, so an order that crossed groups would be a lie.
  *   2. Projects by the SUM of their cached file durations, descending (ties by
- *      name). Each project's files stay CONTIGUOUS: the pool reuses a
- *      non-isolated worker only while the next queued file belongs to the same
- *      project (`isEqualRunner`), so interleaving two projects would make every
+ *      name). Each project's files stay CONTIGUOUS: with `maxWorkers > 1`
+ *      every file is its own pool task, and a finishing `isolate: false`
+ *      worker is kept only when the task at the HEAD of the queue belongs to
+ *      the same project (`Pool.schedule` / `isEqualRunner`), so interleaving
+ *      two projects would make every
  *      `isolate: false` worker restart and re-import the catalogue — the 6.5 s
  *      no-test gap measured at the engine→tooling switch, paid per switch.
  *   3. Within a project, files with NO cached duration first (a new file's
