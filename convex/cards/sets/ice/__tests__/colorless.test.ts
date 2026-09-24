@@ -94,6 +94,8 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
+    submitChoice,
 } from "../../../__tests__/setup";
 import type {
     CardInstanceState,
@@ -103,8 +105,6 @@ import type {
 import type { StackItem } from "../../../../gre/state";
 import type { CardType, ManaCost } from "../../../types";
 import {
-    resolveActivated,
-    submitChoice,
     resolveTrigger,
     vanilla,
     library,
@@ -114,7 +114,6 @@ import {
     makeLand,
     BASIC_MANA,
     resolveActivatedNoting,
-    submitPick,
     answerMayPay,
 } from "./helpers";
 
@@ -3330,7 +3329,7 @@ describe("Pox (proportional mass loss/sacrifice/discard, CR 107.2 round-up)", ()
                 .filter((c) => (wantType ? c.types.includes(wantType) : true))
                 .map((c) => c.id);
             const keepIds = eligible.slice(0, count);
-            submitPick(state, keepIds);
+            submitChoice(state, keepIds);
         }
         expect(state.pendingChoices ?? []).toEqual([]);
 

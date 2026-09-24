@@ -36,6 +36,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
 } from "../../../__tests__/setup";
 import { getDefinition } from "../../../index";
 
@@ -45,21 +46,6 @@ const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
 /** Per-set shim (mirrors `resolveActivated` in this set's multicolor tests):
  *  pushes an already-paid activated ability onto the stack and resolves it,
  *  bypassing the cost/targeting choreography tested elsewhere. */
-function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string
-): void {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets: [],
-    });
-    resolveTopOfStack(state);
-}
-
 /** Per-set shim (mirrors `fireTrigger`, atq/__tests__/helpers.ts): pushes a
  *  triggered ability with the same shape `collectTriggers` builds, then
  *  resolves it. */

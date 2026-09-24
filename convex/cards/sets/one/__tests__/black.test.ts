@@ -7,10 +7,10 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    submitChoice,
 } from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { GameState, StackItem } from "../../../../gre/state";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { getDefinition } from "../../../index";
 
 const sheoldredsEdict = getDefinition("a9225cc3-90f0-448f-a8d9-7c6c2796d077");
@@ -18,17 +18,6 @@ const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 /** Answers the head pending choice with `picks` (permanent ids for the
  *  sacrifice pick). Drives the staged-resume resolution forward. */
-function answer(state: GameState, picks: string[]): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds: picks,
-    });
-}
-
 /** Pushes Sheoldred's Edict with its mode ALREADY locked — mirroring the
  *  cast-time flow (CR 601.2b–c / 700.2c): `announceCast` writes `chosenModeId`
  *  onto the stack item before the spell hits the stack. */
@@ -70,7 +59,7 @@ describe("Sheoldred's Edict (ONE, {1}{B} modal instant — CR 700.2)", () => {
             isToken: false,
         });
 
-        answer(state, ["bear"]);
+        submitChoice(state, ["bear"]);
         expect(state.players[1].battlefield.map((c) => c.id)).toEqual([
             "token",
         ]);
@@ -105,7 +94,7 @@ describe("Sheoldred's Edict (ONE, {1}{B} modal instant — CR 700.2)", () => {
             types: "Creature",
             isToken: true,
         });
-        answer(state, ["token"]);
+        submitChoice(state, ["token"]);
 
         // The token is sacrificed and ceases to exist (CR 704.5d) — the
         // nontoken bear survives.

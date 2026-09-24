@@ -21,6 +21,8 @@ import {
     makeState,
     pushSpell,
     resolveTriggerOrder,
+    resolveActivated,
+    submitChoice,
 } from "../../../__tests__/setup";
 import {
     applyOneTargetSelection,
@@ -80,35 +82,8 @@ const darkRitual = getDefinition("ebb6664d-23ca-456e-9916-afcd6f26aa7f");
 /** Resolves an activated ability directly against a real source permanent,
  *  mirroring the per-set shim already used by `inv/__tests__/black.test.ts`
  *  for the identical shape (Lord of the Undead's graveyard-return ability). */
-function resolveActivated(
-    state: GameState,
-    source: ReturnType<typeof makeInstance>,
-    abilityId: string,
-    targets: StackItem["targets"] = []
-): void {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets,
-    });
-    resolveTopOfStack(state);
-}
-
 /** Answers the head `pendingChoices` entry (a `choice(kind: "choose-hand-card")`
  *  suspension) with the given card instance id (CR 608.2). */
-function submitDiscard(state: GameState, cardInstanceId: string): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds: [cardInstanceId],
-    });
-}
-
 describe("Warped Devotion (CR 603.2 returned-to-hand trigger, issue #1940)", () => {
     it("fires when an OPPONENT's creature is bounced by a spell, and the OPPONENT (not Warped Devotion's controller) discards", () => {
         const bounced = makeInstance(savannahLions.id, {
@@ -160,7 +135,7 @@ describe("Warped Devotion (CR 603.2 returned-to-hand trigger, issue #1940)", () 
         expect(state.players[1].hand.map((c) => c.id).sort()).toEqual(
             ["bounced", "p2-filler"].sort()
         );
-        submitDiscard(state, "p2-filler");
+        submitChoice(state, ["p2-filler"]);
         // The bounced creature itself stays in hand (a real discard-a-card
         // choice, not an auto-pick of the just-returned permanent).
         expect(state.players[1].hand.map((c) => c.id)).toEqual(["bounced"]);
@@ -220,7 +195,7 @@ describe("Warped Devotion (CR 603.2 returned-to-hand trigger, issue #1940)", () 
         resolveTopOfStack(state); // Unsummon
         resolveTopOfStack(state); // Warped Devotion — suspends on choice
         expect(state.pendingChoices![0].playerId).toBe("p1");
-        submitDiscard(state, "p1-filler");
+        submitChoice(state, ["p1-filler"]);
         expect(
             state.players[0].graveyard.some((c) => c.id === "p1-filler")
         ).toBe(true);
@@ -282,17 +257,15 @@ describe("Warped Devotion (CR 603.2 returned-to-hand trigger, issue #1940)", () 
 
         resolveTopOfStack(state);
         let head = state.pendingChoices![0];
-        submitDiscard(
-            state,
-            head.playerId === "p1" ? "p1-filler-2" : "p2-filler-2"
-        );
+        submitChoice(state, [
+            head.playerId === "p1" ? "p1-filler-2" : "p2-filler-2",
+        ]);
 
         resolveTopOfStack(state);
         head = state.pendingChoices![0];
-        submitDiscard(
-            state,
-            head.playerId === "p1" ? "p1-filler-2" : "p2-filler-2"
-        );
+        submitChoice(state, [
+            head.playerId === "p1" ? "p1-filler-2" : "p2-filler-2",
+        ]);
 
         expect(state.players[0].graveyard.map((c) => c.id)).toContain(
             "p1-filler-2"
@@ -349,7 +322,7 @@ describe("Warped Devotion (CR 603.2 returned-to-hand trigger, issue #1940)", () 
         );
         resolveTopOfStack(state);
         expect(state.pendingChoices![0].playerId).toBe("p1");
-        submitDiscard(state, "p1-filler-cost");
+        submitChoice(state, ["p1-filler-cost"]);
         expect(
             state.players[0].graveyard.some((c) => c.id === "p1-filler-cost")
         ).toBe(true);

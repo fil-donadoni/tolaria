@@ -17,6 +17,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    submitChoice,
 } from "../../../__tests__/setup";
 import {
     discardToGraveyard,
@@ -229,17 +230,6 @@ function heraldBoard(): GameState {
     });
 }
 
-function submitHead(state: GameState, ids: string[]): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds: ids,
-    });
-}
-
 /** Casts Brass Herald for real: the spell resolves, the CR 614.12a as-enters
  *  pick is answered with `chosen`, and the ETB trigger that results is left
  *  on the stack. Returns the Herald that entered. */
@@ -247,7 +237,7 @@ function castHerald(state: GameState, chosen: string): CardInstanceState {
     pushSpell(state, BRASS_HERALD.id, "p1");
     resolveTopOfStack(state);
     expect(state.pendingChoices![0].asEntersKind).toBe("subtypes");
-    submitHead(state, [chosen]);
+    submitChoice(state, [chosen]);
     const herald = state.players[0].battlefield.find(
         (c) => c.card.id === BRASS_HERALD.id
     )!;
@@ -267,7 +257,7 @@ function resolveEtb(state: GameState): void {
         const head = state.pendingChoices[0];
         // The keep is forced (`optional: false`, take = look): exactly the
         // SERVER-computed eligible set is the one legal answer.
-        submitHead(state, head.eligibleIds ?? []);
+        submitChoice(state, head.eligibleIds ?? []);
     }
 }
 

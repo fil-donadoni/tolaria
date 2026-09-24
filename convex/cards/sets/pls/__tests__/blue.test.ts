@@ -26,6 +26,7 @@ import {
     makeState,
     pushSpell,
     resolveTriggerOrder,
+    submitChoice,
 } from "../../../__tests__/setup";
 import {
     beginApplyingStaticEffects,
@@ -37,7 +38,6 @@ import {
 } from "../../../../gre/state";
 import { compactState, expandState } from "../../../../gre/serialize";
 import { fireDelayedTriggers } from "../../../../gre/phases";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 import type { KickerPayments } from "../../../../gre/kicker";
 import { getDefinition } from "../../../index";
@@ -132,17 +132,6 @@ function pushActivated(
 
 /** Answers the head `pendingChoices` entry (mirrors
  *  `inv/__tests__/helpers.ts`'s `submitChoice`). */
-function submitChoice(state: GameState, cardInstanceIds: string[]): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds,
-    });
-}
-
 /** Drains the stack, resolving every pending item (including any
  *  `trigger-order` PendingChoice a simultaneous same-controller batch
  *  raises — CR 603.3b, ADR 0058). Mirrors `rtr/__tests__/green.test.ts`'s
@@ -160,17 +149,6 @@ function drainStack(state: GameState): void {
         if (state.stack.length === 0) break;
         resolveTopOfStack(state);
     }
-}
-
-function submitCategorized(state: GameState, picks: string[]): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds: picks,
-    });
 }
 
 describe("Planar Overlay (CR 601.2b / 400.7, issue #1945)", () => {
@@ -236,14 +214,14 @@ describe("Planar Overlay (CR 601.2b / 400.7, issue #1945)", () => {
         // rules never asked for.
         expect(head.count).toEqual({ min: 1, max: 2 });
         expect(head.categoryRule).toBe("cover");
-        submitCategorized(state, ["p1-tundra"]);
+        submitChoice(state, ["p1-tundra"]);
 
         // p2 answers next — two Mountains, a real decision (Mountain has 2
         // candidates, so this is NOT the forced-pick path).
         head = state.pendingChoices![0];
         expect(head.playerId).toBe("p2");
         expect(head.count).toEqual({ min: 1, max: 1 });
-        submitCategorized(state, ["p2-mountain-a"]);
+        submitChoice(state, ["p2-mountain-a"]);
 
         expect(state.pendingChoices ?? []).toHaveLength(0);
         // p1: ONLY the dual bounces — both Plains stay on the battlefield
@@ -303,7 +281,7 @@ describe("Planar Overlay (CR 601.2b / 400.7, issue #1945)", () => {
         pushSpell(state, planarOverlay.id, "p1");
         expect(resolveTopOfStack(state)).toBeNull();
         expect(state.pendingChoices![0].count).toEqual({ min: 1, max: 2 });
-        submitCategorized(state, ["p1-plains", "p1-tundra"]);
+        submitChoice(state, ["p1-plains", "p1-tundra"]);
         expect(state.players[0].hand.map((c) => c.id).sort()).toEqual(
             ["p1-plains", "p1-tundra"].sort()
         );
@@ -334,7 +312,7 @@ describe("Planar Overlay (CR 601.2b / 400.7, issue #1945)", () => {
         });
         pushSpell(state, planarOverlay.id, "p1");
         resolveTopOfStack(state);
-        expect(() => submitCategorized(state, ["p1-plains"])).toThrow(
+        expect(() => submitChoice(state, ["p1-plains"])).toThrow(
             /don't answer one category each/
         );
     });

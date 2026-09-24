@@ -16,6 +16,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    submitChoice,
 } from "../../../__tests__/setup";
 import { getDefinition, registerTokenDefinition } from "../../..";
 import {
@@ -78,17 +79,6 @@ const CREATURE_REQ = { type: "Creature", count: 1 } as const;
 /** Answer the head pending choice with `picks` (an option id for
  *  requestOptionChoice) — drives the staged-resume resolution forward one
  *  round-trip (pattern from `convex/cards/sets/vis/__tests__/blue.test.ts`). */
-function answer(state: GameState, picks: string[]): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds: picks,
-    });
-}
-
 describe("Blurred Mongoose (CR 113.6g can't-be-countered, 702.18 Shroud)", () => {
     it("shroud makes it an illegal target for a spell/ability, from any source (CR 702.18)", () => {
         const mongoose = makeInstance(blurredMongoose.id, {
@@ -149,7 +139,7 @@ describe("Kavu Chameleon (CR 113.6g can't-be-countered, 305.7 / 613.1d colour ch
             targets: [],
         } as StackItem);
         expect(resolveTopOfStack(state)).toBeNull(); // suspends on the color pick
-        answer(state, ["W"]); // choose White
+        submitChoice(state, ["W"]); // choose White
 
         const after = state.players[0].battlefield.find(
             (c) => c.id === "kavu"

@@ -11,22 +11,6 @@ import {
 } from "../../../../gre/state";
 import type { PhaseBeginEvent } from "../../../types";
 
-export function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string,
-    targets: StackItem["targets"] = []
-): void {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets,
-    });
-    resolveTopOfStack(state);
-}
-
 /** Puts a triggered ability on the stack the way `buildTriggerItem` does (a
  *  `...self` spread plus the trigger legs) WITHOUT resolving it, so a test can
  *  interpose something — a blink in response — between the trigger and its

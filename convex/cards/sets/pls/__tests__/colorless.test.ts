@@ -23,6 +23,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    submitChoice,
 } from "../../../__tests__/setup";
 import type { CardDefinition } from "../../../types";
 import {
@@ -39,10 +40,7 @@ import {
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
-import {
-    applyMayPaySubmit,
-    applyPendingChoiceSubmit,
-} from "../../../../gre/pendingChoiceSubmit";
+import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
 import { compactState, expandState } from "../../../../gre/serialize";
 import { tapSourceIntoPayment } from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
@@ -653,17 +651,6 @@ function fireSkyshipActivated(
 
 /** Submits the current head pending choice (search-library pick) with the
  *  given ordered ids, mirroring `ice/__tests__/helpers.ts`'s `submitChoice`. */
-function submitLibraryPick(state: GameState, cardInstanceIds: string[]): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds,
-    });
-}
-
 describe("Skyship Weatherlight (CR 400.7 / 701.13, issue #1947)", () => {
     describe("ETB — search for any number of artifact and/or creature cards, exile + link, then shuffle", () => {
         function libraryOf(owner: "p1" | "p2") {
@@ -737,7 +724,7 @@ describe("Skyship Weatherlight (CR 400.7 / 701.13, issue #1947)", () => {
                 ],
             });
             fireSkyshipEtb(state, skyship);
-            submitLibraryPick(state, ["lotus", "wurm"]);
+            submitChoice(state, ["lotus", "wurm"]);
             expect(state.pendingChoices ?? []).toHaveLength(0);
             // Both moved to the OWNER's exile, linked to Skyship Weatherlight.
             const exileIds = state.players[0].exile.map((c) => c.id).sort();
@@ -769,7 +756,7 @@ describe("Skyship Weatherlight (CR 400.7 / 701.13, issue #1947)", () => {
                 ],
             });
             fireSkyshipEtb(state, skyship);
-            submitLibraryPick(state, []);
+            submitChoice(state, []);
             expect(state.players[0].exile).toHaveLength(0);
             expect(state.players[0].library).toHaveLength(4);
         });

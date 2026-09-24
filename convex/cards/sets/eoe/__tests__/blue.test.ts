@@ -10,13 +10,13 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    submitChoice,
 } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { buildDrawEvent } from "../../../../gre/state";
 import { buildStateView } from "../../../../gre/replacements";
 import { fireDelayedTriggers } from "../../../../gre/phases";
@@ -51,17 +51,6 @@ const library = (ids: string[]) =>
         })
     );
 
-function submitKeep(state: GameState, keep: string[]) {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds: keep,
-    });
-}
-
 describe("Consult the Star Charts (Kicker {1}{U}, CR 702.33 / 401.4)", () => {
     it("looks at the top X cards where X is lands you control, keeping one unkicked", () => {
         const state = makeState({
@@ -77,7 +66,7 @@ describe("Consult the Star Charts (Kicker {1}{U}, CR 702.33 / 401.4)", () => {
         // Suspends on a look-distribute pick over exactly the top 2 (= lands).
         expect(resolveTopOfStack(state)).toBeNull();
         expect(state.pendingChoices![0].candidateIds?.length).toBe(2);
-        submitKeep(state, ["a"]);
+        submitChoice(state, ["a"]);
         expect(state.players[0].hand.map((c) => c.id)).toContain("a");
         expect(state.players[0].hand.length).toBe(1);
     });
@@ -96,7 +85,7 @@ describe("Consult the Star Charts (Kicker {1}{U}, CR 702.33 / 401.4)", () => {
         item.kickerPayments = { kicker: 1 };
         expect(resolveTopOfStack(state)).toBeNull();
         expect(state.pendingChoices![0].candidateIds?.length).toBe(3);
-        submitKeep(state, ["a", "b"]);
+        submitChoice(state, ["a", "b"]);
         expect(state.players[0].hand.length).toBe(2);
     });
 });

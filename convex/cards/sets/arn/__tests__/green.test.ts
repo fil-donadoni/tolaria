@@ -10,6 +10,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
 } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
@@ -33,12 +34,7 @@ import {
     spendablePoolForSpell,
     type StackItem,
 } from "../../../../gre/state";
-import {
-    resolveActivated,
-    resolveTrigger,
-    answerChoice,
-    upkeepEvent,
-} from "./helpers";
+import { resolveTrigger, answerChoice, upkeepEvent } from "./helpers";
 import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
 import { getDefinition } from "../../../index";
 

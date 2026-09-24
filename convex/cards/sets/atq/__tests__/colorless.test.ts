@@ -12,6 +12,8 @@ import {
     makeState,
     pushSpell,
     resolveTriggerOrder,
+    resolveActivated,
+    submitChoice,
 } from "../../../__tests__/setup";
 import {
     isCreature,
@@ -71,8 +73,6 @@ import {
     fireEntered,
     fireTrigger,
     getManaSubstitutionsEmpty,
-    resolveActivated,
-    submitChoice,
     vanilla,
 } from "./helpers";
 

@@ -11,7 +11,6 @@ import {
     UPKEEP_C7,
     answerChoice,
     fillManaPool,
-    resolveActivated,
     resolveTrigger,
     upkeepEvent487,
 } from "./helpers";
@@ -46,6 +45,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
 } from "../../../__tests__/setup";
 import { getAllCards, getDefinition, getCardByName } from "../../../index";
 

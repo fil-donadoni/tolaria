@@ -14,7 +14,12 @@
 //     one place where the counters-then-animate ORDER is observable.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    submitChoice,
+} from "../../../__tests__/setup";
 import type { GameState } from "../../../../gre/state";
 import { resolveTopOfStack } from "../../../../gre/state";
 import {
@@ -22,7 +27,6 @@ import {
     placeTriggersOnStack,
 } from "../../../../gre/triggers";
 import { projectPublicState } from "../../../../gameProjections";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -71,17 +75,6 @@ function activate(
 }
 
 /** Submits a `search-library` pending choice, the shared tutor-test idiom. */
-function submitLibraryPick(state: GameState, cardInstanceIds: string[]): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds,
-    });
-}
-
 function loyaltyOf(state: GameState): number {
     return (
         state.players[0].battlefield.find((c) => c.id === "tez1")!.counters
@@ -273,7 +266,7 @@ describe("Tezzeret, Cruel Captain — −3 tutor (CR 202.3 / 701.23e)", () => {
 
         // Submitting the pick runs the whole chain — reveal, library → hand,
         // shuffle — not just the candidate filter.
-        submitLibraryPick(state, ["libRing"]);
+        submitChoice(state, ["libRing"]);
         expect(state.pendingChoices ?? []).toHaveLength(0);
         expect(state.players[0].hand.map((c) => c.id)).toEqual(["libRing"]);
         // CR 701.23e — a found card is private unless the effect says to reveal

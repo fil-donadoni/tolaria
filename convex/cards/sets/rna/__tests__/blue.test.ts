@@ -10,13 +10,12 @@
 // authoring) to add this hand-written test.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
-    resolveTopOfStack,
-    type CardInstanceState,
-    type GameState,
-    type StackItem,
-} from "../../../../gre/state";
+    makeInstance,
+    makePlayer,
+    makeState,
+    resolveActivated,
+} from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition } from "../../../index";
 
@@ -24,22 +23,6 @@ const skitterEel = getDefinition("db328f03-7dae-445b-8e71-99dd88f26a9e");
 
 /** Pushes an activated ability directly onto the stack (bypassing cost
  *  payment, which `adaptAbility` doesn't special-case) and resolves it. */
-function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string
-): void {
-    const item: StackItem = {
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets: [],
-    };
-    state.stack.push(item);
-    resolveTopOfStack(state);
-}
-
 describe("Skitter Eel — Adapt 2 (CR 701.46)", () => {
     it("puts N +1/+1 counters on itself when it has none", () => {
         const eel = makeInstance(skitterEel.id, { id: "eel" });

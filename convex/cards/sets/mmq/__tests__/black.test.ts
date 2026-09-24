@@ -4,13 +4,12 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    submitChoice,
 } from "../../../__tests__/setup";
 import {
     beginApplyingStaticEffects,
     resolveTopOfStack,
-    type GameState,
 } from "../../../../gre/state";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition } from "../../../index";
 
@@ -75,17 +74,6 @@ describe("Snuff Out (destroy nonblack creature, can't regenerate — CR 701.8)",
 
 /** Submit the head pending choice with the given ordered ids (mirrors the
  *  game.ts mutation). */
-function submitChoice(state: GameState, ids: string[]): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds: ids,
-    });
-}
-
 describe("Conspiracy (CR 614.12a as-enters creature type + CR 205.1b layer-4 subtype set)", () => {
     it("raises a one-pick option-pick over the CR 205.3m creature types as it enters", () => {
         const state = makeState({

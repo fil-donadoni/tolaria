@@ -9,8 +9,13 @@
 // serialization.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { resolveActivated, resolveTrigger, answerChoice } from "./helpers";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    resolveActivated,
+} from "../../../__tests__/setup";
+import { resolveTrigger, answerChoice } from "./helpers";
 import {
     resolveTopOfStack,
     removePermanentTo,

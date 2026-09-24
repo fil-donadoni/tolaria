@@ -9,8 +9,6 @@ import {
     beginApplyingStaticEffects,
     resolveTopOfStack,
 } from "../../../../gre/state";
-import type { GameState } from "../../../../gre/state";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -22,6 +20,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    submitChoice,
 } from "../../../__tests__/setup";
 import { getDefinition } from "../../../index";
 
@@ -110,17 +109,6 @@ describe("Unearth (CR 400.7 reanimation, CR 601.2c mvFilter, CR 702.29 Cycling)"
 /** Submit the head pending choice with the given ordered ids (mirrors the
  *  game.ts mutation), as `sets/mmq/__tests__/black.test.ts` does for the other
  *  as-enters creature-type card. */
-function submitHeadChoice(state: GameState, ids: string[]): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds: ids,
-    });
-}
-
 describe("Engineered Plague (CR 614.12a as-enters creature type + CR 613.4c layer-7c -1/-1)", () => {
     it("raises a one-pick option-pick over the CR 205.3m creature types as it enters", () => {
         const state = makeState({
@@ -139,7 +127,7 @@ describe("Engineered Plague (CR 614.12a as-enters creature type + CR 613.4c laye
         // CR 205.3m only — a LAND type is not a legal answer here.
         expect(ids).not.toContain("Swamp");
 
-        submitHeadChoice(state, ["Elf"]);
+        submitChoice(state, ["Elf"]);
         const entered = state.players[0].battlefield.find(
             (c) => c.card.id === engineeredPlague.id
         )!;
@@ -255,7 +243,7 @@ describe("Engineered Plague (CR 614.12a as-enters creature type + CR 613.4c laye
         // No hand-run SBA pass: `finalizeAsEnters` sweeps for us, and supplying
         // the pass here would make this test pass even if that sweep were
         // removed — the exact regression its CR 704.5f claim is about.
-        submitHeadChoice(state, ["Elf"]);
+        submitChoice(state, ["Elf"]);
 
         expect(state.players[1].battlefield.map((c) => c.id)).toEqual([
             "bears",

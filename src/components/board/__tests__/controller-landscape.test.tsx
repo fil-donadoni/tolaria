@@ -24,7 +24,10 @@
 //      the constant the phone-landscape width-budget arithmetic assumes.
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, fireEvent, screen } from "@testing-library/react";
-import { GameContext } from "~/hooks/useGameContext";
+import {
+    withBoardContext,
+    type GameContextValue,
+} from "~/lib/testing/board-context";
 import {
     BESIDE_CONTROLLER_STRIP,
     CONTROLLER_STRIP_FIXED_WIDTH_PX,
@@ -34,16 +37,10 @@ import {
     LANDSCAPE_PILE_EDGE_GAP_PX,
     landscapePileTilePx,
 } from "~/lib/landscape-board-bands";
-import {
-    PendingChoiceBufferContext,
-    type PendingChoiceBuffer,
-} from "~/hooks/usePendingChoiceBuffer";
-import { SkipPhasePrefsContext } from "~/hooks/useSkipPhasePreferences";
-import { MinimizedChoiceContext } from "~/hooks/useMinimizedChoice";
-import { DEFAULT_SKIP_PREFS, type Side } from "~/lib/skip-phase-prefs";
+import type { Side } from "~/lib/skip-phase-prefs";
 import type { ViewportMode } from "~/hooks/useViewportMode";
 import type { Phase } from "@convex/gre/types";
-import type { CardInstance, Player, StackItem } from "~/types/game";
+import type { CardInstance, StackItem } from "~/types/game";
 
 const calls: { ref: unknown; args: unknown }[] = [];
 
@@ -168,40 +165,7 @@ vi.mock("../phase-stop-dot", () => ({
 
 const { default: Controller } = await import("../controller");
 
-function makePlayer(overrides: Partial<Player> = {}): Player {
-    return {
-        id: "me",
-        name: "me",
-        bgColor: "#000",
-        life: 20,
-        hand: [],
-        library: [],
-        graveyard: [],
-        exile: [],
-        battlefield: [],
-        manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
-        ...overrides,
-    };
-}
-
-const noopMinimized = {
-    isMinimized: false,
-    minimize: () => {},
-    restore: () => {},
-};
-
-const noopBuffer: PendingChoiceBuffer = {
-    buffer: [],
-    toggle: () => {},
-    clear: () => {},
-    submit: async () => {},
-    isPending: false,
-    lastError: null,
-    reportError: () => {},
-    dismissError: () => {},
-};
-
-type CtxOverrides = Partial<React.ContextType<typeof GameContext>>;
+type CtxOverrides = Partial<GameContextValue>;
 
 /** The JSX `renderController` mounts, factored out so a test that needs to
  *  `rerender` with a NEW `ctx` (the reopen-on-new-push / auto-collapse
@@ -213,34 +177,10 @@ function controllerElement(
     ctx: CtxOverrides = {},
     toggle: (phase: Phase, side: Side) => void = () => {}
 ) {
-    const value = {
-        gameId: "game-id" as never,
-        playerId: "me",
-        activePlayerId: "me",
-        priorityPlayerId: "me",
-        phase: "PRECOMBAT_MAIN",
-        turn: 1,
-        engineTurn: 1,
-        stackCount: 0,
-        stackItems: [],
-        allPlayers: [makePlayer()],
-        showAllCards: false,
-        debugAllActions: false,
-        ...ctx,
-    } as React.ContextType<typeof GameContext>;
-    return (
-        <GameContext value={value}>
-            <SkipPhasePrefsContext
-                value={{ prefs: DEFAULT_SKIP_PREFS, toggle, reset: () => {} }}
-            >
-                <PendingChoiceBufferContext value={noopBuffer}>
-                    <MinimizedChoiceContext value={noopMinimized}>
-                        <Controller onOpenMenu={() => {}} />
-                    </MinimizedChoiceContext>
-                </PendingChoiceBufferContext>
-            </SkipPhasePrefsContext>
-        </GameContext>
-    );
+    return withBoardContext(<Controller onOpenMenu={() => {}} />, {
+        ctx,
+        skipPhaseToggle: toggle,
+    });
 }
 
 function renderController(

@@ -1,7 +1,12 @@
 // ECL — green card behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    submitChoice,
+} from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
     canPayMayPayCost,
@@ -13,7 +18,6 @@ import {
     type StackItem,
 } from "../../../../gre/state";
 import { applyMayPaySubmit } from "../../../../gre/pendingChoiceSubmit";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 import type { MayPayCost } from "../../../types";
 import { getDefinition } from "../../../index";
@@ -55,17 +59,6 @@ function fireFormidableSpeakerEtb(
 /** Answers the head `pendingChoices` entry (the `search-library` suspension)
  *  with the given card instance ids (CR 608.2). Mirrors `submitChoice`
  *  (inv/__tests__/helpers.ts). */
-function submitSearchChoice(state: GameState, cardInstanceIds: string[]): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds,
-    });
-}
-
 /** The ETB may-pay's cost (the discard leg). */
 function speakerCost(): MayPayCost {
     const op = formidableSpeaker.triggeredAbilities![0].effects![0] as {
@@ -156,7 +149,7 @@ describe("Formidable Speaker (mayPay discard leg, CR 701.9 / 118.3 / 608.2b, iss
         ).toBe(true);
         // The search-library choice is now owed.
         expect(state.pendingChoices?.[0]?.kind).toBe("search-library");
-        submitSearchChoice(state, ["lib-bear"]);
+        submitChoice(state, ["lib-bear"]);
         // The creature was revealed, moved into hand, and the library
         // shuffled (empty here — only one card was in it).
         expect(state.players[0].hand.some((c) => c.id === "lib-bear")).toBe(
@@ -219,7 +212,7 @@ describe("Formidable Speaker (mayPay discard leg, CR 701.9 / 118.3 / 608.2b, iss
         expect(state.players[0].graveyard.some((c) => c.id === "card-b")).toBe(
             true
         );
-        submitSearchChoice(state, ["lib-bear"]);
+        submitChoice(state, ["lib-bear"]);
         expect(state.players[0].hand.some((c) => c.id === "lib-bear")).toBe(
             true
         );
@@ -324,7 +317,7 @@ describe("Formidable Speaker (mayPay discard leg, CR 701.9 / 118.3 / 608.2b, iss
         });
         fireFormidableSpeakerEtb(state, speaker);
         applyMayPaySubmit(state, { playerId: "p1", accept: true });
-        submitSearchChoice(state, ["lib-bear"]);
+        submitChoice(state, ["lib-bear"]);
         const projected = projectPublicState(state, 1, "p1");
         const hand = projected.players[0].hand;
         expect(hand.some((c) => c?.id === "lib-bear")).toBe(true);

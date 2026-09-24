@@ -6,6 +6,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
 } from "../../../__tests__/setup";
 import { mostCommonColors } from "../../../types";
 import { projectPublicState } from "../../../../gameProjections";
@@ -66,22 +67,6 @@ const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
 /** Local resolveActivated shim (mirrors `inv/__tests__/helpers.ts`'s helper of
  *  the same name) — pushes an activated ability's stack item and resolves it,
  *  for Samite Elder's `resolve()` ability. */
-function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string,
-    targets: StackItem["targets"] = []
-): void {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets,
-    });
-    resolveTopOfStack(state);
-}
-
 describe("Lashknife Barrier ({2}{W} Enchantment — damage reduction, CR 614)", () => {
     it("reduces damage from any source to a creature its controller controls by 1 (CR 614)", () => {
         const barrier = makeInstance(lashknifeBarrier.id, {

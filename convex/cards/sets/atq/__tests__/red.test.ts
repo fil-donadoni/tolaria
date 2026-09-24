@@ -10,6 +10,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
 } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
 import { resolveTopOfStack, type GameState } from "../../../../gre/state";
@@ -19,7 +20,7 @@ import {
     getEffectiveToughness,
 } from "../../../../gre/layers";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
-import { resolveActivated, vanilla } from "./helpers";
+import { vanilla } from "./helpers";
 import { getDefinition } from "../../../index";
 
 const ornithopter = getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");

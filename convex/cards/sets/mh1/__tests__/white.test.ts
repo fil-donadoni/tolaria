@@ -1,17 +1,16 @@
 // MH1 — white card behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { resolveTopOfStack } from "../../../../gre/state";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    resolveActivated,
+    submitChoice,
+} from "../../../__tests__/setup";
 import { isProtectedFromSource } from "../../../../gre/protection";
 import { getLegalTargets, NO_TARGETING_SOURCE } from "../../../../gre/rules";
 import { projectPublicState } from "../../../../gameProjections";
-import type {
-    CardInstanceState,
-    GameState,
-    StackItem,
-} from "../../../../gre/state";
 import { getDefinition } from "../../../index";
 
 const giverOfRunes = getDefinition("4e117771-5a8b-4812-b487-32ba34b7f724");
@@ -21,33 +20,6 @@ const lightningBolt = getDefinition("d573ef03-4730-45aa-93dd-e45ac1dbaf4a");
 
 /** Push an activated ability onto the stack with its cost assumed already
  *  paid, then resolve it (mirrors post-activateAbility state). */
-function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string,
-    targets: StackItem["targets"] = []
-): void {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets,
-    });
-    resolveTopOfStack(state);
-}
-
-function submitOption(state: GameState, modeId: string): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds: [modeId],
-    });
-}
-
 // Giver of Runes — {W} Creature — Kor Cleric (CR 702.16 protection;
 // CR 613.1f temporary keyword grant; CR 700.2 modal choice; CR 109.2
 // "another" excludes the source itself).
@@ -89,7 +61,7 @@ describe("Giver of Runes (CR 702.16 protection incl. colorless; CR 109.2 'anothe
             { type: "permanent", id: "t" },
         ]);
         expect(state.pendingChoices).toHaveLength(1);
-        submitOption(state, "protection-colorless");
+        submitChoice(state, ["protection-colorless"]);
         const target = state.players[0].battlefield.find((c) => c.id === "t")!;
         expect(target.staticAbilities).toContain("protection from colorless");
 
@@ -150,7 +122,7 @@ describe("Giver of Runes (CR 702.16 protection incl. colorless; CR 109.2 'anothe
         resolveActivated(state, giver, "giver-of-runes-protect", [
             { type: "permanent", id: "t" },
         ]);
-        submitOption(state, "protection-blue");
+        submitChoice(state, ["protection-blue"]);
         const target = state.players[0].battlefield.find((c) => c.id === "t")!;
         expect(target.staticAbilities).toContain("protection from blue");
     });

@@ -1,17 +1,16 @@
 // ODY (Odyssey) — multicolor behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { resolveTopOfStack } from "../../../../gre/state";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    resolveActivated,
+} from "../../../__tests__/setup";
 import {
     getEffectivePower,
     getEffectiveToughness,
 } from "../../../../gre/layers";
-import type {
-    CardInstanceState,
-    GameState,
-    StackItem,
-} from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition } from "../../../index";
 
@@ -23,21 +22,6 @@ const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
  *  `gre/__tests__/` and by `activation-affordability.catalogue.test.ts`;
  *  what is unproven for THIS card is the effect, which is exactly why the
  *  smoke generator skips it ("Op \"pump\" targets $source/$each"). */
-function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string
-): void {
-    state.stack.push({
-        ...structuredClone(source),
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets: [],
-    } as StackItem);
-    resolveTopOfStack(state);
-}
-
 const tog = () =>
     makeInstance("6757bf0e-489f-4be2-9e41-463b59f00dd1", {
         id: "tog",
@@ -58,7 +42,7 @@ describe("Psychatog (self-pump, CR 602.2b / 613.4c layer 7c)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, source, "psychatog-ability");
+        resolveActivated(state, structuredClone(source), "psychatog-ability");
         const live = state.players[0].battlefield.find((c) => c.id === "tog")!;
         expect(getEffectivePower(state, live)).toBe(2); // 1 + 1
         expect(getEffectiveToughness(state, live)).toBe(3); // 2 + 1
@@ -72,8 +56,8 @@ describe("Psychatog (self-pump, CR 602.2b / 613.4c layer 7c)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, source, "psychatog-ability");
-        resolveActivated(state, source, "psychatog-ability-2");
+        resolveActivated(state, structuredClone(source), "psychatog-ability");
+        resolveActivated(state, structuredClone(source), "psychatog-ability-2");
         const live = state.players[0].battlefield.find((c) => c.id === "tog")!;
         // CR 613.4c — two independent layer-7c effects, both applied.
         expect(getEffectivePower(state, live)).toBe(3); // 1 + 1 + 1
@@ -93,7 +77,7 @@ describe("Psychatog (self-pump, CR 602.2b / 613.4c layer 7c)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, source, "psychatog-ability");
+        resolveActivated(state, structuredClone(source), "psychatog-ability");
         const bears = state.players[0].battlefield.find(
             (c) => c.id === "bears"
         )!;
@@ -112,7 +96,7 @@ describe("Psychatog (self-pump, CR 602.2b / 613.4c layer 7c)", () => {
                 makePlayer("p2"),
             ],
         });
-        resolveActivated(state, source, "psychatog-ability-2");
+        resolveActivated(state, structuredClone(source), "psychatog-ability-2");
         const projected = projectPublicState(state, 1, "p1");
         const slim = projected.players[0].battlefield.find(
             (c) => c.id === "tog"

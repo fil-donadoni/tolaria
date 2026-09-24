@@ -5,7 +5,12 @@
 // `./helpers`; fixtures in `convex/cards/__tests__/setup.ts`.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    resolveActivated,
+} from "../../../__tests__/setup";
 import { hasManaAbility } from "../../../../gre/constants";
 import { projectPublicState } from "../../../../gameProjections";
 import {
@@ -24,7 +29,6 @@ import {
     abilityActivatedEvent,
     artifactTappedEvent,
     fireTrigger,
-    resolveActivated,
     vanilla,
 } from "./helpers";
 import { getDefinition } from "../../../index";

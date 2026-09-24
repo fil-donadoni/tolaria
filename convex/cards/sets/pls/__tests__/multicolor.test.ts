@@ -19,6 +19,7 @@ import {
     makeState,
     pushSpell,
     resolveTriggerOrder,
+    submitChoice,
 } from "../../../__tests__/setup";
 import {
     applyControlChange,
@@ -132,17 +133,6 @@ function fireEndStep(
 /** Answers the head `sacrifice-permanents` choice through the REAL server
  *  submit path, so the pick is re-validated against the pending choice's
  *  filter (`effectivePermanentView` + `matchesPermanentFilter`). */
-function submitSacrifice(state: GameState, cardInstanceId: string): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds: [cardInstanceId],
-    });
-}
-
 /** Board: Keldon Twilight under p1, one long-standing creature per player. */
 function twoPlayerBoard(turn = 5) {
     const twilight = makeInstance(keldonTwilight.id, {
@@ -181,7 +171,7 @@ describe("Keldon Twilight — trigger scope (CR 603.6a, 'each player's end step'
         expect(ABILITY.matches!(endStepEvent("p1"), self, state)).toBe(true);
         fireEndStep(state, twilight, "p1");
         expect(state.pendingChoices![0].playerId).toBe("p1");
-        submitSacrifice(state, mine.id);
+        submitChoice(state, [mine.id]);
         expect(state.players[0].graveyard.map((c) => c.id)).toEqual(["mine"]);
 
         // p2's end step — the OPPONENT is asked, not Keldon Twilight's
@@ -193,7 +183,7 @@ describe("Keldon Twilight — trigger scope (CR 603.6a, 'each player's end step'
         ).toBe(true);
         fireEndStep(second, twilight2, "p2");
         expect(second.pendingChoices![0].playerId).toBe("p2");
-        submitSacrifice(second, "theirs");
+        submitChoice(second, ["theirs"]);
         expect(second.players[1].graveyard.map((c) => c.id)).toEqual([
             "theirs",
         ]);
@@ -270,8 +260,8 @@ describe("Keldon Twilight — '…that they controlled since the beginning of th
         fireEndStep(state, twilight, "p1");
         // Only the long-standing creature is offered; picking the fresh one
         // is rejected by the server's own submit validation.
-        expect(() => submitSacrifice(state, "fresh")).toThrow();
-        submitSacrifice(state, mine.id);
+        expect(() => submitChoice(state, ["fresh"])).toThrow();
+        submitChoice(state, [mine.id]);
         expect(state.players[0].graveyard.map((c) => c.id)).toEqual(["mine"]);
     });
 
@@ -325,7 +315,7 @@ describe("Keldon Twilight — '…that they controlled since the beginning of th
         expect(head.kind).toBe("sacrifice-permanents");
         expect(head.playerId).toBe("p1");
         expect(state.players[0].graveyard).toHaveLength(0);
-        submitSacrifice(state, second.id);
+        submitChoice(state, [second.id]);
         expect(state.players[0].graveyard.map((c) => c.id)).toEqual(["second"]);
         expect(state.players[0].battlefield.map((c) => c.id)).toContain(
             mine.id
@@ -721,17 +711,6 @@ describe("Phyrexian Tyranny — wire format (the pending decision reaches the co
 // ────────────────────────────────────────────────────────────────────────────
 
 /** Answers the head choice through the REAL server submit path. */
-function submitChoice(state: GameState, cardInstanceIds: string[]): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds,
-    });
-}
-
 describe("Natural Emergence ({2}{R}{G} — lands you control are 2/2 first strikers and are still lands; CR 613/205, issue #1953)", () => {
     /** Board with one Mountain under `landController` plus Natural Emergence
      *  under p1, statics applied. */

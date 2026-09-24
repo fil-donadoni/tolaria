@@ -23,6 +23,8 @@ import {
     makeState,
     pushSpell,
     resolveTriggerOrder,
+    resolveActivated,
+    submitChoice,
 } from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
@@ -76,22 +78,6 @@ const ephemerate = getDefinition("2da5f3f8-5eef-498f-ba2c-2f3fbc3745aa");
 /** Pushes an activated ability directly onto the stack with its cost assumed
  *  already paid, then resolves it — the `resolveActivated` shim used
  *  throughout the catalogue's per-set test files (tmp/colorless.test.ts). */
-function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string,
-    targets: StackItem["targets"] = []
-): void {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets,
-    });
-    resolveTopOfStack(state);
-}
-
 /** Collects triggers off pendingEvents and pushes the first one matching
  *  `triggeredAbilityId` onto the stack (the `collectAndStack` shim,
  *  `ice/__tests__/helpers.ts`). */
@@ -1036,17 +1022,6 @@ describe("Thunderscape Familiar (CR 601.2f cost reduction for black AND green sp
 /** Submits an option-pick answer through the same seam the generic
  *  `submitResolutionChoice` mutation drives (mirrors
  *  `interpreter.test.ts`'s `submitOptionPick`). */
-function submitOptionPick(state: GameState, optionId: string): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds: [optionId],
-    });
-}
-
 describe("Mogg Sentry (opponent-spell-cast trigger, pump targets $source, CR 603.2 / 611)", () => {
     it("gets +2/+2 until end of turn whenever an opponent casts a spell", () => {
         const sentry = makeInstance(moggSentry.id, {
@@ -1228,7 +1203,7 @@ describe("Caldera Kavu (self-pump activated ability + optionChoice color change,
         } as StackItem);
         expect(resolveTopOfStack(state)).toBeNull(); // suspended on the mode pick
 
-        submitOptionPick(state, "G");
+        submitChoice(state, ["G"]);
 
         const after = state.players[0].battlefield.find(
             (c) => c.id === "kavu2"

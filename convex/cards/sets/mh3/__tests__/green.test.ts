@@ -21,9 +21,9 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    submitChoice,
 } from "../../../__tests__/setup";
 import { resolveTopOfStack, type GameState } from "../../../../gre/state";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     getDefinition,
@@ -75,17 +75,6 @@ registerTokenDefinition({
 // Answers the head `pendingChoices` "look-distribute" entry (CR 608.2)
 // keeping the given card instance ids and resumes resolution — mirrors
 // Reviving Vapors' own `submitChoice` helper.
-function submitChoice(state: GameState, cardInstanceIds: string[]): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds,
-    });
-}
-
 const libOf = (ids: [string, string][]) =>
     ids.map(([cid, defId]) =>
         makeInstance(defId, {

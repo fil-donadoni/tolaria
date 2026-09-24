@@ -11,10 +11,14 @@
 // here — it ran clean through the sweep.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    submitChoice,
+} from "../../../__tests__/setup";
 import { resolveTopOfStack } from "../../../../gre/state";
 import type { CardInstanceState, GameState } from "../../../../gre/state";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { getDefinition } from "../../../index";
 
 const deathriteShaman = getDefinition("70496f16-c4c0-4c03-beef-454eb4824cd1");
@@ -43,17 +47,6 @@ function activate(
 /** Submits an option-pick answer through the same seam the generic
  *  `submitResolutionChoice` mutation drives (mirrors
  *  `interpreter.test.ts`'s `submitOptionPick`). */
-function submitOptionPick(state: GameState, optionId: string): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds: [optionId],
-    });
-}
-
 function setupDeathrite(): {
     state: GameState;
     deathrite: CardInstanceState;
@@ -100,7 +93,7 @@ describe("Deathrite Shaman (CR 605.1a — targeted activated abilities, not mana
             expect(state.pendingChoices?.[0]).toBeDefined();
             expect(state.players[0].manaPool.G).toBe(0);
 
-            submitOptionPick(state, "G"); // colorChoiceModes ids are the color codes
+            submitChoice(state, ["G"]); // colorChoiceModes ids are the color codes
             expect(state.players[0].manaPool.G).toBe(1);
         });
     });

@@ -9,6 +9,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
 } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
 import { validateBlockerEligibility } from "../../../../gre/combat";
@@ -31,7 +32,6 @@ import {
 import { matchesPermanentFilter } from "../../../filters";
 import type { Color } from "../../../types";
 import {
-    resolveActivated,
     resolveTrigger,
     answerChoice,
     upkeepEvent,

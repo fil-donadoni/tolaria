@@ -13,7 +13,12 @@
 // + static effects apply CR 611/613 correctly end-to-end.
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    resolveActivated,
+} from "../../../__tests__/setup";
 import {
     type CardInstanceState,
     type GameState,
@@ -31,22 +36,6 @@ import { getDefinition } from "../../../index";
 
 const coriSteelCutter = getDefinition("490eb213-9ae2-4b45-abec-6f1dfc83792a");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
-
-function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string,
-    targets: StackItem["targets"] = []
-): void {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets,
-    } as StackItem);
-    resolveTopOfStack(state);
-}
 
 describe("Cori-Steel Cutter (TDM #103, Flurry + Equipment, issue #1202)", () => {
     const trig = coriSteelCutter.triggeredAbilities?.[0];

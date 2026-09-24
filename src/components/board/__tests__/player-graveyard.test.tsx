@@ -1,19 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
-import { render } from "@testing-library/react";
 import type { CardInstance, Player } from "~/types/game";
-import { GameContext } from "~/hooks/useGameContext";
+import type { PendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
 import {
-    PendingChoiceBufferContext,
-    type PendingChoiceBuffer,
-} from "~/hooks/usePendingChoiceBuffer";
-import { MinimizedChoiceContext } from "~/hooks/useMinimizedChoice";
+    makeTestPlayer,
+    noopPendingChoiceBuffer,
+    renderWithBoardContext,
+    type GameContextValue,
+} from "~/lib/testing/board-context";
 import PlayerGraveyard from "../player-graveyard";
-
-const noopMinimized = {
-    isMinimized: false,
-    minimize: () => {},
-    restore: () => {},
-};
 
 // Capture the props CardsPile receives so we can assert the eligibility
 // allow-list reaches it (issue #933 parity — graveyard picks previously
@@ -51,70 +45,28 @@ function makeCard(id: string): CardInstance {
 }
 
 function makePlayer(graveyard: CardInstance[]): Player {
-    return {
-        id: "me",
-        name: "me",
-        bgColor: "#000",
-        life: 20,
-        hand: [],
-        library: { count: 0 },
-        graveyard,
-        exile: [],
-        battlefield: [],
-        manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
-    };
+    return makeTestPlayer({ library: { count: 0 }, graveyard });
 }
-
-const noopBuffer: PendingChoiceBuffer = {
-    buffer: [],
-    toggle: () => {},
-    clear: () => {},
-    submit: async () => {},
-    isPending: false,
-    lastError: null,
-    reportError: () => {},
-    dismissError: () => {},
-};
 
 function renderWithContext(
     ui: React.ReactElement,
     playerId = "me",
     extra: {
-        pendingChoices?: NonNullable<
-            React.ContextType<typeof GameContext>
-        >["pendingChoices"];
-        pendingTarget?: NonNullable<
-            React.ContextType<typeof GameContext>
-        >["pendingTarget"];
+        pendingChoices?: GameContextValue["pendingChoices"];
+        pendingTarget?: GameContextValue["pendingTarget"];
         buffer?: PendingChoiceBuffer;
     } = {}
 ) {
-    const value = {
-        gameId: "game-id" as never,
-        playerId,
-        activePlayerId: "me",
-        priorityPlayerId: "me",
-        phase: "PRECOMBAT_MAIN",
-        turn: 1,
-        engineTurn: 1,
-        stackCount: 0,
-        stackItems: [],
-        allPlayers: [],
-        showAllCards: false,
-        debugAllActions: false,
-        onSwitchGame: () => {},
-        pendingChoices: extra.pendingChoices,
-        pendingTarget: extra.pendingTarget,
-    } as React.ContextType<typeof GameContext>;
-    return render(
-        <GameContext value={value}>
-            <PendingChoiceBufferContext value={extra.buffer ?? noopBuffer}>
-                <MinimizedChoiceContext value={noopMinimized}>
-                    {ui}
-                </MinimizedChoiceContext>
-            </PendingChoiceBufferContext>
-        </GameContext>
-    );
+    return renderWithBoardContext(ui, {
+        ctx: {
+            playerId,
+            allPlayers: [],
+            onSwitchGame: () => {},
+            pendingChoices: extra.pendingChoices,
+            pendingTarget: extra.pendingTarget,
+        },
+        buffer: extra.buffer,
+    });
 }
 
 describe("PlayerGraveyard", () => {
@@ -141,7 +93,7 @@ describe("PlayerGraveyard", () => {
                     prompt: "Return a creature card from your graveyard.",
                 },
             ],
-            buffer: { ...noopBuffer, toggle },
+            buffer: { ...noopPendingChoiceBuffer, toggle },
         });
         const pileProps = cardsPileSpy.mock.calls.at(-1)?.[0];
         // Click handler gates to the allow-list.
@@ -230,9 +182,7 @@ describe("PlayerGraveyard — graveyard-zone target routing (Emry, issue #1650)"
         controller: "you",
         count: 1,
         selected: [],
-    } as unknown as NonNullable<
-        React.ContextType<typeof GameContext>
-    >["pendingTarget"];
+    } as unknown as GameContextValue["pendingTarget"];
 
     it("clicking a card in YOUR graveyard submits a graveyard-card selection", () => {
         cardsPileSpy.mockClear();
@@ -268,9 +218,7 @@ describe("PlayerGraveyard — graveyard-zone target routing (Emry, issue #1650)"
                 ...emryPendingTarget,
                 count: 2,
                 selected: [{ type: "graveyard-card", id: "gy-artifact" }],
-            } as unknown as NonNullable<
-                React.ContextType<typeof GameContext>
-            >["pendingTarget"],
+            } as unknown as GameContextValue["pendingTarget"],
         });
         const pileProps = cardsPileSpy.mock.calls.at(-1)?.[0];
         expect(pileProps.selectedIds).toEqual(["gy-artifact"]);

@@ -31,22 +31,6 @@ export function resolveTrigger(
 }
 
 /** Push an activated ability onto the stack (cost assumed paid), then resolve. */
-export function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string,
-    targets: StackItem["targets"] = []
-): void {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets,
-    });
-    resolveTopOfStack(state);
-}
-
 export const UPKEEP = (playerId: string): StackItem["triggerEvent"] =>
     ({
         type: "PHASE_BEGIN" as const,

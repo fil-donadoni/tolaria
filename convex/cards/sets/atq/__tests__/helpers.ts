@@ -13,7 +13,6 @@ import {
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import type {
     CardType,
     BlockersConfirmedEvent,
@@ -25,40 +24,10 @@ const titaniasSong = getDefinition("583a53af-2e2a-4f3f-8eab-bd874c6ed80a");
 const energyFlux = getDefinition("bd1f624b-e8f2-462f-838a-7cb9e8fda988");
 const solRing = getDefinition("c4300d24-1cae-4dd5-be7e-38cc677cf5bd");
 
-export function submitChoice(
-    state: GameState,
-    cardInstanceIds: string[]
-): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds,
-    });
-}
-
 // --- helpers ---------------------------------------------------------------
 
 /** Push an activated ability onto the stack with its cost assumed already
  *  paid (mirrors post-`activateAbility` state), then resolve it. */
-export function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string,
-    targets: StackItem["targets"] = []
-): void {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets,
-    });
-    resolveTopOfStack(state);
-}
-
 /** A vanilla creature instance not backed by a registered definition — used as
  *  a generic blocker/attacker body in combat tests. */
 export function vanilla(

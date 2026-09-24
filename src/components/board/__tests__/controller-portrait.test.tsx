@@ -23,19 +23,19 @@
 //      with the viewer's own id, and wears the same pulsing ring while
 //      targetable.
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, fireEvent, screen, within } from "@testing-library/react";
-import { GameContext } from "~/hooks/useGameContext";
-import { CONTROLLER_BAR_HEIGHT_VAR } from "~/lib/controller-bar-metrics";
+import { fireEvent, screen, within } from "@testing-library/react";
 import {
-    PendingChoiceBufferContext,
-    type PendingChoiceBuffer,
-} from "~/hooks/usePendingChoiceBuffer";
-import { SkipPhasePrefsContext } from "~/hooks/useSkipPhasePreferences";
-import { MinimizedChoiceContext } from "~/hooks/useMinimizedChoice";
-import { DEFAULT_SKIP_PREFS, type Side } from "~/lib/skip-phase-prefs";
+    makeTestPlayer,
+    noopPendingChoiceBuffer,
+    renderWithBoardContext,
+    type GameContextValue,
+} from "~/lib/testing/board-context";
+import { CONTROLLER_BAR_HEIGHT_VAR } from "~/lib/controller-bar-metrics";
+import type { PendingChoiceBuffer } from "~/hooks/usePendingChoiceBuffer";
+import type { Side } from "~/lib/skip-phase-prefs";
 import { phaseCompact, phaseGroupShort, phaseLabel } from "~/lib/phase-labels";
 import type { Phase } from "@convex/gre/types";
-import type { CardInstance, PendingChoice, Player } from "~/types/game";
+import type { CardInstance, PendingChoice } from "~/types/game";
 
 const calls: { ref: unknown; args: unknown }[] = [];
 
@@ -117,75 +117,18 @@ vi.mock("../phase-stop-dot", () => ({
 
 const { default: Controller } = await import("../controller");
 
-function makePlayer(overrides: Partial<Player> = {}): Player {
-    return {
-        id: "me",
-        name: "me",
-        bgColor: "#000",
-        life: 20,
-        hand: [],
-        library: [],
-        graveyard: [],
-        exile: [],
-        battlefield: [],
-        manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
-        ...overrides,
-    };
-}
-
-const noopMinimized = {
-    isMinimized: false,
-    minimize: () => {},
-    restore: () => {},
-};
-
-const noopBuffer: PendingChoiceBuffer = {
-    buffer: [],
-    toggle: () => {},
-    clear: () => {},
-    submit: async () => {},
-    isPending: false,
-    lastError: null,
-    reportError: () => {},
-    dismissError: () => {},
-};
-
-type CtxOverrides = Partial<React.ContextType<typeof GameContext>>;
+type CtxOverrides = Partial<GameContextValue>;
 
 function renderController(
     ctx: CtxOverrides = {},
     toggle: (phase: Phase, side: Side) => void = () => {},
     bufferOverrides: Partial<PendingChoiceBuffer> = {}
 ) {
-    const value = {
-        gameId: "game-id" as never,
-        playerId: "me",
-        activePlayerId: "me",
-        priorityPlayerId: "me",
-        phase: "PRECOMBAT_MAIN",
-        turn: 1,
-        engineTurn: 1,
-        stackCount: 0,
-        stackItems: [],
-        allPlayers: [makePlayer()],
-        showAllCards: false,
-        debugAllActions: false,
-        ...ctx,
-    } as React.ContextType<typeof GameContext>;
-    const buffer: PendingChoiceBuffer = { ...noopBuffer, ...bufferOverrides };
-    return render(
-        <GameContext value={value}>
-            <SkipPhasePrefsContext
-                value={{ prefs: DEFAULT_SKIP_PREFS, toggle, reset: () => {} }}
-            >
-                <PendingChoiceBufferContext value={buffer}>
-                    <MinimizedChoiceContext value={noopMinimized}>
-                        <Controller onOpenMenu={() => {}} />
-                    </MinimizedChoiceContext>
-                </PendingChoiceBufferContext>
-            </SkipPhasePrefsContext>
-        </GameContext>
-    );
+    return renderWithBoardContext(<Controller onOpenMenu={() => {}} />, {
+        ctx,
+        buffer: { ...noopPendingChoiceBuffer, ...bufferOverrides },
+        skipPhaseToggle: toggle,
+    });
 }
 
 beforeEach(() => {
@@ -260,8 +203,8 @@ describe("Variant D bar — no layout shift, nothing buried (#1759)", () => {
     it("keeps own life on the bar, with the opponent's total as the subline", () => {
         renderController({
             allPlayers: [
-                makePlayer({ id: "me", life: 17 }),
-                makePlayer({ id: "opp", life: 12 }),
+                makeTestPlayer({ id: "me", life: 17 }),
+                makeTestPlayer({ id: "opp", life: 12 }),
             ],
         });
         const life = screen.getByLabelText("Your life total: 17");
@@ -482,7 +425,7 @@ describe("Zone chips, inline in the bar (#1815 review fixup)", () => {
     it("tapping the viewer's graveyard chip opens the EXISTING reveal view directly", () => {
         renderController({
             allPlayers: [
-                makePlayer({
+                makeTestPlayer({
                     id: "me",
                     graveyard: [
                         {
@@ -531,7 +474,7 @@ describe("Zone chips, inline in the bar (#1815 review fixup)", () => {
 
         renderController({
             allPlayers: [
-                makePlayer({
+                makeTestPlayer({
                     id: "me",
                     graveyard: [
                         {
@@ -568,7 +511,7 @@ describe("Zone chips, inline in the bar (#1815 review fixup)", () => {
 
         renderController({
             allPlayers: [
-                makePlayer({
+                makeTestPlayer({
                     id: "me",
                     exile: [
                         {
@@ -608,7 +551,7 @@ describe("Zone chips, inline in the bar (#1815 review fixup)", () => {
 
         renderController({
             allPlayers: [
-                makePlayer({
+                makeTestPlayer({
                     id: "me",
                     libraryPeek: [
                         {

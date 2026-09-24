@@ -10,22 +10,6 @@ import {
     type StackItem,
 } from "../../../../gre/state";
 
-export function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string,
-    targets: StackItem["targets"] = []
-): void {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets,
-    });
-    resolveTopOfStack(state);
-}
-
 export function resolveTrigger(
     state: GameState,
     source: CardInstanceState,

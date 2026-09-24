@@ -20,8 +20,9 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
 } from "../../../__tests__/setup";
-import { resolveActivated, resolveTrigger, LEFT } from "./helpers";
+import { resolveTrigger, LEFT } from "./helpers";
 import { getDefinition } from "../../../index";
 
 const parallaxWave = getDefinition("cef789e8-e4cc-4f61-bc15-debc2487777f");

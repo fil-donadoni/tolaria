@@ -21,8 +21,9 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
 } from "../../../__tests__/setup";
-import { resolveTrigger, UPKEEP, resolveActivated } from "./helpers";
+import { resolveTrigger, UPKEEP } from "./helpers";
 import { getDefinition } from "../../../index";
 
 const elvishFarmer = getDefinition("40a9710e-b2f8-4746-8640-d450f58a6e49");

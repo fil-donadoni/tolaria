@@ -1,12 +1,16 @@
 // FUT (Future Sight) — colorless behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    resolveActivated,
+} from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
     emitPermanentEntered,
     type GameState,
-    type CardInstanceState,
 } from "../../../../gre/state";
 import type { GameEvent } from "../../../types";
 import { collectTriggers } from "../../../../gre/triggers";
@@ -40,21 +44,6 @@ const oneOne = (owner: string, cid: string) =>
 
 /** Push an activated ability onto the stack (cost assumed already paid) and
  *  resolve it — mirrors post-`activateAbility` state. */
-function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string
-): void {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets: [],
-    });
-    resolveTopOfStack(state);
-}
-
 describe("Horizon Canopy (painland cantrip, CR 605.1a / 305)", () => {
     it("the cantrip ability draws a card on resolution (CR 121.1)", () => {
         const land = makeInstance(horizonCanopy.id, {

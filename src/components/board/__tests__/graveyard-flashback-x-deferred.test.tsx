@@ -13,24 +13,9 @@
 // click, and `announceCast` fires with the chosen X only after Confirm.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useState } from "react";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { screen, fireEvent, cleanup } from "@testing-library/react";
 import type { CardInstance } from "~/types/game";
-import { GameContext } from "~/hooks/useGameContext";
-import {
-    PendingChoiceBufferContext,
-    type PendingChoiceBuffer,
-} from "~/hooks/usePendingChoiceBuffer";
-
-const noopBuffer: PendingChoiceBuffer = {
-    buffer: [],
-    toggle: () => {},
-    clear: () => {},
-    submit: () => Promise.resolve(),
-    isPending: false,
-    lastError: null,
-    reportError: () => {},
-    dismissError: () => {},
-};
+import { renderWithBoardContext } from "~/lib/testing/board-context";
 
 const playCard = vi.fn();
 const announceCast = vi.fn();
@@ -93,28 +78,10 @@ function RevealHost({ card }: { card: CardInstance }) {
 }
 
 function renderButton(card: CardInstance) {
-    const value = {
-        gameId: "game-id" as never,
-        playerId: "me",
-        activePlayerId: "me",
-        priorityPlayerId: "me",
-        phase: "PRECOMBAT_MAIN",
-        turn: 1,
-        engineTurn: 1,
-        stackCount: 0,
-        stackItems: [],
-        allPlayers: [],
-        showAllCards: false,
-        debugAllActions: false,
-        onSwitchGame: () => {},
-    } as unknown as React.ContextType<typeof GameContext>;
-    return render(
-        <GameContext value={value}>
-            <PendingChoiceBufferContext value={noopBuffer}>
-                <RevealHost card={card} />
-            </PendingChoiceBufferContext>
-        </GameContext>
-    );
+    return renderWithBoardContext(<RevealHost card={card} />, {
+        ctx: { allPlayers: [], onSwitchGame: () => {} },
+        minimizedChoice: false,
+    });
 }
 
 describe("Flashback {X} cast from the graveyard reveal (Flash of Insight regression)", () => {

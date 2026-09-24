@@ -10,9 +10,9 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    submitChoice,
 } from "../../../__tests__/setup";
 import { resolveTopOfStack, type GameState } from "../../../../gre/state";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { getDefinition } from "../../../index";
 
 const pathToExile = getDefinition("29b7a8b1-b98e-483a-87a4-73bd831c03d4");
@@ -21,17 +21,6 @@ const tundra = getDefinition("a03e8c5b-f4ed-4fd7-ba05-db813ccc05eb");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 
 /** Answers the head `pendingChoices` entry (CR 608.2). */
-function submitChoice(state: GameState, cardInstanceIds: string[]): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds,
-    });
-}
-
 function makePathState(): GameState {
     const victim = makeInstance(grizzlyBears.id, {
         id: "victim",

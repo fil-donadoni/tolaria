@@ -1,32 +1,18 @@
 // Tales of Middle-earth Commander (LTC) — colorless behavior tests (ADR 0043).
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
 import {
-    type CardInstanceState,
-    type GameState,
-    type StackItem,
-    resolveTopOfStack,
-} from "../../../../gre/state";
+    makeInstance,
+    makePlayer,
+    makeState,
+    resolveActivated,
+} from "../../../__tests__/setup";
+import { type GameState, resolveTopOfStack } from "../../../../gre/state";
 import { projectPublicState } from "../../../../gameProjections";
 import { getDefinition, getCardByName } from "../../../index";
 
 const relicOfSauron = getDefinition("175b3d28-5c74-4972-9b5c-5e39762c78f4");
 
 const FOREST = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b").id;
-
-function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string
-): void {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-    } as StackItem);
-    resolveTopOfStack(state);
-}
 
 function answerChoice(state: GameState, picks: string[]): void {
     const head = state.pendingChoices?.[0];

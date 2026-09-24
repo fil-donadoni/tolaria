@@ -1,7 +1,12 @@
 // STX (Strixhaven) — white card behavior tests (ADR 0043 colour split). Each
 // card's describe block cites the CR section it exercises.
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    submitChoice,
+} from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
 import {
     removePermanentTo,
@@ -12,7 +17,6 @@ import {
 } from "../../../../gre/state";
 import { getLegalActions } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { registerTokenDefinition } from "../../../index";
 import { getDefinition } from "../../../index";
 
@@ -100,17 +104,6 @@ function putTriggerOnStack(state: GameState): StackItem {
 }
 
 /** Answers the head PendingChoice with `ids`. */
-function answer(state: GameState, ids: string[]): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds: ids,
-    });
-}
-
 describe("Elite Spellbinder (STX — look, exile, owner may play it taxed {2}; CR 400.2 / 601.3 / 601.2f)", () => {
     it("looks at the opponent's whole hand, exiles the chosen nonland card and hands it back playable but taxed", () => {
         const state = setup([bear("kept"), bear("taken")], 3);
@@ -127,7 +120,7 @@ describe("Elite Spellbinder (STX — look, exile, owner may play it taxed {2}; C
         expect(head.zoneOwnerId).toBe("p2"); // …from the opponent's hand
         expect(head.candidateIds).toEqual(["kept", "taken"]);
 
-        answer(state, ["taken"]);
+        submitChoice(state, ["taken"]);
         expect(state.stack).toHaveLength(0);
 
         // CR 400.7 — the card left the hand for its OWNER's exile.
@@ -159,7 +152,7 @@ describe("Elite Spellbinder (STX — look, exile, owner may play it taxed {2}; C
         const state = setup([bear("taken")], 4);
         putTriggerOnStack(state);
         resolveTopOfStack(state);
-        answer(state, ["taken"]);
+        submitChoice(state, ["taken"]);
 
         // Elite Spellbinder dies. A `cost-modifier` static would stop applying
         // right here; this tax rides the exiled card object.
@@ -216,7 +209,7 @@ describe("Elite Spellbinder (STX — look, exile, owner may play it taxed {2}; C
         const state = setup([bear("taken")], 4);
         putTriggerOnStack(state);
         resolveTopOfStack(state);
-        answer(state, ["taken"]);
+        submitChoice(state, ["taken"]);
 
         finalizeTargetSelection(
             state,
@@ -237,7 +230,7 @@ describe("Elite Spellbinder (STX — look, exile, owner may play it taxed {2}; C
         const state = setup([bear("kept"), bear("taken")], 3);
         putTriggerOnStack(state);
         resolveTopOfStack(state);
-        answer(state, ["taken"]);
+        submitChoice(state, ["taken"]);
 
         const kept = state.players[1].hand.find((c) => c.id === "kept")!;
         expect(kept.castFromExileCostIncrease).toBeUndefined();

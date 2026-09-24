@@ -4,7 +4,6 @@ import { describe, it, expect } from "vitest";
 import {
     type CardInstanceState,
     type GameState,
-    type StackItem,
     resolveTopOfStack,
     payRemoveCounterCost,
     addCounterToCard,
@@ -16,6 +15,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
 } from "../../../__tests__/setup";
 import { continuousEffectsInLayer } from "../../../../gre/continuousEffects";
 import { getDefinition } from "../../../index";
@@ -27,22 +27,6 @@ const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
 // every other set's local copy) — pushes an already-targeted activated
 // ability directly onto the stack and resolves it, bypassing cost/targeting
 // choreography (tested separately below).
-function resolveActivated(
-    state: GameState,
-    source: CardInstanceState,
-    abilityId: string,
-    targets: StackItem["targets"] = []
-): void {
-    state.stack.push({
-        ...source,
-        zone: "stack",
-        castById: source.controllerId,
-        abilityId,
-        targets,
-    });
-    resolveTopOfStack(state);
-}
-
 describe("Arwen, Mortal Queen — ETB indestructible counter (CR 122.1c, issue #1318 ETB gap)", () => {
     it("enters with an indestructible counter and gains indestructible immediately, not just after a later addCounter", () => {
         const state = makeState();

@@ -66,6 +66,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
 } from "../../../__tests__/setup";
 import type { CardInstanceState } from "../../../../gre/state";
 import type { StackItem } from "../../../../gre/state";
@@ -80,7 +81,6 @@ import {
     type Handler,
 } from "../../../../__tests__/gameMutationHarness";
 import {
-    resolveActivated,
     resolveTrigger,
     vanilla,
     library,

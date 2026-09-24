@@ -26,8 +26,13 @@ import {
 import { checkStateBasedActions } from "../../../../gre/sba";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { projectPublicState } from "../../../../gameProjections";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
-import { resolveActivated, resolveTrigger } from "./helpers";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    resolveActivated,
+} from "../../../__tests__/setup";
+import { resolveTrigger } from "./helpers";
 import { getDefinition } from "../../../index";
 import { applyDrawCardOnTap, tapSourceIntoPayment } from "../../../../game";
 import { getManaTapOptionsDetailed } from "../../../../gre/constants";

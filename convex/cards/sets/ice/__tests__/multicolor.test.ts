@@ -42,13 +42,13 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
+    submitChoice,
 } from "../../../__tests__/setup";
 import type { GameState } from "../../../../gre/state";
 import type { StackItem } from "../../../../gre/state";
 import type { PendingTarget } from "../../../../gre/state";
 import {
-    resolveActivated,
-    submitChoice,
     resolveTrigger,
     vanilla,
     answerMayPay,

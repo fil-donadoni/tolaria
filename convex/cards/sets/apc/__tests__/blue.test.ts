@@ -21,17 +21,19 @@ import { describe, expect, it } from "vitest";
 import { getDefinition, registerTokenDefinition } from "../../../index";
 import { withTemporaryDefinition } from "../../../registry";
 import type { CardDefinition } from "../../../types";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    submitChoice,
+} from "../../../__tests__/setup";
 import {
     resolveTopOfStack,
     type CardInstanceState,
     type GameState,
 } from "../../../../gre/state";
 import { finalizeCleanup } from "../../../../gre/phases";
-import {
-    applyNameCardSubmit,
-    applyPendingChoiceSubmit,
-} from "../../../../gre/pendingChoiceSubmit";
+import { applyNameCardSubmit } from "../../../../gre/pendingChoiceSubmit";
 import {
     activateAbility,
     confirmTargets,
@@ -245,17 +247,6 @@ function activateSelection(
     resolveTopOfStack(state);
 }
 
-function pickType(state: GameState, subtype: string): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds: [subtype],
-    });
-}
-
 const permanent = (state: GameState, id: string) =>
     state.players.flatMap((p) => p.battlefield).find((c) => c.id === id)!;
 
@@ -268,13 +259,13 @@ describe("Unnatural Selection — choose a creature type other than Wall; target
         const ids = head.options!.map((o) => o.id);
         expect(ids).toContain("Elf");
         expect(ids).not.toContain("Wall");
-        expect(() => pickType(state, "Wall")).toThrow();
+        expect(() => submitChoice(state, ["Wall"])).toThrow();
     });
 
     it("SETS the creature types — the chosen type replaces them all — and reverts at end of turn", () => {
         const { state, source } = selectionBoard();
         activateSelection(state, source, "goblin");
-        pickType(state, "Elf");
+        submitChoice(state, ["Elf"]);
         expect(permanent(state, "goblin").subtypes).toEqual(["Elf"]);
         // Wire format — the retype reaches the client.
         const projected = projectPublicState(state, 1, "p1");
@@ -294,7 +285,7 @@ describe("Unnatural Selection — choose a creature type other than Wall; target
     it("CR 205.1a — a land creature keeps its LAND type; only its creature types are replaced", () => {
         const { state, source } = selectionBoard();
         activateSelection(state, source, "arbor");
-        pickType(state, "Elf");
+        submitChoice(state, ["Elf"]);
         expect([...permanent(state, "arbor").subtypes].sort()).toEqual([
             "Elf",
             "Forest",

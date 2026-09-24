@@ -9,6 +9,7 @@ import {
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
 } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
 import {
@@ -34,7 +35,6 @@ import {
     type StackItem,
 } from "../../../../gre/state";
 import {
-    resolveActivated,
     resolveTrigger,
     pushTrigger,
     answerChoice,

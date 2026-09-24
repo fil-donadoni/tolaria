@@ -1,7 +1,12 @@
 // TLA — multicolor card behavior tests (ADR 0043 colour split).
 
 import { describe, it, expect } from "vitest";
-import { makeInstance, makePlayer, makeState } from "../../../__tests__/setup";
+import {
+    makeInstance,
+    makePlayer,
+    makeState,
+    submitChoice,
+} from "../../../__tests__/setup";
 import {
     buildSpellContext,
     processPendingActionTriggers,
@@ -20,7 +25,6 @@ import {
 } from "../../../../gre/triggers";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
 import { checkStateBasedActions } from "../../../../gre/sba";
-import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import {
     getEffectivePower,
     getEffectiveToughness,
@@ -57,17 +61,6 @@ function scratch(state: GameState) {
         castById: "p1",
     } as StackItem;
     return buildSpellContext(state, item);
-}
-
-function submitPicks(state: GameState, picks: string[]): void {
-    const head = state.pendingChoices![0];
-    applyPendingChoiceSubmit(state, {
-        playerId: head.playerId,
-        stackItemId: head.stackItemId,
-        step: head.step,
-        choiceId: head.choiceId,
-        cardInstanceIds: picks,
-    });
 }
 
 function onBattlefield(state: GameState, id: string) {
@@ -160,9 +153,9 @@ describe("Aang, at the Crossroads — ETB look five, put a creature (CR 603.6a /
         // never keepable.
         expect(head.eligibleIds).toEqual(["l3", "l5"]);
         expect(head.count).toEqual({ min: 0, max: 1 });
-        expect(() => submitPicks(state, ["l2"])).toThrow();
+        expect(() => submitChoice(state, ["l2"])).toThrow();
 
-        submitPicks(state, ["l3"]);
+        submitChoice(state, ["l3"]);
         const bear = onBattlefield(state, "l3");
         expect(bear).toBeDefined();
         expect(bear!.isSummoningSick).toBe(true);
@@ -175,7 +168,7 @@ describe("Aang, at the Crossroads — ETB look five, put a creature (CR 603.6a /
 
     it("declining is legal: nothing enters and all five go to the bottom", () => {
         const state = aangEnters();
-        submitPicks(state, []);
+        submitChoice(state, []);
         expect(state.pendingChoices ?? []).toHaveLength(0);
         expect(state.players[0].battlefield.map((c) => c.id)).toEqual(["aang"]);
         const library = state.players[0].library.map((c) => c.id);

@@ -5,12 +5,12 @@
 // ./helpers; fixtures stay in convex/cards/__tests__/setup.ts.
 
 import { describe, it, expect } from "vitest";
-import { resolveActivated } from "./helpers";
 import {
     makeInstance,
     makePlayer,
     makeState,
     pushSpell,
+    resolveActivated,
 } from "../../../__tests__/setup";
 import { projectPublicState } from "../../../../gameProjections";
 import { resolveTopOfStack } from "../../../../gre/state";
