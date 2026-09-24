@@ -31,6 +31,7 @@ import type {
     TargetRequirement,
 } from "../../cards/types";
 import type { ScenarioCard, ScenarioSpec } from "../../debugScenarioSpec";
+import { targetSlotBeneficence } from "./beneficence";
 
 /** The plain creature every generated position seeds (both sides), and the
  *  first choice for a requirement it already satisfies. */
@@ -127,6 +128,10 @@ function satisfiesCharacteristics(
     return supertypes.every((s) => (def.supertypes ?? []).includes(s));
 }
 
+/** `scripts/oracle-compile.ts` registers each card it plays under this prefix;
+ *  what the sweep has registered so far must not decide who is posed. */
+const SWEEP_ID_PREFIX = "oracle-bot-reach:";
+
 const creatureCache = new Map<string, string | null>();
 
 /** The name of a plain creature satisfying `req`: the base creature when it
@@ -139,6 +144,7 @@ function creatureFor(req: TargetRequirement): string | null {
     if (cached !== undefined) return cached;
     let found: { name: string; rank: number } | null = null;
     for (const def of registeredDefinitions()) {
+        if (def.id.startsWith(SWEEP_ID_PREFIX)) continue;
         const rank = def.name === BASE_CREATURE ? -1 : plainRank(def);
         if (rank === null || !satisfiesCharacteristics(def, req)) continue;
         if (
@@ -161,32 +167,17 @@ function creatureRequirement(def: CardDefinition): TargetRequirement | null {
     return types.includes("Creature") ? req : null;
 }
 
-/** Is the spell's effect on its target a boon — a non-negative pump — so the
- *  holder casts it on ITS OWN creature rather than the opponent's? A
- *  requirement that says "you control" says the same thing outright. */
+/** Is the spell's effect on its target a boon, so the holder casts it on ITS
+ *  OWN creature rather than the opponent's? The Bot's own sign
+ *  (`targetSlotBeneficence`), so the pose and the valuation cannot disagree;
+ *  a requirement that says "you control" says the same thing outright. */
 function favoursItsTarget(
     def: CardDefinition,
     req: TargetRequirement
 ): boolean {
-    if (req.controller === "you") return true;
-    const onTarget = (def.effects ?? []).filter(
-        (op) =>
-            "target" in op &&
-            typeof op.target === "object" &&
-            op.target !== null &&
-            "target" in op.target &&
-            op.target.target === 0
-    );
     return (
-        onTarget.length > 0 &&
-        onTarget.every(
-            (op) =>
-                op.op === "pump" &&
-                typeof op.power === "number" &&
-                typeof op.toughness === "number" &&
-                op.power >= 0 &&
-                op.toughness >= 0
-        )
+        req.controller === "you" ||
+        targetSlotBeneficence(def, undefined, 0) === "beneficial"
     );
 }
 
@@ -225,8 +216,8 @@ function narrows(req: TargetRequirement): boolean {
 
 /**
  * The creature and, when the requirement names a combat role, the declared
- * combat that make `def` castable. `holderSeat` seats are the position's own
- * (`"me"` is the holder).
+ * combat that make `def` castable; seats are the position's own (`"me"` is
+ * the holder).
  */
 export function targetPose(def: CardDefinition): TargetPose {
     const req = creatureRequirement(def);
@@ -235,14 +226,19 @@ export function targetPose(def: CardDefinition): TargetPose {
     if (name === null) return NO_POSE;
     const owner = favoursItsTarget(def, req) ? "me" : "opp";
     const other = owner === "me" ? "opp" : "me";
-    const cards: ScenarioCard[] = [
-        {
-            name,
-            owner,
-            zone: "battlefield",
-            ...(req.tappedFilter === "tapped" ? { tapped: true } : {}),
-        },
-    ];
+    // The position already seeds the base creature on both sides.
+    const tapped = req.tappedFilter === "tapped";
+    const cards: ScenarioCard[] =
+        name === BASE_CREATURE && !tapped
+            ? []
+            : [
+                  {
+                      name,
+                      owner,
+                      zone: "battlefield",
+                      ...(tapped ? { tapped: true } : {}),
+                  },
+              ];
     const omitToughnessBoost = req.toughnessFilter?.max !== undefined;
     const roles = asList(req.combatRoleFilter);
     if (roles.includes("attacking")) {
@@ -291,7 +287,7 @@ export type CostPose = {
 export function costPose(def: CardDefinition): CostPose {
     const cards: ScenarioCard[] = [];
     const discard = def.additionalCosts?.discard;
-    if (discard) {
+    if (discard && typeof discard.count === "number") {
         const types = asList(discard.filter?.type);
         const name =
             types.length === 0 || types.includes("Land")
@@ -301,7 +297,7 @@ export function costPose(def: CardDefinition): CostPose {
             name,
             owner: "me",
             zone: "hand",
-            count: typeof discard.count === "number" ? discard.count : 1,
+            count: discard.count,
         });
     }
     const colourless = def.manaCost?.C ?? 0;

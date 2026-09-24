@@ -13,7 +13,7 @@ import type {
     TargetRequirement,
 } from "../../../cards/types";
 import { getLegalActions } from "../../rules";
-import { buildBotReachState, playBotReach } from "../botReach";
+import { botReachSpec, buildBotReachState, playBotReach } from "../botReach";
 
 const DESTROY: EffectOp[] = [{ op: "destroy", target: { target: 0 } }];
 const PUMP: EffectOp[] = [
@@ -129,5 +129,45 @@ describe("a requirement no plain creature satisfies stays unmodelled", () => {
             subtypeFilter: ["Bot Reach Nonexistent Type"],
         });
         expect(castable(def)).toBe(false);
+    });
+});
+
+describe("the pose stays out of positions that did not need it", () => {
+    it("an untyped X discard is paid by the opaque hand card, not a real one", () => {
+        const def = instant(
+            "x-discard",
+            {},
+            { additionalCosts: { discard: { filter: {}, count: "X" } } }
+        );
+        const handOf = (d: CardDefinition) =>
+            botReachSpec(d).cards.filter((c) => c.zone === "hand");
+        expect(handOf(def)).toEqual([]);
+    });
+
+    it("an unnarrowed requirement declares no combat and seeds no extra creature", () => {
+        const spec = botReachSpec(instant("plain", {}));
+        expect(spec.combat).toBeUndefined();
+        expect(spec.phase).toBe("PRECOMBAT_MAIN");
+        expect(spec.manaPool).toBeUndefined();
+    });
+});
+
+describe("the pose puts the target on the side where the spell is cast", () => {
+    it("a boon on a blocker is cast with the holder defending", () => {
+        const spec = botReachSpec(
+            instant(
+                "boon",
+                { combatRoleFilter: ["blocking"] },
+                { effects: PUMP }
+            )
+        );
+        expect(spec.activePlayer).toBe("opp");
+    });
+
+    it("removal of a blocker is cast with the holder attacking", () => {
+        const spec = botReachSpec(
+            instant("removal", { combatRoleFilter: ["blocking"] })
+        );
+        expect(spec.activePlayer).toBe("me");
     });
 });
