@@ -1070,8 +1070,8 @@ function applyProbeChoice(
         checkStateBasedActions(branch);
         return true;
     }
-    // Issue #4441 — no other Move answers a mid-resolution choice the probe
-    // can replay, so each is unprovable; listed, so a new kind reds `check:ts`.
+    // Issue #4441 — no other answer is one this probe replays, so each is
+    // unprovable; listed, so a new Move kind reds `check:ts`.
     switch (move.kind) {
         case "pass":
         case "mulligan":
@@ -1504,8 +1504,9 @@ export function isProbeEligibleMove(
             cost.loyalty !== undefined
         );
     }
-    // Issue #4441 — only a cast or an activation can be dropped as dominated;
-    // listed, so a new Move kind reds `check:ts` until someone decides.
+    // Issue #4441 — only a cast or a printed-ability activation is probed (a
+    // GRANTED activation is not); listed, so a new Move kind reds `check:ts`
+    // until someone decides.
     switch (move.kind) {
         case "pass":
         case "mulligan":

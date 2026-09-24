@@ -946,9 +946,10 @@ export function applyMoveInSearch(
             // either kind was ever built. Now that they ARE decision nodes,
             // the decline is a branch the tree plays — and this switch then
             // had no `default` (issue #4441 added the `assertNever` tail), so
-            // without these cases it applied NOTHING: the choice would stay at the head of the queue, the same node would
-            // be re-expanded, and the playout would spin on it instead of
-            // moving past the window.
+            // without these cases it applied NOTHING: the choice would stay
+            // at the head of the queue, the same node would be re-expanded,
+            // and the playout would spin on it instead of moving past the
+            // window.
             //
             // Applied through the SAME pure resolvers the two decline
             // mutations drive (`declineMadness` / `declineRebound`,
@@ -1774,12 +1775,14 @@ export function applyMoveInSearch(
 
         case "mulligan-bottom":
         case "name-card":
-            // Issue #4441 — neither kind is a search decision. No generator
-            // builds either Move (`NON_ZONE_CANDIDATE_SOURCE` maps both to
-            // "none", `enumerateMoves` never constructs one); the Brain answers
-            // both outside the tree — `mulligan-bottom` in its pre-game
-            // mulligan branch, `name-card` with the view's `nameCardDefault`
-            // (`src/lib/ai/brain.ts`). So one reaching this switch is a wiring
+            // Issue #4441 — neither kind is a search decision, and nothing
+            // under `convex/gre` constructs either Move. `mulligan-bottom`:
+            // `decidingPlayer` returns null while `mulligan.bottoming`, so the
+            // search never runs on that window. `name-card`: no engine Move
+            // constructor exists. The Brain answers both outside the tree —
+            // `mulligan-bottom` in its pre-game mulligan branch, `name-card`
+            // with the view's `nameCardDefault` (`src/lib/ai/brain.ts`). So
+            // one reaching this switch is a wiring
             // bug upstream, and applying nothing would leave the choice at the
             // queue head and spin the playout on it — refuse it loudly instead.
             throw new Error(
