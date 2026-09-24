@@ -8127,6 +8127,94 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         },
         note: 'CR 614.9 recipient-keyed redirection (issue #3810). A redirect conserves the stake, so its per-OP beneficence sign is genuinely `"neutral"` and its two announced slots carry OPPOSITE signs — carried per FIELD by `SPLIT_SIGN_OPS` (`gre/ai/beneficence.ts`), which `misdirectedTargetCount` reads to rank sibling target tuples. Proof-of-failure: dropping the `redirectDamage` row from `SPLIT_SIGN_OPS` reds this at EVERY seed — the bot shields the opponent and redirects the damage onto its own face, the Wild Growth gift in a new costume.',
     },
+    {
+        // SACRIFICE-OUTLET reachability (CR 701.21a, issue #4261). The bot's
+        // precombat main, a Grizzly Bears on each side, Nantuko Husk in hand
+        // and five untapped Swamps for its {2}{B}: a 2/2 body that can turn
+        // any creature into +2/+2 until end of turn. Casting it is strictly
+        // better than holding it.
+        //
+        // Before the fix the cast edge read WORSE than `pass` on every seed:
+        // the tree opened a "sacrifice a creature" child at each node after
+        // the cast, and the rollouts drew it at random, so each rollout that
+        // held the outlet stripped its own board. A twin whose ability cost
+        // mana instead of a creature was cast. Fixed by class, not by card:
+        // `isDeferrableTransientSacrifice` and `isTransientSacrificeConversion`
+        // (`search.ts`).
+        label: "Sacrifice outlet with a transient payoff: casts the creature",
+        spec: {
+            cards: [
+                { name: "Nantuko Husk", owner: "me", zone: "hand" },
+                ...Array.from({ length: 5 }, () => ({
+                    name: "Swamp",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                })),
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                { name: "Ornithopter", owner: "me", zone: "battlefield" },
+                { name: "Castle", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "graveyard" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Ornithopter", owner: "opp", zone: "battlefield" },
+                { name: "Castle", owner: "opp", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "graveyard" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        // The Bot-play sweep's own position, budget and seeds
+        // (`botReachSpec`, `BOT_REACH_BUDGET`): a REACHABILITY claim, the
+        // verdict `oracle:compile` measures. At a larger budget `pass` edges
+        // ahead again by ~1.5% of mean reward on this board, so the entry
+        // states what the issue measures and no more.
+        budget: { iterations: 48 },
+        seeds: [0xb07, 0x5eed],
+        tier: "must",
+        // A PREDICATE for the reason the Kicker {X} entry gives: a
+        // reachability claim, kept out of the weight fit.
+        expect: {
+            predicate: (move, state) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                instanceIdsForName(state, "Nantuko Husk").has(
+                    move.cardInstanceId
+                ),
+            describe: "casts Nantuko Husk",
+        },
+        note: "Bot Gap `never-chosen › Creature › pump` (7 cards). Issue #4261.",
+    },
+    {
+        // The other half of the pair (CR 701.21a, issue #4261): Nantuko Husk
+        // already on the battlefield in its controller's precombat main, with
+        // a spare Grizzly Bears to feed it. +2/+2 until end of turn with no
+        // combat in sight is a creature thrown away for nothing, and the
+        // activation is still available in a window where the payoff matters.
+        label: "Sacrifice outlet with a transient payoff: no sacrifice in the main phase",
+        spec: {
+            cards: [
+                { name: "Nantuko Husk", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 5,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        // A PREDICATE, like its pair: kept out of the weight fit.
+        expect: {
+            predicate: (move) =>
+                move !== null && move.kind !== "activate-ability",
+            describe: "does not sacrifice a creature to Nantuko Husk",
+        },
+        note: "Discriminating pair of the outlet-cast entry above. Issue #4261.",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the
