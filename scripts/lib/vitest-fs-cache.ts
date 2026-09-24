@@ -8,7 +8,8 @@ import type { Plugin } from "vite";
  * `experimental.fsModuleCache` persists each transformed module to disk, so a
  * later vitest invocation reads the transform back instead of re-running
  * Vite's pipeline on it. The spike asked whether that cuts the ~176 s of
- * `transform` the four suites measured (2026-09-24). Verdict: DROP from every
+ * `transform` the four vitest runs
+ * (node, dom, bot, blade) measured (2026-09-24). Verdict: DROP from every
  * gate, `health` included — the numbers and why are in
  * `docs/agents/quality-gates.md` § Filesystem module cache.
  *

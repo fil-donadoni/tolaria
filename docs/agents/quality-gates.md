@@ -476,8 +476,8 @@ Re-derive at a quiet moment before quoting a speed-up.
 
 Vitest 4's `experimental.fsModuleCache` writes every transformed module to
 disk and serves it back to a later invocation. The question was whether it
-cuts the `transform` phase (≈176 s summed across the four suites, measured
-2026-09-24) on `health`. **Verdict: drop — from every tier, `health`
+cuts the `transform` phase (≈176 s summed across the four
+vitest runs the issue measured on 2026-09-24 — node, dom, bot, blade) on `health`. **Verdict: drop — from every tier, `health`
 included.** It stays in the tree only as a manual knob,
 `TOLARIA_VITEST_FS_CACHE=<dir>` (`scripts/lib/vitest-fs-cache.ts`), which no
 script sets.
@@ -506,8 +506,9 @@ the heavy tier (`TOLARIA_VITEST_WORKERS=4`), vitest's own `Duration`
 B and D are the two health cycles in `health`'s real shape: D's `test:app`
 transform (109.6 s) is B's cold figure, and the cache doubled to 16 362
 files instead of hitting. Against the quiet baseline A2, D is **+28 s** wall:
-the transform saving (−24 s summed, all of it `test:bot`) is smaller than the
-cold write's cost on `test:app` (+30 s). A is voided as a comparison — it ran
+`test:app` +30 s (it pays the cold write and
+reads nothing back), `test:bot` −21 s (the one in-cycle hit, reading
+`test:app`'s transforms), `test:blade` +19 s (keyed apart, it only writes). A is voided as a comparison — it ran
 at load 40–72. C2 is the ceiling a stable path would reach: **−67 s (−15 %)**
 against A2, transform 180 → 59 s.
 
