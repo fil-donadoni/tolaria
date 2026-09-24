@@ -74,6 +74,11 @@ describe("Protection line — refusals (fail-closed)", () => {
         "Protection from Vampires, from Werewolves, and from Zombies",
         "Protection from",
         "Protection from red and from",
+        "Protection from red, from blue", // bare comma list is not printed
+        "Protection from red and from blue, from green", // mixed separators
+        "Protection from red and from blue and from green",
+        "Protection from red, from blue, and from red", // duplicate
+        "Protection from red and from red",
     ])("%s", (line) => {
         const outcome = compileCard(creature("Fixture", "{1}{W}", line));
         expect(outcome.state).toBe("unparsed");

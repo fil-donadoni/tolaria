@@ -109,25 +109,26 @@ const semicolonGroups: Rule<KeywordIR[][]> = listOf(
 
 export const KEYWORD_LINE_SLOT = "keyword-line";
 
-const keywordRunRule: Rule<SlotIR> = map(
-    semicolonGroups,
-    (groups): RuleResult<SlotIR> => {
-        const keywords = groups.flat();
-        const seen = new Set<string>();
-        for (const k of keywords) {
-            // The same keyword twice on one line is not a shape Magic prints;
-            // it is a sign the line was misread, so it fails rather than being
-            // silently deduped.
-            if (seen.has(k.ability)) {
-                return fail(
-                    `keyword "${k.ability}" named twice on one line`,
-                    k.ability
-                );
-            }
-            seen.add(k.ability);
+/** One `keywords` slot, refusing a keyword named twice on the line. */
+function keywordsSlot(keywords: readonly KeywordIR[]): RuleResult<SlotIR> {
+    const seen = new Set<string>();
+    for (const k of keywords) {
+        // The same keyword twice on one line is not a shape Magic prints;
+        // it is a sign the line was misread, so it fails rather than being
+        // silently deduped.
+        if (seen.has(k.ability)) {
+            return fail(
+                `keyword "${k.ability}" named twice on one line`,
+                k.ability
+            );
         }
-        return ok({ kind: "keywords", keywords });
+        seen.add(k.ability);
     }
+    return ok({ kind: "keywords", keywords });
+}
+
+const keywordRunRule: Rule<SlotIR> = map(semicolonGroups, (groups) =>
+    keywordsSlot(groups.flat())
 );
 
 // ── Enchant <descriptor> (CR 702.5a) ───────────────────────────────────────
@@ -352,10 +353,7 @@ export const kickerRule: Rule<SlotIR> = rule("kicker", (span, ctx) => {
  */
 export const keywordLineRule: Rule<SlotIR> = oneOf("keyword line", [
     keywordRunRule,
-    map(
-        protectionListRule,
-        (keywords): RuleResult<SlotIR> => ok({ kind: "keywords", keywords })
-    ),
+    map(protectionListRule, keywordsSlot),
     enchantRule,
     kickerRule,
 ]);

@@ -29,8 +29,34 @@ import type { KeywordIR } from "../ir";
 import { keywordVocabulary } from "./keywordVocabulary";
 
 const PROTECTION_HEAD = "protection from ";
-const QUALITY_SEPARATOR = /, and from |, from | and from /;
+const AND_FROM = " and from ";
 const COMMA_FROM = ", from ";
+const COMMA_AND_FROM = ", and from ";
+
+/**
+ * The printed shapes only: one quality, "A and from B", or the list "A, from
+ * B, and from C" (final separator ", and from"). Anything else — a bare
+ * "A, from B", mixed separators, a third "and from" — is not printed and is
+ * refused rather than read.
+ */
+function splitQualities(rest: string): readonly string[] | null {
+    if (rest.includes(COMMA_FROM)) {
+        const head = rest.lastIndexOf(COMMA_AND_FROM);
+        if (head < 0) return null;
+        const items = [
+            ...rest.slice(0, head).split(COMMA_FROM),
+            rest.slice(head + COMMA_AND_FROM.length),
+        ];
+        return items.length >= 3 &&
+            items.every((q) => !q.includes(AND_FROM) && !q.includes(", "))
+            ? items
+            : null;
+    }
+    const items = rest.split(AND_FROM);
+    return items.length <= 2 && items.every((q) => !q.includes(", "))
+        ? items
+        : null;
+}
 
 /** `"Protection from black and from red"` → `["protection from black", …]`. */
 export const protectionKeywordsRule: Rule<readonly KeywordIR[]> = rule(
@@ -44,9 +70,12 @@ export const protectionKeywordsRule: Rule<readonly KeywordIR[]> = rule(
         const base = keywordVocabulary().get("protection");
         if (base === undefined)
             return fail("the registry carries no Protection keyword", span);
-        const qualities = span
-            .slice(PROTECTION_HEAD.length)
-            .split(QUALITY_SEPARATOR);
+        const qualities = splitQualities(span.slice(PROTECTION_HEAD.length));
+        if (qualities === null)
+            return fail(
+                'a protection list is "A", "A and from B" or "A, from B, and from C" (CR 702.16g)',
+                span
+            );
         const keywords: KeywordIR[] = [];
         for (const quality of qualities) {
             const ability = `${PROTECTION_HEAD}${quality}`.toLowerCase();
