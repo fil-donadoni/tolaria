@@ -816,6 +816,11 @@
         },
         {
             "kind": "hand-tail",
+            "key": "Order // Chaos",
+            "issue": 4473
+        },
+        {
+            "kind": "hand-tail",
             "key": "Putrid Warrior",
             "issue": 4339
         },
