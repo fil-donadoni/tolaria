@@ -21,19 +21,14 @@ import {
     makePlayer,
     makeState,
 } from "../../cards/__tests__/setup";
-import type { CardDefinition } from "../../cards/types";
+import type { CardDefinition, TargetSelection } from "../../cards/types";
 import { finalizeTargetSelection } from "../../game";
 import {
     activateAbilityOnState,
     tryAutoCommitPendingActivation,
 } from "../activation";
 import { sacrificeSourceSnapshot } from "../sacrificeChoice";
-import {
-    getPlayer,
-    resolveTopOfStack,
-    type GameState,
-    type TargetSelection,
-} from "../state";
+import { getPlayer, resolveTopOfStack, type GameState } from "../state";
 
 const PRINTED_POWER = 2;
 const LIVE_POWER = 5;
